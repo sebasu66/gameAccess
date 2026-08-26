@@ -1,4 +1,4 @@
-"""Steam account-switching helper for the gameAccess desktop MVP.
+"""Steam account switching for the gameAccess desktop MVP.
 
 Security boundary:
 - never read/store/inject Steam passwords;
@@ -28,11 +28,20 @@ class SteamSwitchResult:
     message: str
 
 
-def _hidden_process_flags() -> int:
-    """Avoid transient console windows for Windows command-line helpers."""
-    if os.name != "nt":
-        return 0
-    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+@dataclass(frozen=True)
+class RememberedSteamAccount:
+    display_name: str
+    account_name: str
+
+    @property
+    def label(self) -> str:
+        if self.display_name and self.display_name != self.account_name:
+            return f"{self.display_name} ({self.account_name})"
+        return self.account_name or self.display_name
+
+
+def _creationflags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
 
 def find_steam_exe() -> Path | None:
@@ -50,7 +59,7 @@ def _steam_running() -> bool:
         capture_output=True,
         text=True,
         check=False,
-        creationflags=_hidden_process_flags(),
+        creationflags=_creationflags(),
     )
     return "steam.exe" in check.stdout.lower()
 
@@ -64,7 +73,7 @@ def stop_steam(timeout: float = 15.0) -> SteamSwitchResult:
         return SteamSwitchResult(True, "shutdown", "Steam was already closed")
 
     try:
-        subprocess.Popen([str(steam), "steam://exit"], close_fds=True)
+        subprocess.Popen([str(steam), "steam://exit"], close_fds=True, creationflags=_creationflags())
     except OSError as exc:
         return SteamSwitchResult(False, "shutdown", f"Could not request Steam shutdown: {exc}")
 
@@ -82,7 +91,7 @@ def start_steam() -> SteamSwitchResult:
     if not steam:
         return SteamSwitchResult(False, "locate", "Steam executable was not found")
     try:
-        subprocess.Popen([str(steam)], close_fds=True)
+        subprocess.Popen([str(steam)], close_fds=True, creationflags=_creationflags())
         return SteamSwitchResult(True, "start", "Steam started")
     except OSError as exc:
         return SteamSwitchResult(False, "start", f"Could not start Steam: {exc}")
@@ -97,12 +106,7 @@ def restart_to_account_chooser() -> SteamSwitchResult:
 
 
 def _steam_windows() -> Iterable:
-    """Return visible top-level windows that plausibly belong to Steam.
-
-    Steam UI is Chromium-based, so exact control types can vary between client
-    releases. We intentionally search visible UIA text/buttons instead of
-    relying on private files or auth state.
-    """
+    """Return visible top-level windows that plausibly belong to Steam."""
     desktop = Desktop(backend="uia")
     for win in desktop.windows():
         try:
@@ -114,7 +118,7 @@ def _steam_windows() -> Iterable:
                     capture_output=True,
                     text=True,
                     check=False,
-                    creationflags=_hidden_process_flags(),
+                    creationflags=_creationflags(),
                 )
                 proc_name = proc.stdout.lower()
             except Exception:
@@ -126,11 +130,7 @@ def _steam_windows() -> Iterable:
 
 
 def visible_steam_texts() -> list[str]:
-    """Diagnostic helper: return visible non-empty UI texts from Steam windows.
-
-    This reads only what is already visible on screen. It does not inspect
-    credential stores or Steam auth files.
-    """
+    """Return non-empty text currently visible in Steam windows."""
     texts: list[str] = []
     seen: set[str] = set()
     for win in _steam_windows():
@@ -153,38 +153,161 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip()).casefold()
 
 
-def wait_for_account_chooser(timeout: float = 20.0) -> SteamSwitchResult:
-    """Wait until Steam exposes a remembered-account chooser-like UI."""
+def _account_name_value(text: str) -> str | None:
+    patterns = (
+        r"^nombre de la cuenta\s*:\s*(.+)$",
+        r"^account name\s*:\s*(.+)$",
+        r"^login name\s*:\s*(.+)$",
+    )
+    normalized = text.strip()
+    for pattern in patterns:
+        match = re.match(pattern, normalized, flags=re.IGNORECASE)
+        if match:
+            value = match.group(1).strip()
+            return value or None
+    return None
+
+
+def _plausible_display_name(text: str) -> bool:
+    value = text.strip()
+    if not value or len(value) > 100:
+        return False
+    lowered = _normalize(value)
+    blocked = (
+        "¿quién va a jugar?",
+        "who's playing",
+        "iniciar sesión en steam",
+        "sign in to steam",
+        "añadir cuenta",
+        "add account",
+        "nombre de la cuenta:",
+        "account name:",
+        "para obtener las descripciones",
+        "minimizar",
+        "maximizar",
+        "cerrar",
+        "sistema",
+    )
+    return not any(token in lowered for token in blocked)
+
+
+def remembered_accounts_from_visible_texts(texts: list[str]) -> list[RememberedSteamAccount]:
+    """Parse account cards exposed by Steam's visible chooser UI.
+
+    Steam typically exposes one display-name text node immediately followed by
+    a localized `Account name: ...` text node. We intentionally ignore merged
+    container text and keep only those visible card pairs.
+    """
+    accounts: list[RememberedSteamAccount] = []
+    seen: set[tuple[str, str]] = set()
+
+    for index, text in enumerate(texts):
+        account_name = _account_name_value(text)
+        if not account_name:
+            continue
+
+        display_name = ""
+        for previous in reversed(texts[max(0, index - 3):index]):
+            if _plausible_display_name(previous):
+                display_name = previous.strip()
+                break
+        if not display_name:
+            display_name = account_name
+
+        key = (_normalize(display_name), _normalize(account_name))
+        if key in seen:
+            continue
+        seen.add(key)
+        accounts.append(RememberedSteamAccount(display_name=display_name, account_name=account_name))
+
+    return accounts
+
+
+def remembered_accounts() -> list[RememberedSteamAccount]:
+    return remembered_accounts_from_visible_texts(visible_steam_texts())
+
+
+def account_chooser_visible() -> bool:
+    texts = visible_steam_texts()
+    joined = " | ".join(texts).casefold()
+    hints = (
+        "¿quién va a jugar?",
+        "who's playing",
+        "choose an account",
+        "select an account",
+        "elegir una cuenta",
+        "seleccionar una cuenta",
+        "añadir cuenta",
+        "add account",
+    )
+    return any(hint in joined for hint in hints) and bool(remembered_accounts_from_visible_texts(texts))
+
+
+def ensure_account_chooser(timeout: float = 22.0) -> SteamSwitchResult:
+    """Reuse an already-visible chooser; otherwise restart Steam once."""
+    if account_chooser_visible():
+        return SteamSwitchResult(True, "chooser", "Steam account chooser already visible")
+
+    restarted = restart_to_account_chooser()
+    if not restarted.ok and account_chooser_visible():
+        # Steam can keep helper processes alive longer than steam.exe shutdown
+        # detection expects while the chooser is already usable. Prefer the
+        # observable UI state over a strict process timeout.
+        return SteamSwitchResult(True, "chooser", "Steam account chooser is visible")
+    if not restarted.ok:
+        return restarted
+
     deadline = time.time() + timeout
     while time.time() < deadline:
-        texts = visible_steam_texts()
-        joined = " | ".join(texts).casefold()
-        hints = ("choose an account", "select an account", "elegir una cuenta", "seleccionar una cuenta", "who's playing")
-        if any(h in joined for h in hints):
+        if account_chooser_visible():
             return SteamSwitchResult(True, "chooser", "Steam account chooser detected")
-        if len(texts) >= 3 and _steam_running():
-            return SteamSwitchResult(True, "chooser", "Steam UI detected; attempting account match")
         time.sleep(0.5)
     return SteamSwitchResult(False, "chooser", "Steam account chooser was not detected before timeout")
+
+
+def list_remembered_accounts(open_chooser: bool = True) -> tuple[SteamSwitchResult, list[RememberedSteamAccount]]:
+    if open_chooser:
+        ready = ensure_account_chooser()
+        if not ready.ok:
+            return ready, []
+    accounts = remembered_accounts()
+    if not accounts:
+        return SteamSwitchResult(False, "discover", "No remembered Steam accounts were visible"), []
+    return SteamSwitchResult(True, "discover", f"Found {len(accounts)} remembered Steam account(s)"), accounts
+
+
+def _find_click_text_for_target(target_label: str) -> tuple[str, RememberedSteamAccount] | None:
+    target = _normalize(target_label)
+    for account in remembered_accounts():
+        aliases = {_normalize(account.display_name), _normalize(account.account_name), _normalize(account.label)}
+        if target in aliases:
+            return account.display_name, account
+    return None
 
 
 def select_remembered_account(account_label: str, timeout: float = 20.0) -> SteamSwitchResult:
     """Click a remembered account already shown in Steam's chooser.
 
-    `account_label` must match visible chooser text (case-insensitive). No
-    username/password entry is attempted. If the label is not visible, the
-    function fails closed and leaves Steam untouched.
+    The target may be either the visible display name or the visible Steam
+    account/login name. No username/password entry is attempted.
     """
     target = _normalize(account_label)
     if not target:
         return SteamSwitchResult(False, "select", "No remembered account label was supplied")
 
-    chooser = wait_for_account_chooser(timeout=timeout)
+    chooser = ensure_account_chooser(timeout=timeout)
     if not chooser.ok:
         return chooser
 
     deadline = time.time() + timeout
     while time.time() < deadline:
+        matched = _find_click_text_for_target(account_label)
+        if not matched:
+            time.sleep(0.4)
+            continue
+        click_text, account = matched
+        click_target = _normalize(click_text)
+
         for win in _steam_windows():
             try:
                 controls = [win] + list(win.descendants())
@@ -195,34 +318,32 @@ def select_remembered_account(account_label: str, timeout: float = 20.0) -> Stea
                     text = (ctrl.window_text() or "").strip()
                 except Exception:
                     continue
-                if _normalize(text) != target:
+                if _normalize(text) != click_target:
                     continue
-
                 try:
-                    iface = ctrl.iface_invoke
-                    iface.Invoke()
-                    return SteamSwitchResult(True, "select", f"Selected remembered Steam account: {account_label}")
+                    ctrl.iface_invoke.Invoke()
+                    return SteamSwitchResult(True, "select", f"Selected Steam account: {account.label}")
                 except Exception:
                     pass
                 try:
                     ctrl.click_input()
-                    return SteamSwitchResult(True, "select", f"Selected remembered Steam account: {account_label}")
+                    return SteamSwitchResult(True, "select", f"Selected Steam account: {account.label}")
                 except Exception as exc:
-                    return SteamSwitchResult(False, "select", f"Found account label but could not click it: {exc}")
-        time.sleep(0.5)
+                    return SteamSwitchResult(False, "select", f"Found account card but could not click it: {exc}")
+        time.sleep(0.4)
 
-    visible = visible_steam_texts()
-    sample = ", ".join(visible[:20]) if visible else "<no visible Steam text>"
+    visible = remembered_accounts()
+    sample = ", ".join(account.label for account in visible) if visible else "<no remembered accounts visible>"
     return SteamSwitchResult(
         False,
         "select",
-        f"Remembered account '{account_label}' was not found in Steam's visible chooser. Visible UI sample: {sample}",
+        f"Remembered account '{account_label}' was not found in Steam's visible chooser. Visible accounts: {sample}",
     )
 
 
 def switch_to_remembered_account(account_label: str) -> SteamSwitchResult:
-    """Restart Steam and select one remembered account from its visible UI."""
-    restarted = restart_to_account_chooser()
-    if not restarted.ok:
-        return restarted
+    """Open/reuse Steam's account chooser and select one remembered account."""
+    ready = ensure_account_chooser()
+    if not ready.ok:
+        return ready
     return select_remembered_account(account_label)
