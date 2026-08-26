@@ -64,6 +64,8 @@ class Launcher(tk.Tk):
                 detail = response.json().get("detail", response.text)
                 raise RuntimeError(detail)
             return response.json()
+        except requests.exceptions.ConnectionError as exc:
+            raise RuntimeError("El servicio local de gameAccess no está iniciado (127.0.0.1:8000).") from exc
         except Exception as exc:
             raise RuntimeError(f"API error: {exc}") from exc
 
@@ -106,11 +108,12 @@ class Launcher(tk.Tk):
         texts = visible_steam_texts()
         hint = ""
         if texts:
-            hint = "\n\nVisible Steam text now:\n" + "\n".join(texts[:12])
+            hint = "\n\nTexto visible de Steam ahora:\n" + "\n".join(texts[:12])
         account = simpledialog.askstring(
-            "Steam remembered account",
-            "Enter the account label exactly as Steam shows it in the remembered-account chooser.\n"
-            "gameAccess will close Steam, reopen it, and click that already-authorized account."
+            "Prueba de cambio de cuenta de Steam",
+            "Escribí EXACTAMENTE el nombre que aparece debajo de la cuenta en la pantalla de Steam donde elegís usuario.\n\n"
+            "No es tu contraseña ni tu email. Es solamente el nombre visible de una cuenta que Steam ya recuerda.\n\n"
+            "Al aceptar, gameAccess cerrará Steam, lo abrirá de nuevo e intentará seleccionar esa cuenta automáticamente."
             + hint,
         )
         if account:
