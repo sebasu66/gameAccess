@@ -1,0 +1,10 @@
+.hero-meta {
+  column-gap: 22px;
+  row-gap: 10px;
+  margin-top: 4px;
+  margin-bottom: 18px;
+}
+
+.hero-meta > span {
+  gap: 7px;
+}
