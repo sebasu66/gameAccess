@@ -1,5 +1,5 @@
 import { switchSteamAccount } from "./native";
-import type { CatalogGame, GameDetails, LeaseResponse, UserSummary } from "./types";
+import type { CatalogGame, GameDetails, LeaseResponse, SteamSearchResponse, UserSummary } from "./types";
 
 const API = import.meta.env.VITE_GAMEACCESS_API ?? "http://127.0.0.1:8000";
 
@@ -75,6 +75,9 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
 }
 
 export const loadDetails = (gameId: number) => request<GameDetails>(`/games/${gameId}/details`);
+
+export const searchSteam = (query: string, limit = 20) =>
+  request<SteamSearchResponse>(`/steam/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 
 async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
