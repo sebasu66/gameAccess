@@ -459,3 +459,7 @@ def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dic
     session.add(lease)
     session.commit()
     return {"ok": True, "status": lease.status}
+
+from .pool_routes import router as pool_router
+app.include_router(pool_router)
+
