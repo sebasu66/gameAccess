@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, Gamepad2, Loader2, Search, X } from "lucide-react";
 
 import { searchSteam } from "./api";
@@ -45,6 +46,7 @@ export default function SteamGlobalSearch({ query, setQuery, onOpenCatalogGame }
   const requestId = useRef(0);
   const trimmed = query.trim();
   const searching = trimmed.length >= 2;
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
 
   useEffect(() => {
     if (!searching) {
@@ -89,6 +91,58 @@ export default function SteamGlobalSearch({ query, setQuery, onOpenCatalogGame }
     setQuery("");
   };
 
+  const searchPage = searching ? (
+    <section className="global-search-page" aria-label={`Resultados para ${trimmed}`}>
+      <div className="global-search-page-inner">
+        <div className="global-search-page-head">
+          <button className="global-search-back" type="button" onClick={backHome}>
+            <ArrowLeft size={18} /> Volver al inicio
+          </button>
+          <div>
+            <span className="global-search-eyebrow">BÚSQUEDA GLOBAL</span>
+            <h1>Resultados para “{trimmed}”</h1>
+            <p>
+              {loading
+                ? "Buscando en Steam y cruzando disponibilidad con GameAccess…"
+                : `${results.length} resultado${results.length === 1 ? "" : "s"}. Podés abrir cualquier juego aunque todavía no tenga una licencia en el pool.`}
+            </p>
+          </div>
+        </div>
+
+        {error ? <div className="global-search-message">No pudimos consultar Steam ahora mismo.</div> : null}
+        {!loading && !error && !results.length ? <div className="global-search-message">No encontramos juegos con ese nombre.</div> : null}
+
+        <div className="global-search-results-page">
+          {results.map((result) => {
+            const price = formatPrice(result);
+            const inPool = Boolean(result.catalog_game);
+            return (
+              <button
+                type="button"
+                key={result.app_id}
+                className={`global-search-result-card ${inPool ? "in-pool" : "steam-only"}`}
+                onClick={() => openResult(result)}
+                title={`Abrir ficha de ${result.name}`}
+              >
+                <div className="global-search-card-art">
+                  {result.image_url ? <img src={result.image_url} alt="" loading="lazy" /> : <Gamepad2 size={34} />}
+                </div>
+                <div className="global-search-card-copy">
+                  <strong>{result.name}</strong>
+                  <span className={inPool ? "pool-state" : "steam-state"}>{accessLabel(result)}</span>
+                </div>
+                <div className="global-search-card-side">
+                  {price ? <strong>{price}</strong> : <strong>Ver ficha</strong>}
+                  <small>Steam App {result.app_id}</small>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <>
       <div className="global-search">
@@ -103,61 +157,10 @@ export default function SteamGlobalSearch({ query, setQuery, onOpenCatalogGame }
           {loading ? <Loader2 className="spin global-search-spinner" size={15} /> : null}
           {query ? <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={15} /></button> : null}
         </label>
-
-        {searching ? (
-          <section className="global-search-page" aria-label={`Resultados para ${trimmed}`}>
-            <div className="global-search-page-inner">
-              <div className="global-search-page-head">
-                <button className="global-search-back" type="button" onClick={backHome}>
-                  <ArrowLeft size={18} /> Volver al inicio
-                </button>
-                <div>
-                  <span className="global-search-eyebrow">BÚSQUEDA GLOBAL</span>
-                  <h1>Resultados para “{trimmed}”</h1>
-                  <p>
-                    {loading
-                      ? "Buscando en Steam y cruzando disponibilidad con GameAccess…"
-                      : `${results.length} resultado${results.length === 1 ? "" : "s"}. Podés abrir cualquier juego aunque todavía no tenga una licencia en el pool.`}
-                  </p>
-                </div>
-              </div>
-
-              {error ? <div className="global-search-message">No pudimos consultar Steam ahora mismo.</div> : null}
-              {!loading && !error && !results.length ? <div className="global-search-message">No encontramos juegos con ese nombre.</div> : null}
-
-              <div className="global-search-results-page">
-                {results.map((result) => {
-                  const price = formatPrice(result);
-                  const inPool = Boolean(result.catalog_game);
-                  return (
-                    <button
-                      type="button"
-                      key={result.app_id}
-                      className={`global-search-result-card ${inPool ? "in-pool" : "steam-only"}`}
-                      onClick={() => openResult(result)}
-                      title={`Abrir ficha de ${result.name}`}
-                    >
-                      <div className="global-search-card-art">
-                        {result.image_url ? <img src={result.image_url} alt="" loading="lazy" /> : <Gamepad2 size={34} />}
-                      </div>
-                      <div className="global-search-card-copy">
-                        <strong>{result.name}</strong>
-                        <span className={inPool ? "pool-state" : "steam-state"}>{accessLabel(result)}</span>
-                      </div>
-                      <div className="global-search-card-side">
-                        {price ? <strong>{price}</strong> : <strong>Ver ficha</strong>}
-                        <small>Steam App {result.app_id}</small>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        ) : null}
       </div>
 
-      {selectedStore ? <SteamStoreDetail result={selectedStore} onClose={() => setSelectedStore(null)} /> : null}
+      {portalTarget && searchPage ? createPortal(searchPage, portalTarget) : null}
+      {portalTarget && selectedStore ? createPortal(<SteamStoreDetail result={selectedStore} onClose={() => setSelectedStore(null)} />, portalTarget) : null}
     </>
   );
 }
