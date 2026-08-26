@@ -11,10 +11,6 @@ export default function WindowChrome() {
     if (!isTauri()) return;
     const appWindow = getCurrentWindow();
     void appWindow.isMaximized().then(setMaximized).catch(() => undefined);
-    const unlisten = appWindow.onResized(() => {
-      void appWindow.isMaximized().then(setMaximized).catch(() => undefined);
-    });
-    return () => { void unlisten.then((fn) => fn()); };
   }, []);
 
   if (!isTauri()) return null;
