@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
-use std::{env, fs, path::{Path, PathBuf}, process::Command};
+use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -24,6 +24,13 @@ struct MachineProfile {
     memory_gb: Option<f64>,
     cpu: Option<String>,
     gpus: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct SteamAccountSwitchResult {
+    ok: bool,
+    stage: String,
+    message: String,
 }
 
 fn steam_path_candidates() -> Vec<PathBuf> {
@@ -222,6 +229,92 @@ fn machine_profile() -> MachineProfile {
     MachineProfile { memory_gb: None, cpu: None, gpus: Vec::new() }
 }
 
+#[cfg(target_os = "windows")]
+fn launcher_dir() -> Option<PathBuf> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .and_then(|desktop| desktop.parent())
+        .map(|apps| apps.join("launcher"))
+}
+
+#[tauri::command]
+fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
+    if account_label.trim().is_empty() {
+        return SteamAccountSwitchResult {
+            ok: false,
+            stage: "input".into(),
+            message: "No Steam account label was supplied".into(),
+        };
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let Some(launcher) = launcher_dir() else {
+            return SteamAccountSwitchResult {
+                ok: false,
+                stage: "adapter".into(),
+                message: "Could not locate the local Steam adapter".into(),
+            };
+        };
+        let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
+        let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+        let code = r#"import json,sys; from steam_switch import switch_to_remembered_account; r=switch_to_remembered_account(sys.argv[1]); print(json.dumps({'ok':r.ok,'stage':r.stage,'message':r.message}, ensure_ascii=False))"#;
+        let output = Command::new(&python)
+            .current_dir(&launcher)
+            .args(["-c", code, account_label.as_str()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        let output = match output {
+            Ok(output) => output,
+            Err(err) => {
+                return SteamAccountSwitchResult {
+                    ok: false,
+                    stage: "adapter".into(),
+                    message: format!("Could not run the local Steam UI adapter: {err}"),
+                }
+            }
+        };
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return SteamAccountSwitchResult {
+                ok: false,
+                stage: "adapter".into(),
+                message: if stderr.is_empty() { "Steam UI adapter failed".into() } else { stderr },
+            };
+        }
+
+        let parsed: serde_json::Value = match serde_json::from_slice(&output.stdout) {
+            Ok(value) => value,
+            Err(err) => {
+                return SteamAccountSwitchResult {
+                    ok: false,
+                    stage: "adapter".into(),
+                    message: format!("Steam UI adapter returned invalid data: {err}"),
+                }
+            }
+        };
+        let ok = parsed.get("ok").and_then(|value| value.as_bool()).unwrap_or(false);
+        let stage = parsed.get("stage").and_then(|value| value.as_str()).unwrap_or("switch").to_string();
+        let message = parsed.get("message").and_then(|value| value.as_str()).unwrap_or("Steam account switch finished").to_string();
+        if ok {
+            thread::sleep(Duration::from_secs(4));
+        }
+        return SteamAccountSwitchResult { ok, stage, message };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        SteamAccountSwitchResult {
+            ok: false,
+            stage: "platform".into(),
+            message: "Remembered Steam account switching is currently implemented only on Windows".into(),
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -229,7 +322,8 @@ fn main() {
             open_steam_install,
             open_steam_run,
             steam_download_status,
-            machine_profile
+            machine_profile,
+            switch_steam_account
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
