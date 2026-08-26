@@ -1,8 +1,11 @@
 import os
+import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, simpledialog, ttk
 
 import requests
+
+from steam_switch import switch_to_remembered_account, visible_steam_texts
 
 API = os.environ.get("GAMEACCESS_API", "http://127.0.0.1:8000")
 USER_ID = int(os.environ.get("GAMEACCESS_USER_ID", "1"))
@@ -12,10 +15,11 @@ class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("gameAccess")
-        self.geometry("760x500")
+        self.geometry("760x540")
         self.resizable(True, True)
         self.games = []
         self.current_lease_id = None
+        self.current_account_label = None
 
         header = ttk.Frame(self, padding=16)
         header.pack(fill="x")
@@ -45,6 +49,7 @@ class Launcher(tk.Tk):
         self.play_btn.pack(side="left")
         self.release_btn = ttk.Button(footer, text="Release current session", command=self.release_current)
         self.release_btn.pack(side="left", padx=8)
+        ttk.Button(footer, text="Test Steam switch", command=self.test_steam_switch).pack(side="left", padx=8)
         ttk.Button(footer, text="Earn 100 demo credits", command=self.earn_demo).pack(side="right")
 
         self.status = ttk.Label(self, text="Ready", padding=(16, 0, 16, 12))
@@ -80,6 +85,37 @@ class Launcher(tk.Tk):
         except Exception as exc:
             self.status.config(text=str(exc))
 
+    def _run_steam_switch(self, account_label: str):
+        self.status.config(text=f"Switching Steam to {account_label}...")
+
+        def work():
+            result = switch_to_remembered_account(account_label)
+            self.after(0, lambda: self._steam_switch_finished(result))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _steam_switch_finished(self, result):
+        if result.ok:
+            self.status.config(text=result.message)
+            messagebox.showinfo("Steam ready", result.message)
+        else:
+            self.status.config(text=f"Steam switch failed: {result.message}")
+            messagebox.showwarning("Steam switch", result.message)
+
+    def test_steam_switch(self):
+        texts = visible_steam_texts()
+        hint = ""
+        if texts:
+            hint = "\n\nVisible Steam text now:\n" + "\n".join(texts[:12])
+        account = simpledialog.askstring(
+            "Steam remembered account",
+            "Enter the account label exactly as Steam shows it in the remembered-account chooser.\n"
+            "gameAccess will close Steam, reopen it, and click that already-authorized account."
+            + hint,
+        )
+        if account:
+            self._run_steam_switch(account.strip())
+
     def lease_selected(self):
         selected = self.tree.selection()
         if not selected:
@@ -93,15 +129,20 @@ class Launcher(tk.Tk):
                 json={"user_id": USER_ID, "game_id": game_id, "minutes": int(self.minutes.get())},
             )
             self.current_lease_id = lease["lease_id"]
+            self.current_account_label = lease["account"]["label"]
             self.status.config(
-                text=f"Lease #{lease['lease_id']} reserved: {lease['game']['name']} via {lease['account']['label']}"
+                text=f"Lease #{lease['lease_id']} reserved: {lease['game']['name']} via {self.current_account_label}"
             )
-            messagebox.showinfo(
-                "Session reserved",
-                "The account lease is reserved.\n\n"
-                "Provider login automation is intentionally not implemented yet; "
-                "the next adapter will use a supported real Steam session flow rather than exposing credentials.",
+
+            use_switch = messagebox.askyesno(
+                "Start Steam session",
+                "The game lease is reserved.\n\n"
+                "gameAccess can now close your current Steam session and select the remembered provider account "
+                f"'{self.current_account_label}' from Steam's own account chooser.\n\n"
+                "No password or Steam Guard secret is read by gameAccess. Continue?",
             )
+            if use_switch:
+                self._run_steam_switch(self.current_account_label)
             self.refresh()
         except Exception as exc:
             messagebox.showerror("Could not lease", str(exc))
@@ -114,6 +155,7 @@ class Launcher(tk.Tk):
             result = self.api("POST", f"/leases/{self.current_lease_id}/release")
             self.status.config(text=f"Lease released: {result['status']}")
             self.current_lease_id = None
+            self.current_account_label = None
             self.refresh()
         except Exception as exc:
             messagebox.showerror("Release failed", str(exc))
