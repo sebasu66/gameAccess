@@ -28,6 +28,13 @@ class SteamSwitchResult:
     message: str
 
 
+def _hidden_process_flags() -> int:
+    """Avoid transient console windows for Windows command-line helpers."""
+    if os.name != "nt":
+        return 0
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def find_steam_exe() -> Path | None:
     candidates = [
         Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Steam" / "steam.exe",
@@ -43,6 +50,7 @@ def _steam_running() -> bool:
         capture_output=True,
         text=True,
         check=False,
+        creationflags=_hidden_process_flags(),
     )
     return "steam.exe" in check.stdout.lower()
 
@@ -106,6 +114,7 @@ def _steam_windows() -> Iterable:
                     capture_output=True,
                     text=True,
                     check=False,
+                    creationflags=_hidden_process_flags(),
                 )
                 proc_name = proc.stdout.lower()
             except Exception:
@@ -150,14 +159,10 @@ def wait_for_account_chooser(timeout: float = 20.0) -> SteamSwitchResult:
     while time.time() < deadline:
         texts = visible_steam_texts()
         joined = " | ".join(texts).casefold()
-        # Locale-independent fallback is presence of multiple clickable-ish
-        # account rows; locale hints simply make detection faster.
         hints = ("choose an account", "select an account", "elegir una cuenta", "seleccionar una cuenta", "who's playing")
         if any(h in joined for h in hints):
             return SteamSwitchResult(True, "chooser", "Steam account chooser detected")
         if len(texts) >= 3 and _steam_running():
-            # Steam's chooser can expose sparse UIA metadata depending on build;
-            # let selection perform the final exact-match check.
             return SteamSwitchResult(True, "chooser", "Steam UI detected; attempting account match")
         time.sleep(0.5)
     return SteamSwitchResult(False, "chooser", "Steam account chooser was not detected before timeout")
@@ -193,8 +198,6 @@ def select_remembered_account(account_label: str, timeout: float = 20.0) -> Stea
                 if _normalize(text) != target:
                     continue
 
-                # Prefer semantic UIA invocation where available; otherwise
-                # click the center of the visible account row/text.
                 try:
                     iface = ctrl.iface_invoke
                     iface.Invoke()
