@@ -1,0 +1,38 @@
+name: gameAccess Windows preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/tauri-windows-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Prepare desktop resources
+        run: npm run prepare-icons
+      - name: Build NSIS installer
+        run: npm run tauri build -- --bundles nsis
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameAccess-windows-preview
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
