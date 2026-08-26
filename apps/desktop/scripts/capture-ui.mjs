@@ -37,9 +37,7 @@ const cyberpunkDetails = {
     background: "https://cdn.akamai.steamstatic.com/steam/apps/1091500/library_hero.jpg",
     hero_image: "https://cdn.akamai.steamstatic.com/steam/apps/1091500/library_hero.jpg",
     screenshots: [
-      { id: 1, full: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/ss_872822c5e50dc71f345416098d29fc3ae5cd26c1.1920x1080.jpg" },
-      { id: 2, full: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/ss_4bda6f67580d94832ed2d5814e15e245da75292c.1920x1080.jpg" },
-      { id: 3, full: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/ss_bb1a60b8e1f3f1381a0b9d5fb378e6fcfbe77d98.1920x1080.jpg" }
+      { id: 1, full: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/ss_872822c5e50dc71f345416098d29fc3ae5cd26c1.1920x1080.jpg" }
     ],
     movies: [],
   },
@@ -54,6 +52,21 @@ await page.route("http://127.0.0.1:8000/**", async (route) => {
   if (url.pathname === "/catalog") return route.fulfill({ status: 200, headers, body: JSON.stringify(catalog) });
   if (url.pathname === "/users/1") return route.fulfill({ status: 200, headers, body: JSON.stringify({ id: 1, username: "seba", credits: 1500 }) });
   if (url.pathname === "/games/1/details") return route.fulfill({ status: 200, headers, body: JSON.stringify(cyberpunkDetails) });
+  if (url.pathname === "/leases" && route.request().method() === "POST") {
+    return route.fulfill({
+      status: 200,
+      headers,
+      body: JSON.stringify({
+        lease_id: 42,
+        game: { id: 1, name: "Cyberpunk 2077", app_id: 1091500 },
+        credits_spent: 150,
+        credits_remaining: 1350,
+        starts_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        session_action: "provider_adapter_required"
+      })
+    });
+  }
   return route.fulfill({ status: 404, headers, body: JSON.stringify({ detail: "visual fixture" }) });
 });
 
@@ -67,8 +80,14 @@ await page.screenshot({ path: path.join(outDir, "desktop-home.png"), fullPage: t
 
 await page.locator(".game-card").first().click();
 await page.waitForSelector(".detail-panel");
-await page.waitForTimeout(3000);
+await page.waitForTimeout(1800);
 await page.screenshot({ path: path.join(outDir, "desktop-game-detail.png"), fullPage: false });
+
+await page.locator(".close-detail").click();
+await page.locator(".hero .primary-button").click();
+await page.waitForSelector(".session-card");
+await page.waitForTimeout(900);
+await page.screenshot({ path: path.join(outDir, "desktop-session.png"), fullPage: false });
 
 await browser.close();
 console.log(`Screenshots written to ${outDir}`);
