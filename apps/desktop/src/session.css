@@ -1,0 +1,102 @@
+.session-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(3, 5, 8, .78);
+  backdrop-filter: blur(14px);
+}
+
+.session-card {
+  position: relative;
+  width: min(760px, 94vw);
+  min-height: 430px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.11);
+  background-color: #0b0f15;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 38px 110px rgba(0,0,0,.62);
+}
+
+.session-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(7,9,13,.98) 0%, rgba(7,9,13,.9) 46%, rgba(7,9,13,.45) 100%),
+    linear-gradient(0deg, rgba(7,9,13,.96), rgba(7,9,13,.08));
+}
+
+.session-content {
+  position: relative;
+  z-index: 2;
+  width: min(520px, 82%);
+  padding: 52px;
+}
+
+.session-status-icon {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 24px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #06110d;
+  background: linear-gradient(145deg, #8affca, #49d79d);
+  box-shadow: 0 16px 42px rgba(78, 226, 166, .2);
+}
+
+.session-status-icon.success { background: #65f0b2; }
+.session-status-icon.error { background: #ff8c8c; color: #250606; }
+
+.session-content h2 {
+  margin: 9px 0 5px;
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.session-content h3 {
+  margin: 22px 0 7px;
+  font-size: 18px;
+}
+
+.session-content p {
+  margin: 0;
+  color: #aeb7c5;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.session-steps {
+  display: grid;
+  grid-template-columns: auto minmax(24px, 1fr) auto minmax(24px, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin-top: 31px;
+  color: #667180;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.session-steps i {
+  height: 1px;
+  background: rgba(255,255,255,.12);
+}
+
+.session-steps span.current { color: #c9fff0; }
+.session-steps span.done { color: #65f0b2; }
+.session-steps span.done + i { background: rgba(101,240,178,.42); }
+
+.session-close { margin-top: 30px; }
+
+@media (max-width: 650px) {
+  .session-content { width: 100%; padding: 34px 28px; }
+  .session-card { min-height: 390px; }
+  .session-steps { font-size: 9px; gap: 6px; }
+}
