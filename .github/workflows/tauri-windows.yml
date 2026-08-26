@@ -1,0 +1,32 @@
+name: gameAccess Tauri Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/src-tauri/**"
+      - "apps/desktop/package.json"
+      - ".github/workflows/tauri-windows.yml"
+  pull_request:
+    paths:
+      - "apps/desktop/src-tauri/**"
+      - "apps/desktop/package.json"
+
+jobs:
+  cargo-check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate frontend
+        run: npm run build
+      - name: Check native host
+        run: cargo check --manifest-path src-tauri/Cargo.toml
