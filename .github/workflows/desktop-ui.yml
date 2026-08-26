@@ -1,0 +1,40 @@
+name: gameAccess desktop UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-ui.yml"
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "apps/desktop/**"
+
+jobs:
+  api-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r apps/api/requirements.txt
+      - run: python -m compileall -q apps/api/app
+      - name: Import FastAPI application
+        working-directory: apps/api
+        run: python -c "from app.main import app; assert app.title == 'gameAccess API'; print(app.version)"
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
