@@ -1,414 +1,197 @@
 # gameAccess — Product & Business Plan
 
-> Living document. Update this as product, technical, market, and operational discoveries are validated.
+> Living, self-contained product document. It is written for someone who has never seen the conversations that originated the project. It should explain the business model, product behavior, rationale, constraints, risks, and intended evolution rather than functioning merely as a checklist.
 
 ## 1. Product vision
 
-gameAccess should feel like a streaming platform for games rather than a reseller dashboard or a clone of Steam.
+gameAccess is intended to make accessing PC games feel closer to Netflix, Xbox Game Pass, or a modern streaming service than to buying and managing provider accounts. The customer interacts with **games**, while provider accounts, license pools, sourcing, Steam identities, cloud providers, and lease mechanics remain backend implementation details.
 
-The customer opens one attractive application, browses large game artwork and collections, downloads games with one click, and sees a simple **PLAY** action when access is available. Provider accounts, Steam identities, account pools, G2G sourcing, cloud providers, and lease mechanics are implementation details and should normally be invisible.
+The application should be artwork-first and immediately understandable: browse a game, download it, see whether access is available, and press **PLAY**. A user should not need to understand why a particular game is being fulfilled through one provider account, another account, a cloud service, or eventually owned infrastructure.
 
-Reference UX: Netflix / Xbox Game Pass / GeForce NOW, with an even simpler purchase and play flow.
+The project starts under an important economic constraint: it should require little or almost no capital before proving demand. The initial business therefore combines low-cost sourcing and just-in-time fulfillment with a very small amount of inventory for products where immediate availability demonstrably increases sales. Expensive owned cloud-gaming infrastructure is a possible later evolution, not a prerequisite.
 
-## 2. Initial business constraint
+## 2. The product abstraction: games rather than accounts
 
-Start with little or almost no capital committed before a sale. Do not build a fleet of gaming PCs before demand has been demonstrated.
+A game can eventually expose one or more ways to play: local temporary access, purchase/permanent transfer where applicable, cloud play, inclusion in a subscription benefit, or promotional/reward-funded access. These are fulfillment methods behind a common game-centric UI.
 
-Initial strategy:
+A customer requesting FC, Cyberpunk, No Man's Sky, or another title should not normally see labels such as `Steam account #17`, `lease #4231`, G2G seller names, or cloud-provider identifiers. Those details belong in administrative and diagnostic interfaces.
 
-1. Discover high-demand games and bundles.
-2. Source low-cost accounts/access only when economics are attractive.
-3. Use a very small amount of hot stock only for exceptionally high-demand products where immediate delivery matters.
-4. For the long tail, prefer just-in-time acquisition after a customer order where operationally viable.
-5. Use Mercado Libre initially as a demand/acquisition channel while building the gameAccess product and brand.
-6. Measure actual conversion, replacement rate, support cost, repeat purchase, and margin before scaling inventory or infrastructure.
+This abstraction is strategically important because it lets gameAccess change suppliers and fulfillment mechanisms without forcing the customer to learn a new product each time.
 
-## 3. Product abstraction
+## 3. Netflix-style frontend
 
-The user should interact with **games**, not provider accounts.
+The consumer frontend should eventually replace the current utilitarian prototype launcher. The target experience is a polished desktop/living-room application with large artwork, cinematic game pages, keyboard/mouse and controller navigation, and rows such as **New & Popular**, **Available Now**, **Trending**, **Ready on Your PC**, **Included in Your Plan**, **Cloud Ready**, **Multiplayer**, and personalized recommendations.
 
-A game can eventually expose one or more ways to play:
+Availability is itself useful consumer information. A card may say `2 copies available`, `last copy available`, or `currently busy`. This makes a finite pool understandable without exposing its implementation.
 
-- Download / local access
-- Temporary access
-- Purchase / permanent transfer where applicable
-- Cloud play
-- Included in a plan
-- Promotional/free access
+The game page should make the next action obvious: **DOWNLOAD**, **PLAY**, **TOP UP**, **TRY**, or **WAIT/NOTIFY ME**. Technical metadata should be secondary.
 
-Backend providers may include Steam accounts, account pools, family-access arrangements where applicable, GeForce NOW/cloud services, other storefronts, and later our own infrastructure. The UI should not leak these details unless necessary.
+## 4. Download first; entitlement is checked at Play
 
-## 4. Netflix-style frontend
-
-Replace the current Tkinter launcher once the broker MVP is validated.
-
-Desired home experience:
-
-- Hero game / current promotion
-- New & Popular
-- Available Now
-- Trending
-- New Releases
-- Ready on Your PC
-- Included in Your Plan
-- Cheap / low-credit games
-- Cloud Ready
-- Multiplayer
-- Controller Friendly
-- Recommended For You
-
-Game cards should prioritize artwork and immediate actions rather than technical metadata.
-
-Example state:
-
-- `FC — PLAY NOW — 120 tokens / 2 h`
-- `Cyberpunk — 2 copies available`
-- `Hogwarts — busy, estimated availability 12 min`
-- `No Man's Sky — READY ON THIS PC`
-
-Provider account labels, Steam account numbers, lease IDs, and sourcing information belong in admin/debug interfaces only.
-
-## 5. Credits / token economy
-
-The consumer-facing economy should use an internal virtual currency rather than constantly showing ARS/USD prices.
-
-Working term: **tokens / fichas** (final brand/name TBD).
-
-Flow:
-
-`payment method -> top-up -> wallet tokens -> game access`
-
-Users top up once through supported payment methods. Confirmed payments credit the wallet immediately. Games and access durations are priced in tokens.
-
-Advantages:
-
-- very fast repeat purchases;
-- simple promotional pricing;
-- bonus tokens on larger top-ups;
-- rewards and referrals;
-- promotional expiration rules;
-- easier dynamic pricing without constantly changing displayed fiat prices;
-- remaining balance encourages repeat use.
-
-Internally maintain a proper ledger rather than only a mutable balance.
-
-Suggested balance origins:
-
-- `paid`
-- `promotion`
-- `reward`
-- `referral`
-- `refund`
-- `admin_adjustment`
-
-The UI can display one token balance while the backend retains provenance, expiration, and restrictions.
-
-Do not use virtual currency to intentionally obscure the real economic cost from customers.
-
-## 6. Top-ups and promotions
-
-Potential mechanics:
-
-- first top-up bonus;
-- larger top-up bonus tiers;
-- happy-hour discounts;
-- weekend promotions;
-- new-release promotions;
-- token cashback;
-- referral rewards;
-- daily/weekly rewards;
-- promotional codes;
-- giveaways/sweepstakes where legally and operationally appropriate;
-- expiring promotional tokens.
-
-Example only (not final pricing):
-
-| Top-up | Tokens | Bonus |
-|---|---:|---:|
-| Small | 500 | — |
-| Medium | 1,100 | +10% |
-| Large | 2,400 | +20% |
-| XL | 5,500 | +30% |
-
-## 7. Earn-to-play / rewarded actions
-
-Users may optionally earn promotional tokens through legitimate monetizable actions.
-
-Potential sources:
-
-- rewarded advertising;
-- surveys;
-- legitimate CPA offers;
-- referrals;
-- sponsored game discovery;
-- publisher-sponsored trials/events.
-
-Rule: expected net revenue from the action must exceed the expected marginal cost of the reward, with fraud/chargeback/support allowances.
-
-Cheap or already-amortized inventory can be particularly suitable for reward-funded access. Popular/new AAA access should consume more tokens.
-
-## 8. Download first, entitlement at Play
-
-Core UX rule:
+A central UX principle is:
 
 > **Discovery and downloading are free. Entitlement is checked at Play, not at Download.**
 
-Where technically and legally possible, a user should be able to click game artwork and begin downloading/preparing game content even with insufficient tokens.
+Where technically and legally possible, clicking a game should be enough to begin downloading/preparing its files even when the customer has no current access or insufficient credits. Large games can therefore be ready before the user decides to spend money.
 
-The installed state can become:
+When the game reaches `READY TO PLAY`, pressing PLAY triggers the availability and entitlement check. If the customer needs credits or a subscription, gameAccess presents the appropriate flow and returns directly to the pending Play action after payment.
 
-`READY TO PLAY`
+Preloading must not fabricate or bypass a provider entitlement. Installation and authorization are separate concerns.
 
-When the user presses PLAY, gameAccess checks entitlement/availability and, if necessary, presents a top-up flow. After payment, return directly to the pending Play action rather than making the customer find the game again.
+## 5. Internal currency and wallet
 
-This also enables preloading large games before a planned purchase/access period.
+The normal in-product unit should be an internal virtual currency—working name **tokens/fichas**, final branding TBD—rather than constantly presenting ARS or USD prices.
 
-Installation/preloading must not fabricate or bypass a provider entitlement; actual authorization remains a separate Play-time operation.
+The basic flow is:
 
-## 9. Account/access pool
+`payment method -> top-up -> wallet tokens -> game access`
 
-The backend models provider accounts as resources. A provider account can own/access multiple games and may be leased exclusively where required.
+This makes repeat use much faster and supports bonus top-ups, promotional pricing, rewards, referrals, and expiring promotional balances. The UI can show a single token balance while the backend keeps an immutable ledger identifying whether value originated from a paid top-up, promotion, reward, referral, refund, or administrative adjustment.
 
-Example:
+Virtual currency should simplify the experience and enable promotions, not intentionally obscure the economic cost to the customer.
 
-`Customer -> requests FC -> allocator -> compatible free provider account -> temporary lease -> play -> release`
+Top-up packages can reward larger purchases—for example, a larger package may contain proportionally more tokens than a small one. Exact exchange rates and bonuses are commercial variables and should not be hard-coded into the product model.
 
-Important abstractions:
+## 6. Subscription membership, top-up discounts, and free trial
 
-- game catalog;
-- provider account;
-- game entitlement/copy;
-- availability;
-- lease;
-- customer identity;
-- customer save/profile;
-- session;
-- wallet/ledger.
+A recurring subscription is a complementary revenue model rather than a replacement for tokens. A member can still spend tokens on games, but receives preferential economics and other benefits.
 
-The customer identity must remain independent of whichever provider account happens to service a session.
+The most straightforward initial membership benefit is a **discount or bonus on every top-up**. For example, the same payment could purchase more tokens for a subscriber than for a non-subscriber. Other benefits can later include promotional token drops, extended guarantees, priority when capacity is scarce, exclusive offers, or lower token prices for selected inventory.
 
-## 10. Saves and customer continuity
+This has an important business property: subscription revenue becomes recurring while actual game consumption remains metered. gameAccess does not have to promise an unlimited Netflix-style catalog for a fixed monthly fee.
 
-A customer's progress should belong to their gameAccess identity, not conceptually to a provider account.
+### Trial with payment method
 
-Longer-term adapters may:
+The membership can offer a short free trial—working example: **3 days**—when the customer registers a valid payment method and explicitly accepts the recurring subscription terms.
 
-1. identify game-specific save locations;
-2. restore the customer's save before launch;
-3. prevent accidental cross-customer save contamination;
-4. capture the save after a session;
-5. store/version it under the gameAccess customer profile.
+During the trial, the user can experience the service and membership benefits, but free game access can be **capacity-limited**. Paid customers and already-purchased access should not be displaced merely to satisfy unlimited trial demand. Trial availability can therefore be drawn from spare capacity, selected promotional games, or a defined trial allowance.
 
-Some games bind progress to SteamID/external publisher accounts and will require explicit compatibility testing. Maintain a per-game compatibility database.
+The lifecycle is conceptually:
 
-## 11. Availability and dynamic pricing
+`start trial -> payment method authorized/stored by payment provider -> 3-day trial -> cancel before renewal = no subscription charge -> remain subscribed = first recurring charge at renewal`
 
-Inventory is capacity, not merely a list of accounts.
+The checkout must clearly disclose the trial duration, the amount/cadence of the subsequent charge, and how to cancel. The payment provider—not gameAccess source code—should hold sensitive card credentials. The system needs explicit subscription states such as `trialing`, `active`, `cancel_at_period_end`, `past_due`, `canceled`, and appropriate webhook/idempotency handling.
 
-Track per game:
+The trial is valuable not only as marketing but as a conversion measurement: we can observe trial start -> actual play -> first top-up -> paid renewal -> subsequent retention.
 
-- copies/entitlements;
-- currently leased copies;
-- free copies;
-- historical occupancy;
-- peak/off-peak demand;
-- acquisition/replacement cost;
-- expected support/replacement rate;
-- profitability.
+## 7. Promotions and reward-funded play
 
-Future pricing can respond to availability and demand in tokens, e.g. off-peak discounts or promotions for underused inventory. Avoid surprising or deceptive pricing.
+Tokens make promotional mechanics straightforward: first-top-up bonuses, happy hours, weekend events, token cashback, referral rewards, promo codes, giveaways where legally appropriate, and expiring promotional balances.
 
-## 12. Sourcing / G2G -> Mercado Libre experiment
+Users may also earn promotional tokens through legitimate monetizable actions such as rewarded advertising, surveys, referrals, sponsored discovery, or publisher-sponsored trials. The economic rule is simple: expected net revenue from an action must exceed the expected marginal cost of the reward after fraud, support, and payment costs.
 
-Initial low-capital opportunity discovery:
+Cheap or already-amortized inventory is especially suitable for reward-funded access. New/high-demand games should consume more capacity and therefore generally more tokens.
 
-`G2G listings -> normalize game/account contents -> compare demand/competition -> calculate costs/fees/risk -> opportunity score`
+## 8. Provider-account and access pool
 
-Prefer high-demand, recent/popular games and bundles with meaningful price gaps.
+The backend models provider accounts and entitlements as resources. A provider account may contain several games and, when required by the underlying provider, may be leased exclusively to one active customer/session.
 
-Two inventory modes:
+Conceptually:
 
-### Hot stock
+`customer requests game -> allocator finds compatible free entitlement/account -> lease -> session -> release`
 
-Keep approximately one immediately deliverable unit for a small number of very high-demand products. After sale, replenish.
+Core domain concepts are the game catalog, provider account, entitlement/copy, customer identity, lease, session, availability, customer save/profile, wallet, and ledger.
 
-### Just-in-time catalog
+The customer's gameAccess identity must remain independent of whichever provider identity happens to service a session.
 
-Do not pre-purchase long-tail inventory. Acquire after an order when the sourcing/fulfillment SLA makes that viable. Do not promise instant delivery when supplier response cannot actually be guaranteed.
+## 9. Customer saves and continuity
 
-Opportunity scoring should eventually include:
+The intended experience is that progress belongs to the gameAccess customer, not to an arbitrary provider account. Per-game adapters can eventually locate saves, restore the customer's version before play, prevent cross-customer contamination, capture progress afterward, and version it under the customer's profile.
 
-- source price;
-- alternative suppliers;
-- seller reputation/history;
-- target-market competition;
-- apparent demand;
-- fees/taxes/payment cost;
-- expected replacement/refund cost;
-- net margin;
-- product freshness/trend;
-- bundle value;
-- cloud compatibility where relevant.
+This cannot be assumed to work universally. Some games bind progression to SteamID or a separate publisher account. Each game therefore needs compatibility metadata and real testing.
 
-## 13. Bundles
+## 10. Demand sensing: the users tell us what inventory to buy
 
-A source account containing several desirable games may be worth more as a consumer-facing bundle than as a generic account.
+Inventory purchasing should be driven by **observed unmet demand**, not merely by intuition about which games seem popular.
 
-Example presentation:
+gameAccess should record the entire intent funnel while respecting appropriate privacy boundaries:
 
-`AAA PACK — Cyberpunk + Hogwarts + RDR2 + No Man's Sky`
+`search -> search result/no result -> game-page view -> download intent -> installation -> Play attempt -> successful allocation OR blocked by no availability -> wait/abandon -> actual session`
 
-The opportunity engine should understand account contents and estimate the best merchandising strategy rather than applying a simple source-price multiplier.
+These events have different predictive value. A search is weak interest; downloading 100 GB is substantially stronger intent; pressing PLAY while every copy is occupied is direct evidence of demand that the business failed to monetize.
 
-## 14. Cloud gaming / future expansion
+### Example: Cyberpunk shortage
 
-Do not invest in a large local GPU/PC fleet before demand is proven.
+Suppose gameAccess has two usable Cyberpunk copies and five customers attempt to play during the same period. Two sessions are fulfilled and three customers are blocked by inventory. The system should expose this as **three units of immediately unmet demand**, rather than merely reporting that both licenses are busy.
 
-Potential later providers/infrastructure:
+If acquisition economics remain favorable, that can trigger a high-priority procurement recommendation or alert. The operational objective for hot inventory can be to acquire and make another compatible copy available **within roughly one hour**, allowing waiting customers to be notified and converted while their intent is still fresh.
 
-- GeForce NOW or other cloud-gaming services where the commercial model is workable;
-- full cloud PCs;
-- GPU providers plus streaming stack;
-- dedicated gameAccess PCs;
-- hybrid owned capacity + cloud overflow.
+The system should not blindly purchase one copy for every blocked click. Procurement decisions combine concurrent unmet demand, unique customers, repeated attempts, historical conversion, occupancy, current acquisition price, supplier availability, expected margin, and the probability that demand persists after the current spike.
 
-Potential eventual product:
+### Installation as a leading indicator
 
-`game -> click -> ready-to-play local or cloud session`
+Because downloading is allowed before payment, installations become a valuable forward-looking signal. If 30 customers install Cyberpunk this week but gameAccess owns capacity for only three simultaneous users, the business can increase inventory **before** all 30 press PLAY.
 
-Cloud availability should be another backend fulfillment method, not a separate consumer experience.
+Likewise, searches for titles that are not in the catalog reveal completely unserved demand. An administrative demand view might report:
 
-## 15. Security / provider sessions
+`Game X — 83 searches / 7 days — 31 unique interested users — 19 strong intents — inventory 0 — suggested acquisition: test 2 copies`
 
-Keep provider credentials out of normal UI.
+### Demand Engine
 
-A future provider adapter should prefer supported real session/authentication flows and manage account leases centrally. Do not treat a SteamID as a license: identity and entitlement are separate concepts.
+Architecturally this becomes:
 
-A customer-controlled Windows machine is an untrusted endpoint. Absolute secrecy of reusable provider session material cannot be guaranteed if that material must execute on a machine the customer administrates. Design replacement/revocation economics accordingly.
+`Telemetry -> Demand Engine -> Inventory/Procurement`
 
-See `skill.md` for accumulated Steam/session research and technical findings.
+The Demand Engine should calculate an opportunity score using signals such as unique demand, blocked Play attempts, installations, occupancy, recent trend acceleration, acquisition/replacement cost, expected selling price/token consumption, supplier depth, and expected contribution margin.
 
-## 16. Mercado Libre risk
+A cheap account is not an opportunity merely because it is cheap. It becomes an opportunity when **we have evidence that customers want the capacity it contains**.
 
-Mercado Libre reputation/account health is an important business asset. Product selection and fulfillment should optimize not only gross margin but also:
+Demand telemetry also feeds merchandising: trending rows, recommendations, promotions for underused inventory, and alerts when a popular title is close to saturation.
 
-- cancellation rate;
-- delivery SLA;
-- complaints;
-- refunds;
-- replacement incidents;
-- support burden;
-- platform-policy risk.
+## 11. Availability, capacity, and dynamic pricing
 
-Do not optimize short-term margin in a way that predictably destroys the acquisition channel.
+Inventory is capacity, not merely a list of accounts. Per game, gameAccess should understand copies/entitlements, active leases, available copies, blocked demand, occupancy by time of day, acquisition/replacement cost, support/replacement rate, and profitability.
 
-## 17. MVP roadmap
+Future token pricing can respond to genuine capacity conditions—for example, off-peak promotions for underused inventory—while avoiding surprising or deceptive pricing.
 
-### Phase 0 — current broker prototype
+## 12. Low-capital sourcing and the G2G -> Mercado Libre experiment
 
-- FastAPI backend
-- SQLite
-- catalog
-- credits
-- provider account pool
-- timed leases
-- basic launcher
+The initial commercial experiment is deliberately capital-light. gameAccess can discover source listings, normalize the games contained in an account, compare target-market demand and competition, estimate fees/risk, and produce an opportunity score.
 
-### Phase 1 — validate provider/session mechanics
+For a very small set of exceptionally high-demand games, maintaining approximately one immediately deliverable unit can be worthwhile. When it sells, the system recommends or initiates replenishment according to configured safeguards.
 
-- experimental Steam provider adapter
-- supported login/session flow research
-- lease lifecycle
-- expiration/release
-- session cleanup/revocation tests
-- per-game compatibility metadata
+For the long tail, inventory should preferably be acquired just in time after a customer order when supplier response and the promised fulfillment SLA make that viable. The business must not promise instant delivery when the upstream supplier cannot actually guarantee it.
 
-### Phase 2 — opportunity radar
+Source evaluation eventually includes price, seller history/reputation, alternative suppliers, target-market demand, competition, fees, expected replacement/refund cost, margin, trend freshness, bundle value, and compatibility with supported access methods.
 
-- G2G/source ingestion
-- Mercado Libre demand/competition inputs
-- normalization
-- margin calculator
-- opportunity scoring
-- manual approval before purchase/publication
+## 13. Bundles and merchandising
 
-### Phase 3 — consumer frontend
+A provider account containing several desirable games may have much greater perceived value as a curated bundle than as a generic account. The opportunity engine should understand account contents and estimate merchandising strategies such as an `AAA PACK — Cyberpunk + Hogwarts + RDR2 + No Man's Sky`, rather than simply multiplying source cost by a fixed markup.
 
-Replace Tkinter with a polished Netflix/Game-Pass-style desktop frontend. Candidate stack: React + Tauri (preferred to evaluate) or Electron.
+## 14. Cloud gaming and owned infrastructure are later fulfillment options
 
-Requirements:
+A large local fleet should not be purchased before recurring demand is proven. Future fulfillment may use GeForce NOW or other cloud services where commercially workable, full cloud PCs, GPU providers plus streaming software, dedicated gameAccess machines, or a hybrid of owned base capacity and cloud overflow.
 
-- artwork-first catalog;
-- gamepad/keyboard/mouse navigation;
-- hero sections and carousels;
-- install/download state;
-- availability state;
-- Play flow;
-- wallet/top-up UX;
-- promotions;
-- responsive living-room-friendly layout.
+Cloud play should ultimately appear to the customer as another way to press PLAY, not as an entirely separate product that requires understanding infrastructure.
 
-### Phase 4 — wallet/payments
+## 15. Security and provider sessions
 
-- immutable ledger
-- paid/promotional/reward balances
-- top-ups
-- payment webhooks
-- bonus rules
-- refunds/adjustments
-- promotional expiration
+Provider credentials should remain outside the normal UI. Provider adapters should prefer supported real authentication/session mechanisms and centrally manage leases. A SteamID is an identity, not a license; entitlement and identity are separate concerns.
 
-### Phase 5 — saves/profiles
+A customer-controlled Windows PC is an untrusted endpoint. If reusable provider session material must execute there, absolute secrecy cannot be guaranteed against a sufficiently technical administrator. The architecture therefore needs sensible revocation, replacement, and risk economics rather than assuming client-side secrets are mathematically inaccessible.
 
-- game adapters
-- backup/restore
-- conflict handling
-- compatibility database
+`skill.md` contains the accumulated Steam/session research and should be updated as technical facts are validated.
 
-### Phase 6 — automation
+## 16. Mercado Libre and channel risk
 
-Only after economics are validated:
+Mercado Libre can provide initial discovery and trust, but account reputation is itself a valuable business asset. Product selection and fulfillment therefore need to optimize cancellation rate, delivery SLA, complaints, refunds, replacement incidents, support burden, and platform-policy risk in addition to gross margin.
 
-- automatic repricing;
-- replenishment recommendations;
-- optional just-in-time purchasing with safeguards;
-- fulfillment automation;
-- dynamic inventory allocation;
-- fraud/risk controls;
-- demand forecasting.
+Short-term profit should not be optimized in a way that predictably destroys the acquisition channel.
 
-### Phase 7 — cloud/owned infrastructure
+## 17. What the current prototype is proving
 
-Only after recurring demand justifies capital expenditure.
+The repository currently contains an early FastAPI/SQLite broker, catalog, credits, provider-account pool, timed leases, and a basic launcher. Its purpose is to validate domain mechanics, not to represent the intended consumer experience.
 
-## 18. Metrics that decide whether to continue
+The next technical validations concern real provider/session lifecycle behavior, entitlement compatibility, expiration/release, session cleanup/revocation, and per-game compatibility. In parallel, an opportunity/demand layer should begin measuring what inventory would actually be worth acquiring.
 
-Do not judge the project only by technical success.
+Once a demonstrable Play/session flow exists, the utilitarian launcher should be replaced with the polished streaming-style frontend described above. A web-tech desktop shell such as React + Tauri is a strong candidate because it allows rich animation and catalog UI without forcing the backend into the desktop process.
 
-Track:
+Real-money integration requires a proper immutable wallet ledger, top-ups, payment-provider webhooks, subscription/trial lifecycle, refunds, bonus rules, and idempotency before accepting production payments.
 
-- listing impressions -> inquiries;
-- inquiries -> purchases;
-- first purchase -> second purchase;
-- token top-up frequency;
-- average revenue per paying user;
-- gross and contribution margin;
-- supplier fulfillment latency;
-- replacement/refund rate;
-- support minutes per order;
-- game occupancy/concurrency;
-- unused inventory;
-- customer retention;
-- complaint rate.
+Automation of purchasing, repricing, replenishment, and fulfillment should follow demonstrated economics rather than precede them.
 
-Repeat purchase is especially important: a customer returning to spend remaining/top-up tokens is much more valuable than a one-off arbitrage sale.
+## 18. Metrics that determine whether the business works
 
-## 19. Immediate next steps
+Technical success is insufficient. The business needs to measure acquisition and retention: listing impressions to inquiries, inquiries to purchases, trial starts to actual plays, trial to paid subscription conversion, first purchase to second purchase, top-up frequency, average revenue per paying user, contribution margin, supplier fulfillment latency, replacement/refund rate, support time, inventory occupancy, unmet demand, unused inventory, retention, and complaint rate.
 
-1. Keep validating Steam/session control experimentally with low-value test accounts.
-2. Build the opportunity radar before committing meaningful inventory.
-3. Identify a very small initial set of high-demand games.
-4. Keep hot stock minimal.
-5. Define the token ledger properly before real money is accepted.
-6. Replace the prototype UI with the streaming-style frontend once the underlying Play/session flow is demonstrable.
-7. Continuously add validated discoveries to `skill.md` and update this plan when product decisions change.
+Repeat use is especially important. A customer who returns, consumes remaining tokens, tops up again, or keeps a subscription is substantially more valuable than a one-off arbitrage sale.
