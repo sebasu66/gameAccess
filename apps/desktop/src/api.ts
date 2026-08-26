@@ -9,39 +9,34 @@ const steamAssets = (appId: number) => ({
   steam_url: `https://store.steampowered.com/app/${appId}/`,
 });
 
+const demoGame = (
+  id: number,
+  slug: string,
+  name: string,
+  appId: number,
+  credits: number,
+  total: number,
+  available: number,
+): CatalogGame => ({
+  id,
+  slug,
+  name,
+  app_id: appId,
+  credit_cost_per_hour: credits,
+  copies_total: total,
+  copies_available: available,
+  availability_state: available > 0 ? "ready" : total > 0 ? "owned-busy" : "unavailable",
+  ...steamAssets(appId),
+});
+
 export const fallbackCatalog: CatalogGame[] = [
-  {
-    id: 1,
-    slug: "no-mans-sky",
-    name: "No Man's Sky",
-    app_id: 275850,
-    credit_cost_per_hour: 100,
-    copies_total: 1,
-    copies_available: 1,
-    availability_state: "ready",
-    ...steamAssets(275850),
-  },
-  {
-    id: 2,
-    slug: "cyberpunk-2077",
-    name: "Cyberpunk 2077",
-    app_id: 1091500,
-    credit_cost_per_hour: 150,
-    copies_total: 2,
-    copies_available: 1,
-    availability_state: "ready",
-    ...steamAssets(1091500),
-  },
-  {
-    id: 3,
-    slug: "fc",
-    name: "EA Sports FC",
-    app_id: null,
-    credit_cost_per_hour: 180,
-    copies_total: 0,
-    copies_available: 0,
-    availability_state: "unavailable",
-  },
+  demoGame(1, "cyberpunk-2077", "Cyberpunk 2077", 1091500, 150, 2, 1),
+  demoGame(2, "no-mans-sky", "No Man's Sky", 275850, 100, 1, 1),
+  demoGame(3, "elden-ring", "ELDEN RING", 1245620, 180, 2, 1),
+  demoGame(4, "baldurs-gate-3", "Baldur's Gate 3", 1086940, 170, 1, 0),
+  demoGame(5, "hogwarts-legacy", "Hogwarts Legacy", 990080, 120, 1, 1),
+  demoGame(6, "forza-horizon-5", "Forza Horizon 5", 1551360, 130, 0, 0),
+  demoGame(7, "helldivers-2", "HELLDIVERS 2", 553850, 160, 2, 2),
 ];
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
