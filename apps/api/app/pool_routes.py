@@ -51,6 +51,16 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
     if not req.games:
         raise HTTPException(400, "pool must contain at least one game")
 
+    incoming_app_ids = {item.app_id for item in req.games}
+
+    # For this MVP stage the discovered local pool is the real GameAccess
+    # catalog. Remove the original fake seed entries from the consumer view,
+    # while retaining their rows so later admin/catalog work can reactivate them.
+    for existing in session.exec(select(core.Game)).all():
+        existing.active = bool(existing.app_id and existing.app_id in incoming_app_ids)
+        session.add(existing)
+    session.commit()
+
     # 1) Upsert the discovered Windows game catalog by AppID. The local Steam
     # appinfo cache already supplied the public display names, so this endpoint
     # does not need one network call per game.
