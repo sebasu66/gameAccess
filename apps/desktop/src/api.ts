@@ -1,3 +1,4 @@
+import { switchSteamAccount } from "./native";
 import type { CatalogGame, GameDetails, LeaseResponse, UserSummary } from "./types";
 
 const API = import.meta.env.VITE_GAMEACCESS_API ?? "http://127.0.0.1:8000";
@@ -75,11 +76,40 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
 
 export const loadDetails = (gameId: number) => request<GameDetails>(`/games/${gameId}/details`);
 
-export const leaseGame = (gameId: number, minutes = 60) =>
-  request<LeaseResponse>("/leases", {
+async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
+  await Promise.allSettled([
+    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request("/credits", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: 1,
+        amount: lease.credits_spent,
+        reason: `lease-rollback:${lease.lease_id}:steam-session-failed`,
+      }),
+    }),
+  ]);
+}
+
+export async function leaseGame(gameId: number, minutes = 60): Promise<LeaseResponse> {
+  const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
     body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }),
   });
+
+  if (lease.session_action !== "provider_adapter_required") return lease;
+  if (!lease.account?.label) {
+    await rollbackFailedLease(lease);
+    throw new Error("La reserva no tiene un perfil Steam asociado.");
+  }
+
+  try {
+    await switchSteamAccount(lease.account.label);
+    return { ...lease, session_action: "launch_ready" };
+  } catch (error) {
+    await rollbackFailedLease(lease);
+    throw error;
+  }
+}
 
 export const importSteamGame = (appId: number) =>
   request<{ created: boolean; game: CatalogGame }>(`/admin/games/import-steam/${appId}`, { method: "POST" });
