@@ -463,3 +463,6 @@ def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dic
 from .pool_routes import router as pool_router
 app.include_router(pool_router)
 
+from .steam_search_routes import router as steam_search_router
+app.include_router(steam_search_router)
+

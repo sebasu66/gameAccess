@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { leaseGame, loadDetails, loadHome } from "./api";
+import SteamGlobalSearch from "./SteamGlobalSearch";
 import {
   getMachineProfile,
   openSteamInstall,
@@ -635,7 +636,7 @@ export default function App() {
           <button className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
-          <label className="search-box"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar juegos" />{query ? <button onClick={() => setQuery("")}><X size={15} /></button> : null}</label>
+          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
           <div className="wallet-pill"><CircleDollarSign size={17} /><strong>{user.credits.toLocaleString("es-AR")}</strong><span>fichas</span></div>
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
