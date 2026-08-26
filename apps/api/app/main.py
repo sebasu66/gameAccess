@@ -92,6 +92,20 @@ class SeedAccountRequest(BaseModel):
     notes: str = ""
 
 
+class SyncAccountRequest(BaseModel):
+    """Upsert one provider account and replace its declared local inventory.
+
+    The label is an operator-side identifier. For the Steam desktop prototype it
+    can be the account name that Steam itself visibly exposes in its remembered-
+    account chooser. The API never needs a password or Steam Guard secret.
+    """
+
+    label: str = Field(min_length=1, max_length=200)
+    provider: str = "steam"
+    game_ids: list[int] = []
+    notes: str = ""
+
+
 class SeedGameRequest(BaseModel):
     slug: str
     name: str
@@ -223,6 +237,60 @@ def add_account(req: SeedAccountRequest, session: Session = Depends(get_session)
         session.add(AccountGame(account_id=account.id, game_id=game_id))
     session.commit()
     return account
+
+
+@app.post("/admin/accounts/sync")
+def sync_account(req: SyncAccountRequest, session: Session = Depends(get_session)) -> dict:
+    """Upsert a local account and replace its account->game mappings.
+
+    This is intentionally an operator/admin prototype endpoint. It stores only
+    the account label supplied by the launcher and declared ownership mappings;
+    it does not accept provider passwords or authentication tokens.
+    """
+    label = req.label.strip()
+    if not label:
+        raise HTTPException(400, "account label is required")
+
+    normalized_game_ids = list(dict.fromkeys(req.game_ids))
+    for game_id in normalized_game_ids:
+        if not session.get(Game, game_id):
+            raise HTTPException(400, f"unknown game_id {game_id}")
+
+    account = session.exec(select(ProviderAccount).where(ProviderAccount.label == label)).first()
+    created = account is None
+    if account is None:
+        account = ProviderAccount(label=label, provider=req.provider, notes=req.notes)
+        session.add(account)
+        session.commit()
+        session.refresh(account)
+    else:
+        account.provider = req.provider
+        account.notes = req.notes
+        session.add(account)
+
+    existing_mappings = session.exec(select(AccountGame).where(AccountGame.account_id == account.id)).all()
+    existing_by_game = {row.game_id: row for row in existing_mappings}
+    desired = set(normalized_game_ids)
+
+    for game_id, row in existing_by_game.items():
+        if game_id not in desired:
+            session.delete(row)
+    for game_id in normalized_game_ids:
+        if game_id not in existing_by_game:
+            session.add(AccountGame(account_id=account.id, game_id=game_id))
+
+    session.commit()
+    return {
+        "ok": True,
+        "created": created,
+        "account": {
+            "id": account.id,
+            "label": account.label,
+            "provider": account.provider,
+            "status": account.status,
+            "game_ids": normalized_game_ids,
+        },
+    }
 
 
 @app.get("/admin/accounts")
