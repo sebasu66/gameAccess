@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "apps/desktop/src-tauri/**"
+      - "apps/desktop/scripts/prepare-icons.mjs"
       - "apps/desktop/package.json"
       - ".github/workflows/tauri-windows.yml"
   pull_request:
     paths:
       - "apps/desktop/src-tauri/**"
+      - "apps/desktop/scripts/prepare-icons.mjs"
       - "apps/desktop/package.json"
 
 jobs:
@@ -28,5 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Validate frontend
         run: npm run build
+      - name: Prepare desktop icon
+        run: npm run prepare-icons
       - name: Check native host
         run: cargo check --manifest-path src-tauri/Cargo.toml
