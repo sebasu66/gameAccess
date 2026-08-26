@@ -85,7 +85,9 @@ export interface UserSummary {
 
 export interface LeaseResponse {
   lease_id: number;
+  user_id?: number;
   game: { id: number; name: string; app_id: number | null };
+  account: { id: number; label: string; provider: string };
   credits_spent: number;
   credits_remaining: number;
   starts_at: string;
