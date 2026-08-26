@@ -31,7 +31,7 @@ The repository currently implements a provider-neutral MVP:
 - exclusive time-bounded leases;
 - expiration/release;
 - desktop launcher prototype;
-- no real Steam session adapter yet.
+- an experimental Windows Steam remembered-account chooser adapter that uses visible UI Automation only.
 
 The current provider adapter target remains:
 
@@ -102,6 +102,21 @@ Do not pass Steam passwords in command-line arguments. `steam.exe -login user pa
 Steam supports QR-code login through the Steam Mobile app / Steam Guard. This allows a new device to be authorized without typing the account password on that PC. Steam Mobile shows details about the login attempt and can approve/deny it.
 
 Steam also exposes an Authorized Devices view in the mobile app, showing where the account is signed in and allowing access to be revoked. This makes supported device/session authorization and revocation the most promising direction for a real Steam adapter.
+
+### Confirmed local remembered-account chooser behavior
+
+A controlled Windows test on 2026-08-26 confirmed the following behavior for the currently installed Steam client:
+
+- after Steam is returned to its sign-in/account-choice state, it can show a remembered-account chooser without asking for the password again;
+- Windows UI Automation can read the text that is already visibly exposed by that chooser;
+- each remembered account card exposed both a visible display name and a visible localized `Account name:`/`Nombre de la cuenta:` field;
+- multiple remembered accounts were enumerated successfully without reading Steam credential files or reusable authentication material;
+- the chooser can remain usable even when helper processes make a strict `steam.exe` shutdown timeout unreliable, so adapter logic should prefer observed visible chooser state over process shutdown alone;
+- account switching can therefore target a remembered account by either its visible display name or its visible account/login name and click the corresponding visible account card.
+
+Privacy/design rule: do **not** commit real customer/operator Steam account names into this public repository. Discover them locally at runtime and store any operator inventory mapping only in the local/runtime database.
+
+The current launcher includes an operator inventory flow: discover remembered Steam accounts from the visible chooser, select one, declare which catalog games it owns, and sync only that local mapping to the gameAccess API. This removes the need to type account names manually while keeping credentials outside gameAccess.
 
 Important security boundary: if Steam runs on a PC controlled by the customer, assume the endpoint is hostile. Anything written to disk or memory can potentially be inspected by an administrator/debugger. The goal is not mathematically perfect secrecy; it is to avoid intentionally disclosing credentials/recovery material and to make access revocable and operationally cheap to replace.
 
@@ -315,6 +330,7 @@ Do not implement aggressive dynamic pricing before enough data exists. Start wit
 6. Record every important new discovery here, including source URLs and whether the fact is confirmed, inferred, or still unknown.
 7. Mark hypotheses clearly. Do not promote an inference to a confirmed platform capability without testing or authoritative documentation.
 8. Keep the initial business low-capital and just-in-time. Do not add infrastructure cost unless observed demand justifies it.
+9. Do not commit real operator/customer provider-account identifiers into the public repo; discover and map them locally at runtime.
 
 ## Open technical questions
 
@@ -332,17 +348,14 @@ These still need direct experimentation or authoritative confirmation:
 
 ## Next recommended implementation
 
-The next valuable engineering step is an **experimental SteamSessionAdapter** on a controlled test PC, not production credential automation.
+Continue the **experimental SteamSessionAdapter** on a controlled test PC.
 
-It should observe and record:
+Near-term validation order:
 
-- Steam process/session state;
-- currently authenticated account identity;
-- Authorized Devices changes;
-- QR/Steam Guard authorization workflow;
-- logout/revoke behavior;
-- persistence across restart;
-- game launch behavior before/after revocation;
-- local session artifacts, without exporting account recovery secrets.
+1. use visible chooser discovery to register local provider-account inventory without typing identifiers;
+2. map at least one remembered account to a real catalog game;
+3. reserve that game and prove the launcher selects the correct remembered Steam account automatically;
+4. launch the entitled game through its normal Steam AppID URI;
+5. observe end-of-session/logout behavior and then design save backup/restore around the confirmed lifecycle.
 
 Store experiment results as structured diagnostics and update this file with confirmed behavior.
