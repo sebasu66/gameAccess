@@ -3,11 +3,9 @@ import {
   Check,
   ChevronRight,
   CircleDollarSign,
-  Clock3,
   Download,
   Gamepad2,
   Info,
-  LibraryBig,
   Loader2,
   Play,
   Search,
@@ -340,12 +338,10 @@ export default function App() {
           <section className="hero" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
             <div className="hero-shade" />
             <div className="hero-copy">
-              <span className="hero-kicker"><Zap size={15} fill="currentColor" /> DISPONIBLE EN GAMEACCESS</span>
+              <span className="hero-kicker"><Zap size={15} fill="currentColor" /> AHORA DISPONIBLE EN GAMEACCESS</span>
               <h1>{featured.name}</h1>
-              <div className="hero-meta">
+              <div className="hero-meta" style={{ marginTop: 24 }}>
                 <span className="green-dot">{availabilityLabel(featured)}</span>
-                <span><Clock3 size={15} /> {featured.credit_cost_per_hour} fichas/h</span>
-                <span><LibraryBig size={15} /> PC</span>
               </div>
               <p>Elegí el juego y empezá. gameAccess verifica disponibilidad, reserva el acceso y prepara la sesión automáticamente.</p>
               <div className="hero-actions">
