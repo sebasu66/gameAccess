@@ -69,7 +69,6 @@ def _tokenize_vdf(text: str) -> list[str]:
         if match.group(2):
             tokens.append(match.group(2))
         else:
-            # VDF uses escaped backslashes/quotes; we only need structural text.
             value = match.group(1).replace(r"\\", "\\").replace(r'\"', '"')
             tokens.append(value)
     return tokens
@@ -113,6 +112,32 @@ def _read_vdf(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="replace")
     parsed, _ = _parse_vdf_object(_tokenize_vdf(text))
     return parsed
+
+
+def _largest_apps_block(node: Any) -> dict[str, Any] | None:
+    """Find the largest VDF object named `apps` with numeric direct children.
+
+    Steam wraps localconfig in UserLocalConfigStore on current clients, and the
+    exact nesting has changed over time. Searching structurally keeps the
+    scanner resilient without reading unrelated values into the result.
+    """
+    best: dict[str, Any] | None = None
+    best_count = 0
+
+    def visit(value: Any) -> None:
+        nonlocal best, best_count
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            if str(key).casefold() == "apps" and isinstance(child, dict):
+                count = sum(1 for app_key in child if str(app_key).isdigit())
+                if count > best_count:
+                    best = child
+                    best_count = count
+            visit(child)
+
+    visit(node)
+    return best
 
 
 def remembered_account_identities() -> list[dict[str, Any]]:
@@ -160,10 +185,7 @@ def local_library_apps(user_id32: int) -> dict[int, dict[str, Any]]:
         return {}
     try:
         parsed = _read_vdf(path)
-        software = _ci_get(parsed, "Software")
-        valve = _ci_get(software, "Valve")
-        steam = _ci_get(valve, "Steam")
-        apps = _ci_get(steam, "apps")
+        apps = _largest_apps_block(parsed)
         if not isinstance(apps, dict):
             return {}
         result: dict[int, dict[str, Any]] = {}
