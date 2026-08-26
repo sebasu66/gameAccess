@@ -15,6 +15,30 @@ export interface CatalogGame {
   steam_url?: string | null;
 }
 
+export interface SteamSearchPrice {
+  currency?: string | null;
+  initial?: number | null;
+  final?: number | null;
+  discount_percent?: number;
+}
+
+export interface SteamSearchResult {
+  app_id: number;
+  name: string;
+  image_url?: string | null;
+  price?: SteamSearchPrice | null;
+  platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
+  catalog_game?: CatalogGame | null;
+  access_state: "available" | "busy" | "not-in-pool";
+  steam_url?: string;
+}
+
+export interface SteamSearchResponse {
+  query: string;
+  count: number;
+  results: SteamSearchResult[];
+}
+
 export interface SteamScreenshot {
   id?: number;
   thumbnail?: string;
