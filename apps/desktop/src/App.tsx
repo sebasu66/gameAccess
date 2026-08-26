@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Check,
   ChevronRight,
   CircleDollarSign,
   Clock3,
@@ -30,6 +31,17 @@ const stripHtml = (value?: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+type SessionPhase = "reserving" | "preparing" | "launching" | "playing" | "waiting-adapter" | "demo-ready" | "error";
+
+type SessionView = {
+  game: CatalogGame;
+  phase: SessionPhase;
+  title: string;
+  detail: string;
+};
+
 function availabilityLabel(game: CatalogGame) {
   if (game.copies_available > 0) return `${game.copies_available} disponible${game.copies_available === 1 ? "" : "s"}`;
   if (game.copies_total > 0) return "Ocupado";
@@ -56,7 +68,7 @@ function GameCard({ game, onOpen }: { game: CatalogGame; onOpen: (game: CatalogG
       </div>
       <div className="game-card-copy">
         <strong>{game.name}</strong>
-        <span>{game.app_id ? `Steam · App ${game.app_id}` : "Acceso administrado"}</span>
+        <span>{game.app_id ? "PC · listo para preparar" : "PC · acceso administrado"}</span>
       </div>
     </button>
   );
@@ -82,6 +94,35 @@ function Shelf({ title, subtitle, games, onOpen }: {
         {games.map((game) => <GameCard key={game.id} game={game} onOpen={onOpen} />)}
       </div>
     </section>
+  );
+}
+
+function SessionOverlay({ session, onClose }: { session: SessionView; onClose: () => void }) {
+  const active = ["reserving", "preparing", "launching"].includes(session.phase);
+  const success = ["playing", "demo-ready"].includes(session.phase);
+  return (
+    <div className="session-backdrop">
+      <section className="session-card" style={session.game.hero_image ? { backgroundImage: `url("${session.game.hero_image}")` } : undefined}>
+        <div className="session-shade" />
+        <div className="session-content">
+          <div className={`session-status-icon ${success ? "success" : session.phase === "error" ? "error" : ""}`}>
+            {active ? <Loader2 className="spin" size={28} /> : success ? <Check size={28} /> : <Gamepad2 size={28} />}
+          </div>
+          <span className="eyebrow">PREPARANDO TU PARTIDA</span>
+          <h2>{session.game.name}</h2>
+          <h3>{session.title}</h3>
+          <p>{session.detail}</p>
+          <div className="session-steps" aria-label="Progreso de inicio">
+            <span className={session.phase !== "reserving" ? "done" : "current"}>Reserva</span>
+            <i />
+            <span className={["launching", "playing", "demo-ready", "waiting-adapter"].includes(session.phase) ? "done" : session.phase === "preparing" ? "current" : ""}>Preparación</span>
+            <i />
+            <span className={success ? "done" : session.phase === "launching" ? "current" : ""}>Juego</span>
+          </div>
+          {!active ? <button className="secondary-button session-close" onClick={onClose}>{success ? "Listo" : "Volver al catálogo"}</button> : null}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -125,7 +166,7 @@ function DetailPanel({
         <div className="detail-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           <div className="detail-hero-shade" />
           <div className="detail-hero-copy">
-            <span className="eyebrow">GAMEACCESS · STEAM</span>
+            <span className="eyebrow">GAMEACCESS · PC</span>
             <h1>{steam?.name || game.name}</h1>
             <div className="detail-meta">
               <span className={game.copies_available > 0 ? "meta-ready" : "meta-wait"}>{availabilityLabel(game)}</span>
@@ -149,7 +190,7 @@ function DetailPanel({
 
         <div className="detail-body">
           {loading ? (
-            <div className="loading-line"><Loader2 size={18} className="spin" /> Obteniendo ficha directamente desde Steam…</div>
+            <div className="loading-line"><Loader2 size={18} className="spin" /> Obteniendo ficha del juego…</div>
           ) : null}
           {error ? <div className="detail-warning">No pudimos cargar la ficha extendida ahora. La biblioteca sigue disponible.</div> : null}
 
@@ -173,8 +214,8 @@ function DetailPanel({
               {steam?.genres?.length ? <div className="fact"><span>Géneros</span><strong>{steam.genres.slice(0, 4).join(" · ")}</strong></div> : null}
               {steam?.developers?.length ? <div className="fact"><span>Desarrollador</span><strong>{steam.developers.join(", ")}</strong></div> : null}
               {steam?.publishers?.length ? <div className="fact"><span>Publisher</span><strong>{steam.publishers.join(", ")}</strong></div> : null}
-              {steam?.recommendation_count ? <div className="fact"><span>Recomendaciones Steam</span><strong>{steam.recommendation_count.toLocaleString("es-AR")}</strong></div> : null}
-              {steam?.price?.final_formatted ? <div className="fact"><span>Referencia Steam</span><strong>{steam.price.final_formatted}</strong></div> : null}
+              {steam?.recommendation_count ? <div className="fact"><span>Recomendaciones</span><strong>{steam.recommendation_count.toLocaleString("es-AR")}</strong></div> : null}
+              {steam?.price?.final_formatted ? <div className="fact"><span>Precio de referencia</span><strong>{steam.price.final_formatted}</strong></div> : null}
             </aside>
           </div>
         </div>
@@ -193,6 +234,7 @@ export default function App() {
   const [leaseBusy, setLeaseBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [steamOk, setSteamOk] = useState(true);
+  const [session, setSession] = useState<SessionView | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -226,23 +268,42 @@ export default function App() {
   const featured = available[0] || filtered[0] || games[0];
 
   const doLease = async (game: CatalogGame) => {
+    setSelected(null);
+    setLeaseBusy(true);
+    setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando acceso y validando tu saldo." });
+
     if (offlineDemo) {
-      setToast("Modo visual: conectá el backend local para reservar una sesión real.");
+      await wait(650);
+      setSession({ game, phase: "preparing", title: "Preparando el acceso", detail: "gameAccess está dejando listo el entorno para iniciar el juego." });
+      await wait(900);
+      setSession({ game, phase: "demo-ready", title: "Flujo visual listo", detail: "Esta es la experiencia de preparación. Con el backend local conectado, acá continuaríamos con la sesión real." });
+      setLeaseBusy(false);
       return;
     }
-    setLeaseBusy(true);
+
     try {
       const lease = await leaseGame(game.id, 60);
       setUser((current) => ({ ...current, credits: lease.credits_remaining }));
-      setToast(`Reserva confirmada por 60 min. Preparando ${game.name}…`);
-      if (lease.game.app_id) {
-        // Account switching remains provider-adapter work. Opening Steam is only
-        // done after the lease exists, never as a substitute for entitlement.
+      setSession({ game, phase: "preparing", title: "Reserva confirmada", detail: "Ahora gameAccess prepara la sesión de juego asignada a esta reserva." });
+
+      if (lease.session_action === "launch_ready" && lease.game.app_id) {
+        await wait(450);
+        setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
         await openSteamRun(lease.game.app_id);
+        await wait(450);
+        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
+      } else {
+        setSession({
+          game,
+          phase: "waiting-adapter",
+          title: "Reserva lista para el adaptador local",
+          detail: "La reserva ya existe. Falta conectar a este cliente el paso local que prepara la sesión de Steam antes de lanzar el juego.",
+        });
       }
       await refresh();
     } catch (err) {
-      setToast(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setSession({ game, phase: "error", title: "No pudimos iniciar la sesión", detail: message });
     } finally {
       setLeaseBusy(false);
     }
@@ -272,7 +333,7 @@ export default function App() {
       </header>
 
       {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Vista visual activa: el backend local no respondió, así que mostramos datos demo con arte de Steam.</div> : null}
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Vista visual activa: el backend local no respondió, así que mostramos datos demo con arte real del catálogo.</div> : null}
 
       <main>
         {featured ? (
@@ -284,9 +345,9 @@ export default function App() {
               <div className="hero-meta">
                 <span className="green-dot">{availabilityLabel(featured)}</span>
                 <span><Clock3 size={15} /> {featured.credit_cost_per_hour} fichas/h</span>
-                <span><LibraryBig size={15} /> Steam</span>
+                <span><LibraryBig size={15} /> PC</span>
               </div>
-              <p>Elegí el juego, reservá una copia disponible y empezá. La cuenta del proveedor queda detrás de gameAccess.</p>
+              <p>Elegí el juego y empezá. gameAccess verifica disponibilidad, reserva el acceso y prepara la sesión automáticamente.</p>
               <div className="hero-actions">
                 <button className="primary-button" disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => doLease(featured)}>
                   <Play size={19} fill="currentColor" /> Jugar ahora
@@ -305,19 +366,20 @@ export default function App() {
         <div className="content-wrap">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
           {query && !filtered.length ? <div className="empty-state"><Search size={28} /><h2>No encontramos “{query}”</h2><p>Probá con otro nombre o limpiá la búsqueda.</p></div> : null}
-          <Shelf title="Jugá ahora" subtitle="Copias disponibles para reservar en este momento" games={available} onOpen={setSelected} />
-          <Shelf title="En nuestro pool" subtitle="Juegos con inventario administrado por gameAccess" games={inPool} onOpen={setSelected} />
+          <Shelf title="Jugá ahora" subtitle="Juegos con acceso disponible en este momento" games={available} onOpen={setSelected} />
+          <Shelf title="En nuestra biblioteca" subtitle="Títulos preparados para ofrecer acceso desde gameAccess" games={inPool} onOpen={setSelected} />
           <Shelf title="Explorá el catálogo" subtitle="Descubrí, instalá y dejá listo lo que querés jugar" games={all} onOpen={setSelected} />
 
           <section className="value-strip">
-            <div><span className="value-icon"><Download size={21} /></span><div><strong>Descargá primero</strong><p>La biblioteca puede quedar preparada antes de reservar tiempo.</p></div></div>
-            <div><span className="value-icon"><Zap size={21} /></span><div><strong>Acceso al tocar Jugar</strong><p>La disponibilidad y el saldo se validan recién al iniciar.</p></div></div>
+            <div><span className="value-icon"><Download size={21} /></span><div><strong>Descargá primero</strong><p>Dejá el juego preparado antes de reservar tiempo.</p></div></div>
+            <div><span className="value-icon"><Zap size={21} /></span><div><strong>Acceso al tocar Jugar</strong><p>Disponibilidad y saldo se validan justo al iniciar.</p></div></div>
             <div><span className="value-icon"><CircleDollarSign size={21} /></span><div><strong>Pagás con fichas</strong><p>Una sola billetera para juegos, promos y recompensas.</p></div></div>
           </section>
         </div>
       </main>
 
       {selected ? <DetailPanel game={selected} onClose={() => setSelected(null)} onLease={doLease} busy={leaseBusy} /> : null}
+      {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
