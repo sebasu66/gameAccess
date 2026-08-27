@@ -2,8 +2,9 @@
 
 Catalog visibility and license ownership are intentionally separate:
 - accessible_app_ids may include Steam Family shared games and are useful to
-  discover the catalog/seat reach;
-- app_ids are true owned apps resolved from local Steam license packages.
+  discover catalog/seat reach;
+- app_ids are ticket-backed per-account owner candidates from Steam local
+  app/net ticket keys.
 Only app_ids create backend AccountGame/license mappings.
 """
 
@@ -25,8 +26,6 @@ def build_game_pool() -> dict[str, Any]:
     if not raw.get("ok"):
         return {**raw, "games": []}
 
-    # Use every accessible app only to discover names/catalog entries. Ownership
-    # is decided later from account.app_ids (resolved license packages).
     candidate_ids = {
         int(app_id)
         for account in raw.get("accounts", [])
@@ -42,7 +41,6 @@ def build_game_pool() -> dict[str, Any]:
     appinfo_path = root / "appcache" / "appinfo.vdf" if root else Path("__missing__")
     catalog = read_local_app_catalog(appinfo_path, candidate_ids) if appinfo_path.is_file() else {}
 
-    # Only top-level Windows games belong in the consumer gameAccess catalog.
     games: dict[int, dict[str, Any]] = {}
     for app_id, item in catalog.items():
         app_type = str(item.get("type") or "").casefold()
@@ -74,11 +72,9 @@ def build_game_pool() -> dict[str, Any]:
                 "account_name": account.get("account_name") or "",
                 "steam_id64": account.get("steam_id64") or "",
                 "user_id32": account.get("user_id32"),
-                # Backend AccountGame rows are created ONLY from this field.
                 "app_ids": owned,
                 "accessible_app_ids": accessible,
-                "license_package_count": int(account.get("license_package_count") or 0),
-                "unresolved_package_count": int(account.get("unresolved_package_count") or 0),
+                "ticketed_app_count": int(account.get("ticketed_app_count") or len(owned)),
                 "ownership_source": account.get("ownership_source") or raw.get("ownership_source") or "unknown",
                 "active": bool(account.get("active")),
             }
@@ -91,7 +87,7 @@ def build_game_pool() -> dict[str, Any]:
 
     return {
         "ok": True,
-        "source": "steam-local-license-packages",
+        "source": "steam-local-app-ticket-keys",
         "accounts": accounts,
         "games": [games[app_id] for app_id in sorted(games)],
         "licenses": {str(app_id): labels for app_id, labels in sorted(licenses.items())},
@@ -101,8 +97,6 @@ def build_game_pool() -> dict[str, Any]:
         "candidate_app_count": len(candidate_ids),
         "owned_unique_app_count": len(licenses),
         "accessible_app_count": int(raw.get("accessible_app_count") or len(candidate_ids)),
-        "license_package_count": int(raw.get("license_package_count") or 0),
-        "unresolved_package_count": int(raw.get("unresolved_package_count") or 0),
         "ownership_error": raw.get("ownership_error"),
     }
 
@@ -111,7 +105,7 @@ def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:8000") -> di
     response = requests.post(
         f"{api.rstrip('/')}/admin/pool/sync",
         json={
-            "source": pool.get("source", "steam-local-license-packages"),
+            "source": pool.get("source", "steam-local-app-ticket-keys"),
             "accounts": pool.get("accounts", []),
             "games": pool.get("games", []),
         },
@@ -144,16 +138,13 @@ def main() -> int:
                 "accessible_app_count": pool.get("accessible_app_count"),
                 "duplicate_game_count": pool.get("duplicate_game_count"),
                 "candidate_app_count": pool.get("candidate_app_count"),
-                "license_package_count": pool.get("license_package_count"),
-                "unresolved_package_count": pool.get("unresolved_package_count"),
                 "ownership_error": pool.get("ownership_error"),
                 "accounts": [
                     {
                         "label": a["label"],
                         "owned_game_count": len(a["app_ids"]),
                         "accessible_game_count": len(a.get("accessible_app_ids") or []),
-                        "license_package_count": a.get("license_package_count", 0),
-                        "unresolved_package_count": a.get("unresolved_package_count", 0),
+                        "ticketed_app_count": a.get("ticketed_app_count", 0),
                         "ownership_source": a.get("ownership_source"),
                         "active": a.get("active", False),
                     }
