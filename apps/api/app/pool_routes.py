@@ -24,19 +24,18 @@ class PoolAccountInput(BaseModel):
     account_name: str = ""
     steam_id64: str = ""
     user_id32: int | None = None
-    # TRUE owned AppIDs resolved from Steam license/package IDs. These are the
-    # only AppIDs allowed to create AccountGame/license rows.
+    # AppIDs backed by per-account Steam app/net ticket keys. These are the only
+    # AppIDs allowed to create AccountGame/license rows.
     app_ids: list[int] = []
     # Apps visible/accessible on this seat (may include Steam Family sharing).
     accessible_app_ids: list[int] = []
-    license_package_count: int = 0
-    unresolved_package_count: int = 0
+    ticketed_app_count: int = 0
     ownership_source: str = "unknown"
     active: bool = False
 
 
 class PoolSyncInput(BaseModel):
-    source: str = "steam-local-license-packages"
+    source: str = "steam-local-app-ticket-keys"
     accounts: list[PoolAccountInput]
     games: list[PoolGameInput]
 
@@ -60,15 +59,13 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
 
     incoming_app_ids = {item.app_id for item in req.games}
 
-    # The discovered local pool drives the active consumer catalog. Catalog
-    # presence is deliberately broader than ownership: a Family-visible game may
-    # be in the catalog even though its single true license belongs to one donor.
+    # Catalog reach is broader than ownership: a Family-visible game may be in
+    # the catalog even though its single license is backed by one donor account.
     for existing in session.exec(select(core.Game)).all():
         existing.active = bool(existing.app_id and existing.app_id in incoming_app_ids)
         session.add(existing)
     session.commit()
 
-    # 1) Upsert the discovered Windows game catalog by AppID.
     games_by_app: dict[int, core.Game] = {}
     for incoming in req.games:
         game = session.exec(select(core.Game).where(core.Game.app_id == incoming.app_id)).first()
@@ -93,9 +90,6 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         if game is not None:
             games_by_app[incoming.app_id] = game
 
-    # 2) Upsert provider accounts. AccountGame now has one strict semantic:
-    # physical/owned license source. Family-visible access stays in account notes
-    # until the dedicated SteamFamily/seat-access tables are introduced.
     synced_accounts: list[core.ProviderAccount] = []
     for incoming in req.accounts:
         label = incoming.label.strip()
@@ -112,11 +106,9 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
                 "ownership_source": incoming.ownership_source,
                 "owned_app_count": len(set(incoming.app_ids)),
                 "accessible_app_count": len(set(incoming.accessible_app_ids)),
-                "license_package_count": incoming.license_package_count,
-                "unresolved_package_count": incoming.unresolved_package_count,
-                # Store accessible IDs as operational metadata, not licenses.
-                # They are public Steam AppIDs and are needed for future Family
-                # seat scheduling; they must never be counted as copies.
+                "ticketed_app_count": incoming.ticketed_app_count,
+                # Public Steam AppIDs only. Operational seat-access metadata;
+                # never counted as independent license copies.
                 "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
             },
             ensure_ascii=False,
@@ -150,7 +142,6 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
 
     duplicate_games = sum(1 for count in license_counts.values() if count > 1)
     total_licenses = sum(license_counts.values())
-    unresolved_packages = sum(account.unresolved_package_count for account in req.accounts)
     return {
         "ok": True,
         "source": req.source,
@@ -158,8 +149,7 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         "game_count": len(games_by_app),
         "total_license_mappings": total_licenses,
         "duplicate_game_count": duplicate_games,
-        "unresolved_package_count": unresolved_packages,
-        "license_semantics": "owned-package-resolved",
+        "license_semantics": "ticket-backed-owner",
         "accounts": [
             {
                 "id": account.id,
