@@ -31,7 +31,7 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def wait_for_active_user(expected_user_id32: int, timeout: float = 40.0) -> bool:
+def wait_for_active_user(expected_user_id32: int, timeout: float = 45.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if active_user_id32() == expected_user_id32:
@@ -40,7 +40,7 @@ def wait_for_active_user(expected_user_id32: int, timeout: float = 40.0) -> bool
     return False
 
 
-def _switch(identity: dict[str, Any]) -> tuple[bool, str]:
+def _switch(identity: dict[str, Any], attempts: int = 2) -> tuple[bool, str]:
     user_id = identity.get("user_id32")
     if not isinstance(user_id, int):
         return False, "missing user_id32"
@@ -49,19 +49,28 @@ def _switch(identity: dict[str, Any]) -> tuple[bool, str]:
     target = str(identity.get("account_name") or identity.get("display_name") or "").strip()
     if not target:
         return False, "missing account label"
-    result = switch_to_remembered_account(target)
-    if not result.ok:
-        return False, f"{result.stage}: {result.message}"
-    if not wait_for_active_user(user_id):
-        return False, f"selected but ActiveUser did not become {user_id}"
-    # Let Steam finish loading the license table before asking the console.
-    time.sleep(1.0)
-    return True, result.message
+
+    messages: list[str] = []
+    for attempt in range(max(1, attempts)):
+        result = switch_to_remembered_account(target)
+        messages.append(f"attempt {attempt + 1}: {result.stage}: {result.message}")
+        if result.ok and wait_for_active_user(user_id):
+            # Steam may expose the new ActiveUser before the license table is
+            # fully hydrated. Give it a short deterministic settle window.
+            time.sleep(2.0)
+            return True, result.message
+        # A graceful Steam shutdown can legitimately outlive the first timeout.
+        # Retry rather than force-killing Steam and potentially killing downloads.
+        time.sleep(3.0)
+        if active_user_id32() == user_id:
+            time.sleep(2.0)
+            return True, "account became active during retry wait"
+    return False, "; ".join(messages)
 
 
 def _scan_current(expected_identity: dict[str, Any]) -> dict[str, Any]:
     expected_user = int(expected_identity["user_id32"])
-    console = run_console_command(["licenses_print"], 6.0, max_lines=None)
+    console = run_console_command(["licenses_print"], 8.0, max_lines=None)
     actual_user = int(console.get("active_user_id32") or 0)
     if actual_user != expected_user:
         raise RuntimeError(f"Steam active user changed during scan: expected {expected_user}, got {actual_user}")
@@ -71,6 +80,7 @@ def _scan_current(expected_identity: dict[str, Any]) -> dict[str, Any]:
         "seat_label": expected_identity.get("display_name") or expected_identity.get("account_name") or str(actual_user),
         "package_records": len(records),
         "borrowed_package_records": sum(1 for record in records if record.borrowed),
+        "console_line_count": int(console.get("line_count") or 0),
         "records": records,
     }
 
@@ -115,9 +125,15 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
         if isinstance(original_user, int) and original_user > 0 and active_user_id32() != original_user:
             original_identity = identity_by_user.get(original_user)
             if original_identity:
-                ok, message = _switch(original_identity)
+                ok, message = _switch(original_identity, attempts=3)
                 if not ok:
-                    errors.append({"user_id32": original_user, "label": original_identity.get("display_name"), "error": f"restore failed: {message}"})
+                    errors.append(
+                        {
+                            "user_id32": original_user,
+                            "label": original_identity.get("display_name"),
+                            "error": f"restore failed: {message}",
+                        }
+                    )
 
     all_app_ids = {app_id for apps in owner_apps_raw.values() for app_id in apps}
     catalog = _windows_game_catalog(all_app_ids)
@@ -147,12 +163,14 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
             mappings.append({"owner_user_id32": owner, "app_id": app_id})
 
     unique_games = {mapping["app_id"] for mapping in mappings}
+    scan_errors = [error for error in errors if not str(error.get("error", "")).startswith("restore failed:")]
     result = {
         "ok": bool(scanned_seats),
-        "complete": len(scanned_seats) == len(identities) and not errors,
+        "complete": len(scanned_seats) == len(identities) and not scan_errors,
         "source": "steam-console-licenses-print",
         "verified_at": now_iso(),
         "original_active_user_id32": original_user,
+        "final_active_user_id32": active_user_id32(),
         "remembered_account_count": len(identities),
         "scanned_account_count": len(scanned_seats),
         "unique_windows_games": len(unique_games),
@@ -199,6 +217,8 @@ def main() -> int:
             "complete": result["complete"],
             "source": result["source"],
             "verified_at": result["verified_at"],
+            "original_active_user_id32": result["original_active_user_id32"],
+            "final_active_user_id32": result["final_active_user_id32"],
             "remembered_account_count": result["remembered_account_count"],
             "scanned_account_count": result["scanned_account_count"],
             "unique_windows_games": result["unique_windows_games"],
