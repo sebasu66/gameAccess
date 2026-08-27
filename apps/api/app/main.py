@@ -112,7 +112,7 @@ class SeedGameRequest(BaseModel):
     credit_cost_per_hour: int = Field(default=100, ge=0)
 
 
-app = FastAPI(title="gameAccess API", version="0.2.0")
+app = FastAPI(title="gameAccess API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -460,9 +460,12 @@ def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dic
     session.commit()
     return {"ok": True, "status": lease.status}
 
+
 from .pool_routes import router as pool_router
 app.include_router(pool_router)
 
 from .steam_search_routes import router as steam_search_router
 app.include_router(steam_search_router)
 
+from .admin_console_routes import router as admin_console_router
+app.include_router(admin_console_router)
