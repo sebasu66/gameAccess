@@ -27,8 +27,10 @@ def run_console_command(
 ) -> dict:
     """Execute a Steam console command and return only output appended by that command.
 
-    ``max_lines=None`` is intended for internal parsers that need the complete
-    command output. The CLI keeps the diagnostic-friendly 300-line tail by default.
+    ``licenses_print`` can emit its large inventory in several bursts. For that
+    command we deliberately wait the full requested interval instead of treating
+    a short quiet gap as completion. Other commands may finish early after a
+    stable 1.25-second gap.
     """
     steam = find_steam_exe()
     if not steam:
@@ -42,6 +44,7 @@ def run_console_command(
         argv.extend(parts[1:])
     subprocess.Popen(argv, close_fds=True)
 
+    full_wait = bool(parts and parts[0].casefold() == "licenses_print")
     deadline = time.time() + wait_seconds
     last_size = start
     stable_since = None
@@ -51,7 +54,7 @@ def run_console_command(
         if size != last_size:
             last_size = size
             stable_since = time.time()
-        elif stable_since and time.time() - stable_since > 0.75:
+        elif not full_wait and stable_since and time.time() - stable_since > 1.25:
             break
 
     data = b""
