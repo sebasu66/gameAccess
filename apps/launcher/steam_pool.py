@@ -1,18 +1,16 @@
-"""Discover Steam accounts, true licenses, and family-visible apps locally.
+"""Discover Steam accounts, owned licenses, and Family-visible apps locally.
 
-The important distinction is:
-- ``Apps`` in each user's localconfig is *accessible/known library state*. Steam
-  Families can make one purchased game appear there for several family members.
-  It is useful for seat visibility, but it is NOT proof of another copy.
-- ``Licenses`` in localconfig is keyed by package/subscription ID. We read only
-  those numeric keys (never their values) and resolve them through Steam's local
-  ``appcache/packageinfo.vdf``. Those resolved AppIDs are the ownership source
-  used by gameAccess license counting.
+Two Steam signals are deliberately kept separate:
+- ``Software/Valve/Steam/apps`` = apps visible/known to that seat. Steam Families
+  can make one purchased game appear here for several members. This is access,
+  NOT another copy.
+- ``apptickets``/``nettickets`` = Steam app ownership/access ticket entries.
+  These are used as the local owner signal for license counting. This matches
+  how current Steam account-switcher tooling identifies per-account owners.
 
-Remembered account identity comes from ``config/loginusers.vdf`` and is limited
-to SteamID, AccountName and PersonaName. This scanner intentionally does not
-emit passwords, Steam Guard secrets, cookies, login keys, tokens, auth blobs,
-RememberPassword, or license values.
+The scanner reads only key names/IDs from ticket sections; it does not emit the
+actual ticket blobs, passwords, Steam Guard secrets, cookies, login keys, auth
+blobs, RememberPassword, or other session material.
 """
 
 from __future__ import annotations
@@ -25,7 +23,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from steam_packageinfo import PackageInfoError, read_package_app_map
 from steam_switch import find_steam_exe
 
 if os.name == "nt":
@@ -42,12 +39,11 @@ class SteamPoolAccount:
     account_name: str
     steam_id64: str
     user_id32: int | None
-    # Backwards-compatible field consumed by pool_sync/backend. From now on it
-    # means TRUE OWNED apps resolved from package licenses, never visible Apps.
+    # Backwards-compatible field consumed by pool_sync/backend. It now means
+    # ticket-backed owned apps, never Family-visible Apps.
     app_ids: list[int]
     accessible_app_ids: list[int]
-    license_package_count: int
-    unresolved_package_count: int
+    ticketed_app_count: int
     ownership_source: str
     active: bool
     ok: bool
@@ -207,94 +203,60 @@ def local_library_apps(user_id32: int) -> dict[int, dict[str, Any]]:
     return result
 
 
-def local_license_package_ids(user_id32: int) -> set[int]:
-    """Read only numeric KEYS of localconfig/Licenses; never license values."""
+def local_ticketed_apps(user_id32: int) -> set[int]:
+    """Return AppIDs present as keys in Steam's local app/net ticket sections.
+
+    We intentionally read only the numeric key names, never ticket blob values.
+    ``apptickets`` is the primary ownership signal; ``nettickets`` is included as
+    a fallback because current Steam account-switcher tooling treats both as
+    per-user ticket-backed ownership/access evidence.
+    """
     parsed = _localconfig(user_id32)
-    licenses = _largest_named_numeric_block(parsed, "licenses")
-    if not isinstance(licenses, dict):
-        return set()
-    package_ids: set[int] = set()
-    for key in licenses:
-        text = str(key).strip()
-        if text.isdigit():
-            package_id = int(text)
-            if package_id > 0:
-                package_ids.add(package_id)
-    return package_ids
+    result: set[int] = set()
+    for section in ("apptickets", "nettickets"):
+        block = _largest_named_numeric_block(parsed, section)
+        if not isinstance(block, dict):
+            continue
+        for key in block:
+            text = str(key).strip()
+            if text.isdigit():
+                app_id = int(text)
+                if app_id > 0:
+                    result.add(app_id)
+    return result
 
 
 def scan_pool() -> dict[str, Any]:
     active_user = active_user_id32()
     identities = remembered_account_identities()
-    root = steam_root()
+    scanned: list[SteamPoolAccount] = []
 
-    raw_accounts: list[dict[str, Any]] = []
-    all_package_ids: set[int] = set()
     for identity in identities:
         user_id = identity.get("user_id32")
         accessible = local_library_apps(user_id) if isinstance(user_id, int) else {}
-        package_ids = local_license_package_ids(user_id) if isinstance(user_id, int) else set()
-        all_package_ids.update(package_ids)
-        raw_accounts.append(
-            {
-                **identity,
-                "accessible_app_ids": sorted(accessible),
-                "package_ids": package_ids,
-            }
-        )
-
-    package_map: dict[int, set[int]] = {}
-    globally_unresolved: set[int] = set(all_package_ids)
-    ownership_error = ""
-    packageinfo_path = root / "appcache" / "packageinfo.vdf" if root else Path("__missing__")
-    if all_package_ids and packageinfo_path.is_file():
-        try:
-            package_map, globally_unresolved = read_package_app_map(packageinfo_path, all_package_ids)
-        except (OSError, EOFError, PackageInfoError, ValueError) as exc:
-            # Fail closed: visible Family apps must never be promoted to licenses
-            # merely because ownership resolution failed.
-            ownership_error = str(exc)
-            package_map = {}
-            globally_unresolved = set(all_package_ids)
-    elif all_package_ids:
-        ownership_error = "Steam appcache/packageinfo.vdf was not found"
-
-    scanned: list[SteamPoolAccount] = []
-    for item in raw_accounts:
-        package_ids: set[int] = item["package_ids"]
-        owned: set[int] = set()
-        for package_id in package_ids:
-            owned.update(package_map.get(package_id, set()))
-        unresolved_count = sum(1 for package_id in package_ids if package_id in globally_unresolved)
-        user_id = item.get("user_id32")
-        accessible_ids: list[int] = item["accessible_app_ids"]
-        ok = bool(user_id) and bool(accessible_ids or package_ids)
-        ownership_source = "steam-license-packages" if package_map else "unresolved"
-        message_parts = [
-            f"{len(accessible_ids)} accessible app entries",
-            f"{len(owned)} owned apps from {len(package_ids)} license packages",
-        ]
-        if unresolved_count:
-            message_parts.append(f"{unresolved_count} unresolved packages")
+        ticketed = local_ticketed_apps(user_id) if isinstance(user_id, int) else set()
+        accessible_ids = sorted(accessible)
+        owned_ids = sorted(ticketed)
+        ok = bool(user_id) and bool(accessible_ids or owned_ids)
         scanned.append(
             SteamPoolAccount(
-                display_name=item.get("display_name") or item.get("account_name") or "Steam",
-                account_name=item.get("account_name") or "",
-                steam_id64=item.get("steam_id64") or "",
+                display_name=identity.get("display_name") or identity.get("account_name") or "Steam",
+                account_name=identity.get("account_name") or "",
+                steam_id64=identity.get("steam_id64") or "",
                 user_id32=user_id if isinstance(user_id, int) else None,
-                app_ids=sorted(owned),
+                app_ids=owned_ids,
                 accessible_app_ids=accessible_ids,
-                license_package_count=len(package_ids),
-                unresolved_package_count=unresolved_count,
-                ownership_source=ownership_source,
+                ticketed_app_count=len(owned_ids),
+                ownership_source="steam-local-app-ticket-keys",
                 active=bool(user_id and user_id == active_user),
                 ok=ok,
-                message="; ".join(message_parts),
+                message=(
+                    f"{len(accessible_ids)} accessible app entries; "
+                    f"{len(owned_ids)} ticket-backed owned app entries"
+                ),
             )
         )
 
-    # LICENSES are built only from package-resolved ownership. Family-visible
-    # duplicates remain represented only as accessible_app_ids on seats.
     licenses: dict[int, list[str]] = {}
     accessible_union: set[int] = set()
     for item in scanned:
@@ -307,17 +269,18 @@ def scan_pool() -> dict[str, Any]:
 
     return {
         "ok": any(item.ok for item in scanned),
-        "message": f"Scanned {sum(1 for item in scanned if item.ok)}/{len(scanned)} remembered accounts; ownership is resolved from Steam license packages",
+        "message": (
+            f"Scanned {sum(1 for item in scanned if item.ok)}/{len(scanned)} remembered accounts; "
+            "license copies are counted from Steam app/net ticket keys, not Family-visible Apps"
+        ),
         "active_user_id32": active_user,
         "accounts": [asdict(item) for item in scanned],
         "licenses": {str(app_id): labels for app_id, labels in sorted(licenses.items())},
         "unique_app_count": len(licenses),
         "accessible_app_count": len(accessible_union),
         "duplicate_app_count": sum(1 for labels in licenses.values() if len(labels) > 1),
-        "license_package_count": len(all_package_ids),
-        "unresolved_package_count": len(globally_unresolved),
-        "ownership_error": ownership_error or None,
-        "ownership_source": "steam-license-packages",
+        "ownership_error": None,
+        "ownership_source": "steam-local-app-ticket-keys",
     }
 
 
@@ -335,8 +298,7 @@ def main() -> int:
                 "user_id32": item.get("user_id32"),
                 "owned_app_count": len(item.get("app_ids") or []),
                 "accessible_app_count": len(item.get("accessible_app_ids") or []),
-                "license_package_count": item.get("license_package_count", 0),
-                "unresolved_package_count": item.get("unresolved_package_count", 0),
+                "ticketed_app_count": item.get("ticketed_app_count", 0),
                 "ownership_source": item.get("ownership_source"),
                 "active": item.get("active"),
                 "ok": item.get("ok"),
