@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -24,18 +25,21 @@ class PoolAccountInput(BaseModel):
     account_name: str = ""
     steam_id64: str = ""
     user_id32: int | None = None
-    # AppIDs backed by per-account Steam app/net ticket keys. These are the only
-    # AppIDs allowed to create AccountGame/license rows.
+    # Verified owner AppIDs only. Family-visible apps never enter this field.
     app_ids: list[int] = []
-    # Apps visible/accessible on this seat (may include Steam Family sharing).
+    # Apps this seat can currently see/use, including Steam Family sharing.
     accessible_app_ids: list[int] = []
-    ticketed_app_count: int = 0
-    ownership_source: str = "unknown"
+    ownership_source: str = "unverified"
+    ownership_verified_at: str | None = None
+    inventory_complete: bool = False
     active: bool = False
 
 
 class PoolSyncInput(BaseModel):
-    source: str = "steam-local-app-ticket-keys"
+    source: str = "unverified"
+    verification_complete: bool = False
+    verified_at: str | None = None
+    verification_errors: list[dict[str, Any]] = []
     accounts: list[PoolAccountInput]
     games: list[PoolGameInput]
 
@@ -56,11 +60,13 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         raise HTTPException(400, "pool must contain at least one Steam account")
     if not req.games:
         raise HTTPException(400, "pool must contain at least one game")
+    if req.source == "steam-console-licenses-print" and not req.verification_complete:
+        raise HTTPException(409, "verified Steam inventory is incomplete; refusing to replace the authoritative pool")
 
     incoming_app_ids = {item.app_id for item in req.games}
 
     # Catalog reach is broader than ownership: a Family-visible game may be in
-    # the catalog even though its single license is backed by one donor account.
+    # the catalog even though its single license belongs to one donor account.
     for existing in session.exec(select(core.Game)).all():
         existing.active = bool(existing.app_id and existing.app_id in incoming_app_ids)
         session.add(existing)
@@ -104,11 +110,11 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
                 "steam_id64": incoming.steam_id64,
                 "user_id32": incoming.user_id32,
                 "ownership_source": incoming.ownership_source,
+                "ownership_verified_at": incoming.ownership_verified_at or req.verified_at,
+                "inventory_complete": incoming.inventory_complete and req.verification_complete,
                 "owned_app_count": len(set(incoming.app_ids)),
                 "accessible_app_count": len(set(incoming.accessible_app_ids)),
-                "ticketed_app_count": incoming.ticketed_app_count,
-                # Public Steam AppIDs only. Operational seat-access metadata;
-                # never counted as independent license copies.
+                # Public AppIDs only: operational seat reach, never copy count.
                 "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
             },
             ensure_ascii=False,
@@ -145,11 +151,14 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
     return {
         "ok": True,
         "source": req.source,
+        "verification_complete": req.verification_complete,
+        "verified_at": req.verified_at,
+        "verification_errors": req.verification_errors,
         "account_count": len(synced_accounts),
         "game_count": len(games_by_app),
         "total_license_mappings": total_licenses,
         "duplicate_game_count": duplicate_games,
-        "license_semantics": "ticket-backed-owner",
+        "license_semantics": "steam-console-original-owner",
         "accounts": [
             {
                 "id": account.id,
