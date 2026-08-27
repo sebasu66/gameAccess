@@ -5,15 +5,12 @@ import json
 import subprocess
 import time
 
-from steam_switch import find_steam_exe, _steam_windows, active_user_id32 if False else None
-
-# Import active_user_id32 from steam_pool to avoid changing steam_switch API.
+from steam_switch import find_steam_exe, _steam_windows
 from steam_pool import active_user_id32, remembered_account_identities
 
 
 def safe_text(value: str) -> str:
     value = (value or "").strip()
-    # Do not emit long console/library content. Names are enough to identify controls.
     if len(value) > 120:
         return value[:117] + "..."
     return value
@@ -44,13 +41,15 @@ def main() -> int:
             except Exception:
                 continue
             if control_type in {"Edit", "Document", "Text", "Pane", "Button", "TabItem"}:
-                controls.append({
-                    "window": win_title,
-                    "type": control_type,
-                    "name": name,
-                    "automation_id": automation_id,
-                    "class_name": class_name,
-                })
+                controls.append(
+                    {
+                        "window": win_title,
+                        "type": control_type,
+                        "name": name,
+                        "automation_id": automation_id,
+                        "class_name": class_name,
+                    }
+                )
             if len(controls) >= 300:
                 break
         if len(controls) >= 300:
@@ -58,7 +57,12 @@ def main() -> int:
 
     active = active_user_id32()
     identity = next((x for x in remembered_account_identities() if x.get("user_id32") == active), None)
-    print(json.dumps({"ok": True, "active_user_id32": active, "active_identity": identity, "controls": controls}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"ok": True, "active_user_id32": active, "active_identity": identity, "controls": controls},
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
