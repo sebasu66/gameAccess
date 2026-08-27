@@ -4,7 +4,7 @@ import argparse
 import json
 
 from steam_pool import active_user_id32, remembered_account_identities
-from steam_verified_sync_v4 import silent_switch
+from steam_verified_sync_v5 import deterministic_switch
 
 
 def main() -> int:
@@ -23,7 +23,7 @@ def main() -> int:
     if not identity:
         print(json.dumps({"ok": False, "error": "account not found"}))
         return 2
-    ok, message = silent_switch(identity)
+    ok, message = deterministic_switch(identity)
     result = {
         "ok": ok,
         "message": message,
