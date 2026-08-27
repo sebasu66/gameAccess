@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gameAccess · Control</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#06090d; --panel:#0c1118; --panel2:#111823; --line:rgba(255,255,255,.08);
+      --text:#eef4f8; --muted:#8190a3; --green:#65f0b2; --green2:#2fc98f;
+      --amber:#f5bf67; --red:#ff7d7d; --blue:#75a9ff; --shadow:0 24px 80px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    body{background:radial-gradient(circle at 82% -8%,rgba(101,240,178,.08),transparent 28%),radial-gradient(circle at 10% 3%,rgba(117,169,255,.07),transparent 28%),var(--bg)}
+    button,input,select{font:inherit} button{color:inherit} .app{min-height:100vh;display:grid;grid-template-columns:238px 1fr}
+    aside{position:sticky;top:0;height:100vh;padding:22px 16px;border-right:1px solid var(--line);background:rgba(7,10,14,.86);backdrop-filter:blur(18px)}
+    .brand{display:flex;align-items:center;gap:10px;padding:2px 8px 20px;font-weight:900;font-size:20px}.mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#8affca,#3dc98e);color:#06110d;box-shadow:0 10px 28px rgba(101,240,178,.22)}.brand b{color:var(--green)}
+    .live{display:flex;align-items:center;gap:8px;margin:0 8px 20px;padding:9px 10px;border:1px solid rgba(101,240,178,.15);border-radius:11px;background:rgba(101,240,178,.05);font-size:12px;color:#c7f9e5}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(101,240,178,.07)}
+    nav{display:grid;gap:5px}nav button{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:#98a6b8;text-align:left;cursor:pointer}nav button:hover,nav button.active{background:rgba(255,255,255,.055);color:white}.nav-badge{margin-left:auto;min-width:22px;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.07);font-size:10px;text-align:center}
+    .aside-foot{position:absolute;left:16px;right:16px;bottom:18px;padding:12px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:11px;line-height:1.45}
+    main{min-width:0;padding:28px 34px 60px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}.top h1{margin:0;font-size:30px;letter-spacing:-.035em}.top p{margin:6px 0 0;color:var(--muted);font-size:13px}.top-actions{display:flex;gap:8px;align-items:center}.btn{border:1px solid var(--line);background:rgba(255,255,255,.045);border-radius:10px;padding:10px 13px;cursor:pointer}.btn:hover{background:rgba(255,255,255,.08)}.btn.primary{border-color:rgba(101,240,178,.24);background:rgba(101,240,178,.10);color:#cffff0}.btn.danger{border-color:rgba(255,125,125,.22);color:#ffc1c1}
+    .grid{display:grid;gap:14px}.stats{grid-template-columns:repeat(6,minmax(0,1fr));margin-bottom:22px}.stat{padding:16px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,rgba(17,24,35,.92),rgba(10,15,22,.92));box-shadow:0 12px 34px rgba(0,0,0,.18)}.stat span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.stat strong{display:block;margin-top:7px;font-size:27px;letter-spacing:-.04em}.stat small{display:block;margin-top:5px;color:#6f7d8d;font-size:10px}
+    .panel{border:1px solid var(--line);border-radius:16px;background:rgba(11,16,23,.88);box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 17px;border-bottom:1px solid var(--line)}.panel-head h2{margin:0;font-size:15px}.panel-head span{color:var(--muted);font-size:11px}.panel-body{padding:16px}.split{grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr)}
+    table{width:100%;border-collapse:collapse}th,td{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.055);text-align:left;font-size:12px;vertical-align:middle}th{color:#6f7d8e;font-size:10px;text-transform:uppercase;letter-spacing:.08em}tr:last-child td{border-bottom:0}.muted{color:var(--muted)}.mono{font-family:"SFMono-Regular",Consolas,monospace;font-size:11px}.status{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.status.free,.status.available,.status.done{background:rgba(101,240,178,.09);color:var(--green)}.status.leased,.status.running{background:rgba(245,191,103,.10);color:var(--amber)}.status.disabled,.status.error{background:rgba(255,125,125,.10);color:var(--red)}
+    .bar{height:7px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}.bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--green2),var(--green));min-width:2px}.owners{display:flex;gap:5px;flex-wrap:wrap}.pill{padding:4px 6px;border-radius:7px;background:rgba(255,255,255,.055);color:#aeb9c7;font-size:10px}
+    .alert{display:flex;gap:11px;padding:12px 13px;margin-bottom:8px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.025);font-size:12px}.alert.error{border-color:rgba(255,125,125,.18);background:rgba(255,125,125,.04)}.alert.warning{border-color:rgba(245,191,103,.18);background:rgba(245,191,103,.035)}.alert strong{display:block;margin-bottom:3px}.alert p{margin:0;color:#9ba8b7;line-height:1.45}.empty{padding:26px;color:var(--muted);text-align:center;font-size:12px}
+    .tool-card{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:16px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025);margin-bottom:10px}.tool-card h3{margin:0 0 4px;font-size:14px}.tool-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field.full{grid-column:1/-1}.field label{color:#8796a7;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.field input,.field select{width:100%;height:42px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:#0a0f16;color:white;outline:0}.field input:focus,.field select:focus{border-color:rgba(101,240,178,.42);box-shadow:0 0 0 3px rgba(101,240,178,.06)}
+    .credential{padding:13px;border:1px solid rgba(101,240,178,.18);border-radius:12px;background:rgba(101,240,178,.045);margin-top:12px}.credential strong{display:block;margin-bottom:7px;color:#cffff0}.credential code{display:block;padding:9px;border-radius:8px;background:#06090d;word-break:break-all}.credential small{display:block;margin-top:7px;color:#8090a0}
+    .task{padding:13px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:rgba(255,255,255,.02)}.task-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.task h4{margin:0;font-size:12px}.task pre{margin:10px 0 0;max-height:170px;overflow:auto;padding:10px;border-radius:9px;background:#05080c;color:#9caaba;font:10px/1.5 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap}.task-meta{margin-top:4px;color:var(--muted);font-size:10px}
+    .tab{display:none}.tab.active{display:block}.search{width:240px;height:38px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:#0a0f16;color:white;outline:0}
+    .toast{position:fixed;right:22px;bottom:22px;max-width:420px;padding:13px 15px;border:1px solid rgba(101,240,178,.2);border-radius:12px;background:#101721;box-shadow:0 20px 60px rgba(0,0,0,.45);font-size:12px;z-index:20}.offline{color:var(--red)}
+    @media(max-width:1180px){.stats{grid-template-columns:repeat(3,1fr)}.split{grid-template-columns:1fr}}@media(max-width:780px){.app{grid-template-columns:1fr}aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.aside-foot{display:none}nav{grid-template-columns:repeat(3,1fr)}main{padding:22px 16px}.stats{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:1fr}.field.full{grid-column:auto}.top{flex-direction:column}.top-actions{width:100%;flex-wrap:wrap}.search{width:100%}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><span class="mark">g</span><span>game<b>Access</b></span></div>
+    <div class="live"><span class="dot"></span><span id="liveText">Backend conectado</span></div>
+    <nav id="nav">
+      <button class="active" data-tab="overview">Overview</button>
+      <button data-tab="accounts">Cuentas <span class="nav-badge" id="nAccounts">0</span></button>
+      <button data-tab="licenses">Licencias <span class="nav-badge" id="nLicenses">0</span></button>
+      <button data-tab="seats">Asientos <span class="nav-badge" id="nSeats">0</span></button>
+      <button data-tab="sessions">Sesiones <span class="nav-badge" id="nSessions">0</span></button>
+      <button data-tab="tools">Herramientas</button>
+      <button data-tab="errors">Errores <span class="nav-badge" id="nErrors">0</span></button>
+    </nav>
+    <div class="aside-foot">Panel local de operación. Los datos se actualizan cada 3 segundos desde FastAPI.</div>
+  </aside>
+
+  <main>
+    <section class="tab active" id="tab-overview">
+      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><button class="btn" onclick="refresh(true)">Actualizar</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
+      <div class="grid stats" id="stats"></div>
+      <div class="grid split">
+        <div class="panel"><div class="panel-head"><h2>Licencias con más capacidad</h2><span id="overviewLicenseCount"></span></div><div class="panel-body" id="overviewLicenses"></div></div>
+        <div class="panel"><div class="panel-head"><h2>Estado operativo</h2><span>diagnóstico</span></div><div class="panel-body" id="overviewHealth"></div></div>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-accounts">
+      <div class="top"><div><h1>Cuentas del pool</h1><p>Identidades Steam detectadas y cantidad de juegos aportados.</p></div><input class="search" id="accountSearch" placeholder="Filtrar cuentas..." oninput="renderAccounts()"></div>
+      <div class="panel"><div class="panel-body" id="accountsTable"></div></div>
+    </section>
+
+    <section class="tab" id="tab-licenses">
+      <div class="top"><div><h1>Licencias</h1><p>Copias reales por juego. La disponibilidad cae cuando la cuenta propietaria está ocupada.</p></div><input class="search" id="licenseSearch" placeholder="Filtrar juegos..." oninput="renderLicenses()"></div>
+      <div class="panel"><div class="panel-body" id="licensesTable"></div></div>
+    </section>
+
+    <section class="tab" id="tab-seats">
+      <div class="top"><div><h1>Asientos</h1><p>Capacidad operativa actual. Hoy cada ProviderAccount representa un asiento; la capa Steam Families se agregará encima.</p></div></div>
+      <div class="panel"><div class="panel-body" id="seatsTable"></div></div>
+    </section>
+
+    <section class="tab" id="tab-sessions">
+      <div class="top"><div><h1>Sesiones</h1><p>Leases recientes y actividad actual.</p></div></div>
+      <div class="panel"><div class="panel-body" id="sessionsTable"></div></div>
+    </section>
+
+    <section class="tab" id="tab-tools">
+      <div class="top"><div><h1>Herramientas</h1><p>Operaciones locales gestionadas desde el panel.</p></div></div>
+      <div class="grid split">
+        <div>
+          <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Crear una cuenta Steam</h2><span>Selenium visible</span></div><div class="panel-body">
+            <form id="steamForm" class="form">
+              <div class="field full"><label>Email</label><input name="email" type="email" required placeholder="correo@dominio.com"></div>
+              <div class="field"><label>Nombre de cuenta</label><input name="account_name" required minlength="3" placeholder="gameaccess-seat-01"></div>
+              <div class="field"><label>País</label><input name="country" value="Argentina"></div>
+              <div class="field"><label>Navegador</label><select name="browser"><option value="chrome">Chrome</option><option value="edge">Edge</option></select></div>
+              <div class="field"><label>Contraseña</label><select name="generate_password"><option value="true">Generar automáticamente</option><option value="false">Escribir manualmente</option></select></div>
+              <div class="field full" id="manualPasswordField" style="display:none"><label>Contraseña manual</label><input name="password" type="password" minlength="8"></div>
+              <div class="field full"><button class="btn primary" type="submit">Abrir creación de cuenta</button></div>
+            </form>
+            <div id="credentialBox"></div>
+          </div></div>
+          <div class="panel"><div class="panel-head"><h2>Sincronizar pool local</h2><span>Steam appcache + userdata</span></div><div class="panel-body"><div class="tool-card"><div><h3>Escanear y sincronizar</h3><p>Relee las cuentas recordadas y las licencias visibles en esta PC, y actualiza el backend.</p></div><button class="btn" onclick="startPoolSync()">Sincronizar</button></div></div></div>
+        </div>
+        <div class="panel"><div class="panel-head"><h2>Tareas</h2><span>logs y errores</span></div><div class="panel-body" id="tasksList"></div></div>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-errors">
+      <div class="top"><div><h1>Errores y alertas</h1><p>Inconsistencias del pool, fallos de herramientas y problemas detectados por el backend.</p></div></div>
+      <div class="panel"><div class="panel-body" id="errorsList"></div></div>
+    </section>
+  </main>
+</div>
+<div id="toast"></div>
+<script>
+  const API = location.pathname.startsWith('/admin-console') ? '/admin-console' : 'http://127.0.0.1:8000/admin-console';
+  let data = {stats:{},accounts:[],licenses:[],seats:[],leases:[],diagnostics:[],tasks:[]};
+  let currentTab='overview';
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const fmtDate=v=>v?new Date(v).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'medium'}):'—';
+  const badge=s=>`<span class="status ${esc(String(s).toLowerCase())}">${esc(s)}</span>`;
+
+  function go(tab){currentTab=tab;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));$('tab-'+tab).classList.add('active');}
+  document.querySelectorAll('nav button').forEach(btn=>btn.onclick=()=>go(btn.dataset.tab));
+
+  function toast(msg,error=false){$('toast').innerHTML=`<div class="toast ${error?'offline':''}">${esc(msg)}</div>`;setTimeout(()=>{$('toast').innerHTML=''},3600)}
+
+  async function api(path,opts={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...opts});let body=null;try{body=await r.json()}catch{}if(!r.ok)throw new Error(body?.detail||`${r.status} ${r.statusText}`);return body;}
+
+  async function refresh(manual=false){
+    try{data=await api('/overview');$('liveText').textContent='Backend conectado · '+new Date(data.generated_at).toLocaleTimeString('es-AR');$('liveText').classList.remove('offline');renderAll();if(manual)toast('Datos actualizados');}
+    catch(err){$('liveText').textContent='Backend sin respuesta';$('liveText').classList.add('offline');if(manual)toast(err.message,true)}
+  }
+
+  function renderAll(){
+    const s=data.stats||{};
+    $('nAccounts').textContent=s.accounts_total||0;$('nLicenses').textContent=s.distinct_licensed_games||0;$('nSeats').textContent=s.accounts_available||0;$('nSessions').textContent=s.active_leases||0;$('nErrors').textContent=(data.diagnostics||[]).length;
+    $('stats').innerHTML=[['Cuentas',s.accounts_total,'total'],['Asientos libres',s.accounts_available,'disponibles ahora'],['En uso',s.accounts_leased,'cuentas ocupadas'],['Juegos',s.active_games,'catálogo activo'],['Licencias',s.license_mappings,'copias mapeadas'],['Sesiones',s.active_leases,'leases activos']].map(x=>`<div class="stat"><span>${x[0]}</span><strong>${x[1]??0}</strong><small>${x[2]}</small></div>`).join('');
+    renderOverview();renderAccounts();renderLicenses();renderSeats();renderSessions();renderErrors();renderTasks();
+  }
+
+  function renderOverview(){
+    const top=[...(data.licenses||[])].sort((a,b)=>b.copies_total-a.copies_total||b.copies_available-a.copies_available).slice(0,10);$('overviewLicenseCount').textContent=`${data.stats?.license_mappings||0} copias totales`;
+    $('overviewLicenses').innerHTML=top.length?`<table><thead><tr><th>Juego</th><th>Copias</th><th>Libres</th><th>Capacidad</th></tr></thead><tbody>${top.map(g=>{const pct=g.copies_total?Math.round(g.copies_available/g.copies_total*100):0;return`<tr><td><strong>${esc(g.name)}</strong><div class="muted mono">App ${esc(g.app_id||'—')}</div></td><td>${g.copies_total}</td><td>${g.copies_available}</td><td style="width:28%"><div class="bar"><i style="width:${pct}%"></i></div></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">Sin licencias.</div>';
+    const d=data.diagnostics||[];$('overviewHealth').innerHTML=d.length?d.slice(0,6).map(alertHtml).join(''):'<div class="alert"><div><strong style="color:var(--green)">Sin inconsistencias detectadas</strong><p>El pool y las relaciones principales son coherentes.</p></div></div>';
+  }
+
+  function renderAccounts(){const q=($('accountSearch')?.value||'').toLowerCase();const rows=(data.accounts||[]).filter(a=>a.label.toLowerCase().includes(q)||(a.identity?.account_name||'').toLowerCase().includes(q));$('accountsTable').innerHTML=rows.length?`<table><thead><tr><th>Cuenta</th><th>Estado</th><th>Steam account</th><th>Juegos</th><th>Lease</th></tr></thead><tbody>${rows.map(a=>`<tr><td><strong>${esc(a.label)}</strong><div class="muted mono">#${a.id}</div></td><td>${badge(a.status)}</td><td>${esc(a.identity?.account_name||'—')}<div class="muted mono">${esc(a.identity?.steam_id64||'')}</div></td><td><strong>${a.game_count}</strong><div class="muted">${esc((a.games_preview||[]).slice(0,3).join(' · '))}</div></td><td>${a.active_lease_id?`#${a.active_lease_id}`:'—'}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay cuentas que coincidan.</div>'}
+
+  function renderLicenses(){const q=($('licenseSearch')?.value||'').toLowerCase();const rows=(data.licenses||[]).filter(g=>g.name.toLowerCase().includes(q)||String(g.app_id||'').includes(q));$('licensesTable').innerHTML=rows.length?`<table><thead><tr><th>Juego</th><th>Copias</th><th>Disponibles</th><th>Propietarios</th><th>Fichas/h</th></tr></thead><tbody>${rows.map(g=>`<tr><td><strong>${esc(g.name)}</strong><div class="muted mono">Steam ${esc(g.app_id||'—')}</div></td><td>${g.copies_total}</td><td><strong style="color:${g.copies_available?'var(--green)':'var(--amber)'}">${g.copies_available}</strong></td><td><div class="owners">${(g.owners||[]).map(o=>`<span class="pill">${esc(o.label)} · ${esc(o.status)}</span>`).join('')}</div></td><td>${g.cost_per_hour}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay licencias que coincidan.</div>'}
+
+  function renderSeats(){const rows=data.seats||[];$('seatsTable').innerHTML=rows.length?`<table><thead><tr><th>Asiento</th><th>Estado</th><th>Biblioteca aportada</th><th>Lease activo</th></tr></thead><tbody>${rows.map(s=>`<tr><td><strong>${esc(s.label)}</strong><div class="muted mono">account #${s.account_id}</div></td><td>${badge(s.state)}</td><td>${s.game_count} juegos</td><td>${s.active_lease_id?`#${s.active_lease_id}`:'—'}</td></tr>`).join('')}</tbody></table><div class="muted" style="padding:14px 8px 2px;font-size:11px">${esc(data.seat_model||'')}</div>`:'<div class="empty">No hay asientos configurados.</div>'}
+
+  function renderSessions(){const rows=data.leases||[];$('sessionsTable').innerHTML=rows.length?`<table><thead><tr><th>ID</th><th>Estado</th><th>Juego</th><th>Cuenta</th><th>Usuario</th><th>Inicio</th><th>Fin</th><th>Fichas</th></tr></thead><tbody>${rows.map(l=>`<tr><td class="mono">#${l.id}</td><td>${badge(l.status)}</td><td>${esc(l.game)}</td><td>${esc(l.account)}</td><td>${esc(l.user)}</td><td>${fmtDate(l.starts_at)}</td><td>${fmtDate(l.expires_at)}</td><td>${l.credits_spent}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">Todavía no hay sesiones.</div>'}
+
+  function alertHtml(a){return`<div class="alert ${esc(a.level)}"><div><strong>${esc(a.code||a.level)}</strong><p>${esc(a.message)}${a.examples?.length?`<br>${esc(a.examples.join(' · '))}`:''}</p></div></div>`}
+  function renderErrors(){const d=data.diagnostics||[];$('errorsList').innerHTML=d.length?d.map(alertHtml).join(''):'<div class="empty">No hay errores ni alertas activas.</div>'}
+
+  function renderTasks(){const rows=data.tasks||[];$('tasksList').innerHTML=rows.length?rows.map(t=>`<div class="task"><div class="task-top"><div><h4>${esc(t.label)}</h4><div class="task-meta">${esc(t.kind)} · ${fmtDate(t.started_at)}${t.state?` · ${esc(t.state)}`:''}</div></div><div>${badge(t.status)} ${t.status==='running'?`<button class="btn danger" style="padding:5px 8px;margin-left:6px" onclick="stopTask('${t.id}')">Detener</button>`:''}</div></div>${t.log?`<pre>${esc(t.log)}</pre>`:''}</div>`).join(''):'<div class="empty">No hay tareas en esta ejecución.</div>'}
+
+  $('steamForm').generate_password.onchange=e=>{$('manualPasswordField').style.display=e.target.value==='false'?'grid':'none'};
+  $('steamForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const payload={email:f.get('email'),account_name:f.get('account_name'),country:f.get('country'),browser:f.get('browser'),generate_password:f.get('generate_password')==='true',password:f.get('password')||null};try{const r=await api('/tools/steam-account/start',{method:'POST',body:JSON.stringify(payload)});$('credentialBox').innerHTML=`<div class="credential"><strong>Credenciales de esta cuenta</strong><div class="muted">${esc(r.credentials.email)}</div><code>${esc(r.credentials.account_name)}<br>${esc(r.credentials.password)}</code><small>Copialas ahora. La contraseña no se conserva en el dashboard.</small></div>`;toast('Selenium iniciado. Revisá la ventana de Chrome.');await refresh();}catch(err){toast(err.message,true)}};
+
+  async function startPoolSync(){try{await api('/tools/pool-sync/start',{method:'POST',body:'{}'});toast('Sincronización iniciada');go('tools');await refresh()}catch(err){toast(err.message,true)}}
+  async function stopTask(id){try{await api('/tasks/'+id+'/stop',{method:'POST',body:'{}'});toast('Tarea detenida');await refresh()}catch(err){toast(err.message,true)}}
+
+  refresh(); setInterval(refresh,3000);
+</script>
+</body>
+</html>
