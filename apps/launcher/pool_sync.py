@@ -1,4 +1,11 @@
-"""Build and synchronize the local Steam game/license pool for gameAccess."""
+"""Build and synchronize the local Steam game/license pool for gameAccess.
+
+Catalog visibility and license ownership are intentionally separate:
+- accessible_app_ids may include Steam Family shared games and are useful to
+  discover the catalog/seat reach;
+- app_ids are true owned apps resolved from local Steam license packages.
+Only app_ids create backend AccountGame/license mappings.
+"""
 
 from __future__ import annotations
 
@@ -18,11 +25,19 @@ def build_game_pool() -> dict[str, Any]:
     if not raw.get("ok"):
         return {**raw, "games": []}
 
+    # Use every accessible app only to discover names/catalog entries. Ownership
+    # is decided later from account.app_ids (resolved license packages).
     candidate_ids = {
         int(app_id)
         for account in raw.get("accounts", [])
-        for app_id in account.get("app_ids", [])
+        for app_id in (account.get("accessible_app_ids") or account.get("app_ids") or [])
     }
+    candidate_ids.update(
+        int(app_id)
+        for account in raw.get("accounts", [])
+        for app_id in account.get("app_ids", [])
+    )
+
     root = steam_root()
     appinfo_path = root / "appcache" / "appinfo.vdf" if root else Path("__missing__")
     catalog = read_local_app_catalog(appinfo_path, candidate_ids) if appinfo_path.is_file() else {}
@@ -48,13 +63,23 @@ def build_game_pool() -> dict[str, Any]:
     accounts = []
     for account in raw.get("accounts", []):
         owned = sorted(int(app_id) for app_id in account.get("app_ids", []) if int(app_id) in game_ids)
+        accessible = sorted(
+            int(app_id)
+            for app_id in account.get("accessible_app_ids", [])
+            if int(app_id) in game_ids
+        )
         accounts.append(
             {
                 "label": account.get("display_name") or account.get("account_name") or "Steam",
                 "account_name": account.get("account_name") or "",
                 "steam_id64": account.get("steam_id64") or "",
                 "user_id32": account.get("user_id32"),
+                # Backend AccountGame rows are created ONLY from this field.
                 "app_ids": owned,
+                "accessible_app_ids": accessible,
+                "license_package_count": int(account.get("license_package_count") or 0),
+                "unresolved_package_count": int(account.get("unresolved_package_count") or 0),
+                "ownership_source": account.get("ownership_source") or raw.get("ownership_source") or "unknown",
                 "active": bool(account.get("active")),
             }
         )
@@ -66,7 +91,7 @@ def build_game_pool() -> dict[str, Any]:
 
     return {
         "ok": True,
-        "source": "steam-local-metadata",
+        "source": "steam-local-license-packages",
         "accounts": accounts,
         "games": [games[app_id] for app_id in sorted(games)],
         "licenses": {str(app_id): labels for app_id, labels in sorted(licenses.items())},
@@ -74,6 +99,11 @@ def build_game_pool() -> dict[str, Any]:
         "game_count": len(games),
         "duplicate_game_count": sum(1 for labels in licenses.values() if len(labels) > 1),
         "candidate_app_count": len(candidate_ids),
+        "owned_unique_app_count": len(licenses),
+        "accessible_app_count": int(raw.get("accessible_app_count") or len(candidate_ids)),
+        "license_package_count": int(raw.get("license_package_count") or 0),
+        "unresolved_package_count": int(raw.get("unresolved_package_count") or 0),
+        "ownership_error": raw.get("ownership_error"),
     }
 
 
@@ -81,7 +111,7 @@ def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:8000") -> di
     response = requests.post(
         f"{api.rstrip('/')}/admin/pool/sync",
         json={
-            "source": pool.get("source", "steam-local-metadata"),
+            "source": pool.get("source", "steam-local-license-packages"),
             "accounts": pool.get("accounts", []),
             "games": pool.get("games", []),
         },
@@ -110,10 +140,23 @@ def main() -> int:
             "pool": {
                 "account_count": pool.get("account_count"),
                 "game_count": pool.get("game_count"),
+                "owned_unique_app_count": pool.get("owned_unique_app_count"),
+                "accessible_app_count": pool.get("accessible_app_count"),
                 "duplicate_game_count": pool.get("duplicate_game_count"),
                 "candidate_app_count": pool.get("candidate_app_count"),
+                "license_package_count": pool.get("license_package_count"),
+                "unresolved_package_count": pool.get("unresolved_package_count"),
+                "ownership_error": pool.get("ownership_error"),
                 "accounts": [
-                    {"label": a["label"], "game_count": len(a["app_ids"]), "active": a.get("active", False)}
+                    {
+                        "label": a["label"],
+                        "owned_game_count": len(a["app_ids"]),
+                        "accessible_game_count": len(a.get("accessible_app_ids") or []),
+                        "license_package_count": a.get("license_package_count", 0),
+                        "unresolved_package_count": a.get("unresolved_package_count", 0),
+                        "ownership_source": a.get("ownership_source"),
+                        "active": a.get("active", False),
+                    }
                     for a in pool.get("accounts", [])
                 ],
             },
