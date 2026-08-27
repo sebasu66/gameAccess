@@ -1,4 +1,4 @@
-"""Run a Steam client console command and capture only the newly appended console log.
+"""Run a Steam client console command and capture only newly appended console log data.
 
 No credentials are read or injected. The command executes in the already signed-in
 Steam client. Output comes from Steam's own logs/console_log.txt.
@@ -9,7 +9,6 @@ import argparse
 import json
 import subprocess
 import time
-from pathlib import Path
 
 from steam_switch import find_steam_exe
 from steam_pool import active_user_id32, remembered_account_identities
@@ -20,7 +19,17 @@ def active_identity() -> dict | None:
     return next((item for item in remembered_account_identities() if item.get("user_id32") == active), None)
 
 
-def run_console_command(parts: list[str], wait_seconds: float = 3.0) -> dict:
+def run_console_command(
+    parts: list[str],
+    wait_seconds: float = 3.0,
+    *,
+    max_lines: int | None = 300,
+) -> dict:
+    """Execute a Steam console command and return only output appended by that command.
+
+    ``max_lines=None`` is intended for internal parsers that need the complete
+    command output. The CLI keeps the diagnostic-friendly 300-line tail by default.
+    """
     steam = find_steam_exe()
     if not steam:
         raise RuntimeError("Steam executable not found")
@@ -48,17 +57,22 @@ def run_console_command(parts: list[str], wait_seconds: float = 3.0) -> dict:
     data = b""
     if log_path.is_file():
         with log_path.open("rb") as handle:
-            if start <= log_path.stat().st_size:
+            current_size = log_path.stat().st_size
+            # console_log.txt can rotate around its size cap. If it did, read the
+            # current file rather than seeking past EOF.
+            if start <= current_size:
                 handle.seek(start)
             data = handle.read()
     text = data.decode("utf-8", errors="replace")
     lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    returned_lines = lines if max_lines is None else lines[-max(0, max_lines):]
     return {
         "active_user_id32": active_user_id32(),
         "active_identity": active_identity(),
         "command": " ".join(parts),
         "new_log_bytes": len(data),
-        "lines": lines[-300:],
+        "lines": returned_lines,
+        "line_count": len(lines),
     }
 
 
@@ -66,10 +80,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", nargs=argparse.REMAINDER)
     parser.add_argument("--wait", type=float, default=4.0)
+    parser.add_argument("--max-lines", type=int, default=300)
     args = parser.parse_args()
     if not args.command:
         parser.error("command required")
-    result = run_console_command(args.command, args.wait)
+    result = run_console_command(args.command, args.wait, max_lines=args.max_lines)
     print(json.dumps(result, ensure_ascii=False))
     return 0
 
