@@ -1,13 +1,14 @@
-"""Build and synchronize the local Steam game/license pool for gameAccess.
+"""Build and synchronize the local Steam pool.
 
-Catalog visibility and license ownership are intentionally separate:
-- accessible_app_ids may include Steam Family shared games and are useful to
-  discover catalog/seat reach;
-- app_ids are ticket-backed per-account owner candidates from Steam local
-  app/net ticket keys.
-Only app_ids create backend AccountGame/license mappings.
+Catalog reach and license ownership are different resources:
+- ``accessible_app_ids`` comes from per-seat Steam library metadata and may
+  include Steam Family sharing;
+- true copy ownership comes only from the verified ``licenses_print`` snapshot,
+  where Steam marks borrowed licenses and reports ``Original Owner``.
+
+App/net ticket caches are deliberately NOT used as inventory: they are neither
+complete nor ownership-authoritative.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -19,23 +20,38 @@ import requests
 
 from steam_appinfo import read_local_app_catalog
 from steam_pool import scan_pool, steam_root
+from steam_verified_inventory import load_verified_inventory, verify_all_remembered_accounts
 
 
-def build_game_pool() -> dict[str, Any]:
+def _verified_owner_apps(inventory: dict[str, Any] | None) -> dict[int, set[int]]:
+    result: dict[int, set[int]] = {}
+    if not inventory:
+        return result
+    for owner in inventory.get("owners", []):
+        user_id = owner.get("user_id32")
+        if not isinstance(user_id, int):
+            continue
+        result[user_id] = {int(app_id) for app_id in owner.get("app_ids", []) if int(app_id) > 0}
+    return result
+
+
+def build_game_pool(*, verify: bool = False) -> dict[str, Any]:
     raw = scan_pool()
     if not raw.get("ok"):
         return {**raw, "games": []}
 
+    inventory = verify_all_remembered_accounts(save=True) if verify else load_verified_inventory()
+    owner_apps = _verified_owner_apps(inventory)
+
+    # Catalog reach is the union of what seats can see plus verified owned apps.
+    # This preserves Family-visible discovery while keeping copy counts separate.
     candidate_ids = {
         int(app_id)
         for account in raw.get("accounts", [])
-        for app_id in (account.get("accessible_app_ids") or account.get("app_ids") or [])
+        for app_id in account.get("accessible_app_ids", [])
+        if int(app_id) > 0
     }
-    candidate_ids.update(
-        int(app_id)
-        for account in raw.get("accounts", [])
-        for app_id in account.get("app_ids", [])
-    )
+    candidate_ids.update(app_id for apps in owner_apps.values() for app_id in apps)
 
     root = steam_root()
     appinfo_path = root / "appcache" / "appinfo.vdf" if root else Path("__missing__")
@@ -59,8 +75,12 @@ def build_game_pool() -> dict[str, Any]:
 
     game_ids = set(games)
     accounts = []
+    remembered_user_ids: set[int] = set()
     for account in raw.get("accounts", []):
-        owned = sorted(int(app_id) for app_id in account.get("app_ids", []) if int(app_id) in game_ids)
+        user_id = account.get("user_id32")
+        if isinstance(user_id, int):
+            remembered_user_ids.add(user_id)
+        owned = sorted(app_id for app_id in owner_apps.get(user_id, set()) if app_id in game_ids)
         accessible = sorted(
             int(app_id)
             for app_id in account.get("accessible_app_ids", [])
@@ -71,33 +91,44 @@ def build_game_pool() -> dict[str, Any]:
                 "label": account.get("display_name") or account.get("account_name") or "Steam",
                 "account_name": account.get("account_name") or "",
                 "steam_id64": account.get("steam_id64") or "",
-                "user_id32": account.get("user_id32"),
+                "user_id32": user_id,
                 "app_ids": owned,
                 "accessible_app_ids": accessible,
-                "ticketed_app_count": int(account.get("ticketed_app_count") or len(owned)),
-                "ownership_source": account.get("ownership_source") or raw.get("ownership_source") or "unknown",
+                "ownership_source": "steam-console-licenses-print" if inventory else "unverified",
+                "ownership_verified_at": inventory.get("verified_at") if inventory else None,
+                "inventory_complete": bool(inventory and inventory.get("complete")),
                 "active": bool(account.get("active")),
             }
         )
+
+    # Do not silently turn an unknown Family donor into a usable ProviderAccount.
+    # Report it so the admin can add/remember that account explicitly.
+    unmapped_owner_ids = sorted(owner for owner in owner_apps if owner not in remembered_user_ids)
 
     licenses: dict[int, list[str]] = {}
     for account in accounts:
         for app_id in account["app_ids"]:
             licenses.setdefault(app_id, []).append(account["label"])
 
+    verification_errors = list(inventory.get("errors", [])) if inventory else []
     return {
         "ok": True,
-        "source": "steam-local-app-ticket-keys",
+        "source": "steam-console-licenses-print" if inventory else "unverified",
+        "verification_complete": bool(inventory and inventory.get("complete")),
+        "verified_at": inventory.get("verified_at") if inventory else None,
+        "verification_errors": verification_errors,
+        "unmapped_owner_ids": unmapped_owner_ids,
         "accounts": accounts,
         "games": [games[app_id] for app_id in sorted(games)],
         "licenses": {str(app_id): labels for app_id, labels in sorted(licenses.items())},
         "account_count": len(accounts),
         "game_count": len(games),
+        "license_mapping_count": sum(len(labels) for labels in licenses.values()),
         "duplicate_game_count": sum(1 for labels in licenses.values() if len(labels) > 1),
         "candidate_app_count": len(candidate_ids),
         "owned_unique_app_count": len(licenses),
         "accessible_app_count": int(raw.get("accessible_app_count") or len(candidate_ids)),
-        "ownership_error": raw.get("ownership_error"),
+        "ownership_error": None if inventory else "No verified Steam licenses_print snapshot exists yet",
     }
 
 
@@ -105,7 +136,10 @@ def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:8000") -> di
     response = requests.post(
         f"{api.rstrip('/')}/admin/pool/sync",
         json={
-            "source": pool.get("source", "steam-local-app-ticket-keys"),
+            "source": pool.get("source", "unverified"),
+            "verification_complete": bool(pool.get("verification_complete")),
+            "verified_at": pool.get("verified_at"),
+            "verification_errors": pool.get("verification_errors", []),
             "accounts": pool.get("accounts", []),
             "games": pool.get("games", []),
         },
@@ -120,31 +154,49 @@ def main() -> int:
     parser.add_argument("--api", default="http://127.0.0.1:8000")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--verify", action="store_true", help="switch through remembered Steam accounts and refresh verified licenses first")
+    parser.add_argument("--allow-partial", action="store_true", help="allow backend sync from an incomplete verified snapshot")
     args = parser.parse_args()
 
-    pool = build_game_pool()
+    pool = build_game_pool(verify=args.verify)
     if not pool.get("ok"):
         print(json.dumps(pool, ensure_ascii=False))
         return 1
+    if not pool.get("verification_complete") and not args.dry_run and not args.allow_partial:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "Verified license inventory is incomplete; backend was not changed",
+                    "pool": pool,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 2
+
     result: dict[str, Any] = {"pool": pool}
     if not args.dry_run:
         result["backend"] = sync_backend(pool, args.api)
     if args.compact:
         result = {
             "pool": {
+                "source": pool.get("source"),
+                "verification_complete": pool.get("verification_complete"),
+                "verified_at": pool.get("verified_at"),
                 "account_count": pool.get("account_count"),
                 "game_count": pool.get("game_count"),
+                "license_mapping_count": pool.get("license_mapping_count"),
                 "owned_unique_app_count": pool.get("owned_unique_app_count"),
                 "accessible_app_count": pool.get("accessible_app_count"),
                 "duplicate_game_count": pool.get("duplicate_game_count"),
-                "candidate_app_count": pool.get("candidate_app_count"),
-                "ownership_error": pool.get("ownership_error"),
+                "verification_errors": pool.get("verification_errors"),
+                "unmapped_owner_ids": pool.get("unmapped_owner_ids"),
                 "accounts": [
                     {
                         "label": a["label"],
                         "owned_game_count": len(a["app_ids"]),
                         "accessible_game_count": len(a.get("accessible_app_ids") or []),
-                        "ticketed_app_count": a.get("ticketed_app_count", 0),
                         "ownership_source": a.get("ownership_source"),
                         "active": a.get("active", False),
                     }
