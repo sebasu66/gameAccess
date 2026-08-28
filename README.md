@@ -9,202 +9,186 @@ The customer-facing abstraction is the **game**. Provider accounts, license pool
 
 This repository is currently an **MVP / technical and business validation project**, not a production service.
 
----
+## Product intent
 
-## 1. Product intent
+The target customer experience is one Windows executable (`gameAccess.exe`) connected over HTTPS to a central hosted gameAccess backend. The customer must not need to run a separate local API/server process. React/Vite may remain the UI implementation inside Tauri, while machine-local Steam/process/filesystem behavior belongs in the native desktop layer.
 
-The intended experience is deliberately low-friction:
+The central backend is authoritative for shared state: customers, wallet/fichas, provider profiles, licenses/entitlements, availability, queues, leases/sessions, catalog, telemetry and later payments. A web administration application uses the same backend and data model.
 
 ```text
-open gameAccess
--> browse a visual game catalog
--> open a rich Steam-powered game page
--> download / prepare the game
--> press PLAY
--> gameAccess checks wallet + availability
--> allocate a compatible entitlement/session
--> launch the game
+Customer PC                              Hosted gameAccess
+┌──────────────────────────────┐         ┌──────────────────────────────┐
+│ gameAccess.exe               │ HTTPS   │ Central backend             │
+│ React UI + Tauri/native      ├────────>│ accounts/licenses/leases    │
+│ Steam/local adapters         │         │ queues/wallet/catalog       │
+└──────────────────────────────┘         └──────────────┬───────────────┘
+                                                       │
+                                                Admin web app
 ```
 
-A customer should not normally have to understand which provider account, seller, entitlement, pool entry, machine, or cloud service fulfills the request.
+## Unified Steam + gameAccess experience
 
-The long-term product is therefore **not an account marketplace UI**. It is a game-access layer capable of changing fulfillment mechanisms underneath a stable customer experience.
+The desktop application should make gameAccess feel like an extension of the user's existing PC-game library rather than a separate account marketplace.
 
----
+At startup it should discover the Steam users/accounts already present on the machine and determine, as reliably as supported interfaces/local metadata allow, which games are installed/owned/available through those accounts. Multiple local Steam accounts should be represented in one game-centric catalog.
 
-## 2. Business goal
+For every game the UI should clearly distinguish the access source while keeping the workflow simple:
 
-The project is being designed around a capital-light validation strategy.
+1. **Owned / local access** — the user already owns the game through one of their Steam accounts. Launch normally using the appropriate local identity.
+2. **Buy on Steam** — for an unowned game, offer the normal Steam Store purchase route and leave the gameAccess commercial flow.
+3. **gameAccess shared access** — spend fichas/tokens for temporary access, initially envisioned as time-based access where appropriate.
+4. **Dedicated/private access** — where commercially and contractually viable, offer dedicated inventory rather than waiting for shared capacity.
 
-Before investing in expensive inventory or owned GPU/cloud infrastructure, gameAccess should prove that users want particular games, that sessions can be fulfilled reliably, and that the economics work.
+The ficha balance remains persistently visible. Subscription economics, recurring plans and exact token packages are intentionally deferred until the core access flow is validated.
 
-Potential revenue mechanisms include:
+## Availability and waiting queue
 
-- wallet top-ups using an internal token/credit balance;
-- temporary game access;
-- recurring membership with preferential top-up economics and other benefits;
-- a short capacity-limited free trial tied to a recurring subscription;
-- promotional/reward-funded access where economically viable;
-- later, additional fulfillment methods such as cloud gaming.
+Shared inventory is finite. When a gameAccess copy is available, the normal action is **PLAY**. When all compatible capacity is occupied, the user should be able to **JOIN WAITLIST** rather than repeatedly retrying.
 
-A major strategic feature is **demand sensing**: searches, installs, Play attempts, blocked Play attempts, occupancy, and repeat demand should tell the operator what inventory is worth acquiring instead of buying inventory speculatively.
+The central backend owns queue order and reservations. When capacity becomes available, the next eligible user receives a desktop notification with a direct **PLAY NOW** action and a bounded reservation window; if it expires, capacity can move to the next user.
 
-The full commercial/product rationale lives in [`docs/PRODUCT_PLAN.md`](docs/PRODUCT_PLAN.md).
+The waiting state is also a high-value demand signal and should feed procurement analytics.
 
----
+A user waiting for a game may also be shown a separate **GET PRIVATE ACCESS / SKIP THE WAIT** offer when dedicated inventory can legitimately be sourced. This must remain a distinct entitlement/product type from a temporary shared lease.
 
-## 3. Current repository architecture
+## Steam Families research direction
+
+A usability hypothesis is to reduce account switching by using **Steam Families** where Valve's rules genuinely permit it: a user's primary account could access shareable games owned by another eligible family member while retaining their own saves/achievements/account experience.
+
+This is **research, not an assumed fulfillment mechanism**. Steam Families is a Valve feature intended for a family/household context, has membership/eligibility restrictions, and individual games may opt out of Family Sharing. gameAccess must validate current Steam rules and technical behavior before depending on it. It must not manufacture or rotate families merely to circumvent account, regional, licensing, household or sharing restrictions.
+
+## Steam store country / Argentina — important constraint
+
+Do **not** implement an automatic "change this Steam account to Argentina" function as a gameAccess provisioning shortcut.
+
+Valve's current Steam Support rules state that the store country must correspond to where the account holder currently resides, and changing it after moving requires completing a purchase with a payment method from the new country. Steam currently limits changing store country to once every three months. This is therefore not simply an editable profile field that gameAccess should programmatically force, and there is no documented Steamworks API intended for a third-party launcher to arbitrarily set a consumer account's store country.
+
+GameAccess may detect/display relevant regional compatibility and guide a legitimate user through Steam's own supported flow when they actually qualify, but regional manipulation must not become part of automated account provisioning.
+
+## Business goal
+
+The project is designed around capital-light validation. Before investing in broad inventory or owned GPU/cloud infrastructure, prove demand, reliable fulfillment and unit economics.
+
+Potential revenue mechanisms include wallet top-ups, temporary access, recurring membership, trials/promotions and later additional fulfillment methods such as cloud gaming.
+
+A strategic feature is **demand sensing**: searches, installs, Play attempts, waitlist joins, blocked demand, occupancy and repeat demand should tell the operator what inventory is worth acquiring.
+
+See [`docs/PRODUCT_PLAN.md`](docs/PRODUCT_PLAN.md) for the detailed commercial model.
+
+## Procurement / market-offer module
+
+Build sourcing as a standalone backend module rather than coupling it to the Windows launcher. The initial research target is G2G or other permitted suppliers.
+
+Conceptual pipeline:
+
+```text
+game title
+-> supplier search/discovery
+-> normalize candidate offers
+-> extract structured account/game facts
+-> filter/rank viable low-cost offers
+-> compare with Steam Argentina reference price
+-> apply risk + margin + pricing rules
+-> optional LLM Spanish presentation text
+-> admin review / gameAccess offer / external-channel candidate
+```
+
+Structured facts and prices must be extracted and validated deterministically where possible. An LLM may translate/summarize verified facts into customer-readable Spanish, but must not invent ownership, transferability, included games, guarantees or price facts.
+
+Pricing should maximize sustainable contribution margin while remaining meaningfully competitive with the relevant legitimate purchase alternative. Supplier/platform terms and account-transfer rules must be checked before automating purchasing, resale or external marketplace publication.
+
+## Repository architecture
 
 ```text
 gameAccess/
 ├─ apps/
-│  ├─ api/       FastAPI + SQLite backend
-│  ├─ desktop/   React + Vite + Tauri 2 desktop client
-│  └─ launcher/  earlier Windows/Tkinter experimental launcher
+│  ├─ api/       prototype backend; evolves into hosted central service
+│  ├─ desktop/   React + Vite + Tauri 2 Windows customer application
+│  └─ launcher/  earlier Windows/Tkinter experimental harness
 ├─ docs/
 │  ├─ PRODUCT_PLAN.md
 │  └─ architecture.md
+├─ TODO.md       centralized prioritized implementation queue
 ├─ skill.md      accumulated implementation/research knowledge
-└─ README.md     project entry point + current handoff/status
+└─ README.md     project direction + current handoff/status
 ```
 
 ### `apps/api`
 
-Current backend responsibilities include:
-
-- game catalog;
-- Steam Store metadata integration and cache;
-- credits / wallet prototype mechanics;
-- provider-account inventory;
-- entitlement/account availability;
-- timed leases;
-- administrative inventory synchronization.
-
-This is presently a prototype domain backend, not a hardened production financial or identity system.
+Current responsibilities include catalog, Steam Store metadata/cache, credits prototype, provider-account inventory, availability, timed leases and administrative inventory synchronization. In production this is a **hosted service**, not a companion localhost process for the desktop app.
 
 ### `apps/desktop`
 
-This is the intended primary consumer frontend.
-
-It uses **React + Vite + Tauri 2** and is deliberately styled closer to Game Pass / GeForce NOW / Netflix than to a utilitarian Steam-account manager.
-
-Implemented/prototyped UI concepts include:
-
-- cinematic hero area;
-- horizontal catalog shelves;
-- cover-art cards;
-- search;
-- wallet balance;
-- game detail view;
-- availability and token-price presentation;
-- Steam screenshots, descriptions, genres and publisher/developer metadata;
-- trailers when available;
-- PLAY and DOWNLOAD actions;
-- responsive layout;
-- offline visual fallback when the API is unavailable.
-
-The Tauri host currently exposes only narrow native behavior required by the prototype, such as detecting Steam and opening validated Steam install/run URIs.
+The intended consumer product. React/Vite/Tauri provides the streaming-style catalog and native Windows integration. It should ultimately ship as a normal Windows executable/installer with no separately managed local backend.
 
 ### `apps/launcher`
 
-This is an **earlier experimental Windows harness**.
+Earlier experimental Windows harness used to validate Steam/session/account-selection behavior. Useful findings should migrate behind proper native adapters; this is not the intended final UI.
 
-It was used to validate local Steam/session/account-selection behavior. It should not be mistaken for the intended final customer UI. Useful validated behaviors should progressively move behind proper local provider/session adapters while the React/Tauri desktop app remains the product frontend.
+## Current state — 2026-08-28
 
----
+### Present/prototyped
 
-## 4. Current state — 2026-08-28
-
-### Implemented / present in the repository
-
-- FastAPI backend and SQLite prototype.
-- Game catalog model.
+- FastAPI + SQLite backend prototype.
+- Game catalog and Steam metadata adapter/cache.
 - Provider account/inventory model.
 - Availability and timed lease mechanics.
-- Steam Store metadata adapter/cache.
-- Steam-driven rich catalog/game-detail data.
-- React/Vite/Tauri desktop application.
-- Streaming-style visual catalog direction.
-- Basic wallet/credits concepts.
+- React/Vite/Tauri desktop application and streaming-style catalog.
+- Basic wallet/fichas concepts.
 - PLAY / DOWNLOAD UI actions.
 - Experimental local Windows Steam launcher/session work.
-- Product/business plan.
-- Architecture notes and a living implementation/research knowledge base (`skill.md`).
+- Product/business and architecture documentation.
 
-### Validated direction, but still experimental
+### Still to prove/build
 
-- Treating games rather than provider accounts as the consumer-facing product.
-- Separating download/preparation from entitlement checking at Play time.
-- Allocating finite provider capacity through leases.
-- Local Steam integration as part of fulfillment.
-- Using Steam metadata to populate the catalog rather than manually maintaining presentation data.
-- Capital-light sourcing and inventory experimentation.
+- Single packaged Windows application with local API dependency removed.
+- Discovery/unification of multiple local Steam identities and owned libraries.
+- Clear Owned / Buy on Steam / gameAccess access states.
+- Central hosted backend reachable across the Internet.
+- Queue/reservation/notification lifecycle.
+- End-to-end reliable provider session lifecycle and cleanup.
+- Per-game compatibility matrix and save continuity.
+- Production authentication and immutable wallet ledger.
+- Payments/subscriptions/trials.
+- Demand telemetry and procurement engine.
+- Admin web application.
+- Supplier integration and offer normalization.
+- Production-grade security/revocation.
+- Cloud fulfillment.
 
-### Not production-ready / still to be built or proven
+**The next stage is an Internet-connected live-development system, not production:** packaged Windows client + hosted development backend + lightweight test persistence + admin web UI. The API contract should survive the later migration to production persistence/hosting.
 
-- End-to-end reliable production session lifecycle.
-- Robust account/session switching and cleanup across supported games.
-- Per-game compatibility matrix.
-- Save-game isolation/restoration and customer continuity.
-- Production authentication/user accounts.
-- Immutable wallet ledger.
-- Real payment-provider integration.
-- Subscription lifecycle and 3-day trial implementation.
-- Refund/idempotency/webhook handling.
-- Demand telemetry and Demand Engine.
-- Automated inventory/procurement recommendations.
-- Production supplier integrations.
-- Production-grade security/revocation strategy for provider sessions.
-- Cloud-gaming fulfillment.
-- Operational/admin tooling required to run the service at scale.
+## Immediate development priorities
 
-In short: **the catalog, broker concepts and desktop experience exist as a meaningful prototype; the next critical milestone is proving a robust real PLAY/session lifecycle and the economics around it.**
+`TODO.md` is the authoritative prioritized work queue. At a high level the sequence is:
 
----
+1. Prove constraints that could invalidate fulfillment assumptions (Steam regional rules, Families applicability, session behavior).
+2. Convert the desktop into a self-contained Windows application and separate local/native responsibilities from remote/shared responsibilities.
+3. Implement local Steam-account/library discovery and unified access-state UX.
+4. Harden the central entitlement allocator and implement waitlists/reservations.
+5. Put the backend on a stable Internet-accessible development environment and add the admin UI.
+6. Prove one complete real Play -> cleanup -> lease-release lifecycle.
+7. Add demand telemetry and the standalone sourcing/pricing module.
+8. Harden wallet/payments only after access mechanics and economics are demonstrated.
 
-## 5. Immediate development priorities
-
-Work should prioritize validation over feature breadth.
-
-1. **Make one complete Play flow dependable.**
-   Select a representative Steam game and prove allocation -> local session preparation -> launch -> exit -> cleanup -> lease release.
-
-2. **Formalize provider/session adapters.**
-   Move useful behavior out of the legacy launcher into explicit interfaces rather than coupling the customer UI directly to Steam/account automation.
-
-3. **Create a per-game compatibility model.**
-   Record whether a game works with the current access method, external publisher accounts, SteamID-bound progression, save locations, cloud-save behavior, and known cleanup requirements.
-
-4. **Instrument demand.**
-   Capture search, game-page view, download intent, installation, Play attempt, blocked Play attempt, successful allocation and session completion.
-
-5. **Build the Demand Engine before buying substantial inventory.**
-   Use unmet demand, occupancy, acquisition price, supplier depth and expected contribution margin to generate procurement recommendations.
-
-6. **Only after the above, harden monetization.**
-   Introduce an immutable ledger, top-ups, payment webhooks, membership/trial lifecycle, refunds and idempotency before accepting production money.
-
----
-
-## 6. Important product rules / boundaries
-
-The architecture should preserve these rules unless deliberately reconsidered:
+## Product/architecture rules
 
 - The customer interacts with **games**, not raw provider accounts.
-- Provider credentials and fulfillment identities belong behind the product layer.
+- One customer-facing Windows executable; no separately managed localhost server in production.
+- Shared truth, money, scarce resources and authorization live on the central backend.
+- Windows/Steam/process/filesystem operations live in the desktop/native layer.
+- Admin tooling uses the same backend, not a parallel data model.
+- Owned/local access and paid gameAccess access must always be distinguishable to the customer.
 - Download/preparation and entitlement are separate concepts.
-- A SteamID is an identity, not proof of ownership/license.
-- The system must not bypass Steam DRM, fabricate entitlements, emulate ownership, or collect/store Steam Guard secrets as a shortcut.
-- Customer machines are untrusted endpoints; client-side provider material cannot be assumed perfectly secret from a local administrator.
-- Inventory acquisition should follow demonstrated demand and economics.
-- Cloud/owned GPU infrastructure is a later fulfillment option, not an MVP prerequisite.
-- The old Tkinter launcher is an experimental harness; the React/Tauri app is the intended frontend direction.
+- A SteamID is identity, not proof of ownership/license.
+- Do not bypass Steam DRM, fabricate entitlements, collect Steam Guard secrets as a shortcut, manipulate regions, or rely on sharing mechanisms outside their permitted use.
+- Customer machines are untrusted endpoints.
+- Inventory acquisition follows demonstrated demand/economics.
+- The legacy Tkinter launcher is an experimental harness only.
 
----
+## Development quick start
 
-## 7. Running the desktop UI
-
-### Browser / Vite mode
+Desktop/Vite:
 
 ```bash
 cd apps/desktop
@@ -212,15 +196,7 @@ npm install
 npm run dev
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:1420
-```
-
-### Tauri desktop mode
-
-Install the normal Tauri 2 platform prerequisites, then:
+Tauri:
 
 ```bash
 cd apps/desktop
@@ -228,11 +204,7 @@ npm install
 npm run tauri dev
 ```
 
----
-
-## 8. Running the API
-
-On Windows:
+Prototype API:
 
 ```bash
 cd apps/api
@@ -242,60 +214,26 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Default API URL:
+The localhost API is a **development convenience only**. Production/live-test desktop builds should target the configured hosted backend.
 
-```text
-http://127.0.0.1:8000
-```
+## Documentation map
 
-Useful prototype endpoints include:
+Read in this order when taking over the project:
 
-```text
-GET  /catalog
-GET  /games/{id}/details
-GET  /steam/apps/{appid}
-POST /admin/games/import-steam/{appid}
-POST /leases
-POST /admin/accounts/sync
-```
+1. `README.md` — direction, architecture and handoff.
+2. `TODO.md` — authoritative next work, priority ordered.
+3. `docs/PRODUCT_PLAN.md` — detailed product/business model.
+4. `docs/architecture.md` — technical boundaries.
+5. `skill.md` — living Steam/session implementation research.
 
-Steam metadata is cached under:
+Update `skill.md` when technical Steam/session facts change. Update this README when product direction or implementation status changes. Keep `TODO.md` current whenever work is completed, reprioritized or newly discovered.
 
-```text
-apps/api/.steam_cache
-```
+## Handoff summary
 
----
+**What are we building?** A game-centric Windows application that combines the user's existing Steam access with clearly labeled optional paid gameAccess fulfillment.
 
-## 9. Documentation map
+**What is the architecture?** One native desktop product connected to a hosted central backend, plus an operator web application using that same backend.
 
-When taking over or resuming the project, read in this order:
+**What is the next milestone?** A live-development environment where a packaged Windows client discovers local Steam access, communicates with the hosted allocator, shows Owned/Steam/gameAccess choices, can queue for scarce capacity, and completes one reliable real-game session lifecycle.
 
-1. **`README.md`** — current intent, architecture, status and handoff.
-2. **`docs/PRODUCT_PLAN.md`** — detailed product/business model, demand strategy, sourcing and intended evolution.
-3. **`docs/architecture.md`** — technical boundaries and architecture.
-4. **`skill.md`** — living implementation/research knowledge, especially Steam/session findings.
-5. Inspect `apps/api`, `apps/desktop`, and only then `apps/launcher` as needed.
-
-If a technical discovery materially changes what is known about Steam/session behavior, update `skill.md`. If the implementation status or project direction changes materially, update this README as part of the same work.
-
----
-
-## 10. Handoff summary
-
-For a developer or AI agent arriving without prior conversation context:
-
-**What are we building?**  
-A polished game-centric access service where users browse, prepare and play games while fulfillment accounts/capacity remain hidden behind the platform.
-
-**What exists today?**  
-A FastAPI/SQLite broker prototype, Steam-enriched catalog, provider inventory/lease concepts, a substantially more appropriate React/Tauri consumer UI, and an older Windows launcher used for Steam/session experiments.
-
-**What is the most important unsolved problem?**  
-A dependable, repeatable, secure-enough end-to-end provider/session lifecycle for real games, including launch, cleanup/release and per-game compatibility.
-
-**What should not happen next?**  
-Do not prematurely build a huge cloud fleet, buy broad inventory, automate purchasing at scale, or add production payments before the real Play flow and unit economics are demonstrated.
-
-**What should happen next?**  
-Prove one excellent Play flow, turn the experimental launcher findings into formal adapters, measure demand, and then use that evidence to decide what inventory and monetization deserve automation.
+**What should not happen next?** Do not prematurely add production payments, buy broad inventory, assume Steam Families can be used as a generic fulfillment mechanism, or attempt automated Steam-region changes.
