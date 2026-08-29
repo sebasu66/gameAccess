@@ -16,7 +16,7 @@ const page = await browser.newPage({
 
 try {
   await page.goto(inputUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(3000);
 
   const result = await page.evaluate(async ({ maxOffers, maxScrolls }) => {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -50,7 +50,7 @@ try {
 
     // G2G-specific recovery: listing cards are offer anchors, while the
     // amount and currency are separate nested spans.
-    const offerAnchors = Array.from(document.querySelectorAll('a[href*="/offer/"]')).filter(visible);
+    const offerAnchors = Array.from(document.querySelectorAll('a[href*="/offer/"]'));
     for (const anchor of offerAnchors) {
       if (candidates.size >= maxOffers) break;
       const text = clean(anchor.innerText);
