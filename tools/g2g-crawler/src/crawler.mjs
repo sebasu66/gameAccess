@@ -21,7 +21,7 @@ try {
   const result = await page.evaluate(async ({ maxOffers, maxScrolls }) => {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const clean = (value, max = 500) =>
-        .replace(/\s+/g, " ")
+      String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
     const pricePattern = /(?:(?:US\$|USD|ARS|\$|EUR|€|GBP|£)\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\s*(?:US\$|USD|ARS|\$|EUR|€|GBP|£))/i;
     const parseAmount = value => {
       const normalized = String(value || "").replace(/\./g, "").replace(",", ".");
