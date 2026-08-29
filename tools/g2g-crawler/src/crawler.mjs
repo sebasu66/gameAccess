@@ -96,6 +96,38 @@ try {
       await sleep(800);
     }
 
+    if (candidates.size === 0) {
+      const lines = (document.body?.innerText || "")
+        .split(/\\n|\\r/)
+        .map(line => clean(line, 180))
+        .filter(Boolean);
+      const links = Array.from(document.querySelectorAll("a[href]"))
+        .map(anchor => ({ text: clean(anchor.innerText, 180), url: anchor.href }))
+        .filter(link => link.url && link.text);
+      for (let index = 0; index < lines.length && candidates.size < maxOffers; index += 1) {
+        const line = lines[index];
+        const match = line.match(pricePattern);
+        if (!match) continue;
+        const nearby = lines.slice(Math.max(0, index - 5), index)
+          .filter(value => !/^(price|view|buy|sold|min\\.|instant|new listing)$/i.test(value));
+        const title = nearby[nearby.length - 1] || "G2G listing";
+        const link = links.find(item => item.text.toLowerCase().includes(title.toLowerCase().slice(0, 24)));
+        const key = (link?.url || location.href) + "|" + line;
+        if (candidates.has(key)) continue;
+        candidates.set(key, {
+          title,
+          url: link?.url || location.href,
+          price: {
+            amount: parseAmount(match[1] || match[2]),
+            currency: currency(match[0]),
+            raw: clean(match[0], 80)
+          },
+          text: nearby.concat(line).join(" — "),
+          extraction: "rendered-text-fallback"
+        });
+      }
+    }
+
     return {
       source: "g2g",
       url: location.href,
