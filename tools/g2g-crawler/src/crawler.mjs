@@ -22,9 +22,9 @@ try {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const clean = (value, max = 500) =>
       String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
-    const pricePattern = /(?:(?:US\\$|USD|ARS|\\$|EUR|€|GBP|£)\\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\\s*(?:US\\$|USD|ARS|\\$|EUR|€|GBP|£))/i;\n
+    const pricePattern = /(?:(?:US\$|USD|ARS|\$|EUR|€|GBP|£)\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\s*(?:US\$|USD|ARS|\$|EUR|€|GBP|£))/i;
     const parseAmount = value => {
-      const normalized = String(value).replace(/\./g, "").replace(",", ".");
+      const normalized = String(value || "").replace(/\./g, "").replace(",", ".");
       const amount = Number(normalized);
       return Number.isFinite(amount) ? amount : 0;
     };
