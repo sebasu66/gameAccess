@@ -50,8 +50,8 @@ try {
 
     for (let index = 0; index <= maxScrolls; index += 1) {
       const nodes = Array.from(document.querySelectorAll(
-        'article, [role="article"], [class*="offer"], [class*="product"], ' +
-        '[class*="listing"], [class*="item"], [class*="card"]'
+        'article, [role="article"], li, [class*="offer"], [class*="product"], ' +
+        '[class*="listing"], [class*="item"], [class*="card"], div'
       )).filter(visible);
 
       for (const node of nodes) {
