@@ -122,6 +122,42 @@ try {
     }
 
     if (candidates.size === 0) {
+      // Snapshot fallback: parse the rendered HTML when the live DOM exposes
+      // offer anchors too late or through a hydration boundary.
+      const html = document.documentElement.outerHTML;
+      const stripTags = value => String(value)
+        .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
+        .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/\\s+/g, " ")
+        .trim();
+      const anchorPattern = /<a\\b[^>]*href=["']([^"']*\\/offer\\/[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+      let anchorMatch;
+      while ((anchorMatch = anchorPattern.exec(html)) && candidates.size < maxOffers) {
+        const url = new URL(anchorMatch[1], location.href).href;
+        const text = stripTags(anchorMatch[2]);
+        const match = text.match(pricePattern);
+        if (!match) continue;
+        const title = text.split(/\\s{2,}/)[0].slice(0, 180) || "G2G listing";
+        candidates.set(url, {
+          title,
+          url,
+          price: {
+            amount: parseAmount(match[1] || match[2]),
+            currency: currency(match[0]),
+            raw: clean(match[0], 80)
+          },
+          text,
+          extraction: "rendered-html-fallback"
+        });
+      }
+    }
+
+    if (candidates.size === 0) {
       const lines = (document.body?.innerText || "")
         .split(/\\n|\\r/)
         .map(line => clean(line, 180))
