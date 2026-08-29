@@ -56,7 +56,7 @@ try {
       for (const node of nodes) {
         const text = clean(node.innerText);
         const match = text.match(pricePattern);
-        if (!match || text.length < 8 || text.length > 700) continue;
+        if (!match || text.length < 8) continue;
 
         const anchor = node.querySelector("a[href]");
         const url = anchor?.href || location.href;
