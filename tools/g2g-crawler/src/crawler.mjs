@@ -48,6 +48,31 @@ try {
     const candidates = new Map();
     let scrolls = 0;
 
+    // G2G-specific recovery: listing cards are offer anchors, while the
+    // amount and currency are separate nested spans.
+    const offerAnchors = Array.from(document.querySelectorAll('a[href*="/offer/"]')).filter(visible);
+    for (const anchor of offerAnchors) {
+      if (candidates.size >= maxOffers) break;
+      const text = clean(anchor.innerText);
+      const priceBlock = clean(anchor.querySelector("div.min-w-0")?.innerText || text);
+      const match = priceBlock.match(pricePattern);
+      if (!match) continue;
+      const lines = text.split(/\\n|\\r/).map(clean).filter(Boolean);
+      const title = lines.find(line => !/^(price|view|buy|sold|min\\.|instant|new listing|\\d+(?:[.,]\\d+)?\\s*USD)$/i.test(line)) || "G2G listing";
+      const key = anchor.href + "|" + priceBlock;
+      candidates.set(key, {
+        title,
+        url: anchor.href,
+        price: {
+          amount: parseAmount(match[1] || match[2]),
+          currency: currency(match[0]),
+          raw: clean(match[0], 80)
+        },
+        text,
+        extraction: "g2g-offer-anchor"
+      });
+    }
+
     for (let index = 0; index <= maxScrolls; index += 1) {
       const nodes = Array.from(document.querySelectorAll(
         'body *'
