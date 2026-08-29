@@ -81,7 +81,7 @@ try {
           title: title || "G2G listing",
           url,
           price: {
-            amount: parseAmount(match[1]),
+            amount: parseAmount(match[1] || match[2]),
             currency: currency(match[0]),
             raw: clean(match[0], 80)
           },
