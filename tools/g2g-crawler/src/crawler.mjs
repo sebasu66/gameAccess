@@ -21,7 +21,7 @@ try {
   const result = await page.evaluate(async ({ maxOffers, maxScrolls }) => {
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const clean = (value, max = 500) =>
-      String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+        .replace(/\s+/g, " ")
     const pricePattern = /(?:(?:US\$|USD|ARS|\$|EUR|€|GBP|£)\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\s*(?:US\$|USD|ARS|\$|EUR|€|GBP|£))/i;
     const parseAmount = value => {
       const normalized = String(value || "").replace(/\./g, "").replace(",", ".");
@@ -126,8 +126,8 @@ try {
       // offer anchors too late or through a hydration boundary.
       const html = document.documentElement.outerHTML;
       const stripTags = value => String(value)
-        .replace(/<script[\\s\\S]*?<\\/script>/gi, " ")
-        .replace(/<style[\\s\\S]*?<\\/style>/gi, " ")
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
         .replace(/<[^>]+>/g, " ")
         .replace(/&nbsp;/gi, " ")
         .replace(/&amp;/gi, "&")
@@ -135,14 +135,14 @@ try {
         .replace(/&#39;/gi, "'")
         .replace(/\\s+/g, " ")
         .trim();
-      const anchorPattern = /<a\\b[^>]*href=["']([^"']*\\/offer\\/[^"']*)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;
+      const anchorPattern = /<a\b[^>]*href=["']([^"']*\/offer\/[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi;
       let anchorMatch;
       while ((anchorMatch = anchorPattern.exec(html)) && candidates.size < maxOffers) {
         const url = new URL(anchorMatch[1], location.href).href;
         const text = stripTags(anchorMatch[2]);
         const match = text.match(pricePattern);
         if (!match) continue;
-        const title = text.split(/\\s{2,}/)[0].slice(0, 180) || "G2G listing";
+        const title = text.split(/\s{2,}/)[0].slice(0, 180) || "G2G listing";
         candidates.set(url, {
           title,
           url,
