@@ -1,21 +1,63 @@
+!include "StrFunc.nsh"
+${StrStr}
+
 !macro NSIS_HOOK_PREINSTALL
-  InitPluginsDir
-  File /oname=$PLUGINSDIR\gameaccess-check-prerequisites.ps1 "${__FILEDIR__}\check-prerequisites.ps1"
   ga_prereq_retry:
-    nsExec::ExecToStack 'powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\gameaccess-check-prerequisites.ps1"'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-      DetailPrint "GameAccess prerequisites: $1"
-      Goto ga_prereq_done
-    ${ElseIf} $0 == 20
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita Steam instalado en este equipo.$\r$\n$\r$\nInstalá Steam y luego elegí Reintentar. La instalación no continuará hasta detectarlo." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
-    ${ElseIf} $0 == 30
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita al menos una cuenta de Steam iniciada y recordada en este equipo.$\r$\n$\r$\nAbrí Steam, iniciá sesión, dejá la cuenta recordada y luego elegí Reintentar." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
-    ${Else}
-      MessageBox MB_RETRYCANCEL|MB_ICONSTOP "No se pudieron validar los requisitos de GameAccess.$\r$\n$\r$\nDetalle: $1$\r$\nCódigo: $0" IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
+    StrCpy $R0 ""
+    ReadRegStr $R0 HKCU "Software\Valve\Steam" "SteamPath"
+    ${If} $R0 != ""
+      IfFileExists "$R0\steam.exe" ga_steam_ok 0
     ${EndIf}
+
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Valve\Steam" "InstallPath"
+    ${If} $R0 != ""
+      IfFileExists "$R0\steam.exe" ga_steam_ok 0
+    ${EndIf}
+
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Valve\Steam" "InstallPath"
+    ${If} $R0 != ""
+      IfFileExists "$R0\steam.exe" ga_steam_ok 0
+    ${EndIf}
+
+    StrCpy $R0 "$PROGRAMFILES32\Steam"
+    IfFileExists "$R0\steam.exe" ga_steam_ok 0
+    StrCpy $R0 "$PROGRAMFILES64\Steam"
+    IfFileExists "$R0\steam.exe" ga_steam_ok 0
+    StrCpy $R0 "C:\Steam"
+    IfFileExists "$R0\steam.exe" ga_steam_ok ga_steam_missing
+
+  ga_steam_missing:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita Steam instalado en este equipo.$\r$\n$\r$\nInstalá Steam y luego elegí Reintentar. La instalación no continuará hasta detectarlo." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
+
+  ga_steam_ok:
+    IfFileExists "$R0\config\loginusers.vdf" ga_accounts_scan ga_accounts_missing
+
+  ga_accounts_scan:
+    ClearErrors
+    FileOpen $R1 "$R0\config\loginusers.vdf" r
+    IfErrors ga_accounts_missing
+    StrCpy $R3 "0"
+  ga_accounts_loop:
+    ClearErrors
+    FileRead $R1 $R2
+    IfErrors ga_accounts_done
+    ${StrStr} $R4 "$R2" "RememberPassword"
+    StrCmp $R4 "" ga_accounts_loop 0
+    ${StrStr} $R4 "$R2" '$"1$"'
+    StrCmp $R4 "" ga_accounts_loop 0
+    StrCpy $R3 "1"
+  ga_accounts_done:
+    FileClose $R1
+    StrCmp $R3 "1" ga_prereq_done ga_accounts_missing
+
+  ga_accounts_missing:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita al menos una cuenta de Steam iniciada y recordada en este equipo.$\r$\n$\r$\nAbrí Steam, iniciá sesión, activá la opción de recordar la cuenta y luego elegí Reintentar." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
+
   ga_prereq_abort:
     Abort "Requisitos de GameAccess no satisfechos."
+
   ga_prereq_done:
+    DetailPrint "GameAccess: Steam y cuenta recordada verificados."
 !macroend

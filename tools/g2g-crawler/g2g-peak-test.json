@@ -1,0 +1,14 @@
+{
+  "source": "g2g",
+  "url": "https://www.g2g.com/categories/peak-accounts",
+  "scrapedAt": "2026-08-29T13:59:53.331Z",
+  "offers": [],
+  "diagnostics": {
+    "httpStatus": 403,
+    "htmlBytes": 313,
+    "offerAnchorCount": 0,
+    "scrolls": 2,
+    "extraction": "Playwright rendered page.content() + HTML parser",
+    "warning": "No priced offer anchors found in rendered HTML."
+  }
+}

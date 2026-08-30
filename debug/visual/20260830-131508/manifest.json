@@ -1,0 +1,596 @@
+{
+  "created_at": "2026-08-30T16:15:27.200Z",
+  "results": [
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 32,
+          "label": "Brand",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".brand",
+          "visible": true,
+          "width": 174
+        },
+        {
+          "fitsWidth": true,
+          "height": 40,
+          "label": "Global search",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 180,
+          "pass": true,
+          "selector": ".topbar-actions .global-search",
+          "visible": true,
+          "width": 396
+        },
+        {
+          "fitsWidth": true,
+          "height": 620,
+          "label": "Featured game",
+          "largeEnough": false,
+          "minHeight": 260,
+          "minWidth": 600,
+          "pass": false,
+          "selector": ".hero",
+          "visible": true,
+          "width": 464
+        },
+        {
+          "fitsWidth": true,
+          "height": 123,
+          "label": "Library game card",
+          "largeEnough": false,
+          "minHeight": 160,
+          "minWidth": 100,
+          "pass": false,
+          "selector": ".game-card",
+          "visible": true,
+          "width": 190
+        }
+      ],
+      "pass": false,
+      "profile": "medium",
+      "screen": "home",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-home.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 58,
+          "label": "Search results heading",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".global-search-page h1",
+          "visible": true,
+          "width": 834
+        },
+        {
+          "fitsWidth": true,
+          "height": 42,
+          "label": "Back to home action",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".global-search-back",
+          "visible": true,
+          "width": 158
+        },
+        {
+          "fitsWidth": true,
+          "height": 104,
+          "label": "Search result",
+          "largeEnough": true,
+          "minHeight": 72,
+          "minWidth": 320,
+          "pass": true,
+          "selector": ".global-search-result-card",
+          "visible": true,
+          "width": 504
+        }
+      ],
+      "pass": true,
+      "profile": "medium",
+      "screen": "global-search",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-global-search.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 55,
+          "label": "Library heading",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 180,
+          "pass": true,
+          "selector": ".library-vault-head h2",
+          "visible": true,
+          "width": 240
+        },
+        {
+          "fitsWidth": true,
+          "height": 48,
+          "label": "Library search",
+          "largeEnough": true,
+          "minHeight": 40,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".library-search",
+          "visible": true,
+          "width": 385
+        },
+        {
+          "fitsWidth": true,
+          "height": 48,
+          "label": "Library close",
+          "largeEnough": true,
+          "minHeight": 40,
+          "minWidth": 40,
+          "pass": true,
+          "selector": ".library-close",
+          "visible": true,
+          "width": 48
+        },
+        {
+          "fitsWidth": true,
+          "height": 211,
+          "label": "3D library tile",
+          "largeEnough": true,
+          "minHeight": 100,
+          "minWidth": 80,
+          "pass": true,
+          "selector": ".dome-cell",
+          "visible": true,
+          "width": 141
+        }
+      ],
+      "pass": true,
+      "profile": "medium",
+      "screen": "library",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-library.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 237,
+          "label": "Centered selected game",
+          "largeEnough": true,
+          "minHeight": 150,
+          "minWidth": 100,
+          "pass": true,
+          "selector": ".dome-cell.is-selected",
+          "visible": true,
+          "width": 158
+        },
+        {
+          "fitsWidth": true,
+          "height": 21,
+          "label": "Selection controls",
+          "largeEnough": true,
+          "minHeight": 16,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".dome-selection-readout",
+          "visible": true,
+          "width": 298
+        },
+        {
+          "fitsWidth": true,
+          "height": 97,
+          "label": "Keyboard navigation hint",
+          "largeEnough": true,
+          "minHeight": 50,
+          "minWidth": 130,
+          "pass": true,
+          "selector": ".dome-controls-hint",
+          "visible": true,
+          "width": 195
+        }
+      ],
+      "pass": true,
+      "profile": "medium",
+      "screen": "library-selection",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-library-selection.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 760,
+          "label": "Game details",
+          "largeEnough": true,
+          "minHeight": 500,
+          "minWidth": 600,
+          "mustFitWidth": true,
+          "pass": true,
+          "selector": ".detail-panel",
+          "visible": true,
+          "width": 1153
+        },
+        {
+          "fitsWidth": true,
+          "height": 37,
+          "label": "Details close",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 36,
+          "pass": true,
+          "selector": ".close-detail",
+          "visible": true,
+          "width": 37
+        },
+        {
+          "fitsWidth": true,
+          "height": 37,
+          "label": "Game options",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 36,
+          "pass": true,
+          "selector": ".detail-gear",
+          "visible": true,
+          "width": 37
+        },
+        {
+          "fitsWidth": true,
+          "height": 62,
+          "label": "Game title",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".detail-hero h1",
+          "visible": true,
+          "width": 569
+        }
+      ],
+      "pass": true,
+      "profile": "medium",
+      "screen": "game-detail",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-game-detail.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 472,
+          "label": "Session dialog",
+          "largeEnough": true,
+          "minHeight": 260,
+          "minWidth": 360,
+          "pass": true,
+          "selector": ".session-card",
+          "visible": true,
+          "width": 760
+        },
+        {
+          "fitsWidth": true,
+          "height": 46,
+          "label": "Session dialog action",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 32,
+          "pass": true,
+          "selector": ".session-card button",
+          "visible": true,
+          "width": 76
+        }
+      ],
+      "pass": true,
+      "profile": "medium",
+      "screen": "session-dialog",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\medium-session-dialog.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 32,
+          "label": "Brand",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".brand",
+          "visible": true,
+          "width": 174
+        },
+        {
+          "fitsWidth": true,
+          "height": 40,
+          "label": "Global search",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 180,
+          "pass": true,
+          "selector": ".topbar-actions .global-search",
+          "visible": true,
+          "width": 430
+        },
+        {
+          "fitsWidth": true,
+          "height": 1252,
+          "label": "Featured game",
+          "largeEnough": true,
+          "minHeight": 260,
+          "minWidth": 600,
+          "pass": true,
+          "selector": ".hero",
+          "visible": true,
+          "width": 1479
+        },
+        {
+          "fitsWidth": true,
+          "height": 282,
+          "label": "Library game card",
+          "largeEnough": true,
+          "minHeight": 160,
+          "minWidth": 100,
+          "pass": true,
+          "selector": ".game-card",
+          "visible": true,
+          "width": 559
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "home",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-home.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 72,
+          "label": "Search results heading",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".global-search-page h1",
+          "visible": true,
+          "width": 1134
+        },
+        {
+          "fitsWidth": true,
+          "height": 42,
+          "label": "Back to home action",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".global-search-back",
+          "visible": true,
+          "width": 158
+        },
+        {
+          "fitsWidth": true,
+          "height": 104,
+          "label": "Search result",
+          "largeEnough": true,
+          "minHeight": 72,
+          "minWidth": 320,
+          "pass": true,
+          "selector": ".global-search-result-card",
+          "visible": true,
+          "width": 654
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "global-search",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-global-search.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 72,
+          "label": "Library heading",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 180,
+          "pass": true,
+          "selector": ".library-vault-head h2",
+          "visible": true,
+          "width": 310
+        },
+        {
+          "fitsWidth": true,
+          "height": 48,
+          "label": "Library search",
+          "largeEnough": true,
+          "minHeight": 40,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".library-search",
+          "visible": true,
+          "width": 390
+        },
+        {
+          "fitsWidth": true,
+          "height": 48,
+          "label": "Library close",
+          "largeEnough": true,
+          "minHeight": 40,
+          "minWidth": 40,
+          "pass": true,
+          "selector": ".library-close",
+          "visible": true,
+          "width": 48
+        },
+        {
+          "fitsWidth": true,
+          "height": 423,
+          "label": "3D library tile",
+          "largeEnough": true,
+          "minHeight": 100,
+          "minWidth": 80,
+          "pass": true,
+          "selector": ".dome-cell",
+          "visible": true,
+          "width": 282
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "library",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-library.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 423,
+          "label": "Centered selected game",
+          "largeEnough": true,
+          "minHeight": 150,
+          "minWidth": 100,
+          "pass": true,
+          "selector": ".dome-cell.is-selected",
+          "visible": true,
+          "width": 282
+        },
+        {
+          "fitsWidth": true,
+          "height": 21,
+          "label": "Selection controls",
+          "largeEnough": true,
+          "minHeight": 16,
+          "minWidth": 220,
+          "pass": true,
+          "selector": ".dome-selection-readout",
+          "visible": true,
+          "width": 298
+        },
+        {
+          "fitsWidth": true,
+          "height": 97,
+          "label": "Keyboard navigation hint",
+          "largeEnough": true,
+          "minHeight": 50,
+          "minWidth": 130,
+          "pass": true,
+          "selector": ".dome-controls-hint",
+          "visible": true,
+          "width": 195
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "library-selection",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-library-selection.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 760,
+          "label": "Game details",
+          "largeEnough": true,
+          "minHeight": 500,
+          "minWidth": 600,
+          "mustFitWidth": true,
+          "pass": true,
+          "selector": ".detail-panel",
+          "visible": true,
+          "width": 1153
+        },
+        {
+          "fitsWidth": true,
+          "height": 37,
+          "label": "Details close",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 36,
+          "pass": true,
+          "selector": ".close-detail",
+          "visible": true,
+          "width": 37
+        },
+        {
+          "fitsWidth": true,
+          "height": 37,
+          "label": "Game options",
+          "largeEnough": true,
+          "minHeight": 36,
+          "minWidth": 36,
+          "pass": true,
+          "selector": ".detail-gear",
+          "visible": true,
+          "width": 37
+        },
+        {
+          "fitsWidth": true,
+          "height": 62,
+          "label": "Game title",
+          "largeEnough": true,
+          "minHeight": 30,
+          "minWidth": 120,
+          "pass": true,
+          "selector": ".detail-hero h1",
+          "visible": true,
+          "width": 569
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "game-detail",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-game-detail.png",
+      "viewportFits": true
+    },
+    {
+      "checks": [
+        {
+          "fitsWidth": true,
+          "height": 472,
+          "label": "Session dialog",
+          "largeEnough": true,
+          "minHeight": 260,
+          "minWidth": 360,
+          "pass": true,
+          "selector": ".session-card",
+          "visible": true,
+          "width": 760
+        },
+        {
+          "fitsWidth": true,
+          "height": 46,
+          "label": "Session dialog action",
+          "largeEnough": true,
+          "minHeight": 32,
+          "minWidth": 32,
+          "pass": true,
+          "selector": ".session-card button",
+          "visible": true,
+          "width": 76
+        }
+      ],
+      "pass": true,
+      "profile": "maximized",
+      "screen": "session-dialog",
+      "screenshot": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508\\maximized-session-dialog.png",
+      "viewportFits": true
+    }
+  ],
+  "session_dir": "C:\\DEV\\gameAccess\\debug\\visual\\20260830-131508"
+}

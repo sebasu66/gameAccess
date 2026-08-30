@@ -1,1 +1,0 @@
-{"main-window":{"identifier":"main-window","description":"Permissions required by the custom gameAccess title bar.","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-close","core:window:allow-minimize","core:window:allow-toggle-maximize","core:window:allow-is-maximized","core:window:allow-start-dragging"]}}

@@ -1,0 +1,24 @@
+
+
+[2026-08-30 05:24:23] Client version: 1785799152
+[2026-08-30 05:24:23] Log session started
+[2026-08-30 05:24:23] [Logged Off, 0, 0] [U:1:0] CCMInterface::SetSteamID( [U:1:0] )
+[2026-08-30 05:24:23] [Logged Off, 0, 0] [U:1:0] ResetVoiceRecording() (was recording: 0) (last get voice time: 1788078263 seconds ago)
+[2026-08-30 05:24:23] [Logged Off, 0, 0] [U:1:0] Log session ended
+
+
+[2026-08-30 05:25:32] Client version: 1785799152
+[2026-08-30 05:25:32] Log session started
+[2026-08-30 05:25:32] [Logged Off, 0, 0] [U:1:0] CCMInterface::SetSteamID( [U:1:0] )
+[2026-08-30 05:25:32] IPv6 HTTP connectivity test (ipv6check-http.steamserver.net / [2602:801:f005:101::9b85:e31a]:80 ([2602:801:f005:101::9b85:e31a]:80)) - SUCCESS
+[2026-08-30 05:25:32] IPv6 HTTP connectivity test (ipv6check-http.steamserver.net / [2602:801:f005:101::9b85:e31a]:80 ([2602:801:f005:101::9b85:e31a]:80)) - server indicated we are using ipv6, external address = '2803:9800:988a:945b:8ce7:5b1e:3b3d:56ab'
+[2026-08-30 05:25:32] IPv6 UDP connectivity test (ipv6check-udp.steamserver.net / [2602:801:f005:100::9b85:e303]:27019) - SUCCESS
+[2026-08-30 05:31:18] [Logged Off, 0, 0] [U:1:0] ResetVoiceRecording() (was recording: 0) (last get voice time: 1788078678 seconds ago)
+[2026-08-30 05:31:18] [Logged Off, 0, 0] [U:1:0] Log session ended
+
+
+[2026-08-30 05:31:38] Client version: 1785799152
+[2026-08-30 05:31:38] Log session started
+[2026-08-30 05:31:38] [Logged Off, 0, 0] [U:1:0] CCMInterface::SetSteamID( [U:1:0] )
+[2026-08-30 05:31:38] [Logged Off, 0, 0] [U:1:0] ResetVoiceRecording() (was recording: 0) (last get voice time: 1788078698 seconds ago)
+[2026-08-30 05:31:38] [Logged Off, 0, 0] [U:1:0] Log session ended

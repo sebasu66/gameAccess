@@ -1,0 +1,11 @@
+{
+  "source": "g2g",
+  "url": "https://www.g2g.com/",
+  "scrapedAt": "2026-08-29T00:46:54.169Z",
+  "offers": [],
+  "diagnostics": {
+    "scrolls": 2,
+    "candidateCount": 0,
+    "warning": "No priced listings matched the generic selectors. G2G may have changed its markup or require a region/cookie flow."
+  }
+}

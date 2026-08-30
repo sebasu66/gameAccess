@@ -23,3 +23,6 @@ apps/desktop/src-tauri/icons/icon.ico
 .idea/
 .DS_Store
 Thumbs.db
+
+# Tauri generated schemas
+apps/desktop/src-tauri/gen/
