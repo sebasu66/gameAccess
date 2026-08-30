@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
-use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
+use std::{env, fs, path::PathBuf, process::Command, sync::Mutex};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -31,6 +31,119 @@ struct SteamAccountSwitchResult {
     ok: bool,
     stage: String,
     message: String,
+}
+
+#[derive(Default)]
+struct VisualDebugState {
+    session_dir: Mutex<Option<PathBuf>>,
+}
+
+#[derive(Serialize)]
+struct VisualDebugConfig {
+    enabled: bool,
+    session_dir: Option<String>,
+}
+
+fn visual_debug_session_dir() -> Option<PathBuf> {
+    let enabled = env::args().any(|arg| matches!(arg.as_str(), "--visual-debug" | "-visual-debug" | "--auto-snapshot" | "-auto-snapshot"));
+    if !enabled {
+        return None;
+    }
+
+    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|desktop| desktop.parent())
+        .and_then(|apps| apps.parent())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let session_dir = project_root.join("debug").join("visual").join(timestamp);
+    fs::create_dir_all(&session_dir).ok()?;
+    Some(session_dir)
+}
+
+#[tauri::command]
+fn visual_debug_config(state: tauri::State<VisualDebugState>) -> VisualDebugConfig {
+    let session_dir = state.session_dir.lock().ok().and_then(|value| value.clone());
+    VisualDebugConfig {
+        enabled: session_dir.is_some(),
+        session_dir: session_dir.map(|path| path.to_string_lossy().to_string()),
+    }
+}
+
+fn safe_snapshot_name(label: &str) -> String {
+    let cleaned: String = label
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' })
+        .collect();
+    cleaned.trim_matches('-').to_lowercase()
+}
+
+#[tauri::command]
+fn capture_visual_debug(label: String, state: tauri::State<VisualDebugState>) -> Result<String, String> {
+    let session_dir = state.session_dir.lock()
+        .map_err(|_| "Visual debug state is unavailable".to_string())?
+        .clone()
+        .ok_or_else(|| "Visual debug mode is not enabled".to_string())?;
+    let name = safe_snapshot_name(&label);
+    if name.is_empty() {
+        return Err("Snapshot label is empty".into());
+    }
+    let output_path = session_dir.join(format!("{name}.png"));
+
+    #[cfg(target_os = "windows")]
+    {
+        let escaped_path = output_path.to_string_lossy().replace('\'', "''");
+        let app_pid = std::process::id();
+        let script = format!(r#"Add-Type -AssemblyName System.Drawing; Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class VisualDebugWindow {{
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
+}}
+'@; [VisualDebugWindow]::SetProcessDPIAware()|Out-Null; $h=(Get-Process -Id {app_pid}).MainWindowHandle; if($h -eq 0){{throw 'gameAccess window handle is unavailable'}}; $r=New-Object VisualDebugWindow+RECT; [VisualDebugWindow]::GetWindowRect($h,[ref]$r)|Out-Null; $w=$r.Right-$r.Left; $hgt=$r.Bottom-$r.Top; if($w -le 0 -or $hgt -le 0){{throw 'Invalid gameAccess window size'}}; $bmp=New-Object System.Drawing.Bitmap($w,$hgt); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size); $bmp.Save('{escaped_path}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()"#);
+        let result = Command::new("powershell.exe")
+            .args(["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|err| format!("Could not capture visual debug snapshot: {err}"))?;
+        if !result.status.success() {
+            return Err(String::from_utf8_lossy(&result.stderr).trim().to_string());
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    return Err("Visual debug capture is currently implemented for Windows".into());
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn finish_visual_debug(results: serde_json::Value, state: tauri::State<VisualDebugState>) -> Result<String, String> {
+    let session_dir = state.session_dir.lock()
+        .map_err(|_| "Visual debug state is unavailable".to_string())?
+        .clone()
+        .ok_or_else(|| "Visual debug mode is not enabled".to_string())?;
+    let manifest = session_dir.join("manifest.json");
+    let body = serde_json::to_string_pretty(&results).map_err(|err| err.to_string())?;
+    fs::write(&manifest, body).map_err(|err| format!("Could not write visual debug manifest: {err}"))?;
+    Ok(manifest.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), String> {
+    match mode.as_str() {
+        "medium" => {
+            window.unmaximize().map_err(|err| err.to_string())?;
+            window.set_size(tauri::LogicalSize::new(1100.0, 760.0)).map_err(|err| err.to_string())?;
+            window.center().map_err(|err| err.to_string())?;
+        }
+        "maximized" => window.maximize().map_err(|err| err.to_string())?,
+        _ => return Err(format!("Unsupported visual debug viewport: {mode}")),
+    }
+    Ok(())
 }
 
 fn steam_path_candidates() -> Vec<PathBuf> {
@@ -239,6 +352,68 @@ fn launcher_dir() -> Option<PathBuf> {
 }
 
 #[tauri::command]
+fn local_steam_pool() -> Result<serde_json::Value, String> {
+    read_local_steam_pool()
+}
+
+#[tauri::command]
+fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
+    let launcher = launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
+    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
+    let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+    let code = r#"import json; import steam_verified_inventory as inventory; from steam_verified_sync_v5 import deterministic_switch; inventory._switch=lambda identity,attempts=2: deterministic_switch(identity); result=inventory.verify_all_remembered_accounts(save=True); print(json.dumps(result,ensure_ascii=False))"#;
+    let output = Command::new(&python)
+        .current_dir(&launcher)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .args(["-c", code])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|err| format!("Could not verify Steam ownership: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() { "Steam ownership verification failed".into() } else { stderr });
+    }
+    serde_json::from_slice(&output.stdout).map_err(|err| format!("Steam ownership verification returned invalid data: {err}"))
+}
+
+fn read_local_steam_pool() -> Result<serde_json::Value, String> {
+    let launcher = launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
+    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
+    let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+    let output = Command::new(&python)
+        .current_dir(&launcher)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .args(["pool_sync.py", "--dry-run"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|err| format!("Could not run the verified Steam inventory adapter: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() { "Verified Steam inventory adapter failed".into() } else { stderr });
+    }
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("Verified Steam inventory returned invalid data: {err}"))?;
+    Ok(value.get("pool").cloned().unwrap_or(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_local_steam_pool;
+
+    #[test]
+    fn local_steam_pool_contains_real_games_and_accounts() {
+        let pool = read_local_steam_pool().expect("local Steam pool should load");
+        let games = pool.get("games").and_then(|value| value.as_array()).expect("games array");
+        let accounts = pool.get("accounts").and_then(|value| value.as_array()).expect("accounts array");
+        assert!(!games.is_empty(), "local Steam pool must not silently become empty");
+        assert!(!accounts.is_empty(), "remembered Steam accounts must be present");
+        assert!(games.iter().all(|game| game.get("app_id").and_then(|value| value.as_u64()).unwrap_or(0) > 0));
+    }
+}
+
+#[tauri::command]
 fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
     if account_label.trim().is_empty() {
         return SteamAccountSwitchResult {
@@ -259,9 +434,11 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
         };
         let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
         let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
-        let code = r#"import json,sys; from steam_switch import switch_to_remembered_account; r=switch_to_remembered_account(sys.argv[1]); print(json.dumps({'ok':r.ok,'stage':r.stage,'message':r.message}, ensure_ascii=False))"#;
+        let code = r#"import json,sys; from steam_pool import remembered_account_identities,active_user_id32; from steam_verified_sync_v5 import deterministic_switch; target=sys.argv[1].strip().casefold(); identity=next((i for i in remembered_account_identities() if str(i.get('account_name') or '').casefold()==target or str(i.get('display_name') or '').casefold()==target),None); ok,msg=(False,'Steam account is not remembered on this PC') if identity is None else deterministic_switch(identity); expected=None if identity is None else identity.get('user_id32'); active=active_user_id32(); verified=bool(ok and expected and active==expected); print(json.dumps({'ok':verified,'stage':'ready' if verified else 'switch','message':msg,'expected_user_id32':expected,'active_user_id32':active}, ensure_ascii=False))"#;
         let output = Command::new(&python)
             .current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
             .args(["-c", code, account_label.as_str()])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
@@ -299,9 +476,6 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
         let ok = parsed.get("ok").and_then(|value| value.as_bool()).unwrap_or(false);
         let stage = parsed.get("stage").and_then(|value| value.as_str()).unwrap_or("switch").to_string();
         let message = parsed.get("message").and_then(|value| value.as_str()).unwrap_or("Steam account switch finished").to_string();
-        if ok {
-            thread::sleep(Duration::from_secs(4));
-        }
         return SteamAccountSwitchResult { ok, stage, message };
     }
 
@@ -316,14 +490,22 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
 }
 
 fn main() {
+    let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
+        .manage(VisualDebugState { session_dir: Mutex::new(visual_debug_dir) })
         .invoke_handler(tauri::generate_handler![
             steam_installed,
             open_steam_install,
             open_steam_run,
             steam_download_status,
+            local_steam_pool,
+            verify_local_steam_inventory,
             machine_profile,
-            switch_steam_account
+            switch_steam_account,
+            visual_debug_config,
+            capture_visual_debug,
+            finish_visual_debug,
+            set_visual_debug_viewport
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");

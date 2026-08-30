@@ -13,6 +13,7 @@ import {
   Pause,
   Play,
   Search,
+  Settings,
   Sparkles,
   Star,
   ThumbsDown,
@@ -28,10 +29,15 @@ import { leaseGame, loadDetails, loadHome } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import {
   getMachineProfile,
+  getVisualDebugConfig,
+  captureVisualDebug,
+  finishVisualDebug,
   openSteamInstall,
   openSteamRun,
   steamDownloadStatus,
   steamInstalled,
+  switchSteamAccount,
+  setVisualDebugViewport,
   type MachineProfile,
   type SteamDownloadStatus,
 } from "./native";
@@ -49,6 +55,21 @@ const stripHtml = (value?: string) =>
     .trim();
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+let visualDebugStarted = false;
+
+type VisualCheck = { selector: string; label: string; minWidth?: number; minHeight?: number; mustFitWidth?: boolean };
+
+function inspectVisualChecks(checks: VisualCheck[]) {
+  return checks.map((check) => {
+    const element = document.querySelector<HTMLElement>(check.selector);
+    const rect = element?.getBoundingClientRect();
+    const style = element ? window.getComputedStyle(element) : null;
+    const visible = Boolean(element && rect && rect.width > 0 && rect.height > 0 && style?.visibility !== "hidden" && style?.display !== "none" && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth);
+    const largeEnough = Boolean(rect && rect.width >= (check.minWidth ?? 1) && rect.height >= (check.minHeight ?? 1));
+    const fitsWidth = !check.mustFitWidth || Boolean(element && element.scrollWidth <= element.clientWidth + 1);
+    return { ...check, visible, largeEnough, fitsWidth, width: Math.round(rect?.width ?? 0), height: Math.round(rect?.height ?? 0), pass: visible && largeEnough && fitsWidth };
+  });
+}
 
 type SessionPhase = "reserving" | "preparing" | "launching" | "playing" | "waiting-adapter" | "demo-ready" | "error";
 type Preference = 1 | -1;
@@ -59,6 +80,7 @@ type SessionView = {
   phase: SessionPhase;
   title: string;
   detail: string;
+  log?: string[];
 };
 
 function availabilityLabel(game: CatalogGame) {
@@ -179,7 +201,7 @@ function GameCard({
         </div>
         <div className="game-card-copy">
           <strong>{game.name}</strong>
-          <span>{download?.state === "installed" ? "Instalado · listo para jugar" : "Abrir ficha"}</span>
+          {download?.state === "installed" ? <span>Instalado · listo para jugar</span> : null}
         </div>
       </button>
       {showPreference ? (
@@ -203,6 +225,7 @@ function Shelf({
   showPreference = false,
   onOpen,
   onPreference,
+  onViewAll,
 }: {
   title: string;
   subtitle?: string;
@@ -214,6 +237,7 @@ function Shelf({
   showPreference?: boolean;
   onOpen: (game: CatalogGame) => void;
   onPreference: (gameId: number, value: Preference) => void;
+  onViewAll?: () => void;
 }) {
   if (!games.length) return null;
   return (
@@ -223,7 +247,7 @@ function Shelf({
           <h2>{title}</h2>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
-        <button className="text-action">Ver todo <ChevronRight size={16} /></button>
+        {onViewAll ? <button className="text-action" onClick={onViewAll}>Ver más <ChevronRight size={16} /></button> : null}
       </div>
       <div className="cards-row">
         {games.map((game) => (
@@ -244,6 +268,97 @@ function Shelf({
   );
 }
 
+function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailOpen = false }: {
+  games: CatalogGame[];
+  query: string;
+  setQuery: (value: string) => void;
+  onOpen: (game: CatalogGame) => void;
+  onClose: () => void;
+  detailOpen?: boolean;
+}) {
+  const visible = games.filter((game) => game.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const columns = 11;
+  const selectedGame = visible[selectedIndex] ?? visible[0];
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const radius = Math.max(900, Math.min(1800, entry.contentRect.width * .72));
+      root.style.setProperty("--dome-radius", `${Math.round(radius)}px`);
+    });
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setSelectedIndex((current) => Math.min(current, Math.max(0, visible.length - 1)));
+  }, [query, visible.length]);
+
+  useEffect(() => {
+    if (!detailOpen) rootRef.current?.focus({ preventScroll: true });
+  }, [detailOpen]);
+
+  const moveSelection = (delta: number) => {
+    setSelectedIndex((current) => Math.max(0, Math.min(visible.length - 1, current + delta)));
+  };
+
+  const keyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (detailOpen) return;
+    const key = event.key.toLowerCase();
+    if (event.ctrlKey && key === "f") {
+      event.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+      return;
+    }
+    if (event.target instanceof HTMLInputElement && key !== "escape") return;
+    if (key === "arrowleft" || key === "a") moveSelection(-1);
+    else if (key === "arrowright" || key === "d") moveSelection(1);
+    else if (key === "arrowup" || key === "w") moveSelection(-columns);
+    else if (key === "arrowdown" || key === "s") moveSelection(columns);
+    else if (key === "enter" && selectedGame) onOpen(selectedGame);
+    else if (key === "escape") onClose();
+    else return;
+    event.preventDefault();
+  };
+
+  return (
+    <div ref={rootRef} className={`library-vault dome-root ${detailOpen ? "has-detail" : ""}`} role="dialog" aria-modal="true" aria-label="Tu biblioteca completa" tabIndex={-1} onKeyDown={keyDown}>
+      <div className="library-vault-head">
+        <div><span className="eyebrow">BIBLIOTECA INMERSIVA</span><h2>{selectedGame?.name ?? "Tus juegos"}</h2><p>{visible.length} juegos en esta vista</p></div>
+        <div className="library-vault-actions">
+          <label className="library-search"><Search size={18} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />{query ? <button onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}</label>
+          <button className="library-close" onClick={onClose} aria-label="Cerrar biblioteca"><X size={20} /></button>
+        </div>
+      </div>
+      <div className="dome-viewport">
+        <div className="dome-stage"><div className="dome-sphere">
+          {visible.map((game, index) => {
+            const selectedRow = Math.floor(selectedIndex / columns);
+            const selectedColumn = selectedIndex % columns;
+            const row = Math.floor(index / columns);
+            const column = index % columns;
+            const offsetX = column - selectedColumn;
+            const offsetY = row - selectedRow;
+            const selected = index === selectedIndex;
+            return <button className={`dome-cell ${selected ? "is-selected" : ""}`} key={game.id} style={{ "--dome-x": offsetX, "--dome-y": offsetY } as React.CSSProperties} onClick={() => setSelectedIndex(index)} onDoubleClick={() => onOpen(game)} aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}`} aria-current={selected ? "true" : undefined}>
+              {game.capsule_image || game.header_image ? <img src={game.capsule_image ?? game.header_image ?? ""} alt="" draggable={false} /> : <span className="dome-cell-fallback"><Gamepad2 size={32} /></span>}<span>{game.name}</span>
+            </button>;
+          })}
+        </div></div>
+        <div className="dome-vignette" />
+        {!visible.length ? <div className="library-empty">No encontramos juegos con “{query}”.</div> : null}
+      </div>
+      {selectedGame ? <div className="dome-selection-readout"><span>{selectedIndex + 1} / {visible.length}</span><strong>{selectedGame.name}</strong><small>ENTER · ABRIR FICHA</small></div> : null}
+      <div className="dome-controls-hint" aria-label="Controles de navegación">{detailOpen ? <><span>NAVEGAR ACCIONES · WASD / FLECHAS</span><span>ACTIVAR · ENTER</span><span>VOLVER · ESC</span></> : <><span>NAVEGAR · WASD / FLECHAS</span><span>VER DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span><span>VOLVER · ESC</span></>}</div>
+    </div>
+  );
+}
+
 function SessionOverlay({ session, onClose }: { session: SessionView; onClose: () => void }) {
   const active = ["reserving", "preparing", "launching"].includes(session.phase);
   const success = ["playing", "demo-ready"].includes(session.phase);
@@ -259,6 +374,7 @@ function SessionOverlay({ session, onClose }: { session: SessionView; onClose: (
           <h2>{session.game.name}</h2>
           <h3>{session.title}</h3>
           <p>{session.detail}</p>
+          {session.log?.length ? <div className="session-log">{session.log.map((line, index) => <div key={`${index}-${line}`}><span>{String(index + 1).padStart(2, "0")}</span>{line}</div>)}</div> : null}
           <div className="session-steps" aria-label="Progreso de inicio">
             <span className={session.phase !== "reserving" ? "done" : "current"}>Reserva</span><i />
             <span className={["launching", "playing", "demo-ready", "waiting-adapter"].includes(session.phase) ? "done" : session.phase === "preparing" ? "current" : ""}>Preparación</span><i />
@@ -279,6 +395,7 @@ function DetailPanel({
   onLease,
   onDownload,
   busy,
+  overLibrary = false,
 }: {
   game: CatalogGame;
   machine: MachineProfile | null;
@@ -287,11 +404,52 @@ function DetailPanel({
   onLease: (game: CatalogGame) => Promise<void>;
   onDownload: (game: CatalogGame) => Promise<void>;
   busy: boolean;
+  overLibrary?: boolean;
 }) {
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeShot, setActiveShot] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+
+  const closeWithAnimation = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 220);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (optionsOpen) setOptionsOpen(false); else closeWithAnimation();
+        return;
+      }
+      const actions = optionsOpen ? [] : [
+        ...Array.from(document.querySelectorAll<HTMLButtonElement>(".detail-primary-actions button:not(:disabled)")),
+        ...Array.from(document.querySelectorAll<HTMLButtonElement>(".detail-corner-actions button:not(:disabled)")),
+      ];
+      if (!optionsOpen && event.key === "Enter" && !(document.activeElement instanceof HTMLButtonElement)) {
+        event.preventDefault();
+        actions[0]?.click();
+        return;
+      }
+      if (!optionsOpen && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "a", "d", "w", "s"].includes(event.key)) {
+        if (!actions.length) return;
+        event.preventDefault();
+        const current = Math.max(0, actions.indexOf(document.activeElement as HTMLButtonElement));
+        const backwards = ["ArrowLeft", "ArrowUp", "a", "w"].includes(event.key);
+        actions[(current + (backwards ? -1 : 1) + actions.length) % actions.length]?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closing, optionsOpen]);
+
+  useEffect(() => {
+    if (!optionsOpen) window.setTimeout(() => document.querySelector<HTMLButtonElement>(".detail-primary-actions button:not(:disabled)")?.focus(), 40);
+  }, [optionsOpen, game.id, download?.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,12 +470,16 @@ function DetailPanel({
   const trailer = steam?.movies?.find((movie) => movie.highlight) || steam?.movies?.[0];
   const weight = heavinessLabel(steam, machine);
   const activeDownload = download && ["requested", "preparing", "downloading"].includes(download.state);
+  const installed = download?.state === "installed";
   const currentShot = steam?.screenshots?.[activeShot];
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className={`modal-backdrop ${closing ? "is-closing" : ""} ${overLibrary ? "over-library" : ""}`} onMouseDown={closeWithAnimation}>
       <article className="detail-panel detail-panel-rich" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="close-detail" onClick={onClose} aria-label="Cerrar"><X size={22} /></button>
+        <div className="detail-corner-actions detail-keyboard-actions">
+          <button className="detail-gear" onClick={() => setOptionsOpen(true)} aria-label="Opciones del juego"><Settings size={20} /></button>
+          <button className="close-detail" onClick={closeWithAnimation} aria-label="Volver"><X size={22} /></button>
+        </div>
         <div className="detail-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           {trailer?.mp4 ? (
             <video className="detail-hero-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline />
@@ -333,20 +495,18 @@ function DetailPanel({
               {weight ? <span className={`compatibility-pill ${weight.tone}`}><Gauge size={13} /> {weight.text}</span> : null}
             </div>
             <p>{description}</p>
-            <div className="detail-actions glass-actions-row">
+            <div className="detail-actions detail-primary-actions detail-keyboard-actions glass-actions-row">
               <GlassActionButton
                 icon={busy ? <Loader2 size={23} className="spin" /> : <Play size={24} fill="currentColor" />}
                 label={game.copies_available > 0 ? "Jugar ahora" : "Sin copia"}
-                tone="play"
-                pulse={game.copies_available > 0}
-                disabled={busy || game.copies_available <= 0}
+                tone="play" pulse={game.copies_available > 0}
+                disabled={!installed || busy || game.copies_available <= 0}
                 onClick={() => void onLease(game)}
               />
               <GlassActionButton
-                icon={activeDownload ? <Loader2 size={23} className="spin" /> : download?.state === "installed" ? <Check size={24} /> : <Download size={24} />}
-                label={download?.state === "installed" ? "Instalado" : activeDownload ? (download.progress != null ? `${Math.round(download.progress)}%` : "Preparando") : "Descargar"}
-                tone="download"
-                disabled={!game.app_id || download?.state === "installed"}
+                icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
+                label={installed ? "Instalado" : activeDownload ? (download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando") : "Descargar"}
+                tone="download" disabled={!game.app_id || installed || Boolean(activeDownload)}
                 onClick={() => void onDownload(game)}
               />
             </div>
@@ -412,6 +572,7 @@ function DetailPanel({
             </section>
           ) : null}
         </div>
+        {optionsOpen ? <div className="game-options-backdrop" onMouseDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button className="secondary-button" disabled>Desinstalar · próximamente</button><button className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
       </article>
     </div>
   );
@@ -434,6 +595,11 @@ export default function App() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
+  const [magazineFocus, setMagazineFocus] = useState(0);
+  const [magazineShape, setMagazineShape] = useState({ columns: 3, rows: 2 });
+  const magazineCatalogRef = useRef<HTMLElement | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [preferences, setPreferences] = useState<Record<number, Preference>>(() => {
     try { return JSON.parse(localStorage.getItem("gameaccess:preferences") || "{}"); } catch { return {}; }
   });
@@ -456,6 +622,87 @@ export default function App() {
     steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
   }, []);
+
+  useEffect(() => {
+    if (loading || !games.length || visualDebugStarted) return;
+    visualDebugStarted = true;
+    const firstGame = orderedLibrary[0] ?? games[0];
+    const results: Array<Record<string, unknown>> = [];
+    const profiles = ["medium", "maximized"] as const;
+
+    const captureStep = async (profile: typeof profiles[number], name: string, checks: VisualCheck[]) => {
+      await wait(900);
+      const checked = inspectVisualChecks(checks);
+      const viewportFits = document.documentElement.scrollWidth <= window.innerWidth + 1;
+      try {
+        const screenshot = await captureVisualDebug(`${profile}-${name}`);
+        results.push({ profile, screen: name, screenshot, viewportFits, checks: checked, pass: viewportFits && checked.every((item) => item.pass) });
+      } catch (error) {
+        results.push({ profile, screen: name, checks: checked, pass: false, error: error instanceof Error ? error.message : String(error) });
+      }
+    };
+
+    const run = async () => {
+      const config = await getVisualDebugConfig();
+      if (!config.enabled) {
+        visualDebugStarted = false;
+        return;
+      }
+      for (const profile of profiles) {
+        await setVisualDebugViewport(profile);
+        await wait(700);
+
+        setSelected(null); setLibraryOpen(false); setSession(null);
+        await captureStep(profile, "home", [
+          { selector: ".brand", label: "Brand", minWidth: 120, minHeight: 32 },
+          { selector: ".topbar-actions .global-search", label: "Global search", minWidth: 180, minHeight: 36 },
+          { selector: ".hero", label: "Featured game", minWidth: 600, minHeight: 260 },
+          { selector: ".game-card", label: "Library game card", minWidth: 100, minHeight: 160 },
+        ]);
+
+        setQuery(firstGame.name);
+        await captureStep(profile, "global-search", [
+          { selector: ".global-search-page h1", label: "Search results heading", minWidth: 220, minHeight: 30 },
+          { selector: ".global-search-back", label: "Back to home action", minWidth: 120, minHeight: 32 },
+          { selector: ".global-search-result-card", label: "Search result", minWidth: 320, minHeight: 72 },
+        ]);
+        setQuery("");
+
+        setLibraryOpen(true);
+        await captureStep(profile, "library", [
+          { selector: ".library-vault-head h2", label: "Library heading", minWidth: 180, minHeight: 30 },
+          { selector: ".library-search", label: "Library search", minWidth: 220, minHeight: 40 },
+          { selector: ".library-close", label: "Library close", minWidth: 40, minHeight: 40 },
+          { selector: ".dome-cell", label: "3D library tile", minWidth: 80, minHeight: 100 },
+        ]);
+
+        await captureStep(profile, "library-selection", [
+          { selector: ".dome-cell.is-selected", label: "Centered selected game", minWidth: 100, minHeight: 150 },
+          { selector: ".dome-selection-readout", label: "Selection controls", minWidth: 220, minHeight: 16 },
+          { selector: ".dome-controls-hint", label: "Keyboard navigation hint", minWidth: 130, minHeight: 50 },
+        ]);
+
+        setSelected(firstGame);
+        await captureStep(profile, "game-detail", [
+          { selector: ".detail-panel", label: "Game details", minWidth: 600, minHeight: 500, mustFitWidth: true },
+          { selector: ".close-detail", label: "Details close", minWidth: 36, minHeight: 36 },
+          { selector: ".detail-gear", label: "Game options", minWidth: 36, minHeight: 36 },
+          { selector: ".detail-hero h1", label: "Game title", minWidth: 120, minHeight: 30 },
+        ]);
+
+        setSelected(null); setLibraryOpen(false);
+        setSession({ game: firstGame, phase: "demo-ready", title: "Visual debug session", detail: "Synthetic state used only to validate the session dialog." });
+        await captureStep(profile, "session-dialog", [
+          { selector: ".session-card", label: "Session dialog", minWidth: 360, minHeight: 260 },
+          { selector: ".session-card button", label: "Session dialog action", minWidth: 32, minHeight: 32 },
+        ]);
+      }
+      setSession(null); setSelected(null); setLibraryOpen(false);
+      const manifest = await finishVisualDebug({ session_dir: config.session_dir, created_at: new Date().toISOString(), results });
+      setToast(`Visual debug completo: ${manifest}`);
+    };
+    void run().catch((error) => setToast(`Visual debug falló: ${error instanceof Error ? error.message : String(error)}`));
+  }, [loading, games.length]);
 
   useEffect(() => {
     if (!games.length) return;
@@ -533,14 +780,44 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [heroPaused, heroPool.length]);
 
-  const featured = heroPool[heroIndex] || filtered[0] || games[0];
-  const heroDetails = featured ? detailsById[featured.id] : undefined;
-  const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
-
   const continueGames = useMemo(() => {
     const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
     return recent.length ? recent.slice(0, 8) : filtered.filter((game) => game.copies_available > 0).slice(0, 4);
   }, [recentIds, filtered]);
+
+  const orderedLibrary = useMemo(() => {
+    const order = new Map(recentIds.map((id, index) => [id, index]));
+    return [...games].sort((left, right) => {
+      const leftRecent = order.get(left.id);
+      const rightRecent = order.get(right.id);
+      if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
+      return left.name.localeCompare(right.name, "es");
+    });
+  }, [games, recentIds]);
+
+  const magazineGames = orderedLibrary;
+  useEffect(() => {
+    const catalog = magazineCatalogRef.current;
+    if (!catalog) return;
+    const measure = () => {
+      const width = catalog.clientWidth;
+      const height = catalog.clientHeight - 86;
+      const gap = Math.max(12, Math.min(20, width * .0135));
+      const minimumCellWidth = 140;
+      const columns = Math.max(1, Math.floor((width + gap) / (minimumCellWidth + gap)));
+      const cellWidth = (width - gap * (columns - 1)) / columns;
+      const cellHeight = cellWidth * 16 / 10;
+      const rows = Math.max(1, Math.ceil(magazineGames.length / columns));
+      setMagazineShape({ columns, rows });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(catalog);
+    return () => observer.disconnect();
+  }, [magazineGames.length]);
+  const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
+  const heroDetails = featured ? detailsById[featured.id] : undefined;
+  const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
 
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
@@ -578,6 +855,32 @@ export default function App() {
     rememberRecent(game);
     setLeaseBusy(true);
     setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando acceso y validando tu saldo." });
+
+    if ((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id) {
+      const trace = [`Requested AppID = ${game.app_id}`, `Searching verified license-owner mapping for AppID ${game.app_id}`];
+      try {
+        setSession({ game, phase: "preparing", title: "Resolviendo propietario de la licencia", detail: "gameAccess está buscando la cuenta que realmente posee esta licencia.", log: trace });
+        const localAccount = game.local_primary_account_label ?? game.local_account_labels?.[0];
+        if (!localAccount) throw new Error(`No verified original owner was found for AppID ${game.app_id}. Accessible/Family-visible accounts are not accepted as owners.`);
+        trace.push(`Owner map loaded at startup = ${game.local_account_labels?.join(", ") || localAccount}`);
+        trace.push(`Original owner selected = ${localAccount}`);
+        trace.push(`Selecting remembered Steam account = ${localAccount}`);
+        setSession({ game, phase: "preparing", title: "Iniciando la cuenta propietaria", detail: "La licencia fue resuelta. Steam iniciará la cuenta propietaria exacta.", log: [...trace] });
+        await switchSteamAccount(localAccount);
+        trace.push(`ActiveUser confirmed for account = ${localAccount}`);
+        trace.push(`Opening steam://run/${game.app_id}`);
+        setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Steam confirmó la cuenta propietaria. Ahora gameAccess abre el juego automáticamente.", log: [...trace] });
+        await openSteamRun(game.app_id);
+        trace.push("Launch command accepted");
+        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
+      } catch (err) {
+        trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+        setSession({ game, phase: "error", title: "No pudimos iniciar la sesión local", detail: err instanceof Error ? err.message : String(err), log: [...trace] });
+      } finally {
+        setLeaseBusy(false);
+      }
+      return;
+    }
 
     if (offlineDemo) {
       await wait(650);
@@ -626,6 +929,17 @@ export default function App() {
     if (heroVideoRef.current) heroVideoRef.current.muted = next;
   };
 
+  const moveMagazineFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const columns = magazineShape.columns;
+    const moves: Record<string, number> = { ArrowLeft: -1, a: -1, A: -1, ArrowRight: 1, d: 1, D: 1, ArrowUp: -columns, w: -columns, W: -columns, ArrowDown: columns, s: columns, S: columns };
+    const movement = moves[event.key];
+    if (!movement || !magazineGames.length) return;
+    event.preventDefault();
+    const next = Math.max(0, Math.min(magazineGames.length - 1, magazineFocus + movement));
+    setMagazineFocus(next);
+    window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-magazine-index="${next}"] .game-card-main`)?.focus());
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar topbar-glass">
@@ -637,49 +951,60 @@ export default function App() {
         </nav>
         <div className="topbar-actions">
           <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
-          <div className="wallet-pill"><CircleDollarSign size={17} /><strong>{user.credits.toLocaleString("es-AR")}</strong><span>fichas</span></div>
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
 
       {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Vista visual activa: el backend local no respondió, así que mostramos datos demo con arte real del catálogo.</div> : null}
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Modo offline: mostrando el catálogo combinado de las cuentas Steam detectadas en esta PC.</div> : null}
 
       <main>
         {featured ? (
-          <section className="hero hero-video" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
+          <section className="magazine-view" aria-label="Biblioteca en vista revista">
+          <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
             {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={!heroPaused} muted={heroMuted} playsInline loop /> : null}
             <div className="hero-shade" />
             <div className="hero-copy">
-              <span className="hero-kicker"><Zap size={15} fill="currentColor" /> AHORA DISPONIBLE EN GAMEACCESS</span>
+              <span className="hero-kicker">TU BIBLIOTECA</span>
               <h1>{featured.name}</h1>
-              <div className="hero-meta"><span className="green-dot">{availabilityLabel(featured)}</span></div>
-              <p>Elegí el juego y empezá. gameAccess verifica disponibilidad, reserva el acceso y prepara la sesión automáticamente.</p>
+              <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
                 <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => void doLease(featured)} />
                 <button className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
-            <div className="hero-price"><span>Desde</span><strong>{featured.credit_cost_per_hour}</strong><small>fichas / hora</small></div>
             <div className="hero-media-controls" aria-label="Controles del banner">
               <button onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
               <button onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
               <button onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
               <button onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
             </div>
+          </div>
+          <section ref={magazineCatalogRef} className="magazine-catalog" aria-label="Juegos recientes y favoritos">
+            <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
+            <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties} onKeyDown={moveMagazineFocus}>
+              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"} onFocus={() => setMagazineFocus(index)}><button className="magazine-card" data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
+            </div>
+          </section>
+          <div className="screen-controls-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span></div>
           </section>
         ) : null}
 
-        <div className="content-wrap">
+        <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
           
-          <Shelf title="Seguí donde estabas" subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-          <Shelf title="Nuevos lanzamientos" subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-          <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
+          {offlineDemo ? (
+            <Shelf title="Tu biblioteca" subtitle="Últimos jugados primero · catálogo combinado de tus cuentas locales" games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
+          ) : <>
+            <Shelf title="Seguí donde estabas" subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title="Nuevos lanzamientos" subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
+          </>}
         </div>
       </main>
 
-      {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} /> : null}
+      {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
+      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>

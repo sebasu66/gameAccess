@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc && vite build",
+    "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 1420",
     "prepare-icons": "node scripts/prepare-icons.mjs",
     "pretauri": "npm run prepare-icons",
@@ -24,5 +25,6 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
+    ,"vitest": "^3.2.4"
   }
 }

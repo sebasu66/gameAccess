@@ -13,6 +13,12 @@ export interface CatalogGame {
   capsule_image?: string | null;
   hero_image?: string | null;
   steam_url?: string | null;
+  local_account_labels?: string[];
+  local_access_labels?: string[];
+  local_primary_account_label?: string;
+  local_owner_steam_ids?: string[];
+  local_inventory_verified?: boolean;
+  local_inventory_verified_at?: string | null;
 }
 
 export interface SteamSearchPrice {

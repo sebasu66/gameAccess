@@ -16,6 +16,10 @@ export default function WindowChrome() {
   if (!isTauri()) return null;
 
   const appWindow = getCurrentWindow();
+  const startDragging = async (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    await appWindow.startDragging();
+  };
   const toggleMaximize = async () => {
     await appWindow.toggleMaximize();
     setMaximized(await appWindow.isMaximized());
@@ -23,11 +27,11 @@ export default function WindowChrome() {
 
   return (
     <div className="window-chrome" data-tauri-drag-region onDoubleClick={() => void toggleMaximize()}>
-      <div className="window-drag-space" data-tauri-drag-region aria-hidden="true" />
+      <div className="window-drag-space" data-tauri-drag-region aria-hidden="true" onMouseDown={(event) => void startDragging(event)} />
       <div className="window-controls">
-        <button aria-label="Minimizar" title="Minimizar" onClick={() => void appWindow.minimize()}><Minus size={15} /></button>
-        <button aria-label={maximized ? "Restaurar" : "Maximizar"} title={maximized ? "Restaurar" : "Maximizar"} onClick={() => void toggleMaximize()}><Square size={12} /></button>
-        <button className="window-close" aria-label="Cerrar" title="Cerrar" onClick={() => void appWindow.close()}><X size={16} /></button>
+        <button aria-label="Minimizar" title="Minimizar" onDoubleClick={(event) => event.stopPropagation()} onClick={() => void appWindow.minimize()}><Minus size={15} /></button>
+        <button aria-label={maximized ? "Restaurar" : "Maximizar"} title={maximized ? "Restaurar" : "Maximizar"} onDoubleClick={(event) => event.stopPropagation()} onClick={() => void toggleMaximize()}><Square size={12} /></button>
+        <button className="window-close" aria-label="Cerrar" title="Cerrar" onDoubleClick={(event) => event.stopPropagation()} onClick={() => void appWindow.close()}><X size={16} /></button>
       </div>
     </div>
   );

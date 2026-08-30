@@ -71,6 +71,21 @@
   font-size: 14px;
 }
 
+.session-log {
+  max-height: 180px;
+  margin-top: 18px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid rgba(101,240,178,.16);
+  border-radius: 10px;
+  background: rgba(2,6,9,.78);
+  color: #b9c8c2;
+  font: 11px/1.55 "Cascadia Mono", Consolas, monospace;
+}
+
+.session-log div { display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
+.session-log span { color: #65f0b2; }
+
 .session-steps {
   display: grid;
   grid-template-columns: auto minmax(24px, 1fr) auto minmax(24px, 1fr) auto;

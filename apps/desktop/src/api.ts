@@ -1,85 +1,75 @@
-import { switchSteamAccount } from "./native";
+import { getLocalSteamPool, switchSteamAccount } from "./native";
+import { buildLocalCatalog, mergeCatalog } from "./catalog";
 import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
 
-const API = import.meta.env.VITE_GAMEACCESS_API ?? "http://127.0.0.1:8000";
+// Set this to the hosted backend (or the local FastAPI emulator during development).
+// An empty value deliberately means offline mode; no localhost server is required.
+const API = (import.meta.env.VITE_GAMEACCESS_API ?? "").replace(/\/$/, "");
 
-const steamAssets = (appId: number) => ({
-  header_image: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
-  capsule_image: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg`,
-  hero_image: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_hero.jpg`,
-  steam_url: `https://store.steampowered.com/app/${appId}/`,
+let localCatalog: CatalogGame[] = [];
+
+async function loadLocalCatalog(): Promise<CatalogGame[]> {
+  const pool = await getLocalSteamPool();
+  if (!pool) return [];
+  localCatalog = buildLocalCatalog(pool);
+  if (!localCatalog.length) throw new Error("Steam fue detectado pero el inventario local no devolvió juegos.");
+  return localCatalog;
+}
+
+const localDetails = (game: CatalogGame): GameDetails => ({
+  ...game,
+  steam: { app_id: game.app_id ?? 0, name: game.name, short_description: "Catálogo local de gameAccess.", background: game.hero_image ?? undefined },
+  metadata_state: "local",
 });
-
-const demoGame = (
-  id: number,
-  slug: string,
-  name: string,
-  appId: number,
-  credits: number,
-  total: number,
-  available: number,
-): CatalogGame => ({
-  id,
-  slug,
-  name,
-  app_id: appId,
-  credit_cost_per_hour: credits,
-  copies_total: total,
-  copies_available: available,
-  availability_state: available > 0 ? "ready" : total > 0 ? "owned-busy" : "unavailable",
-  ...steamAssets(appId),
-});
-
-export const fallbackCatalog: CatalogGame[] = [
-  demoGame(1, "cyberpunk-2077", "Cyberpunk 2077", 1091500, 150, 2, 1),
-  demoGame(2, "no-mans-sky", "No Man's Sky", 275850, 100, 1, 1),
-  demoGame(3, "elden-ring", "ELDEN RING", 1245620, 180, 2, 1),
-  demoGame(4, "baldurs-gate-3", "Baldur's Gate 3", 1086940, 170, 1, 0),
-  demoGame(5, "hogwarts-legacy", "Hogwarts Legacy", 990080, 120, 1, 1),
-  demoGame(6, "forza-horizon-5", "Forza Horizon 5", 1551360, 130, 0, 0),
-  demoGame(7, "helldivers-2", "HELLDIVERS 2", 553850, 160, 2, 2),
-];
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!API) throw new Error("Online backend is not configured");
   const response = await fetch(`${API}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json();
-      detail = body.detail ?? detail;
-    } catch {
-      // keep HTTP status fallback
-    }
-    throw new Error(detail);
-  }
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json() as Promise<T>;
 }
 
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
+  const local = await loadLocalCatalog();
   try {
-    const [games, user] = await Promise.all([
-      request<CatalogGame[]>("/catalog"),
-      request<UserSummary>("/users/1"),
-    ]);
-    return { games, user, offlineDemo: false };
+    const [games, user] = await Promise.all([request<CatalogGame[]>("/catalog"), request<UserSummary>("/users/1")]);
+    return { games: mergeCatalog(games, local), user, offlineDemo: false };
   } catch {
-    return {
-      games: fallbackCatalog,
-      user: { id: 1, username: "demo", credits: 1500 },
-      offlineDemo: true,
-    };
+    return { games: local, user: { id: 1, username: "offline", credits: 0 }, offlineDemo: true };
   }
 }
 
-export const loadDetails = (gameId: number) => request<GameDetails>(`/games/${gameId}/details`);
+export const loadDetails = async (gameId: number) => {
+  try { return await request<GameDetails>(`/games/${gameId}/details`); }
+  catch {
+    const game = localCatalog.find((item) => item.id === gameId);
+    if (!game) throw new Error("Juego no encontrado en el catálogo local");
+    return localDetails(game);
+  }
+};
 
-export const searchSteam = (query: string, limit = 20) =>
-  request<SteamSearchResponse>(`/steam/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+const localSearch = async (query: string, limit = 20): Promise<SteamSearchResponse> => ({
+  query,
+  count: localCatalog.length,
+  results: localCatalog.filter((game) => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, limit).map((game) => ({ app_id: game.app_id ?? 0, name: game.name, image_url: game.header_image, catalog_game: game, access_state: game.copies_available > 0 ? "available" : game.copies_total > 0 ? "busy" : "not-in-pool", steam_url: game.steam_url ?? undefined })),
+});
 
-export const loadSteamApp = (appId: number) => request<SteamMetadata>(`/steam/apps/${appId}`);
+export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
+  try { return await request<SteamSearchResponse>(`/steam/search?q=${encodeURIComponent(query)}&limit=${limit}`); }
+  catch { return localSearch(query, limit); }
+};
+
+export const loadSteamApp = async (appId: number) => {
+  try { return await request<SteamMetadata>(`/steam/apps/${appId}`); }
+  catch {
+    const game = localCatalog.find((item) => item.app_id === appId);
+    if (!game) throw new Error("Juego no encontrado en el catálogo local");
+    return localDetails(game).steam!;
+  }
+};
 
 async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
@@ -95,28 +85,38 @@ async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
   ]);
 }
 
-export async function leaseGame(gameId: number, minutes = 60): Promise<LeaseResponse> {
-  const lease = await request<LeaseResponse>("/leases", {
-    method: "POST",
-    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }),
-  });
-
-  if (lease.session_action !== "provider_adapter_required") return lease;
-  if (!lease.account?.label) {
-    await rollbackFailedLease(lease);
-    throw new Error("La reserva no tiene un perfil Steam asociado.");
+export const leaseGame = async (gameId: number, minutes = 60) => {
+  const game = localCatalog.find((item) => item.id === gameId);
+  if (API) {
+    const lease = await request<LeaseResponse>("/leases", { method: "POST", body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }) });
+    if (lease.session_action === "provider_adapter_required") {
+      if (!lease.account?.label) {
+        await rollbackFailedLease(lease);
+        throw new Error("La reserva no tiene un perfil Steam asociado.");
+      }
+      try {
+        await switchSteamAccount(lease.account.label);
+        return { ...lease, session_action: "launch_ready" };
+      } catch (error) {
+        await rollbackFailedLease(lease);
+        throw error;
+      }
+    }
+    return lease;
   }
-
-  try {
-    await switchSteamAccount(lease.account.label);
-    return { ...lease, session_action: "launch_ready" };
-  } catch (error) {
-    await rollbackFailedLease(lease);
-    throw error;
-  }
-}
-
-export const importSteamGame = (appId: number) =>
-  request<{ created: boolean; game: CatalogGame }>(`/admin/games/import-steam/${appId}`, { method: "POST" });
-
-export const apiBase = API;
+  if (!game) throw new Error("Juego no encontrado en el catálogo local");
+  const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
+  if (!configured) throw new Error("No hay una cuenta Steam local verificada que pueda abrir este juego.");
+  await switchSteamAccount(configured);
+  const now = Date.now();
+  return {
+    lease_id: now,
+    game: { id: game.id, name: game.name, app_id: game.app_id },
+    account: { id: 0, label: "local", provider: "steam" },
+    credits_spent: game.credit_cost_per_hour,
+    credits_remaining: Math.max(0, 1500 - game.credit_cost_per_hour),
+    starts_at: new Date(now).toISOString(),
+    expires_at: new Date(now + minutes * 60_000).toISOString(),
+    session_action: "launch_ready",
+  };
+};
