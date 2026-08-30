@@ -961,7 +961,7 @@ export default function App() {
 
       <main>
         <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} onPlay={doLease} onDownload={startDownload} onOpenDetails={openGame} />
-        {false && featured ? (
+        {featured ? (
           <section className="magazine-view" aria-label="Biblioteca en vista revista">
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
             {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={!heroPaused} muted={heroMuted} playsInline loop /> : null}
