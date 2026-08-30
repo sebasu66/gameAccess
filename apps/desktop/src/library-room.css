@@ -1,0 +1,67 @@
+.library-room {
+  position: relative;
+  height: 100svh;
+  min-height: 680px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(390px, 42vw) minmax(0, 1fr);
+  gap: clamp(18px, 2vw, 30px);
+  padding: calc(var(--window-chrome-height, 34px) + 94px) clamp(18px, 2.2vw, 36px) 46px;
+  overflow: hidden;
+  outline: 0;
+  background: radial-gradient(circle at 24% 40%, rgba(57,255,20,.06), transparent 36%), #05070b;
+}
+.library-room-feature {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 24px;
+  background: #090d13 center / cover no-repeat;
+  box-shadow: 0 30px 90px rgba(0,0,0,.52), inset 0 1px rgba(255,255,255,.06);
+  isolation: isolate;
+}
+.library-room-video { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; animation: libraryMediaIn .7s ease both; }
+.library-room-feature-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(2,4,7,.10), rgba(2,4,7,.22) 34%, rgba(2,4,7,.92) 84%), linear-gradient(90deg, rgba(2,4,7,.12), rgba(2,4,7,.42)); }
+.library-room-feature-copy { position: absolute; inset: auto clamp(24px,3vw,52px) clamp(36px,5vh,64px); }
+.library-room-feature-copy h1 { margin: 8px 0 12px; max-width: 11ch; font-size: clamp(42px,4.5vw,74px); line-height: .93; letter-spacing: -.055em; text-shadow: 0 8px 32px #000; }
+.library-room-feature-copy p { max-width: 56ch; margin: 0 0 24px; color: #c2cad4; line-height: 1.52; text-shadow: 0 2px 16px #000; }
+.library-room-loading { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 16px; color: #a7b2c0; font-size: 12px; }
+.library-room-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.library-room-action {
+  min-width: 58px; height: 58px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  border: 2px solid rgba(255,255,255,.13); border-radius: 999px; color: #f5f8fb; background: rgba(6,10,15,.62);
+  backdrop-filter: blur(16px); cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background .16s ease;
+}
+.library-room-action strong { font-size: 13px; white-space: nowrap; }
+.library-room-action:disabled { opacity: .42; cursor: default; }
+.library-room-action.is-selected {
+  border-color: #fff; background: rgba(35,74,28,.82); transform: translateY(-3px) scale(1.035);
+  box-shadow: 0 0 0 3px #39ff14, 0 0 0 7px rgba(57,255,20,.18), 0 0 42px rgba(57,255,20,.45);
+}
+.library-room-action.is-selected strong { font-weight: 950; }
+.library-room-catalog { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.library-room-heading { flex: 0 0 auto; display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 4px 2px 16px; }
+.library-room-heading h2 { margin: 4px 0 0; font-size: clamp(28px,2.7vw,44px); letter-spacing: -.045em; }
+.library-room-heading small { color: #788493; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.library-room-grid {
+  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(116px,1fr));
+  align-content: start; gap: clamp(12px,1.2vw,18px); padding: 7px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
+}
+.library-room-card { min-width: 0; padding: 0 0 6px; border: 0; border-radius: 13px; color: #b8c0ca; background: transparent; text-align: left; cursor: pointer; transition: transform .16s ease, color .16s ease; }
+.library-room-card-art { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 2px solid rgba(255,255,255,.08); border-radius: 10px; background: #111824; color: #8290a1; transition: border-color .17s ease, box-shadow .17s ease, filter .17s ease, transform .17s ease; }
+.library-room-card-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.library-room-card > strong { display: block; overflow: hidden; padding: 9px 3px 0; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.library-room-card.is-selected { color: #fff; transform: translateY(-2px); }
+.library-room-card.is-selected .library-room-card-art {
+  border-color: #fff; filter: brightness(1.10) saturate(1.08); transform: scale(1.018);
+  box-shadow: 0 0 0 3px #39ff14, 0 0 0 7px rgba(57,255,20,.16), 0 0 38px rgba(57,255,20,.42), 0 22px 38px rgba(0,0,0,.48);
+}
+.library-room-card.is-selected > strong { font-weight: 950; text-shadow: 0 0 16px rgba(57,255,20,.28); }
+.library-room.focus-actions .library-room-card.is-selected .library-room-card-art { box-shadow: 0 0 0 2px rgba(57,255,20,.58), 0 16px 30px rgba(0,0,0,.4); border-color: rgba(255,255,255,.5); }
+.library-room-hint { position: absolute; right: clamp(20px,2.5vw,42px); bottom: 12px; z-index: 5; display: flex; gap: 16px; color: #788493; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
+.library-room-empty { place-items: center; color: #9ba6b4; }
+@keyframes libraryMediaIn { from { opacity: 0; transform: scale(1.035); } }
+@media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(auto-fill,minmax(104px,1fr)); } }
+@media (max-width: 760px) { .library-room { height: auto; min-height: 100svh; grid-template-columns: 1fr; overflow-y: auto; } .library-room-feature { min-height: 52vh; } .library-room-catalog { min-height: 58vh; } .library-room-grid { overflow: visible; } .library-room-hint { position: fixed; left: 12px; right: 12px; justify-content: center; padding: 8px; background: rgba(3,5,8,.78); backdrop-filter: blur(10px); } }
+@media (prefers-reduced-motion: reduce) { .library-room-video { animation: none; } }
