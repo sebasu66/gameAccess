@@ -26,3 +26,13 @@ Thumbs.db
 
 # Tauri generated schemas
 apps/desktop/src-tauri/gen/
+apps/launcher/.gameaccess/
+debug/visual/
+tools/bin/
+tools/config/
+tools/logs/
+tools/package/
+tools/public/
+tools/siteserverui/
+tools/g2g-crawler/_analysis/
+tools/g2g-crawler/g2g-*-test.json
