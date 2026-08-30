@@ -74,3 +74,7 @@
 .library-install-state.ready { color: #071405; background: rgba(57,255,20,.94); box-shadow: 0 0 16px rgba(57,255,20,.42), 0 5px 15px rgba(0,0,0,.42); }
 .library-install-state.download { color: #241500; background: rgba(255,176,0,.96); box-shadow: 0 0 16px rgba(255,176,0,.35), 0 5px 15px rgba(0,0,0,.42); }
 .library-install-state.progress { color: white; background: rgba(0,152,255,.9); box-shadow: 0 0 18px rgba(0,152,255,.4), 0 5px 15px rgba(0,0,0,.42); }
+
+.library-room.is-showcase .library-room-feature { box-shadow: 0 30px 100px rgba(0,0,0,.58), 0 0 56px rgba(57,255,20,.10), inset 0 1px rgba(255,255,255,.08); }
+.library-room.is-showcase .library-room-feature-copy .eyebrow { animation: showcasePulse 2.4s ease-in-out infinite; }
+@keyframes showcasePulse { 50% { text-shadow: 0 0 24px rgba(57,255,20,.82); filter: brightness(1.35); } }

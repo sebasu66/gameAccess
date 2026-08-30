@@ -119,3 +119,8 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
   if (!hasTauriRuntime()) return null;
   return invoke<MachineProfile>("machine_profile");
 }
+
+export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
+  if (!appId || !hasTauriRuntime()) return null;
+  return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+}

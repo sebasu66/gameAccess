@@ -58,13 +58,15 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [columns, setColumns] = useState(4);
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [showcaseMode, setShowcaseMode] = useState(false);
+  const idleTimerRef = useRef<number | null>(null);
 
   const selectedGame = games[selectedIndex] ?? games[0];
   const accountCount = useMemo(() => new Set(games.flatMap((game) => game.local_account_labels ?? [])).size, [games]);
   const download = selectedGame?.app_id ? downloads[selectedGame.app_id] : undefined;
   const installed = download?.state === "installed" || download?.installed === true;
   const activeDownload = Boolean(download && ["requested", "preparing", "downloading"].includes(download.state));
-  const hero = details?.steam?.background || details?.steam?.hero_image || selectedGame?.hero_image || selectedGame?.header_image || selectedGame?.capsule_image || undefined;
+  const hero = details?.steam?.screenshots?.[0]?.full || details?.steam?.background || details?.steam?.hero_image || selectedGame?.hero_image || selectedGame?.header_image || selectedGame?.capsule_image || undefined;
   const movie = details?.steam?.movies?.find((item) => item.highlight) || details?.steam?.movies?.[0];
   const summary = details?.steam?.short_description || "Seleccionado de la biblioteca combinada de tus cuentas Steam.";
 
@@ -72,9 +74,34 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     setSelectedIndex((current) => Math.min(current, Math.max(0, games.length - 1)));
   }, [games.length]);
 
+  const markActivity = () => {
+    setShowcaseMode(false);
+    if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = window.setTimeout(() => {
+      setFocusZone("grid");
+      setShowcaseMode(true);
+    }, 30_000);
+  };
+
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
+    markActivity();
+    return () => {
+      if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!showcaseMode || games.length < 2) return;
+    const chooseAnother = () => setSelectedIndex((current) => {
+      let next = Math.floor(Math.random() * games.length);
+      if (next === current) next = (next + 1) % games.length;
+      return next;
+    });
+    chooseAnother();
+    const timer = window.setInterval(chooseAnother, 9_000);
+    return () => window.clearInterval(timer);
+  }, [showcaseMode, games.length]);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -95,6 +122,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   useEffect(() => {
     if (!selectedGame) return;
     let cancelled = false;
+    setDetails(null);
     setLoadingDetails(true);
     loadDetails(selectedGame.id)
       .then((value) => { if (!cancelled) setDetails(value); })
@@ -132,6 +160,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    markActivity();
     if (!selectedGame || !games.length) return;
     const key = event.key.toLowerCase();
     if (focusZone === "actions") {
@@ -175,12 +204,12 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   if (!selectedGame) return <section className="library-room library-room-empty">No hay juegos disponibles.</section>;
 
   return (
-    <section ref={rootRef} className={`library-room focus-${focusZone}`} tabIndex={-1} onKeyDown={onKeyDown} aria-label="Biblioteca">
+    <section ref={rootRef} className={`library-room focus-${focusZone} ${showcaseMode ? "is-showcase" : ""}`} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
       <aside className="library-room-feature" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
         {movie?.mp4 ? <video key={movie.mp4} className="library-room-video" src={movie.mp4} poster={movie.thumbnail} autoPlay muted loop playsInline /> : null}
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
-          <span className="eyebrow">TU BIBLIOTECA</span>
+          <span className="eyebrow">{showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
           <h1>{selectedGame.name}</h1>
           <p>{summary}</p>
           {loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
@@ -208,7 +237,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             <button
               key={game.id}
               className={`library-room-card ${index === selectedIndex ? "is-selected" : ""}`}
-              onMouseEnter={() => setSelectedIndex(index)}
+              onMouseEnter={() => { markActivity(); setSelectedIndex(index); }}
               onClick={() => { setSelectedIndex(index); setFocusZone("grid"); rootRef.current?.focus({ preventScroll: true }); }}
               aria-current={index === selectedIndex ? "true" : undefined}
               aria-label={`${index === selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}

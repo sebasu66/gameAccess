@@ -489,6 +489,35 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
     }
 }
 
+
+#[tauri::command]
+fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let url = format!("https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish");
+        let script = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; $headers=@{{'User-Agent'='gameAccess/0.1'}}; $result=Invoke-RestMethod -Uri '{}' -Headers $headers -TimeoutSec 20; $result | ConvertTo-Json -Depth 32 -Compress", url);
+        let output = Command::new("powershell.exe")
+            .args(["-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-Command",&script])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|err| format!("Could not query Steam Store metadata: {err}"))?;
+        if !output.status.success() {
+            let stderr=String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() { "Steam Store metadata request failed".into() } else { stderr });
+        }
+        let parsed: serde_json::Value=serde_json::from_slice(&output.stdout)
+            .map_err(|err| format!("Steam Store returned invalid JSON: {err}"))?;
+        let key=app_id.to_string();
+        let entry=parsed.get(&key).ok_or_else(|| "Steam Store response did not contain the requested AppID".to_string())?;
+        if !entry.get("success").and_then(|value| value.as_bool()).unwrap_or(false) {
+            return Err("Steam Store did not return metadata for this AppID".into());
+        }
+        return entry.get("data").cloned().ok_or_else(|| "Steam Store response did not contain game data".to_string());
+    }
+    #[cfg(not(target_os = "windows"))]
+    { Err("Steam Store metadata bridge is currently implemented for Windows".into()) }
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
@@ -498,6 +527,7 @@ fn main() {
             open_steam_install,
             open_steam_run,
             steam_download_status,
+            steam_store_metadata,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,
