@@ -611,11 +611,12 @@ export default function App() {
 
   const refresh = async () => {
     setLoading(true);
-    const home = await loadHome();
-    setGames(home.games);
-    setUser(home.user);
-    setOfflineDemo(home.offlineDemo);
-    setLoading(false);
+    try {
+      const home = await loadHome();
+      setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
+    } catch (error) {
+      setGames([]); setToast(`No pudimos cargar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -960,7 +961,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Modo offline: mostrando el catálogo combinado de las cuentas Steam detectadas en esta PC.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} onPlay={doLease} onDownload={startDownload} onOpenDetails={openGame} />
+        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} onOpenDetails={openGame} />
         {featured ? (
           <section className="magazine-view" aria-label="Biblioteca en vista revista">
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>

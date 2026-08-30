@@ -33,6 +33,15 @@ struct SteamAccountSwitchResult {
     message: String,
 }
 
+#[derive(Serialize)]
+struct RuntimePrerequisites {
+    runtime_ok: bool,
+    steam_installed: bool,
+    steam_path: Option<String>,
+    account_file_present: bool,
+    remembered_accounts: usize,
+}
+
 #[derive(Default)]
 struct VisualDebugState {
     session_dir: Mutex<Option<PathBuf>>,
@@ -146,25 +155,45 @@ fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), 
     Ok(())
 }
 
-fn steam_path_candidates() -> Vec<PathBuf> {
+#[cfg(target_os = "windows")]
+fn steam_registry_candidates() -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    if let Ok(value) = env::var("PROGRAMFILES(X86)") {
-        paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));
+    let queries = [("HKCU\\Software\\Valve\\Steam", "SteamPath"),("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),("HKLM\\SOFTWARE\\Valve\\Steam", "InstallPath")];
+    for (key,value_name) in queries {
+        let output=Command::new("reg.exe").args(["query",key,"/v",value_name]).creation_flags(CREATE_NO_WINDOW).output();
+        let Ok(output)=output else { continue }; if !output.status.success(){continue}
+        let stdout=String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines(){ if !line.contains(value_name){continue} let value=line.split_whitespace().skip(2).collect::<Vec<_>>().join(" "); if !value.trim().is_empty(){paths.push(PathBuf::from(value.trim()).join("steam.exe"));}}
     }
-    if let Ok(value) = env::var("PROGRAMFILES") {
-        paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));
-    }
-    paths.push(PathBuf::from(r"C:\Steam\steam.exe"));
     paths
 }
-
-fn find_steam_exe() -> Option<PathBuf> {
-    steam_path_candidates().into_iter().find(|path| path.is_file())
+#[cfg(not(target_os = "windows"))]
+fn steam_registry_candidates() -> Vec<PathBuf> { Vec::new() }
+fn steam_path_candidates() -> Vec<PathBuf> {
+    let mut paths=steam_registry_candidates();
+    if let Ok(value)=env::var("PROGRAMFILES(X86)"){paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));}
+    if let Ok(value)=env::var("PROGRAMFILES"){paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));}
+    paths.push(PathBuf::from(r"C:\Steam\steam.exe")); paths
 }
-
+fn find_steam_exe() -> Option<PathBuf> { steam_path_candidates().into_iter().find(|path| path.is_file()) }
+fn remembered_steam_accounts(steam_exe:&PathBuf)->(bool,usize){
+    let Some(root)=steam_exe.parent() else{return(false,0)}; let loginusers=root.join("config").join("loginusers.vdf");
+    let Ok(text)=fs::read_to_string(&loginusers) else{return(loginusers.is_file(),0)};
+    let count=text.lines().filter(|line|{let lower=line.to_ascii_lowercase(); if !lower.contains("rememberpassword"){return false} let values:Vec<&str>=line.split('"').collect(); values.len()>=4 && values[3].trim()=="1"}).count(); (true,count)
+}
 #[tauri::command]
-fn steam_installed() -> bool {
-    find_steam_exe().is_some()
+fn steam_installed()->bool{find_steam_exe().is_some()}
+#[tauri::command]
+fn runtime_prerequisites()->RuntimePrerequisites{
+    let Some(steam_exe)=find_steam_exe() else{return RuntimePrerequisites{runtime_ok:true,steam_installed:false,steam_path:None,account_file_present:false,remembered_accounts:0}};
+    let(account_file_present,remembered_accounts)=remembered_steam_accounts(&steam_exe);
+    RuntimePrerequisites{runtime_ok:true,steam_installed:true,steam_path:steam_exe.parent().map(|p|p.to_string_lossy().to_string()),account_file_present,remembered_accounts}
+}
+#[tauri::command]
+fn open_steam_client()->Result<(),String>{
+    let steam=find_steam_exe().ok_or_else(||"Steam no está instalado o no pudo ser localizado.".to_string())?;
+    #[cfg(target_os="windows")] Command::new(steam).creation_flags(CREATE_NO_WINDOW).spawn().map_err(|e|format!("No pudimos abrir Steam: {e}"))?;
+    #[cfg(not(target_os="windows"))] Command::new(steam).spawn().map_err(|e|format!("No pudimos abrir Steam: {e}"))?; Ok(())
 }
 
 fn open_steam_uri(uri: &str) -> Result<(), String> {
@@ -524,6 +553,8 @@ fn main() {
         .manage(VisualDebugState { session_dir: Mutex::new(visual_debug_dir) })
         .invoke_handler(tauri::generate_handler![
             steam_installed,
+            runtime_prerequisites,
+            open_steam_client,
             open_steam_install,
             open_steam_run,
             steam_download_status,

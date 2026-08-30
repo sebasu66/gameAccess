@@ -16,6 +16,7 @@ interface LibraryRoomProps {
   onPlay: (game: CatalogGame) => void | Promise<void>;
   onDownload: (game: CatalogGame) => void | Promise<void>;
   onOpenDetails: (game: CatalogGame) => void;
+  loading?: boolean;
 }
 
 function artworkCandidates(game: CatalogGame) {
@@ -49,7 +50,7 @@ function InstallStateBadge({ status }: { status?: SteamDownloadStatus }) {
   return <span className="library-install-state download" title="En tu biblioteca · falta descargar"><Download size={12} /></span>;
 }
 
-export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails }: LibraryRoomProps) {
+export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -204,13 +205,37 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (key === "s" || key === "arrowdown") { event.preventDefault(); moveGrid(columns); }
   };
 
-  const actions = useMemo(() => [
-    { label: installed ? "Jugar" : "No instalado", icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />, disabled: !installed || busy || selectedGame.copies_available <= 0 },
-    { label: installed ? "Instalado" : activeDownload ? `${Math.round(download?.progress ?? 0)}%` : "Descargar", icon: activeDownload ? <Loader2 className="spin" size={23} /> : <Download size={23} />, disabled: !selectedGame.app_id || installed || activeDownload },
-    { label: "Ficha completa", icon: <Info size={23} />, disabled: false },
-  ], [activeDownload, busy, download?.progress, installed, selectedGame]);
+  const actions = useMemo(() => {
+    if (!selectedGame) return [];
+    return [
+      { label: installed ? "Jugar" : "No instalado", icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />, disabled: !installed || busy || selectedGame.copies_available <= 0 },
+      { label: installed ? "Instalado" : activeDownload ? `${Math.round(download?.progress ?? 0)}%` : "Descargar", icon: activeDownload ? <Loader2 className="spin" size={23} /> : <Download size={23} />, disabled: !selectedGame.app_id || installed || activeDownload },
+      { label: "Ficha completa", icon: <Info size={23} />, disabled: false },
+    ];
+  }, [activeDownload, busy, download?.progress, installed, selectedGame]);
 
-  if (!selectedGame) return <section className="library-room library-room-empty">No hay juegos disponibles.</section>;
+  if (!selectedGame) {
+    return (
+      <section ref={rootRef} className="library-room focus-grid is-empty" tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
+        <aside className="library-room-feature">
+          <div className="library-room-feature-shade" />
+          <div className="library-room-feature-copy">
+            <span className="eyebrow">TU BIBLIOTECA</span>
+            <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
+            <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
+            {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
+          </div>
+        </aside>
+        <section className="library-room-catalog">
+          <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>0 juegos · WASD / FLECHAS</small></header>
+          <div ref={gridRef} className="library-room-grid library-room-empty-grid">
+            <div className="library-room-empty-state"><Gamepad2 size={42} /><strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong><span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span></div>
+          </div>
+        </section>
+        <div className="library-room-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>ENTRAR / ACTIVAR · ENTER</span><span>VOLVER · ESC</span></div>
+      </section>
+    );
+  }
 
   return (
     <section ref={rootRef} className={`library-room focus-${focusZone} ${showcaseMode ? "is-showcase" : ""}`} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">

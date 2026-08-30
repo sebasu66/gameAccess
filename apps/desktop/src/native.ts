@@ -17,6 +17,14 @@ export interface MachineProfile {
   gpus: string[];
 }
 
+export interface RuntimePrerequisites {
+  runtime_ok: boolean;
+  steam_installed: boolean;
+  steam_path: string | null;
+  account_file_present: boolean;
+  remembered_accounts: number;
+}
+
 export interface VisualDebugConfig {
   enabled: boolean;
   session_dir: string | null;
@@ -105,6 +113,16 @@ export async function switchSteamAccount(accountLabel: string): Promise<SteamAcc
 export async function steamInstalled(): Promise<boolean> {
   if (!hasTauriRuntime()) return true;
   return invoke<boolean>("steam_installed");
+}
+
+export async function getRuntimePrerequisites(): Promise<RuntimePrerequisites> {
+  if (!hasTauriRuntime()) return { runtime_ok:true, steam_installed:true, steam_path:null, account_file_present:true, remembered_accounts:1 };
+  return invoke<RuntimePrerequisites>("runtime_prerequisites");
+}
+
+export async function openSteamClient(): Promise<void> {
+  if (!hasTauriRuntime()) return;
+  await invoke("open_steam_client");
 }
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
