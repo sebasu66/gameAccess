@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Gamepad2, Info, Loader2, Play } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { playUiSound } from "./uiSounds";
 import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails } from "./types";
 
@@ -139,10 +140,15 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [selectedGame?.id, installed]);
 
   const moveGrid = (delta: number) => {
-    setSelectedIndex((current) => Math.max(0, Math.min(games.length - 1, current + delta)));
+    setSelectedIndex((current) => {
+      const next = Math.max(0, Math.min(games.length - 1, current + delta));
+      if (next !== current) playUiSound("move");
+      return next;
+    });
   };
 
   const enterActions = () => {
+    playUiSound("activate");
     setFocusZone("actions");
     window.requestAnimationFrame(() => actionRefs.current[actionIndex]?.focus({ preventScroll: true }));
   };
@@ -154,6 +160,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   const activateAction = () => {
     if (!selectedGame) return;
+    playUiSound("activate");
     if (actionIndex === 0 && installed && !busy && selectedGame.copies_available > 0) void onPlay(selectedGame);
     if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
     if (actionIndex === 2) onOpenDetails(selectedGame);
@@ -168,6 +175,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       if (["a", "arrowleft", "w", "arrowup"].includes(key)) {
         event.preventDefault();
         const next = (actionIndex - 1 + 3) % 3;
+        playUiSound("move");
         setActionIndex(next);
         actionRefs.current[next]?.focus({ preventScroll: true });
         return;
@@ -175,6 +183,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       if (["d", "arrowright"].includes(key)) {
         event.preventDefault();
         const next = (actionIndex + 1) % 3;
+        playUiSound("move");
         setActionIndex(next);
         actionRefs.current[next]?.focus({ preventScroll: true });
         return;
@@ -220,7 +229,15 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
                 ref={(node) => { actionRefs.current[index] = node; }}
                 className={`library-room-action ${focusZone === "actions" && actionIndex === index ? "is-selected" : ""}`}
                 onFocus={() => { setFocusZone("actions"); setActionIndex(index); }}
-                onClick={() => { setActionIndex(index); if (!action.disabled) { if (index === 0) void onPlay(selectedGame); else if (index === 1) void onDownload(selectedGame); else onOpenDetails(selectedGame); } }}
+                onClick={() => {
+                  setActionIndex(index);
+                  if (!action.disabled) {
+                    playUiSound("activate");
+                    if (index === 0) void onPlay(selectedGame);
+                    else if (index === 1) void onDownload(selectedGame);
+                    else onOpenDetails(selectedGame);
+                  }
+                }}
                 disabled={action.disabled}
               >
                 {action.icon}<strong>{action.label}</strong>
@@ -237,7 +254,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             <button
               key={game.id}
               className={`library-room-card ${index === selectedIndex ? "is-selected" : ""}`}
-              onMouseEnter={() => { markActivity(); setSelectedIndex(index); }}
+              onMouseEnter={() => {
+                markActivity();
+                if (index !== selectedIndex) playUiSound("move");
+                setSelectedIndex(index);
+              }}
               onClick={() => { setSelectedIndex(index); setFocusZone("grid"); rootRef.current?.focus({ preventScroll: true }); }}
               aria-current={index === selectedIndex ? "true" : undefined}
               aria-label={`${index === selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
