@@ -17,6 +17,37 @@ interface LibraryRoomProps {
   onOpenDetails: (game: CatalogGame) => void;
 }
 
+function artworkCandidates(game: CatalogGame) {
+  const appId = game.app_id;
+  const candidates = [
+    game.capsule_image,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : null,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : null,
+    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null,
+    game.header_image,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null,
+    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null,
+  ].filter((value): value is string => Boolean(value));
+  return [...new Set(candidates)];
+}
+
+function SteamCover({ game }: { game: CatalogGame }) {
+  const sources = useMemo(() => artworkCandidates(game), [game.app_id, game.capsule_image, game.header_image]);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  useEffect(() => setSourceIndex(0), [game.id]);
+  const source = sources[sourceIndex];
+  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
+  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
+}
+
+function InstallStateBadge({ status }: { status?: SteamDownloadStatus }) {
+  const installed = status?.state === "installed" || status?.installed === true;
+  const active = Boolean(status && ["requested", "preparing", "downloading"].includes(status.state));
+  if (installed) return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
+  if (active) return <span className="library-install-state progress" title={`Descargando${status?.progress != null ? ` · ${Math.round(status.progress)}%` : ""}`}><Loader2 size={12} className="spin" /></span>;
+  return <span className="library-install-state download" title="En tu biblioteca · falta descargar"><Download size={12} /></span>;
+}
+
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails }: LibraryRoomProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -29,6 +60,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   const selectedGame = games[selectedIndex] ?? games[0];
+  const accountCount = useMemo(() => new Set(games.flatMap((game) => game.local_account_labels ?? [])).size, [games]);
   const download = selectedGame?.app_id ? downloads[selectedGame.app_id] : undefined;
   const installed = download?.state === "installed" || download?.installed === true;
   const activeDownload = Boolean(download && ["requested", "preparing", "downloading"].includes(download.state));
@@ -170,7 +202,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       </aside>
 
       <section className="library-room-catalog">
-        <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>{games.length} juegos · WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>{games.length} juegos{accountCount ? ` · ${accountCount} cuenta${accountCount === 1 ? "" : "s"}` : ""} · WASD / FLECHAS</small></header>
         <div ref={gridRef} className="library-room-grid">
           {games.map((game, index) => (
             <button
@@ -182,7 +214,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
               aria-label={`${index === selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
               tabIndex={-1}
             >
-              <span className="library-room-card-art">{game.capsule_image || game.header_image ? <img src={game.capsule_image || game.header_image || ""} alt="" draggable={false} loading="lazy" /> : <Gamepad2 size={34} />}</span>
+              <span className="library-room-card-art"><SteamCover game={game} /><InstallStateBadge status={game.app_id ? downloads[game.app_id] : undefined} /></span>
               <strong>{game.name}</strong>
             </button>
           ))}

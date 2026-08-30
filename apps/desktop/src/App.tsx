@@ -724,7 +724,7 @@ export default function App() {
     let cancelled = false;
     const probe = async () => {
       const next: DownloadMap = {};
-      await Promise.all(games.slice(0, 20).map(async (game) => {
+      await Promise.all(games.map(async (game) => {
         if (!game.app_id) return;
         try { next[game.app_id] = await steamDownloadStatus(game.app_id); } catch { /* browser preview */ }
       }));
