@@ -53,7 +53,20 @@
   backdrop-filter: blur(10px);
 }
 
+.steam-settings-backdrop-dismiss {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
 .steam-settings-panel {
+  position: relative;
+  z-index: 1;
   width: min(820px, 100%);
   max-height: min(820px, calc(100vh - 48px));
   overflow: auto;
