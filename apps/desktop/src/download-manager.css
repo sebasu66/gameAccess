@@ -1,0 +1,148 @@
+.library-room-card-cover-base,
+.library-room-card-color-fill {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.library-room-card-cover-base img,
+.library-room-card-color-fill img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.library-room-card.is-download-active .library-room-card-cover-base {
+  filter: grayscale(1) saturate(0) brightness(.72) contrast(1.06);
+}
+
+.library-room-card-color-fill {
+  z-index: 1;
+  clip-path: inset(calc(100% - var(--download-progress, 0%)) 0 0 0);
+  transition: clip-path .75s cubic-bezier(.2,.8,.2,1);
+}
+
+.library-room-card.is-download-active .library-room-card-art {
+  border-color: rgba(110,196,255,.42);
+  box-shadow: inset 0 0 0 1px rgba(110,196,255,.12), 0 14px 30px rgba(0,0,0,.36);
+}
+
+.library-room-card.is-download-pinned .library-room-card-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 55%, rgba(3,8,14,.64));
+}
+
+.library-download-state {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 999px;
+  color: #f4f9ff;
+  background: rgba(5,11,18,.76);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.38);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.download-complete-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2,5,9,.74);
+  backdrop-filter: blur(16px);
+}
+
+.download-complete-dialog {
+  position: relative;
+  width: min(540px, 94vw);
+  padding: 42px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 24px;
+  background: radial-gradient(circle at 16% 0%, rgba(57,255,20,.10), transparent 34%), #090d13;
+  box-shadow: 0 34px 100px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.06);
+}
+
+.download-complete-dialog h2 {
+  margin: 10px 0 9px;
+  font-size: clamp(30px,4vw,44px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.download-complete-dialog p {
+  margin: 0;
+  color: #b8c2ce;
+  line-height: 1.55;
+}
+
+.download-complete-icon {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #051105;
+  background: #39ff14;
+  box-shadow: 0 0 34px rgba(57,255,20,.28);
+}
+
+.download-complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.download-complete-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.download-complete-dialog small {
+  display: block;
+  margin-top: 16px;
+  color: #8793a2;
+}
+
+.download-dialog-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 50%;
+  color: white;
+  background: rgba(255,255,255,.06);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-room-card-color-fill { transition: none; }
+}

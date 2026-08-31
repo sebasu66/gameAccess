@@ -9,6 +9,7 @@ import "./session.css";
 import "./experience.css";
 import "./polish.css";
 import "./library-room.css";
+import "./download-manager.css";
 import "./bootstrap.css";
 import "./steam-session-settings.css";
 
