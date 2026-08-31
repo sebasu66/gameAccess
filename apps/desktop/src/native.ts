@@ -7,6 +7,7 @@ import {
   loadSteamSessionPreferences,
   rememberPreviousSteamAccount,
 } from "./steamSessionPreferences";
+import type { SteamRestoreMode } from "./steamSessionPreferences";
 
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -113,6 +114,18 @@ function findSteamAccount(accounts: LocalSteamAccount[], label: string): LocalSt
   );
 }
 
+async function resolveSessionRestoreMode(
+  requestedMode: SteamRestoreMode,
+  mainAccountName: string | null,
+  previousAccountName: string | null | undefined,
+): Promise<SteamRestoreMode> {
+  let targetAccountName: string | null | undefined = null;
+  if (requestedMode === "main") targetAccountName = mainAccountName;
+  if (requestedMode === "previous") targetAccountName = previousAccountName;
+  const hasCredential = targetAccountName ? await hasSteamCredential(targetAccountName) : false;
+  return safeSteamRestoreMode(requestedMode, targetAccountName, hasCredential);
+}
+
 export async function saveSteamCredential(accountName: string, password: string): Promise<void> {
   if (!hasTauriRuntime()) throw new Error("Steam credential enrollment requires the desktop app.");
   await invoke("save_steam_credential", { accountName, password });
@@ -181,13 +194,11 @@ export async function openSteamRun(appId: number): Promise<void> {
     ? findSteamAccount(refreshed.accounts, preferences.mainAccountName)
     : undefined;
   const mainAccountName = main ? accountName(main) : preferences.mainAccountName;
-  const restoreTarget = preferences.restoreMode === "main"
-    ? mainAccountName
-    : preferences.restoreMode === "previous"
-      ? previous?.accountName
-      : null;
-  const hasRestoreCredential = restoreTarget ? await hasSteamCredential(restoreTarget) : false;
-  const restoreMode = safeSteamRestoreMode(preferences.restoreMode, restoreTarget, hasRestoreCredential);
+  const restoreMode = await resolveSessionRestoreMode(
+    preferences.restoreMode,
+    mainAccountName,
+    previous?.accountName,
+  );
 
   await invoke<SteamSessionStatus>("start_steam_game_session", {
     request: {
@@ -265,5 +276,5 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
 
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
   if (!appId || !hasTauriRuntime()) return null;
-  return invoke<Record<string, unknown> | null>("steam_store_metadata", { appId });
+  return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
 }
