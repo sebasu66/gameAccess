@@ -26,153 +26,64 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          cargo = Path('apps/desktop/src-tauri/Cargo.toml')
-          text = cargo.read_text(encoding='utf-8')
-          old = 'tauri = { version = "2", features = [] }'
-          new = 'tauri = { version = "2", features = ["protocol-asset"] }'
-          if old not in text:
-              raise SystemExit('Cargo tauri dependency shape changed')
-          cargo.write_text(text.replace(old, new, 1), encoding='utf-8')
+          def replace_once(path_value, old, new, label):
+              path = Path(path_value)
+              text = path.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'{label} shape changed')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
 
-          room = Path('apps/desktop/src/LibraryRoom.tsx')
-          text = room.read_text(encoding='utf-8')
-          old = '''  const onHoverGame = (index: number) => {\n    markActivity();\n    if (index !== selectedIndex) playUiSound("move");\n    setSelectedIndex(index);\n  };'''
-          new = '''  const onHoverGame = (_index: number) => {\n    markActivity();\n  };'''
-          if old not in text:
-              raise SystemExit('LibraryRoom hover handler shape changed')
-          room.write_text(text.replace(old, new, 1), encoding='utf-8')
+          replace_once(
+              'apps/desktop/src-tauri/Cargo.toml',
+              'tauri = { version = "2", features = [] }',
+              'tauri = { version = "2", features = ["protocol-asset"] }',
+              'Cargo tauri dependency',
+          )
 
-          state_module = Path('apps/desktop/src-tauri/src/steam_download_state.rs')
-          state_module.write_text(r'''use std::time::{Duration, Instant};
+          replace_once(
+              'apps/desktop/src/LibraryRoom.tsx',
+              '  const onHoverGame = (index: number) => {\n    markActivity();\n    if (index !== selectedIndex) playUiSound("move");\n    setSelectedIndex(index);\n  };',
+              '  const onHoverGame = (_index: number) => {\n    markActivity();\n  };',
+              'LibraryRoom hover handler',
+          )
 
-pub const INSTALL_REQUEST_GRACE: Duration = Duration::from_secs(120);
+          replace_once(
+              'apps/desktop/src-tauri/src/main.rs',
+              'mod steam_media;\n\nuse serde::Serialize;\nuse std::{\n    env, fs,\n    path::{Path, PathBuf},\n    process::Command,\n    sync::Mutex,\n};\nuse steam_media::cache_steam_video;',
+              'mod steam_download_state;\nmod steam_media;\n\nuse serde::Serialize;\nuse std::{\n    collections::HashMap,\n    env, fs,\n    path::{Path, PathBuf},\n    process::Command,\n    sync::{Mutex, OnceLock},\n    time::Instant,\n};\nuse steam_download_state::{classify_manifest_state, request_is_recent, state_without_manifest};\nuse steam_media::cache_steam_video;',
+              'main.rs import block',
+          )
 
-pub struct ManifestDownloadState {
-    pub state: &'static str,
-    pub installed: bool,
-    pub progress: Option<f64>,
-}
+          marker = '#[cfg(target_os = "windows")]\nconst CREATE_NO_WINDOW: u32 = 0x08000000;'
+          addition = marker + '\n\nstatic INSTALL_REQUESTS: OnceLock<Mutex<HashMap<u32, Instant>>> = OnceLock::new();\n\nfn install_requests() -> &\'static Mutex<HashMap<u32, Instant>> {\n    INSTALL_REQUESTS.get_or_init(|| Mutex::new(HashMap::new()))\n}\n\nfn mark_install_requested(app_id: u32) {\n    if let Ok(mut requests) = install_requests().lock() {\n        requests.insert(app_id, Instant::now());\n    }\n}\n\nfn clear_install_requested(app_id: u32) {\n    if let Ok(mut requests) = install_requests().lock() {\n        requests.remove(&app_id);\n    }\n}\n\nfn install_requested_recently(app_id: u32) -> bool {\n    let now = Instant::now();\n    let Ok(mut requests) = install_requests().lock() else {\n        return false;\n    };\n    requests.retain(|_, requested_at| request_is_recent(*requested_at, now));\n    requests.contains_key(&app_id)\n}'
+          replace_once('apps/desktop/src-tauri/src/main.rs', marker, addition, 'install request tracker marker')
 
-pub fn request_is_recent(requested_at: Instant, now: Instant) -> bool {
-    now.checked_duration_since(requested_at)
-        .is_some_and(|age| age < INSTALL_REQUEST_GRACE)
-}
+          replace_once(
+              'apps/desktop/src-tauri/src/main.rs',
+              '#[tauri::command]\nfn open_steam_install(app_id: u32) -> Result<(), String> {\n    open_steam_uri(&format!("steam://install/{app_id}"))\n}',
+              '#[tauri::command]\nfn open_steam_install(app_id: u32) -> Result<(), String> {\n    let result = open_steam_uri(&format!("steam://install/{app_id}"));\n    if result.is_ok() {\n        mark_install_requested(app_id);\n    }\n    result\n}',
+              'open_steam_install',
+          )
 
-pub fn state_without_manifest(recently_requested: bool) -> &'static str {
-    if recently_requested {
-        "requested"
-    } else {
-        "not-installed"
-    }
-}
+          replace_once(
+              'apps/desktop/src-tauri/src/main.rs',
+              '    let Some(manifest) = manifest_for(app_id) else {\n        return SteamDownloadStatus {\n            app_id,\n            state: "not-installed".into(),\n            progress: None,\n            bytes_downloaded: None,\n            bytes_total: None,\n            installed: false,\n        };\n    };',
+              '    let Some(manifest) = manifest_for(app_id) else {\n        return SteamDownloadStatus {\n            app_id,\n            state: state_without_manifest(install_requested_recently(app_id)).into(),\n            progress: None,\n            bytes_downloaded: None,\n            bytes_total: None,\n            installed: false,\n        };\n    };',
+              'missing-manifest status block',
+          )
 
-pub fn classify_manifest_state(
-    state_flags: u32,
-    bytes_downloaded: Option<u64>,
-    bytes_total: Option<u64>,
-    download_dir_exists: bool,
-    install_dir_exists: bool,
-) -> ManifestDownloadState {
-    let installed = state_flags & 4 == 4 && install_dir_exists;
-    let pending_bytes = matches!((bytes_downloaded, bytes_total), (Some(done), Some(total)) if total > 0 && done < total);
-    let progress = match (bytes_downloaded, bytes_total) {
-        (Some(done), Some(total)) if total > 0 => {
-            Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))
-        }
-        _ if installed => Some(100.0),
-        _ => None,
-    };
-    let state = if installed {
-        "installed"
-    } else if download_dir_exists || pending_bytes {
-        "downloading"
-    } else {
-        "preparing"
-    };
-    ManifestDownloadState {
-        state,
-        installed,
-        progress,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn keeps_a_new_install_request_alive_until_steam_creates_the_manifest() {
-        let now = Instant::now();
-        assert!(request_is_recent(now - Duration::from_secs(30), now));
-        assert_eq!(state_without_manifest(true), "requested");
-        assert!(!request_is_recent(now - Duration::from_secs(121), now));
-        assert_eq!(state_without_manifest(false), "not-installed");
-    }
-
-    #[test]
-    fn recognizes_a_fully_installed_game_only_when_its_install_directory_exists() {
-        let ready = classify_manifest_state(4, None, None, false, true);
-        assert!(ready.installed);
-        assert_eq!(ready.state, "installed");
-        assert_eq!(ready.progress, Some(100.0));
-
-        let missing_files = classify_manifest_state(4, None, None, false, false);
-        assert!(!missing_files.installed);
-        assert_eq!(missing_files.state, "preparing");
-    }
-
-    #[test]
-    fn recognizes_active_downloads_from_bytes_or_the_downloading_directory() {
-        let bytes = classify_manifest_state(0, Some(25), Some(100), false, false);
-        assert_eq!(bytes.state, "downloading");
-        assert_eq!(bytes.progress, Some(25.0));
-
-        let directory = classify_manifest_state(0, None, None, true, false);
-        assert_eq!(directory.state, "downloading");
-        assert_eq!(directory.progress, None);
-    }
-}
-''', encoding='utf-8')
-
-          main = Path('apps/desktop/src-tauri/src/main.rs')
-          text = main.read_text(encoding='utf-8')
-          old = '''mod steam_media;\n\nuse serde::Serialize;\nuse std::{\n    env, fs,\n    path::{Path, PathBuf},\n    process::Command,\n    sync::Mutex,\n};\nuse steam_media::cache_steam_video;'''
-          new = '''mod steam_download_state;\nmod steam_media;\n\nuse serde::Serialize;\nuse std::{\n    collections::HashMap,\n    env, fs,\n    path::{Path, PathBuf},\n    process::Command,\n    sync::{Mutex, OnceLock},\n    time::Instant,\n};\nuse steam_download_state::{classify_manifest_state, request_is_recent, state_without_manifest};\nuse steam_media::cache_steam_video;'''
-          if old not in text:
-              raise SystemExit('main.rs import block changed')
-          text = text.replace(old, new, 1)
-
-          marker = '''#[cfg(target_os = "windows")]\nconst CREATE_NO_WINDOW: u32 = 0x08000000;'''
-          addition = marker + '''\n\nstatic INSTALL_REQUESTS: OnceLock<Mutex<HashMap<u32, Instant>>> = OnceLock::new();\n\nfn install_requests() -> &'static Mutex<HashMap<u32, Instant>> {\n    INSTALL_REQUESTS.get_or_init(|| Mutex::new(HashMap::new()))\n}\n\nfn mark_install_requested(app_id: u32) {\n    if let Ok(mut requests) = install_requests().lock() {\n        requests.insert(app_id, Instant::now());\n    }\n}\n\nfn clear_install_requested(app_id: u32) {\n    if let Ok(mut requests) = install_requests().lock() {\n        requests.remove(&app_id);\n    }\n}\n\nfn install_requested_recently(app_id: u32) -> bool {\n    let now = Instant::now();\n    let Ok(mut requests) = install_requests().lock() else {\n        return false;\n    };\n    requests.retain(|_, requested_at| request_is_recent(*requested_at, now));\n    requests.contains_key(&app_id)\n}'''
-          if marker not in text:
-              raise SystemExit('CREATE_NO_WINDOW marker changed')
-          text = text.replace(marker, addition, 1)
-
-          old = '''#[tauri::command]\nfn open_steam_install(app_id: u32) -> Result<(), String> {\n    open_steam_uri(&format!("steam://install/{app_id}"))\n}'''
-          new = '''#[tauri::command]\nfn open_steam_install(app_id: u32) -> Result<(), String> {\n    let result = open_steam_uri(&format!("steam://install/{app_id}"));\n    if result.is_ok() {\n        mark_install_requested(app_id);\n    }\n    result\n}'''
-          if old not in text:
-              raise SystemExit('open_steam_install shape changed')
-          text = text.replace(old, new, 1)
-
-          old = '''    let Some(manifest) = manifest_for(app_id) else {\n        return SteamDownloadStatus {\n            app_id,\n            state: "not-installed".into(),\n            progress: None,\n            bytes_downloaded: None,\n            bytes_total: None,\n            installed: false,\n        };\n    };'''
-          new = '''    let Some(manifest) = manifest_for(app_id) else {\n        return SteamDownloadStatus {\n            app_id,\n            state: state_without_manifest(install_requested_recently(app_id)).into(),\n            progress: None,\n            bytes_downloaded: None,\n            bytes_total: None,\n            installed: false,\n        };\n    };'''
-          if old not in text:
-              raise SystemExit('missing-manifest status block changed')
-          text = text.replace(old, new, 1)
-
-          old = '''    let state_flags = quoted_value(&text, "StateFlags")\n        .and_then(|v| v.parse::<u32>().ok())\n        .unwrap_or(0);\n    let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());\n    let bytes_downloaded =\n        quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());\n    let installed = state_flags & 4 == 4;\n    let progress = match (bytes_downloaded, bytes_total) {\n        (Some(done), Some(total)) if total > 0 => {\n            Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))\n        }\n        _ if installed => Some(100.0),\n        _ => None,\n    };\n    let state = if installed {\n        "installed"\n    } else if bytes_total.unwrap_or(0) > 0 {\n        "downloading"\n    } else {\n        "preparing"\n    };\n\n    SteamDownloadStatus {\n        app_id,\n        state: state.into(),\n        progress,\n        bytes_downloaded,\n        bytes_total,\n        installed,\n    }'''
-          new = '''    clear_install_requested(app_id);\n    let state_flags = quoted_value(&text, "StateFlags")\n        .and_then(|v| v.parse::<u32>().ok())\n        .unwrap_or(0);\n    let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());\n    let bytes_downloaded =\n        quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());\n    let steamapps = manifest.parent();\n    let install_dir_exists = quoted_value(&text, "installdir")\n        .and_then(|dir| steamapps.map(|root| root.join("common").join(dir).is_dir()))\n        .unwrap_or(false);\n    let download_dir_exists = steamapps\n        .map(|root| root.join("downloading").join(app_id.to_string()).is_dir())\n        .unwrap_or(false);\n    let classified = classify_manifest_state(\n        state_flags,\n        bytes_downloaded,\n        bytes_total,\n        download_dir_exists,\n        install_dir_exists,\n    );\n\n    SteamDownloadStatus {\n        app_id,\n        state: classified.state.into(),\n        progress: classified.progress,\n        bytes_downloaded,\n        bytes_total,\n        installed: classified.installed,\n    }'''
-          if old not in text:
-              raise SystemExit('manifest classification block changed')
-          text = text.replace(old, new, 1)
-          main.write_text(text, encoding='utf-8')
+          replace_once(
+              'apps/desktop/src-tauri/src/main.rs',
+              '    let state_flags = quoted_value(&text, "StateFlags")\n        .and_then(|v| v.parse::<u32>().ok())\n        .unwrap_or(0);\n    let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());\n    let bytes_downloaded =\n        quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());\n    let installed = state_flags & 4 == 4;\n    let progress = match (bytes_downloaded, bytes_total) {\n        (Some(done), Some(total)) if total > 0 => {\n            Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))\n        }\n        _ if installed => Some(100.0),\n        _ => None,\n    };\n    let state = if installed {\n        "installed"\n    } else if bytes_total.unwrap_or(0) > 0 {\n        "downloading"\n    } else {\n        "preparing"\n    };\n\n    SteamDownloadStatus {\n        app_id,\n        state: state.into(),\n        progress,\n        bytes_downloaded,\n        bytes_total,\n        installed,\n    }',
+              '    clear_install_requested(app_id);\n    let state_flags = quoted_value(&text, "StateFlags")\n        .and_then(|v| v.parse::<u32>().ok())\n        .unwrap_or(0);\n    let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());\n    let bytes_downloaded =\n        quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());\n    let steamapps = manifest.parent();\n    let install_dir_exists = quoted_value(&text, "installdir")\n        .and_then(|dir| steamapps.map(|root| root.join("common").join(dir).is_dir()))\n        .unwrap_or(false);\n    let download_dir_exists = steamapps\n        .map(|root| root.join("downloading").join(app_id.to_string()).is_dir())\n        .unwrap_or(false);\n    let classified = classify_manifest_state(\n        state_flags,\n        bytes_downloaded,\n        bytes_total,\n        download_dir_exists,\n        install_dir_exists,\n    );\n\n    SteamDownloadStatus {\n        app_id,\n        state: classified.state.into(),\n        progress: classified.progress,\n        bytes_downloaded,\n        bytes_total,\n        installed: classified.installed,\n    }',
+              'manifest classification block',
+          )
           PY
 
           cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
           rm .github/workflows/apply-library-runtime-fixes.yml
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/desktop/src/LibraryRoom.tsx apps/desktop/src-tauri/Cargo.toml apps/desktop/src-tauri/src/main.rs apps/desktop/src-tauri/src/steam_download_state.rs .github/workflows/apply-library-runtime-fixes.yml
+          git add -A
           git commit -m "fix(desktop): stabilize library media and Steam download state"
           git push origin HEAD:fix/persistent-video-cache-grid-scaling
