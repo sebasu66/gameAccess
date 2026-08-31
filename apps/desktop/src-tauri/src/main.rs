@@ -1,7 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
-use std::{env, fs, path::PathBuf, process::Command, sync::Mutex};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::Mutex,
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -246,7 +251,7 @@ fn find_steam_exe() -> Option<PathBuf> {
         .into_iter()
         .find(|path| path.is_file())
 }
-fn remembered_steam_accounts(steam_exe: &PathBuf) -> (bool, usize) {
+fn remembered_steam_accounts(steam_exe: &Path) -> (bool, usize) {
     let Some(root) = steam_exe.parent() else {
         return (false, 0);
     };
@@ -327,7 +332,7 @@ fn open_steam_uri(uri: &str) -> Result<(), String> {
                 .spawn()
                 .map_err(|err| format!("Could not open Steam protocol: {err}"))?;
         }
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(target_os = "macos")]
@@ -699,7 +704,7 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
             .and_then(|value| value.as_str())
             .unwrap_or("Steam account switch finished")
             .to_string();
-        return SteamAccountSwitchResult { ok, stage, message };
+        SteamAccountSwitchResult { ok, stage, message }
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -754,10 +759,10 @@ fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
         {
             return Err("Steam Store did not return metadata for this AppID".into());
         }
-        return entry
+        entry
             .get("data")
             .cloned()
-            .ok_or_else(|| "Steam Store response did not contain game data".to_string());
+            .ok_or_else(|| "Steam Store response did not contain game data".to_string())
     }
     #[cfg(not(target_os = "windows"))]
     {
