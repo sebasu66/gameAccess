@@ -1,7 +1,10 @@
+import { Children, createRef, isValidElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import LibraryRoom from "./LibraryRoom";
+import { CatalogPanel } from "./LibraryRoomParts";
 import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
@@ -65,5 +68,28 @@ describe("LibraryRoom grid presentation", () => {
     expect(render({ 10: downloading })).not.toContain("library-install-state");
     expect(render({})).not.toContain("library-install-state");
     expect(render({ 10: installed }, 0)).not.toContain("library-install-state");
+  });
+
+  it("changes the selected game only through the click handler, not mouse hover", () => {
+    const selections: number[] = [];
+    const panel = CatalogPanel({
+      games: [game],
+      downloads: {},
+      accountCount: 1,
+      selectedIndex: 0,
+      gridRef: createRef<HTMLDivElement>(),
+      onSelect: (index) => selections.push(index),
+    });
+    const panelChildren = Children.toArray(panel.props.children);
+    const grid = panelChildren[1];
+    if (!isValidElement(grid)) throw new Error("Catalog grid was not rendered");
+    const cards = Children.toArray((grid.props as { children?: ReactNode }).children);
+    const card = cards[0];
+    if (!isValidElement(card)) throw new Error("Catalog card was not rendered");
+    const props = (card as ReactElement<{ onMouseEnter?: () => void; onClick?: () => void }>).props;
+
+    expect(props.onMouseEnter).toBeUndefined();
+    props.onClick?.();
+    expect(selections).toEqual([0]);
   });
 });

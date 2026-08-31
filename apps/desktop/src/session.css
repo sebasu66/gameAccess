@@ -9,6 +9,18 @@
   backdrop-filter: blur(14px);
 }
 
+.session-backdrop:has(.session-status-icon.success) {
+  animation: session-handoff-dismiss 180ms ease 4s forwards;
+}
+
+@keyframes session-handoff-dismiss {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
 .session-card {
   position: relative;
   width: min(760px, 94vw);

@@ -1,11 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { resolveSteamInstallOwner } from "./steamOwnership";
+import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import {
   consumePreviousSteamAccount,
   loadSteamSessionPreferences,
   rememberPreviousSteamAccount,
 } from "./steamSessionPreferences";
+import type { SteamRestoreMode } from "./steamSessionPreferences";
 
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -112,6 +114,18 @@ function findSteamAccount(accounts: LocalSteamAccount[], label: string): LocalSt
   );
 }
 
+async function resolveSessionRestoreMode(
+  requestedMode: SteamRestoreMode,
+  mainAccountName: string | null,
+  previousAccountName: string | null | undefined,
+): Promise<SteamRestoreMode> {
+  let targetAccountName: string | null | undefined = null;
+  if (requestedMode === "main") targetAccountName = mainAccountName;
+  if (requestedMode === "previous") targetAccountName = previousAccountName;
+  const hasCredential = targetAccountName ? await hasSteamCredential(targetAccountName) : false;
+  return safeSteamRestoreMode(requestedMode, targetAccountName, hasCredential);
+}
+
 export async function saveSteamCredential(accountName: string, password: string): Promise<void> {
   if (!hasTauriRuntime()) throw new Error("Steam credential enrollment requires the desktop app.");
   await invoke("save_steam_credential", { accountName, password });
@@ -179,14 +193,20 @@ export async function openSteamRun(appId: number): Promise<void> {
   const main = preferences.mainAccountName
     ? findSteamAccount(refreshed.accounts, preferences.mainAccountName)
     : undefined;
+  const mainAccountName = main ? accountName(main) : preferences.mainAccountName;
+  const restoreMode = await resolveSessionRestoreMode(
+    preferences.restoreMode,
+    mainAccountName,
+    previous?.accountName,
+  );
 
   await invoke<SteamSessionStatus>("start_steam_game_session", {
     request: {
       appId,
       accountName: accountName(owner),
       expectedUserId32: owner.user_id32 ?? null,
-      restoreMode: preferences.restoreMode,
-      mainAccountName: main ? accountName(main) : preferences.mainAccountName,
+      restoreMode,
+      mainAccountName,
       mainUserId32: main?.user_id32 ?? null,
       previousAccountName: previous?.accountName ?? null,
       previousUserId32: previous?.userId32 ?? null,
