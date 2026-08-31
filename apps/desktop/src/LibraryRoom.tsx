@@ -42,12 +42,10 @@ function SteamCover({ game }: { game: CatalogGame }) {
   return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
 }
 
-function InstallStateBadge({ status }: { status?: SteamDownloadStatus }) {
+function InstallStateBadge({ status, available }: { status?: SteamDownloadStatus; available: boolean }) {
   const installed = status?.state === "installed" || status?.installed === true;
-  const active = Boolean(status && ["requested", "preparing", "downloading"].includes(status.state));
-  if (installed) return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
-  if (active) return <span className="library-install-state progress" title={`Descargando${status?.progress != null ? ` · ${Math.round(status.progress)}%` : ""}`}><Loader2 size={12} className="spin" /></span>;
-  return <span className="library-install-state download" title="En tu biblioteca · falta descargar"><Download size={12} /></span>;
+  if (!installed || !available) return null;
+  return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 
@@ -317,7 +315,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
           </div>
         </aside>
         <section className="library-room-catalog">
-          <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>0 juegos · WASD / FLECHAS</small></header>
+          <header className="library-room-heading"><small>0 juegos · WASD / FLECHAS</small></header>
           <div ref={gridRef} className="library-room-grid library-room-empty-grid">
             <div className="library-room-empty-state"><Gamepad2 size={42} /><strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong><span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span></div>
           </div>
@@ -407,7 +405,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       </aside>
 
       <section className="library-room-catalog">
-        <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>{games.length} juegos{accountCount ? ` · ${accountCount} cuenta${accountCount === 1 ? "" : "s"}` : ""} · WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><small>{games.length} juegos{accountCount ? ` · ${accountCount} cuenta${accountCount === 1 ? "" : "s"}` : ""} · WASD / FLECHAS</small></header>
         <div ref={gridRef} className="library-room-grid">
           {games.map((game, index) => (
             <button
@@ -423,8 +421,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
               aria-label={`${index === selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
               tabIndex={-1}
             >
-              <span className="library-room-card-art"><SteamCover game={game} /><InstallStateBadge status={game.app_id ? downloads[game.app_id] : undefined} /></span>
-              <strong>{game.name}</strong>
+              <span className="library-room-card-art"><SteamCover game={game} /><InstallStateBadge status={game.app_id ? downloads[game.app_id] : undefined} available={game.copies_available > 0} /></span>
             </button>
           ))}
         </div>
