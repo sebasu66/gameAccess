@@ -2,7 +2,6 @@
 
 mod steam_media;
 
-use steam_media::cache_steam_video;
 use serde::Serialize;
 use std::{
     env, fs,
@@ -10,6 +9,7 @@ use std::{
     process::Command,
     sync::Mutex,
 };
+use steam_media::cache_steam_video;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
