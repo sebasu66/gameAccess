@@ -1,0 +1,234 @@
+.steam-settings-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 90;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(11,14,22,.78);
+  color: #fff;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 45px rgba(0,0,0,.34);
+  cursor: pointer;
+}
+
+.steam-settings-fab:hover,
+.steam-settings-fab:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,.34);
+  outline: none;
+}
+
+.steam-session-chip {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  z-index: 90;
+  max-width: min(520px, calc(100vw - 100px));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  background: rgba(11,14,22,.82);
+  color: rgba(255,255,255,.9);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 40px rgba(0,0,0,.32);
+  font-size: 13px;
+}
+
+.steam-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3,5,10,.72);
+  backdrop-filter: blur(10px);
+}
+
+.steam-settings-panel {
+  width: min(820px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(105,88,255,.16), transparent 30%),
+    linear-gradient(180deg, rgba(20,23,34,.98), rgba(10,12,19,.98));
+  color: #fff;
+  box-shadow: 0 35px 100px rgba(0,0,0,.52);
+}
+
+.steam-settings-panel > header,
+.steam-settings-panel > footer,
+.steam-settings-section {
+  padding: 24px 28px;
+}
+
+.steam-settings-panel > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.steam-settings-panel h2,
+.steam-settings-panel h3,
+.steam-settings-panel p { margin: 0; }
+.steam-settings-panel h2 { margin-top: 5px; font-size: 28px; }
+.steam-settings-panel h3 { font-size: 16px; }
+.steam-settings-panel header p,
+.steam-section-title p,
+.steam-settings-help,
+.steam-settings-panel footer p { color: rgba(255,255,255,.6); line-height: 1.5; }
+.steam-settings-panel header p { margin-top: 8px; max-width: 620px; }
+
+.steam-settings-close {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.steam-settings-section + .steam-settings-section {
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.steam-restore-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.steam-restore-options label {
+  min-height: 64px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 15px;
+  background: rgba(255,255,255,.035);
+  cursor: pointer;
+}
+
+.steam-restore-options label.selected {
+  border-color: rgba(145,125,255,.75);
+  background: rgba(115,93,255,.14);
+}
+
+.steam-restore-options input { accent-color: currentColor; }
+.steam-settings-help { margin-top: 10px !important; font-size: 13px; }
+
+.steam-main-account-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: rgba(255,255,255,.72);
+}
+
+.steam-main-account-field select,
+.steam-account-actions input {
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  background: rgba(0,0,0,.24);
+  color: #fff;
+  padding: 11px 12px;
+  outline: none;
+}
+
+.steam-main-account-field select:focus,
+.steam-account-actions input:focus {
+  border-color: rgba(145,125,255,.72);
+}
+
+.steam-section-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.steam-section-title p { margin-top: 5px; font-size: 13px; }
+.steam-account-list { display: grid; gap: 10px; margin-top: 16px; }
+
+.steam-account-row {
+  display: grid;
+  grid-template-columns: minmax(160px, .8fr) minmax(300px, 1.2fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,.025);
+}
+
+.steam-account-copy { display: grid; gap: 4px; }
+.steam-account-copy span { font-size: 12px; color: rgba(255,255,255,.48); }
+.steam-account-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.steam-account-actions input { flex: 1 1 auto; min-width: 0; }
+
+.steam-enroll-button,
+.steam-account-actions.enrolled button {
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 11px;
+  background: rgba(255,255,255,.07);
+  color: #fff;
+  padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.steam-enroll-button:disabled,
+.steam-account-actions.enrolled button:disabled { opacity: .45; cursor: default; }
+
+.steam-enrolled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(179,255,207,.9);
+  font-size: 13px;
+}
+
+.steam-settings-panel > footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+}
+
+.steam-settings-message { color: rgba(207,199,255,.96); text-align: right; }
+.steam-settings-empty { color: rgba(255,255,255,.5); }
+
+@media (max-width: 720px) {
+  .steam-settings-backdrop { padding: 10px; }
+  .steam-settings-panel { max-height: calc(100vh - 20px); border-radius: 20px; }
+  .steam-settings-panel > header,
+  .steam-settings-panel > footer,
+  .steam-settings-section { padding: 20px; }
+  .steam-restore-options { grid-template-columns: 1fr; }
+  .steam-account-row { grid-template-columns: 1fr; }
+  .steam-account-actions { justify-content: stretch; }
+  .steam-settings-panel > footer { align-items: flex-start; flex-direction: column; }
+  .steam-settings-message { text-align: left; }
+}
