@@ -269,10 +269,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     else onOpenDetails(selectedGame);
   };
 
-  const onHoverGame = (index: number) => {
+  const onHoverGame = (_index: number) => {
     markActivity();
-    if (index !== selectedIndex) playUiSound("move");
-    setSelectedIndex(index);
   };
 
   const onSelectGame = (index: number) => {
