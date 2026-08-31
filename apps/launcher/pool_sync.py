@@ -19,7 +19,7 @@ from typing import Any
 import requests
 
 from steam_appinfo import read_local_app_catalog
-from steam_pool import scan_pool, steam_root
+from steam_pool import _ci_get, _read_vdf, scan_pool, steam_root
 from steam_verified_inventory import load_verified_inventory, verify_all_remembered_accounts
 
 
@@ -33,6 +33,38 @@ def _verified_owner_apps(inventory: dict[str, Any] | None) -> dict[int, set[int]
             continue
         result[user_id] = {int(app_id) for app_id in owner.get("app_ids", []) if int(app_id) > 0}
     return result
+
+
+def _steam_library_folders(root: Path | None) -> list[dict[str, Any]]:
+    if not root:
+        return []
+    path = root / "steamapps" / "libraryfolders.vdf"
+    try:
+        parsed = _read_vdf(path)
+    except (OSError, ValueError):
+        return [{"index": 0, "path": str(root), "label": str(root)}]
+
+    folders = _ci_get(parsed, "libraryfolders")
+    if not isinstance(folders, dict):
+        return [{"index": 0, "path": str(root), "label": str(root)}]
+
+    result: list[dict[str, Any]] = []
+    for raw_index, fields in folders.items():
+        if not str(raw_index).isdigit() or not isinstance(fields, dict):
+            continue
+        folder_path = str(_ci_get(fields, "path") or "").strip()
+        if not folder_path:
+            continue
+        result.append(
+            {
+                "index": int(raw_index),
+                "path": folder_path,
+                "label": folder_path,
+            }
+        )
+    if not result:
+        result.append({"index": 0, "path": str(root), "label": str(root)})
+    return sorted(result, key=lambda item: item["index"])
 
 
 def build_game_pool(*, verify: bool = False) -> dict[str, Any]:
@@ -54,6 +86,7 @@ def build_game_pool(*, verify: bool = False) -> dict[str, Any]:
     candidate_ids.update(app_id for apps in owner_apps.values() for app_id in apps)
 
     root = steam_root()
+    library_folders = _steam_library_folders(root)
     appinfo_path = root / "appcache" / "appinfo.vdf" if root else Path("__missing__")
     catalog = read_local_app_catalog(appinfo_path, candidate_ids) if appinfo_path.is_file() else {}
 
@@ -121,6 +154,8 @@ def build_game_pool(*, verify: bool = False) -> dict[str, Any]:
         "accounts": accounts,
         "games": [games[app_id] for app_id in sorted(games)],
         "licenses": {str(app_id): labels for app_id, labels in sorted(licenses.items())},
+        "library_folders": library_folders,
+        "library_folder_count": len(library_folders),
         "account_count": len(accounts),
         "game_count": len(games),
         "license_mapping_count": sum(len(labels) for labels in licenses.values()),
@@ -192,6 +227,7 @@ def main() -> int:
                 "duplicate_game_count": pool.get("duplicate_game_count"),
                 "verification_errors": pool.get("verification_errors"),
                 "unmapped_owner_ids": pool.get("unmapped_owner_ids"),
+                "library_folders": pool.get("library_folders", []),
                 "accounts": [
                     {
                         "label": a["label"],
