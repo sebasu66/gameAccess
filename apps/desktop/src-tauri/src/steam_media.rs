@@ -46,6 +46,41 @@ fn cached_video_path(app: &tauri::AppHandle, app_id: u32, url: &str) -> Result<P
     Ok(root.join(format!("{app_id}.{}", video_extension(url))))
 }
 
+fn cached_file_is_valid(path: &PathBuf) -> bool {
+    path.metadata()
+        .map(|meta| meta.is_file() && meta.len() >= MIN_VALID_VIDEO_BYTES)
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
+fn download_to(url: &str, temporary: &PathBuf) -> Result<(), String> {
+    let output_path = temporary.to_string_lossy().to_string();
+    let script = r#"param([string]$u,[string]$o); $ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri $u -OutFile $o -UseBasicParsing -TimeoutSec 180; if((Get-Item -LiteralPath $o).Length -lt 16384){ throw 'Downloaded Steam trailer is unexpectedly small' }"#;
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+            url,
+            output_path.as_str(),
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|err| format!("Could not download Steam trailer: {err}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "Steam trailer download failed".into()
+    } else {
+        stderr
+    })
+}
+
 fn cache_video_blocking(app: &tauri::AppHandle, app_id: u32, url: &str) -> Result<String, String> {
     if app_id == 0 {
         return Err("Steam AppID is required for media caching".into());
@@ -55,7 +90,7 @@ fn cache_video_blocking(app: &tauri::AppHandle, app_id: u32, url: &str) -> Resul
     }
 
     let target = cached_video_path(app, app_id, url)?;
-    if target.metadata().map(|meta| meta.len() >= MIN_VALID_VIDEO_BYTES).unwrap_or(false) {
+    if cached_file_is_valid(&target) {
         return Ok(target.to_string_lossy().to_string());
     }
 
@@ -63,41 +98,14 @@ fn cache_video_blocking(app: &tauri::AppHandle, app_id: u32, url: &str) -> Resul
     let _ = fs::remove_file(&temporary);
 
     #[cfg(target_os = "windows")]
-    {
-        let script = r#"$ProgressPreference='SilentlyContinue'; $u=$args[0]; $o=$args[1]; Invoke-WebRequest -Uri $u -OutFile $o -UseBasicParsing -TimeoutSec 180; if((Get-Item -LiteralPath $o).Length -lt 16384){ throw 'Downloaded Steam trailer is unexpectedly small' }"#;
-        let output = Command::new("powershell.exe")
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                script,
-                url,
-                temporary.to_string_lossy().as_ref(),
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-            .map_err(|err| format!("Could not download Steam trailer: {err}"))?;
-        if !output.status.success() {
-            let _ = fs::remove_file(&temporary);
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() {
-                "Steam trailer download failed".into()
-            } else {
-                stderr
-            });
-        }
-    }
+    download_to(url, &temporary).inspect_err(|_| {
+        let _ = fs::remove_file(&temporary);
+    })?;
 
     #[cfg(not(target_os = "windows"))]
     return Err("Persistent Steam trailer caching is currently implemented for Windows".into());
 
-    let size = temporary
-        .metadata()
-        .map_err(|err| format!("Could not verify cached Steam trailer: {err}"))?
-        .len();
-    if size < MIN_VALID_VIDEO_BYTES {
+    if !cached_file_is_valid(&temporary) {
         let _ = fs::remove_file(&temporary);
         return Err("Cached Steam trailer failed validation".into());
     }
@@ -125,15 +133,27 @@ mod tests {
 
     #[test]
     fn accepts_https_steam_video_cdns_only() {
-        assert!(is_allowed_video_url("https://video.akamai.steamstatic.com/store_trailers/1/movie_max.mp4"));
-        assert!(is_allowed_video_url("https://cdn.cloudflare.steamstatic.com/store_trailers/1/movie_max.webm"));
-        assert!(!is_allowed_video_url("http://video.akamai.steamstatic.com/store_trailers/1/movie.mp4"));
+        assert!(is_allowed_video_url(
+            "https://video.akamai.steamstatic.com/store_trailers/1/movie_max.mp4"
+        ));
+        assert!(is_allowed_video_url(
+            "https://cdn.cloudflare.steamstatic.com/store_trailers/1/movie_max.webm"
+        ));
+        assert!(!is_allowed_video_url(
+            "http://video.akamai.steamstatic.com/store_trailers/1/movie.mp4"
+        ));
         assert!(!is_allowed_video_url("https://example.com/movie.mp4"));
     }
 
     #[test]
     fn keeps_the_cached_container_extension_predictable() {
-        assert_eq!(video_extension("https://video.akamai.steamstatic.com/a/movie.webm?x=1"), "webm");
-        assert_eq!(video_extension("https://video.akamai.steamstatic.com/a/movie_max.mp4?t=2"), "mp4");
+        assert_eq!(
+            video_extension("https://video.akamai.steamstatic.com/a/movie.webm?x=1"),
+            "webm"
+        );
+        assert_eq!(
+            video_extension("https://video.akamai.steamstatic.com/a/movie_max.mp4?t=2"),
+            "mp4"
+        );
     }
 }
