@@ -192,7 +192,7 @@ export interface ActionKeyContext {
 function focusAction(index: number, context: ActionKeyContext) {
   playUiSound("move");
   context.setActionIndex(index);
-  context.actionRefs.current[index]?.focus({ preventScroll: true });
+  context.actionRefs.current?.[index]?.focus({ preventScroll: true });
 }
 
 export function handleActionKey(key: string, context: ActionKeyContext) {
@@ -369,7 +369,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
             <button
               type="button"
               key={action.label}
-              ref={(node) => { props.actionRefs.current[index] = node; }}
+              ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
               data-action={action.kind}
               className={`library-room-action ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`}
               onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
