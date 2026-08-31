@@ -3,6 +3,10 @@
   "maxClassLines": 600,
   "maxFunctionComplexity": 15,
   "legacyBlobShas": {
-    "src/App.tsx": "5479cc3245cbd3422905f326a0b87b726dfb266f"
+    "src/App.tsx": "5479cc3245cbd3422905f326a0b87b726dfb266f",
+    "src/LibraryRoom.tsx": "bd69ad4c538147a3fab3bd678c7d73784b33ada8",
+    "src/RuntimeGate.tsx": "f1f09eed1d90e28d9e9860f24e624135c0d7afba",
+    "src/SteamStoreDetail.tsx": "241562b27d184837e7b97f9b47fab425148cfcfd",
+    "src/api.ts": "95745307bd5c0f990c23f299da720265e6ee5ae1"
   }
 }
