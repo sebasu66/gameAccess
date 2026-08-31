@@ -67,7 +67,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const hero = selectedHero(details, selectedGame);
   const movie = selectedMovie(details);
   const remoteVideoSrc = selectedVideo(movie);
-  const videoSrc = cachedVideo?.appId === selectedAppId && cachedVideo.remote === remoteVideoSrc ? cachedVideo.local : undefined;
+  const videoSrc = cachedVideo && cachedVideo.appId === selectedAppId && cachedVideo.remote === remoteVideoSrc ? cachedVideo.local : undefined;
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(details);
   const actions = useMemo(
