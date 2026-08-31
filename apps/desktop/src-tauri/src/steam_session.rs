@@ -73,7 +73,8 @@ fn credential_root() -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .ok_or_else(|| "LOCALAPPDATA is unavailable".to_string())?;
     let root = local.join("gameAccess").join("steam-credentials");
-    fs::create_dir_all(&root).map_err(|err| format!("Could not create credential storage: {err}"))?;
+    fs::create_dir_all(&root)
+        .map_err(|err| format!("Could not create credential storage: {err}"))?;
     Ok(root)
 }
 
@@ -90,7 +91,14 @@ fn credential_path(account_name: &str) -> Result<PathBuf, String> {
 #[cfg(target_os = "windows")]
 fn powershell_secret(script: &str, env_name: &str, value: &str) -> Result<String, String> {
     let output = Command::new("powershell.exe")
-        .args(["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
         .env(env_name, value)
         .creation_flags(CREATE_NO_WINDOW)
         .output()
@@ -183,7 +191,9 @@ fn registry_dword(key: &str, value_name: &str) -> Option<u32> {
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let needle = value_name.to_ascii_lowercase();
-    let line = stdout.lines().find(|line| line.to_ascii_lowercase().contains(&needle))?;
+    let line = stdout
+        .lines()
+        .find(|line| line.to_ascii_lowercase().contains(&needle))?;
     let raw = line.split_whitespace().last()?;
     if let Some(hex) = raw.strip_prefix("0x") {
         u32::from_str_radix(hex, 16).ok()
@@ -194,7 +204,8 @@ fn registry_dword(key: &str, value_name: &str) -> Option<u32> {
 
 #[cfg(target_os = "windows")]
 fn active_user_id32() -> Option<u32> {
-    registry_dword(r"HKCU\Software\Valve\Steam\ActiveProcess", "ActiveUser").filter(|value| *value > 0)
+    registry_dword(r"HKCU\Software\Valve\Steam\ActiveProcess", "ActiveUser")
+        .filter(|value| *value > 0)
 }
 
 #[cfg(target_os = "windows")]
@@ -212,12 +223,17 @@ fn steam_running() -> bool {
     else {
         return false;
     };
-    String::from_utf8_lossy(&output.stdout).to_ascii_lowercase().contains("steam.exe")
+    String::from_utf8_lossy(&output.stdout)
+        .to_ascii_lowercase()
+        .contains("steam.exe")
 }
 
 #[cfg(target_os = "windows")]
 fn stop_steam(steam: &Path) {
-    let _ = Command::new(steam).arg("steam://exit").creation_flags(CREATE_NO_WINDOW).spawn();
+    let _ = Command::new(steam)
+        .arg("steam://exit")
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn();
     let deadline = Instant::now() + Duration::from_secs(12);
     while Instant::now() < deadline {
         if !steam_running() {
@@ -251,8 +267,14 @@ fn wait_for_account(expected_user_id32: Option<u32>) -> Result<Option<u32>, Stri
 }
 
 #[cfg(target_os = "windows")]
-fn direct_login(account_name: &str, expected_user_id32: Option<u32>) -> Result<Option<u32>, String> {
-    if expected_user_id32.is_some() && active_user_id32() == expected_user_id32 && steam_running() {
+fn direct_login(
+    account_name: &str,
+    expected_user_id32: Option<u32>,
+) -> Result<Option<u32>, String> {
+    if expected_user_id32.is_some()
+        && active_user_id32() == expected_user_id32
+        && steam_running()
+    {
         return Ok(expected_user_id32);
     }
     let steam = find_steam_exe().ok_or_else(|| "Steam executable was not found".to_string())?;
@@ -277,7 +299,10 @@ pub fn direct_switch_steam_account(
         Ok(SteamDirectSwitchResult {
             ok: true,
             stage: "ready".into(),
-            message: format!("Steam started as {} and confirmed ActiveUser", account_name.trim()),
+            message: format!(
+                "Steam started as {} and confirmed ActiveUser",
+                account_name.trim()
+            ),
             active_user_id32: active,
         })
     }
@@ -297,9 +322,14 @@ fn launcher_dir() -> Option<PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn fallback_switch(account_name: &str) -> Result<(), String> {
-    let launcher = launcher_dir().ok_or_else(|| "Could not locate the Steam UI adapter".to_string())?;
+    let launcher =
+        launcher_dir().ok_or_else(|| "Could not locate the Steam UI adapter".to_string())?;
     let venv = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv.is_file() { venv } else { PathBuf::from("python") };
+    let python = if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    };
     let code = "import sys; from steam_pool import remembered_account_identities; from steam_verified_sync_v5 import deterministic_switch; t=sys.argv[1].strip().casefold(); i=next((x for x in remembered_account_identities() if str(x.get('account_name') or '').casefold()==t or str(x.get('display_name') or '').casefold()==t),None); ok,msg=(False,'Steam account is not remembered on this PC') if i is None else deterministic_switch(i); print(msg); raise SystemExit(0 if ok else 2)";
     let output = Command::new(python)
         .current_dir(launcher)
@@ -345,14 +375,22 @@ fn status_for(request: &SteamGameSessionRequest, phase: &str, message: &str) -> 
 }
 
 #[cfg(target_os = "windows")]
-fn restore_target(request: &SteamGameSessionRequest) -> Result<Option<(String, Option<u32>)>, String> {
+fn restore_target(
+    request: &SteamGameSessionRequest,
+) -> Result<Option<(String, Option<u32>)>, String> {
     match request.restore_mode.as_str() {
         "main" => request
             .main_account_name
             .clone()
             .map(|name| Some((name, request.main_user_id32)))
-            .ok_or_else(|| "Main-account restore is enabled but no main Steam account is configured".to_string()),
-        "previous" => Ok(request.previous_account_name.clone().map(|name| (name, request.previous_user_id32))),
+            .ok_or_else(|| {
+                "Main-account restore is enabled but no main Steam account is configured"
+                    .to_string()
+            }),
+        "previous" => Ok(request
+            .previous_account_name
+            .clone()
+            .map(|name| (name, request.previous_user_id32))),
         "leave" => Ok(None),
         other => Err(format!("Unsupported Steam restore mode: {other}")),
     }
@@ -388,7 +426,10 @@ fn monitor_game(
         return;
     }
 
-    update_status(&status, status_for(&request, "running", "Steam reports the game as running"));
+    update_status(
+        &status,
+        status_for(&request, "running", "Steam reports the game as running"),
+    );
     let mut stopped_checks = 0;
     while stopped_checks < 5 {
         if steam_app_running(request.app_id) == Some(true) {
@@ -399,9 +440,18 @@ fn monitor_game(
         thread::sleep(Duration::from_secs(1));
     }
 
-    update_status(&status, status_for(&request, "game-exited", "Game exited; applying Steam restore preference"));
+    update_status(
+        &status,
+        status_for(
+            &request,
+            "game-exited",
+            "Game exited; applying Steam restore preference",
+        ),
+    );
     let restore_result = restore_target(&request).and_then(|target| {
-        target.map_or(Ok(()), |(name, user_id)| restore_account(&name, user_id))
+        target.map_or(Ok(()), |(name, user_id)| {
+            restore_account(&name, user_id)
+        })
     });
     let next = match restore_result {
         Ok(()) => SteamSessionStatus {
@@ -455,7 +505,11 @@ pub fn start_steam_game_session(
             .spawn()
             .map_err(|err| format!("Could not launch Steam game: {err}"))?;
 
-        let status = status_for(&request, "launching", "Steam launch command accepted; waiting for Running state");
+        let status = status_for(
+            &request,
+            "launching",
+            "Steam launch command accepted; waiting for Running state",
+        );
         update_status(&state.status, status.clone());
         let shared = Arc::clone(&state.status);
         thread::spawn(move || monitor_game(request, shared, app));
@@ -469,5 +523,9 @@ pub fn start_steam_game_session(
 
 #[tauri::command]
 pub fn steam_session_status(state: tauri::State<SteamSessionState>) -> SteamSessionStatus {
-    state.status.lock().map(|value| value.clone()).unwrap_or_default()
+    state
+        .status
+        .lock()
+        .map(|value| value.clone())
+        .unwrap_or_default()
 }
