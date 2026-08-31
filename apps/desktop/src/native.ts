@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { resolveSteamInstallOwner } from "./steamOwnership";
+import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import {
   consumePreviousSteamAccount,
   loadSteamSessionPreferences,
@@ -179,14 +180,22 @@ export async function openSteamRun(appId: number): Promise<void> {
   const main = preferences.mainAccountName
     ? findSteamAccount(refreshed.accounts, preferences.mainAccountName)
     : undefined;
+  const mainAccountName = main ? accountName(main) : preferences.mainAccountName;
+  const restoreTarget = preferences.restoreMode === "main"
+    ? mainAccountName
+    : preferences.restoreMode === "previous"
+      ? previous?.accountName
+      : null;
+  const hasRestoreCredential = restoreTarget ? await hasSteamCredential(restoreTarget) : false;
+  const restoreMode = safeSteamRestoreMode(preferences.restoreMode, restoreTarget, hasRestoreCredential);
 
   await invoke<SteamSessionStatus>("start_steam_game_session", {
     request: {
       appId,
       accountName: accountName(owner),
       expectedUserId32: owner.user_id32 ?? null,
-      restoreMode: preferences.restoreMode,
-      mainAccountName: main ? accountName(main) : preferences.mainAccountName,
+      restoreMode,
+      mainAccountName,
       mainUserId32: main?.user_id32 ?? null,
       previousAccountName: previous?.accountName ?? null,
       previousUserId32: previous?.userId32 ?? null,
@@ -256,5 +265,5 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
 
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
   if (!appId || !hasTauriRuntime()) return null;
-  return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+  return invoke<Record<string, unknown> | null>("steam_store_metadata", { appId });
 }
