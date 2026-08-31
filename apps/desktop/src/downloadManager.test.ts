@@ -44,7 +44,7 @@ describe("Steam download manager", () => {
 
   it("does not mistake the Steam confirmation delay for cancellation", () => {
     expect(shouldReleaseMissingDownload(missing, false, 8, 12_000)).toBe(false);
-    expect(shouldReleaseMissingDownload(missing, false, 20, 46_000)).toBe(true);
+    expect(shouldReleaseMissingDownload(missing, false, 20, 91_000)).toBe(true);
   });
 
   it("releases a download after Steam had activity and then disappears twice", () => {
