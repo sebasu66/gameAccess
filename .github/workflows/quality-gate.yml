@@ -65,9 +65,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build frontend assets for Tauri macros
+        run: npm run build
       - name: Prepare Tauri icon
         run: node scripts/prepare-icons.mjs
       - name: Rust format
