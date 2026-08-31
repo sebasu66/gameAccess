@@ -3,7 +3,7 @@ import type { CatalogGame } from "./types";
 
 export const DOWNLOAD_REQUESTED_EVENT = "gameaccess:steam-download-requested";
 export const DOWNLOAD_REQUEST_FAILED_EVENT = "gameaccess:steam-download-request-failed";
-export const DOWNLOAD_CONFIRMATION_GRACE_MS = 45_000;
+export const DOWNLOAD_CONFIRMATION_GRACE_MS = 90_000;
 
 const ACTIVE_STATES = new Set<SteamDownloadStatus["state"]>([
   "requested",
