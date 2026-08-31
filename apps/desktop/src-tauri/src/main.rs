@@ -1,18 +1,52 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod steam_download_state;
+mod steam_media;
+
 use serde::Serialize;
 use std::{
+    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::Mutex,
+    sync::{Mutex, OnceLock},
+    time::Instant,
 };
+use steam_download_state::{classify_manifest_state, request_is_recent, state_without_manifest};
+use steam_media::cache_steam_video;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+static INSTALL_REQUESTS: OnceLock<Mutex<HashMap<u32, Instant>>> = OnceLock::new();
+
+fn install_requests() -> &'static Mutex<HashMap<u32, Instant>> {
+    INSTALL_REQUESTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn mark_install_requested(app_id: u32) {
+    if let Ok(mut requests) = install_requests().lock() {
+        requests.insert(app_id, Instant::now());
+    }
+}
+
+fn clear_install_requested(app_id: u32) {
+    if let Ok(mut requests) = install_requests().lock() {
+        requests.remove(&app_id);
+    }
+}
+
+fn install_requested_recently(app_id: u32) -> bool {
+    let now = Instant::now();
+    let Ok(mut requests) = install_requests().lock() else {
+        return false;
+    };
+    requests.retain(|_, requested_at| request_is_recent(*requested_at, now));
+    requests.contains_key(&app_id)
+}
 
 #[derive(Serialize)]
 struct SteamDownloadStatus {
@@ -356,7 +390,11 @@ fn open_steam_uri(uri: &str) -> Result<(), String> {
 
 #[tauri::command]
 fn open_steam_install(app_id: u32) -> Result<(), String> {
-    open_steam_uri(&format!("steam://install/{app_id}"))
+    let result = open_steam_uri(&format!("steam://install/{app_id}"));
+    if result.is_ok() {
+        mark_install_requested(app_id);
+    }
+    result
 }
 
 #[tauri::command]
@@ -411,7 +449,7 @@ fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
     let Some(manifest) = manifest_for(app_id) else {
         return SteamDownloadStatus {
             app_id,
-            state: "not-installed".into(),
+            state: state_without_manifest(install_requested_recently(app_id)).into(),
             progress: None,
             bytes_downloaded: None,
             bytes_total: None,
@@ -430,35 +468,35 @@ fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
         };
     };
 
+    clear_install_requested(app_id);
     let state_flags = quoted_value(&text, "StateFlags")
         .and_then(|v| v.parse::<u32>().ok())
         .unwrap_or(0);
     let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());
     let bytes_downloaded =
         quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());
-    let installed = state_flags & 4 == 4;
-    let progress = match (bytes_downloaded, bytes_total) {
-        (Some(done), Some(total)) if total > 0 => {
-            Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))
-        }
-        _ if installed => Some(100.0),
-        _ => None,
-    };
-    let state = if installed {
-        "installed"
-    } else if bytes_total.unwrap_or(0) > 0 {
-        "downloading"
-    } else {
-        "preparing"
-    };
+    let steamapps = manifest.parent();
+    let install_dir_exists = quoted_value(&text, "installdir")
+        .and_then(|dir| steamapps.map(|root| root.join("common").join(dir).is_dir()))
+        .unwrap_or(false);
+    let download_dir_exists = steamapps
+        .map(|root| root.join("downloading").join(app_id.to_string()).is_dir())
+        .unwrap_or(false);
+    let classified = classify_manifest_state(
+        state_flags,
+        bytes_downloaded,
+        bytes_total,
+        download_dir_exists,
+        install_dir_exists,
+    );
 
     SteamDownloadStatus {
         app_id,
-        state: state.into(),
-        progress,
+        state: classified.state.into(),
+        progress: classified.progress,
         bytes_downloaded,
         bytes_total,
-        installed,
+        installed: classified.installed,
     }
 }
 
@@ -784,6 +822,7 @@ fn main() {
             open_steam_run,
             steam_download_status,
             steam_store_metadata,
+            cache_steam_video,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,

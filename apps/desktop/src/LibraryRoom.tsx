@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { loadDetails } from "./api";
+import { cacheSteamVideo } from "./native";
 import {
   buildActions,
   CatalogPanel,
@@ -51,6 +52,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showcaseMode, setShowcaseMode] = useState(false);
   const [readyVideoSrc, setReadyVideoSrc] = useState<string | null>(null);
+  const [cachedVideo, setCachedVideo] = useState<{ appId: number; remote: string; local: string } | null>(null);
+  const [videoCaching, setVideoCaching] = useState(false);
   const [videoMuted, setVideoMuted] = useState(true);
   const [videoVolume, setVideoVolume] = useState(0.68);
 
@@ -63,7 +66,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activeDownload = isActiveDownload(download);
   const hero = selectedHero(details, selectedGame);
   const movie = selectedMovie(details);
-  const videoSrc = selectedVideo(movie);
+  const remoteVideoSrc = selectedVideo(movie);
+  const videoSrc = cachedVideo && cachedVideo.appId === selectedAppId && cachedVideo.remote === remoteVideoSrc ? cachedVideo.local : undefined;
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(details);
   const actions = useMemo(
@@ -154,6 +158,23 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
   }, [selectedGameId]);
+
+  useEffect(() => {
+    setReadyVideoSrc(null);
+    if (!selectedAppId || !remoteVideoSrc) {
+      setVideoCaching(false);
+      return;
+    }
+    let cancelled = false;
+    setVideoCaching(true);
+    cacheSteamVideo(selectedAppId, remoteVideoSrc)
+      .then((local) => {
+        if (!cancelled && local) setCachedVideo({ appId: selectedAppId, remote: remoteVideoSrc, local });
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setVideoCaching(false); });
+    return () => { cancelled = true; };
+  }, [selectedAppId, remoteVideoSrc]);
 
   useEffect(() => {
     if (selectedGameId == null) return;
@@ -248,10 +269,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     else onOpenDetails(selectedGame);
   };
 
-  const onHoverGame = (index: number) => {
+  const onHoverGame = (_index: number) => {
     markActivity();
-    if (index !== selectedIndex) playUiSound("move");
-    setSelectedIndex(index);
   };
 
   const onSelectGame = (index: number) => {
@@ -281,7 +300,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             onVolumeChange={changeVideoVolume}
             showcaseMode={showcaseMode}
             summary={summary}
-            loadingDetails={loadingDetails}
+            loadingDetails={loadingDetails || videoCaching}
             actions={actions}
             focusZone={focusZone}
             actionIndex={actionIndex}

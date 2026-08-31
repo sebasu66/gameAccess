@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import LibraryRoom from "./LibraryRoom";
+import { isActiveDownload } from "./LibraryRoomParts";
 import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
@@ -32,6 +33,17 @@ const downloading: SteamDownloadStatus = {
   bytes_total: 2,
   installed: false,
 };
+
+function status(state: SteamDownloadStatus["state"]): SteamDownloadStatus {
+  return {
+    app_id: 10,
+    state,
+    progress: null,
+    bytes_downloaded: null,
+    bytes_total: null,
+    installed: state === "installed",
+  };
+}
 
 function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable = 1) {
   return renderToStaticMarkup(
@@ -65,5 +77,14 @@ describe("LibraryRoom grid presentation", () => {
     expect(render({ 10: downloading })).not.toContain("library-install-state");
     expect(render({})).not.toContain("library-install-state");
     expect(render({ 10: installed }, 0)).not.toContain("library-install-state");
+  });
+
+  it("keeps only live Steam install phases active for polling", () => {
+    expect(isActiveDownload(status("requested"))).toBe(true);
+    expect(isActiveDownload(status("preparing"))).toBe(true);
+    expect(isActiveDownload(status("downloading"))).toBe(true);
+    expect(isActiveDownload(status("installed"))).toBe(false);
+    expect(isActiveDownload(status("not-installed"))).toBe(false);
+    expect(isActiveDownload(status("unknown"))).toBe(false);
   });
 });

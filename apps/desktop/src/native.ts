@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 import { resolveSteamInstallOwner } from "./steamOwnership";
 
@@ -147,4 +147,10 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
   if (!appId || !hasTauriRuntime()) return null;
   return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+}
+
+export async function cacheSteamVideo(appId: number, url: string): Promise<string | null> {
+  if (!appId || !url || !hasTauriRuntime()) return null;
+  const filePath = await invoke<string>("cache_steam_video", { appId, url });
+  return convertFileSrc(filePath);
 }
