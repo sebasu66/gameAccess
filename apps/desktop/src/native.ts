@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { resolveSteamInstallOwner } from "./steamOwnership";
+
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export interface SteamDownloadStatus {
@@ -87,6 +89,10 @@ export interface SteamAccountSwitchResult {
 export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   if (hasTauriRuntime()) {
+    const pool = await getLocalSteamPool();
+    if (!pool) throw new Error("No se pudo leer el inventario local de licencias Steam.");
+    const accountLabel = resolveSteamInstallOwner(pool.accounts, appId);
+    await switchSteamAccount(accountLabel);
     await invoke("open_steam_install", { appId });
     return;
   }
@@ -116,7 +122,7 @@ export async function steamInstalled(): Promise<boolean> {
 }
 
 export async function getRuntimePrerequisites(): Promise<RuntimePrerequisites> {
-  if (!hasTauriRuntime()) return { runtime_ok:true, steam_installed:true, steam_path:null, account_file_present:true, remembered_accounts:1 };
+  if (!hasTauriRuntime()) return { runtime_ok: true, steam_installed: true, steam_path: null, account_file_present: true, remembered_accounts: 1 };
   return invoke<RuntimePrerequisites>("runtime_prerequisites");
 }
 
