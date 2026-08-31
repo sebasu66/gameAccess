@@ -1,0 +1,37 @@
+name: apply monotonic grid sizing
+
+on:
+  push:
+    branches:
+      - fix/persistent-video-cache-grid-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/persistent-video-cache-grid-scaling
+      - name: Make card width grow with viewport
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/desktop/src/library-room.css')
+          text = path.read_text(encoding='utf-8')
+          old = '  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));\n  align-content: start; gap: clamp(14px,1.35vw,20px); padding: 6px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;'
+          new = '  --library-card-width: clamp(168px, 9.5vw, 260px);\n  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, var(--library-card-width));\n  align-content: start; justify-content: start; gap: clamp(14px,1.35vw,20px); padding: 6px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;'
+          if old not in text:
+              raise SystemExit('grid sizing block changed')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/apply-grid-sizing.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ui): make library cards grow with viewport"
+          git push origin HEAD:fix/persistent-video-cache-grid-scaling
