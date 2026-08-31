@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import RuntimeGate from "./RuntimeGate";
+import SteamSessionSettings from "./SteamSessionSettings";
 import WindowChrome from "./WindowChrome";
 import "./styles.css";
 import "./session.css";
@@ -9,6 +10,7 @@ import "./experience.css";
 import "./polish.css";
 import "./library-room.css";
 import "./bootstrap.css";
+import "./steam-session-settings.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -23,6 +25,6 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <WindowChrome />
-    <AppCrashBoundary><RuntimeGate><App /></RuntimeGate></AppCrashBoundary>
+    <AppCrashBoundary><RuntimeGate><App /><SteamSessionSettings /></RuntimeGate></AppCrashBoundary>
   </React.StrictMode>,
 );
