@@ -1,9 +1,75 @@
 # gameAccess — Central TODO
 
 > **Authoritative prioritized implementation queue**  
-> Last reviewed: 2026-08-28
+> Last reviewed: 2026-08-31
 >
 > Keep this file ordered by priority. When a task is completed, mark it `[x]` and add a short result/commit note where useful. New work should be inserted according to dependency/priority rather than simply appended.
+
+
+## Current operating model — two parallel fronts
+
+El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Steam es la puerta de entrada del producto y debe alcanzar una interacción confiable antes de agregar demasiadas capas de experiencia. El frente 3D/social debe investigar y validar recursos reutilizables, construir un prototipo independiente y luego integrarlo en Tauri.
+
+### Frente A — Maestría de manejo de Steam
+
+**Objetivo:** conocer, probar y encapsular todas las acciones que Game Access necesita realizar alrededor de Steam, tomando como referencia las acciones observadas en Night Light y mejorándolas dentro de flujos autorizados, seguros y mantenibles.
+
+- [ ] Crear una matriz de capacidades Steam: autenticación, selección de cuenta local, cierre de sesión, cambio de identidad, Steam Guard, biblioteca, licencias, Family Sharing, instalación, pausa/reanudación, actualización, lanzamiento, cierre, detección de proceso, capturas, Steam Cloud y cleanup.
+- [ ] Documentar paso a paso las acciones observadas en Night Light: seleccionar un juego, preparar una cuenta autorizada, iniciar la sesión de Steam, aplicar las restricciones necesarias, entregar la sesión temporal, lanzar el juego, controlar duración, detectar finalización y limpiar/restaurar el estado.
+- [ ] Separar qué parte de cada acción hace Night Light, qué parte hace Steam y qué parte puede hacer Game Access sin romper las reglas de Steam.
+- [ ] Reproducir las acciones primero con cuentas de prueba propias o expresamente autorizadas; no extraer ni reutilizar contraseñas, tokens o sesiones de terceros.
+- [ ] Definir un adaptador de Steam reemplazable, con logs de diagnóstico y estados explícitos: AUTH_REQUIRED, ACCOUNT_SELECTED, LIBRARY_LOADING, GAME_READY, INSTALLING, RUNNING, EXITED, CLEANUP_REQUIRED y ERROR.
+- [ ] Detectar de forma fiable la instalación de Steam, sus bibliotecas y los usuarios locales conocidos mediante estado local no secreto.
+- [ ] Obtener y reconciliar la biblioteca por cuenta, distinguiendo juegos propios, juegos Family Sharing, juegos instalados por otra cuenta y juegos no disponibles para la identidad actual.
+- [ ] Probar los mecanismos permitidos para seleccionar una cuenta local sin exigir reintroducir credenciales cuando Steam ya conserva una sesión válida.
+- [ ] Documentar exactamente cuándo Steam exige interacción visible, Steam Guard, confirmación, cambio de usuario o una ventana propia.
+- [ ] Probar instalación, descarga, pausa, reanudación, actualización, verificación y lanzamiento desde Game Access mediante handoff a Steam.
+- [ ] Crear monitor de procesos para Steam, launchers secundarios y juegos; detectar inicio, cierre normal, crash, timeout y relanzamiento.
+- [ ] Probar cierre/restauración de sesión y limpieza después de una sesión temporal sin borrar datos personales ni dejar una cuenta en estado inesperado.
+- [ ] Investigar el Family Mode observado en Night Light como posible restricción de interfaz, sin asumir que sustituye permisos ni controles de Steam.
+- [ ] Completar la matriz de Family Sharing: juegos elegibles, exclusiones, uso simultáneo, múltiples copias, partidas guardadas, logros y limitaciones actuales.
+- [ ] Probar el flujo con Baldur's Gate 3 y otros juegos representativos solamente después de verificar la elegibilidad real de las cuentas.
+- [ ] Definir qué acciones deben quedarse siempre en Steam y cuáles puede presentar Game Access como UI simplificada.
+- [ ] Implementar un flujo de fallback que abra Steam cuando una acción no sea soportada, cambie entre versiones o requiera una decisión del usuario.
+- [ ] Registrar evidencias de cada prueba: versión de Steam, sistema operativo, cuentas de prueba, juego, pasos, resultado y limitaciones.
+- [ ] Convertir cada caso validado en un perfil de compatibilidad por juego, sin prometer compatibilidad universal.
+- [ ] Priorizar una prueba end-to-end: seleccionar cuenta autorizada -> detectar juego -> instalar si falta -> iniciar -> ejecutar -> detectar cierre -> restaurar Game Access.
+- [ ] Añadir soporte previsto para dos monitores: preferir ejecutar Steam/juego en la segunda pantalla y mantener Game Access activo en la primera.
+- [ ] Probar posiciones de ventana, pantalla completa, launchers secundarios y juegos que ignoran la posición solicitada.
+- [ ] Crear un panel de acompañamiento en la primera pantalla con juego actual, cuenta, estado, amigos, chat, voz, notas y referencias sin inyectarse en el proceso del juego.
+
+### Frente B — Recursos open source para prototipo 3D/social
+
+**Objetivo:** investigar, probar y seleccionar recursos reutilizables para construir rápidamente el entorno tridimensional y su primera experiencia social, evitando reinventar networking, voz, sincronización multimedia, edición de escenas y avatares.
+
+- [ ] Inventariar librerías y proyectos open source para Three.js, Tauri, React, WebGL/WebGPU, navegación en primera persona, colisiones, salas y objetos interactivos.
+- [ ] Comparar Three.js integrado en Tauri con Godot como alternativa futura; medir tamaño, consumo, carga, video, integración web y facilidad de distribución.
+- [ ] Investigar herramientas para crear casas, salones, arcades, museos y habitaciones modulares: Blender, exportación glTF/GLB, iluminación cocinada, LOD, instancing y generación procedural.
+- [ ] Buscar assets low-poly, mobiliario, luces, pantallas, consolas, máquinas arcade y decoración con licencia comercial compatible.
+- [ ] Investigar networking para presencia, movimiento de avatares, salas, lobbies, mensajes y comunicación entre peers: WebSocket, WebRTC DataChannels y alternativas autoalojables.
+- [ ] Investigar voz de sala, voz por proximidad, grupos, silenciamiento y reconexión con WebRTC, LiveKit u opciones open source equivalentes.
+- [ ] Probar video sincronizado con HTML video, THREE.VideoTexture, estado autoritativo de sala, corrección de drift, permisos de control y fallback por cliente.
+- [ ] Investigar streaming/casting de una PC host hacia los demás participantes con Sunshine/Moonlight, WebRTC y alternativas; medir latencia, calidad e input.
+- [ ] Diseñar una primera arquitectura de host explícito y dejar documentada la futura alternancia del host entre componentes de la red.
+- [ ] Investigar host migration, elección de nuevo host, reconexión y recuperación sin implementarlo antes de tener una sala estable.
+- [ ] Investigar generadores de personajes y avatares 3D fáciles de integrar, modelos humanoides glTF, rigging, retargeting, animaciones y lip sync; revisar licencias antes de elegir.
+- [ ] Crear un prototipo visual de una sala pequeña con navegación WASD/flechas, mouse, Enter/E y Escape.
+- [ ] Crear objetos interactivos genéricos: máquina, pantalla, cartel, puerta, sillón, estantería y portal a la biblioteca.
+- [ ] Diseñar el entorno híbrido: salón público compartido y sección privada personalizable por usuario.
+- [ ] En el salón público, mostrar solamente contactos autorizados que estén conectados al sistema y representarlos con avatares simples.
+- [ ] En la sección privada, permitir inicialmente muebles básicos, distribución de juegos, banners, videos en pantallas, luces y estilos visuales predeterminados.
+- [ ] Crear modelo de datos de sala, permisos public/friends/private, muebles, pantallas, colecciones y posiciones persistentes.
+- [ ] Validar la primera función social: dos amigos ven el mismo entorno tridimensional, conversan por voz y reproducen/pausan el mismo video sincronizado.
+- [ ] Integrar el prototipo 3D/social en Tauri solamente después de validar la escena y sus recursos fuera del flujo principal.
+- [ ] Mantener un modo 2D/grilla, modo de compatibilidad y standby para equipos modestos o cuando el juego está ejecutándose.
+- [ ] Documentar una matriz de licencias, mantenimiento, seguridad, tamaño, rendimiento y facilidad de reemplazo para cada dependencia elegida.
+
+### Dependencias entre frentes
+
+- [ ] Mantener ambos frentes desacoplados: el prototipo 3D no debe bloquear la estabilización de Steam y la integración Steam no debe obligar a terminar el mundo completo.
+- [ ] Compartir solamente contratos comunes: GameRecord, Room, Presence, SharedMediaState, SteamSessionState y eventos de lanzamiento/retorno.
+- [ ] Integrar primero un vertical slice pequeño: salón público + sección privada mínima + video sincronizado + voz + lanzamiento de un juego representativo mediante Steam.
+- [ ] Validar dos monitores dentro de ese vertical slice: Game Access en primera pantalla, juego/Steam preferentemente en segunda pantalla y retorno al entorno después del cierre.
 
 ## P0 — Validate blocking assumptions
 
