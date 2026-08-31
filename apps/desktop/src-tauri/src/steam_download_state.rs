@@ -2,6 +2,12 @@ use std::time::{Duration, Instant};
 
 pub const INSTALL_REQUEST_GRACE: Duration = Duration::from_secs(120);
 
+const STATE_DOWNLOAD_REQUIRED_OR_RUNNING: u32 = 2;
+const STATE_FULLY_INSTALLED: u32 = 4;
+const STATE_DOWNLOAD_COMPLETED: u32 = 64;
+const STATE_DOWNLOAD_PAUSED: u32 = 512;
+const STATE_DLC_DOWNLOAD: u32 = 1024;
+
 pub struct ManifestDownloadState {
     pub state: &'static str,
     pub installed: bool,
@@ -32,8 +38,16 @@ pub fn classify_manifest_state(
         (bytes_downloaded, bytes_total),
         (Some(done), Some(total)) if total > 0 && done < total
     );
-    let downloading = download_dir_exists || pending_bytes;
-    let installed = !downloading && state_flags & 4 == 4 && install_dir_exists;
+    let download_flag = state_flags & STATE_DOWNLOAD_REQUIRED_OR_RUNNING != 0
+        || state_flags & STATE_DLC_DOWNLOAD != 0;
+    let completed = state_flags & STATE_DOWNLOAD_COMPLETED != 0;
+    let paused = state_flags & STATE_DOWNLOAD_PAUSED != 0;
+    let update_pending = download_flag && !completed;
+    let downloading = update_pending || (download_dir_exists && pending_bytes && !completed && !paused);
+    let installed = !downloading
+        && !pending_bytes
+        && state_flags & STATE_FULLY_INSTALLED != 0
+        && install_dir_exists;
     let progress = match (bytes_downloaded, bytes_total) {
         (Some(done), Some(total)) if total > 0 => {
             Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))
@@ -81,20 +95,34 @@ mod tests {
     }
 
     #[test]
-    fn recognizes_active_downloads_from_bytes_or_the_downloading_directory() {
-        let bytes = classify_manifest_state(0, Some(25), Some(100), false, false);
-        assert_eq!(bytes.state, "downloading");
-        assert_eq!(bytes.progress, Some(25.0));
+    fn recognizes_update_required_and_dlc_download_flags() {
+        let update = classify_manifest_state(6, Some(0), Some(100), true, true);
+        assert!(!update.installed);
+        assert_eq!(update.state, "downloading");
 
-        let directory = classify_manifest_state(0, None, None, true, false);
-        assert_eq!(directory.state, "downloading");
-        assert_eq!(directory.progress, None);
+        let dlc = classify_manifest_state(1030, None, None, false, true);
+        assert!(!dlc.installed);
+        assert_eq!(dlc.state, "downloading");
     }
 
     #[test]
-    fn an_active_update_overrides_the_fully_installed_flag() {
-        let updating = classify_manifest_state(4, None, None, true, true);
-        assert!(!updating.installed);
-        assert_eq!(updating.state, "downloading");
+    fn completed_download_flag_overrides_download_signal() {
+        let completed = classify_manifest_state(70, None, None, true, true);
+        assert!(completed.installed);
+        assert_eq!(completed.state, "installed");
+    }
+
+    #[test]
+    fn residual_download_directory_alone_does_not_hide_a_ready_game() {
+        let ready = classify_manifest_state(4, None, None, true, true);
+        assert!(ready.installed);
+        assert_eq!(ready.state, "installed");
+    }
+
+    #[test]
+    fn pending_bytes_are_a_fallback_when_the_manifest_flags_lag() {
+        let bytes = classify_manifest_state(0, Some(25), Some(100), true, false);
+        assert_eq!(bytes.state, "downloading");
+        assert_eq!(bytes.progress, Some(25.0));
     }
 }
