@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CSSProperties, RefObject } from "react";
-import { Gamepad2, Loader2, Play } from "lucide-react";
+import { Eye, Gamepad2, Loader2, Play } from "lucide-react";
 
 import { isTrackedDownload } from "./downloadManager";
 import type { DownloadMap } from "./LibraryRoomParts";
@@ -95,6 +95,8 @@ interface DownloadCatalogPanelProps {
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
   pinnedAppIds: Set<number>;
+  hiddenCount?: number;
+  onRestoreHidden?: () => void;
   onSelect: (index: number) => void;
 }
 
@@ -104,7 +106,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
+      <header className="library-room-heading">
+        <small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small>
+        {props.hiddenCount && props.onRestoreHidden ? <button type="button" className="library-hidden-restore" onClick={props.onRestoreHidden}><Eye size={12} /> {props.hiddenCount} oculto{props.hiddenCount === 1 ? "" : "s"} · mostrar</button> : null}
+      </header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <DownloadGameCard
