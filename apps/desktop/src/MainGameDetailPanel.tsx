@@ -29,12 +29,11 @@ import {
   stripSteamHtml,
   type Capability,
 } from "./gameDetailInfo";
-import { getSteamStoreMetadata, type MachineProfile, type SteamDownloadStatus } from "./native";
+import { getMachineProfile, getSteamStoreMetadata, type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails } from "./types";
 
 interface MainGameDetailPanelProps {
   game: CatalogGame;
-  machine: MachineProfile | null;
   download?: SteamDownloadStatus;
   busy: boolean;
   onClose: () => void;
@@ -119,6 +118,7 @@ function heroImage(details: GameDetails | null, game: CatalogGame) {
 export default function MainGameDetailPanel(props: MainGameDetailPanelProps) {
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [rawSteam, setRawSteam] = useState<Record<string, unknown> | null | undefined>(undefined);
+  const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -139,8 +139,11 @@ export default function MainGameDetailPanel(props: MainGameDetailPanelProps) {
         .then((value) => { if (!cancelled) setRawSteam(value); })
         .catch(() => { if (!cancelled) setRawSteam(null); })
       : Promise.resolve().then(() => { if (!cancelled) setRawSteam(null); });
+    const machineRequest = getMachineProfile()
+      .then((value) => { if (!cancelled) setMachine(value); })
+      .catch(() => { if (!cancelled) setMachine(null); });
 
-    void Promise.allSettled([detailRequest, rawRequest]).finally(() => { if (!cancelled) setLoading(false); });
+    void Promise.allSettled([detailRequest, rawRequest, machineRequest]).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [props.game.id, props.game.app_id]);
 
@@ -157,7 +160,7 @@ export default function MainGameDetailPanel(props: MainGameDetailPanelProps) {
 
   const steam = details?.steam;
   const capabilities = useMemo(() => gameCapabilities(steam?.categories), [steam?.categories]);
-  const warning = useMemo(() => hardwareWarning(steam, props.machine), [steam, props.machine]);
+  const warning = useMemo(() => hardwareWarning(steam, machine), [steam, machine]);
   const storage = useMemo(() => installationSizeLabel(steam, props.download), [steam, props.download]);
   const sensitive = isSensitiveSteamContent(steam, rawSteam ?? null);
   const sensitivityPending = props.game.app_id != null && rawSteam === undefined;
