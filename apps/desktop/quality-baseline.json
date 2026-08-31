@@ -1,0 +1,8 @@
+{
+  "maxFileLines": 600,
+  "maxClassLines": 600,
+  "maxFunctionComplexity": 15,
+  "legacyBlobShas": {
+    "src/App.tsx": "5479cc3245cbd3422905f326a0b87b726dfb266f"
+  }
+}
