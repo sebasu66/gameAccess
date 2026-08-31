@@ -31,6 +31,8 @@ import {
   useCrossfadeArtwork,
 } from "./LibraryRoomParts";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
+import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import type { LibrarySearchEventDetail } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
@@ -71,11 +73,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [managedDownloads, setManagedDownloads] = useState<DownloadMap>({});
   const [trackedAppIds, setTrackedAppIds] = useState<number[]>([]);
   const [completedGame, setCompletedGame] = useState<CatalogGame | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
+  const searchedGames = useMemo(() => filterLibraryGames(games, searchQuery), [games, searchQuery]);
   const displayGames = useMemo(
-    () => pinDownloadingGames(games, effectiveDownloads, trackedAppIds),
-    [games, effectiveDownloads, trackedAppIds],
+    () => pinDownloadingGames(searchedGames, effectiveDownloads, trackedAppIds),
+    [searchedGames, effectiveDownloads, trackedAppIds],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -95,6 +99,15 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     () => buildActions(selectedGame, installed, activeDownload, busy, download?.progress),
     [selectedGame, installed, activeDownload, busy, download?.progress],
   );
+
+  useEffect(() => {
+    const handleSearch = (event: Event) => {
+      const { query } = (event as CustomEvent<LibrarySearchEventDetail>).detail ?? {};
+      setSearchQuery(typeof query === "string" ? query : "");
+    };
+    window.addEventListener(LIBRARY_SEARCH_EVENT, handleSearch);
+    return () => window.removeEventListener(LIBRARY_SEARCH_EVENT, handleSearch);
+  }, []);
 
   useEffect(() => {
     if (!displayGames.length) {
