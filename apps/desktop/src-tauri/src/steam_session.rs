@@ -3,7 +3,7 @@ use std::{
     collections::hash_map::DefaultHasher,
     env, fs,
     hash::{Hash, Hasher},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex},
     thread,
@@ -16,7 +16,6 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-const STEAM_ID64_BASE: u64 = 76_561_197_960_265_728;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -130,10 +129,12 @@ pub fn save_steam_credential(account_name: String, password: String) -> Result<(
         let encrypted = protect_secret(&password)?;
         fs::write(credential_path(&account_name)?, encrypted)
             .map_err(|err| format!("Could not save encrypted Steam credential: {err}"))?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(target_os = "windows"))]
-    Err("Steam credential enrollment is currently implemented only on Windows".into())
+    {
+        Err("Steam credential enrollment is currently implemented only on Windows".into())
+    }
 }
 
 #[tauri::command]
@@ -181,7 +182,8 @@ fn registry_dword(key: &str, value_name: &str) -> Option<u32> {
         return None;
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout.lines().find(|line| line.to_ascii_lowercase().contains(&value_name.to_ascii_lowercase()))?;
+    let needle = value_name.to_ascii_lowercase();
+    let line = stdout.lines().find(|line| line.to_ascii_lowercase().contains(&needle))?;
     let raw = line.split_whitespace().last()?;
     if let Some(hex) = raw.strip_prefix("0x") {
         u32::from_str_radix(hex, 16).ok()
@@ -214,7 +216,7 @@ fn steam_running() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn stop_steam(steam: &PathBuf) {
+fn stop_steam(steam: &Path) {
     let _ = Command::new(steam).arg("steam://exit").creation_flags(CREATE_NO_WINDOW).spawn();
     let deadline = Instant::now() + Duration::from_secs(12);
     while Instant::now() < deadline {
@@ -272,15 +274,17 @@ pub fn direct_switch_steam_account(
     #[cfg(target_os = "windows")]
     {
         let active = direct_login(account_name.trim(), expected_user_id32)?;
-        return Ok(SteamDirectSwitchResult {
+        Ok(SteamDirectSwitchResult {
             ok: true,
             stage: "ready".into(),
             message: format!("Steam started as {} and confirmed ActiveUser", account_name.trim()),
             active_user_id32: active,
-        });
+        })
     }
     #[cfg(not(target_os = "windows"))]
-    Err("Direct Steam account switching is currently implemented only on Windows".into())
+    {
+        Err("Direct Steam account switching is currently implemented only on Windows".into())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -304,10 +308,11 @@ fn fallback_switch(account_name: &str) -> Result<(), String> {
         .output()
         .map_err(|err| format!("Could not run Steam account fallback adapter: {err}"))?;
     if output.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        return Ok(());
     }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Err(if stderr.is_empty() { stdout } else { stderr })
 }
 
 #[cfg(target_os = "windows")]
@@ -340,11 +345,16 @@ fn status_for(request: &SteamGameSessionRequest, phase: &str, message: &str) -> 
 }
 
 #[cfg(target_os = "windows")]
-fn restore_target(request: &SteamGameSessionRequest) -> Option<(String, Option<u32>)> {
+fn restore_target(request: &SteamGameSessionRequest) -> Result<Option<(String, Option<u32>)>, String> {
     match request.restore_mode.as_str() {
-        "main" => request.main_account_name.clone().map(|name| (name, request.main_user_id32)),
-        "previous" => request.previous_account_name.clone().map(|name| (name, request.previous_user_id32)),
-        _ => None,
+        "main" => request
+            .main_account_name
+            .clone()
+            .map(|name| Some((name, request.main_user_id32)))
+            .ok_or_else(|| "Main-account restore is enabled but no main Steam account is configured".to_string()),
+        "previous" => Ok(request.previous_account_name.clone().map(|name| (name, request.previous_user_id32))),
+        "leave" => Ok(None),
+        other => Err(format!("Unsupported Steam restore mode: {other}")),
     }
 }
 
@@ -364,11 +374,17 @@ fn monitor_game(
         thread::sleep(Duration::from_secs(1));
     }
     if !started {
-        update_status(&status, SteamSessionStatus {
-            phase: "launch-unconfirmed".into(), app_id: Some(request.app_id), account_name: Some(request.account_name),
-            message: "Steam never reported the game as running; automatic account restoration was skipped".into(), done: true,
-            error: Some("Game start could not be confirmed".into()),
-        });
+        update_status(
+            &status,
+            SteamSessionStatus {
+                phase: "launch-unconfirmed".into(),
+                app_id: Some(request.app_id),
+                account_name: Some(request.account_name.clone()),
+                message: "Steam never reported the game as running; automatic account restoration was skipped".into(),
+                done: true,
+                error: Some("Game start could not be confirmed".into()),
+            },
+        );
         return;
     }
 
@@ -384,16 +400,29 @@ fn monitor_game(
     }
 
     update_status(&status, status_for(&request, "game-exited", "Game exited; applying Steam restore preference"));
-    let restore_result = restore_target(&request).map_or(Ok(()), |(name, user_id)| restore_account(&name, user_id));
+    let restore_result = restore_target(&request).and_then(|target| {
+        target.map_or(Ok(()), |(name, user_id)| restore_account(&name, user_id))
+    });
     let next = match restore_result {
         Ok(()) => SteamSessionStatus {
-            phase: "done".into(), app_id: Some(request.app_id), account_name: Some(request.account_name),
-            message: if request.restore_mode == "leave" { "Game exited; Steam account left unchanged".into() } else { "Game exited and Steam account restoration finished".into() },
-            done: true, error: None,
+            phase: "done".into(),
+            app_id: Some(request.app_id),
+            account_name: Some(request.account_name.clone()),
+            message: if request.restore_mode == "leave" {
+                "Game exited; Steam account left unchanged".into()
+            } else {
+                "Game exited and Steam account restoration finished".into()
+            },
+            done: true,
+            error: None,
         },
         Err(err) => SteamSessionStatus {
-            phase: "restore-failed".into(), app_id: Some(request.app_id), account_name: Some(request.account_name),
-            message: "Game exited, but Steam account restoration failed".into(), done: true, error: Some(err),
+            phase: "restore-failed".into(),
+            app_id: Some(request.app_id),
+            account_name: Some(request.account_name.clone()),
+            message: "Game exited, but Steam account restoration failed".into(),
+            done: true,
+            error: Some(err),
         },
     };
     update_status(&status, next);
@@ -430,18 +459,15 @@ pub fn start_steam_game_session(
         update_status(&state.status, status.clone());
         let shared = Arc::clone(&state.status);
         thread::spawn(move || monitor_game(request, shared, app));
-        return Ok(status);
+        Ok(status)
     }
     #[cfg(not(target_os = "windows"))]
-    Err("Steam session monitoring is currently implemented only on Windows".into())
+    {
+        Err("Steam session monitoring is currently implemented only on Windows".into())
+    }
 }
 
 #[tauri::command]
 pub fn steam_session_status(state: tauri::State<SteamSessionState>) -> SteamSessionStatus {
     state.status.lock().map(|value| value.clone()).unwrap_or_default()
-}
-
-#[allow(dead_code)]
-fn steam_id64_to_user_id32(steam_id64: u64) -> Option<u32> {
-    steam_id64.checked_sub(STEAM_ID64_BASE).and_then(|value| u32::try_from(value).ok())
 }
