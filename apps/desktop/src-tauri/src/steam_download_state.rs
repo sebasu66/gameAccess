@@ -28,11 +28,12 @@ pub fn classify_manifest_state(
     download_dir_exists: bool,
     install_dir_exists: bool,
 ) -> ManifestDownloadState {
-    let installed = state_flags & 4 == 4 && install_dir_exists;
     let pending_bytes = matches!(
         (bytes_downloaded, bytes_total),
         (Some(done), Some(total)) if total > 0 && done < total
     );
+    let downloading = download_dir_exists || pending_bytes;
+    let installed = !downloading && state_flags & 4 == 4 && install_dir_exists;
     let progress = match (bytes_downloaded, bytes_total) {
         (Some(done), Some(total)) if total > 0 => {
             Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))
@@ -40,10 +41,10 @@ pub fn classify_manifest_state(
         _ if installed => Some(100.0),
         _ => None,
     };
-    let state = if installed {
-        "installed"
-    } else if download_dir_exists || pending_bytes {
+    let state = if downloading {
         "downloading"
+    } else if installed {
+        "installed"
     } else {
         "preparing"
     };
@@ -88,5 +89,12 @@ mod tests {
         let directory = classify_manifest_state(0, None, None, true, false);
         assert_eq!(directory.state, "downloading");
         assert_eq!(directory.progress, None);
+    }
+
+    #[test]
+    fn an_active_update_overrides_the_fully_installed_flag() {
+        let updating = classify_manifest_state(4, None, None, true, true);
+        assert!(!updating.installed);
+        assert_eq!(updating.state, "downloading");
     }
 }
