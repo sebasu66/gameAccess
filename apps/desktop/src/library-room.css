@@ -105,27 +105,24 @@
 .library-room-action:disabled { opacity: .34; cursor: default; filter: saturate(.45); }
 .library-room-action.is-selected strong { font-weight: 900; }
 .library-room-catalog { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.library-room-heading { flex: 0 0 auto; display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 4px 2px 16px; }
-.library-room-heading h2 { margin: 4px 0 0; font-size: clamp(28px,2.7vw,44px); letter-spacing: -.045em; }
+.library-room-heading { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; min-height: 14px; margin: 0 4px 8px; }
 .library-room-heading small { color: #788493; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .library-room-grid {
-  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(116px,1fr));
-  align-content: start; gap: clamp(12px,1.2vw,18px); padding: 7px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
+  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px,1fr));
+  align-content: start; gap: clamp(14px,1.35vw,20px); padding: 6px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
 }
-.library-room-card { min-width: 0; padding: 0 0 6px; border: 0; border-radius: 13px; color: #b8c0ca; background: transparent; text-align: left; cursor: pointer; transition: transform .16s ease, color .16s ease; }
-.library-room-card-art { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 2px solid rgba(255,255,255,.08); border-radius: 10px; background: #111824; color: #8290a1; transition: border-color .17s ease, box-shadow .17s ease, filter .17s ease, transform .17s ease; }
+.library-room-card { min-width: 0; padding: 0; border: 0; border-radius: 14px; color: #b8c0ca; background: transparent; text-align: left; cursor: pointer; transition: transform .16s ease, color .16s ease; }
+.library-room-card-art { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border: 2px solid rgba(255,255,255,.08); border-radius: 12px; background: #111824; color: #8290a1; transition: border-color .17s ease, box-shadow .17s ease, filter .17s ease, transform .17s ease; }
 .library-room-card-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.library-room-card > strong { display: block; overflow: hidden; padding: 9px 3px 0; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .library-room-card.is-selected { color: #fff; transform: translateY(-2px); }
 .library-room-card.is-selected .library-room-card-art {
   border-color: #fff; filter: brightness(1.10) saturate(1.08); transform: scale(1.018);
   box-shadow: 0 0 0 3px #39ff14, 0 0 0 7px rgba(57,255,20,.16), 0 0 38px rgba(57,255,20,.42), 0 22px 38px rgba(0,0,0,.48);
 }
-.library-room-card.is-selected > strong { font-weight: 950; text-shadow: 0 0 16px rgba(57,255,20,.28); }
 .library-room.focus-actions .library-room-card.is-selected .library-room-card-art { box-shadow: 0 0 0 2px rgba(57,255,20,.58), 0 16px 30px rgba(0,0,0,.4); border-color: rgba(255,255,255,.5); }
 .library-room-hint { position: absolute; right: clamp(20px,2.5vw,42px); bottom: 12px; z-index: 5; display: flex; gap: 16px; color: #788493; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
 .library-room-empty { place-items: center; color: #9ba6b4; }
-@media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(auto-fill,minmax(104px,1fr)); } }
+@media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(auto-fill,minmax(118px,1fr)); } }
 @media (max-width: 760px) { .library-room { height: auto; min-height: 100svh; grid-template-columns: 1fr; overflow-y: auto; } .library-room-feature { min-height: 52vh; } .library-room-catalog { min-height: 58vh; } .library-room-grid { overflow: visible; } .library-room-hint { position: fixed; left: 12px; right: 12px; justify-content: center; padding: 8px; background: rgba(3,5,8,.78); backdrop-filter: blur(10px); } }
 @media (prefers-reduced-motion: reduce) { .library-room-video, .library-room-hero-layer, .library-room-feature-ambient img, .library-room-action, .library-room-action::before { transition: none !important; } }
 
@@ -133,10 +130,8 @@
 .magazine-view { display: none !important; }
 
 .library-cover-fallback { width: 100%; height: 100%; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, #182331, #0b1119 68%); color: #6f7d8e; }
-.library-install-state { position: absolute; z-index: 4; top: 7px; right: 7px; width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.32); border-radius: 50%; backdrop-filter: blur(10px); box-shadow: 0 5px 15px rgba(0,0,0,.42); }
+.library-install-state { position: absolute; z-index: 4; top: 8px; right: 8px; width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.34); border-radius: 50%; backdrop-filter: blur(10px); box-shadow: 0 5px 15px rgba(0,0,0,.42); }
 .library-install-state.ready { color: #071405; background: rgba(57,255,20,.94); box-shadow: 0 0 16px rgba(57,255,20,.42), 0 5px 15px rgba(0,0,0,.42); }
-.library-install-state.download { color: #241500; background: rgba(255,176,0,.96); box-shadow: 0 0 16px rgba(255,176,0,.35), 0 5px 15px rgba(0,0,0,.42); }
-.library-install-state.progress { color: white; background: rgba(0,152,255,.9); box-shadow: 0 0 18px rgba(0,152,255,.4), 0 5px 15px rgba(0,0,0,.42); }
 
 .library-room.is-showcase .library-room-feature { box-shadow: 0 30px 100px rgba(0,0,0,.58), 0 0 56px rgba(57,255,20,.10), inset 0 1px rgba(255,255,255,.08); }
 .library-room.is-showcase .library-room-feature-copy .eyebrow { animation: showcasePulse 2.4s ease-in-out infinite; }

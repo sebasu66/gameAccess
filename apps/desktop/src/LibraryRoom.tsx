@@ -1,13 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Gamepad2, Info, Loader2, Play, Volume2, VolumeX } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 
 import { loadDetails } from "./api";
+import {
+  buildActions,
+  CatalogPanel,
+  EmptyLibraryContent,
+  FeaturePanel,
+  firstPresent,
+  handleActionKey,
+  handleGridKey,
+  isActiveDownload,
+  isInstalled,
+  LibraryHint,
+  libraryRoomClass,
+  selectedDownload,
+  selectedHero,
+  selectedMovie,
+  selectedSummary,
+  selectedVideo,
+  useCrossfadeArtwork,
+} from "./LibraryRoomParts";
+import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { playUiSound } from "./uiSounds";
-import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails } from "./types";
-
-type DownloadMap = Record<number, SteamDownloadStatus>;
-type FocusZone = "grid" | "actions";
 
 interface LibraryRoomProps {
   games: CatalogGame[];
@@ -19,79 +35,14 @@ interface LibraryRoomProps {
   loading?: boolean;
 }
 
-function artworkCandidates(game: CatalogGame) {
-  const appId = game.app_id;
-  const candidates = [
-    game.capsule_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    game.header_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null,
-  ].filter((value): value is string => Boolean(value));
-  return [...new Set(candidates)];
-}
-
-function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = useMemo(() => artworkCandidates(game), [game.app_id, game.capsule_image, game.header_image]);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  useEffect(() => setSourceIndex(0), [game.id]);
-  const source = sources[sourceIndex];
-  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
-}
-
-function InstallStateBadge({ status }: { status?: SteamDownloadStatus }) {
-  const installed = status?.state === "installed" || status?.installed === true;
-  const active = Boolean(status && ["requested", "preparing", "downloading"].includes(status.state));
-  if (installed) return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
-  if (active) return <span className="library-install-state progress" title={`Descargando${status?.progress != null ? ` · ${Math.round(status.progress)}%` : ""}`}><Loader2 size={12} className="spin" /></span>;
-  return <span className="library-install-state download" title="En tu biblioteca · falta descargar"><Download size={12} /></span>;
-}
-
-
-function useCrossfadeArtwork(source?: string) {
-  const initial: [string | null, string | null] = [source ?? null, null];
-  const [layers, setLayers] = useState<[string | null, string | null]>(initial);
-  const [activeLayer, setActiveLayer] = useState(0);
-  const layersRef = useRef<[string | null, string | null]>(initial);
-  const activeRef = useRef(0);
-
-  useEffect(() => {
-    if (!source || layersRef.current[activeRef.current] === source) return;
-    let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = source;
-
-    const reveal = async () => {
-      try { await image.decode(); } catch { /* onload is enough on engines without decode */ }
-      if (cancelled || !image.naturalWidth) return;
-      const next = activeRef.current === 0 ? 1 : 0;
-      const nextLayers: [string | null, string | null] = [...layersRef.current] as [string | null, string | null];
-      nextLayers[next] = source;
-      layersRef.current = nextLayers;
-      setLayers(nextLayers);
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        activeRef.current = next;
-        setActiveLayer(next);
-      }));
-    };
-
-    if (image.complete && image.naturalWidth) void reveal();
-    else image.onload = () => { void reveal(); };
-    return () => { cancelled = true; image.onload = null; };
-  }, [source]);
-
-  return { layers, activeLayer };
-}
-
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const gridRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const idleTimerRef = useRef<number | null>(null);
+  const showcaseEnteredRef = useRef(false);
+
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [focusZone, setFocusZone] = useState<FocusZone>("grid");
   const [actionIndex, setActionIndex] = useState(0);
@@ -99,36 +50,39 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showcaseMode, setShowcaseMode] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [readyVideoSrc, setReadyVideoSrc] = useState<string | null>(null);
   const [videoMuted, setVideoMuted] = useState(true);
   const [videoVolume, setVideoVolume] = useState(0.68);
-  const idleTimerRef = useRef<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const showcaseEnteredRef = useRef(false);
 
-  const selectedGame = games[selectedIndex] ?? games[0];
+  const selectedGame = firstPresent(games[selectedIndex], games[0]);
+  const selectedGameId = selectedGame?.id;
+  const selectedAppId = selectedGame?.app_id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => game.local_account_labels ?? [])).size, [games]);
-  const download = selectedGame?.app_id ? downloads[selectedGame.app_id] : undefined;
-  const installed = download?.state === "installed" || download?.installed === true;
-  const activeDownload = Boolean(download && ["requested", "preparing", "downloading"].includes(download.state));
-  const hero = details?.steam?.screenshots?.[0]?.full || details?.steam?.background || details?.steam?.hero_image || selectedGame?.hero_image || selectedGame?.header_image || selectedGame?.capsule_image || undefined;
-  const movie = details?.steam?.movies?.find((item) => item.highlight) || details?.steam?.movies?.[0];
-  const videoSrc = movie?.mp4 || movie?.webm;
+  const download = selectedDownload(selectedAppId, downloads);
+  const installed = isInstalled(download);
+  const activeDownload = isActiveDownload(download);
+  const hero = selectedHero(details, selectedGame);
+  const movie = selectedMovie(details);
+  const videoSrc = selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
-  const summary = details?.steam?.short_description || "Seleccionado de la biblioteca combinada de tus cuentas Steam.";
+  const summary = selectedSummary(details);
+  const actions = useMemo(
+    () => buildActions(selectedGame, installed, activeDownload, busy, download?.progress),
+    [selectedGame, installed, activeDownload, busy, download?.progress],
+  );
 
   useEffect(() => {
     setSelectedIndex((current) => Math.min(current, Math.max(0, games.length - 1)));
   }, [games.length]);
 
-  const markActivity = () => {
+  const markActivity = useCallback(() => {
     setShowcaseMode(false);
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
     idleTimerRef.current = window.setTimeout(() => {
       setFocusZone("grid");
       setShowcaseMode(true);
     }, 30_000);
-  };
+  }, []);
 
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
@@ -136,10 +90,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     return () => {
       if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
     };
-  }, []);
+  }, [markActivity]);
 
   useEffect(() => {
-    if (!showcaseMode) { showcaseEnteredRef.current = false; return; }
+    if (!showcaseMode) {
+      showcaseEnteredRef.current = false;
+      return;
+    }
     if (games.length < 2 || showcaseEnteredRef.current) return;
     showcaseEnteredRef.current = true;
     setSelectedIndex((current) => {
@@ -150,8 +107,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [showcaseMode, games.length]);
 
   useEffect(() => {
-    if (!showcaseMode || games.length < 2) return;
-    // Give each game time to breathe: video entries stay about 1m50s; still images 1m30s.
+    if (!showcaseMode || games.length < 2 || selectedGameId == null) return;
     const holdMs = videoSrc ? 110_000 : 90_000;
     const timer = window.setTimeout(() => {
       setSelectedIndex((current) => {
@@ -161,21 +117,17 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       });
     }, holdMs);
     return () => window.clearTimeout(timer);
-  }, [showcaseMode, games.length, selectedGame?.id, videoSrc]);
-
-
-  useEffect(() => {
-    setVideoReady(false);
-  }, [videoSrc]);
+  }, [showcaseMode, games.length, selectedGameId, videoSrc]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.volume = videoVolume;
     video.muted = videoMuted;
-  }, [videoVolume, videoMuted, videoSrc]);
+  }, [videoVolume, videoMuted]);
 
   useEffect(() => {
+    if (!games.length) return;
     const grid = gridRef.current;
     if (!grid) return;
     const measure = () => {
@@ -192,23 +144,23 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [games.length]);
 
   useEffect(() => {
-    if (!selectedGame) return;
+    if (selectedGameId == null) return;
     let cancelled = false;
     setDetails(null);
     setLoadingDetails(true);
-    loadDetails(selectedGame.id)
+    loadDetails(selectedGameId)
       .then((value) => { if (!cancelled) setDetails(value); })
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGame?.id]);
+  }, [selectedGameId]);
 
   useEffect(() => {
-    if (!selectedGame) return;
+    if (selectedGameId == null) return;
     if (installed) setActionIndex(0);
-    else if (selectedGame.app_id) setActionIndex(1);
+    else if (selectedAppId) setActionIndex(1);
     else setActionIndex(2);
-  }, [selectedGame?.id, installed]);
+  }, [selectedGameId, selectedAppId, installed]);
 
   const moveGrid = (delta: number) => {
     setSelectedIndex((current) => {
@@ -232,9 +184,18 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const startVideoPastIntro = (video: HTMLVideoElement) => {
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     const gameplayStart = duration > 0 ? Math.min(Math.max(7, duration * 0.14), Math.max(0, duration - 4)) : 7;
-    try { video.currentTime = gameplayStart; } catch { /* metadata race */ }
+    try {
+      video.currentTime = gameplayStart;
+    } catch {
+      // Metadata can race on WebView2.
+    }
     video.volume = videoVolume;
     video.muted = videoMuted;
+    void video.play().catch(() => undefined);
+  };
+
+  const handleVideoReady = (video: HTMLVideoElement) => {
+    setReadyVideoSrc(videoSrc ?? null);
     void video.play().catch(() => undefined);
   };
 
@@ -242,11 +203,20 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const nextMuted = !videoMuted;
     setVideoMuted(nextMuted);
     const video = videoRef.current;
-    if (video) {
-      video.muted = nextMuted;
-      video.volume = videoVolume;
-      if (!nextMuted) void video.play().catch(() => undefined);
-    }
+    if (!video) return;
+    video.muted = nextMuted;
+    video.volume = videoVolume;
+    if (!nextMuted) void video.play().catch(() => undefined);
+  };
+
+  const changeVideoVolume = (value: number) => {
+    setVideoVolume(value);
+    setVideoMuted(value <= 0);
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = value;
+    video.muted = value <= 0;
+    if (value > 0) void video.play().catch(() => undefined);
   };
 
   const activateAction = () => {
@@ -257,180 +227,81 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (actionIndex === 2) onOpenDetails(selectedGame);
   };
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     markActivity();
-    if (!selectedGame || !games.length) return;
-    const key = event.key.toLowerCase();
-    if (focusZone === "actions") {
-      if (key === "escape" || key === "s" || key === "arrowdown") { event.preventDefault(); returnToGrid(); return; }
-      if (["a", "arrowleft", "w", "arrowup"].includes(key)) {
-        event.preventDefault();
-        const next = (actionIndex - 1 + 3) % 3;
-        playUiSound("move");
-        setActionIndex(next);
-        actionRefs.current[next]?.focus({ preventScroll: true });
-        return;
-      }
-      if (["d", "arrowright"].includes(key)) {
-        event.preventDefault();
-        const next = (actionIndex + 1) % 3;
-        playUiSound("move");
-        setActionIndex(next);
-        actionRefs.current[next]?.focus({ preventScroll: true });
-        return;
-      }
-      if (key === "enter") { event.preventDefault(); activateAction(); }
-      return;
-    }
-
-    if (key === "enter") { event.preventDefault(); enterActions(); return; }
-    if (key === "escape") { event.preventDefault(); return; }
-    if (key === "a" || key === "arrowleft") {
-      event.preventDefault();
-      if (selectedIndex % columns === 0) enterActions(); else moveGrid(-1);
-      return;
-    }
-    if (key === "d" || key === "arrowright") { event.preventDefault(); moveGrid(1); return; }
-    if (key === "w" || key === "arrowup") { event.preventDefault(); moveGrid(-columns); return; }
-    if (key === "s" || key === "arrowdown") { event.preventDefault(); moveGrid(columns); }
+    if (!selectedGame) return;
+    const context = { actionIndex, actionRefs, setActionIndex, returnToGrid, activateAction };
+    const gridContext = { selectedIndex, columns, enterActions, moveGrid };
+    const handled = focusZone === "actions"
+      ? handleActionKey(event.key.toLowerCase(), context)
+      : handleGridKey(event.key.toLowerCase(), gridContext);
+    if (handled) event.preventDefault();
   };
 
-  const actions = useMemo(() => {
-    if (!selectedGame) return [];
-    return [
-      { label: installed ? "Jugar" : "No instalado", icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />, disabled: !installed || busy || selectedGame.copies_available <= 0 },
-      { label: installed ? "Instalado" : activeDownload ? `${Math.round(download?.progress ?? 0)}%` : "Descargar", icon: activeDownload ? <Loader2 className="spin" size={23} /> : <Download size={23} />, disabled: !selectedGame.app_id || installed || activeDownload },
-      { label: "Ficha completa", icon: <Info size={23} />, disabled: false },
-    ];
-  }, [activeDownload, busy, download?.progress, installed, selectedGame]);
+  const onAction = (index: number) => {
+    setActionIndex(index);
+    const action = actions[index];
+    if (!action || action.disabled || !selectedGame) return;
+    playUiSound("activate");
+    if (action.kind === "play") void onPlay(selectedGame);
+    else if (action.kind === "download") void onDownload(selectedGame);
+    else onOpenDetails(selectedGame);
+  };
 
-  if (!selectedGame) {
-    return (
-      <section ref={rootRef} className="library-room focus-grid is-empty" tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
-        <aside className="library-room-feature">
-          <div className="library-room-feature-shade" />
-          <div className="library-room-feature-copy">
-            <span className="eyebrow">TU BIBLIOTECA</span>
-            <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
-            <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
-            {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
-          </div>
-        </aside>
-        <section className="library-room-catalog">
-          <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>0 juegos · WASD / FLECHAS</small></header>
-          <div ref={gridRef} className="library-room-grid library-room-empty-grid">
-            <div className="library-room-empty-state"><Gamepad2 size={42} /><strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong><span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span></div>
-          </div>
-        </section>
-        <div className="library-room-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>ENTRAR / ACTIVAR · ENTER</span><span>VOLVER · ESC</span></div>
-      </section>
-    );
-  }
+  const onHoverGame = (index: number) => {
+    markActivity();
+    if (index !== selectedIndex) playUiSound("move");
+    setSelectedIndex(index);
+  };
+
+  const onSelectGame = (index: number) => {
+    setSelectedIndex(index);
+    setFocusZone("grid");
+    rootRef.current?.focus({ preventScroll: true });
+  };
+
+  const rootClass = libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame));
 
   return (
-    <section ref={rootRef} className={`library-room focus-${focusZone} ${showcaseMode ? "is-showcase" : ""}`} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
-      <aside className="library-room-feature">
-        <div className="library-room-feature-ambient" aria-hidden="true">
-          {artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}
-        </div>
-        <div className="library-room-feature-media">
-          {artwork.layers.map((source, index) => source ? <img key={`hero-${index}-${source}`} className={`library-room-hero-layer ${index === artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} /> : null)}
-          {videoSrc ? (
-            <video
-              key={videoSrc}
-              ref={videoRef}
-              className={`library-room-video ${videoReady ? "is-ready" : ""}`}
-              src={videoSrc}
-              poster={movie?.thumbnail}
-              autoPlay
-              muted={videoMuted}
-              playsInline
-              preload="auto"
-              onLoadedMetadata={(event) => startVideoPastIntro(event.currentTarget)}
-              onCanPlay={(event) => { setVideoReady(true); void event.currentTarget.play().catch(() => undefined); }}
-              onEnded={(event) => startVideoPastIntro(event.currentTarget)}
-            />
-          ) : null}
-          <div className="library-room-feature-shade" />
-          {videoSrc ? (
-            <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}>
-              <button type="button" className="library-room-volume-toggle" onClick={toggleVideoSound} aria-label={videoMuted ? "Activar sonido" : "Silenciar video"} title={videoMuted ? "Activar sonido" : "Silenciar"}>
-                {videoMuted || videoVolume === 0 ? <VolumeX size={17} /> : <Volume2 size={17} />}
-              </button>
-              <input
-                aria-label="Volumen del video"
-                type="range"
-                min="0"
-                max="1"
-                step="0.02"
-                value={videoMuted ? 0 : videoVolume}
-                onChange={(event) => {
-                  const value = Number(event.currentTarget.value);
-                  setVideoVolume(value);
-                  setVideoMuted(value <= 0);
-                  const video = videoRef.current;
-                  if (video) { video.volume = value; video.muted = value <= 0; if (value > 0) void video.play().catch(() => undefined); }
-                }}
-              />
-            </div>
-          ) : null}
-        </div>
-        <div className="library-room-feature-copy">
-          <span className="eyebrow">{showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
-          <h1>{selectedGame.name}</h1>
-          <p>{summary}</p>
-          {loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
-          <div className="library-room-actions" aria-label="Acciones del juego seleccionado">
-            {actions.map((action, index) => (
-              <button
-                key={action.label}
-                ref={(node) => { actionRefs.current[index] = node; }}
-                data-action={index === 0 ? "play" : index === 1 ? "download" : "details"}
-                className={`library-room-action ${focusZone === "actions" && actionIndex === index ? "is-selected" : ""}`}
-                onFocus={() => { setFocusZone("actions"); setActionIndex(index); }}
-                onClick={() => {
-                  setActionIndex(index);
-                  if (!action.disabled) {
-                    playUiSound("activate");
-                    if (index === 0) void onPlay(selectedGame);
-                    else if (index === 1) void onDownload(selectedGame);
-                    else onOpenDetails(selectedGame);
-                  }
-                }}
-                disabled={action.disabled}
-              >
-                {action.icon}<strong>{action.label}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      <section className="library-room-catalog">
-        <header className="library-room-heading"><div><span className="eyebrow">BIBLIOTECA</span><h2>Elegí un juego</h2></div><small>{games.length} juegos{accountCount ? ` · ${accountCount} cuenta${accountCount === 1 ? "" : "s"}` : ""} · WASD / FLECHAS</small></header>
-        <div ref={gridRef} className="library-room-grid">
-          {games.map((game, index) => (
-            <button
-              key={game.id}
-              className={`library-room-card ${index === selectedIndex ? "is-selected" : ""}`}
-              onMouseEnter={() => {
-                markActivity();
-                if (index !== selectedIndex) playUiSound("move");
-                setSelectedIndex(index);
-              }}
-              onClick={() => { setSelectedIndex(index); setFocusZone("grid"); rootRef.current?.focus({ preventScroll: true }); }}
-              aria-current={index === selectedIndex ? "true" : undefined}
-              aria-label={`${index === selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
-              tabIndex={-1}
-            >
-              <span className="library-room-card-art"><SteamCover game={game} /><InstallStateBadge status={game.app_id ? downloads[game.app_id] : undefined} /></span>
-              <strong>{game.name}</strong>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="library-room-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>ENTRAR / ACTIVAR · ENTER</span><span>VOLVER · ESC</span></div>
+    <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
+      {selectedGame ? (
+        <>
+          <FeaturePanel
+            game={selectedGame}
+            artwork={artwork}
+            movie={movie}
+            videoSrc={videoSrc}
+            readyVideoSrc={readyVideoSrc}
+            videoMuted={videoMuted}
+            videoVolume={videoVolume}
+            videoRef={videoRef}
+            onVideoMetadata={startVideoPastIntro}
+            onVideoReady={handleVideoReady}
+            onToggleSound={toggleVideoSound}
+            onVolumeChange={changeVideoVolume}
+            showcaseMode={showcaseMode}
+            summary={summary}
+            loadingDetails={loadingDetails}
+            actions={actions}
+            focusZone={focusZone}
+            actionIndex={actionIndex}
+            actionRefs={actionRefs}
+            setFocusZone={setFocusZone}
+            setActionIndex={setActionIndex}
+            onAction={onAction}
+          />
+          <CatalogPanel
+            games={games}
+            downloads={downloads}
+            accountCount={accountCount}
+            selectedIndex={selectedIndex}
+            gridRef={gridRef}
+            onHover={onHoverGame}
+            onSelect={onSelectGame}
+          />
+        </>
+      ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
+      <LibraryHint />
     </section>
   );
 }
