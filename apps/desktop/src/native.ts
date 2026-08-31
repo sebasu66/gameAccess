@@ -13,11 +13,17 @@ export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_I
 
 export interface SteamDownloadStatus {
   app_id: number;
-  state: "not-installed" | "requested" | "preparing" | "downloading" | "installed" | "unknown";
+  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "installed" | "unknown";
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;
   installed: boolean;
+}
+
+export interface SteamLibraryFolder {
+  index: number;
+  path: string;
+  label: string;
 }
 
 export interface MachineProfile {
@@ -75,6 +81,7 @@ export interface LocalSteamPool {
   verified_at: string | null;
   accounts: LocalSteamAccount[];
   games: Array<{ app_id: number; name: string; developer?: string; publisher?: string }>;
+  library_folders?: SteamLibraryFolder[];
 }
 
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
@@ -126,6 +133,22 @@ async function resolveSessionRestoreMode(
   return safeSteamRestoreMode(requestedMode, targetAccountName, hasCredential);
 }
 
+function dispatchDownloadEvent(name: string, appId: number, error?: string) {
+  window.dispatchEvent(new CustomEvent(name, { detail: { appId, error } }));
+}
+
+const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const status = await steamDownloadStatus(appId);
+    if (status.installed || ["preparing", "downloading", "paused"].includes(status.state)) return;
+    await delay(900);
+  }
+  throw new Error("Steam no confirmó el inicio de la descarga. La solicitud se quitó de pendientes.");
+}
+
 export async function saveSteamCredential(accountName: string, password: string): Promise<void> {
   if (!hasTauriRuntime()) throw new Error("Steam credential enrollment requires the desktop app.");
   await invoke("save_steam_credential", { accountName, password });
@@ -150,15 +173,24 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
 
 export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
-  if (hasTauriRuntime()) {
+  dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
+  if (!hasTauriRuntime()) {
+    window.location.href = `steam://install/${appId}`;
+    return;
+  }
+
+  try {
     const pool = await getLocalSteamPool();
     if (!pool) throw new Error("No se pudo leer el inventario local de licencias Steam.");
     const accountLabel = resolveSteamInstallOwner(pool.accounts, appId);
     await switchSteamAccount(accountLabel);
     await invoke("open_steam_install", { appId });
-    return;
+    await waitForSteamInstallConfirmation(appId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    dispatchDownloadEvent("gameaccess:steam-download-request-failed", appId, message);
+    throw error;
   }
-  window.location.href = `steam://install/${appId}`;
 }
 
 export async function openSteamRun(appId: number): Promise<void> {
