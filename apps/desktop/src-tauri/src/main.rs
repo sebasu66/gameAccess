@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod steam_session;
+
 use serde::Serialize;
 use std::{
     env, fs,
@@ -776,6 +778,7 @@ fn main() {
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
         })
+        .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
             steam_installed,
             runtime_prerequisites,
@@ -788,6 +791,12 @@ fn main() {
             verify_local_steam_inventory,
             machine_profile,
             switch_steam_account,
+            steam_session::save_steam_credential,
+            steam_session::remove_steam_credential,
+            steam_session::has_steam_credential,
+            steam_session::direct_switch_steam_account,
+            steam_session::start_steam_game_session,
+            steam_session::steam_session_status,
             visual_debug_config,
             capture_visual_debug,
             finish_visual_debug,
