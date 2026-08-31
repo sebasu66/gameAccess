@@ -1,0 +1,42 @@
+name: Fix LibraryRoom ref nullability
+
+on:
+  push:
+    branches: ["fix/library-grid-cleanup-v2"]
+    paths:
+      - ".github/workflows/fix-library-ref-nullability.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/library-grid-cleanup-v2
+      - name: Make ref access null-safe and remove this workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/desktop/src/LibraryRoomParts.tsx')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              'context.actionRefs.current[index]?.focus({ preventScroll: true });': 'context.actionRefs.current?.[index]?.focus({ preventScroll: true });',
+              'ref={(node) => { props.actionRefs.current[index] = node; }}': 'ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected one occurrence: {old!r}, found {text.count(old)}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/fix-library-ref-nullability.yml').unlink()
+          PY
+      - name: Commit final fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ui): make action refs null-safe"
+          git push origin HEAD:fix/library-grid-cleanup-v2
