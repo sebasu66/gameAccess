@@ -391,7 +391,6 @@ interface CatalogPanelProps {
   accountCount: number;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
-  onHover: (index: number) => void;
   onSelect: (index: number) => void;
 }
 
@@ -407,7 +406,6 @@ export function CatalogPanel(props: CatalogPanelProps) {
             type="button"
             key={game.id}
             className={`library-room-card ${index === props.selectedIndex ? "is-selected" : ""}`}
-            onMouseEnter={() => props.onHover(index)}
             onClick={() => props.onSelect(index)}
             aria-current={index === props.selectedIndex ? "true" : undefined}
             aria-label={`${index === props.selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
