@@ -38,20 +38,23 @@ export default function SteamSessionSettings() {
   const [message, setMessage] = useState<string | null>(null);
   const [session, setSession] = useState<SteamSessionStatus | null>(null);
 
-  const refreshAccounts = async () => {
-    if (!hasTauriRuntime()) return;
-    const pool = await getLocalSteamPool();
-    const next = pool?.accounts ?? [];
-    setAccounts(next);
-    const credentialFlags = await Promise.all(next.map(async (account) => {
-      const name = steamAccountName(account);
-      return [name, name ? await hasSteamCredential(name) : false] as const;
-    }));
-    setEnrolled(Object.fromEntries(credentialFlags));
-  };
-
   useEffect(() => {
-    void refreshAccounts().catch(() => undefined);
+    if (!hasTauriRuntime()) return;
+    let cancelled = false;
+    const loadAccounts = async () => {
+      const pool = await getLocalSteamPool();
+      const next = pool?.accounts ?? [];
+      const credentialFlags = await Promise.all(next.map(async (account) => {
+        const name = steamAccountName(account);
+        return [name, name ? await hasSteamCredential(name) : false] as const;
+      }));
+      if (!cancelled) {
+        setAccounts(next);
+        setEnrolled(Object.fromEntries(credentialFlags));
+      }
+    };
+    void loadAccounts().catch(() => undefined);
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -121,26 +124,27 @@ export default function SteamSessionSettings() {
   return (
     <>
       {activeSession ? (
-        <div className="steam-session-chip" role="status">
+        <output className="steam-session-chip">
           <Loader2 size={15} className={activeSession.phase === "running" ? "" : "spin"} />
           <span>{activeSession.phase === "running" ? `Jugando · AppID ${activeSession.appId}` : activeSession.message}</span>
-        </div>
+        </output>
       ) : null}
 
-      <button className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuración de Steam">
+      <button type="button" className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuración de Steam">
         <Settings size={20} />
       </button>
 
       {open ? (
-        <div className="steam-settings-backdrop" onMouseDown={() => setOpen(false)}>
-          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuración de sesiones Steam" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="steam-settings-backdrop">
+          <button type="button" className="steam-settings-backdrop-dismiss" onClick={() => setOpen(false)} aria-label="Cerrar configuración de Steam" />
+          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuración de sesiones Steam">
             <header>
               <div>
                 <span className="eyebrow">STEAM SESSION MANAGER</span>
                 <h2>Cuentas y retorno automático</h2>
                 <p>GameAccess puede cerrar Steam, iniciar la cuenta propietaria, ejecutar el juego y restaurar tu cuenta al salir.</p>
               </div>
-              <button className="steam-settings-close" onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
+              <button type="button" className="steam-settings-close" onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
             </header>
 
             <div className="steam-settings-section">
@@ -196,7 +200,7 @@ export default function SteamSessionSettings() {
                       {isEnrolled ? (
                         <div className="steam-account-actions enrolled">
                           <span className="steam-enrolled"><Check size={14} /> Inicio directo listo</span>
-                          <button onClick={() => void forget(account)} disabled={isBusy} aria-label={`Olvidar contraseña de ${account.label}`}><Trash2 size={16} /></button>
+                          <button type="button" onClick={() => void forget(account)} disabled={isBusy} aria-label={`Olvidar contraseña de ${account.label}`}><Trash2 size={16} /></button>
                         </div>
                       ) : (
                         <div className="steam-account-actions">
@@ -208,7 +212,7 @@ export default function SteamSessionSettings() {
                             onChange={(event) => setPasswords((current) => ({ ...current, [name]: event.target.value }))}
                             onKeyDown={(event) => { if (event.key === "Enter") void enroll(account); }}
                           />
-                          <button className="steam-enroll-button" onClick={() => void enroll(account)} disabled={isBusy || !name}>
+                          <button type="button" className="steam-enroll-button" onClick={() => void enroll(account)} disabled={isBusy || !name}>
                             {isBusy ? <Loader2 size={16} className="spin" /> : <KeyRound size={16} />} Guardar
                           </button>
                         </div>
