@@ -108,7 +108,7 @@
 .library-room-heading { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; min-height: 14px; margin: 0 4px 8px; }
 .library-room-heading small { color: #788493; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .library-room-grid {
-  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px,1fr));
+  min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   align-content: start; gap: clamp(14px,1.35vw,20px); padding: 6px 12px 70px 7px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
 }
 .library-room-card { min-width: 0; padding: 0; border: 0; border-radius: 14px; color: #b8c0ca; background: transparent; text-align: left; cursor: pointer; transition: transform .16s ease, color .16s ease; }
@@ -122,8 +122,8 @@
 .library-room.focus-actions .library-room-card.is-selected .library-room-card-art { box-shadow: 0 0 0 2px rgba(57,255,20,.58), 0 16px 30px rgba(0,0,0,.4); border-color: rgba(255,255,255,.5); }
 .library-room-hint { position: absolute; right: clamp(20px,2.5vw,42px); bottom: 12px; z-index: 5; display: flex; gap: 16px; color: #788493; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
 .library-room-empty { place-items: center; color: #9ba6b4; }
-@media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(auto-fill,minmax(118px,1fr)); } }
-@media (max-width: 760px) { .library-room { height: auto; min-height: 100svh; grid-template-columns: 1fr; overflow-y: auto; } .library-room-feature { min-height: 52vh; } .library-room-catalog { min-height: 58vh; } .library-room-grid { overflow: visible; } .library-room-hint { position: fixed; left: 12px; right: 12px; justify-content: center; padding: 8px; background: rgba(3,5,8,.78); backdrop-filter: blur(10px); } }
+@media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 760px) { .library-room { height: auto; min-height: 100svh; grid-template-columns: 1fr; overflow-y: auto; } .library-room-feature { min-height: 52vh; } .library-room-catalog { min-height: 58vh; } .library-room-grid { grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible; } .library-room-hint { position: fixed; left: 12px; right: 12px; justify-content: center; padding: 8px; background: rgba(3,5,8,.78); backdrop-filter: blur(10px); } }
 @media (prefers-reduced-motion: reduce) { .library-room-video, .library-room-hero-layer, .library-room-feature-ambient img, .library-room-action, .library-room-action::before { transition: none !important; } }
 
 /* The previous magazine implementation stays mounted temporarily while LibraryRoom replaces it. */

@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod steam_media;
+
+use steam_media::cache_steam_video;
 use serde::Serialize;
 use std::{
     env, fs,
@@ -784,6 +787,7 @@ fn main() {
             open_steam_run,
             steam_download_status,
             steam_store_metadata,
+            cache_steam_video,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,
