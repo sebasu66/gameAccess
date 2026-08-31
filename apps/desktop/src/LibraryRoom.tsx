@@ -248,12 +248,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     else onOpenDetails(selectedGame);
   };
 
-  const onHoverGame = (index: number) => {
-    markActivity();
-    if (index !== selectedIndex) playUiSound("move");
-    setSelectedIndex(index);
-  };
-
   const onSelectGame = (index: number) => {
     setSelectedIndex(index);
     setFocusZone("grid");
@@ -296,7 +290,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             accountCount={accountCount}
             selectedIndex={selectedIndex}
             gridRef={gridRef}
-            onHover={onHoverGame}
             onSelect={onSelectGame}
           />
         </>
