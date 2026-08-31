@@ -54,7 +54,12 @@ struct VisualDebugConfig {
 }
 
 fn visual_debug_session_dir() -> Option<PathBuf> {
-    let enabled = env::args().any(|arg| matches!(arg.as_str(), "--visual-debug" | "-visual-debug" | "--auto-snapshot" | "-auto-snapshot"));
+    let enabled = env::args().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--visual-debug" | "-visual-debug" | "--auto-snapshot" | "-auto-snapshot"
+        )
+    });
     if !enabled {
         return None;
     }
@@ -73,7 +78,11 @@ fn visual_debug_session_dir() -> Option<PathBuf> {
 
 #[tauri::command]
 fn visual_debug_config(state: tauri::State<VisualDebugState>) -> VisualDebugConfig {
-    let session_dir = state.session_dir.lock().ok().and_then(|value| value.clone());
+    let session_dir = state
+        .session_dir
+        .lock()
+        .ok()
+        .and_then(|value| value.clone());
     VisualDebugConfig {
         enabled: session_dir.is_some(),
         session_dir: session_dir.map(|path| path.to_string_lossy().to_string()),
@@ -83,14 +92,25 @@ fn visual_debug_config(state: tauri::State<VisualDebugState>) -> VisualDebugConf
 fn safe_snapshot_name(label: &str) -> String {
     let cleaned: String = label
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' { ch } else { '-' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
         .collect();
     cleaned.trim_matches('-').to_lowercase()
 }
 
 #[tauri::command]
-fn capture_visual_debug(label: String, state: tauri::State<VisualDebugState>) -> Result<String, String> {
-    let session_dir = state.session_dir.lock()
+fn capture_visual_debug(
+    label: String,
+    state: tauri::State<VisualDebugState>,
+) -> Result<String, String> {
+    let session_dir = state
+        .session_dir
+        .lock()
         .map_err(|_| "Visual debug state is unavailable".to_string())?
         .clone()
         .ok_or_else(|| "Visual debug mode is not enabled".to_string())?;
@@ -104,7 +124,8 @@ fn capture_visual_debug(label: String, state: tauri::State<VisualDebugState>) ->
     {
         let escaped_path = output_path.to_string_lossy().replace('\'', "''");
         let app_pid = std::process::id();
-        let script = format!(r#"Add-Type -AssemblyName System.Drawing; Add-Type @'
+        let script = format!(
+            r#"Add-Type -AssemblyName System.Drawing; Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class VisualDebugWindow {{
@@ -112,9 +133,17 @@ public static class VisualDebugWindow {{
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
   public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
 }}
-'@; [VisualDebugWindow]::SetProcessDPIAware()|Out-Null; $h=(Get-Process -Id {app_pid}).MainWindowHandle; if($h -eq 0){{throw 'gameAccess window handle is unavailable'}}; $r=New-Object VisualDebugWindow+RECT; [VisualDebugWindow]::GetWindowRect($h,[ref]$r)|Out-Null; $w=$r.Right-$r.Left; $hgt=$r.Bottom-$r.Top; if($w -le 0 -or $hgt -le 0){{throw 'Invalid gameAccess window size'}}; $bmp=New-Object System.Drawing.Bitmap($w,$hgt); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size); $bmp.Save('{escaped_path}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()"#);
+'@; [VisualDebugWindow]::SetProcessDPIAware()|Out-Null; $h=(Get-Process -Id {app_pid}).MainWindowHandle; if($h -eq 0){{throw 'gameAccess window handle is unavailable'}}; $r=New-Object VisualDebugWindow+RECT; [VisualDebugWindow]::GetWindowRect($h,[ref]$r)|Out-Null; $w=$r.Right-$r.Left; $hgt=$r.Bottom-$r.Top; if($w -le 0 -or $hgt -le 0){{throw 'Invalid gameAccess window size'}}; $bmp=New-Object System.Drawing.Bitmap($w,$hgt); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size); $bmp.Save('{escaped_path}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()"#
+        );
         let result = Command::new("powershell.exe")
-            .args(["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|err| format!("Could not capture visual debug snapshot: {err}"))?;
@@ -130,14 +159,20 @@ public static class VisualDebugWindow {{
 }
 
 #[tauri::command]
-fn finish_visual_debug(results: serde_json::Value, state: tauri::State<VisualDebugState>) -> Result<String, String> {
-    let session_dir = state.session_dir.lock()
+fn finish_visual_debug(
+    results: serde_json::Value,
+    state: tauri::State<VisualDebugState>,
+) -> Result<String, String> {
+    let session_dir = state
+        .session_dir
+        .lock()
         .map_err(|_| "Visual debug state is unavailable".to_string())?
         .clone()
         .ok_or_else(|| "Visual debug mode is not enabled".to_string())?;
     let manifest = session_dir.join("manifest.json");
     let body = serde_json::to_string_pretty(&results).map_err(|err| err.to_string())?;
-    fs::write(&manifest, body).map_err(|err| format!("Could not write visual debug manifest: {err}"))?;
+    fs::write(&manifest, body)
+        .map_err(|err| format!("Could not write visual debug manifest: {err}"))?;
     Ok(manifest.to_string_lossy().to_string())
 }
 
@@ -146,7 +181,9 @@ fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), 
     match mode.as_str() {
         "medium" => {
             window.unmaximize().map_err(|err| err.to_string())?;
-            window.set_size(tauri::LogicalSize::new(1100.0, 760.0)).map_err(|err| err.to_string())?;
+            window
+                .set_size(tauri::LogicalSize::new(1100.0, 760.0))
+                .map_err(|err| err.to_string())?;
             window.center().map_err(|err| err.to_string())?;
         }
         "maximized" => window.maximize().map_err(|err| err.to_string())?,
@@ -158,42 +195,116 @@ fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), 
 #[cfg(target_os = "windows")]
 fn steam_registry_candidates() -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    let queries = [("HKCU\\Software\\Valve\\Steam", "SteamPath"),("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),("HKLM\\SOFTWARE\\Valve\\Steam", "InstallPath")];
-    for (key,value_name) in queries {
-        let output=Command::new("reg.exe").args(["query",key,"/v",value_name]).creation_flags(CREATE_NO_WINDOW).output();
-        let Ok(output)=output else { continue }; if !output.status.success(){continue}
-        let stdout=String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines(){ if !line.contains(value_name){continue} let value=line.split_whitespace().skip(2).collect::<Vec<_>>().join(" "); if !value.trim().is_empty(){paths.push(PathBuf::from(value.trim()).join("steam.exe"));}}
+    let queries = [
+        ("HKCU\\Software\\Valve\\Steam", "SteamPath"),
+        ("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),
+        ("HKLM\\SOFTWARE\\Valve\\Steam", "InstallPath"),
+    ];
+    for (key, value_name) in queries {
+        let output = Command::new("reg.exe")
+            .args(["query", key, "/v", value_name])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let Ok(output) = output else { continue };
+        if !output.status.success() {
+            continue;
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if !line.contains(value_name) {
+                continue;
+            }
+            let value = line
+                .split_whitespace()
+                .skip(2)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !value.trim().is_empty() {
+                paths.push(PathBuf::from(value.trim()).join("steam.exe"));
+            }
+        }
     }
     paths
 }
 #[cfg(not(target_os = "windows"))]
-fn steam_registry_candidates() -> Vec<PathBuf> { Vec::new() }
+fn steam_registry_candidates() -> Vec<PathBuf> {
+    Vec::new()
+}
 fn steam_path_candidates() -> Vec<PathBuf> {
-    let mut paths=steam_registry_candidates();
-    if let Ok(value)=env::var("PROGRAMFILES(X86)"){paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));}
-    if let Ok(value)=env::var("PROGRAMFILES"){paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));}
-    paths.push(PathBuf::from(r"C:\Steam\steam.exe")); paths
+    let mut paths = steam_registry_candidates();
+    if let Ok(value) = env::var("PROGRAMFILES(X86)") {
+        paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));
+    }
+    if let Ok(value) = env::var("PROGRAMFILES") {
+        paths.push(PathBuf::from(value).join("Steam").join("steam.exe"));
+    }
+    paths.push(PathBuf::from(r"C:\Steam\steam.exe"));
+    paths
 }
-fn find_steam_exe() -> Option<PathBuf> { steam_path_candidates().into_iter().find(|path| path.is_file()) }
-fn remembered_steam_accounts(steam_exe:&PathBuf)->(bool,usize){
-    let Some(root)=steam_exe.parent() else{return(false,0)}; let loginusers=root.join("config").join("loginusers.vdf");
-    let Ok(text)=fs::read_to_string(&loginusers) else{return(loginusers.is_file(),0)};
-    let count=text.lines().filter(|line|{let lower=line.to_ascii_lowercase(); if !lower.contains("rememberpassword"){return false} let values:Vec<&str>=line.split('"').collect(); values.len()>=4 && values[3].trim()=="1"}).count(); (true,count)
+fn find_steam_exe() -> Option<PathBuf> {
+    steam_path_candidates()
+        .into_iter()
+        .find(|path| path.is_file())
+}
+fn remembered_steam_accounts(steam_exe: &PathBuf) -> (bool, usize) {
+    let Some(root) = steam_exe.parent() else {
+        return (false, 0);
+    };
+    let loginusers = root.join("config").join("loginusers.vdf");
+    let Ok(text) = fs::read_to_string(&loginusers) else {
+        return (loginusers.is_file(), 0);
+    };
+    let count = text
+        .lines()
+        .filter(|line| {
+            let lower = line.to_ascii_lowercase();
+            if !lower.contains("rememberpassword") {
+                return false;
+            }
+            let values: Vec<&str> = line.split('"').collect();
+            values.len() >= 4 && values[3].trim() == "1"
+        })
+        .count();
+    (true, count)
 }
 #[tauri::command]
-fn steam_installed()->bool{find_steam_exe().is_some()}
-#[tauri::command]
-fn runtime_prerequisites()->RuntimePrerequisites{
-    let Some(steam_exe)=find_steam_exe() else{return RuntimePrerequisites{runtime_ok:true,steam_installed:false,steam_path:None,account_file_present:false,remembered_accounts:0}};
-    let(account_file_present,remembered_accounts)=remembered_steam_accounts(&steam_exe);
-    RuntimePrerequisites{runtime_ok:true,steam_installed:true,steam_path:steam_exe.parent().map(|p|p.to_string_lossy().to_string()),account_file_present,remembered_accounts}
+fn steam_installed() -> bool {
+    find_steam_exe().is_some()
 }
 #[tauri::command]
-fn open_steam_client()->Result<(),String>{
-    let steam=find_steam_exe().ok_or_else(||"Steam no está instalado o no pudo ser localizado.".to_string())?;
-    #[cfg(target_os="windows")] Command::new(steam).creation_flags(CREATE_NO_WINDOW).spawn().map_err(|e|format!("No pudimos abrir Steam: {e}"))?;
-    #[cfg(not(target_os="windows"))] Command::new(steam).spawn().map_err(|e|format!("No pudimos abrir Steam: {e}"))?; Ok(())
+fn runtime_prerequisites() -> RuntimePrerequisites {
+    let Some(steam_exe) = find_steam_exe() else {
+        return RuntimePrerequisites {
+            runtime_ok: true,
+            steam_installed: false,
+            steam_path: None,
+            account_file_present: false,
+            remembered_accounts: 0,
+        };
+    };
+    let (account_file_present, remembered_accounts) = remembered_steam_accounts(&steam_exe);
+    RuntimePrerequisites {
+        runtime_ok: true,
+        steam_installed: true,
+        steam_path: steam_exe.parent().map(|p| p.to_string_lossy().to_string()),
+        account_file_present,
+        remembered_accounts,
+    }
+}
+#[tauri::command]
+fn open_steam_client() -> Result<(), String> {
+    let steam = find_steam_exe()
+        .ok_or_else(|| "Steam no está instalado o no pudo ser localizado.".to_string())?;
+    #[cfg(target_os = "windows")]
+    Command::new(steam)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| format!("No pudimos abrir Steam: {e}"))?;
+    #[cfg(not(target_os = "windows"))]
+    Command::new(steam)
+        .spawn()
+        .map_err(|e| format!("No pudimos abrir Steam: {e}"))?;
+    Ok(())
 }
 
 fn open_steam_uri(uri: &str) -> Result<(), String> {
@@ -283,7 +394,10 @@ fn steam_library_roots() -> Vec<PathBuf> {
 fn manifest_for(app_id: u32) -> Option<PathBuf> {
     steam_library_roots()
         .into_iter()
-        .map(|root| root.join("steamapps").join(format!("appmanifest_{app_id}.acf")))
+        .map(|root| {
+            root.join("steamapps")
+                .join(format!("appmanifest_{app_id}.acf"))
+        })
         .find(|path| path.is_file())
 }
 
@@ -311,12 +425,17 @@ fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
         };
     };
 
-    let state_flags = quoted_value(&text, "StateFlags").and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+    let state_flags = quoted_value(&text, "StateFlags")
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(0);
     let bytes_total = quoted_value(&text, "BytesToDownload").and_then(|v| v.parse::<u64>().ok());
-    let bytes_downloaded = quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());
+    let bytes_downloaded =
+        quoted_value(&text, "BytesDownloaded").and_then(|v| v.parse::<u64>().ok());
     let installed = state_flags & 4 == 4;
     let progress = match (bytes_downloaded, bytes_total) {
-        (Some(done), Some(total)) if total > 0 => Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0)),
+        (Some(done), Some(total)) if total > 0 => {
+            Some(((done as f64 / total as f64) * 100.0).clamp(0.0, 100.0))
+        }
         _ if installed => Some(100.0),
         _ => None,
     };
@@ -341,7 +460,14 @@ fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
 #[cfg(target_os = "windows")]
 fn powershell_json(script: &str) -> Option<serde_json::Value> {
     let output = Command::new("powershell.exe")
-        .args(["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
@@ -358,17 +484,31 @@ fn machine_profile() -> MachineProfile {
         let script = "$cs=Get-CimInstance Win32_ComputerSystem; $cpu=(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name); $gpu=@(Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name); [pscustomobject]@{memory_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);cpu=$cpu;gpus=$gpu}|ConvertTo-Json -Compress";
         if let Some(value) = powershell_json(script) {
             let memory_gb = value.get("memory_gb").and_then(|v| v.as_f64());
-            let cpu = value.get("cpu").and_then(|v| v.as_str()).map(str::to_string);
+            let cpu = value
+                .get("cpu")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
             let gpus = match value.get("gpus") {
-                Some(serde_json::Value::Array(values)) => values.iter().filter_map(|v| v.as_str().map(str::to_string)).collect(),
+                Some(serde_json::Value::Array(values)) => values
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect(),
                 Some(serde_json::Value::String(value)) => vec![value.clone()],
                 _ => Vec::new(),
             };
-            return MachineProfile { memory_gb, cpu, gpus };
+            return MachineProfile {
+                memory_gb,
+                cpu,
+                gpus,
+            };
         }
     }
 
-    MachineProfile { memory_gb: None, cpu: None, gpus: Vec::new() }
+    MachineProfile {
+        memory_gb: None,
+        cpu: None,
+        gpus: Vec::new(),
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -387,9 +527,14 @@ fn local_steam_pool() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    let launcher = launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
+    let launcher =
+        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
     let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+    let python = if venv_python.is_file() {
+        venv_python
+    } else {
+        PathBuf::from("python")
+    };
     let code = r#"import json; import steam_verified_inventory as inventory; from steam_verified_sync_v5 import deterministic_switch; inventory._switch=lambda identity,attempts=2: deterministic_switch(identity); result=inventory.verify_all_remembered_accounts(save=True); print(json.dumps(result,ensure_ascii=False))"#;
     let output = Command::new(&python)
         .current_dir(&launcher)
@@ -401,15 +546,25 @@ fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
         .map_err(|err| format!("Could not verify Steam ownership: {err}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { "Steam ownership verification failed".into() } else { stderr });
+        return Err(if stderr.is_empty() {
+            "Steam ownership verification failed".into()
+        } else {
+            stderr
+        });
     }
-    serde_json::from_slice(&output.stdout).map_err(|err| format!("Steam ownership verification returned invalid data: {err}"))
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("Steam ownership verification returned invalid data: {err}"))
 }
 
 fn read_local_steam_pool() -> Result<serde_json::Value, String> {
-    let launcher = launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
+    let launcher =
+        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
     let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+    let python = if venv_python.is_file() {
+        venv_python
+    } else {
+        PathBuf::from("python")
+    };
     let output = Command::new(&python)
         .current_dir(&launcher)
         .env("PYTHONUTF8", "1")
@@ -420,7 +575,11 @@ fn read_local_steam_pool() -> Result<serde_json::Value, String> {
         .map_err(|err| format!("Could not run the verified Steam inventory adapter: {err}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { "Verified Steam inventory adapter failed".into() } else { stderr });
+        return Err(if stderr.is_empty() {
+            "Verified Steam inventory adapter failed".into()
+        } else {
+            stderr
+        });
     }
     let value: serde_json::Value = serde_json::from_slice(&output.stdout)
         .map_err(|err| format!("Verified Steam inventory returned invalid data: {err}"))?;
@@ -434,11 +593,27 @@ mod tests {
     #[test]
     fn local_steam_pool_contains_real_games_and_accounts() {
         let pool = read_local_steam_pool().expect("local Steam pool should load");
-        let games = pool.get("games").and_then(|value| value.as_array()).expect("games array");
-        let accounts = pool.get("accounts").and_then(|value| value.as_array()).expect("accounts array");
-        assert!(!games.is_empty(), "local Steam pool must not silently become empty");
-        assert!(!accounts.is_empty(), "remembered Steam accounts must be present");
-        assert!(games.iter().all(|game| game.get("app_id").and_then(|value| value.as_u64()).unwrap_or(0) > 0));
+        let games = pool
+            .get("games")
+            .and_then(|value| value.as_array())
+            .expect("games array");
+        let accounts = pool
+            .get("accounts")
+            .and_then(|value| value.as_array())
+            .expect("accounts array");
+        assert!(
+            !games.is_empty(),
+            "local Steam pool must not silently become empty"
+        );
+        assert!(
+            !accounts.is_empty(),
+            "remembered Steam accounts must be present"
+        );
+        assert!(games.iter().all(|game| game
+            .get("app_id")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+            > 0));
     }
 }
 
@@ -462,7 +637,11 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
             };
         };
         let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-        let python = if venv_python.is_file() { venv_python } else { PathBuf::from("python") };
+        let python = if venv_python.is_file() {
+            venv_python
+        } else {
+            PathBuf::from("python")
+        };
         let code = r#"import json,sys; from steam_pool import remembered_account_identities,active_user_id32; from steam_verified_sync_v5 import deterministic_switch; target=sys.argv[1].strip().casefold(); identity=next((i for i in remembered_account_identities() if str(i.get('account_name') or '').casefold()==target or str(i.get('display_name') or '').casefold()==target),None); ok,msg=(False,'Steam account is not remembered on this PC') if identity is None else deterministic_switch(identity); expected=None if identity is None else identity.get('user_id32'); active=active_user_id32(); verified=bool(ok and expected and active==expected); print(json.dumps({'ok':verified,'stage':'ready' if verified else 'switch','message':msg,'expected_user_id32':expected,'active_user_id32':active}, ensure_ascii=False))"#;
         let output = Command::new(&python)
             .current_dir(&launcher)
@@ -488,7 +667,11 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
             return SteamAccountSwitchResult {
                 ok: false,
                 stage: "adapter".into(),
-                message: if stderr.is_empty() { "Steam UI adapter failed".into() } else { stderr },
+                message: if stderr.is_empty() {
+                    "Steam UI adapter failed".into()
+                } else {
+                    stderr
+                },
             };
         }
 
@@ -502,9 +685,20 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
                 }
             }
         };
-        let ok = parsed.get("ok").and_then(|value| value.as_bool()).unwrap_or(false);
-        let stage = parsed.get("stage").and_then(|value| value.as_str()).unwrap_or("switch").to_string();
-        let message = parsed.get("message").and_then(|value| value.as_str()).unwrap_or("Steam account switch finished").to_string();
+        let ok = parsed
+            .get("ok")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        let stage = parsed
+            .get("stage")
+            .and_then(|value| value.as_str())
+            .unwrap_or("switch")
+            .to_string();
+        let message = parsed
+            .get("message")
+            .and_then(|value| value.as_str())
+            .unwrap_or("Steam account switch finished")
+            .to_string();
         return SteamAccountSwitchResult { ok, stage, message };
     }
 
@@ -513,44 +707,70 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
         SteamAccountSwitchResult {
             ok: false,
             stage: "platform".into(),
-            message: "Remembered Steam account switching is currently implemented only on Windows".into(),
+            message: "Remembered Steam account switching is currently implemented only on Windows"
+                .into(),
         }
     }
 }
-
 
 #[tauri::command]
 fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
-        let url = format!("https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish");
+        let url = format!(
+            "https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish"
+        );
         let script = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; $headers=@{{'User-Agent'='gameAccess/0.1'}}; $result=Invoke-RestMethod -Uri '{}' -Headers $headers -TimeoutSec 20; $result | ConvertTo-Json -Depth 32 -Compress", url);
         let output = Command::new("powershell.exe")
-            .args(["-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-Command",&script])
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|err| format!("Could not query Steam Store metadata: {err}"))?;
         if !output.status.success() {
-            let stderr=String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() { "Steam Store metadata request failed".into() } else { stderr });
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() {
+                "Steam Store metadata request failed".into()
+            } else {
+                stderr
+            });
         }
-        let parsed: serde_json::Value=serde_json::from_slice(&output.stdout)
+        let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
             .map_err(|err| format!("Steam Store returned invalid JSON: {err}"))?;
-        let key=app_id.to_string();
-        let entry=parsed.get(&key).ok_or_else(|| "Steam Store response did not contain the requested AppID".to_string())?;
-        if !entry.get("success").and_then(|value| value.as_bool()).unwrap_or(false) {
+        let key = app_id.to_string();
+        let entry = parsed.get(&key).ok_or_else(|| {
+            "Steam Store response did not contain the requested AppID".to_string()
+        })?;
+        if !entry
+            .get("success")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
             return Err("Steam Store did not return metadata for this AppID".into());
         }
-        return entry.get("data").cloned().ok_or_else(|| "Steam Store response did not contain game data".to_string());
+        return entry
+            .get("data")
+            .cloned()
+            .ok_or_else(|| "Steam Store response did not contain game data".to_string());
     }
     #[cfg(not(target_os = "windows"))]
-    { Err("Steam Store metadata bridge is currently implemented for Windows".into()) }
+    {
+        Err("Steam Store metadata bridge is currently implemented for Windows".into())
+    }
 }
 
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
-        .manage(VisualDebugState { session_dir: Mutex::new(visual_debug_dir) })
+        .manage(VisualDebugState {
+            session_dir: Mutex::new(visual_debug_dir),
+        })
         .invoke_handler(tauri::generate_handler![
             steam_installed,
             runtime_prerequisites,
