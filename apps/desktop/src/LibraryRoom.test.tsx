@@ -57,6 +57,8 @@ describe("LibraryRoom grid presentation", () => {
   it("shows only the green ready marker for an installed and available game", () => {
     const markup = render({ 10: installed });
     expect(markup).toContain("library-install-state ready");
+    expect(markup).not.toContain("library-install-state download");
+    expect(markup).not.toContain("library-install-state progress");
   });
 
   it("shows no corner marker for downloading, missing, or unavailable games", () => {
