@@ -376,7 +376,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
           <h1>{selectedGame.name}</h1>
           <p>{summary}</p>
           {loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
-          <div className="library-room-actions" role="group" aria-label="Acciones del juego seleccionado">
+          <div className="library-room-actions">
             {actions.map((action, index) => (
               <button
                 type="button"
