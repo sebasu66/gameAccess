@@ -72,7 +72,7 @@ export default function SteamSessionSettings() {
   }, []);
 
   const mainAccountOptions = useMemo(() => accounts.filter((account) => steamAccountName(account)), [accounts]);
-  const activeSession = session && !session.done && session.phase !== "idle";
+  const activeSession = session && !session.done && session.phase !== "idle" ? session : null;
 
   const updatePreferences = (next: SteamSessionPreferences) => {
     setPreferences(next);
@@ -122,8 +122,8 @@ export default function SteamSessionSettings() {
     <>
       {activeSession ? (
         <div className="steam-session-chip" role="status">
-          <Loader2 size={15} className={session.phase === "running" ? "" : "spin"} />
-          <span>{session.phase === "running" ? `Jugando · AppID ${session.appId}` : session.message}</span>
+          <Loader2 size={15} className={activeSession.phase === "running" ? "" : "spin"} />
+          <span>{activeSession.phase === "running" ? `Jugando · AppID ${activeSession.appId}` : activeSession.message}</span>
         </div>
       ) : null}
 
