@@ -4,6 +4,7 @@ import type { KeyboardEvent } from "react";
 import { loadDetails } from "./api";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import DownloadCompleteDialog from "./DownloadCompleteDialog";
+import MainGameDetailPanel from "./MainGameDetailPanel";
 import {
   DOWNLOAD_REQUESTED_EVENT,
   DOWNLOAD_REQUEST_FAILED_EVENT,
@@ -34,6 +35,7 @@ import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
+import { useHiddenLibraryGames } from "./useHiddenLibraryGames";
 
 interface LibraryRoomProps {
   games: CatalogGame[];
@@ -71,11 +73,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [managedDownloads, setManagedDownloads] = useState<DownloadMap>({});
   const [trackedAppIds, setTrackedAppIds] = useState<number[]>([]);
   const [completedGame, setCompletedGame] = useState<CatalogGame | null>(null);
+  const [detailGame, setDetailGame] = useState<CatalogGame | null>(null);
+  const { visibleGames, hiddenCount, hideGame, restoreHidden } = useHiddenLibraryGames(games);
 
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
   const displayGames = useMemo(
-    () => pinDownloadingGames(games, effectiveDownloads, trackedAppIds),
-    [games, effectiveDownloads, trackedAppIds],
+    () => pinDownloadingGames(visibleGames, effectiveDownloads, trackedAppIds),
+    [visibleGames, effectiveDownloads, trackedAppIds],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -334,17 +338,26 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (value > 0) void video.play().catch(() => undefined);
   };
 
+  const openDetails = (game: CatalogGame) => {
+    if (!game.app_id) {
+      onOpenDetails(game);
+      return;
+    }
+    setShowcaseMode(false);
+    setDetailGame(game);
+  };
+
   const activateAction = () => {
     if (!selectedGame) return;
     playUiSound("activate");
     if (actionIndex === 0 && installed && !busy && selectedGame.copies_available > 0) void onPlay(selectedGame);
     if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
-    if (actionIndex === 2) onOpenDetails(selectedGame);
+    if (actionIndex === 2) openDetails(selectedGame);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     markActivity();
-    if (!selectedGame) return;
+    if (detailGame || !selectedGame) return;
     const context = { actionIndex, actionRefs, setActionIndex, returnToGrid, activateAction };
     const gridContext = { selectedIndex, columns, enterActions, moveGrid };
     const handled = focusZone === "actions"
@@ -360,7 +373,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     playUiSound("activate");
     if (action.kind === "play") void onPlay(selectedGame);
     else if (action.kind === "download") void onDownload(selectedGame);
-    else onOpenDetails(selectedGame);
+    else openDetails(selectedGame);
   };
 
   const onSelectGame = (index: number) => {
@@ -375,8 +388,27 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (game) void onPlay(game);
   };
 
+  const closeDetail = () => {
+    setDetailGame(null);
+    window.requestAnimationFrame(() => rootRef.current?.focus({ preventScroll: true }));
+  };
+
+  const playFromDetail = (game: CatalogGame) => {
+    setDetailGame(null);
+    return onPlay(game);
+  };
+
+  const hideFromDetail = (game: CatalogGame) => {
+    hideGame(game);
+    if (selectedGameId === game.id) {
+      const next = displayGames.find((candidate) => candidate.id !== game.id);
+      setSelectedGameId(next?.id ?? null);
+    }
+  };
+
   const rootClass = libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame));
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
+  const detailDownload = detailGame?.app_id ? effectiveDownloads[detailGame.app_id] : undefined;
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
@@ -413,6 +445,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             selectedIndex={selectedIndex}
             gridRef={gridRef}
             pinnedAppIds={pinnedAppIds}
+            hiddenCount={hiddenCount}
+            onRestoreHidden={restoreHidden}
             onSelect={onSelectGame}
           />
         </>
@@ -424,6 +458,17 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
           busy={busy}
           onPlay={playCompletedGame}
           onClose={() => setCompletedGame(null)}
+        />
+      ) : null}
+      {detailGame ? (
+        <MainGameDetailPanel
+          game={detailGame}
+          download={detailDownload}
+          busy={busy}
+          onClose={closeDetail}
+          onPlay={playFromDetail}
+          onDownload={onDownload}
+          onHide={hideFromDetail}
         />
       ) : null}
     </section>
