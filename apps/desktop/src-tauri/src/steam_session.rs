@@ -271,10 +271,7 @@ fn direct_login(
     account_name: &str,
     expected_user_id32: Option<u32>,
 ) -> Result<Option<u32>, String> {
-    if expected_user_id32.is_some()
-        && active_user_id32() == expected_user_id32
-        && steam_running()
-    {
+    if expected_user_id32.is_some() && active_user_id32() == expected_user_id32 && steam_running() {
         return Ok(expected_user_id32);
     }
     let steam = find_steam_exe().ok_or_else(|| "Steam executable was not found".to_string())?;
@@ -449,9 +446,7 @@ fn monitor_game(
         ),
     );
     let restore_result = restore_target(&request).and_then(|target| {
-        target.map_or(Ok(()), |(name, user_id)| {
-            restore_account(&name, user_id)
-        })
+        target.map_or(Ok(()), |(name, user_id)| restore_account(&name, user_id))
     });
     let next = match restore_result {
         Ok(()) => SteamSessionStatus {
