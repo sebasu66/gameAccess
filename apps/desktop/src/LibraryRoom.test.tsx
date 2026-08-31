@@ -79,11 +79,12 @@ describe("LibraryRoom grid presentation", () => {
     expect(render({ 10: installed }, 0)).not.toContain("library-install-state");
   });
 
-  it("keeps requested, preparing, and downloading states active for polling", () => {
+  it("keeps only live Steam install phases active for polling", () => {
     expect(isActiveDownload(status("requested"))).toBe(true);
     expect(isActiveDownload(status("preparing"))).toBe(true);
     expect(isActiveDownload(status("downloading"))).toBe(true);
     expect(isActiveDownload(status("installed"))).toBe(false);
     expect(isActiveDownload(status("not-installed"))).toBe(false);
+    expect(isActiveDownload(status("unknown"))).toBe(false);
   });
 });
