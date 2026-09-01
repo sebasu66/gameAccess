@@ -24,6 +24,13 @@ apps/desktop/src-tauri/icons/icon.ico
 .DS_Store
 Thumbs.db
 
+# Godot editor/runtime (keep the portable editor local)
+.godot/
+apps/godot/.godot/
+Godot*.exe
+godot*.exe
+apps/godot/builds/
+
 # Tauri generated schemas
 apps/desktop/src-tauri/gen/
 apps/launcher/.gameaccess/
