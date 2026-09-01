@@ -2,7 +2,7 @@
   "version": 1,
   "assets": {
     "arcade_machine": {
-      "scene": "res://assets/models/arcade_machine/arcade-machine-kit.blend",
+      "scene": "res://assets/models/arcade_machine/arcade-machine-kit.glb",
       "fallback_size": [1.05, 1.95, 0.9],
       "fallback_color": "#27323A"
     }
