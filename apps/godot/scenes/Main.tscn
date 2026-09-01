@@ -1,10 +1,6 @@
-[gd_scene format=3 uid="uid://c54oy1y8bpcbr"]
+[gd_scene format=3]
 
-[ext_resource type="Script" uid="uid://ue7x4kq3ve24" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="PackedScene" uid="uid://bfxdw7e0i5atw" path="res://bk_assets/scenes/cozy-wooden-ceil_23d53588-9fa1-4b9d-9295-fb04f22e6dcb/cozy-wooden-ceiling-showroom_d6c1a3a7-f683-4d7c-aba1-2e8a5b1182ad.blend" id="2_rvslj"]
+[ext_resource type="Script" path="res://scripts/world_controller.gd" id="1_world_controller"]
 
-[node name="GameAccess3D" type="Node3D" unique_id=1062421115]
-script = ExtResource("1_main")
-
-[node name="hall" parent="." unique_id=621238582 instance=ExtResource("2_rvslj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.38515687, 0, 3.0578165)
+[node name="GameAccess3D" type="Node3D"]
+script = ExtResource("1_world_controller")
