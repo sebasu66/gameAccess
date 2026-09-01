@@ -1,6 +1,6 @@
 extends Node3D
 
-const PlayerScript := preload("res://scripts/player_controller.gd")
+const PlayerScene := preload("res://scenes/Player.tscn")
 
 @onready var showroom: Node3D = $Showroom
 var player: GameAccessPlayerController
@@ -18,18 +18,11 @@ func _ready() -> void:
     _create_player(eye_transform)
 
 func _create_player(eye_transform: Transform3D) -> void:
-    player = PlayerScript.new()
-    player.name = "Player"
+    player = PlayerScene.instantiate() as GameAccessPlayerController
+    if player == null:
+        push_error("Player.tscn must instantiate GameAccessPlayerController")
+        return
     add_child(player)
-
-    var collision_shape := CollisionShape3D.new()
-    collision_shape.name = "PlayerCollision"
-    var capsule := CapsuleShape3D.new()
-    capsule.radius = 0.32
-    capsule.height = 1.70
-    collision_shape.shape = capsule
-    collision_shape.position.y = 0.85
-    player.add_child(collision_shape)
 
     # PlayerCamera is created at y=1.66 by player_controller.gd. Place the
     # CharacterBody origin under the imported camera so the eye starts there.

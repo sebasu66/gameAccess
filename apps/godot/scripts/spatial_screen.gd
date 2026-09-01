@@ -29,6 +29,12 @@ func set_video(path: String) -> bool:
 	media_loaded.emit(path)
 	return true
 
+func set_audio_bus(bus_name: StringName, volume_db := -4.0) -> void:
+	if _video_player == null:
+		return
+	_video_player.bus = bus_name
+	_video_player.volume_db = volume_db
+
 func play_from(position_seconds := 0.0) -> void:
 	if _video_player == null or _video_player.stream == null:
 		return
@@ -78,6 +84,10 @@ func _build_geometry(size: Vector2, frame_material: Material) -> void:
 	_screen_material.albedo_color = Color.WHITE
 	_screen_material.roughness = 0.18
 	_screen_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_screen_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_screen_material.emission_enabled = true
+	_screen_material.emission = Color.WHITE
+	_screen_material.emission_energy_multiplier = 0.55
 
 	var screen := MeshInstance3D.new()
 	screen.name = "DisplaySurface"
@@ -109,3 +119,4 @@ func _build_video_viewport() -> void:
 	_viewport.add_child(_video_player)
 
 	_screen_material.albedo_texture = _viewport.get_texture()
+	_screen_material.emission_texture = _viewport.get_texture()
