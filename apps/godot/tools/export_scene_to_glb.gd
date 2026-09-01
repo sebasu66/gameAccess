@@ -4,6 +4,7 @@ extends SceneTree
 ## Usage:
 ## godot --headless --path apps/godot --script res://tools/export_scene_to_glb.gd \
 ##   -- --source=res://path/to/source.blend --output=res://assets/model.glb
+## Optional: --image-format=Lossy WebP --quality=0.72
 
 func _init() -> void:
 	var arguments := _parse_arguments(OS.get_cmdline_user_args())
@@ -24,6 +25,8 @@ func _init() -> void:
 
 	var scene: Node = (resource as PackedScene).instantiate()
 	var document := GLTFDocument.new()
+	document.image_format = String(arguments.get("image-format", "Lossy WebP"))
+	document.lossy_quality = clampf(float(arguments.get("quality", "0.72")), 0.0, 1.0)
 	var state := GLTFState.new()
 	var append_error := document.append_from_scene(scene, state)
 	if append_error != OK:
@@ -45,7 +48,11 @@ func _init() -> void:
 		_fail("Unable to write GLB: %s" % error_string(write_error))
 		return
 
-	print("Exported %s -> %s" % [source_path, output_path])
+	var output_file := FileAccess.open(absolute_output, FileAccess.READ)
+	var output_size: int = output_file.get_length() if output_file != null else -1
+	if output_file != null:
+		output_file.close()
+	print("Exported %s -> %s (%d bytes, %s)" % [source_path, output_path, output_size, document.image_format])
 	quit(0)
 
 func _parse_arguments(values: PackedStringArray) -> Dictionary:
@@ -53,9 +60,9 @@ func _parse_arguments(values: PackedStringArray) -> Dictionary:
 	for value: String in values:
 		if not value.begins_with("--") or not value.contains("="):
 			continue
-		var separator := value.find("=")
-		var key := value.substr(2, separator - 2)
-		var argument_value := value.substr(separator + 1)
+		var separator: int = value.find("=")
+		var key: String = value.substr(2, separator - 2)
+		var argument_value: String = value.substr(separator + 1)
 		result[key] = argument_value
 	return result
 
