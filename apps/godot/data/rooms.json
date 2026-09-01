@@ -1,0 +1,26 @@
+{
+  "community_hall": {
+    "id": "community_hall",
+    "title": "Salón comunitario",
+    "kind": "community",
+    "position": [-5.0, 0.0, 0.0],
+    "width": 22.0,
+    "depth": 14.0,
+    "wall_height": 4.2,
+    "wall_color": "#8B5545",
+    "floor_color": "#6B3F2C",
+    "expansion_slots": ["north", "east", "south"]
+  },
+  "private_room": {
+    "id": "private_room",
+    "title": "Habitación privada",
+    "kind": "private",
+    "position": [9.5, 0.0, 0.0],
+    "width": 10.0,
+    "depth": 8.0,
+    "wall_height": 3.6,
+    "wall_color": "#76516A",
+    "floor_color": "#5A382F",
+    "expansion_slots": ["north", "east", "south", "west"]
+  }
+}
