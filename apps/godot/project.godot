@@ -8,27 +8,11 @@
 
 config_version=5
 
-[ambientcg]
-
-extract_path="res://assets/ambientcg/Extracted"
-material_file_directory="res://assets/ambientcg/Materials"
-environment_file_directory="res://assets/ambientcg/Environments"
-
 [application]
 
 config/name="GameAccess 3D"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7")
-
-[autoload]
-
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
-AmbientAPI="*uid://cmbh88h6yljhy"
-AmbientParser="*uid://dcdrqnwmpgvk4"
-AmbientFileHandler="*uid://dnh8sqjyu74hs"
-AmbientMaterialMaker="*uid://nig0lamfd3mv"
-GodotxToast="*uid://bgvixrj72u7rv"
-Profily="*uid://qmnu1ehm866e"
 
 [display]
 
@@ -38,10 +22,6 @@ window/size/mode=3
 window/size/window_width_override=3440
 window/size/window_height_override=1440
 window/stretch/mode="canvas_items"
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/ambientcg/plugin.cfg", "res://addons/blendkit/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/godotx_toast/plugin.cfg", "res://addons/profily/plugin.cfg")
 
 [game_access]
 
