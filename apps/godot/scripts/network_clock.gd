@@ -5,9 +5,9 @@ const SERVER_PEER_ID := 1
 const RESYNC_INTERVAL_SECONDS := 1.0
 const OFFSET_SMOOTHING := 0.2
 
-var _server_offset_msec := 0.0
-var _resync_elapsed := 0.0
-var _has_sample := false
+var _server_offset_msec: float = 0.0
+var _resync_elapsed: float = 0.0
+var _has_sample: bool = false
 
 func _process(delta: float) -> void:
 	if multiplayer.multiplayer_peer == null or multiplayer.is_server():
@@ -36,15 +36,15 @@ func _request_sample() -> void:
 func _clock_ping(client_sent_msec: int) -> void:
 	if not multiplayer.is_server():
 		return
-	var sender_id := multiplayer.get_remote_sender_id()
+	var sender_id: int = multiplayer.get_remote_sender_id()
 	_clock_pong.rpc_id(sender_id, client_sent_msec, Time.get_ticks_msec())
 
 @rpc("authority", "call_remote", "unreliable")
 func _clock_pong(client_sent_msec: int, server_msec: int) -> void:
-	var client_received_msec := Time.get_ticks_msec()
-	var round_trip_msec := max(0, client_received_msec - client_sent_msec)
-	var estimated_client_at_server_reply := float(client_sent_msec) + float(round_trip_msec) * 0.5
-	var sample_offset := float(server_msec) - estimated_client_at_server_reply
+	var client_received_msec: int = Time.get_ticks_msec()
+	var round_trip_msec: int = maxi(0, client_received_msec - client_sent_msec)
+	var estimated_client_at_server_reply: float = float(client_sent_msec) + float(round_trip_msec) * 0.5
+	var sample_offset: float = float(server_msec) - estimated_client_at_server_reply
 	if not _has_sample:
 		_server_offset_msec = sample_offset
 		_has_sample = true
