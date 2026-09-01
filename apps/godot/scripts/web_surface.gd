@@ -71,7 +71,7 @@ func _create_browser_or_diagnostic() -> void:
 		ready_state_changed.emit(false, "CefTexture class unavailable")
 		return
 
-	var instance := ClassDB.instantiate("CefTexture")
+	var instance: Object = ClassDB.instantiate("CefTexture")
 	if not instance is Control:
 		if instance != null:
 			instance.free()
@@ -104,7 +104,8 @@ func _build_diagnostic(message: String) -> void:
 	_viewport.add_child(label)
 
 func _has_property(object: Object, property_name: StringName) -> bool:
-	for property in object.get_property_list():
+	for property_value: Variant in object.get_property_list():
+		var property: Dictionary = property_value as Dictionary
 		if StringName(property.get("name", "")) == property_name:
 			return true
 	return false
