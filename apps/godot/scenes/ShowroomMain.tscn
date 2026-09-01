@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/showroom_main.gd" id="1_showroom_main"]
+[ext_resource type="PackedScene" path="res://bk_assets/scenes/cozy-wooden-ceil_23d53588-9fa1-4b9d-9295-fb04f22e6dcb/godot_ready/CozyIndustrialShowroom.tscn" id="2_showroom"]
+
+[node name="GameAccessShowroom" type="Node3D"]
+script = ExtResource("1_showroom_main")
+
+[node name="Showroom" parent="." instance=ExtResource("2_showroom")]

@@ -1,29 +1,52 @@
-; GameAccess native 3D prototype
-; Open with Godot 4.x and run the project.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
+
+[ambientcg]
+
+extract_path="res://assets/ambientcg/Extracted"
+material_file_directory="res://assets/ambientcg/Materials"
+environment_file_directory="res://assets/ambientcg/Environments"
 
 [application]
 
 config/name="GameAccess 3D"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/ShowroomMain.tscn"
+config/features=PackedStringArray("4.7")
+
+[autoload]
+
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+AmbientAPI="*uid://cmbh88h6yljhy"
+AmbientParser="*uid://dcdrqnwmpgvk4"
+AmbientFileHandler="*uid://dnh8sqjyu74hs"
+AmbientMaterialMaker="*uid://nig0lamfd3mv"
+GodotxToast="*uid://bgvixrj72u7rv"
+Profily="*uid://qmnu1ehm866e"
 
 [display]
 
-window/size/viewport_width=1600
-window/size/viewport_height=900
-window/size/window_width_override=1600
-window/size/window_height_override=900
+window/size/viewport_width=3440
+window/size/viewport_height=1440
+window/size/mode=3
+window/size/window_width_override=3440
+window/size/window_height_override=1440
 window/stretch/mode="canvas_items"
 
-[input]
+[editor_plugins]
 
-[rendering]
-
-# Forward+ is intentionally left as the desktop default. The prototype needs
-# dynamic shadows, PBR materials, glow and future GI/reflection support.
-environment/defaults/default_clear_color=Color(0.035, 0.028, 0.026, 1)
+enabled=PackedStringArray("res://addons/ambientcg/plugin.cfg", "res://addons/blendkit/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/godotx_toast/plugin.cfg", "res://addons/profily/plugin.cfg")
 
 [gui]
 
 theme/default_font_multichannel_signed_distance_field=true
+
+[rendering]
+
+#Forward+isintentionallyleftasthedesktopdefault.Theprototypeneeds#dynamicshadows,PBRmaterials,glowandfutureGI/reflectionsupport.environment/defaults/default_clear_color=Color(0.035, 0.028, 0.026, 1)
