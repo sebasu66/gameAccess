@@ -1,5 +1,7 @@
 extends Node3D
 
+const SettingsOverlay := preload("res://scripts/settings_overlay.gd")
+
 const CONCRETE_ALBEDO := preload("res://assets/materials/concrete_wall_009/concrete_wall_009_diff_1k.jpg")
 const CONCRETE_NORMAL := preload("res://assets/materials/concrete_wall_009/concrete_wall_009_nor_gl_1k.jpg")
 const CONCRETE_ROUGHNESS := preload("res://assets/materials/concrete_wall_009/concrete_wall_009_rough_1k.jpg")
@@ -10,16 +12,19 @@ const CYBERPUNK_TRAILER := "user://media/cyberpunk_ultimate_edition_trailer_1440
 const CYBERPUNK_TRAILER_AUDIO := "res://assets/media/cyberpunk_ultimate_edition_trailer_audio.ogg"
 const MAIN_SCREEN_HEIGHT := 2.42
 const MAIN_SCREEN_SIZE := Vector2(MAIN_SCREEN_HEIGHT * 16.0 / 9.0, MAIN_SCREEN_HEIGHT)
+const LOUNGE_FORWARD_OFFSET := 1.45
+const TV_WALL_APPROACH := 0.38
 
 func _ready() -> void:
-	_create_environment()
+	var environment := _create_environment()
 	_configure_authored_materials($metal)
 	_create_lounge_focus()
 	_create_room_collision_shell()
 	_create_static_collisions($metal)
 	_create_lighting()
+	_create_settings_overlay(environment)
 
-func _create_environment() -> void:
+func _create_environment() -> Environment:
 	var world_environment := WorldEnvironment.new()
 	world_environment.name = "ShowroomEnvironment"
 	var environment := Environment.new()
@@ -44,6 +49,13 @@ func _create_environment() -> void:
 	environment.adjustment_saturation = 0.92
 	world_environment.environment = environment
 	add_child(world_environment)
+	return environment
+
+func _create_settings_overlay(environment: Environment) -> void:
+	var settings := SettingsOverlay.new()
+	settings.name = "SettingsOverlay"
+	add_child(settings)
+	settings.configure(environment)
 
 func _create_static_collisions(root: Node) -> void:
 	for child in root.get_children():
@@ -97,6 +109,10 @@ func _configure_authored_materials(root: Node) -> void:
 	for child in root.get_children():
 		if child is MeshInstance3D:
 			var mesh_instance := child as MeshInstance3D
+			if mesh_instance.name in ["wall_back", "wall_back_tiles"]:
+				# Bring the central feature wall into the room again, reopening the
+				# original passage behind it on both sides.
+				mesh_instance.position.z += LOUNGE_FORWARD_OFFSET
 			if mesh_instance.name in ["floor_002", "floor_005", "floor_details"]:
 				mesh_instance.visible = false
 				continue
@@ -107,7 +123,11 @@ func _configure_authored_materials(root: Node) -> void:
 					var source := mesh_instance.get_active_material(surface_index)
 					if not source is StandardMaterial3D:
 						continue
-					if source.resource_name in ["wall", "wall.tiles"]:
+					if mesh_instance.name == "walls_pillars_002" and source.resource_name == "windows_glass_external":
+						# The chrome faces were removed surgically in Blender; retain the
+						# original panel geometry and finish it like the feature wall.
+						mesh_instance.set_surface_override_material(surface_index, _concrete_material())
+					elif source.resource_name in ["wall", "wall.tiles"]:
 						mesh_instance.set_surface_override_material(surface_index, _concrete_material())
 					elif source.resource_name in ["glass.ceiling", "emissions_wall"]:
 						var emissive := (source as StandardMaterial3D).duplicate() as StandardMaterial3D
@@ -166,9 +186,10 @@ func _create_lounge_focus() -> void:
 	var screen := HapSpatialScreen.new()
 	screen.name = "MainScreen"
 	# Keep the display in front of the imported wall instead of coplanar with it.
-	screen.position = Vector3(0.0, 1.58, -4.82)
+	screen.position = Vector3(0.0, 1.58, -4.82 + LOUNGE_FORWARD_OFFSET - TV_WALL_APPROACH)
 	lounge.add_child(screen)
 	screen.configure(MAIN_SCREEN_SIZE, frame_material)
+	_add_tv_led_outline(screen, MAIN_SCREEN_SIZE)
 	_ensure_tv_audio_bus()
 	screen.set_audio_bus(&"TVRoom", 0.0)
 	screen.configure_media({
@@ -192,10 +213,53 @@ func _create_lounge_focus() -> void:
 	var rug_border := StandardMaterial3D.new()
 	rug_border.albedo_color = Color("#121B25")
 	rug_border.roughness = 0.98
-	_add_box(lounge, "RugBorder", Vector3(6.41, 0.025, 3.76), Vector3(0.0, 0.05, -2.15), rug_border)
+	_add_box(lounge, "RugBorder", Vector3(6.41, 0.025, 3.76), Vector3(0.0, 0.05, -2.15 + LOUNGE_FORWARD_OFFSET), rug_border)
 
 	var rug_material := _rug_fabric_material()
-	_add_box(lounge, "CenterRug", Vector3(6.25, 0.03, 3.6), Vector3(0.0, 0.07, -2.15), rug_material)
+	_add_box(lounge, "CenterRug", Vector3(6.25, 0.03, 3.6), Vector3(0.0, 0.07, -2.15 + LOUNGE_FORWARD_OFFSET), rug_material)
+
+func _add_tv_led_outline(screen: Node3D, display_size: Vector2) -> void:
+	var led_material := StandardMaterial3D.new()
+	led_material.resource_name = "MainScreenLedTrim"
+	led_material.albedo_color = Color("#17343B")
+	led_material.emission_enabled = true
+	led_material.emission = Color("#52CBE5")
+	led_material.emission_energy_multiplier = 2.80
+	led_material.roughness = 0.30
+
+	# HapSpatialScreen's frame extends 14 cm beyond the display and has an
+	# 8 cm front face. A 5 mm tube at z=8.5 cm physically touches that face.
+	var frame_half_width := display_size.x * 0.5 + 0.14
+	var frame_half_height := display_size.y * 0.5 + 0.14
+	var front_z := 0.085
+	var horizontal_length := display_size.x + 0.28
+	var vertical_length := display_size.y + 0.28
+	var strips: Array[MeshInstance3D] = [
+		_add_led_tube(screen, "LedTop", horizontal_length, Vector3(0.0, frame_half_height, front_z), true, led_material),
+		_add_led_tube(screen, "LedBottom", horizontal_length, Vector3(0.0, -frame_half_height, front_z), true, led_material),
+		_add_led_tube(screen, "LedLeft", vertical_length, Vector3(-frame_half_width, 0.0, front_z), false, led_material),
+		_add_led_tube(screen, "LedRight", vertical_length, Vector3(frame_half_width, 0.0, front_z), false, led_material),
+	]
+	for strip in strips:
+		strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _add_led_tube(parent: Node3D, node_name: String, length: float, position: Vector3, horizontal: bool, material: Material) -> MeshInstance3D:
+	var tube := MeshInstance3D.new()
+	tube.name = node_name
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.005
+	mesh.bottom_radius = 0.005
+	mesh.height = length
+	mesh.radial_segments = 16
+	mesh.rings = 1
+	mesh.material = material
+	tube.mesh = mesh
+	tube.position = position
+	if horizontal:
+		tube.rotation_degrees.z = 90.0
+	tube.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+	parent.add_child(tube)
+	return tube
 
 func _create_room_collision_shell() -> void:
 	var shell := Node3D.new()
@@ -204,7 +268,6 @@ func _create_room_collision_shell() -> void:
 	_add_static_box_collision(shell, "FloorBoundary", Vector3(11.6, 0.16, 13.3), Vector3(0.0, -0.10, 0.0))
 	_add_static_box_collision(shell, "LeftBoundary", Vector3(0.22, 3.2, 13.3), Vector3(-5.72, 1.5, 0.0))
 	_add_static_box_collision(shell, "RightBoundary", Vector3(0.22, 3.2, 13.3), Vector3(5.72, 1.5, 0.0))
-	_add_static_box_collision(shell, "FrontBoundary", Vector3(11.6, 3.2, 0.22), Vector3(0.0, 1.5, -5.02))
 	_add_static_box_collision(shell, "RearBoundary", Vector3(11.6, 3.2, 0.22), Vector3(0.0, 1.5, 6.55))
 
 func _add_static_box_collision(parent: Node3D, body_name: String, size: Vector3, position: Vector3) -> StaticBody3D:

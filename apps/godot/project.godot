@@ -55,4 +55,20 @@ theme/default_font_multichannel_signed_distance_field=true
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=2
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=4
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=4
+reflections/sky_reflections/fast_filter_high_quality=true
+global_illumination/voxel_gi/quality=1
+shading/overrides/force_lambert_over_burley.mobile=false
+textures/default_filters/use_nearest_mipmap_filter=true
+textures/default_filters/anisotropic_filtering_level=3
+camera/depth_of_field/depth_of_field_bokeh_quality=2
+environment/ssao/quality=4
+anti_aliasing/quality/msaa_2d=2
+anti_aliasing/quality/msaa_3d=2
+scaling_3d/mode=2
+environment/subsurface_scattering/subsurface_scattering_quality=3
 environment/defaults/default_clear_color=Color(0.035, 0.028, 0.026, 1)
+anti_aliasing/quality/screen_space_aa=2
+occlusion_culling/use_occlusion_culling=true
