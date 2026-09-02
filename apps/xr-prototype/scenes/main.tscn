@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://avatar/presence_avatar.tscn" id="2_avatar"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -38,6 +39,10 @@ material_override = SubResource("Material_floor")
 position = Vector3(0, 1.4, -2)
 mesh = SubResource("BoxMesh_marker")
 
+[node name="SamplePresenceAvatar" parent="." instance=ExtResource("2_avatar")]
+position = Vector3(1.2, 0, -2.2)
+display_name = "Game Access Player"
+
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
@@ -60,6 +65,6 @@ current = false
 [node name="Status" type="Label" parent="CanvasLayer"]
 offset_left = 20.0
 offset_top = 20.0
-offset_right = 560.0
+offset_right = 680.0
 offset_bottom = 52.0
-text = "Inicializando OpenXR..."
+text = "Inicializando entorno 3D / OpenXR..."
