@@ -46,6 +46,7 @@ func _build_visual() -> void:
 	body_material.roughness = 1.0
 	body_material.metallic = 0.0
 	body_material.metallic_specular = 0.0
+	body_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	var body := MeshInstance3D.new()
 	body.name = "TabletBody"
@@ -60,6 +61,7 @@ func _build_visual() -> void:
 	screen_frame_material.roughness = 1.0
 	screen_frame_material.metallic = 0.0
 	screen_frame_material.metallic_specular = 0.0
+	screen_frame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	_web_surface = GameAccessWebSurface.new()
 	_web_surface.name = "GameAccessWebUI"
