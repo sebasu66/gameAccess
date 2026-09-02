@@ -59,7 +59,7 @@ function Install-AddonPackage {
 }
 
 Write-Host 'Game Access XR setup'
-Write-Host 'Target: Godot 4.6+ / Meta Quest 3 / OpenXR'
+Write-Host 'Target: Godot 4.7.1+ / Meta Quest 3 / OpenXR'
 
 if (Test-Path $TempDir) { Remove-Item $TempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
