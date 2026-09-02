@@ -1,0 +1,5 @@
+.godot/
+addons/
+android/
+*.apk
+*.aab
