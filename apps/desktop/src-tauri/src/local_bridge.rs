@@ -1,3 +1,4 @@
+use crate::native_core;
 use serde_json::{json, Value};
 use std::{
     io::{Read, Write},
@@ -148,46 +149,46 @@ enum RouteError {
 fn route(method: &str, path: &str, body: &[u8]) -> Result<Value, RouteError> {
     match (method, path) {
         ("GET", "/health") => Ok(json!({ "ok": true })),
-        ("GET", "/local-steam-pool") => super::read_local_steam_pool().map_err(RouteError::Internal),
+        ("GET", "/local-steam-pool") => native_core::read_local_steam_pool().map_err(RouteError::Internal),
         ("POST", "/verify-local-steam-inventory") => {
-            super::verify_local_steam_inventory().map_err(RouteError::Internal)
+            native_core::verify_local_steam_inventory().map_err(RouteError::Internal)
         }
-        ("GET", "/runtime-prerequisites") => serde_json::to_value(super::runtime_prerequisites())
+        ("GET", "/runtime-prerequisites") => serde_json::to_value(native_core::runtime_prerequisites())
             .map_err(|err| RouteError::Internal(err.to_string())),
-        ("GET", "/steam-installed") => Ok(json!(super::steam_installed())),
-        ("GET", "/machine-profile") => serde_json::to_value(super::machine_profile())
+        ("GET", "/steam-installed") => Ok(json!(native_core::steam_installed())),
+        ("GET", "/machine-profile") => serde_json::to_value(native_core::machine_profile())
             .map_err(|err| RouteError::Internal(err.to_string())),
         ("POST", "/open-steam-client") => {
-            super::open_steam_client().map_err(RouteError::Internal)?;
+            native_core::open_steam_client().map_err(RouteError::Internal)?;
             Ok(json!({ "ok": true }))
         }
         ("POST", "/switch-steam-account") => {
             let value = json_body(body)?;
             let label = string_field(&value, "accountLabel")?;
-            serde_json::to_value(super::switch_steam_account(label))
+            serde_json::to_value(native_core::switch_steam_account(label))
                 .map_err(|err| RouteError::Internal(err.to_string()))
         }
         ("POST", "/open-steam-install") => {
             let value = json_body(body)?;
             let app_id = u32_field(&value, "appId")?;
-            super::open_steam_install(app_id).map_err(RouteError::Internal)?;
+            native_core::open_steam_install(app_id).map_err(RouteError::Internal)?;
             Ok(json!({ "ok": true }))
         }
         ("POST", "/open-steam-run") => {
             let value = json_body(body)?;
             let app_id = u32_field(&value, "appId")?;
-            super::open_steam_run(app_id).map_err(RouteError::Internal)?;
+            native_core::open_steam_run(app_id).map_err(RouteError::Internal)?;
             Ok(json!({ "ok": true }))
         }
         _ => {
             if method == "GET" {
                 if let Some(app_id) = path.strip_prefix("/steam-store-metadata/") {
                     let app_id = parse_app_id(app_id)?;
-                    return super::steam_store_metadata(app_id).map_err(RouteError::Internal);
+                    return native_core::steam_store_metadata(app_id).map_err(RouteError::Internal);
                 }
                 if let Some(app_id) = path.strip_prefix("/steam-download-status/") {
                     let app_id = parse_app_id(app_id)?;
-                    return serde_json::to_value(super::steam_download_status(app_id))
+                    return serde_json::to_value(native_core::steam_download_status(app_id))
                         .map_err(|err| RouteError::Internal(err.to_string()));
                 }
             }
