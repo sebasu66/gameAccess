@@ -6,7 +6,7 @@ const HOST := "127.0.0.1"
 const PORT := 1431
 const STARTUP_TIMEOUT_SECONDS := 12.0
 
-var _ready := false
+var _runtime_ready := false
 var _last_error := ""
 var _runtime_pid := -1
 var _building := false
@@ -15,7 +15,7 @@ func _ready() -> void:
 	call_deferred("ensure_ready")
 
 func is_ready() -> bool:
-	return _ready or _port_is_open()
+	return _runtime_ready or _port_is_open()
 
 func last_error() -> String:
 	return _last_error
@@ -98,7 +98,7 @@ func _port_is_open() -> bool:
 	return false
 
 func _set_ready(value: bool, message: String) -> void:
-	_ready = value
+	_runtime_ready = value
 	if not value:
 		_last_error = message
 	runtime_state_changed.emit(value, message)
