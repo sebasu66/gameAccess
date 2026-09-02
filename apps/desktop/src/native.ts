@@ -11,6 +11,27 @@ import type { SteamRestoreMode } from "./steamSessionPreferences";
 
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+const LOCAL_BRIDGE = (import.meta.env.VITE_GAMEACCESS_LOCAL_BRIDGE ?? "http://127.0.0.1:1431").replace(/\/$/, "");
+
+async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${LOCAL_BRIDGE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const payload = await response.json() as { error?: string };
+      if (payload.error) message = payload.error;
+    } catch {
+      // Keep the HTTP status when the bridge did not return JSON.
+    }
+    throw new Error(message);
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
+}
+
 export interface SteamDownloadStatus {
   app_id: number;
   state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "installed" | "unknown";
@@ -85,13 +106,17 @@ export interface LocalSteamPool {
 }
 
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
-  if (!hasTauriRuntime()) return null;
-  return invoke<LocalSteamPool>("local_steam_pool");
+  if (hasTauriRuntime()) return invoke<LocalSteamPool>("local_steam_pool");
+  try { return await bridgeRequest<LocalSteamPool>("/local-steam-pool"); }
+  catch { return null; }
 }
 
 export async function verifyLocalSteamInventory(): Promise<void> {
-  if (!hasTauriRuntime()) throw new Error("La verificación de licencias requiere la app de escritorio.");
-  await invoke("verify_local_steam_inventory");
+  if (hasTauriRuntime()) {
+    await invoke("verify_local_steam_inventory");
+    return;
+  }
+  await bridgeRequest("/verify-local-steam-inventory", { method: "POST" });
 }
 
 export interface SteamAccountSwitchResult {
@@ -175,7 +200,12 @@ export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
-    window.location.href = `steam://install/${appId}`;
+    try {
+      await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
+      await waitForSteamInstallConfirmation(appId);
+    } catch {
+      window.location.href = `steam://install/${appId}`;
+    }
     return;
   }
 
@@ -196,7 +226,11 @@ export async function openSteamInstall(appId: number): Promise<void> {
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   if (!hasTauriRuntime()) {
-    window.location.href = `steam://run/${appId}`;
+    try {
+      await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });
+    } catch {
+      window.location.href = `steam://run/${appId}`;
+    }
     return;
   }
 
@@ -248,7 +282,14 @@ export async function openSteamRun(appId: number): Promise<void> {
 
 export async function switchSteamAccount(accountLabel: string): Promise<SteamAccountSwitchResult> {
   if (!accountLabel.trim()) throw new Error("El proveedor no tiene un perfil Steam visible configurado.");
-  if (!hasTauriRuntime()) throw new Error("El cambio automático de perfil Steam requiere la app de escritorio gameAccess.");
+  if (!hasTauriRuntime()) {
+    const result = await bridgeRequest<SteamAccountSwitchResult>("/switch-steam-account", {
+      method: "POST",
+      body: JSON.stringify({ accountLabel }),
+    });
+    if (!result.ok) throw new Error(result.message || "Steam no pudo cambiar de perfil.");
+    return result;
+  }
 
   const pool = await getLocalSteamPool();
   const target = pool ? findSteamAccount(pool.accounts, accountLabel) : undefined;
@@ -279,34 +320,43 @@ export async function switchSteamAccount(accountLabel: string): Promise<SteamAcc
 }
 
 export async function steamInstalled(): Promise<boolean> {
-  if (!hasTauriRuntime()) return true;
-  return invoke<boolean>("steam_installed");
+  if (hasTauriRuntime()) return invoke<boolean>("steam_installed");
+  try { return await bridgeRequest<boolean>("/steam-installed"); }
+  catch { return true; }
 }
 
 export async function getRuntimePrerequisites(): Promise<RuntimePrerequisites> {
-  if (!hasTauriRuntime()) return { runtime_ok: true, steam_installed: true, steam_path: null, account_file_present: true, remembered_accounts: 1 };
-  return invoke<RuntimePrerequisites>("runtime_prerequisites");
+  if (hasTauriRuntime()) return invoke<RuntimePrerequisites>("runtime_prerequisites");
+  try { return await bridgeRequest<RuntimePrerequisites>("/runtime-prerequisites"); }
+  catch { return { runtime_ok: true, steam_installed: true, steam_path: null, account_file_present: true, remembered_accounts: 1 }; }
 }
 
 export async function openSteamClient(): Promise<void> {
-  if (!hasTauriRuntime()) return;
-  await invoke("open_steam_client");
+  if (hasTauriRuntime()) {
+    await invoke("open_steam_client");
+    return;
+  }
+  await bridgeRequest("/open-steam-client", { method: "POST" });
 }
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
   if (!appId) throw new Error("AppID inválido");
   if (!hasTauriRuntime()) {
-    return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false };
+    try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
+    catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
   }
   return invoke<SteamDownloadStatus>("steam_download_status", { appId });
 }
 
 export async function getMachineProfile(): Promise<MachineProfile | null> {
-  if (!hasTauriRuntime()) return null;
-  return invoke<MachineProfile>("machine_profile");
+  if (hasTauriRuntime()) return invoke<MachineProfile>("machine_profile");
+  try { return await bridgeRequest<MachineProfile>("/machine-profile"); }
+  catch { return null; }
 }
 
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
-  if (!appId || !hasTauriRuntime()) return null;
-  return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+  if (!appId) return null;
+  if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+  try { return await bridgeRequest<Record<string, unknown>>(`/steam-store-metadata/${appId}`); }
+  catch { return null; }
 }
