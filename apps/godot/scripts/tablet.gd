@@ -61,7 +61,9 @@ func _build_visual() -> void:
 
 	_web_surface = GameAccessWebSurface.new()
 	_web_surface.name = "GameAccessWebUI"
-	_web_surface.position = Vector3(0.0, 0.0, -0.055)
+	# Camera looks down -Z. Positive local Z is the camera-facing side of the tablet.
+	# Keep the complete web frame/display in front of the 0.08 m thick body.
+	_web_surface.position = Vector3(0.0, 0.0, 0.055)
 	add_child(_web_surface)
 	_web_surface.configure(Vector2(1.22, 0.70), _configured_web_url(), screen_frame_material)
 
@@ -76,7 +78,7 @@ func _build_visual() -> void:
 	led_mesh.size = Vector3(0.9, 0.018, 0.02)
 	led_mesh.material = led_material
 	led.mesh = led_mesh
-	led.position = Vector3(0.0, -0.39, -0.055)
+	led.position = Vector3(0.0, -0.39, 0.055)
 	add_child(led)
 
 func _configured_web_url() -> String:
