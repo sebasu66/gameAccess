@@ -1,74 +1,114 @@
-# Game Access XR Prototype — Meta Quest 3
+# Game Access 3D / XR Prototype
 
-This isolated Godot project is the first XR vertical slice for Game Access. It is intentionally separate from the current Tauri desktop app so XR can be validated without destabilizing the main product.
+This branch is the experimental Godot 3D/social slice for Game Access. It includes XR support for Meta Quest 3, but **the 3D world and avatar system do not require XR**.
 
 ## Target
 
-- Godot 4.6 or newer
-- Meta Quest 3
-- OpenXR
+- Godot `4.7.1+`
+- Desktop 3D mode
+- Meta Quest 3 / OpenXR as an optional client mode
 - Mobile renderer
 
-## Pinned dependencies
+When Godot 4.8 becomes available, this prototype should be tested and upgraded if compatibility is good.
+
+## Architecture rule
+
+The shared world owns rooms, players, avatars, screens, furniture, networking and spatial audio.
+
+```text
+Shared Game Access 3D world
+├── PresenceAvatar3D      <- always available
+├── Desktop player rig   <- keyboard/mouse/gamepad
+└── XR player rig        <- optional OpenXR tracking
+```
+
+XR must remain an optional provider of head/hand tracking. It must never be a dependency of multiplayer presence or avatars.
+
+## Avatar / Configura
+
+The avatar module is documented in `avatar/README.md`.
+
+Configura is the selected open-source customization framework. It is MIT licensed and pinned to upstream commit:
+
+`0a7b08b74a5a7e684d3242cf3f1140cffed023cb`
+
+Install it with:
+
+```powershell
+cd apps/xr-prototype
+powershell -ExecutionPolicy Bypass -File .\setup-avatar.ps1
+```
+
+For local inspection of Configura's own sample assets, including Mii/simple-character examples:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-avatar.ps1 -IncludeExamples
+```
+
+Examples are omitted by default so they do not become production weight accidentally.
+
+The current scene includes a very small built-in `PresenceAvatar3D` made from primitive meshes. It works without Configura and without OpenXR. Configura is an optional appearance/customization provider that can replace the fallback visual.
+
+## XR dependencies
+
+Pinned XR dependencies:
 
 - Godot XR Tools `4.5.1`
 - Godot OpenXR Vendors `5.1.0-stable`
 - Godot Meta Toolkit `1.0.3-stable`
 
-The repository keeps a reproducible installer rather than committing large third-party binaries. SHA-256 hashes are pinned in `setup-xr.ps1`.
-
-## Install XR dependencies
-
-From PowerShell:
+Install them with:
 
 ```powershell
-cd apps/xr-prototype
 powershell -ExecutionPolicy Bypass -File .\setup-xr.ps1
 ```
 
-This populates `apps/xr-prototype/addons/` with the three pinned XR addons.
+The XR installer keeps SHA-256 hashes pinned instead of committing large third-party binaries.
 
-## First smoke test
+## First desktop smoke test
 
-1. Open `apps/xr-prototype/project.godot` with Godot 4.6+.
-2. Let Godot import the addons.
-3. Run the project.
-4. With an OpenXR runtime available, the viewport switches to XR automatically.
-5. Without a runtime, the project stays usable in a desktop diagnostic fallback and shows that OpenXR was not detected.
+1. Run `setup-avatar.ps1`.
+2. Open `project.godot` with Godot 4.7.1+.
+3. Run the project without starting an OpenXR runtime.
+4. The desktop camera must activate.
+5. The sample `Game Access Player` avatar must be visible in the same 3D scene.
 
-The minimal scene already contains:
+This proves the avatar/world path is independent of XR.
 
-- `XROrigin3D`
-- `XRCamera3D`
-- left `XRController3D`
-- right `XRController3D`
-- a simple floor and reference cube
-- OpenXR initialization and desktop fallback
+## First Quest 3 smoke test
 
-## Quest 3 standalone test
+1. Run `setup-avatar.ps1` and `setup-xr.ps1`.
+2. Open the project in Godot 4.7.1+.
+3. Start an OpenXR runtime or export to Quest 3.
+4. The same shared scene and avatar must remain visible while the player rig switches to XR.
 
-For standalone APK deployment, the local machine still needs the normal Godot Android toolchain:
+For standalone APK deployment the local machine still needs normal Godot Android tooling (Android build templates, SDK, JDK and Quest developer mode).
 
-- Godot Android build templates
-- Android SDK
-- JDK 17
-- USB debugging / developer mode enabled on the Quest 3
+## Current avatar scope
 
-After dependency setup, use the OpenXR Vendors project setup/export tooling inside Godot to configure the Android/Meta export preset. Do not commit machine-specific SDK paths or signing credentials.
+The intended Game Access avatar is a lightweight presence avatar, not a realistic full-body character:
 
-## Architecture rule
+- low-poly torso
+- simple/personalizable head
+- optional hands
+- idle / walking / sitting state
+- head/look direction
+- spatial voice source
+- small expression channel
 
-The XR player is a client/view/controller for the same Game Access room model. The future room/world scene must not be duplicated for VR. Desktop and XR player rigs should coexist over the same shared world and networking contracts.
+Future personalized heads generated from photos and webcam-driven expressions must plug into this avatar contract rather than replacing the multiplayer architecture.
 
-## Next implementation slice
+## Next steps
 
-After the first headset smoke test succeeds:
+1. Validate Configura under Godot 4.7.1 with `-IncludeExamples` locally.
+2. Pick/create the final very-low-poly torso/head/hands assets.
+3. Build a minimal Configura creator for only the appearance options Game Access needs.
+4. Add idle/walk/sit animations.
+5. Define compact multiplayer `PresenceState` replication and interpolation.
+6. Route realtime voice to each avatar's `AudioStreamPlayer3D`.
+7. Connect desktop look input.
+8. Connect XR head/hands as optional richer tracking.
+9. Later evaluate webcam facial-expression tracking and personalized heads from user photos.
+10. Re-test the module on Godot 4.8 when upgrading the project.
 
-1. Add XR Tools locomotion and teleport.
-2. Add grab/interact affordances.
-3. Replace the placeholder room with the Game Access 3D room prototype.
-4. Wire shared room/presence state.
-5. Add synchronized screen/video interaction.
-6. Evaluate hand tracking and passthrough on Quest 3.
-
-Do not merge this branch into `main` until the headset smoke test is successful.
+Do not merge this experimental branch into `main` until desktop avatar and Quest smoke tests have both passed.
