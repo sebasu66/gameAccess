@@ -1,10 +1,10 @@
 ; Engine configuration file.
-; Game Access XR prototype - Meta Quest 3
-; Target: Godot 4.6+
+; Game Access 3D/XR prototype - Desktop + Meta Quest 3
+; Target: Godot 4.7.1+
 config_version=5
 
 [application]
-config/name="Game Access XR Prototype"
+config/name="Game Access 3D / XR Prototype"
 run/main_scene="res://scenes/main.tscn"
 
 [display]
@@ -13,6 +13,9 @@ run/main_scene="res://scenes/main.tscn"
 size/viewport_width=1280
 size/viewport_height=720
 stretch/mode="canvas_items"
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/Configura/plugin.cfg")
 
 [rendering]
 renderer/rendering_method="mobile"
