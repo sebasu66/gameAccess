@@ -19,8 +19,6 @@ var _browser_loading := false
 func configure(size: Vector2, target_url: String, frame_material: Material) -> void:
 	_surface_size = size
 	_target_url = target_url
-	if _is_display_surface():
-		add_to_group("gameaccess_display_surfaces")
 	_build_geometry(size, frame_material)
 	_build_viewport()
 	call_deferred("_create_browser_when_runtime_ready")
@@ -97,13 +95,6 @@ func forward_keyboard_event(event: InputEventKey) -> bool:
 	_viewport.push_input(forwarded, true)
 	request_redraw(10)
 	return true
-
-func receive_game_selection(message: String) -> void:
-	if not _is_display_surface() or _browser == null:
-		return
-	if _browser.has_method("send_ipc_message"):
-		_browser.call("send_ipc_message", message)
-		request_redraw(24)
 
 func _viewport_position_from_world(world_position: Vector3) -> Vector2:
 	var local_position := to_local(world_position)
@@ -214,9 +205,10 @@ func _on_browser_ipc_message(message: String) -> void:
 	var payload: Variant = JSON.parse_string(message)
 	if not payload is Dictionary:
 		return
-	if String(payload.get("type", "")) != "game-selection":
+	var message_type := String(payload.get("type", ""))
+	if message_type not in ["game-selection", "game-selection-clear"]:
 		return
-	get_tree().call_group("gameaccess_display_surfaces", "receive_game_selection", message)
+	get_tree().call_group("gameaccess_media_screens", "receive_game_selection", message)
 
 func _on_browser_load_started(_url: String) -> void:
 	_browser_loading = true
@@ -230,9 +222,6 @@ func _on_browser_load_finished(_url: String, _http_status_code: int) -> void:
 	else:
 		set_process(false)
 		_apply_render_mode()
-
-func _is_display_surface() -> bool:
-	return _target_url.contains("surface=display")
 
 func _apply_render_mode() -> void:
 	if _viewport == null:
