@@ -198,10 +198,16 @@ func _play_media(parameters: Dictionary) -> bool:
 
 
 func _on_media_loaded(_path: String) -> void:
-	if _overlay != null:
-		_overlay.set_media_available(true)
-		_overlay.set_playing(_renderer != null and _renderer.is_playing())
-		_overlay.set_status("PLAYING" if _renderer != null and _renderer.is_playing() else "READY")
+	call_deferred("_sync_overlay_playback_state")
+
+
+func _sync_overlay_playback_state() -> void:
+	if _overlay == null or _renderer == null:
+		return
+	var playing := _renderer.is_playing()
+	_overlay.set_media_available(true)
+	_overlay.set_playing(playing)
+	_overlay.set_status("PLAYING" if playing else "READY")
 
 
 func _on_media_error(message: String) -> void:
