@@ -183,7 +183,7 @@ func _create_lounge_focus() -> void:
 	frame_material.albedo_color = Color("#090B0E")
 	frame_material.metallic = 0.72
 	frame_material.roughness = 0.24
-	var screen := HapSpatialScreen.new()
+	var screen := GameAccessMediaScreenController.new()
 	screen.name = "MainScreen"
 	# Keep the display in front of the imported wall instead of coplanar with it.
 	screen.position = Vector3(0.0, 1.58, -4.82 + LOUNGE_FORWARD_OFFSET - TV_WALL_APPROACH)
@@ -193,6 +193,7 @@ func _create_lounge_focus() -> void:
 	_ensure_tv_audio_bus()
 	screen.set_audio_bus(&"TVRoom", 0.0)
 	screen.configure_media({
+		"title": "Cyberpunk 2077",
 		"video_path": CYBERPUNK_TRAILER,
 		"audio_path": CYBERPUNK_TRAILER_AUDIO,
 		"autoplay": true,
