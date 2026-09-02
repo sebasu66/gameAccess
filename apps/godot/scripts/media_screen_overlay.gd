@@ -64,6 +64,12 @@ func forward_pointer_event(event: InputEvent, world_position: Vector3) -> bool:
 	var viewport_position := _viewport_position_from_world(world_position)
 	if viewport_position.x < 0.0 or viewport_position.y < 0.0:
 		return false
+	var controls_top := float(_logical_resolution.y) - 130.0
+	var controls_bottom := float(_logical_resolution.y) - 46.0
+	if viewport_position.x < 48.0 or viewport_position.x > float(_logical_resolution.x) - 48.0:
+		return false
+	if viewport_position.y < controls_top or viewport_position.y > controls_bottom:
+		return false
 	var forwarded := event.duplicate() as InputEvent
 	if forwarded is InputEventMouseButton:
 		forwarded.position = viewport_position
