@@ -1,8 +1,7 @@
 extends Node3D
 
-## Player-mounted tablet that renders the same React/Vite application used by Tauri.
-## Browser implementation is delegated to GameAccessWebSurface so the tablet is
-## independent from the chosen embedded-browser runtime.
+## Player-mounted tablet: lightweight catalog/control surface. The selected game's
+## rich media is rendered by the room display, not by this browser.
 
 var _is_open := false
 var _web_surface: GameAccessWebSurface
@@ -19,6 +18,8 @@ func toggle() -> void:
 func set_open(open: bool) -> void:
 	_is_open = open
 	visible = _is_open
+	if _web_surface != null:
+		_web_surface.set_active(open)
 
 func is_open() -> bool:
 	return _is_open
@@ -65,8 +66,10 @@ func _build_visual() -> void:
 
 	_web_surface = GameAccessWebSurface.new()
 	_web_surface.name = "GameAccessWebUI"
+	_web_surface.logical_resolution = Vector2i(1024, 588)
+	_web_surface.continuous_render = false
+	_web_surface.set_active(false)
 	# Camera looks down -Z. Positive local Z is the camera-facing side of the tablet.
-	# Keep the complete web frame/display in front of the 0.08 m thick body.
 	_web_surface.position = Vector3(0.0, 0.0, 0.055)
 	add_child(_web_surface)
 	_web_surface.configure(Vector2(1.22, 0.70), _configured_web_url(), screen_frame_material)
@@ -89,4 +92,6 @@ func _build_visual() -> void:
 	add_child(led)
 
 func _configured_web_url() -> String:
-	return String(ProjectSettings.get_setting("game_access/web_ui_url", "http://127.0.0.1:1420"))
+	var base_url := String(ProjectSettings.get_setting("game_access/web_ui_url", "http://127.0.0.1:1420"))
+	var separator := "&" if base_url.contains("?") else "?"
+	return "%s%ssurface=tablet" % [base_url, separator]

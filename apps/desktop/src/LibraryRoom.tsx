@@ -48,8 +48,15 @@ interface LibraryRoomProps {
 }
 
 type DownloadEventDetail = { appId?: number; error?: string };
+type CefWindow = Window & {
+  sendIpcMessage?: (message: string) => void;
+  onIpcMessage?: (message: string) => void;
+};
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
+  const surfaceMode = new URLSearchParams(window.location.search).get("surface");
+  const isTabletSurface = surfaceMode === "tablet";
+  const isDisplaySurface = surfaceMode === "display";
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -90,9 +97,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   const installed = isInstalled(download);
   const activeDownload = isActiveDownload(download);
-  const hero = selectedHero(details, selectedGame);
-  const movie = selectedMovie(details);
-  const videoSrc = selectedVideo(movie);
+  const hero = isTabletSurface ? undefined : selectedHero(details, selectedGame);
+  const movie = isTabletSurface ? undefined : selectedMovie(details);
+  const videoSrc = isTabletSurface ? undefined : selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(details);
   const actions = useMemo(
@@ -116,6 +123,33 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     }
     if (!displayGames.some((game) => game.id === selectedGameId)) setSelectedGameId(displayGames[0].id);
   }, [displayGames, selectedGameId]);
+  useEffect(() => {
+    if (!isTabletSurface || selectedGameIdResolved == null || !selectedGame) return;
+    const payload = JSON.stringify({
+      type: "game-selection",
+      gameId: selectedGameIdResolved,
+      appId: selectedGame.app_id ?? null,
+      name: selectedGame.name,
+    });
+    (window as CefWindow).sendIpcMessage?.(payload);
+  }, [isTabletSurface, selectedGameIdResolved, selectedGame]);
+
+  useEffect(() => {
+    if (!isDisplaySurface) return;
+    const cefWindow = window as CefWindow;
+    const previous = cefWindow.onIpcMessage;
+    cefWindow.onIpcMessage = (message: string) => {
+      try {
+        const payload = JSON.parse(message) as { type?: string; gameId?: number };
+        if (payload.type === "game-selection" && Number.isFinite(payload.gameId)) {
+          setSelectedGameId(payload.gameId ?? null);
+        }
+      } catch {
+        // Ignore unrelated CEF IPC messages.
+      }
+    };
+    return () => { cefWindow.onIpcMessage = previous; };
+  }, [isDisplaySurface]);
 
   useEffect(() => {
     const requested = (event: Event) => {
@@ -211,11 +245,12 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const markActivity = useCallback(() => {
     setShowcaseMode(false);
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    if (isTabletSurface || isDisplaySurface) return;
     idleTimerRef.current = window.setTimeout(() => {
       setFocusZone("grid");
       setShowcaseMode(true);
     }, 30_000);
-  }, []);
+  }, [isTabletSurface, isDisplaySurface]);
 
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
@@ -273,7 +308,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [displayGames.length]);
 
   useEffect(() => {
-    if (selectedGameIdResolved == null) return;
+    if (isTabletSurface || selectedGameIdResolved == null) {
+      setDetails(null);
+      setLoadingDetails(false);
+      return;
+    }
     let cancelled = false;
     setDetails(null);
     setLoadingDetails(true);
@@ -282,7 +321,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGameIdResolved]);
+  }, [selectedGameIdResolved, isTabletSurface]);
 
   useEffect(() => {
     if (selectedGameIdResolved == null) return;
@@ -388,8 +427,91 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (game) void onPlay(game);
   };
 
-  const rootClass = libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame));
+  const surfaceClass = isTabletSurface ? "surface-tablet" : isDisplaySurface ? "surface-display" : "";
+  const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${surfaceClass}`.trim();
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
+
+  if (isDisplaySurface) {
+    return (
+      <section className={rootClass} aria-label="Pantalla principal de biblioteca">
+        {selectedGame ? (
+          <FeaturePanel
+            game={selectedGame}
+            artwork={artwork}
+            movie={movie}
+            videoSrc={videoSrc}
+            readyVideoSrc={readyVideoSrc}
+            videoMuted={videoMuted}
+            videoVolume={videoVolume}
+            videoRef={videoRef}
+            onVideoMetadata={startVideoPastIntro}
+            onVideoReady={handleVideoReady}
+            onToggleSound={toggleVideoSound}
+            onVolumeChange={changeVideoVolume}
+            showcaseMode={false}
+            summary={summary}
+            loadingDetails={loadingDetails}
+            actions={actions}
+            focusZone="grid"
+            actionIndex={actionIndex}
+            actionRefs={actionRefs}
+            setFocusZone={setFocusZone}
+            setActionIndex={setActionIndex}
+            onAction={onAction}
+          />
+        ) : <div className="library-display-empty">Seleccioná un juego desde la tablet</div>}
+      </section>
+    );
+  }
+
+  if (isTabletSurface) {
+    return (
+      <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Control de biblioteca">
+        {selectedGame ? (
+          <aside className="library-tablet-control">
+            <div className="library-tablet-selection">
+              <span className="eyebrow">SELECCIONADO</span>
+              <h1>{selectedGame.name}</h1>
+            </div>
+            <div className="library-room-actions">
+              {actions.map((action, index) => (
+                <button
+                  type="button"
+                  key={action.label}
+                  ref={(node) => { if (actionRefs.current) actionRefs.current[index] = node; }}
+                  data-action={action.kind}
+                  className={`library-room-action ${focusZone === "actions" && actionIndex === index ? "is-selected" : ""}`}
+                  onFocus={() => { setFocusZone("actions"); setActionIndex(index); }}
+                  onClick={() => onAction(index)}
+                  disabled={action.disabled}
+                >
+                  {action.icon}<strong>{action.label}</strong>
+                </button>
+              ))}
+            </div>
+          </aside>
+        ) : <div className="library-tablet-control library-display-empty">No hay juegos disponibles</div>}
+        <DownloadCatalogPanel
+          games={displayGames}
+          downloads={effectiveDownloads}
+          accountCount={accountCount}
+          selectedIndex={selectedIndex}
+          gridRef={gridRef}
+          pinnedAppIds={pinnedAppIds}
+          onSelect={onSelectGame}
+        />
+        <LibraryHint />
+        {completedGame ? (
+          <DownloadCompleteDialog
+            game={completedGame}
+            busy={busy}
+            onPlay={playCompletedGame}
+            onClose={() => setCompletedGame(null)}
+          />
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">

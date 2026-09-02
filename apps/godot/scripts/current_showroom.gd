@@ -183,23 +183,15 @@ func _create_lounge_focus() -> void:
 	frame_material.albedo_color = Color("#090B0E")
 	frame_material.metallic = 0.72
 	frame_material.roughness = 0.24
-	var screen := HapSpatialScreen.new()
+	var screen := GameAccessWebSurface.new()
 	screen.name = "MainScreen"
+	screen.logical_resolution = Vector2i(1600, 900)
+	screen.continuous_render = true
 	# Keep the display in front of the imported wall instead of coplanar with it.
 	screen.position = Vector3(0.0, 1.58, -4.82 + LOUNGE_FORWARD_OFFSET - TV_WALL_APPROACH)
 	lounge.add_child(screen)
-	screen.configure(MAIN_SCREEN_SIZE, frame_material)
+	screen.configure(MAIN_SCREEN_SIZE, _configured_web_surface_url("display"), frame_material)
 	_add_tv_led_outline(screen, MAIN_SCREEN_SIZE)
-	_ensure_tv_audio_bus()
-	screen.set_audio_bus(&"TVRoom", 0.0)
-	screen.configure_media({
-		"video_path": CYBERPUNK_TRAILER,
-		"audio_path": CYBERPUNK_TRAILER_AUDIO,
-		"autoplay": true,
-		"loop": true,
-		"start_position": 0.0,
-		"volume_db": 0.0,
-	})
 	_add_static_box_collision(
 		screen,
 		"ScreenCollision",
@@ -217,6 +209,11 @@ func _create_lounge_focus() -> void:
 
 	var rug_material := _rug_fabric_material()
 	_add_box(lounge, "CenterRug", Vector3(6.25, 0.03, 3.6), Vector3(0.0, 0.07, -2.15 + LOUNGE_FORWARD_OFFSET), rug_material)
+
+func _configured_web_surface_url(surface: String) -> String:
+	var base_url := String(ProjectSettings.get_setting("game_access/web_ui_url", "http://127.0.0.1:1420"))
+	var separator := "&" if base_url.contains("?") else "?"
+	return "%s%ssurface=%s" % [base_url, separator, surface]
 
 func _add_tv_led_outline(screen: Node3D, display_size: Vector2) -> void:
 	var led_material := StandardMaterial3D.new()

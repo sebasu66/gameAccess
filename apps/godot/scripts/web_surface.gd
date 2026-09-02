@@ -2,18 +2,24 @@ class_name GameAccessWebSurface
 extends Node3D
 
 signal ready_state_changed(ready: bool, message: String)
+signal browser_ipc_message(message: String)
 
 @export var logical_resolution := Vector2i(1280, 800)
+@export var continuous_render := true
 
 var _viewport: SubViewport
 var _browser: Control
 var _screen_material: StandardMaterial3D
 var _target_url := ""
 var _surface_size := Vector2.ONE
+var _active := true
+var _render_burst_frames := 0
 
 func configure(size: Vector2, target_url: String, frame_material: Material) -> void:
 	_surface_size = size
 	_target_url = target_url
+	if _is_display_surface():
+		add_to_group("gameaccess_display_surfaces")
 	_build_geometry(size, frame_material)
 	_build_viewport()
 	_create_browser_or_diagnostic()
@@ -26,12 +32,40 @@ func navigate(target_url: String) -> void:
 		_browser.set("url", target_url)
 	elif _browser.has_method("load_url"):
 		_browser.call("load_url", target_url)
+	request_redraw(30)
 
 func browser_available() -> bool:
 	return _browser != null
 
 func target_url() -> String:
 	return _target_url
+
+func set_active(active: bool) -> void:
+	_active = active
+	if active:
+		request_redraw(24)
+	else:
+		_render_burst_frames = 0
+		_apply_render_mode()
+
+func request_redraw(frames := 8) -> void:
+	if continuous_render or not _active:
+		_apply_render_mode()
+		return
+	_render_burst_frames = maxi(_render_burst_frames, frames)
+	_apply_render_mode()
+	set_process(true)
+
+func _process(_delta: float) -> void:
+	if continuous_render or not _active:
+		set_process(false)
+		_apply_render_mode()
+		return
+	if _render_burst_frames > 0:
+		_render_burst_frames -= 1
+	if _render_burst_frames <= 0:
+		set_process(false)
+		_apply_render_mode()
 
 func forward_pointer_event(event: InputEvent, world_position: Vector3) -> bool:
 	if _viewport == null:
@@ -49,6 +83,7 @@ func forward_pointer_event(event: InputEvent, world_position: Vector3) -> bool:
 	else:
 		return false
 	_viewport.push_input(forwarded, true)
+	request_redraw(10)
 	return true
 
 func forward_keyboard_event(event: InputEventKey) -> bool:
@@ -56,7 +91,15 @@ func forward_keyboard_event(event: InputEventKey) -> bool:
 		return false
 	var forwarded := event.duplicate() as InputEvent
 	_viewport.push_input(forwarded, true)
+	request_redraw(10)
 	return true
+
+func receive_game_selection(message: String) -> void:
+	if not _is_display_surface() or _browser == null:
+		return
+	if _browser.has_method("send_ipc_message"):
+		_browser.call("send_ipc_message", message)
+		request_redraw(24)
 
 func _viewport_position_from_world(world_position: Vector3) -> Vector2:
 	var local_position := to_local(world_position)
@@ -83,8 +126,6 @@ func _build_geometry(size: Vector2, frame_material: Material) -> void:
 	_screen_material.roughness = 1.0
 	_screen_material.metallic = 0.0
 	_screen_material.metallic_specular = 0.0
-	# A display should present the browser texture directly. Room lights, highlights,
-	# reflections and exposure must not alter the UI image.
 	_screen_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_screen_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
@@ -113,11 +154,11 @@ func _build_viewport() -> void:
 	_viewport = SubViewport.new()
 	_viewport.name = "WebViewport"
 	_viewport.size = logical_resolution
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_viewport.transparent_bg = false
 	_viewport.gui_disable_input = false
 	add_child(_viewport)
 	_screen_material.albedo_texture = _viewport.get_texture()
+	_apply_render_mode()
 
 func _create_browser_or_diagnostic() -> void:
 	if not ClassDB.class_exists("CefTexture"):
@@ -143,8 +184,39 @@ func _create_browser_or_diagnostic() -> void:
 	_browser.mouse_filter = Control.MOUSE_FILTER_STOP
 	if _has_property(_browser, &"enable_accelerated_osr"):
 		_browser.set("enable_accelerated_osr", true)
+	if _browser.has_signal(&"ipc_message"):
+		_browser.connect(&"ipc_message", Callable(self, "_on_browser_ipc_message"))
+	if _browser.has_signal(&"load_started"):
+		_browser.connect(&"load_started", Callable(self, "_on_browser_load_started"))
+	if _browser.has_signal(&"load_finished"):
+		_browser.connect(&"load_finished", Callable(self, "_on_browser_load_finished"))
 	navigate(_target_url)
+	request_redraw(30)
 	ready_state_changed.emit(true, "Game Access web surface ready")
+
+func _on_browser_ipc_message(message: String) -> void:
+	browser_ipc_message.emit(message)
+	var payload: Variant = JSON.parse_string(message)
+	if not payload is Dictionary:
+		return
+	if String(payload.get("type", "")) != "game-selection":
+		return
+	get_tree().call_group("gameaccess_display_surfaces", "receive_game_selection", message)
+
+func _on_browser_load_started(_url: String) -> void:
+	request_redraw(120)
+
+func _on_browser_load_finished(_url: String, _http_status_code: int) -> void:
+	request_redraw(24)
+
+func _is_display_surface() -> bool:
+	return _target_url.contains("surface=display")
+
+func _apply_render_mode() -> void:
+	if _viewport == null:
+		return
+	var should_render := _active and (continuous_render or _render_burst_frames > 0)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if should_render else SubViewport.UPDATE_DISABLED
 
 func _build_diagnostic(message: String) -> void:
 	var background := ColorRect.new()
@@ -162,6 +234,7 @@ func _build_diagnostic(message: String) -> void:
 	label.position = Vector2.ZERO
 	label.size = Vector2(logical_resolution)
 	_viewport.add_child(label)
+	request_redraw(8)
 
 func _has_property(object: Object, property_name: StringName) -> bool:
 	for property_value: Variant in object.get_property_list():
