@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$ProjectRoot = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = Split-Path -Parent $PSScriptRoot
+}
 
 $Version = 'v1.15.3'
 $ArchiveName = 'godot_cef-v1.15.3.zip'
