@@ -14,6 +14,7 @@ var _target_url := ""
 var _surface_size := Vector2.ONE
 var _active := true
 var _render_burst_frames := 0
+var _browser_loading := false
 
 func configure(size: Vector2, target_url: String, frame_material: Material) -> void:
 	_surface_size = size
@@ -57,6 +58,9 @@ func request_redraw(frames := 8) -> void:
 	set_process(true)
 
 func _process(_delta: float) -> void:
+	if _browser_loading:
+		_apply_render_mode()
+		return
 	if continuous_render or not _active:
 		set_process(false)
 		_apply_render_mode()
@@ -204,10 +208,17 @@ func _on_browser_ipc_message(message: String) -> void:
 	get_tree().call_group("gameaccess_display_surfaces", "receive_game_selection", message)
 
 func _on_browser_load_started(_url: String) -> void:
-	request_redraw(120)
+	_browser_loading = true
+	_apply_render_mode()
+	set_process(true)
 
 func _on_browser_load_finished(_url: String, _http_status_code: int) -> void:
-	request_redraw(24)
+	_browser_loading = false
+	if _active:
+		request_redraw(24)
+	else:
+		set_process(false)
+		_apply_render_mode()
 
 func _is_display_surface() -> bool:
 	return _target_url.contains("surface=display")
@@ -215,7 +226,7 @@ func _is_display_surface() -> bool:
 func _apply_render_mode() -> void:
 	if _viewport == null:
 		return
-	var should_render := _active and (continuous_render or _render_burst_frames > 0)
+	var should_render := _browser_loading or (_active and (continuous_render or _render_burst_frames > 0))
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if should_render else SubViewport.UPDATE_DISABLED
 
 func _build_diagnostic(message: String) -> void:
