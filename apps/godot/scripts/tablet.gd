@@ -43,8 +43,9 @@ func forward_keyboard_event(event: InputEventKey) -> bool:
 func _build_visual() -> void:
 	var body_material := StandardMaterial3D.new()
 	body_material.albedo_color = Color("#171A21")
-	body_material.roughness = 0.32
-	body_material.metallic = 0.45
+	body_material.roughness = 1.0
+	body_material.metallic = 0.0
+	body_material.metallic_specular = 0.0
 
 	var body := MeshInstance3D.new()
 	body.name = "TabletBody"
@@ -56,8 +57,9 @@ func _build_visual() -> void:
 
 	var screen_frame_material := StandardMaterial3D.new()
 	screen_frame_material.albedo_color = Color("#090C10")
-	screen_frame_material.roughness = 0.24
-	screen_frame_material.metallic = 0.35
+	screen_frame_material.roughness = 1.0
+	screen_frame_material.metallic = 0.0
+	screen_frame_material.metallic_specular = 0.0
 
 	_web_surface = GameAccessWebSurface.new()
 	_web_surface.name = "GameAccessWebUI"
@@ -69,6 +71,9 @@ func _build_visual() -> void:
 
 	var led_material := StandardMaterial3D.new()
 	led_material.albedo_color = Color("#54D9C5")
+	led_material.roughness = 1.0
+	led_material.metallic = 0.0
+	led_material.metallic_specular = 0.0
 	led_material.emission_enabled = true
 	led_material.emission = Color("#54D9C5")
 	led_material.emission_energy_multiplier = 3.0
