@@ -1,0 +1,85 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://avatar/presence_avatar.gd" id="1_avatar"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+radius = 0.28
+height = 0.78
+radial_segments = 12
+rings = 4
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.24
+height = 0.48
+radial_segments = 16
+rings = 8
+
+[sub_resource type="SphereMesh" id="SphereMesh_hand"]
+radius = 0.09
+height = 0.18
+radial_segments = 10
+rings = 5
+
+[sub_resource type="StandardMaterial3D" id="Material_body"]
+resource_local_to_scene = true
+albedo_color = Color(0.22, 0.42, 0.72, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Material_head"]
+resource_local_to_scene = true
+albedo_color = Color(0.78, 0.62, 0.5, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Material_hand"]
+resource_local_to_scene = true
+albedo_color = Color(0.78, 0.62, 0.5, 1)
+roughness = 0.85
+
+[node name="PresenceAvatar3D" type="Node3D"]
+script = ExtResource("1_avatar")
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="DefaultVisual" type="Node3D" parent="VisualRoot"]
+
+[node name="Body" type="MeshInstance3D" parent="VisualRoot/DefaultVisual"]
+position = Vector3(0, 0.95, 0)
+mesh = SubResource("CapsuleMesh_body")
+material_override = SubResource("Material_body")
+
+[node name="HeadPivot" type="Node3D" parent="VisualRoot/DefaultVisual"]
+position = Vector3(0, 1.55, 0)
+
+[node name="Head" type="MeshInstance3D" parent="VisualRoot/DefaultVisual/HeadPivot"]
+mesh = SubResource("SphereMesh_head")
+material_override = SubResource("Material_head")
+
+[node name="CustomVisual" type="Node3D" parent="VisualRoot"]
+visible = false
+
+[node name="LeftHandAnchor" type="Node3D" parent="."]
+position = Vector3(-0.42, 1.08, 0)
+
+[node name="Hand" type="MeshInstance3D" parent="LeftHandAnchor"]
+mesh = SubResource("SphereMesh_hand")
+material_override = SubResource("Material_hand")
+
+[node name="RightHandAnchor" type="Node3D" parent="."]
+position = Vector3(0.42, 1.08, 0)
+
+[node name="Hand" type="MeshInstance3D" parent="RightHandAnchor"]
+mesh = SubResource("SphereMesh_hand")
+material_override = SubResource("Material_hand")
+
+[node name="VoiceAnchor" type="AudioStreamPlayer3D" parent="."]
+position = Vector3(0, 1.55, 0)
+unit_size = 1.5
+max_distance = 18.0
+
+[node name="NameLabel" type="Label3D" parent="."]
+position = Vector3(0, 1.95, 0)
+text = "Player"
+billboard = 1
+no_depth_test = true
+font_size = 24
+outline_size = 6
