@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod steam_session;
+mod local_bridge;
 
 use serde::Serialize;
 use std::{
@@ -773,6 +774,9 @@ fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
 }
 
 fn main() {
+    if let Err(err) = local_bridge::start() {
+        eprintln!("{err}");
+    }
     let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
         .manage(VisualDebugState {
