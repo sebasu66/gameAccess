@@ -29,6 +29,7 @@ AmbientMaterialMaker="*uid://nig0lamfd3mv"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 GodotxToast="*uid://bgvixrj72u7rv"
 Profily="*uid://qmnu1ehm866e"
+GameAccessRuntime="*res://scripts/runtime_bootstrap.gd"
 
 [display]
 
@@ -45,7 +46,8 @@ enabled=PackedStringArray("res://addons/ambientcg/plugin.cfg", "res://addons/ble
 
 [game_access]
 
-web_ui_url="http://127.0.0.1:1420"
+web_ui_url="http://127.0.0.1:1431"
+runtime_executable=""
 demo_video_path="res://assets/media/network-sync-test.ogv"
 demo_video_autoplay=true
 

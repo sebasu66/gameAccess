@@ -2,7 +2,7 @@
 
 mod steam_session;
 
-use gameaccess_desktop::{local_bridge, native_core};
+use gameaccess_desktop::native_core;
 use native_core::{MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus};
 
 use serde::Serialize;
@@ -203,9 +203,6 @@ fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult { nat
 fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> { native_core::steam_store_metadata(app_id) }
 
 fn main() {
-    if let Err(err) = local_bridge::start() {
-        eprintln!("{err}");
-    }
     let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
         .manage(VisualDebugState {

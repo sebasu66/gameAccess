@@ -23,7 +23,7 @@ func configure(size: Vector2, target_url: String, frame_material: Material) -> v
 		add_to_group("gameaccess_display_surfaces")
 	_build_geometry(size, frame_material)
 	_build_viewport()
-	_create_browser_or_diagnostic()
+	call_deferred("_create_browser_when_runtime_ready")
 
 func navigate(target_url: String) -> void:
 	_target_url = target_url
@@ -163,6 +163,17 @@ func _build_viewport() -> void:
 	add_child(_viewport)
 	_screen_material.albedo_texture = _viewport.get_texture()
 	_apply_render_mode()
+
+func _create_browser_when_runtime_ready() -> void:
+	if _target_url.begins_with("http://127.0.0.1:1431") or _target_url.begins_with("http://localhost:1431"):
+		var runtime := get_node_or_null("/root/GameAccessRuntime")
+		if runtime != null:
+			var runtime_ready: bool = await runtime.ensure_ready()
+			if not runtime_ready:
+				_build_diagnostic("GameAccess runtime failed to start.\n%s" % runtime.last_error())
+				ready_state_changed.emit(false, runtime.last_error())
+				return
+	_create_browser_or_diagnostic()
 
 func _create_browser_or_diagnostic() -> void:
 	if not ClassDB.class_exists("CefTexture"):

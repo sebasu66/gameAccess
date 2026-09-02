@@ -1,25 +1,33 @@
 use crate::native_core;
 use serde_json::{json, Value};
 use std::{
+    env, fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
+    path::{Path, PathBuf},
     thread,
     time::Duration,
 };
 
 const BRIDGE_ADDR: &str = "127.0.0.1:1431";
-const ALLOWED_ORIGINS: [&str; 2] = ["http://127.0.0.1:1420", "http://localhost:1420"];
+const ALLOWED_ORIGINS: [&str; 4] = [
+    "http://127.0.0.1:1420",
+    "http://localhost:1420",
+    "http://127.0.0.1:1431",
+    "http://localhost:1431",
+];
 
 pub fn start() -> Result<(), String> {
     let listener = TcpListener::bind(BRIDGE_ADDR)
-        .map_err(|err| format!("Could not bind GameAccess local bridge at {BRIDGE_ADDR}: {err}"))?;
+        .map_err(|err| format!("Could not bind GameAccess local runtime at {BRIDGE_ADDR}: {err}"))?;
+    let ui_root = resolve_ui_root();
     thread::Builder::new()
         .name("gameaccess-local-bridge".into())
         .spawn(move || {
             for stream in listener.incoming() {
                 match stream {
                     Ok(stream) => {
-                        if let Err(err) = handle_connection(stream) {
+                        if let Err(err) = handle_connection(stream, ui_root.as_deref()) {
                             eprintln!("GameAccess local bridge request failed: {err}");
                         }
                     }
@@ -31,7 +39,7 @@ pub fn start() -> Result<(), String> {
     Ok(())
 }
 
-fn handle_connection(mut stream: TcpStream) -> Result<(), String> {
+fn handle_connection(mut stream: TcpStream, ui_root: Option<&Path>) -> Result<(), String> {
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
         .map_err(|err| err.to_string())?;
@@ -56,6 +64,13 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), String> {
         Ok(value) => write_json(&mut stream, 200, value, response_origin),
         Err(RouteError::BadRequest(message)) => {
             write_json(&mut stream, 400, json!({ "error": message }), response_origin)
+        }
+        Err(RouteError::NotFound) if request.method == "GET" => {
+            if let Some(root) = ui_root {
+                write_static(&mut stream, root, &request.path, response_origin)
+            } else {
+                write_json(&mut stream, 503, json!({ "error": "GameAccess UI bundle is unavailable" }), response_origin)
+            }
         }
         Err(RouteError::NotFound) => {
             write_json(&mut stream, 404, json!({ "error": "Not found" }), response_origin)
@@ -228,6 +243,64 @@ fn parse_app_id(value: &str) -> Result<u32, RouteError> {
         .ok_or_else(|| RouteError::BadRequest("Invalid AppID".into()))
 }
 
+fn resolve_ui_root() -> Option<PathBuf> {
+    if let Some(value) = env::var_os("GAMEACCESS_UI_DIR") {
+        let candidate = PathBuf::from(value);
+        if candidate.join("index.html").is_file() { return Some(candidate); }
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [dir.join("ui"), dir.join("runtime").join("ui")] {
+                if candidate.join("index.html").is_file() { return Some(candidate); }
+            }
+        }
+    }
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|desktop| desktop.join("dist"))?;
+    candidate.join("index.html").is_file().then_some(candidate)
+}
+
+fn static_content_type(path: &Path) -> &'static str {
+    match path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+        "html" => "text/html; charset=utf-8",
+        "js" | "mjs" => "text/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "json" => "application/json; charset=utf-8",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "ogg" | "ogv" => "video/ogg",
+        "wav" => "audio/wav",
+        "mp3" => "audio/mpeg",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        _ => "application/octet-stream",
+    }
+}
+
+fn write_static(stream: &mut TcpStream, root: &Path, request_path: &str, origin: Option<&str>) -> Result<(), String> {
+    let clean = request_path.trim_start_matches('/');
+    if clean.split('/').any(|segment| segment == "..") {
+        return write_json(stream, 403, json!({ "error": "Invalid path" }), origin);
+    }
+    let requested = if clean.is_empty() { root.join("index.html") } else { root.join(clean) };
+    let path = if requested.is_file() {
+        requested
+    } else if Path::new(clean).extension().is_none() {
+        root.join("index.html")
+    } else {
+        return write_json(stream, 404, json!({ "error": "Static file not found" }), origin);
+    };
+    let body = fs::read(&path).map_err(|err| format!("Could not read UI file {}: {err}", path.display()))?;
+    write_response(stream, 200, static_content_type(&path), &body, origin)
+}
+
 fn write_json(
     stream: &mut TcpStream,
     status: u16,
@@ -255,6 +328,7 @@ fn write_response(
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     };
     let mut headers = format!(
