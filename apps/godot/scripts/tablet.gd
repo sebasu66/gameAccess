@@ -14,8 +14,14 @@ func _ready() -> void:
 	_build_visual()
 
 func toggle() -> void:
-	_is_open = not _is_open
+	set_open(not _is_open)
+
+func set_open(open: bool) -> void:
+	_is_open = open
 	visible = _is_open
+
+func is_open() -> bool:
+	return _is_open
 
 func navigate(target_url: String) -> void:
 	if _web_surface != null:
@@ -23,6 +29,16 @@ func navigate(target_url: String) -> void:
 
 func browser_available() -> bool:
 	return _web_surface != null and _web_surface.browser_available()
+
+func forward_pointer_event(event: InputEvent, world_position: Vector3) -> bool:
+	if not _is_open or _web_surface == null:
+		return false
+	return _web_surface.forward_pointer_event(event, world_position)
+
+func forward_keyboard_event(event: InputEventKey) -> bool:
+	if not _is_open or _web_surface == null:
+		return false
+	return _web_surface.forward_keyboard_event(event)
 
 func _build_visual() -> void:
 	var body_material := StandardMaterial3D.new()
