@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { MoreHorizontal, Search, Tv2, X } from "lucide-react";
 
 import { loadDetails } from "./api";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
@@ -53,6 +54,15 @@ type CefWindow = Window & {
   onIpcMessage?: (message: string) => void;
 };
 
+function formatBytes(value: number | null | undefined) {
+  if (!value || value <= 0) return "No informado por Steam";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+  return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
   const surfaceMode = new URLSearchParams(window.location.search).get("surface");
   const isTabletSurface = surfaceMode === "tablet";
@@ -67,7 +77,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activeSeenRef = useRef(new Set<number>());
   const missingPollsRef = useRef(new Map<number, number>());
 
-  const [selectedGameId, setSelectedGameId] = useState<number | null>(games[0]?.id ?? null);
+  const [selectedGameId, setSelectedGameId] = useState<number | null>(() => isTabletSurface ? null : (games[0]?.id ?? null));
   const [focusZone, setFocusZone] = useState<FocusZone>("grid");
   const [actionIndex, setActionIndex] = useState(0);
   const [columns, setColumns] = useState(4);
@@ -81,6 +91,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [trackedAppIds, setTrackedAppIds] = useState<number[]>([]);
   const [completedGame, setCompletedGame] = useState<CatalogGame | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tabletDetailsOpen, setTabletDetailsOpen] = useState(false);
+  const [displayPinned, setDisplayPinned] = useState(false);
 
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
   const searchedGames = useMemo(() => filterLibraryGames(games, searchQuery), [games, searchQuery]);
@@ -89,8 +101,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     [searchedGames, effectiveDownloads, trackedAppIds],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
-  const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
-  const selectedGame = firstPresent(displayGames[selectedIndex], displayGames[0]);
+  const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : (isTabletSurface ? -1 : 0);
+  const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : (isTabletSurface ? undefined : displayGames[0]);
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => game.local_account_labels ?? [])).size, [games]);
@@ -121,16 +133,23 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       setSelectedGameId(null);
       return;
     }
-    if (!displayGames.some((game) => game.id === selectedGameId)) setSelectedGameId(displayGames[0].id);
-  }, [displayGames, selectedGameId]);
+    if (selectedGameId != null && displayGames.some((game) => game.id === selectedGameId)) return;
+    if (isTabletSurface) {
+      if (selectedGameId != null) setSelectedGameId(null);
+      return;
+    }
+    setSelectedGameId(displayGames[0].id);
+  }, [displayGames, selectedGameId, isTabletSurface]);
   useEffect(() => {
-    if (!isTabletSurface || selectedGameIdResolved == null || !selectedGame) return;
-    const payload = JSON.stringify({
-      type: "game-selection",
-      gameId: selectedGameIdResolved,
-      appId: selectedGame.app_id ?? null,
-      name: selectedGame.name,
-    });
+    if (!isTabletSurface) return;
+    const payload = selectedGame && selectedGameIdResolved != null
+      ? JSON.stringify({
+          type: "game-selection",
+          gameId: selectedGameIdResolved,
+          appId: selectedGame.app_id ?? null,
+          name: selectedGame.name,
+        })
+      : JSON.stringify({ type: "game-selection-clear" });
     (window as CefWindow).sendIpcMessage?.(payload);
   }, [isTabletSurface, selectedGameIdResolved, selectedGame]);
 
@@ -142,7 +161,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       try {
         const payload = JSON.parse(message) as { type?: string; gameId?: number };
         if (payload.type === "game-selection" && Number.isFinite(payload.gameId)) {
+          setDisplayPinned(true);
           setSelectedGameId(payload.gameId ?? null);
+        } else if (payload.type === "game-selection-clear") {
+          setDisplayPinned(false);
         }
       } catch {
         // Ignore unrelated CEF IPC messages.
@@ -150,6 +172,17 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     };
     return () => { cefWindow.onIpcMessage = previous; };
   }, [isDisplaySurface]);
+
+  useEffect(() => {
+    if (!isDisplaySurface || displayPinned || displayGames.length < 2 || selectedGameIdResolved == null) return;
+    const holdMs = videoSrc ? 45_000 : 18_000;
+    const timer = window.setTimeout(() => {
+      const current = Math.max(0, displayGames.findIndex((game) => game.id === selectedGameIdResolved));
+      const next = (current + 1) % displayGames.length;
+      setSelectedGameId(displayGames[next]?.id ?? displayGames[0]?.id ?? null);
+    }, holdMs);
+    return () => window.clearTimeout(timer);
+  }, [isDisplaySurface, displayPinned, displayGames, selectedGameIdResolved, videoSrc]);
 
   useEffect(() => {
     const requested = (event: Event) => {
@@ -308,7 +341,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [displayGames.length]);
 
   useEffect(() => {
-    if (isTabletSurface || selectedGameIdResolved == null) {
+    const shouldLoadDetails = !isTabletSurface || tabletDetailsOpen;
+    if (!shouldLoadDetails || selectedGameIdResolved == null) {
       setDetails(null);
       setLoadingDetails(false);
       return;
@@ -321,7 +355,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGameIdResolved, isTabletSurface]);
+  }, [selectedGameIdResolved, isTabletSurface, tabletDetailsOpen]);
+
+  useEffect(() => {
+    if (isTabletSurface) setTabletDetailsOpen(false);
+  }, [isTabletSurface, selectedGameIdResolved]);
 
   useEffect(() => {
     if (selectedGameIdResolved == null) return;
@@ -396,7 +434,14 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     markActivity();
-    if (!selectedGame) return;
+    if (!selectedGame) {
+      const key = event.key.toLowerCase();
+      if (displayGames.length && ["enter", "a", "d", "w", "s", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
+        setSelectedGameId(displayGames[0]?.id ?? null);
+        event.preventDefault();
+      }
+      return;
+    }
     const context = { actionIndex, actionRefs, setActionIndex, returnToGrid, activateAction };
     const gridContext = { selectedIndex, columns, enterActions, moveGrid };
     const handled = focusZone === "actions"
@@ -417,6 +462,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   const onSelectGame = (index: number) => {
     setSelectedGameId(displayGames[index]?.id ?? null);
+    setTabletDetailsOpen(false);
     setFocusZone("grid");
     rootRef.current?.focus({ preventScroll: true });
   };
@@ -448,7 +494,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             onVideoReady={handleVideoReady}
             onToggleSound={toggleVideoSound}
             onVolumeChange={changeVideoVolume}
-            showcaseMode={false}
+            showcaseMode={!displayPinned}
             summary={summary}
             loadingDetails={loadingDetails}
             actions={actions}
@@ -465,32 +511,66 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }
 
   if (isTabletSurface) {
+    const primaryActionIndex = selectedGame ? (installed ? 0 : selectedAppId ? 1 : -1) : -1;
+    const primaryAction = primaryActionIndex >= 0 ? actions[primaryActionIndex] : undefined;
+    const accountLabel = selectedGame?.local_account_labels?.length
+      ? selectedGame.local_account_labels.join(", ")
+      : selectedGame?.local_primary_account_label ?? "No informado";
+    const accessLabel = selectedGame?.local_access_labels?.length ? selectedGame.local_access_labels.join(", ") : "No informado";
+
     return (
       <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Control de biblioteca">
-        {selectedGame ? (
-          <aside className="library-tablet-control">
-            <div className="library-tablet-selection">
-              <span className="eyebrow">SELECCIONADO</span>
-              <h1>{selectedGame.name}</h1>
-            </div>
-            <div className="library-room-actions">
-              {actions.map((action, index) => (
+        <header className="library-phone-top">
+          <label className="library-phone-search" onKeyDown={(event) => event.stopPropagation()}>
+            <Search size={18} />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+              placeholder="Buscar juegos"
+              autoComplete="off"
+              aria-label="Buscar en tu biblioteca"
+            />
+            {searchQuery ? (
+              <button type="button" onClick={() => setSearchQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button>
+            ) : null}
+          </label>
+
+          {selectedGame ? (
+            <div className="library-phone-selection">
+              <div className="library-phone-selection-copy">
+                <span>{installed ? "INSTALADO" : activeDownload ? `DESCARGANDO ${Math.round(download?.progress ?? 0)}%` : "SELECCIONADO"}</span>
+                <strong>{selectedGame.name}</strong>
+              </div>
+              <button
+                type="button"
+                className="library-phone-release"
+                title="Volver al modo vitrina de la TV"
+                aria-label="Volver al modo vitrina de la TV"
+                onClick={() => { setSelectedGameId(null); setTabletDetailsOpen(false); }}
+              ><X size={16} /></button>
+              <div className="library-phone-actions">
+                {primaryAction ? (
+                  <button
+                    type="button"
+                    className="library-phone-primary"
+                    disabled={primaryAction.disabled}
+                    onClick={() => onAction(primaryActionIndex)}
+                  >{primaryAction.icon}<strong>{primaryAction.label}</strong></button>
+                ) : null}
                 <button
                   type="button"
-                  key={action.label}
-                  ref={(node) => { if (actionRefs.current) actionRefs.current[index] = node; }}
-                  data-action={action.kind}
-                  className={`library-room-action ${focusZone === "actions" && actionIndex === index ? "is-selected" : ""}`}
-                  onFocus={() => { setFocusZone("actions"); setActionIndex(index); }}
-                  onClick={() => onAction(index)}
-                  disabled={action.disabled}
-                >
-                  {action.icon}<strong>{action.label}</strong>
-                </button>
-              ))}
+                  className="library-phone-more"
+                  aria-label="Administrar juego"
+                  title="Administrar juego"
+                  onClick={() => setTabletDetailsOpen(true)}
+                ><MoreHorizontal size={22} /></button>
+              </div>
             </div>
-          </aside>
-        ) : <div className="library-tablet-control library-display-empty">No hay juegos disponibles</div>}
+          ) : (
+            <div className="library-phone-showcase"><Tv2 size={18} /><span>TV en modo vitrina</span></div>
+          )}
+        </header>
+
         <DownloadCatalogPanel
           games={displayGames}
           downloads={effectiveDownloads}
@@ -500,7 +580,39 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
           pinnedAppIds={pinnedAppIds}
           onSelect={onSelectGame}
         />
-        <LibraryHint />
+
+        {tabletDetailsOpen && selectedGame ? (
+          <aside className="library-phone-details" onPointerDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><span className="eyebrow">ADMINISTRAR</span><h2>{selectedGame.name}</h2></div>
+              <button type="button" onClick={() => setTabletDetailsOpen(false)} aria-label="Cerrar"><X size={18} /></button>
+            </header>
+            <div className="library-phone-details-scroll">
+              <dl className="library-phone-facts">
+                <div><dt>Estado</dt><dd>{installed ? "Instalado" : activeDownload ? `Descargando ${Math.round(download?.progress ?? 0)}%` : "No instalado"}</dd></div>
+                <div><dt>Espacio</dt><dd>{formatBytes(download?.bytes_total)}</dd></div>
+                <div><dt>Cuenta Steam</dt><dd>{accountLabel}</dd></div>
+                <div><dt>Acceso</dt><dd>{accessLabel}</dd></div>
+                <div><dt>Steam AppID</dt><dd>{selectedGame.app_id ?? "—"}</dd></div>
+                <div><dt>Copias</dt><dd>{selectedGame.copies_available} / {selectedGame.copies_total} disponibles</dd></div>
+                <div><dt>Inventario</dt><dd>{selectedGame.local_inventory_verified ? "Verificado" : "Sin verificar"}</dd></div>
+              </dl>
+              {loadingDetails ? <span className="library-room-loading">Cargando datos…</span> : null}
+              {details?.steam?.short_description ? <p className="library-phone-description">{details.steam.short_description}</p> : null}
+              {details?.steam?.developers?.length ? <p className="library-phone-meta"><strong>Desarrollador</strong>{details.steam.developers.join(", ")}</p> : null}
+              {details?.steam?.publishers?.length ? <p className="library-phone-meta"><strong>Publisher</strong>{details.steam.publishers.join(", ")}</p> : null}
+              {details?.steam?.genres?.length ? <p className="library-phone-meta"><strong>Géneros</strong>{details.steam.genres.join(" · ")}</p> : null}
+              {details?.steam?.screenshots?.length ? (
+                <div className="library-phone-screenshots">
+                  {details.steam.screenshots.slice(0, 6).map((shot, index) => shot.thumbnail || shot.full ? (
+                    <img key={shot.id ?? index} src={shot.thumbnail ?? shot.full} alt="" loading="lazy" draggable={false} />
+                  ) : null)}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        ) : null}
+
         {completedGame ? (
           <DownloadCompleteDialog
             game={completedGame}

@@ -8,8 +8,8 @@ var _web_surface: GameAccessWebSurface
 
 func _ready() -> void:
 	visible = false
-	position = Vector3(0.32, -0.28, -0.88)
-	rotation_degrees = Vector3(-8.0, -5.0, 0.0)
+	position = Vector3(0.58, 0.02, -1.05)
+	rotation_degrees = Vector3(-3.0, -7.0, 0.0)
 	_build_visual()
 
 func toggle() -> void:
@@ -52,7 +52,7 @@ func _build_visual() -> void:
 	var body := MeshInstance3D.new()
 	body.name = "TabletBody"
 	var body_mesh := BoxMesh.new()
-	body_mesh.size = Vector3(1.38, 0.86, 0.08)
+	body_mesh.size = Vector3(0.62, 0.98, 0.07)
 	body_mesh.material = body_material
 	body.mesh = body_mesh
 	add_child(body)
@@ -66,13 +66,13 @@ func _build_visual() -> void:
 
 	_web_surface = GameAccessWebSurface.new()
 	_web_surface.name = "GameAccessWebUI"
-	_web_surface.logical_resolution = Vector2i(1024, 588)
+	_web_surface.logical_resolution = Vector2i(600, 1000)
 	_web_surface.continuous_render = false
 	_web_surface.set_active(false)
 	# Camera looks down -Z. Positive local Z is the camera-facing side of the tablet.
 	_web_surface.position = Vector3(0.0, 0.0, 0.055)
 	add_child(_web_surface)
-	_web_surface.configure(Vector2(1.22, 0.70), _configured_web_url(), screen_frame_material)
+	_web_surface.configure(Vector2(0.52, 0.86), _configured_web_url(), screen_frame_material)
 
 	var led_material := StandardMaterial3D.new()
 	led_material.albedo_color = Color("#54D9C5")
@@ -85,10 +85,10 @@ func _build_visual() -> void:
 	var led := MeshInstance3D.new()
 	led.name = "StatusLed"
 	var led_mesh := BoxMesh.new()
-	led_mesh.size = Vector3(0.9, 0.018, 0.02)
+	led_mesh.size = Vector3(0.30, 0.014, 0.015)
 	led_mesh.material = led_material
 	led.mesh = led_mesh
-	led.position = Vector3(0.0, -0.39, 0.055)
+	led.position = Vector3(0.0, -0.455, 0.050)
 	add_child(led)
 
 func _configured_web_url() -> String:
