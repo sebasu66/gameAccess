@@ -80,7 +80,12 @@ func _build_geometry(size: Vector2, frame_material: Material) -> void:
 
 	_screen_material = StandardMaterial3D.new()
 	_screen_material.albedo_color = Color.WHITE
-	_screen_material.roughness = 0.2
+	_screen_material.roughness = 1.0
+	_screen_material.metallic = 0.0
+	_screen_material.metallic_specular = 0.0
+	# A display should present the browser texture directly. Room lights, highlights,
+	# reflections and exposure must not alter the UI image.
+	_screen_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_screen_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var surface := MeshInstance3D.new()
