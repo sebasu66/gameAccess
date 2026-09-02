@@ -41,7 +41,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_LEFT and _try_interact(event.position):
+		if event.button_index == MOUSE_BUTTON_LEFT and _try_interact(event):
 			get_viewport().set_input_as_handled()
 			return
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -73,10 +73,10 @@ func _try_tablet_pointer(event: InputEvent) -> bool:
 		target = target.get_parent()
 	return false
 
-func _try_interact(mouse_position: Vector2) -> bool:
+func _try_interact(event: InputEventMouseButton) -> bool:
 	if camera == null or not camera.is_inside_tree():
 		return false
-	var screen_position := mouse_position
+	var screen_position := event.position
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		screen_position = get_viewport().get_visible_rect().size * 0.5
 	var origin := camera.project_ray_origin(screen_position)
@@ -88,7 +88,10 @@ func _try_interact(mouse_position: Vector2) -> bool:
 	if hit.is_empty():
 		return false
 	var target := hit.get("collider") as Node
+	var world_position: Vector3 = hit.get("position", Vector3.ZERO)
 	while target != null:
+		if target.has_method("forward_pointer_event") and bool(target.call("forward_pointer_event", event, world_position)):
+			return true
 		if target.has_method("toggle_playback"):
 			target.call("toggle_playback")
 			return true
