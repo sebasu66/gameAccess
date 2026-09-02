@@ -7,13 +7,16 @@ signal media_error(message: String)
 var _hap_player: HapPlayer
 var _audio_player: AudioStreamPlayer3D
 var _screen_material: ShaderMaterial
+var _display_surface: MeshInstance3D
 var _video_path := ""
 var _opened := false
 var _play_when_opened := false
+var _playing := false
 var _requested_position := 0.0
 var _loop := true
 var _volume_db := 0.0
 var _muted := false
+var _brightness := 1.0
 
 
 func configure(size: Vector2, frame_material: Material) -> void:
@@ -39,6 +42,7 @@ func set_video(path: String) -> bool:
 		return false
 
 	_opened = false
+	_playing = false
 	_video_path = path
 	var stream := HapVideoStream.new()
 	stream.file = path
@@ -97,7 +101,7 @@ func volume_db() -> float:
 
 
 func set_volume_linear(volume: float) -> void:
-	set_volume_db(linear_to_db(clampf(volume, 0.0, 2.0)))
+	set_volume_db(linear_to_db(maxf(clampf(volume, 0.0, 2.0), 0.0001)))
 
 
 func set_muted(muted: bool) -> void:
@@ -113,6 +117,17 @@ func set_loop(loop_enabled: bool) -> void:
 		(_audio_player.stream as AudioStreamOggVorbis).loop = loop_enabled
 
 
+func set_brightness(value: float) -> void:
+	_brightness = clampf(value, 0.0, 1.5)
+	if _screen_material != null:
+		_screen_material.set_shader_parameter("brightness", _brightness)
+
+
+func set_display_enabled(enabled: bool) -> void:
+	if _display_surface != null:
+		_display_surface.visible = enabled
+
+
 func play_from(position_seconds := 0.0) -> void:
 	_requested_position = maxf(0.0, position_seconds)
 	_play_when_opened = true
@@ -121,6 +136,7 @@ func play_from(position_seconds := 0.0) -> void:
 
 
 func pause() -> void:
+	_playing = false
 	if _hap_player != null:
 		_hap_player.pause()
 	if _audio_player != null:
@@ -130,12 +146,14 @@ func pause() -> void:
 func resume() -> void:
 	if _hap_player != null and _opened:
 		_hap_player.play()
+		_playing = true
 	if _audio_player != null:
 		_audio_player.stream_paused = false
 
 
 func stop() -> void:
 	_play_when_opened = false
+	_playing = false
 	if _hap_player != null:
 		_hap_player.stop()
 	if _audio_player != null:
@@ -170,7 +188,7 @@ func playback_position() -> float:
 
 
 func is_playing() -> bool:
-	return _hap_player != null and _opened and not _hap_player.paused
+	return _hap_player != null and _opened and _playing
 
 
 func _build_geometry(size: Vector2, frame_material: Material) -> void:
@@ -190,23 +208,25 @@ render_mode unshaded, cull_disabled;
 
 uniform sampler2D video_texture : source_color, filter_linear;
 uniform float emission_strength = 0.55;
+uniform float brightness = 1.0;
 
 void fragment() {
-	vec3 video_color = texture(video_texture, UV).rgb;
+	vec3 video_color = texture(video_texture, UV).rgb * brightness;
 	ALBEDO = video_color;
 	EMISSION = video_color * emission_strength;
 }
 """
 	_screen_material.shader = shader
+	_screen_material.set_shader_parameter("brightness", _brightness)
 
-	var display := MeshInstance3D.new()
-	display.name = "DisplaySurface"
+	_display_surface = MeshInstance3D.new()
+	_display_surface.name = "DisplaySurface"
 	var display_mesh := QuadMesh.new()
 	display_mesh.size = size
 	display_mesh.material = _screen_material
-	display.mesh = display_mesh
-	display.position.z = 0.09
-	add_child(display)
+	_display_surface.mesh = display_mesh
+	_display_surface.position.z = 0.09
+	add_child(_display_surface)
 
 
 func _build_players() -> void:
@@ -251,6 +271,7 @@ func _on_hap_looped() -> void:
 
 
 func _on_hap_error(message: String) -> void:
+	_playing = false
 	push_error("Hap screen failed: %s" % message)
 	media_error.emit(message)
 
@@ -258,6 +279,7 @@ func _on_hap_error(message: String) -> void:
 func _begin_playback() -> void:
 	_hap_player.stream_position = _requested_position
 	_hap_player.play()
+	_playing = true
 	if _audio_player.stream != null:
 		_audio_player.play(_requested_position)
 		_report_audio_state.call_deferred()
