@@ -40,11 +40,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		return
 
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT and _try_interact(event):
 			get_viewport().set_input_as_handled()
 			return
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if event.pressed:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		view_pivot.rotate_y(-event.relative.x * mouse_sensitivity)
 		pitch = clamp(pitch - event.relative.y * mouse_sensitivity, -1.15, 1.15)
@@ -92,7 +93,7 @@ func _try_interact(event: InputEventMouseButton) -> bool:
 	while target != null:
 		if target.has_method("forward_pointer_event") and bool(target.call("forward_pointer_event", event, world_position)):
 			return true
-		if target.has_method("toggle_playback"):
+		if event.pressed and target.has_method("toggle_playback"):
 			target.call("toggle_playback")
 			return true
 		target = target.get_parent()
