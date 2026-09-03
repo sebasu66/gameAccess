@@ -1,0 +1,58 @@
+.catalog-tabs {
+  position: fixed;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  background: rgba(8,12,18,.72);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 36px rgba(0,0,0,.24);
+}
+
+.catalog-tabs button {
+  min-width: 112px;
+  height: 34px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(235,242,248,.62);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .015em;
+  cursor: pointer;
+}
+
+.catalog-tabs button:hover,
+.catalog-tabs button:focus-visible {
+  color: #fff;
+  background: rgba(255,255,255,.06);
+  outline: none;
+}
+
+.catalog-tabs button.active {
+  color: #eafff6;
+  background: rgba(101,240,178,.12);
+  box-shadow: inset 0 0 0 1px rgba(101,240,178,.16);
+}
+
+/* The catalog source tabs replace the old placeholder top navigation. */
+.topbar .glass-nav { display: none !important; }
+
+@media (max-width: 760px) {
+  .catalog-tabs {
+    top: 54px;
+    width: calc(100% - 24px);
+  }
+  .catalog-tabs button {
+    flex: 1;
+    min-width: 0;
+  }
+}
