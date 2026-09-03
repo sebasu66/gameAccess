@@ -5,9 +5,14 @@ $python = Join-Path $api '.venv/Scripts/python.exe'
 $port = 38147
 if (-not (Test-Path $python)) { throw "API venv Python not found: $python" }
 
-$localAccounts = Join-Path $root 'cuentas.txt'
-if (-not $env:GAMEACCESS_ACCOUNTS_FILE -and (Test-Path $localAccounts)) {
-  $env:GAMEACCESS_ACCOUNTS_FILE = $localAccounts
+if (-not $env:GAMEACCESS_ACCOUNTS_FILE) {
+  $localAccounts = Join-Path $root 'cuentas.txt'
+  if (Test-Path $localAccounts) {
+    $env:GAMEACCESS_ACCOUNTS_FILE = $localAccounts
+  } else {
+    $siblingAccounts = Join-Path (Split-Path -Parent $root) 'gameAccess/cuentas.txt'
+    if (Test-Path $siblingAccounts) { $env:GAMEACCESS_ACCOUNTS_FILE = $siblingAccounts }
+  }
 }
 
 $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
