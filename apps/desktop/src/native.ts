@@ -121,6 +121,14 @@ function findSteamAccount(accounts: LocalSteamAccount[], label: string): LocalSt
   );
 }
 
+export async function hasAutomaticSteamLogin(accountNameValue: string): Promise<boolean> {
+  const target = accountNameValue.trim();
+  if (!target || !hasTauriRuntime()) return false;
+  const pool = await getLocalSteamPool();
+  if (pool && findSteamAccount(pool.accounts, target)) return true;
+  return hasSteamCredential(target);
+}
+
 async function resolveSessionRestoreMode(
   requestedMode: SteamRestoreMode,
   mainAccountName: string | null,
@@ -129,8 +137,8 @@ async function resolveSessionRestoreMode(
   let targetAccountName: string | null | undefined = null;
   if (requestedMode === "main") targetAccountName = mainAccountName;
   if (requestedMode === "previous") targetAccountName = previousAccountName;
-  const hasCredential = targetAccountName ? await hasSteamCredential(targetAccountName) : false;
-  return safeSteamRestoreMode(requestedMode, targetAccountName, hasCredential);
+  const canAutoLogin = targetAccountName ? await hasAutomaticSteamLogin(targetAccountName) : false;
+  return safeSteamRestoreMode(requestedMode, targetAccountName, canAutoLogin);
 }
 
 function dispatchDownloadEvent(name: string, appId: number, error?: string) {

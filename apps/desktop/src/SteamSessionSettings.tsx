@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, KeyRound, Loader2, Settings, ShieldCheck, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, Loader2, RefreshCw, Settings, ShieldCheck, X } from "lucide-react";
 
 import {
   getLocalSteamPool,
   getSteamSessionStatus,
-  hasSteamCredential,
   hasTauriRuntime,
-  removeSteamCredential,
-  saveSteamCredential,
   type LocalSteamAccount,
   type SteamSessionStatus,
 } from "./native";
@@ -32,30 +29,29 @@ export default function SteamSessionSettings() {
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<LocalSteamAccount[]>([]);
   const [preferences, setPreferences] = useState<SteamSessionPreferences>(() => loadSteamSessionPreferences());
-  const [enrolled, setEnrolled] = useState<Record<string, boolean>>({});
-  const [passwords, setPasswords] = useState<Record<string, string>>({});
-  const [busyAccount, setBusyAccount] = useState<string | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [session, setSession] = useState<SteamSessionStatus | null>(null);
 
-  useEffect(() => {
+  const refreshAccounts = useCallback(async () => {
     if (!hasTauriRuntime()) return;
-    let cancelled = false;
-    const loadAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
       const pool = await getLocalSteamPool();
-      const next = pool?.accounts ?? [];
-      const credentialFlags = await Promise.all(next.map(async (account) => {
-        const name = steamAccountName(account);
-        return [name, name ? await hasSteamCredential(name) : false] as const;
-      }));
-      if (!cancelled) {
-        setAccounts(next);
-        setEnrolled(Object.fromEntries(credentialFlags));
-      }
-    };
-    void loadAccounts().catch(() => undefined);
-    return () => { cancelled = true; };
+      setAccounts(pool?.accounts ?? []);
+      setMessage(pool?.accounts?.length
+        ? `${pool.accounts.length} cuentas recordadas por Steam detectadas.`
+        : "Steam no tiene cuentas marcadas con Recordarme en esta PC.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingAccounts(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshAccounts();
+  }, [refreshAccounts]);
 
   useEffect(() => {
     if (!hasTauriRuntime()) return;
@@ -80,43 +76,7 @@ export default function SteamSessionSettings() {
   const updatePreferences = (next: SteamSessionPreferences) => {
     setPreferences(next);
     saveSteamSessionPreferences(next);
-    setMessage("Preferencias de sesión guardadas.");
-  };
-
-  const enroll = async (account: LocalSteamAccount) => {
-    const name = steamAccountName(account);
-    const password = passwords[name] ?? "";
-    if (!name || !password) {
-      setMessage("Ingresá la contraseña de Steam para esta cuenta.");
-      return;
-    }
-    setBusyAccount(name);
-    setMessage(null);
-    try {
-      await saveSteamCredential(name, password);
-      setPasswords((current) => ({ ...current, [name]: "" }));
-      setEnrolled((current) => ({ ...current, [name]: true }));
-      setMessage(`${account.label}: inicio directo configurado.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyAccount(null);
-    }
-  };
-
-  const forget = async (account: LocalSteamAccount) => {
-    const name = steamAccountName(account);
-    if (!name) return;
-    setBusyAccount(name);
-    try {
-      await removeSteamCredential(name);
-      setEnrolled((current) => ({ ...current, [name]: false }));
-      setMessage(`${account.label}: contraseña eliminada de GameAccess.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyAccount(null);
-    }
+    setMessage("Preferencias de sesi?n guardadas.");
   };
 
   if (!hasTauriRuntime()) return null;
@@ -126,29 +86,29 @@ export default function SteamSessionSettings() {
       {activeSession ? (
         <output className="steam-session-chip">
           <Loader2 size={15} className={activeSession.phase === "running" ? "" : "spin"} />
-          <span>{activeSession.phase === "running" ? `Jugando · AppID ${activeSession.appId}` : activeSession.message}</span>
+          <span>{activeSession.phase === "running" ? `Jugando ? AppID ${activeSession.appId}` : activeSession.message}</span>
         </output>
       ) : null}
 
-      <button type="button" className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuración de Steam">
+      <button type="button" className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuraci?n de Steam">
         <Settings size={20} />
       </button>
 
       {open ? (
         <div className="steam-settings-backdrop">
-          <button type="button" className="steam-settings-backdrop-dismiss" onClick={() => setOpen(false)} aria-label="Cerrar configuración de Steam" />
-          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuración de sesiones Steam">
+          <button type="button" className="steam-settings-backdrop-dismiss" onClick={() => setOpen(false)} aria-label="Cerrar configuraci?n de Steam" />
+          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuraci?n de sesiones Steam">
             <header>
               <div>
                 <span className="eyebrow">STEAM SESSION MANAGER</span>
-                <h2>Cuentas y retorno automático</h2>
-                <p>GameAccess puede cerrar Steam, iniciar la cuenta propietaria, ejecutar el juego y restaurar tu cuenta al salir.</p>
+                <h2>Cuentas y retorno autom?tico</h2>
+                <p>GameAccess detecta como cuentas personales ?nicamente las que Steam tiene marcadas con Recordarme.</p>
               </div>
               <button type="button" className="steam-settings-close" onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
             </header>
 
             <div className="steam-settings-section">
-              <h3>Después de jugar</h3>
+              <h3>Despu?s de jugar</h3>
               <div className="steam-restore-options">
                 {(["main", "previous", "leave"] as SteamRestoreMode[]).map((mode) => (
                   <label key={mode} className={preferences.restoreMode === mode ? "selected" : ""}>
@@ -174,7 +134,7 @@ export default function SteamSessionSettings() {
                   <option value="">Sin definir</option>
                   {mainAccountOptions.map((account) => (
                     <option key={account.steam_id64 || steamAccountName(account)} value={steamAccountName(account)}>
-                      {account.label}{account.active ? " · activa" : ""}
+                      {account.label}{account.active ? " ? activa" : ""}
                     </option>
                   ))}
                 </select>
@@ -183,49 +143,37 @@ export default function SteamSessionSettings() {
 
             <div className="steam-settings-section">
               <div className="steam-section-title">
-                <div><h3>Inicio directo</h3><p>Guardá una vez la contraseña de cada cuenta que quieras cambiar sin interacción.</p></div>
+                <div>
+                  <h3>Cuentas Steam detectadas</h3>
+                  <p>Estas cuentas tienen Recordarme activado en Steam y GameAccess puede volver a ellas sin pedirte la contrase?a.</p>
+                </div>
                 <ShieldCheck size={22} />
               </div>
               <div className="steam-account-list">
                 {accounts.map((account) => {
                   const name = steamAccountName(account);
-                  const isEnrolled = Boolean(enrolled[name]);
-                  const isBusy = busyAccount === name;
                   return (
                     <article className="steam-account-row" key={account.steam_id64 || name}>
                       <div className="steam-account-copy">
                         <strong>{account.label}</strong>
-                        <span>{name || "Cuenta sin nombre"}{account.active ? " · activa ahora" : ""}</span>
+                        <span>{name || "Cuenta sin nombre"}{account.active ? " ? activa ahora" : ""}</span>
                       </div>
-                      {isEnrolled ? (
-                        <div className="steam-account-actions enrolled">
-                          <span className="steam-enrolled"><Check size={14} /> Inicio directo listo</span>
-                          <button type="button" onClick={() => void forget(account)} disabled={isBusy} aria-label={`Olvidar contraseña de ${account.label}`}><Trash2 size={16} /></button>
-                        </div>
-                      ) : (
-                        <div className="steam-account-actions">
-                          <input
-                            type="password"
-                            autoComplete="current-password"
-                            placeholder="Contraseña Steam"
-                            value={passwords[name] ?? ""}
-                            onChange={(event) => setPasswords((current) => ({ ...current, [name]: event.target.value }))}
-                            onKeyDown={(event) => { if (event.key === "Enter") void enroll(account); }}
-                          />
-                          <button type="button" className="steam-enroll-button" onClick={() => void enroll(account)} disabled={isBusy || !name}>
-                            {isBusy ? <Loader2 size={16} className="spin" /> : <KeyRound size={16} />} Guardar
-                          </button>
-                        </div>
-                      )}
+                      <div className="steam-account-actions enrolled">
+                        <span className="steam-enrolled"><Check size={14} /> Inicio autom?tico listo</span>
+                      </div>
                     </article>
                   );
                 })}
-                {!accounts.length ? <p className="steam-settings-empty">Todavía no se detectaron cuentas Steam recordadas en esta PC.</p> : null}
+                {!accounts.length && !loadingAccounts ? <p className="steam-settings-empty">No hay cuentas Steam con Recordarme activado en esta PC.</p> : null}
               </div>
+              <p className="steam-settings-help">Para agregar otra cuenta, inici? sesi?n manualmente en Steam con esa cuenta y activ? Recordarme. Despu?s puls? Actualizar.</p>
+              <button type="button" className="steam-enroll-button" onClick={() => void refreshAccounts()} disabled={loadingAccounts}>
+                {loadingAccounts ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Actualizar cuentas
+              </button>
             </div>
 
             <footer>
-              <p>Las contraseñas se cifran con Windows DPAPI para el usuario actual. No se guardan en la base de datos ni en localStorage.</p>
+              <p>GameAccess no solicita ni muestra contrase?as para tus cuentas personales. Steam mantiene la sesi?n recordada en esta PC.</p>
               {message ? <span className="steam-settings-message">{message}</span> : null}
             </footer>
           </section>
