@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
@@ -117,7 +117,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:1420",
-        "http://127.0.0.1:1420",
+        "http://127.0.0.1:1420",`r`n        "http://localhost:38148",`r`n        "http://127.0.0.1:38148",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "tauri://localhost",
@@ -469,3 +469,4 @@ app.include_router(steam_search_router)
 
 from .admin_console_routes import router as admin_console_router
 app.include_router(admin_console_router)
+
