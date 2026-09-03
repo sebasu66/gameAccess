@@ -1,0 +1,64 @@
+name: Steam Account Remote Watch
+
+on:
+  workflow_dispatch:
+    inputs:
+      watch_minutes:
+        description: Minutes to watch Steam playing state
+        required: true
+        default: "15"
+        type: string
+  push:
+    paths:
+      - ".github/workflows/steam-account-watch.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      STEAM_ACCOUNT_NAME: ${{ secrets.STEAM_ACCOUNT_NAME }}
+      STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+      WATCH_MINUTES: ${{ inputs.watch_minutes || '5' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify secret configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${STEAM_ACCOUNT_NAME}" || -z "${STEAM_PASSWORD}" ]]; then
+            echo "Steam watcher secrets are not configured."
+            echo "Required repository secrets: STEAM_ACCOUNT_NAME and STEAM_PASSWORD."
+            exit 2
+          fi
+          echo "Steam watcher credentials are configured (values hidden)."
+
+      - name: Install Steam protocol client
+        shell: bash
+        run: npm install --no-save --no-package-lock steam-user@latest
+
+      - name: Watch remote playing state
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/steam-account-watcher.mjs | tee steam-watch.log
+
+      - name: Upload watcher log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steam-account-watch-${{ github.run_id }}
+          path: steam-watch.log
+          if-no-files-found: ignore
+          retention-days: 3
