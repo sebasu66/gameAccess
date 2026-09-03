@@ -3,7 +3,9 @@ from pathlib import Path
 from app.account_roster import load_account_roster
 
 
-def test_roster_uses_login_and_password_columns_and_deduplicates_exact_pairs(tmp_path: Path) -> None:
+def test_roster_uses_columns_and_deduplicates_exact_pairs(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "cuentas.txt"
     source.write_text(
         "| Hora (TimeCreated) | Usuario (Login) | Contraseña (Pass) |\n"
