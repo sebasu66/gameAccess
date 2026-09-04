@@ -5,6 +5,10 @@ child process through environment variables. They never appear in argv,
 stdout, the persisted inventory, or Git. Each provider scan receives a stable
 GameAccess LoginID so the headless connection can coexist with other Steam
 connections on the same machine when Steam permits it.
+
+Only a complete full-roster scan may replace the default authoritative
+``provider_licenses.json`` snapshot. Partial/failed scans are written to a
+separate diagnostic snapshot so test batches can never erase known ownership.
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ SCANNER_PROJECT = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "SteamKi
 SCANNER_SOURCE = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "Program.cs"
 SCANNER_DLL = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "bin" / "Debug" / "net10.0" / "SteamKitLicenseScanner.dll"
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.json"
+DEFAULT_DIAGNOSTIC_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.last_scan.json"
 LOGIN_ID_BASE = 0x47410000  # "GA" namespace; low bits are provider slot.
 
 
@@ -126,7 +131,9 @@ def scan_provider_licenses(
     ]
     scans: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    owned_by_provider: dict[str, set[int]] = {credential.provider_id: set() for credential in credentials}
+    owned_by_provider: dict[str, set[int]] = {
+        credential.provider_id: set() for credential in credentials
+    }
     unmapped_owner_ids: set[int] = set()
 
     for credential in selected:
@@ -176,7 +183,11 @@ def scan_provider_licenses(
             if not app_ids:
                 continue
             owner_id = package.get("owner_account_id")
-            owner_provider = owner_provider_by_user32.get(int(owner_id)) if isinstance(owner_id, int) and owner_id > 0 else None
+            owner_provider = (
+                owner_provider_by_user32.get(int(owner_id))
+                if isinstance(owner_id, int) and owner_id > 0
+                else None
+            )
             if owner_provider is None and not package.get("borrowed"):
                 owner_provider = credential.provider_id
             if owner_provider is None:
@@ -188,14 +199,23 @@ def scan_provider_licenses(
     scanned_ids = {scan["provider_id"] for scan in scans}
     all_provider_ids = {credential.provider_id for credential in credentials}
     full_coverage = scanned_ids == all_provider_ids
-    scans_complete = bool(scans) and all(scan["status"] == "ok" and scan["complete"] for scan in scans)
+    scans_complete = bool(scans) and all(
+        scan["status"] == "ok" and scan["complete"] for scan in scans
+    )
     complete = full_coverage and scans_complete and not errors
 
     accounts = [
         {
             "provider_id": credential.provider_id,
             "owned_app_ids": sorted(owned_by_provider.get(credential.provider_id, set())),
-            "scan_status": next((scan["status"] for scan in scans if scan["provider_id"] == credential.provider_id), "not_scanned"),
+            "scan_status": next(
+                (
+                    scan["status"]
+                    for scan in scans
+                    if scan["provider_id"] == credential.provider_id
+                ),
+                "not_scanned",
+            ),
         }
         for credential in credentials
     ]
@@ -215,19 +235,87 @@ def scan_provider_licenses(
     }
 
 
-def load_provider_license_inventory(path: Path = DEFAULT_OUTPUT) -> dict[str, Any] | None:
+def load_provider_license_inventory(
+    path: Path = DEFAULT_OUTPUT,
+    *,
+    require_complete: bool = False,
+) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, dict) else None
     except (OSError, json.JSONDecodeError):
         return None
+    if not isinstance(payload, dict):
+        return None
+    if require_complete and not payload.get("complete"):
+        return None
+    return payload
 
 
-def save_provider_license_inventory(inventory: dict[str, Any], path: Path = DEFAULT_OUTPUT) -> None:
+def _write_inventory(inventory: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(inventory, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp = path.with_name(f"{path.name}.tmp")
+    temp.write_text(
+        json.dumps(inventory, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    temp.replace(path)
+
+
+def save_provider_license_inventory(
+    inventory: dict[str, Any],
+    path: Path = DEFAULT_OUTPUT,
+    *,
+    allow_incomplete: bool = False,
+) -> bool:
+    """Persist an ownership inventory without poisoning the authoritative file.
+
+    ``DEFAULT_OUTPUT`` is authoritative and therefore accepts only a complete
+    full-roster scan. Callers may explicitly persist incomplete diagnostics to
+    another path using ``allow_incomplete=True``.
+    """
+    path = Path(path)
+    is_authoritative_path = path.resolve() == DEFAULT_OUTPUT.resolve()
+    if is_authoritative_path and not inventory.get("complete"):
+        return False
+    if not inventory.get("complete") and not allow_incomplete:
+        return False
+    _write_inventory(inventory, path)
+    return True
+
+
+def persist_scan_result(
+    inventory: dict[str, Any],
+    requested_output: Path | None = None,
+) -> dict[str, Any]:
+    """Persist a scan to the correct authoritative or diagnostic destination."""
+    if inventory.get("complete"):
+        target = Path(requested_output) if requested_output else DEFAULT_OUTPUT
+        saved = save_provider_license_inventory(inventory, target)
+        return {
+            "saved": saved,
+            "authoritative_updated": bool(
+                saved and target.resolve() == DEFAULT_OUTPUT.resolve()
+            ),
+            "output": str(target),
+        }
+
+    requested = Path(requested_output) if requested_output else None
+    if requested is None or requested.resolve() == DEFAULT_OUTPUT.resolve():
+        target = DEFAULT_DIAGNOSTIC_OUTPUT
+    else:
+        target = requested
+    saved = save_provider_license_inventory(
+        inventory,
+        target,
+        allow_incomplete=True,
+    )
+    return {
+        "saved": saved,
+        "authoritative_updated": False,
+        "output": str(target),
+    }
 
 
 def compact_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
@@ -259,11 +347,26 @@ def compact_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Scan Steam provider licenses with headless SteamKit")
-    parser.add_argument("--provider-id", action="append", default=[], help="scan only this opaque provider id; may be repeated")
+    parser = argparse.ArgumentParser(
+        description="Scan Steam provider licenses with headless SteamKit"
+    )
+    parser.add_argument(
+        "--provider-id",
+        action="append",
+        default=[],
+        help="scan only this opaque provider id; may be repeated",
+    )
     parser.add_argument("--all", action="store_true", help="scan the entire provider roster")
     parser.add_argument("--timeout-seconds", type=int, default=70)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=(
+            "optional explicit output; incomplete scans never overwrite the "
+            "default authoritative provider_licenses.json"
+        ),
+    )
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args()
 
@@ -273,9 +376,14 @@ def main() -> int:
         parser.error("select --all or at least one --provider-id")
 
     selected = None if args.all else set(args.provider_id)
-    inventory = scan_provider_licenses(provider_ids=selected, timeout_seconds=args.timeout_seconds)
-    save_provider_license_inventory(inventory, args.output)
-    print(json.dumps(compact_inventory(inventory) if args.compact else inventory, ensure_ascii=False))
+    inventory = scan_provider_licenses(
+        provider_ids=selected,
+        timeout_seconds=args.timeout_seconds,
+    )
+    persistence = persist_scan_result(inventory, args.output)
+    rendered = compact_inventory(inventory) if args.compact else dict(inventory)
+    rendered["persistence"] = persistence
+    print(json.dumps(rendered, ensure_ascii=False))
     if inventory.get("complete"):
         return 0
     return 2 if inventory.get("successful_scan_count") else 3
