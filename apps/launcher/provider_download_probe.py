@@ -18,7 +18,6 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 import urllib.request
@@ -234,6 +233,12 @@ def run_probe(
     }
 
 
+def _print_json(value: Any) -> None:
+    # Windows console code pages are not guaranteed to be UTF-8; escaped JSON
+    # keeps game titles lossless and machine-readable without console failures.
+    print(json.dumps(value, ensure_ascii=True))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Test provider-owned Steam CDN downloads without logging the provider into Steam.exe")
     parser.add_argument("--provider-id", required=True)
@@ -247,7 +252,7 @@ def main() -> int:
 
     if args.list:
         candidates = provider_candidates(args.provider_id)
-        print(json.dumps({"provider_id": args.provider_id, "candidate_count": len(candidates), "candidates": candidates}, ensure_ascii=False))
+        _print_json({"provider_id": args.provider_id, "candidate_count": len(candidates), "candidates": candidates})
         return 0
     if not args.app_id or not (args.manifest_only or args.download):
         parser.error("use --list, or provide --app-id with --manifest-only/--download")
@@ -259,7 +264,7 @@ def main() -> int:
         download=args.download,
         timeout_seconds=max(60, args.timeout_seconds),
     )
-    print(json.dumps(result, ensure_ascii=False))
+    _print_json(result)
     return 0 if result.get("ok") else 2
 
 
