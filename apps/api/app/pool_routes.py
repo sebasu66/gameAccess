@@ -32,7 +32,11 @@ class PoolAccountInput(BaseModel):
     accessible_app_ids: list[int] = []
     ownership_source: str = "unverified"
     ownership_verified_at: str | None = None
+    # This is deliberately per-account. One failed provider must not block the
+    # other verified providers from updating their authoritative mappings.
     inventory_complete: bool = False
+    scan_status: str = "unknown"
+    scan_error: str | None = None
     active: bool = False
 
 
@@ -168,14 +172,15 @@ def _sync_account(
     session.commit()
     session.refresh(account)
 
+    notes = _decode_notes(account)
     existing = session.exec(
         select(core.AccountGame).where(core.AccountGame.account_id == account.id)
     ).all()
     existing_by_game = {row.game_id: row for row in existing}
 
-    authoritative_ownership = bool(
-        req.verification_complete and incoming.inventory_complete
-    )
+    # Ownership authority is per provider. A global partial scan can contain 45
+    # fully verified accounts and one unavailable account; the 45 must update.
+    authoritative_ownership = bool(incoming.inventory_complete)
     if authoritative_ownership:
         desired_game_ids = {
             games_by_app[app_id].id
@@ -190,11 +195,24 @@ def _sync_account(
                 session.add(core.AccountGame(account_id=account.id, game_id=game_id))
         session.commit()
 
+    # Steam login failures are operational availability failures, not proof of
+    # zero ownership. Preserve mappings but remove the seat from availability.
+    scan_status = (incoming.scan_status or "unknown").strip()
+    scan_failed = scan_status not in {"", "unknown", "not_scanned", "ok"}
+    disabled_by_scan = bool(notes.get("disabled_by_inventory_scan"))
+    if scan_failed:
+        if account.status == core.AccountStatus.free:
+            account.status = core.AccountStatus.disabled
+            disabled_by_scan = True
+    elif authoritative_ownership and scan_status == "ok":
+        if account.status == core.AccountStatus.disabled and disabled_by_scan:
+            account.status = core.AccountStatus.free
+        disabled_by_scan = False
+
     current_mappings = session.exec(
         select(core.AccountGame).where(core.AccountGame.account_id == account.id)
     ).all()
 
-    notes = _decode_notes(account)
     notes.update(
         {
             "catalog_source": req.source,
@@ -205,6 +223,9 @@ def _sync_account(
             "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
             "owned_app_count": len(current_mappings),
             "last_catalog_verification_complete": req.verification_complete,
+            "ownership_scan_status": scan_status,
+            "ownership_scan_error": incoming.scan_error,
+            "disabled_by_inventory_scan": disabled_by_scan,
         }
     )
     if authoritative_ownership:
@@ -216,8 +237,8 @@ def _sync_account(
             }
         )
     else:
-        # A catalog refresh with partial/no SteamKit coverage must not downgrade
-        # the last authoritative ownership metadata or delete AccountGame rows.
+        # A failed/unscanned provider must not delete its last known mappings or
+        # downgrade its last authoritative ownership metadata.
         notes.setdefault("ownership_source", "unverified")
         notes.setdefault("ownership_verified_at", None)
         notes.setdefault("inventory_complete", False)
@@ -253,6 +274,7 @@ def _account_summary(session: Session, account: core.ProviderAccount) -> dict[st
         "status": account.status,
         "owned_game_count": len(mappings),
         "accessible_game_count": len(set(notes.get("accessible_app_ids") or [])),
+        "scan_status": notes.get("ownership_scan_status"),
     }
 
 
@@ -264,18 +286,21 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         _sync_account(req, incoming, games_by_app, session) for incoming in req.accounts
     ]
     license_counts = _license_counts(session, synced_accounts)
+    verified_accounts = sum(1 for incoming in req.accounts if incoming.inventory_complete)
     return {
         "ok": True,
         "source": req.source,
         "verification_complete": req.verification_complete,
         "verified_at": req.verified_at,
         "verification_errors": req.verification_errors,
+        "verified_account_count": verified_accounts,
+        "unverified_account_count": len(req.accounts) - verified_accounts,
         "account_count": len(synced_accounts),
         "game_count": len(games_by_app),
         "total_license_mappings": sum(license_counts.values()),
         "duplicate_game_count": sum(
             1 for count in license_counts.values() if count > 1
         ),
-        "license_semantics": "original-owner-preserved-on-partial-sync",
+        "license_semantics": "per-account-authoritative-preserve-failed-provider",
         "accounts": [_account_summary(session, account) for account in synced_accounts],
     }
