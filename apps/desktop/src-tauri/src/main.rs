@@ -8,12 +8,7 @@ use native_core::{
 };
 
 use serde::Serialize;
-use std::{
-    env, fs,
-    path::PathBuf,
-    process::Command,
-    sync::Mutex,
-};
+use std::{env, fs, path::PathBuf, process::Command, sync::Mutex};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
