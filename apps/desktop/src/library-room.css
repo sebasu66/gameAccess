@@ -227,8 +227,15 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
 .library-room.surface-tablet .library-room-heading { min-height: 16px; justify-content: flex-start; margin: 0 2px 5px; }
 .library-room.surface-tablet .library-room-heading small { font-size: 8px; letter-spacing: .06em; }
 .library-room.surface-tablet .library-room-grid {
-  grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; align-content: start; padding: 3px 3px 12px;
+  flex: 1 1 auto; min-height: 0; overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable;
+  grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; align-content: start; padding: 3px 7px 12px 3px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.34) rgba(255,255,255,.035);
 }
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar { width: 8px; }
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar-track { background: rgba(255,255,255,.035); border-radius: 99px; }
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,.30); border-radius: 99px; }
+.library-room.surface-tablet .library-room-card-art { aspect-ratio: 2 / 3; }
+.library-room.surface-tablet .library-room-card-art img { width: 100%; height: 100%; object-fit: contain; object-position: center; background: #0d1219; }
 .library-room.surface-tablet .library-room-card { border-radius: 10px; }
 .library-room.surface-tablet .library-room-card-art { border-radius: 9px; border-width: 1px; }
 .library-room.surface-tablet .library-room-card.is-selected { transform: none; }

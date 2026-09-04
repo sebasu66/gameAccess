@@ -1,6 +1,8 @@
 class_name GameAccessWebSurface
 extends Node3D
 
+const DISPLAY_SURFACE_Z := 0.05
+
 signal ready_state_changed(ready: bool, message: String)
 signal browser_ipc_message(message: String)
 
@@ -16,12 +18,12 @@ var _active := true
 var _render_burst_frames := 0
 var _browser_loading := false
 
-func configure(size: Vector2, target_url: String, frame_material: Material) -> void:
+func configure(size: Vector2, target_url: String, frame_material: Material, include_frame := true) -> void:
 	_surface_size = size
 	_target_url = target_url
 	if _is_display_surface():
 		add_to_group("gameaccess_display_surfaces")
-	_build_geometry(size, frame_material)
+	_build_geometry(size, frame_material, include_frame)
 	_build_viewport()
 	call_deferred("_create_browser_when_runtime_ready")
 
@@ -40,6 +42,9 @@ func browser_available() -> bool:
 
 func target_url() -> String:
 	return _target_url
+
+func display_texture() -> Texture2D:
+	return _viewport.get_texture() if _viewport != null else null
 
 func set_active(active: bool) -> void:
 	_active = active
@@ -116,14 +121,15 @@ func _viewport_position_from_world(world_position: Vector3) -> Vector2:
 		v * float(logical_resolution.y)
 	)
 
-func _build_geometry(size: Vector2, frame_material: Material) -> void:
-	var frame := MeshInstance3D.new()
-	frame.name = "WebFrame"
-	var frame_mesh := BoxMesh.new()
-	frame_mesh.size = Vector3(size.x + 0.14, size.y + 0.14, 0.08)
-	frame_mesh.material = frame_material
-	frame.mesh = frame_mesh
-	add_child(frame)
+func _build_geometry(size: Vector2, frame_material: Material, include_frame: bool) -> void:
+	if include_frame:
+		var frame := MeshInstance3D.new()
+		frame.name = "WebFrame"
+		var frame_mesh := BoxMesh.new()
+		frame_mesh.size = Vector3(size.x + 0.14, size.y + 0.14, 0.08)
+		frame_mesh.material = frame_material
+		frame.mesh = frame_mesh
+		add_child(frame)
 
 	_screen_material = StandardMaterial3D.new()
 	_screen_material.albedo_color = Color.WHITE
@@ -139,7 +145,7 @@ func _build_geometry(size: Vector2, frame_material: Material) -> void:
 	quad.size = size
 	quad.material = _screen_material
 	surface.mesh = quad
-	surface.position.z = 0.05
+	surface.position.z = DISPLAY_SURFACE_Z
 	add_child(surface)
 
 	var input_area := Area3D.new()
@@ -214,9 +220,13 @@ func _on_browser_ipc_message(message: String) -> void:
 	var payload: Variant = JSON.parse_string(message)
 	if not payload is Dictionary:
 		return
-	if String(payload.get("type", "")) != "game-selection":
+	var message_type := String(payload.get("type", ""))
+	if message_type not in ["game-selection", "game-selection-clear"]:
 		return
-	get_tree().call_group("gameaccess_display_surfaces", "receive_game_selection", message)
+	if get_tree().get_node_count_in_group("gameaccess_tv_controllers") > 0:
+		get_tree().call_group("gameaccess_tv_controllers", "receive_tablet_message", message)
+	else:
+		get_tree().call_group("gameaccess_display_surfaces", "receive_game_selection", message)
 
 func _on_browser_load_started(_url: String) -> void:
 	_browser_loading = true

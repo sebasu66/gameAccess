@@ -80,6 +80,59 @@ func _find_runtime_executable() -> String:
 			return candidate
 	return ""
 
+func get_library() -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_GET, "/local-steam-pool")
+
+func get_game(app_id: int) -> Dictionary:
+	var library := await get_library()
+	for game_value: Variant in library.get("games", []):
+		if game_value is Dictionary and int(game_value.get("app_id", 0)) == app_id:
+			return game_value as Dictionary
+	return {}
+
+func play_game(app_id: int) -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_POST, "/open-steam-run", {"appId": app_id})
+
+func install_game(app_id: int) -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_POST, "/open-steam-install", {"appId": app_id})
+
+func get_download_status(app_id: int) -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_GET, "/steam-download-status/%d" % app_id)
+
+func switch_steam_account(account_label: String) -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_POST, "/switch-steam-account", {"accountLabel": account_label})
+
+func open_steam_client() -> Dictionary:
+	return await _request_json(HTTPClient.METHOD_POST, "/open-steam-client")
+
+func _request_json(method: int, route: String, body := {}) -> Dictionary:
+	if not await ensure_ready():
+		return {"ok": false, "error": _last_error}
+	var request := HTTPRequest.new()
+	add_child(request)
+	var headers := PackedStringArray(["Content-Type: application/json"])
+	var encoded_body := "" if body.is_empty() else JSON.stringify(body)
+	var start_error := request.request("http://%s:%d%s" % [HOST, PORT, route], headers, method, encoded_body)
+	if start_error != OK:
+		request.queue_free()
+		return {"ok": false, "error": "Runtime request failed to start", "code": start_error}
+	var response: Array = await request.request_completed
+	request.queue_free()
+	var result_code := int(response[0])
+	var http_code := int(response[1])
+	var response_body: PackedByteArray = response[3]
+	if result_code != HTTPRequest.RESULT_SUCCESS:
+		return {"ok": false, "error": "Runtime request failed", "result": result_code, "status": http_code}
+	var text := response_body.get_string_from_utf8()
+	var parsed: Variant = JSON.parse_string(text)
+	if parsed is Dictionary:
+		var value := parsed as Dictionary
+		if http_code >= 400:
+			value["ok"] = false
+			value["status"] = http_code
+		return value
+	return {"ok": http_code < 400, "status": http_code, "body": text}
+
 func _port_is_open() -> bool:
 	var peer := StreamPeerTCP.new()
 	var error := peer.connect_to_host(HOST, PORT)

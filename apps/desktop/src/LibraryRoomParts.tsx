@@ -93,12 +93,9 @@ export function useCrossfadeArtwork(source?: string): ArtworkState {
       const nextLayers: [string | null, string | null] = [...layersRef.current] as [string | null, string | null];
       nextLayers[next] = source;
       layersRef.current = nextLayers;
+      activeRef.current = next;
       setLayers(nextLayers);
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        activeRef.current = next;
-        setActiveLayer(next);
-      }));
+      setActiveLayer(next);
     };
 
     if (image.complete && image.naturalWidth) void reveal();
@@ -122,8 +119,11 @@ export function selectedHero(details: GameDetails | null, game?: CatalogGame) {
     details?.steam?.screenshots?.[0]?.full,
     details?.steam?.background,
     details?.steam?.hero_image,
-    game?.hero_image,
+    // Local library_hero URLs are optimistic and may 404 for older games.
+    // Use the selected game's known-valid Steam header until store metadata
+    // supplies a richer image, so the previous game's artwork can never stick.
     game?.header_image,
+    game?.hero_image,
     game?.capsule_image,
   );
 }

@@ -1,6 +1,8 @@
 class_name HapSpatialScreen
 extends Node3D
 
+const DISPLAY_SURFACE_Z := 0.09
+
 signal media_loaded(path: String)
 signal media_error(message: String)
 
@@ -16,8 +18,8 @@ var _volume_db := 0.0
 var _muted := false
 
 
-func configure(size: Vector2, frame_material: Material) -> void:
-	_build_geometry(size, frame_material)
+func configure(size: Vector2, frame_material: Material, include_frame := true) -> void:
+	_build_geometry(size, frame_material, include_frame)
 	_build_players()
 
 
@@ -173,14 +175,15 @@ func is_playing() -> bool:
 	return _hap_player != null and _opened and not _hap_player.paused
 
 
-func _build_geometry(size: Vector2, frame_material: Material) -> void:
-	var frame := MeshInstance3D.new()
-	frame.name = "Frame"
-	var frame_mesh := BoxMesh.new()
-	frame_mesh.size = Vector3(size.x + 0.28, size.y + 0.28, 0.16)
-	frame_mesh.material = frame_material
-	frame.mesh = frame_mesh
-	add_child(frame)
+func _build_geometry(size: Vector2, frame_material: Material, include_frame: bool) -> void:
+	if include_frame:
+		var frame := MeshInstance3D.new()
+		frame.name = "Frame"
+		var frame_mesh := BoxMesh.new()
+		frame_mesh.size = Vector3(size.x + 0.28, size.y + 0.28, 0.16)
+		frame_mesh.material = frame_material
+		frame.mesh = frame_mesh
+		add_child(frame)
 
 	_screen_material = ShaderMaterial.new()
 	var shader := Shader.new()
@@ -205,7 +208,7 @@ void fragment() {
 	display_mesh.size = size
 	display_mesh.material = _screen_material
 	display.mesh = display_mesh
-	display.position.z = 0.09
+	display.position.z = DISPLAY_SURFACE_Z
 	add_child(display)
 
 

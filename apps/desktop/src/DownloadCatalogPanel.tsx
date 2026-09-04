@@ -3,26 +3,13 @@ import type { CSSProperties, RefObject } from "react";
 import { Gamepad2, Loader2, Play } from "lucide-react";
 
 import { isTrackedDownload } from "./downloadManager";
+import { libraryArtworkCandidates } from "./libraryArtwork";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
-function artworkCandidates(game: CatalogGame) {
-  const appId = game.app_id;
-  const candidates = [
-    game.capsule_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    game.header_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null,
-  ].filter((value): value is string => Boolean(value));
-  return [...new Set(candidates)];
-}
-
 function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = artworkCandidates(game);
+  const sources = libraryArtworkCandidates(game);
   const [sourceIndex, setSourceIndex] = useState(0);
   const source = sources[sourceIndex];
   if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;

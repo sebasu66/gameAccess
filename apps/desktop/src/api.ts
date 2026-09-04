@@ -131,28 +131,36 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   }
 }
 
-export const loadDetails = async (gameId: number) => {
-  try { return await request<GameDetails>(`/games/${gameId}/details`); }
-  catch {
-    const game = localCatalog.find((item) => item.id === gameId);
-    if (!game) throw new Error("Juego no encontrado en el catálogo local");
-    if (game.app_id) {
-      let steam = steamMetadataCache.get(game.app_id);
-      if (!steam) {
-        try {
-          const raw = await getSteamStoreMetadata(game.app_id);
-          if (raw) {
-            steam = normalizeSteamStoreMetadata(game, raw);
-            steamMetadataCache.set(game.app_id, steam);
-          }
-        } catch {
-          // Keep browsing even if Steam Store metadata is temporarily unavailable.
+export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] = localCatalog) {
+  return catalog.find((item) => item.id === gameId || item.app_id === gameId);
+}
+
+async function loadLocalGameDetails(game: CatalogGame): Promise<GameDetails> {
+  if (game.app_id) {
+    let steam = steamMetadataCache.get(game.app_id);
+    if (!steam) {
+      try {
+        const raw = await getSteamStoreMetadata(game.app_id);
+        if (raw) {
+          steam = normalizeSteamStoreMetadata(game, raw);
+          steamMetadataCache.set(game.app_id, steam);
         }
+      } catch {
+        // Keep browsing even if Steam Store metadata is temporarily unavailable.
       }
-      if (steam) return { ...game, steam, metadata_state: "steam-store" };
     }
-    return localDetails(game);
+    if (steam) return { ...game, steam, metadata_state: "steam-store" };
   }
+  return localDetails(game);
+}
+
+export const loadDetails = async (gameId: number) => {
+  // Local Steam IDs are AppIDs, not backend catalog primary keys. Never send a
+  // local AppID to /games/:id first: a remote row can share that numeric ID
+  // and return media for an unrelated game.
+  const localGame = findLocalGameForDetails(gameId);
+  if (localGame) return loadLocalGameDetails(localGame);
+  return request<GameDetails>(`/games/${gameId}/details`);
 };
 
 const localSearch = async (query: string, limit = 20): Promise<SteamSearchResponse> => ({

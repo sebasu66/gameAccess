@@ -15,6 +15,9 @@ const MAIN_SCREEN_SIZE := Vector2(MAIN_SCREEN_HEIGHT * 16.0 / 9.0, MAIN_SCREEN_H
 const LOUNGE_FORWARD_OFFSET := 1.45
 const TV_WALL_APPROACH := 0.38
 
+var _main_screen: RoomTV
+var _tv_debug_overlay: CanvasLayer
+
 func _ready() -> void:
 	var environment := _create_environment()
 	_configure_authored_materials($metal)
@@ -23,6 +26,64 @@ func _ready() -> void:
 	_create_static_collisions($metal)
 	_create_lighting()
 	_create_settings_overlay(environment)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey:
+		return
+	var key := event as InputEventKey
+	if not key.pressed or key.echo or _main_screen == null:
+		return
+	if key.keycode == KEY_F6:
+		_main_screen.show_game_source()
+		print("[TV DEBUG] GAME backend selected")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_F7:
+		_hide_tv_debug_overlay()
+		_main_screen.debug_restore_normal()
+		var ok := _main_screen.set_hap_video(CYBERPUNK_TRAILER, CYBERPUNK_TRAILER_AUDIO, true, true)
+		print("[TV DEBUG] HAP Cyberpunk playback requested ok=%s" % ok)
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_F8:
+		_hide_tv_debug_overlay()
+		_main_screen.debug_isolate_game_surface()
+		print("[TV DEBUG] F8 isolated GAME plane")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_F9:
+		_show_tv_debug_overlay()
+		print("[TV DEBUG] F9 showing CEF texture as 2D overlay")
+		get_viewport().set_input_as_handled()
+	elif key.keycode == KEY_F10:
+		_hide_tv_debug_overlay()
+		_main_screen.debug_restore_normal()
+		_main_screen.show_game_source()
+		print("[TV DEBUG] F10 restored normal GAME TV")
+		get_viewport().set_input_as_handled()
+
+func _show_tv_debug_overlay() -> void:
+	_hide_tv_debug_overlay()
+	if _main_screen == null:
+		return
+	var texture := _main_screen.debug_game_texture()
+	if texture == null:
+		print("[TV DEBUG] no GAME texture available for 2D overlay")
+		return
+	_tv_debug_overlay = CanvasLayer.new()
+	_tv_debug_overlay.name = "TvDebugTextureOverlay"
+	_tv_debug_overlay.layer = 1000
+	add_child(_tv_debug_overlay)
+	var rect := TextureRect.new()
+	rect.name = "GameTextureDirect2D"
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.texture = texture
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tv_debug_overlay.add_child(rect)
+
+func _hide_tv_debug_overlay() -> void:
+	if _tv_debug_overlay != null and is_instance_valid(_tv_debug_overlay):
+		_tv_debug_overlay.queue_free()
+	_tv_debug_overlay = null
 
 func _create_environment() -> Environment:
 	var world_environment := WorldEnvironment.new()
@@ -183,14 +244,13 @@ func _create_lounge_focus() -> void:
 	frame_material.albedo_color = Color("#090B0E")
 	frame_material.metallic = 0.72
 	frame_material.roughness = 0.24
-	var screen := GameAccessWebSurface.new()
+	var screen := RoomTV.new()
 	screen.name = "MainScreen"
-	screen.logical_resolution = Vector2i(1600, 900)
-	screen.continuous_render = true
 	# Keep the display in front of the imported wall instead of coplanar with it.
 	screen.position = Vector3(0.0, 1.58, -4.82 + LOUNGE_FORWARD_OFFSET - TV_WALL_APPROACH)
 	lounge.add_child(screen)
-	screen.configure(MAIN_SCREEN_SIZE, _configured_web_surface_url("display"), frame_material)
+	_main_screen = screen
+	screen.configure(MAIN_SCREEN_SIZE, frame_material, _configured_web_surface_url("display"))
 	_add_tv_led_outline(screen, MAIN_SCREEN_SIZE)
 	_add_static_box_collision(
 		screen,

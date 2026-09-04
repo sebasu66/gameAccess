@@ -33,6 +33,7 @@ import {
 } from "./LibraryRoomParts";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { calculateSelectionScrollTop } from "./libraryNavigation";
 import type { LibrarySearchEventDetail } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
@@ -64,7 +65,7 @@ function formatBytes(value: number | null | undefined) {
 }
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
-  const surfaceMode = new URLSearchParams(window.location.search).get("surface");
+  const surfaceMode = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("surface");
   const isTabletSurface = surfaceMode === "tablet";
   const isDisplaySurface = surfaceMode === "display";
   const rootRef = useRef<HTMLElement>(null);
@@ -82,6 +83,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [actionIndex, setActionIndex] = useState(0);
   const [columns, setColumns] = useState(4);
   const [details, setDetails] = useState<GameDetails | null>(null);
+  const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showcaseMode, setShowcaseMode] = useState(false);
   const [readyVideoSrc, setReadyVideoSrc] = useState<string | null>(null);
@@ -109,11 +111,12 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   const installed = isInstalled(download);
   const activeDownload = isActiveDownload(download);
-  const hero = isTabletSurface ? undefined : selectedHero(details, selectedGame);
-  const movie = isTabletSurface ? undefined : selectedMovie(details);
+  const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
+  const hero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
+  const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
   const videoSrc = isTabletSurface ? undefined : selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
-  const summary = selectedSummary(details);
+  const summary = selectedSummary(currentDetails);
   const actions = useMemo(
     () => buildActions(selectedGame, installed, activeDownload, busy, download?.progress),
     [selectedGame, installed, activeDownload, busy, download?.progress],
@@ -341,17 +344,35 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [displayGames.length]);
 
   useEffect(() => {
+    if (!isTabletSurface || selectedIndex < 0) return;
+    const grid = gridRef.current;
+    const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");
+    if (!grid || !card) return;
+    const nextTop = calculateSelectionScrollTop({
+      scrollTop: grid.scrollTop,
+      viewportHeight: grid.clientHeight,
+      itemTop: card.offsetTop,
+      itemHeight: card.offsetHeight,
+      padding: 8,
+    });
+    if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });
+  }, [isTabletSurface, selectedIndex, displayGames.length]);
+
+  useEffect(() => {
     const shouldLoadDetails = !isTabletSurface || tabletDetailsOpen;
     if (!shouldLoadDetails || selectedGameIdResolved == null) {
       setDetails(null);
+      setDetailsGameId(null);
       setLoadingDetails(false);
       return;
     }
     let cancelled = false;
+    const requestedGameId = selectedGameIdResolved;
     setDetails(null);
+    setDetailsGameId(null);
     setLoadingDetails(true);
-    loadDetails(selectedGameIdResolved)
-      .then((value) => { if (!cancelled) setDetails(value); })
+    loadDetails(requestedGameId)
+      .then((value) => { if (!cancelled) { setDetails(value); setDetailsGameId(requestedGameId); } })
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
