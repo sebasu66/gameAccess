@@ -20,13 +20,18 @@ from provider_roster import load_provider_credentials, match_provider_identities
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCANNER_PROJECT = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "SteamKitLicenseScanner.csproj"
+SCANNER_SOURCE = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "Program.cs"
 SCANNER_DLL = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "bin" / "Debug" / "net10.0" / "SteamKitLicenseScanner.dll"
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.json"
 LOGIN_ID_BASE = 0x47410000  # "GA" namespace; low bits are provider slot.
 
 
 def ensure_scanner_built() -> None:
-    if SCANNER_DLL.is_file():
+    source_mtime = max(
+        SCANNER_PROJECT.stat().st_mtime if SCANNER_PROJECT.is_file() else 0,
+        SCANNER_SOURCE.stat().st_mtime if SCANNER_SOURCE.is_file() else 0,
+    )
+    if SCANNER_DLL.is_file() and SCANNER_DLL.stat().st_mtime >= source_mtime:
         return
     completed = subprocess.run(
         ["dotnet", "build", str(SCANNER_PROJECT)],
@@ -108,7 +113,6 @@ def scan_provider_licenses(
     ensure_scanner_built()
     credentials = load_provider_credentials()
     mapping = match_provider_identities()
-    identities = {item["provider_id"]: item for item in mapping.get("accounts", [])}
     owner_provider_by_user32 = {
         int(item["user_id32"]): item["provider_id"]
         for item in mapping.get("accounts", [])
