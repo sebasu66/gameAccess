@@ -1,8 +1,10 @@
 """Authoritative GameAccess provider license scan via SteamKit.
 
 Credentials are loaded locally from ``cuentas.txt`` and passed to the SteamKit
-child process through environment variables.  They never appear in argv,
-stdout, the persisted inventory, or Git.
+child process through environment variables. They never appear in argv,
+stdout, the persisted inventory, or Git. Each provider scan receives a stable
+GameAccess LoginID so the headless connection can coexist with other Steam
+connections on the same machine when Steam permits it.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCANNER_PROJECT = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "SteamKitLicenseScanner.csproj"
 SCANNER_DLL = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "bin" / "Debug" / "net10.0" / "SteamKitLicenseScanner.dll"
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.json"
+LOGIN_ID_BASE = 0x47410000  # "GA" namespace; low bits are provider slot.
 
 
 def ensure_scanner_built() -> None:
@@ -38,10 +41,26 @@ def ensure_scanner_built() -> None:
         raise RuntimeError(detail[-4000:])
 
 
-def _run_provider(login: str, password: str, *, timeout_seconds: int = 70) -> dict[str, Any]:
+def _login_id_for_provider(provider_id: str) -> int:
+    try:
+        slot = int(provider_id.rsplit("-", 1)[-1])
+    except (TypeError, ValueError):
+        slot = 1
+    slot = max(1, min(slot, 0xFFFF))
+    return LOGIN_ID_BASE + slot
+
+
+def _run_provider(
+    login: str,
+    password: str,
+    *,
+    login_id: int,
+    timeout_seconds: int = 70,
+) -> dict[str, Any]:
     env = os.environ.copy()
     env["GA_STEAM_USER"] = login
     env["GA_STEAM_PASS"] = password
+    env["GA_STEAM_LOGIN_ID"] = str(login_id)
     env["GA_STEAM_TIMEOUT_SECONDS"] = str(max(10, min(timeout_seconds - 5, 180)))
     completed = subprocess.run(
         ["dotnet", str(SCANNER_DLL)],
@@ -58,6 +77,7 @@ def _run_provider(login: str, password: str, *, timeout_seconds: int = 70) -> di
             "status": "scanner_error",
             "exit_code": completed.returncode,
             "error": (completed.stderr or "SteamKit scanner returned no JSON").strip()[-2000:],
+            "login_id": login_id,
         }
     try:
         payload = json.loads(raw[-1])
@@ -66,10 +86,17 @@ def _run_provider(login: str, password: str, *, timeout_seconds: int = 70) -> di
             "status": "scanner_error",
             "exit_code": completed.returncode,
             "error": "SteamKit scanner returned invalid JSON",
+            "login_id": login_id,
         }
     if not isinstance(payload, dict):
-        return {"status": "scanner_error", "exit_code": completed.returncode, "error": "Invalid scanner payload"}
+        return {
+            "status": "scanner_error",
+            "exit_code": completed.returncode,
+            "error": "Invalid scanner payload",
+            "login_id": login_id,
+        }
     payload["exit_code"] = completed.returncode
+    payload.setdefault("login_id", login_id)
     return payload
 
 
@@ -99,11 +126,18 @@ def scan_provider_licenses(
     unmapped_owner_ids: set[int] = set()
 
     for credential in selected:
-        result = _run_provider(credential.login, credential.password, timeout_seconds=timeout_seconds)
+        login_id = _login_id_for_provider(credential.provider_id)
+        result = _run_provider(
+            credential.login,
+            credential.password,
+            login_id=login_id,
+            timeout_seconds=timeout_seconds,
+        )
         status = str(result.get("status") or "error")
         packages = result.get("packages") if isinstance(result.get("packages"), list) else []
         scan_summary = {
             "provider_id": credential.provider_id,
+            "login_id": int(result.get("login_id") or login_id),
             "status": status,
             "complete": bool(result.get("complete")),
             "license_count": int(result.get("license_count") or 0),
@@ -119,6 +153,7 @@ def scan_provider_licenses(
             errors.append(
                 {
                     "provider_id": credential.provider_id,
+                    "login_id": int(result.get("login_id") or login_id),
                     "status": status,
                     "error": str(result.get("error") or result.get("result") or status)[:500],
                     "guard_method": result.get("guard_method"),
@@ -126,8 +161,6 @@ def scan_provider_licenses(
             )
             continue
 
-        scanned_identity = identities.get(credential.provider_id) or {}
-        scanned_user32 = scanned_identity.get("user_id32")
         for package in packages:
             if not isinstance(package, dict) or package.get("non_permanent"):
                 continue
