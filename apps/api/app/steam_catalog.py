@@ -37,7 +37,7 @@ class SteamCatalogAdapter:
     The adapter never needs a Steam account, password, API key or session token.
     """
 
-    def __init__(self, cache_dir: Path, ttl_seconds: int = 6 * 60 * 60) -> None:
+    def __init__(self, cache_dir: Path, ttl_seconds: int = 7 * 24 * 60 * 60) -> None:
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.ttl_seconds = ttl_seconds
@@ -47,13 +47,13 @@ class SteamCatalogAdapter:
         safe_country = "".join(c for c in country if c.isalnum() or c in "_-") or "ar"
         return self.cache_dir / f"{app_id}-{safe_language}-{safe_country}.json"
 
-    def _read_cache(self, app_id: int, language: str, country: str) -> dict[str, Any] | None:
+    def _read_cache(self, app_id: int, language: str, country: str, allow_stale: bool = False) -> dict[str, Any] | None:
         path = self._cache_path(app_id, language, country)
         if not path.exists():
             return None
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            if time.time() - float(payload.get("cached_at", 0)) > self.ttl_seconds:
+            if not allow_stale and time.time() - float(payload.get("cached_at", 0)) > self.ttl_seconds:
                 return None
             data = payload.get("data")
             return data if isinstance(data, dict) else None
@@ -83,7 +83,7 @@ class SteamCatalogAdapter:
                 response.raise_for_status()
                 payload = response.json()
         except Exception as exc:
-            cached = self._read_cache(app_id, language, country)
+            cached = self._read_cache(app_id, language, country, allow_stale=True)
             if cached:
                 return cached
             raise SteamCatalogError(f"Steam metadata request failed for AppID {app_id}: {exc}") from exc

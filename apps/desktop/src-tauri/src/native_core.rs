@@ -539,14 +539,51 @@ pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
     }
 }
 
+fn steam_media_cache_path(app_id: u32) -> Option<PathBuf> {
+    let root = env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(env::temp_dir)
+        .join("gameAccess")
+        .join("media-cache");
+    fs::create_dir_all(&root).ok()?;
+    Some(root.join(format!("steam-{app_id}.json")))
+}
+
+fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<serde_json::Value> {
+    let path = steam_media_cache_path(app_id)?;
+    if let Some(max_age) = max_age_seconds {
+        let modified = fs::metadata(&path).ok()?.modified().ok()?;
+        let age = std::time::SystemTime::now().duration_since(modified).ok()?.as_secs();
+        if age > max_age {
+            return None;
+        }
+    }
+    let bytes = fs::read(path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
+    let Some(path) = steam_media_cache_path(app_id) else { return; };
+    let Ok(body) = serde_json::to_vec(data) else { return; };
+    let tmp = path.with_extension("json.tmp");
+    if fs::write(&tmp, body).is_ok() {
+        let _ = fs::rename(tmp, path);
+    }
+}
+
 pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    const CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+    if let Some(cached) = read_steam_media_cache(app_id, Some(CACHE_TTL_SECONDS)) {
+        return Ok(cached);
+    }
+
     #[cfg(target_os = "windows")]
     {
         let url = format!(
             "https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish"
         );
         let script = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; $headers=@{{'User-Agent'='gameAccess/0.1'}}; $result=Invoke-RestMethod -Uri '{}' -Headers $headers -TimeoutSec 20; $result | ConvertTo-Json -Depth 32 -Compress", url);
-        let output = Command::new("powershell.exe")
+        let output = match Command::new("powershell.exe")
             .args([
                 "-NoLogo",
                 "-NoProfile",
@@ -557,8 +594,19 @@ pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
             ])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
-            .map_err(|err| format!("Could not query Steam Store metadata: {err}"))?;
+        {
+            Ok(output) => output,
+            Err(err) => {
+                if let Some(stale) = read_steam_media_cache(app_id, None) {
+                    return Ok(stale);
+                }
+                return Err(format!("Could not query Steam Store metadata: {err}"));
+            }
+        };
         if !output.status.success() {
+            if let Some(stale) = read_steam_media_cache(app_id, None) {
+                return Ok(stale);
+            }
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             return Err(if stderr.is_empty() {
                 "Steam Store metadata request failed".into()
@@ -577,16 +625,22 @@ pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
             .and_then(|value| value.as_bool())
             .unwrap_or(false)
         {
+            if let Some(stale) = read_steam_media_cache(app_id, None) {
+                return Ok(stale);
+            }
             return Err("Steam Store did not return metadata for this AppID".into());
         }
-        entry
+        let data = entry
             .get("data")
             .cloned()
-            .ok_or_else(|| "Steam Store response did not contain game data".to_string())
+            .ok_or_else(|| "Steam Store response did not contain game data".to_string())?;
+        write_steam_media_cache(app_id, &data);
+        Ok(data)
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Err("Steam Store metadata bridge is currently implemented for Windows".into())
+        read_steam_media_cache(app_id, None)
+            .ok_or_else(|| "Steam Store metadata bridge is currently implemented for Windows".into())
     }
 }
 

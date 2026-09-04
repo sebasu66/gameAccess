@@ -711,9 +711,15 @@ export default function App() {
     let cancelled = false;
     const preload = async () => {
       const next: Partial<Record<number, GameDetails>> = {};
-      await Promise.all(games.slice(0, 16).map(async (game) => {
-        try { next[game.id] = await loadDetails(game.id); } catch { /* metadata remains lazy */ }
-      }));
+      const initial = games.slice(0, 8);
+      for (let index = 0; index < initial.length && !cancelled; index += 2) {
+        const batch = initial.slice(index, index + 2);
+        await Promise.all(batch.map(async (game) => {
+          try { next[game.id] = await loadDetails(game.id); } catch { /* metadata remains lazy */ }
+        }));
+        if (!cancelled) setDetailsById((current) => ({ ...current, ...next }));
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
       if (!cancelled) setDetailsById((current) => ({ ...current, ...next }));
     };
     void preload();
@@ -724,12 +730,22 @@ export default function App() {
     if (!games.length) return;
     let cancelled = false;
     const probe = async () => {
-      const next: DownloadMap = {};
-      await Promise.all(games.map(async (game) => {
-        if (!game.app_id) return;
-        try { next[game.app_id] = await steamDownloadStatus(game.app_id); } catch { /* browser preview */ }
-      }));
-      if (!cancelled) setDownloads((current) => ({ ...current, ...next }));
+      // Never fan out native filesystem work for the whole catalog at startup.
+      // Prime only the first visible games and yield between small batches.
+      const initial = games.slice(0, 24).filter((game) => Boolean(game.app_id));
+      for (let index = 0; index < initial.length && !cancelled; index += 4) {
+        const batch = initial.slice(index, index + 4);
+        const results = await Promise.all(batch.map(async (game) => {
+          try { return game.app_id ? await steamDownloadStatus(game.app_id) : null; }
+          catch { return null; }
+        }));
+        const next: DownloadMap = {};
+        for (const status of results) if (status) next[status.app_id] = status;
+        if (!cancelled && Object.keys(next).length) {
+          setDownloads((current) => ({ ...current, ...next }));
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
     };
     void probe();
     return () => { cancelled = true; };

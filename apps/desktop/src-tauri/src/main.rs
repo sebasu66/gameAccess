@@ -167,13 +167,17 @@ fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), 
 }
 
 #[tauri::command]
-fn steam_installed() -> bool {
-    native_core::steam_installed()
+async fn steam_installed() -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(native_core::steam_installed)
+        .await
+        .map_err(|err| format!("Steam detection task failed: {err}"))
 }
 
 #[tauri::command]
-fn runtime_prerequisites() -> RuntimePrerequisites {
-    native_core::runtime_prerequisites()
+async fn runtime_prerequisites() -> Result<RuntimePrerequisites, String> {
+    tauri::async_runtime::spawn_blocking(native_core::runtime_prerequisites)
+        .await
+        .map_err(|err| format!("Runtime prerequisite task failed: {err}"))
 }
 
 #[tauri::command]
@@ -192,33 +196,45 @@ fn open_steam_run(app_id: u32) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
-    native_core::steam_download_status(app_id)
+async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::steam_download_status(app_id))
+        .await
+        .map_err(|err| format!("Steam download-status task failed: {err}"))
 }
 
 #[tauri::command]
-fn machine_profile() -> MachineProfile {
-    native_core::machine_profile()
+async fn machine_profile() -> Result<MachineProfile, String> {
+    tauri::async_runtime::spawn_blocking(native_core::machine_profile)
+        .await
+        .map_err(|err| format!("Machine-profile task failed: {err}"))
 }
 
 #[tauri::command]
-fn local_steam_pool() -> Result<serde_json::Value, String> {
-    native_core::read_local_steam_pool()
+async fn local_steam_pool() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(native_core::read_local_steam_pool)
+        .await
+        .map_err(|err| format!("Local Steam pool task failed: {err}"))?
 }
 
 #[tauri::command]
-fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    native_core::verify_local_steam_inventory()
+async fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(native_core::verify_local_steam_inventory)
+        .await
+        .map_err(|err| format!("Steam inventory verification task failed: {err}"))?
 }
 
 #[tauri::command]
-fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
-    native_core::switch_steam_account(account_label)
+async fn switch_steam_account(account_label: String) -> Result<SteamAccountSwitchResult, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::switch_steam_account(account_label))
+        .await
+        .map_err(|err| format!("Steam account-switch task failed: {err}"))
 }
 
 #[tauri::command]
-fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
-    native_core::steam_store_metadata(app_id)
+async fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::steam_store_metadata(app_id))
+        .await
+        .map_err(|err| format!("Steam metadata task failed: {err}"))?
 }
 
 fn main() {

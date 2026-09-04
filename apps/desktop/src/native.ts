@@ -362,9 +362,18 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
   catch { return null; }
 }
 
+const steamStoreMetadataRequests = new Map<number, Promise<Record<string, unknown> | null>>();
+
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
   if (!appId) return null;
-  if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
-  try { return await bridgeRequest<Record<string, unknown>>(`/steam-store-metadata/${appId}`); }
-  catch { return null; }
+  const existing = steamStoreMetadataRequests.get(appId);
+  if (existing) return existing;
+  const request = (async () => {
+    if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+    try { return await bridgeRequest<Record<string, unknown>>(`/steam-store-metadata/${appId}`); }
+    catch { return null; }
+  })();
+  steamStoreMetadataRequests.set(appId, request);
+  try { return await request; }
+  finally { steamStoreMetadataRequests.delete(appId); }
 }

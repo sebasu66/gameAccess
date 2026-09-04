@@ -65,7 +65,7 @@ export function isActiveDownload(status?: SteamDownloadStatus) {
 
 function InstallStateBadge({ status, available }: { status?: SteamDownloadStatus; available: boolean }) {
   if (!isInstalled(status) || !available) return null;
-  return <span className="library-install-state ready" title="Instalado Â· listo para jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -251,9 +251,9 @@ export function handleGridKey(key: string, context: GridKeyContext) {
 export function LibraryHint() {
   return (
     <div className="library-room-hint">
-      <span>NAVEGAR Â· WASD / FLECHAS</span>
-      <span>ENTRAR / ACTIVAR Â· ENTER</span>
-      <span>VOLVER Â· ESC</span>
+      <span>NAVEGAR · WASD / FLECHAS</span>
+      <span>ENTRAR / ACTIVAR · ENTER</span>
+      <span>VOLVER · ESC</span>
     </div>
   );
 }
@@ -265,18 +265,18 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
           <span className="eyebrow">TU BIBLIOTECA</span>
-          <h1>{loading ? "Preparando tu bibliotecaâ€¦" : "Tu biblioteca estÃ¡ vacÃ­a"}</h1>
-          <p>{loading ? "GameAccess estÃ¡ cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavÃ­a. PodÃ©s seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarÃ¡n acÃ¡."}</p>
-          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando bibliotecaâ€¦</span> : null}
+          <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
+          <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
+          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
         </div>
       </aside>
       <section className="library-room-catalog">
-        <header className="library-room-heading"><small>0 juegos Â· WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><small>0 juegos · WASD / FLECHAS</small></header>
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />
-            <strong>{loading ? "Buscando juegosâ€¦" : "No hay juegos para mostrar"}</strong>
-            <span>{loading ? "La interfaz ya estÃ¡ lista; sÃ³lo estamos esperando los datos." : "Este es un estado vÃ¡lido y no bloquea GameAccess."}</span>
+            <strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong>
+            <span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span>
           </div>
         </div>
       </section>
@@ -363,7 +363,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
         <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
         <h1>{props.game.name}</h1>
         <p>{props.summary}</p>
-        {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steamâ€¦</span> : null}
+        {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
         <div className="library-room-actions">
           {props.actions.map((action, index) => (
             <button
@@ -396,10 +396,10 @@ interface CatalogPanelProps {
 
 export function CatalogPanel(props: CatalogPanelProps) {
   const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` Â· ${props.accountCount} ${accountLabel}` : "";
+  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} Â· WASD / FLECHAS</small></header>
+      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <button

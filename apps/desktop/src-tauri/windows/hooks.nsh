@@ -1,4 +1,4 @@
-﻿!include "StrFunc.nsh"
+!include "StrFunc.nsh"
 ${StrStr}
 
 !macro NSIS_HOOK_PREINSTALL
@@ -29,7 +29,7 @@ ${StrStr}
     IfFileExists "$R0\steam.exe" ga_steam_ok ga_steam_missing
 
   ga_steam_missing:
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita Steam instalado en este equipo.$\r$\n$\r$\nInstalÃ¡ Steam y luego elegÃ­ Reintentar. La instalaciÃ³n no continuarÃ¡ hasta detectarlo." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita Steam instalado en este equipo.$\r$\n$\r$\nInstalá Steam y luego elegí Reintentar. La instalación no continuará hasta detectarlo." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
 
   ga_steam_ok:
     IfFileExists "$R0\config\loginusers.vdf" ga_accounts_scan ga_accounts_missing
@@ -53,7 +53,7 @@ ${StrStr}
     StrCmp $R3 "1" ga_prereq_done ga_accounts_missing
 
   ga_accounts_missing:
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita al menos una cuenta de Steam iniciada y recordada en este equipo.$\r$\n$\r$\nAbrÃ­ Steam, iniciÃ¡ sesiÃ³n, activÃ¡ la opciÃ³n de recordar la cuenta y luego elegÃ­ Reintentar." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "GameAccess necesita al menos una cuenta de Steam iniciada y recordada en este equipo.$\r$\n$\r$\nAbrí Steam, iniciá sesión, activá la opción de recordar la cuenta y luego elegí Reintentar." IDRETRY ga_prereq_retry IDCANCEL ga_prereq_abort
 
   ga_prereq_abort:
     Abort "Requisitos de GameAccess no satisfechos."

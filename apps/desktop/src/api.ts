@@ -5,8 +5,8 @@ import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearc
 
 // Set this to the hosted backend (or the local FastAPI emulator during development).
 // An empty value deliberately means offline mode; no localhost server is required.
-const LOCAL_DEV_API = import.meta.env.DEV ? "http://127.0.0.1:38147" : "";
-const API = (import.meta.env.VITE_GAMEACCESS_API ?? LOCAL_DEV_API).replace(/\/$/, "");
+const DEFAULT_API = "http://127.0.0.1:38147";
+const API = (import.meta.env.VITE_GAMEACCESS_API ?? DEFAULT_API).replace(/\/$/, "");
 
 let localCatalog: CatalogGame[] = [];
 
@@ -102,19 +102,19 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
   const pool = await getLocalSteamPool();
   if (!pool) return [];
   localCatalog = buildLocalCatalog(pool);
-  if (!localCatalog.length) throw new Error("Steam fue detectado pero el inventario local no devolviÃ³ juegos.");
+  if (!localCatalog.length) throw new Error("Steam fue detectado pero el inventario local no devolvió juegos.");
   return localCatalog;
 }
 
 const localDetails = (game: CatalogGame): GameDetails => ({
   ...game,
-  steam: { app_id: game.app_id ?? 0, name: game.name, short_description: "CatÃ¡logo local de gameAccess.", background: game.hero_image ?? undefined },
+  steam: { app_id: game.app_id ?? 0, name: game.name, short_description: "Catálogo local de gameAccess.", background: game.hero_image ?? undefined },
   metadata_state: "local",
 });
 
 async function loadLocalDetails(gameId: number): Promise<GameDetails> {
   const game = localCatalog.find((item) => item.id === gameId || item.app_id === gameId);
-  if (!game) throw new Error("Juego no encontrado en el catÃ¡logo local");
+  if (!game) throw new Error("Juego no encontrado en el catálogo local");
   if (game.app_id) {
     let steam = steamMetadataCache.get(game.app_id);
     if (!steam) {
@@ -204,7 +204,7 @@ export const searchSteam = async (query: string, limit = 20): Promise<SteamSearc
 export const loadSteamApp = async (appId: number) => {
   if (getCatalogMode() === "local") {
     const game = localCatalog.find((item) => item.app_id === appId);
-    if (!game) throw new Error("Juego no encontrado en el catÃ¡logo local");
+    if (!game) throw new Error("Juego no encontrado en el catálogo local");
     const details = await loadLocalDetails(game.id);
     if (!details.steam) throw new Error("Steam metadata is unavailable");
     return details.steam;
@@ -246,7 +246,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     };
   }
 
-  if (!API) throw new Error("El backend GameAccess no estÃ¡ conectado.");
+  if (!API) throw new Error("El backend GameAccess no está conectado.");
 
   const lease = await request<LeaseResponse>("/leases", { method: "POST", body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }) });
   if (lease.session_action === "provider_adapter_required") {
