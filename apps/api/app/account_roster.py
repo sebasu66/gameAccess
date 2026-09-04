@@ -39,7 +39,9 @@ def load_account_roster(path: Path | None = None) -> list[SteamCredential]:
     login_counts: defaultdict[str, int] = defaultdict(int)
     records: list[SteamCredential] = []
 
-    for raw_line in source.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+    for raw_line in source.read_text(
+        encoding="utf-8-sig", errors="replace"
+    ).splitlines():
         cells = [cell.strip() for cell in raw_line.split("|")]
         while cells and not cells[0]:
             cells.pop(0)

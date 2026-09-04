@@ -50,9 +50,10 @@ export function mergeCatalog(remote: CatalogGame[], local: CatalogGame[]): Catal
   const byApp = new Map<number, CatalogGame>();
   for (const game of local) if (game.app_id) byApp.set(game.app_id, game);
   for (const game of remote) {
-    const localGame = game.app_id ? byApp.get(game.app_id) : undefined;
-    if (localGame) {
-      byApp.set(game.app_id!, {
+    const appId = game.app_id;
+    const localGame = appId ? byApp.get(appId) : undefined;
+    if (localGame && appId) {
+      byApp.set(appId, {
         ...game,
         copies_total: localGame.copies_total,
         copies_available: localGame.copies_available,
@@ -64,7 +65,7 @@ export function mergeCatalog(remote: CatalogGame[], local: CatalogGame[]): Catal
         local_inventory_verified: localGame.local_inventory_verified,
         local_inventory_verified_at: localGame.local_inventory_verified_at,
       });
-    } else if (game.app_id) byApp.set(game.app_id!, game);
+    } else if (appId) byApp.set(appId, game);
   }
   return [...byApp.values(), ...remote.filter((game) => !game.app_id)];
 }

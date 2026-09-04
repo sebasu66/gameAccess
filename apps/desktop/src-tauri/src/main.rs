@@ -3,12 +3,14 @@
 mod steam_session;
 
 use gameaccess_desktop::native_core;
-use native_core::{MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus};
+use native_core::{
+    MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus,
+};
 
 use serde::Serialize;
 use std::{
     env, fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     sync::Mutex,
 };
@@ -170,37 +172,59 @@ fn set_visual_debug_viewport(mode: String, window: tauri::Window) -> Result<(), 
 }
 
 #[tauri::command]
-fn steam_installed() -> bool { native_core::steam_installed() }
+fn steam_installed() -> bool {
+    native_core::steam_installed()
+}
 
 #[tauri::command]
-fn runtime_prerequisites() -> RuntimePrerequisites { native_core::runtime_prerequisites() }
+fn runtime_prerequisites() -> RuntimePrerequisites {
+    native_core::runtime_prerequisites()
+}
 
 #[tauri::command]
-fn open_steam_client() -> Result<(), String> { native_core::open_steam_client() }
+fn open_steam_client() -> Result<(), String> {
+    native_core::open_steam_client()
+}
 
 #[tauri::command]
-fn open_steam_install(app_id: u32) -> Result<(), String> { native_core::open_steam_install(app_id) }
+fn open_steam_install(app_id: u32) -> Result<(), String> {
+    native_core::open_steam_install(app_id)
+}
 
 #[tauri::command]
-fn open_steam_run(app_id: u32) -> Result<(), String> { native_core::open_steam_run(app_id) }
+fn open_steam_run(app_id: u32) -> Result<(), String> {
+    native_core::open_steam_run(app_id)
+}
 
 #[tauri::command]
-fn steam_download_status(app_id: u32) -> SteamDownloadStatus { native_core::steam_download_status(app_id) }
+fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
+    native_core::steam_download_status(app_id)
+}
 
 #[tauri::command]
-fn machine_profile() -> MachineProfile { native_core::machine_profile() }
+fn machine_profile() -> MachineProfile {
+    native_core::machine_profile()
+}
 
 #[tauri::command]
-fn local_steam_pool() -> Result<serde_json::Value, String> { native_core::read_local_steam_pool() }
+fn local_steam_pool() -> Result<serde_json::Value, String> {
+    native_core::read_local_steam_pool()
+}
 
 #[tauri::command]
-fn verify_local_steam_inventory() -> Result<serde_json::Value, String> { native_core::verify_local_steam_inventory() }
+fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
+    native_core::verify_local_steam_inventory()
+}
 
 #[tauri::command]
-fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult { native_core::switch_steam_account(account_label) }
+fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
+    native_core::switch_steam_account(account_label)
+}
 
 #[tauri::command]
-fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> { native_core::steam_store_metadata(app_id) }
+fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    native_core::steam_store_metadata(app_id)
+}
 
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();

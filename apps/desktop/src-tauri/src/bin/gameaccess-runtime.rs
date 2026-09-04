@@ -7,5 +7,7 @@ fn main() {
         eprintln!("{err}");
         std::process::exit(1);
     }
-    loop { thread::sleep(Duration::from_secs(3600)); }
+    loop {
+        thread::sleep(Duration::from_secs(3600));
+    }
 }

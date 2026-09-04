@@ -10,8 +10,8 @@ const API = (import.meta.env.VITE_GAMEACCESS_API ?? "").replace(/\/$/, "");
 let localCatalog: CatalogGame[] = [];
 
 const steamMetadataCache = new Map<number, SteamMetadata>();
-const record = (value: unknown): Record<string, any> =>
-  value && typeof value === "object" ? value as Record<string, any> : {};
+const record = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? value as Record<string, unknown> : {};
 
 function normalizeSteamStoreMetadata(game: CatalogGame, raw: Record<string, unknown>): SteamMetadata {
   const data = record(raw);
@@ -204,7 +204,9 @@ export const loadSteamApp = async (appId: number) => {
   if (getCatalogMode() === "local") {
     const game = localCatalog.find((item) => item.app_id === appId);
     if (!game) throw new Error("Juego no encontrado en el catÃ¡logo local");
-    return (await loadLocalDetails(game.id)).steam!;
+    const details = await loadLocalDetails(game.id);
+    if (!details.steam) throw new Error("Steam metadata is unavailable");
+    return details.steam;
   }
   return request<SteamMetadata>(`/steam/apps/${appId}`);
 };

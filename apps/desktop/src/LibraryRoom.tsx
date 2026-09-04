@@ -17,7 +17,6 @@ import {
   buildActions,
   EmptyLibraryContent,
   FeaturePanel,
-  firstPresent,
   handleActionKey,
   handleGridKey,
   isActiveDownload,
@@ -356,7 +355,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       padding: 8,
     });
     if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });
-  }, [isTabletSurface, selectedIndex, displayGames.length]);
+  }, [isTabletSurface, selectedIndex]);
 
   useEffect(() => {
     const shouldLoadDetails = !isTabletSurface || tabletDetailsOpen;
@@ -380,7 +379,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   useEffect(() => {
     if (isTabletSurface) setTabletDetailsOpen(false);
-  }, [isTabletSurface, selectedGameIdResolved]);
+  }, [isTabletSurface]);
 
   useEffect(() => {
     if (selectedGameIdResolved == null) return;

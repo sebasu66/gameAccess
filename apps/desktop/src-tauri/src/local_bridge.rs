@@ -18,8 +18,9 @@ const ALLOWED_ORIGINS: [&str; 4] = [
 ];
 
 pub fn start() -> Result<(), String> {
-    let listener = TcpListener::bind(BRIDGE_ADDR)
-        .map_err(|err| format!("Could not bind GameAccess local runtime at {BRIDGE_ADDR}: {err}"))?;
+    let listener = TcpListener::bind(BRIDGE_ADDR).map_err(|err| {
+        format!("Could not bind GameAccess local runtime at {BRIDGE_ADDR}: {err}")
+    })?;
     let ui_root = resolve_ui_root();
     thread::Builder::new()
         .name("gameaccess-local-bridge".into())
@@ -51,7 +52,12 @@ fn handle_connection(mut stream: TcpStream, ui_root: Option<&Path>) -> Result<()
         .unwrap_or(true);
 
     if !origin_allowed {
-        return write_json(&mut stream, 403, json!({ "error": "Origin not allowed" }), None);
+        return write_json(
+            &mut stream,
+            403,
+            json!({ "error": "Origin not allowed" }),
+            None,
+        );
     }
 
     let response_origin = request.origin.as_deref();
@@ -62,22 +68,36 @@ fn handle_connection(mut stream: TcpStream, ui_root: Option<&Path>) -> Result<()
     let result = route(&request.method, &request.path, &request.body);
     match result {
         Ok(value) => write_json(&mut stream, 200, value, response_origin),
-        Err(RouteError::BadRequest(message)) => {
-            write_json(&mut stream, 400, json!({ "error": message }), response_origin)
-        }
+        Err(RouteError::BadRequest(message)) => write_json(
+            &mut stream,
+            400,
+            json!({ "error": message }),
+            response_origin,
+        ),
         Err(RouteError::NotFound) if request.method == "GET" => {
             if let Some(root) = ui_root {
                 write_static(&mut stream, root, &request.path, response_origin)
             } else {
-                write_json(&mut stream, 503, json!({ "error": "GameAccess UI bundle is unavailable" }), response_origin)
+                write_json(
+                    &mut stream,
+                    503,
+                    json!({ "error": "GameAccess UI bundle is unavailable" }),
+                    response_origin,
+                )
             }
         }
-        Err(RouteError::NotFound) => {
-            write_json(&mut stream, 404, json!({ "error": "Not found" }), response_origin)
-        }
-        Err(RouteError::Internal(message)) => {
-            write_json(&mut stream, 500, json!({ "error": message }), response_origin)
-        }
+        Err(RouteError::NotFound) => write_json(
+            &mut stream,
+            404,
+            json!({ "error": "Not found" }),
+            response_origin,
+        ),
+        Err(RouteError::Internal(message)) => write_json(
+            &mut stream,
+            500,
+            json!({ "error": message }),
+            response_origin,
+        ),
     }
 }
 
@@ -122,7 +142,9 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
     let header_end = header_end.ok_or_else(|| "Malformed HTTP request".to_string())?;
     let headers = String::from_utf8_lossy(&bytes[..header_end]);
     let mut lines = headers.lines();
-    let request_line = lines.next().ok_or_else(|| "Missing request line".to_string())?;
+    let request_line = lines
+        .next()
+        .ok_or_else(|| "Missing request line".to_string())?;
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
     let raw_path = parts.next().unwrap_or("/");
@@ -164,12 +186,16 @@ enum RouteError {
 fn route(method: &str, path: &str, body: &[u8]) -> Result<Value, RouteError> {
     match (method, path) {
         ("GET", "/health") => Ok(json!({ "ok": true })),
-        ("GET", "/local-steam-pool") => native_core::read_local_steam_pool().map_err(RouteError::Internal),
+        ("GET", "/local-steam-pool") => {
+            native_core::read_local_steam_pool().map_err(RouteError::Internal)
+        }
         ("POST", "/verify-local-steam-inventory") => {
             native_core::verify_local_steam_inventory().map_err(RouteError::Internal)
         }
-        ("GET", "/runtime-prerequisites") => serde_json::to_value(native_core::runtime_prerequisites())
-            .map_err(|err| RouteError::Internal(err.to_string())),
+        ("GET", "/runtime-prerequisites") => {
+            serde_json::to_value(native_core::runtime_prerequisites())
+                .map_err(|err| RouteError::Internal(err.to_string()))
+        }
         ("GET", "/steam-installed") => Ok(json!(native_core::steam_installed())),
         ("GET", "/machine-profile") => serde_json::to_value(native_core::machine_profile())
             .map_err(|err| RouteError::Internal(err.to_string())),
@@ -246,12 +272,16 @@ fn parse_app_id(value: &str) -> Result<u32, RouteError> {
 fn resolve_ui_root() -> Option<PathBuf> {
     if let Some(value) = env::var_os("GAMEACCESS_UI_DIR") {
         let candidate = PathBuf::from(value);
-        if candidate.join("index.html").is_file() { return Some(candidate); }
+        if candidate.join("index.html").is_file() {
+            return Some(candidate);
+        }
     }
     if let Ok(exe) = env::current_exe() {
         if let Some(dir) = exe.parent() {
             for candidate in [dir.join("ui"), dir.join("runtime").join("ui")] {
-                if candidate.join("index.html").is_file() { return Some(candidate); }
+                if candidate.join("index.html").is_file() {
+                    return Some(candidate);
+                }
             }
         }
     }
@@ -262,7 +292,13 @@ fn resolve_ui_root() -> Option<PathBuf> {
 }
 
 fn static_content_type(path: &Path) -> &'static str {
-    match path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "html" => "text/html; charset=utf-8",
         "js" | "mjs" => "text/javascript; charset=utf-8",
         "css" => "text/css; charset=utf-8",
@@ -284,20 +320,35 @@ fn static_content_type(path: &Path) -> &'static str {
     }
 }
 
-fn write_static(stream: &mut TcpStream, root: &Path, request_path: &str, origin: Option<&str>) -> Result<(), String> {
+fn write_static(
+    stream: &mut TcpStream,
+    root: &Path,
+    request_path: &str,
+    origin: Option<&str>,
+) -> Result<(), String> {
     let clean = request_path.trim_start_matches('/');
     if clean.split('/').any(|segment| segment == "..") {
         return write_json(stream, 403, json!({ "error": "Invalid path" }), origin);
     }
-    let requested = if clean.is_empty() { root.join("index.html") } else { root.join(clean) };
+    let requested = if clean.is_empty() {
+        root.join("index.html")
+    } else {
+        root.join(clean)
+    };
     let path = if requested.is_file() {
         requested
     } else if Path::new(clean).extension().is_none() {
         root.join("index.html")
     } else {
-        return write_json(stream, 404, json!({ "error": "Static file not found" }), origin);
+        return write_json(
+            stream,
+            404,
+            json!({ "error": "Static file not found" }),
+            origin,
+        );
     };
-    let body = fs::read(&path).map_err(|err| format!("Could not read UI file {}: {err}", path.display()))?;
+    let body = fs::read(&path)
+        .map_err(|err| format!("Could not read UI file {}: {err}", path.display()))?;
     write_response(stream, 200, static_content_type(&path), &body, origin)
 }
 
@@ -308,7 +359,13 @@ fn write_json(
     origin: Option<&str>,
 ) -> Result<(), String> {
     let body = serde_json::to_vec(&value).map_err(|err| err.to_string())?;
-    write_response(stream, status, "application/json; charset=utf-8", &body, origin)
+    write_response(
+        stream,
+        status,
+        "application/json; charset=utf-8",
+        &body,
+        origin,
+    )
 }
 
 fn write_empty(stream: &mut TcpStream, status: u16, origin: Option<&str>) -> Result<(), String> {
@@ -336,7 +393,9 @@ fn write_response(
         body.len()
     );
     if let Some(origin) = origin {
-        headers.push_str(&format!("Access-Control-Allow-Origin: {origin}\r\nVary: Origin\r\n"));
+        headers.push_str(&format!(
+            "Access-Control-Allow-Origin: {origin}\r\nVary: Origin\r\n"
+        ));
     }
     headers.push_str("\r\n");
     stream

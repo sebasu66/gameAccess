@@ -50,7 +50,9 @@ describe("mergeCatalog", () => {
   it("deduplicates by AppID and preserves the backend game id for leasing", () => {
     const remote: CatalogGame[] = [{ id: 77, slug: "remote", name: "Remote Name", app_id: 10, credit_cost_per_hour: 50, copies_total: 2, copies_available: 1 }];
     const merged = mergeCatalog(remote, buildLocalCatalog(pool));
-    const game = merged.find((item) => item.app_id === 10)!;
+    const game = merged.find((item) => item.app_id === 10);
+    expect(game).toBeDefined();
+    if (!game) throw new Error("Merged game missing");
     expect(merged.filter((item) => item.app_id === 10)).toHaveLength(1);
     expect(game.id).toBe(77);
     expect(game.local_account_labels).toEqual(["owner"]);

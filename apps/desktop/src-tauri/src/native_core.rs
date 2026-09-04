@@ -360,12 +360,16 @@ pub fn machine_profile() -> MachineProfile {
 fn launcher_dir() -> Option<PathBuf> {
     if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
         let candidate = PathBuf::from(value);
-        if candidate.is_dir() { return Some(candidate); }
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
     }
     if let Ok(exe) = env::current_exe() {
         if let Some(dir) = exe.parent() {
             for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
-                if candidate.is_dir() { return Some(candidate); }
+                if candidate.is_dir() {
+                    return Some(candidate);
+                }
             }
         }
     }
@@ -438,37 +442,6 @@ pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout)
         .map_err(|err| format!("Verified Steam inventory returned invalid data: {err}"))?;
     Ok(value.get("pool").cloned().unwrap_or(value))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::read_local_steam_pool;
-
-    #[test]
-    fn local_steam_pool_contains_real_games_and_accounts() {
-        let pool = read_local_steam_pool().expect("local Steam pool should load");
-        let games = pool
-            .get("games")
-            .and_then(|value| value.as_array())
-            .expect("games array");
-        let accounts = pool
-            .get("accounts")
-            .and_then(|value| value.as_array())
-            .expect("accounts array");
-        assert!(
-            !games.is_empty(),
-            "local Steam pool must not silently become empty"
-        );
-        assert!(
-            !accounts.is_empty(),
-            "remembered Steam accounts must be present"
-        );
-        assert!(games.iter().all(|game| game
-            .get("app_id")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(0)
-            > 0));
-    }
 }
 
 pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
@@ -617,3 +590,33 @@ pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::read_local_steam_pool;
+
+    #[test]
+    fn local_steam_pool_contains_real_games_and_accounts() {
+        let pool = read_local_steam_pool().expect("local Steam pool should load");
+        let games = pool
+            .get("games")
+            .and_then(|value| value.as_array())
+            .expect("games array");
+        let accounts = pool
+            .get("accounts")
+            .and_then(|value| value.as_array())
+            .expect("accounts array");
+        assert!(
+            !games.is_empty(),
+            "local Steam pool must not silently become empty"
+        );
+        assert!(
+            !accounts.is_empty(),
+            "remembered Steam accounts must be present"
+        );
+        assert!(games.iter().all(|game| game
+            .get("app_id")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(0)
+            > 0));
+    }
+}

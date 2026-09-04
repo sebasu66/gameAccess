@@ -59,9 +59,15 @@ def sync_runtime_account_roster(session: Session) -> int:
     records = load_account_roster()
     replace_runtime_roster(records)
     for record in records:
-        account = session.exec(select(core.ProviderAccount).where(core.ProviderAccount.label == record.label)).first()
+        account = session.exec(
+            select(core.ProviderAccount).where(
+                core.ProviderAccount.label == record.label
+            )
+        ).first()
         if account is None:
-            account = core.ProviderAccount(label=record.label, provider="steam", status=core.AccountStatus.free)
+            account = core.ProviderAccount(
+                label=record.label, provider="steam", status=core.AccountStatus.free
+            )
         notes: dict[str, Any] = {}
         try:
             decoded = json.loads(account.notes or "{}")
@@ -89,27 +95,30 @@ def roster_status(session: Session = Depends(core.get_session)) -> dict:
     return {"ok": True, "accounts": count}
 
 
-@router.post("/sync")
-def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) -> dict:
+def _validate_pool_sync(req: PoolSyncInput) -> None:
     if not req.accounts:
         raise HTTPException(400, "pool must contain at least one Steam account")
     if not req.games:
         raise HTTPException(400, "pool must contain at least one game")
     if req.source == "steam-console-licenses-print" and not req.verification_complete:
-        raise HTTPException(409, "verified Steam inventory is incomplete; refusing to replace the authoritative pool")
+        raise HTTPException(
+            409,
+            "verified Steam inventory is incomplete; refusing to replace "
+            "the authoritative pool",
+        )
 
+
+def _sync_games(req: PoolSyncInput, session: Session) -> dict[int, core.Game]:
     incoming_app_ids = {item.app_id for item in req.games}
-
-    # Catalog reach is broader than ownership: a Family-visible game may be in
-    # the catalog even though its single license belongs to one donor account.
     for existing in session.exec(select(core.Game)).all():
         existing.active = bool(existing.app_id and existing.app_id in incoming_app_ids)
         session.add(existing)
     session.commit()
 
-    games_by_app: dict[int, core.Game] = {}
     for incoming in req.games:
-        game = session.exec(select(core.Game).where(core.Game.app_id == incoming.app_id)).first()
+        game = session.exec(
+            select(core.Game).where(core.Game.app_id == incoming.app_id)
+        ).first()
         if game is None:
             game = core.Game(
                 slug=_unique_slug(session, incoming.name, incoming.app_id),
@@ -122,67 +131,115 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
             game.name = incoming.name.strip() or game.name
             game.active = True
             if game.credit_cost_per_hour >= 50:
-                game.credit_cost_per_hour = max(1, round(game.credit_cost_per_hour / 10))
+                game.credit_cost_per_hour = max(
+                    1, round(game.credit_cost_per_hour / 10)
+                )
         session.add(game)
     session.commit()
 
+    games_by_app: dict[int, core.Game] = {}
     for incoming in req.games:
-        game = session.exec(select(core.Game).where(core.Game.app_id == incoming.app_id)).first()
+        game = session.exec(
+            select(core.Game).where(core.Game.app_id == incoming.app_id)
+        ).first()
         if game is not None:
             games_by_app[incoming.app_id] = game
+    return games_by_app
 
-    synced_accounts: list[core.ProviderAccount] = []
-    for incoming in req.accounts:
-        label = incoming.label.strip()
-        account = session.exec(select(core.ProviderAccount).where(core.ProviderAccount.label == label)).first()
-        if account is None:
-            account = core.ProviderAccount(label=label, provider="steam", status=core.AccountStatus.free)
-        account.provider = "steam"
-        account.notes = json.dumps(
-            {
-                "source": req.source,
-                "account_name": incoming.account_name,
-                "steam_id64": incoming.steam_id64,
-                "user_id32": incoming.user_id32,
-                "ownership_source": incoming.ownership_source,
-                "ownership_verified_at": incoming.ownership_verified_at or req.verified_at,
-                "inventory_complete": incoming.inventory_complete and req.verification_complete,
-                "owned_app_count": len(set(incoming.app_ids)),
-                "accessible_app_count": len(set(incoming.accessible_app_ids)),
-                # Public AppIDs only: operational seat reach, never copy count.
-                "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
+
+def _sync_account(
+    req: PoolSyncInput,
+    incoming: PoolAccountInput,
+    games_by_app: dict[int, core.Game],
+    session: Session,
+) -> core.ProviderAccount:
+    label = incoming.label.strip()
+    account = session.exec(
+        select(core.ProviderAccount).where(core.ProviderAccount.label == label)
+    ).first()
+    if account is None:
+        account = core.ProviderAccount(
+            label=label, provider="steam", status=core.AccountStatus.free
         )
-        session.add(account)
-        session.commit()
-        session.refresh(account)
-        synced_accounts.append(account)
+    account.provider = "steam"
+    account.notes = json.dumps(
+        {
+            "source": req.source,
+            "account_name": incoming.account_name,
+            "steam_id64": incoming.steam_id64,
+            "user_id32": incoming.user_id32,
+            "ownership_source": incoming.ownership_source,
+            "ownership_verified_at": (
+                incoming.ownership_verified_at or req.verified_at
+            ),
+            "inventory_complete": (
+                incoming.inventory_complete and req.verification_complete
+            ),
+            "owned_app_count": len(set(incoming.app_ids)),
+            "accessible_app_count": len(set(incoming.accessible_app_ids)),
+            "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    session.add(account)
+    session.commit()
+    session.refresh(account)
 
-        desired_game_ids = {
-            games_by_app[app_id].id
-            for app_id in dict.fromkeys(incoming.app_ids)
-            if app_id in games_by_app and games_by_app[app_id].id is not None
-        }
-        existing = session.exec(select(core.AccountGame).where(core.AccountGame.account_id == account.id)).all()
-        existing_by_game = {row.game_id: row for row in existing}
-        for game_id, row in existing_by_game.items():
-            if game_id not in desired_game_ids:
-                session.delete(row)
-        for game_id in desired_game_ids:
-            if game_id not in existing_by_game:
-                session.add(core.AccountGame(account_id=account.id, game_id=game_id))
-        session.commit()
+    desired_game_ids = {
+        games_by_app[app_id].id
+        for app_id in dict.fromkeys(incoming.app_ids)
+        if app_id in games_by_app and games_by_app[app_id].id is not None
+    }
+    existing = session.exec(
+        select(core.AccountGame).where(core.AccountGame.account_id == account.id)
+    ).all()
+    existing_by_game = {row.game_id: row for row in existing}
+    for game_id, row in existing_by_game.items():
+        if game_id not in desired_game_ids:
+            session.delete(row)
+    for game_id in desired_game_ids:
+        if game_id not in existing_by_game:
+            session.add(core.AccountGame(account_id=account.id, game_id=game_id))
+    session.commit()
+    return account
 
-    license_counts: Counter[int] = Counter()
-    for account in synced_accounts:
-        mappings = session.exec(select(core.AccountGame).where(core.AccountGame.account_id == account.id)).all()
+
+def _license_counts(
+    session: Session, accounts: list[core.ProviderAccount]
+) -> Counter[int]:
+    counts: Counter[int] = Counter()
+    for account in accounts:
+        mappings = session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == account.id)
+        ).all()
         for mapping in mappings:
-            license_counts[mapping.game_id] += 1
+            counts[mapping.game_id] += 1
+    return counts
 
-    duplicate_games = sum(1 for count in license_counts.values() if count > 1)
-    total_licenses = sum(license_counts.values())
+
+def _account_summary(session: Session, account: core.ProviderAccount) -> dict[str, Any]:
+    mappings = session.exec(
+        select(core.AccountGame).where(core.AccountGame.account_id == account.id)
+    ).all()
+    notes = json.loads(account.notes or "{}")
+    return {
+        "id": account.id,
+        "label": account.label,
+        "status": account.status,
+        "owned_game_count": len(mappings),
+        "accessible_game_count": len(set(notes.get("accessible_app_ids") or [])),
+    }
+
+
+@router.post("/sync")
+def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) -> dict:
+    _validate_pool_sync(req)
+    games_by_app = _sync_games(req, session)
+    synced_accounts = [
+        _sync_account(req, incoming, games_by_app, session) for incoming in req.accounts
+    ]
+    license_counts = _license_counts(session, synced_accounts)
     return {
         "ok": True,
         "source": req.source,
@@ -191,21 +248,10 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         "verification_errors": req.verification_errors,
         "account_count": len(synced_accounts),
         "game_count": len(games_by_app),
-        "total_license_mappings": total_licenses,
-        "duplicate_game_count": duplicate_games,
+        "total_license_mappings": sum(license_counts.values()),
+        "duplicate_game_count": sum(
+            1 for count in license_counts.values() if count > 1
+        ),
         "license_semantics": "steam-console-original-owner",
-        "accounts": [
-            {
-                "id": account.id,
-                "label": account.label,
-                "status": account.status,
-                "owned_game_count": len(
-                    session.exec(select(core.AccountGame).where(core.AccountGame.account_id == account.id)).all()
-                ),
-                "accessible_game_count": len(
-                    set(json.loads(account.notes or "{}").get("accessible_app_ids") or [])
-                ),
-            }
-            for account in synced_accounts
-        ],
+        "accounts": [_account_summary(session, account) for account in synced_accounts],
     }

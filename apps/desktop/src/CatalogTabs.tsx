@@ -11,6 +11,7 @@ export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onC
     <nav className="catalog-tabs" aria-label="Origen del catálogo">
       {tabs.map((tab) => (
         <button
+          type="button"
           key={tab.id}
           className={mode === tab.id ? "active" : ""}
           aria-current={mode === tab.id ? "page" : undefined}
