@@ -100,12 +100,6 @@ def _validate_pool_sync(req: PoolSyncInput) -> None:
         raise HTTPException(400, "pool must contain at least one Steam account")
     if not req.games:
         raise HTTPException(400, "pool must contain at least one game")
-    if req.source == "steam-console-licenses-print" and not req.verification_complete:
-        raise HTTPException(
-            409,
-            "verified Steam inventory is incomplete; refusing to replace "
-            "the authoritative pool",
-        )
 
 
 def _sync_games(req: PoolSyncInput, session: Session) -> dict[int, core.Game]:
@@ -147,6 +141,14 @@ def _sync_games(req: PoolSyncInput, session: Session) -> dict[int, core.Game]:
     return games_by_app
 
 
+def _decode_notes(account: core.ProviderAccount) -> dict[str, Any]:
+    try:
+        decoded = json.loads(account.notes or "{}")
+        return decoded if isinstance(decoded, dict) else {}
+    except Exception:
+        return {}
+
+
 def _sync_account(
     req: PoolSyncInput,
     incoming: PoolAccountInput,
@@ -162,46 +164,68 @@ def _sync_account(
             label=label, provider="steam", status=core.AccountStatus.free
         )
     account.provider = "steam"
-    account.notes = json.dumps(
-        {
-            "source": req.source,
-            "account_name": incoming.account_name,
-            "steam_id64": incoming.steam_id64,
-            "user_id32": incoming.user_id32,
-            "ownership_source": incoming.ownership_source,
-            "ownership_verified_at": (
-                incoming.ownership_verified_at or req.verified_at
-            ),
-            "inventory_complete": (
-                incoming.inventory_complete and req.verification_complete
-            ),
-            "owned_app_count": len(set(incoming.app_ids)),
-            "accessible_app_count": len(set(incoming.accessible_app_ids)),
-            "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
     session.add(account)
     session.commit()
     session.refresh(account)
 
-    desired_game_ids = {
-        games_by_app[app_id].id
-        for app_id in dict.fromkeys(incoming.app_ids)
-        if app_id in games_by_app and games_by_app[app_id].id is not None
-    }
     existing = session.exec(
         select(core.AccountGame).where(core.AccountGame.account_id == account.id)
     ).all()
     existing_by_game = {row.game_id: row for row in existing}
-    for game_id, row in existing_by_game.items():
-        if game_id not in desired_game_ids:
-            session.delete(row)
-    for game_id in desired_game_ids:
-        if game_id not in existing_by_game:
-            session.add(core.AccountGame(account_id=account.id, game_id=game_id))
+
+    authoritative_ownership = bool(
+        req.verification_complete and incoming.inventory_complete
+    )
+    if authoritative_ownership:
+        desired_game_ids = {
+            games_by_app[app_id].id
+            for app_id in dict.fromkeys(incoming.app_ids)
+            if app_id in games_by_app and games_by_app[app_id].id is not None
+        }
+        for game_id, row in existing_by_game.items():
+            if game_id not in desired_game_ids:
+                session.delete(row)
+        for game_id in desired_game_ids:
+            if game_id not in existing_by_game:
+                session.add(core.AccountGame(account_id=account.id, game_id=game_id))
+        session.commit()
+
+    current_mappings = session.exec(
+        select(core.AccountGame).where(core.AccountGame.account_id == account.id)
+    ).all()
+
+    notes = _decode_notes(account)
+    notes.update(
+        {
+            "catalog_source": req.source,
+            "account_name": incoming.account_name,
+            "steam_id64": incoming.steam_id64,
+            "user_id32": incoming.user_id32,
+            "accessible_app_count": len(set(incoming.accessible_app_ids)),
+            "accessible_app_ids": sorted(set(incoming.accessible_app_ids)),
+            "owned_app_count": len(current_mappings),
+            "last_catalog_verification_complete": req.verification_complete,
+        }
+    )
+    if authoritative_ownership:
+        notes.update(
+            {
+                "ownership_source": incoming.ownership_source,
+                "ownership_verified_at": incoming.ownership_verified_at or req.verified_at,
+                "inventory_complete": True,
+            }
+        )
+    else:
+        # A catalog refresh with partial/no SteamKit coverage must not downgrade
+        # the last authoritative ownership metadata or delete AccountGame rows.
+        notes.setdefault("ownership_source", "unverified")
+        notes.setdefault("ownership_verified_at", None)
+        notes.setdefault("inventory_complete", False)
+
+    account.notes = json.dumps(notes, ensure_ascii=False, separators=(",", ":"))
+    session.add(account)
     session.commit()
+    session.refresh(account)
     return account
 
 
@@ -252,6 +276,6 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         "duplicate_game_count": sum(
             1 for count in license_counts.values() if count > 1
         ),
-        "license_semantics": "steam-console-original-owner",
+        "license_semantics": "original-owner-preserved-on-partial-sync",
         "accounts": [_account_summary(session, account) for account in synced_accounts],
     }
