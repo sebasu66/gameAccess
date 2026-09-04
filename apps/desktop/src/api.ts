@@ -5,7 +5,8 @@ import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearc
 
 // Set this to the hosted backend (or the local FastAPI emulator during development).
 // An empty value deliberately means offline mode; no localhost server is required.
-const API = (import.meta.env.VITE_GAMEACCESS_API ?? "").replace(/\/$/, "");
+const LOCAL_DEV_API = import.meta.env.DEV ? "http://127.0.0.1:38147" : "";
+const API = (import.meta.env.VITE_GAMEACCESS_API ?? LOCAL_DEV_API).replace(/\/$/, "");
 
 let localCatalog: CatalogGame[] = [];
 

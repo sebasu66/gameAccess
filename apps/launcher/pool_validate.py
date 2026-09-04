@@ -13,7 +13,7 @@ from steam_pool import active_user_id32, remembered_account_identities
 from steam_switch import find_steam_exe, switch_to_remembered_account
 
 
-def validate(app_id: int, api: str = "http://127.0.0.1:8000", minutes: int = 5) -> dict:
+def validate(app_id: int, api: str = "http://127.0.0.1:38147", minutes: int = 5) -> dict:
     catalog = requests.get(f"{api}/catalog", timeout=10).json()
     game = next((item for item in catalog if item.get("app_id") == app_id), None)
     if not game:
@@ -74,7 +74,7 @@ def validate(app_id: int, api: str = "http://127.0.0.1:8000", minutes: int = 5) 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("app_id", type=int)
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--minutes", type=int, default=5)
     args = parser.parse_args()
     result = validate(args.app_id, args.api, args.minutes)

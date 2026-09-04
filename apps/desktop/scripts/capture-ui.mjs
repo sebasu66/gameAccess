@@ -46,7 +46,7 @@ const cyberpunkDetails = {
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
 
-await page.route("http://127.0.0.1:8000/**", async (route) => {
+await page.route("http://127.0.0.1:38147/**", async (route) => {
   const url = new URL(route.request().url());
   const headers = { "access-control-allow-origin": "*", "content-type": "application/json" };
   if (url.pathname === "/catalog") return route.fulfill({ status: 200, headers, body: JSON.stringify(catalog) });

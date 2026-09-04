@@ -110,7 +110,7 @@
 </div>
 <div id="toast"></div>
 <script>
-  const API = location.pathname.startsWith('/admin-console') ? '/admin-console' : 'http://127.0.0.1:8000/admin-console';
+  const API = location.pathname.startsWith('/admin-console') ? '/admin-console' : 'http://127.0.0.1:38147/admin-console';
   let data = {stats:{},accounts:[],licenses:[],seats:[],leases:[],diagnostics:[],tasks:[]};
   let currentTab='overview';
   const $=id=>document.getElementById(id);

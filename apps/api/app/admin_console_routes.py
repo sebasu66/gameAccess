@@ -419,7 +419,7 @@ def start_pool_sync() -> dict:
     script = LAUNCHER_ROOT / "family_refresh.py"
     if not script.is_file():
         raise HTTPException(500, "family_refresh.py not found")
-    argv = [str(launcher_python()), str(script), "--api", "http://127.0.0.1:8000", "--compact"]
+    argv = [str(launcher_python()), str(script), "--api", "http://127.0.0.1:38147", "--compact"]
     try:
         task = start_task("pool_sync", "Re-escanear Steam y reconstruir familias/licencias", argv)
     except Exception as exc:

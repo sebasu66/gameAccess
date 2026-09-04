@@ -197,7 +197,7 @@ function GameCard({
           {download?.state === "installed" ? <span className="installed-chip"><Check size={12} /> Listo</span> : null}
           <div className="game-card-hover">
             <span className="round-play"><Play size={18} fill="currentColor" /></span>
-            <span className="card-price">{game.credit_cost_per_hour} fichas/h</span>
+            <span className="card-price">GRATIS</span>
           </div>
         </div>
         <div className="game-card-copy">
@@ -512,7 +512,7 @@ function DetailPanel({
               />
             </div>
           </div>
-          <div className="hero-price detail-price"><span>Desde</span><strong>{game.credit_cost_per_hour}</strong><small>fichas / hora</small></div>
+          <div className="hero-price detail-price"><span>Acceso</span><strong>GRATIS</strong><small>sin fichas</small></div>
         </div>
 
         <div className="detail-body detail-body-rich">
@@ -856,7 +856,7 @@ export default function App() {
     setSelected(null);
     rememberRecent(game);
     setLeaseBusy(true);
-    setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando acceso y validando tu saldo." });
+    setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando una licencia disponible para esta sesión." });
 
     if ((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id) {
       const trace = [`Requested AppID = ${game.app_id}`, `Searching verified license-owner mapping for AppID ${game.app_id}`];

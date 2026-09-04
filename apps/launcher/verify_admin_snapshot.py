@@ -10,7 +10,7 @@ import requests
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--copies", type=int, required=True)
     parser.add_argument("--open", action="store_true")

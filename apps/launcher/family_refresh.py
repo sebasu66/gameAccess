@@ -111,7 +111,7 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Refresh GameAccess Steam provider family/license graph")
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--timeout-seconds", type=int, default=70)
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args()

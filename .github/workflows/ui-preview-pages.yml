@@ -26,7 +26,7 @@ jobs:
         working-directory: apps/desktop
         env:
           VITE_BASE_PATH: ./
-          VITE_GAMEACCESS_API: http://127.0.0.1:8000
+          VITE_GAMEACCESS_API: http://127.0.0.1:38147
         run: npm run build
       - name: Upload static preview
         uses: actions/upload-artifact@v4

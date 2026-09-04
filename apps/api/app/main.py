@@ -452,11 +452,10 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
         raise HTTPException(409, "no account currently available for this game")
     selected = selection["account"]
 
-    cost = max(1, round(game.credit_cost_per_hour * (req.minutes / 60)))
-    if user.credits < cost:
-        raise HTTPException(
-            402, f"insufficient credits: need {cost}, have {user.credits}"
-        )
+    # Prototype phase: Game Access sessions are free. Keep the accounting
+    # fields in the API so monetization can be re-enabled later without changing
+    # the client contract.
+    cost = 0
 
     starts = now_utc()
     expires = starts + timedelta(minutes=req.minutes)

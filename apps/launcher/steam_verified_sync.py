@@ -256,7 +256,7 @@ def sync_backend(payload: dict[str, Any], api: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--assert-app", type=int)
     parser.add_argument("--assert-copies", type=int)
     parser.add_argument("--compact", action="store_true")

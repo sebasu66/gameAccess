@@ -7,7 +7,7 @@ import requests
 
 from steam_switch import list_remembered_accounts, switch_to_remembered_account
 
-API = os.environ.get("GAMEACCESS_API", "http://127.0.0.1:8000")
+API = os.environ.get("GAMEACCESS_API", "http://127.0.0.1:38147")
 USER_ID = int(os.environ.get("GAMEACCESS_USER_ID", "1"))
 
 

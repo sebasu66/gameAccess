@@ -25,7 +25,7 @@ from steam_pool import scan_pool
 ROOT = Path(__file__).resolve().parents[2]
 API_DIR = ROOT / "apps" / "api"
 API_PYTHON = API_DIR / ".venv" / "Scripts" / "python.exe"
-API = "http://127.0.0.1:8000"
+API = "http://127.0.0.1:38147"
 
 
 def _json(value: Any) -> str:

@@ -57,7 +57,7 @@ def sync_saved(*, api: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Resume GameAccess family sync from saved SteamKit inventory")
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args()
     result = sync_saved(api=args.api)

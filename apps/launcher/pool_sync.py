@@ -263,7 +263,7 @@ def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
     }
 
 
-def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:8000") -> dict[str, Any]:
+def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:38147") -> dict[str, Any]:
     response = requests.post(
         f"{api.rstrip('/')}/admin/pool/sync",
         json={
@@ -318,7 +318,7 @@ def compact_pool(pool: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build/sync the GameAccess Steam provider pool")
-    parser.add_argument("--api", default="http://127.0.0.1:8000")
+    parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--refresh-licenses", action="store_true", help="headlessly rescan all provider licenses with SteamKit first")
