@@ -26,10 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from provider_inventory import build_provider_catalog
-from provider_license_scan import (
-    _login_id_for_provider,
-    load_provider_license_inventory,
-)
+from provider_license_scan import load_provider_license_inventory
 from provider_roster import credential_by_provider_id
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +38,7 @@ TOOL_URL = (
 )
 TOOL_ROOT = RUNTIME_ROOT / "tools" / f"depotdownloader-{TOOL_VERSION}"
 DOWNLOAD_ROOT = RUNTIME_ROOT / "downloads"
+DOWNLOAD_LOGIN_ID_BASE = 0x47420000  # "GB" namespace: GameAccess background download.
 
 
 def _sanitize(text: str, *secrets: str) -> str:
@@ -49,6 +47,15 @@ def _sanitize(text: str, *secrets: str) -> str:
         if secret:
             safe = safe.replace(secret, "[REDACTED]")
     return safe
+
+
+def _download_login_id_for_provider(provider_id: str) -> int:
+    try:
+        slot = int(provider_id.rsplit("-", 1)[-1])
+    except (TypeError, ValueError):
+        slot = 1
+    slot = max(1, min(slot, 0xFFFF))
+    return DOWNLOAD_LOGIN_ID_BASE + slot
 
 
 def _find_executable(root: Path) -> Path | None:
@@ -182,7 +189,7 @@ def run_probe(
     mode = "manifest-only" if manifest_only else "download"
     target = DOWNLOAD_ROOT / provider_id / f"{app_id}-{mode}"
     target.mkdir(parents=True, exist_ok=True)
-    login_id = _login_id_for_provider(provider_id)
+    login_id = _download_login_id_for_provider(provider_id)
 
     argv = [
         str(executable),
@@ -234,8 +241,6 @@ def run_probe(
 
 
 def _print_json(value: Any) -> None:
-    # Windows console code pages are not guaranteed to be UTF-8; escaped JSON
-    # keeps game titles lossless and machine-readable without console failures.
     print(json.dumps(value, ensure_ascii=True))
 
 
