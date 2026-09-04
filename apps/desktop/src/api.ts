@@ -167,12 +167,12 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
     return { games: [], user: { id: 1, username: "offline", credits: 0 }, offlineDemo: true };
   }
 
-  try {
-    const [games, user] = await Promise.all([request<CatalogGame[]>("/catalog"), request<UserSummary>("/users/1")]);
-    return { games, user, offlineDemo: false };
-  } catch {
-    return { games: [], user: { id: 1, username: "offline", credits: 0 }, offlineDemo: true };
-  }
+  const [games, user] = await Promise.all([
+    request<CatalogGame[]>("/catalog"),
+    request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
+  ]);
+  if (!games.length) throw new Error(`GameAccess backend ${API}/catalog returned an empty catalog.`);
+  return { games, user, offlineDemo: false };
 }
 
 export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] = localCatalog) {

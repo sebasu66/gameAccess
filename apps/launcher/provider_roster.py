@@ -1,11 +1,12 @@
 """Canonical local GameAccess Steam provider roster.
 
-The provider set comes exclusively from ``cuentas.txt``.  It is intentionally
+The provider set comes exclusively from ``accFull.csv``.  It is intentionally
 separate from Steam's remembered/local-user accounts.  Credentials are read
 only at runtime and are never serialized by this module.
 """
 from __future__ import annotations
 
+import csv
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -27,7 +28,7 @@ def configured_accounts_path() -> Path:
     configured = os.environ.get("GAMEACCESS_ACCOUNTS_FILE", "").strip()
     if configured:
         return Path(configured).expanduser()
-    return Path(__file__).resolve().parents[2] / "cuentas.txt"
+    return Path(__file__).resolve().parents[2] / "accFull.csv"
 
 
 def _unwrap(value: str) -> str:
@@ -45,37 +46,35 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
     seen_pairs: set[tuple[str, str]] = set()
     login_counts: defaultdict[str, int] = defaultdict(int)
     records: list[ProviderCredential] = []
-    for raw_line in source.read_text(encoding="utf-8-sig", errors="replace").splitlines():
-        cells = [cell.strip() for cell in raw_line.split("|")]
-        while cells and not cells[0]:
-            cells.pop(0)
-        while cells and not cells[-1]:
-            cells.pop()
-        if len(cells) < 3:
-            continue
-
-        login = _unwrap(cells[1])
-        password = _unwrap(cells[2])
-        if login == "Usuario (Login)" and password == "Contraseña (Pass)":
-            continue
-        if not login and not password:
-            continue
-        pair = (login, password)
-        if pair in seen_pairs:
-            continue
-        seen_pairs.add(pair)
-
-        login_counts[login] += 1
-        occurrence = login_counts[login]
-        label = login if occurrence == 1 else f"{login}#{occurrence}"
-        records.append(
-            ProviderCredential(
-                provider_id=f"provider-{len(records) + 1:03d}",
-                label=label,
-                login=login,
-                password=password,
+    with source.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
+        reader = csv.reader(handle)
+        for row in reader:
+            if not row or all(not str(cell).strip() for cell in row):
+                continue
+            if len(row) < 2:
+                continue
+            login = str(row[0]).strip()
+            password = str(row[1]).strip()
+            if not login and not password:
+                continue
+            # Accept an optional conventional header without requiring one.
+            if login.casefold() in {"usr", "user", "username", "login"} and password.casefold() in {"pass", "password"}:
+                continue
+            pair = (login, password)
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            login_counts[login] += 1
+            occurrence = login_counts[login]
+            label = login if occurrence == 1 else f"{login}#{occurrence}"
+            records.append(
+                ProviderCredential(
+                    provider_id=f"provider-{len(records) + 1:03d}",
+                    label=label,
+                    login=login,
+                    password=password,
+                )
             )
-        )
     return records
 
 
@@ -123,7 +122,7 @@ def steam_account_identities() -> list[dict[str, Any]]:
 
 
 def match_provider_identities(path: Path | None = None) -> dict[str, Any]:
-    """Map the cuentas.txt provider roster to existing local Steam identities.
+    """Map the accFull.csv provider roster to existing local Steam identities.
 
     Passwords never leave ``credentials`` and are not included in the returned
     public mapping.  Matching is case-insensitive on the Steam account name.

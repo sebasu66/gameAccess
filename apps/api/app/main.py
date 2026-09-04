@@ -127,6 +127,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "tauri://localhost",
         "https://tauri.localhost",
+        "http://tauri.localhost",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
@@ -192,11 +193,24 @@ def game_capacity(session: Session, game: Game) -> tuple[int, int]:
     return family_capacity.game_capacity(session, game)
 
 
-def game_summary(session: Session, game: Game) -> dict:
+def game_summary(session: Session, game: Game, metrics: dict[int, dict] | None = None) -> dict:
     from . import family_capacity
 
-    total, available = game_capacity(session, game)
-    demand = family_capacity.demand_fields(session, int(game.id or 0))
+    game_id = int(game.id or 0)
+    metric = (metrics or {}).get(game_id)
+    if metric is None:
+        total, available = game_capacity(session, game)
+        demand = family_capacity.demand_fields(session, game_id)
+    else:
+        total = int(metric.get("total", 0))
+        available = int(metric.get("available", 0))
+        demand = {
+            "request_count_total": int(metric.get("request_count_total", 0)),
+            "successful_leases": int(metric.get("successful_leases", 0)),
+            "demand_value": float(metric.get("demand_value", 1.0)),
+            "price_factor": float(metric.get("price_factor", 1.0)),
+            "pool_value": float(metric.get("pool_value", 1.0)),
+        }
     assets = steam_assets(game.app_id)
     return {
         "id": game.id,
@@ -235,7 +249,9 @@ def health() -> dict:
 def catalog(session: Session = Depends(get_session)) -> list[dict]:
     expire_old_leases(session)
     games = session.exec(select(Game).where(Game.active == True)).all()  # noqa: E712
-    return [game_summary(session, game) for game in games]
+    from . import family_capacity
+    metrics = family_capacity.catalog_metrics(session)
+    return [game_summary(session, game, metrics) for game in games]
 
 
 @app.get("/games/{game_id}/details")

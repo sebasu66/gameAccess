@@ -423,25 +423,32 @@ pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
     } else {
         PathBuf::from("python")
     };
+    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set();
+for app_id,item in cat.items():
+ t=str(item.get('type') or '').casefold(); n=str(item.get('name') or '').strip(); oslist=str(item.get('oslist') or '').casefold();
+ if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or ''})
+accounts=[]
+for a in p.get('accounts',[]):
+ accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'active':bool(a.get('active'))})
+out={'source':'steam-local-remembered-accounts','verification_complete':bool(p.get('ok')),'verified_at':None,'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
     let output = Command::new(&python)
         .current_dir(&launcher)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8")
-        .args(["pool_sync.py", "--dry-run"])
+        .args(["-c", code])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
-        .map_err(|err| format!("Could not run the verified Steam inventory adapter: {err}"))?;
+        .map_err(|err| format!("Could not read the remembered personal Steam library: {err}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
-            "Verified Steam inventory adapter failed".into()
+            "Remembered personal Steam library scan failed".into()
         } else {
             stderr
         });
     }
-    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("Verified Steam inventory returned invalid data: {err}"))?;
-    Ok(value.get("pool").cloned().unwrap_or(value))
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("Remembered personal Steam library returned invalid data: {err}"))
 }
 
 pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {

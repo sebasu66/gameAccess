@@ -162,6 +162,60 @@ def _snapshot(
     }
 
 
+def catalog_metrics(session: Session) -> dict[int, dict[str, float | int]]:
+    """Build capacity + demand metrics for every game from one database snapshot."""
+    if _family_inventory_present(session):
+        state = _state(session)
+        snapshot = _snapshot(state)
+        demand_by_game: dict[int, GameDemand] = state["demand_by_game"]
+        result: dict[int, dict[str, float | int]] = {}
+        for game in state["games"]:
+            game_id = int(game.id or 0)
+            capacity = snapshot.get(game_id, {"total": 0, "available": 0})
+            demand = demand_by_game.get(game_id)
+            demand_value = float(demand.demand_value) if demand else DEMAND_START
+            price_factor = float(demand.price_factor) if demand else 1.0
+            result[game_id] = {
+                "total": int(capacity["total"]),
+                "available": int(capacity["available"]),
+                "request_count_total": int(demand.request_count_total) if demand else 0,
+                "successful_leases": int(demand.successful_leases) if demand else 0,
+                "demand_value": round(demand_value, 4),
+                "price_factor": round(price_factor, 4),
+                "pool_value": round(demand_value * price_factor, 4),
+            }
+        return result
+
+    accounts = session.exec(select(core.ProviderAccount)).all()
+    mappings = session.exec(select(core.AccountGame)).all()
+    demands = session.exec(select(GameDemand)).all()
+    demand_by_game = {int(row.game_id): row for row in demands}
+    status_by_account = {int(a.id): a.status for a in accounts if a.id is not None}
+    total_by_game: dict[int, int] = defaultdict(int)
+    available_by_game: dict[int, int] = defaultdict(int)
+    for mapping in mappings:
+        game_id = int(mapping.game_id)
+        total_by_game[game_id] += 1
+        if status_by_account.get(int(mapping.account_id)) == core.AccountStatus.free:
+            available_by_game[game_id] += 1
+    result: dict[int, dict[str, float | int]] = {}
+    for game in session.exec(select(core.Game).where(core.Game.active == True)).all():  # noqa: E712
+        game_id = int(game.id or 0)
+        demand = demand_by_game.get(game_id)
+        demand_value = float(demand.demand_value) if demand else DEMAND_START
+        price_factor = float(demand.price_factor) if demand else 1.0
+        result[game_id] = {
+            "total": int(total_by_game.get(game_id, 0)),
+            "available": int(available_by_game.get(game_id, 0)),
+            "request_count_total": int(demand.request_count_total) if demand else 0,
+            "successful_leases": int(demand.successful_leases) if demand else 0,
+            "demand_value": round(demand_value, 4),
+            "price_factor": round(price_factor, 4),
+            "pool_value": round(demand_value * price_factor, 4),
+        }
+    return result
+
+
 def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
     if not _family_inventory_present(session):
         owned = session.exec(

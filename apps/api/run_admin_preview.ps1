@@ -6,11 +6,11 @@ $port = 38147
 if (-not (Test-Path $python)) { throw "API venv Python not found: $python" }
 
 if (-not $env:GAMEACCESS_ACCOUNTS_FILE) {
-  $localAccounts = Join-Path $root 'cuentas.txt'
+  $localAccounts = Join-Path $root 'accFull.csv'
   if (Test-Path $localAccounts) {
     $env:GAMEACCESS_ACCOUNTS_FILE = $localAccounts
   } else {
-    $siblingAccounts = Join-Path (Split-Path -Parent $root) 'gameAccess/cuentas.txt'
+    $siblingAccounts = Join-Path (Split-Path -Parent $root) 'gameAccess/accFull.csv'
     if (Test-Path $siblingAccounts) { $env:GAMEACCESS_ACCOUNTS_FILE = $siblingAccounts }
   }
 }
