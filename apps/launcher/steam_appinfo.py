@@ -1,12 +1,13 @@
 """Minimal reader for Steam's local appcache/appinfo.vdf (v41).
 
-Used by gameAccess only to map AppID -> public catalog metadata such as name and
-app type. This file never contains account credentials or session material.
+Used by gameAccess to map AppID -> local Steam catalog/install metadata such as
+name, app type, install directory and launch executables. This file never
+contains account credentials or emitted session material.
 
 The v41 layout and binary-VDF details follow the public documentation/examples
 from ValveResourceFormat/SteamAppInfo and danielknng/steam-appinfo-parser (MIT).
-This implementation is intentionally small and only exposes fields gameAccess
-needs for local catalog discovery.
+This implementation is intentionally small and only exposes fields GameAccess
+needs for local catalog, download/import and launch discovery.
 """
 
 from __future__ import annotations
@@ -111,6 +112,30 @@ def _read_bvdf(data: bytes, pos: int, end: int, strings: list[str]) -> tuple[dic
     return result, pos
 
 
+def _launch_entries(config: dict[str, Any]) -> list[dict[str, str]]:
+    raw_launch = config.get("launch")
+    if not isinstance(raw_launch, dict):
+        return []
+    entries: list[dict[str, str]] = []
+    for _key, raw in raw_launch.items():
+        if not isinstance(raw, dict):
+            continue
+        executable = str(raw.get("executable") or "").strip()
+        arguments = str(raw.get("arguments") or "").strip()
+        workingdir = str(raw.get("workingdir") or "").strip()
+        description = str(raw.get("description") or "").strip()
+        if executable:
+            entries.append(
+                {
+                    "executable": executable,
+                    "arguments": arguments,
+                    "workingdir": workingdir,
+                    "description": description,
+                }
+            )
+    return entries
+
+
 def iter_appinfo(data: bytes) -> Iterator[dict[str, Any]]:
     if len(data) < 16 or data[:4] != MAGIC_V41:
         magic = data[:4].hex() if data else "<empty>"
@@ -158,10 +183,13 @@ def iter_appinfo(data: bytes) -> Iterator[dict[str, Any]]:
         appinfo = raw.get("appinfo", {}) if isinstance(raw, dict) else {}
         common = appinfo.get("common", {}) if isinstance(appinfo, dict) else {}
         extended = appinfo.get("extended", {}) if isinstance(appinfo, dict) else {}
+        config = appinfo.get("config", {}) if isinstance(appinfo, dict) else {}
         if not isinstance(common, dict):
             common = {}
         if not isinstance(extended, dict):
             extended = {}
+        if not isinstance(config, dict):
+            config = {}
         yield {
             "app_id": app_id,
             "name": str(common.get("name") or "").strip(),
@@ -169,6 +197,8 @@ def iter_appinfo(data: bytes) -> Iterator[dict[str, Any]]:
             "oslist": str(common.get("oslist") or "").strip(),
             "developer": str(extended.get("developer") or "").strip(),
             "publisher": str(extended.get("publisher") or "").strip(),
+            "install_dir": str(config.get("installdir") or "").strip(),
+            "launch": _launch_entries(config),
             "last_updated": last_updated,
             "change_number": change_number,
         }
