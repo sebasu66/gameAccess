@@ -57,6 +57,12 @@ internal static class Program
             timeoutSeconds = Math.Clamp(configuredTimeout, 10, 180);
         }
 
+        uint loginId = 0x47410001; // "GA" namespace + default slot.
+        if (uint.TryParse(Environment.GetEnvironmentVariable("GA_STEAM_LOGIN_ID"), out var configuredLoginId) && configuredLoginId != 0)
+        {
+            loginId = configuredLoginId;
+        }
+
         var steamClient = new SteamClient();
         var manager = new CallbackManager(steamClient);
         var steamUser = steamClient.GetHandler<SteamUser>() ?? throw new InvalidOperationException("SteamUser handler unavailable");
@@ -120,6 +126,7 @@ internal static class Program
                 Username = pollResponse.AccountName,
                 AccessToken = pollResponse.RefreshToken,
                 ShouldRememberPassword = false,
+                LoginID = loginId,
             });
 
             var logon = await loggedOn.Task.WaitAsync(operationToken);
@@ -130,6 +137,7 @@ internal static class Program
                     status = "logon_error",
                     result = logon.Result.ToString(),
                     extended_result = logon.ExtendedResult.ToString(),
+                    login_id = loginId,
                 });
                 return 5;
             }
@@ -137,7 +145,7 @@ internal static class Program
             var licenseCallback = await licensesReceived.Task.WaitAsync(operationToken);
             if (licenseCallback.Result != EResult.OK)
             {
-                Write(new { status = "license_error", result = licenseCallback.Result.ToString() });
+                Write(new { status = "license_error", result = licenseCallback.Result.ToString(), login_id = loginId });
                 return 6;
             }
 
@@ -172,8 +180,6 @@ internal static class Program
                 }
                 catch (Exception) when (!operationToken.IsCancellationRequested)
                 {
-                    // Keep the successfully resolved batches. Missing package IDs are
-                    // reported below so the caller can mark the inventory partial.
                     continue;
                 }
 
@@ -231,6 +237,7 @@ internal static class Program
             Write(new
             {
                 status = "ok",
+                login_id = loginId,
                 license_count = packageResults.Length,
                 package_info_resolved_count = resolvedPackages.Count,
                 borrowed_package_count = packageResults.Count(item => item.borrowed),
@@ -246,17 +253,17 @@ internal static class Program
         }
         catch (OperationCanceledException)
         {
-            Write(new { status = "timeout", timeout_seconds = timeoutSeconds });
+            Write(new { status = "timeout", timeout_seconds = timeoutSeconds, login_id = loginId });
             return 8;
         }
         catch (GuardRequiredException guard)
         {
-            Write(new { status = "guard_required", guard_method = guard.Method });
+            Write(new { status = "guard_required", guard_method = guard.Method, login_id = loginId });
             return 3;
         }
         catch (Exception error)
         {
-            Write(new { status = "error", error = $"{error.GetType().Name}: {error.Message}" });
+            Write(new { status = "error", error = $"{error.GetType().Name}: {error.Message}", login_id = loginId });
             return 9;
         }
         finally
