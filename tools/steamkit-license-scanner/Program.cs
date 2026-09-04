@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SteamKit2;
 using SteamKit2.Authentication;
+using SteamKit2.Internal;
 
 namespace GameAccess.SteamKitLicenseScanner;
 
@@ -67,6 +68,8 @@ internal static class Program
         var manager = new CallbackManager(steamClient);
         var steamUser = steamClient.GetHandler<SteamUser>() ?? throw new InvalidOperationException("SteamUser handler unavailable");
         var steamApps = steamClient.GetHandler<SteamApps>() ?? throw new InvalidOperationException("SteamApps handler unavailable");
+        var unifiedMessages = steamClient.GetHandler<SteamUnifiedMessages>() ?? throw new InvalidOperationException("SteamUnifiedMessages handler unavailable");
+        var familyGroups = unifiedMessages.CreateService<FamilyGroups>();
 
         var connected = NewTcs<SteamClient.ConnectedCallback>();
         var loggedOn = NewTcs<SteamUser.LoggedOnCallback>();
@@ -147,6 +150,45 @@ internal static class Program
             {
                 Write(new { status = "license_error", result = licenseCallback.Result.ToString(), login_id = loginId });
                 return 6;
+            }
+
+            var steamId64 = steamClient.SteamID?.ConvertToUInt64() ?? 0UL;
+            ulong familyGroupId = 0;
+            var isNotMemberOfAnyGroup = true;
+            ulong[] familyMemberSteamIds = steamId64 > 0 ? new[] { steamId64 } : Array.Empty<ulong>();
+            string? familyError = null;
+            try
+            {
+                var familyResponse = await familyGroups.GetFamilyGroupForUser(
+                    new CFamilyGroups_GetFamilyGroupForUser_Request
+                    {
+                        steamid = steamId64,
+                        include_family_group_response = true,
+                    }
+                );
+                if (familyResponse.Result == EResult.OK)
+                {
+                    var body = familyResponse.Body;
+                    familyGroupId = body.family_groupid;
+                    isNotMemberOfAnyGroup = body.is_not_member_of_any_group || familyGroupId == 0;
+                    if (!isNotMemberOfAnyGroup && body.family_group is not null)
+                    {
+                        familyMemberSteamIds = body.family_group.members
+                            .Select(member => member.steamid)
+                            .Where(id => id > 0)
+                            .Distinct()
+                            .Order()
+                            .ToArray();
+                    }
+                }
+                else
+                {
+                    familyError = familyResponse.Result.ToString();
+                }
+            }
+            catch (Exception familyException) when (!operationToken.IsCancellationRequested)
+            {
+                familyError = $"{familyException.GetType().Name}: {familyException.Message}";
             }
 
             var licenses = licenseCallback.LicenseList
@@ -238,6 +280,11 @@ internal static class Program
             {
                 status = "ok",
                 login_id = loginId,
+                steam_id64 = steamId64,
+                family_group_id = familyGroupId,
+                is_not_member_of_any_group = isNotMemberOfAnyGroup,
+                family_member_steam_ids = familyMemberSteamIds,
+                family_error = familyError,
                 license_count = packageResults.Length,
                 package_info_resolved_count = resolvedPackages.Count,
                 borrowed_package_count = packageResults.Count(item => item.borrowed),

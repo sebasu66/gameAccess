@@ -52,7 +52,7 @@
 
   <main>
     <section class="tab active" id="tab-overview">
-      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><button class="btn" onclick="refresh(true)">Actualizar</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
+      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><button class="btn" onclick="startFullUpdate()">Actualizar pool</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
       <div class="grid stats" id="stats"></div>
       <div class="grid split">
         <div class="panel"><div class="panel-head"><h2>Licencias con más capacidad</h2><span id="overviewLicenseCount"></span></div><div class="panel-body" id="overviewLicenses"></div></div>
@@ -159,7 +159,8 @@
   $('steamForm').generate_password.onchange=e=>{$('manualPasswordField').style.display=e.target.value==='false'?'grid':'none'};
   $('steamForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const payload={email:f.get('email'),account_name:f.get('account_name'),country:f.get('country'),browser:f.get('browser'),generate_password:f.get('generate_password')==='true',password:f.get('password')||null};try{const r=await api('/tools/steam-account/start',{method:'POST',body:JSON.stringify(payload)});$('credentialBox').innerHTML=`<div class="credential"><strong>Credenciales de esta cuenta</strong><div class="muted">${esc(r.credentials.email)}</div><code>${esc(r.credentials.account_name)}<br>${esc(r.credentials.password)}</code><small>Copialas ahora. La contraseña no se conserva en el dashboard.</small></div>`;toast('Selenium iniciado. Revisá la ventana de Chrome.');await refresh();}catch(err){toast(err.message,true)}};
 
-  async function startPoolSync(){try{await api('/tools/pool-sync/start',{method:'POST',body:'{}'});toast('Sincronización iniciada');go('tools');await refresh()}catch(err){toast(err.message,true)}}
+  async function startFullUpdate(){try{await api('/tools/pool-sync/start',{method:'POST',body:'{}'});toast('Re-scan SteamKit iniciado · familias y licencias se actualizarán al terminar');go('tools');await refresh()}catch(err){toast(err.message,true)}}
+  async function startPoolSync(){return startFullUpdate()}
   async function stopTask(id){try{await api('/tasks/'+id+'/stop',{method:'POST',body:'{}'});toast('Tarea detenida');await refresh()}catch(err){toast(err.message,true)}}
 
   refresh(); setInterval(refresh,3000);

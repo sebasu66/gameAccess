@@ -13,6 +13,7 @@ separate diagnostic snapshot so test batches can never erase known ownership.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -123,6 +124,11 @@ def scan_provider_licenses(
         for item in mapping.get("accounts", [])
         if isinstance(item.get("user_id32"), int)
     }
+    provider_by_steam64 = {
+        str(item["steam_id64"]): item["provider_id"]
+        for item in mapping.get("accounts", [])
+        if str(item.get("steam_id64") or "").isdigit()
+    }
 
     selected = [
         credential
@@ -135,6 +141,8 @@ def scan_provider_licenses(
         credential.provider_id: set() for credential in credentials
     }
     unmapped_owner_ids: set[int] = set()
+    family_key_by_provider: dict[str, str] = {}
+    family_members_by_provider: dict[str, list[str]] = {}
 
     for credential in selected:
         login_id = _login_id_for_provider(credential.provider_id)
@@ -146,6 +154,35 @@ def scan_provider_licenses(
         )
         status = str(result.get("status") or "error")
         packages = result.get("packages") if isinstance(result.get("packages"), list) else []
+        family_key = ""
+        family_member_provider_ids: list[str] = []
+        if status == "ok":
+            scanner_steam64 = str(result.get("steam_id64") or "")
+            if scanner_steam64.isdigit():
+                provider_by_steam64[scanner_steam64] = credential.provider_id
+            raw_family_id = result.get("family_group_id")
+            try:
+                family_group_id = int(raw_family_id or 0)
+            except (TypeError, ValueError):
+                family_group_id = 0
+            is_standalone = bool(result.get("is_not_member_of_any_group")) or family_group_id <= 0
+            if is_standalone:
+                family_key = f"standalone:{credential.provider_id}"
+                family_member_provider_ids = [credential.provider_id]
+            else:
+                digest = hashlib.sha256(f"steam-family:{family_group_id}".encode("utf-8")).hexdigest()[:24]
+                family_key = f"steam-family:{digest}"
+                family_member_provider_ids = sorted(
+                    {
+                        provider_by_steam64[str(steam_id)]
+                        for steam_id in result.get("family_member_steam_ids") or []
+                        if str(steam_id) in provider_by_steam64
+                    }
+                    | {credential.provider_id}
+                )
+            family_key_by_provider[credential.provider_id] = family_key
+            family_members_by_provider[credential.provider_id] = family_member_provider_ids
+
         scan_summary = {
             "provider_id": credential.provider_id,
             "login_id": int(result.get("login_id") or login_id),
@@ -158,6 +195,9 @@ def scan_provider_licenses(
             "preferred_owner_package_count": int(result.get("preferred_owner_package_count") or 0),
             "missing_package_info_count": len(result.get("missing_package_info") or []),
             "unknown_package_count": len(result.get("unknown_package_ids") or []),
+            "family_grouped": bool(family_key and family_key.startswith("steam-family:")),
+            "family_member_count": len(family_member_provider_ids),
+            "family_error": str(result.get("family_error") or "")[:500] or None,
         }
         scans.append(scan_summary)
         if status != "ok":
@@ -216,6 +256,8 @@ def scan_provider_licenses(
                 ),
                 "not_scanned",
             ),
+            "family_key": family_key_by_provider.get(credential.provider_id, ""),
+            "family_member_provider_ids": family_members_by_provider.get(credential.provider_id, []),
         }
         for credential in credentials
     ]
@@ -340,6 +382,8 @@ def compact_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
                 "provider_id": account["provider_id"],
                 "owned_game_count": len(account.get("owned_app_ids") or []),
                 "scan_status": account.get("scan_status"),
+                "family_key": account.get("family_key"),
+                "family_member_count": len(account.get("family_member_provider_ids") or []),
             }
             for account in inventory.get("accounts", [])
         ],
