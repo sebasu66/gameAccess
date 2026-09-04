@@ -143,6 +143,8 @@ def scan_provider_licenses(
     unmapped_owner_ids: set[int] = set()
     family_key_by_provider: dict[str, str] = {}
     family_members_by_provider: dict[str, list[str]] = {}
+    scanned_steam64_by_provider: dict[str, str] = {}
+    raw_family_member_steam_ids_by_provider: dict[str, list[str]] = {}
 
     for credential in selected:
         login_id = _login_id_for_provider(credential.provider_id)
@@ -160,6 +162,7 @@ def scan_provider_licenses(
             scanner_steam64 = str(result.get("steam_id64") or "")
             if scanner_steam64.isdigit():
                 provider_by_steam64[scanner_steam64] = credential.provider_id
+                scanned_steam64_by_provider[credential.provider_id] = scanner_steam64
             raw_family_id = result.get("family_group_id")
             try:
                 family_group_id = int(raw_family_id or 0)
@@ -169,13 +172,21 @@ def scan_provider_licenses(
             if is_standalone:
                 family_key = f"standalone:{credential.provider_id}"
                 family_member_provider_ids = [credential.provider_id]
+                raw_family_member_steam_ids_by_provider[credential.provider_id] = [scanner_steam64] if scanner_steam64 else []
             else:
                 digest = hashlib.sha256(f"steam-family:{family_group_id}".encode("utf-8")).hexdigest()[:24]
                 family_key = f"steam-family:{digest}"
+                raw_family_member_steam_ids_by_provider[credential.provider_id] = [
+                    str(steam_id)
+                    for steam_id in result.get("family_member_steam_ids") or []
+                    if str(steam_id).isdigit()
+                ]
+                # Resolve once now for diagnostics; a complete second pass below
+                # repeats this after every scanned provider SteamID is known.
                 family_member_provider_ids = sorted(
                     {
                         provider_by_steam64[str(steam_id)]
-                        for steam_id in result.get("family_member_steam_ids") or []
+                        for steam_id in raw_family_member_steam_ids_by_provider[credential.provider_id]
                         if str(steam_id) in provider_by_steam64
                     }
                     | {credential.provider_id}
@@ -235,6 +246,32 @@ def scan_provider_licenses(
                     unmapped_owner_ids.add(owner_id)
                 continue
             owned_by_provider.setdefault(owner_provider, set()).update(app_ids)
+
+    # Resolve family members only after all account scans have completed.
+    # This avoids missing a sibling merely because its own SteamID was learned
+    # later in the scan order. Raw SteamIDs remain local/ephemeral and are not
+    # persisted in the inventory.
+    final_provider_by_steam64 = dict(provider_by_steam64)
+    final_provider_by_steam64.update(
+        {steam64: provider_id for provider_id, steam64 in scanned_steam64_by_provider.items()}
+    )
+    scan_by_provider = {str(scan.get("provider_id")): scan for scan in scans}
+    for provider_id, family_key in family_key_by_provider.items():
+        if family_key.startswith("standalone:"):
+            members = [provider_id]
+        else:
+            members = sorted(
+                {
+                    final_provider_by_steam64[steam64]
+                    for steam64 in raw_family_member_steam_ids_by_provider.get(provider_id, [])
+                    if steam64 in final_provider_by_steam64
+                }
+                | {provider_id}
+            )
+        family_members_by_provider[provider_id] = members
+        scan = scan_by_provider.get(provider_id)
+        if scan is not None:
+            scan["family_member_count"] = len(members)
 
     scanned_ids = {scan["provider_id"] for scan in scans}
     all_provider_ids = {credential.provider_id for credential in credentials}

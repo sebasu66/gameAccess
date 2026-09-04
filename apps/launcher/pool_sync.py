@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,19 @@ def _owned_ids(account: dict[str, Any] | None) -> set[int]:
     }
 
 
+def _inventory_time(inventory: dict[str, Any] | None) -> datetime:
+    raw = str((inventory or {}).get("verified_at") or "").strip()
+    if not raw:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
 def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """Return best known per-provider ownership plus latest scan diagnostics.
 
@@ -121,8 +135,15 @@ def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str,
                 "scan_error": None,
             }
 
-    latest = diagnostic if diagnostic else authoritative
-    if diagnostic:
+    # Diagnostic snapshots are useful only when they are newer than the
+    # complete authoritative inventory. An old failed batch must never override
+    # a later successful full-roster scan.
+    diagnostic_is_newer = bool(
+        diagnostic
+        and (not authoritative or _inventory_time(diagnostic) > _inventory_time(authoritative))
+    )
+    latest = diagnostic if diagnostic_is_newer else authoritative
+    if diagnostic_is_newer and diagnostic:
         accounts = _account_rows(diagnostic)
         scans = _scan_rows(diagnostic)
         errors = _error_rows(diagnostic)
