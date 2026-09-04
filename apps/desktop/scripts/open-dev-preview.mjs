@@ -19,7 +19,7 @@ if (!(await healthy(`${backend}/health`))) {
 }
 
 if (!(await healthy(frontend))) {
-  const child = spawn("npm.cmd", ["run", "dev"], {
+  const child = spawn("cmd.exe", ["/d", "/s", "/c", "npm.cmd run dev"], {
     cwd,
     env: { ...process.env, VITE_GAMEACCESS_API: backend },
     detached: true,
