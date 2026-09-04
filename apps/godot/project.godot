@@ -1,0 +1,80 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[ambientcg]
+
+extract_path="res://assets/ambientcg/Extracted"
+material_file_directory="res://assets/ambientcg/Materials"
+environment_file_directory="res://assets/ambientcg/Environments"
+
+[application]
+
+config/name="GameAccess 3D"
+run/main_scene="uid://c4ohjcbe8b27e"
+config/features=PackedStringArray("4.7")
+
+[autoload]
+
+AmbientAPI="*uid://cmbh88h6yljhy"
+AmbientParser="*uid://dcdrqnwmpgvk4"
+AmbientFileHandler="*uid://dnh8sqjyu74hs"
+AmbientMaterialMaker="*uid://nig0lamfd3mv"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+GodotxToast="*uid://bgvixrj72u7rv"
+Profily="*uid://qmnu1ehm866e"
+GameAccessRuntime="*res://scripts/runtime_bootstrap.gd"
+
+[display]
+
+window/size/viewport_width=3440
+window/size/viewport_height=1440
+window/size/mode=3
+window/size/window_width_override=3440
+window/size/window_height_override=1440
+window/stretch/mode="canvas_items"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/ambientcg/plugin.cfg", "res://addons/blendkit/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/godotx_toast/plugin.cfg", "res://addons/profily/plugin.cfg")
+
+[game_access]
+
+web_ui_url="http://127.0.0.1:1431"
+runtime_executable=""
+demo_video_path="res://assets/media/network-sync-test.ogv"
+demo_video_autoplay=true
+
+[godot_cef]
+
+performance/max_frame_rate=60
+
+[gui]
+
+theme/default_font_multichannel_signed_distance_field=true
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=2
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=4
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=4
+reflections/sky_reflections/fast_filter_high_quality=true
+global_illumination/voxel_gi/quality=1
+shading/overrides/force_lambert_over_burley.mobile=false
+textures/default_filters/use_nearest_mipmap_filter=true
+textures/default_filters/anisotropic_filtering_level=3
+camera/depth_of_field/depth_of_field_bokeh_quality=2
+environment/ssao/quality=4
+anti_aliasing/quality/msaa_2d=2
+anti_aliasing/quality/msaa_3d=2
+scaling_3d/mode=2
+environment/subsurface_scattering/subsurface_scattering_quality=3
+environment/defaults/default_clear_color=Color(0.035, 0.028, 0.026, 1)
+anti_aliasing/quality/screen_space_aa=2
+occlusion_culling/use_occlusion_culling=true

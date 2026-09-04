@@ -9,13 +9,16 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlmodel import Field as SQLField, Session, SQLModel, create_engine, select
+from sqlmodel import Field as SQLField
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
 
 DB_PATH = Path(__file__).resolve().parent.parent / "gameaccess.db"
 STEAM_CACHE = DB_PATH.parent / ".steam_cache"
-engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+engine = create_engine(
+    f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
+)
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
 
 
@@ -118,6 +121,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:1420",
         "http://127.0.0.1:1420",
+        "http://localhost:38148",
+        "http://127.0.0.1:38148",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "tauri://localhost",
@@ -159,14 +164,32 @@ def seed_defaults(session: Session) -> None:
     if not session.exec(select(User)).first():
         session.add(User(username="demo", credits=1500))
     if not session.exec(select(Game)).first():
-        session.add(Game(slug="no-mans-sky", name="No Man's Sky", app_id=275850, credit_cost_per_hour=100))
-        session.add(Game(slug="cyberpunk-2077", name="Cyberpunk 2077", app_id=1091500, credit_cost_per_hour=150))
-        session.add(Game(slug="fc", name="EA Sports FC", app_id=None, credit_cost_per_hour=180))
+        session.add(
+            Game(
+                slug="no-mans-sky",
+                name="No Man's Sky",
+                app_id=275850,
+                credit_cost_per_hour=100,
+            )
+        )
+        session.add(
+            Game(
+                slug="cyberpunk-2077",
+                name="Cyberpunk 2077",
+                app_id=1091500,
+                credit_cost_per_hour=150,
+            )
+        )
+        session.add(
+            Game(slug="fc", name="EA Sports FC", app_id=None, credit_cost_per_hour=180)
+        )
     session.commit()
 
 
 def game_capacity(session: Session, game: Game) -> tuple[int, int]:
-    owned = session.exec(select(AccountGame).where(AccountGame.game_id == game.id)).all()
+    owned = session.exec(
+        select(AccountGame).where(AccountGame.game_id == game.id)
+    ).all()
     account_ids = [row.account_id for row in owned]
     available = 0
     for account_id in account_ids:
@@ -187,7 +210,9 @@ def game_summary(session: Session, game: Game) -> dict:
         "credit_cost_per_hour": game.credit_cost_per_hour,
         "copies_total": total,
         "copies_available": available,
-        "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
+        "availability_state": "ready"
+        if available > 0
+        else ("owned-busy" if total > 0 else "unavailable"),
         **assets,
     }
 
@@ -228,7 +253,12 @@ def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
         steam = steam_catalog.fetch(game.app_id)
         return {**summary, "steam": steam, "metadata_state": "ready"}
     except SteamCatalogError as exc:
-        return {**summary, "steam": None, "metadata_state": "temporarily-unavailable", "metadata_error": str(exc)}
+        return {
+            **summary,
+            "steam": None,
+            "metadata_state": "temporarily-unavailable",
+            "metadata_error": str(exc),
+        }
 
 
 @app.get("/steam/apps/{app_id}")
@@ -263,7 +293,11 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
     session.add(existing)
     session.commit()
     session.refresh(existing)
-    return {"created": created, "game": game_summary(session, existing), "steam": metadata}
+    return {
+        "created": created,
+        "game": game_summary(session, existing),
+        "steam": metadata,
+    }
 
 
 @app.get("/users/{user_id}")
@@ -281,7 +315,11 @@ def add_credits(req: CreditRequest, session: Session = Depends(get_session)) -> 
         raise HTTPException(404, "user not found")
     user.credits += req.amount
     session.add(user)
-    session.add(CreditLedger(user_id=user.id, amount=req.amount, reason=req.reason, created_at=now_utc()))
+    session.add(
+        CreditLedger(
+            user_id=user.id, amount=req.amount, reason=req.reason, created_at=now_utc()
+        )
+    )
     session.commit()
     session.refresh(user)
     return {"user_id": user.id, "credits": user.credits}
@@ -300,8 +338,12 @@ def add_game(req: SeedGameRequest, session: Session = Depends(get_session)) -> G
 
 
 @app.post("/admin/accounts")
-def add_account(req: SeedAccountRequest, session: Session = Depends(get_session)) -> ProviderAccount:
-    existing = session.exec(select(ProviderAccount).where(ProviderAccount.label == req.label)).first()
+def add_account(
+    req: SeedAccountRequest, session: Session = Depends(get_session)
+) -> ProviderAccount:
+    existing = session.exec(
+        select(ProviderAccount).where(ProviderAccount.label == req.label)
+    ).first()
     if existing:
         raise HTTPException(409, "account label already exists")
     account = ProviderAccount(label=req.label, provider=req.provider, notes=req.notes)
@@ -317,14 +359,18 @@ def add_account(req: SeedAccountRequest, session: Session = Depends(get_session)
 
 
 @app.post("/admin/accounts/sync")
-def sync_account(req: SyncAccountRequest, session: Session = Depends(get_session)) -> dict:
+def sync_account(
+    req: SyncAccountRequest, session: Session = Depends(get_session)
+) -> dict:
     label = req.label.strip()
     normalized_game_ids = list(dict.fromkeys(req.game_ids))
     for game_id in normalized_game_ids:
         if not session.get(Game, game_id):
             raise HTTPException(400, f"unknown game_id {game_id}")
 
-    account = session.exec(select(ProviderAccount).where(ProviderAccount.label == label)).first()
+    account = session.exec(
+        select(ProviderAccount).where(ProviderAccount.label == label)
+    ).first()
     created = account is None
     if account is None:
         account = ProviderAccount(label=label, provider=req.provider, notes=req.notes)
@@ -336,7 +382,9 @@ def sync_account(req: SyncAccountRequest, session: Session = Depends(get_session
         account.notes = req.notes
         session.add(account)
 
-    mappings = session.exec(select(AccountGame).where(AccountGame.account_id == account.id)).all()
+    mappings = session.exec(
+        select(AccountGame).where(AccountGame.account_id == account.id)
+    ).all()
     by_game = {row.game_id: row for row in mappings}
     desired = set(normalized_game_ids)
     for game_id, row in by_game.items():
@@ -349,7 +397,13 @@ def sync_account(req: SyncAccountRequest, session: Session = Depends(get_session
     return {
         "ok": True,
         "created": created,
-        "account": {"id": account.id, "label": account.label, "provider": account.provider, "status": account.status, "game_ids": normalized_game_ids},
+        "account": {
+            "id": account.id,
+            "label": account.label,
+            "provider": account.provider,
+            "status": account.status,
+            "game_ids": normalized_game_ids,
+        },
     }
 
 
@@ -359,16 +413,20 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
     accounts = session.exec(select(ProviderAccount)).all()
     result = []
     for account in accounts:
-        rows = session.exec(select(AccountGame).where(AccountGame.account_id == account.id)).all()
+        rows = session.exec(
+            select(AccountGame).where(AccountGame.account_id == account.id)
+        ).all()
         games = [session.get(Game, row.game_id) for row in rows]
-        result.append({
-            "id": account.id,
-            "label": account.label,
-            "provider": account.provider,
-            "status": account.status,
-            "games": [{"id": g.id, "name": g.name} for g in games if g],
-            "notes": account.notes,
-        })
+        result.append(
+            {
+                "id": account.id,
+                "label": account.label,
+                "provider": account.provider,
+                "status": account.status,
+                "games": [{"id": g.id, "name": g.name} for g in games if g],
+                "notes": account.notes,
+            }
+        )
     return result
 
 
@@ -382,11 +440,17 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
     if not game or not game.active:
         raise HTTPException(404, "game not found")
 
-    active_for_user = session.exec(select(Lease).where(Lease.user_id == user.id, Lease.status == LeaseStatus.active)).first()
+    active_for_user = session.exec(
+        select(Lease).where(
+            Lease.user_id == user.id, Lease.status == LeaseStatus.active
+        )
+    ).first()
     if active_for_user:
         raise HTTPException(409, "user already has an active lease")
 
-    mappings = session.exec(select(AccountGame).where(AccountGame.game_id == game.id)).all()
+    mappings = session.exec(
+        select(AccountGame).where(AccountGame.game_id == game.id)
+    ).all()
     selected = None
     for mapping in mappings:
         account = session.get(ProviderAccount, mapping.account_id)
@@ -398,24 +462,44 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
 
     cost = max(1, round(game.credit_cost_per_hour * (req.minutes / 60)))
     if user.credits < cost:
-        raise HTTPException(402, f"insufficient credits: need {cost}, have {user.credits}")
+        raise HTTPException(
+            402, f"insufficient credits: need {cost}, have {user.credits}"
+        )
 
     starts = now_utc()
     expires = starts + timedelta(minutes=req.minutes)
-    lease = Lease(user_id=user.id, game_id=game.id, account_id=selected.id, starts_at=starts, expires_at=expires, credits_spent=cost)
+    lease = Lease(
+        user_id=user.id,
+        game_id=game.id,
+        account_id=selected.id,
+        starts_at=starts,
+        expires_at=expires,
+        credits_spent=cost,
+    )
     selected.status = AccountStatus.leased
     user.credits -= cost
     session.add(selected)
     session.add(user)
     session.add(lease)
-    session.add(CreditLedger(user_id=user.id, amount=-cost, reason=f"lease:{game.slug}:{req.minutes}m", created_at=starts))
+    session.add(
+        CreditLedger(
+            user_id=user.id,
+            amount=-cost,
+            reason=f"lease:{game.slug}:{req.minutes}m",
+            created_at=starts,
+        )
+    )
     session.commit()
     session.refresh(lease)
     return {
         "lease_id": lease.id,
         "user_id": user.id,
         "game": {"id": game.id, "name": game.name, "app_id": game.app_id},
-        "account": {"id": selected.id, "label": selected.label, "provider": selected.provider},
+        "account": {
+            "id": selected.id,
+            "label": selected.label,
+            "provider": selected.provider,
+        },
         "starts_at": starts,
         "expires_at": expires,
         "credits_spent": cost,
@@ -461,11 +545,20 @@ def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dic
     return {"ok": True, "status": lease.status}
 
 
-from .pool_routes import router as pool_router
+from .pool_routes import (  # noqa: E402 - routes import initialized app
+    router as pool_router,
+)
+
 app.include_router(pool_router)
 
-from .steam_search_routes import router as steam_search_router
+from .steam_search_routes import (  # noqa: E402 - routes import initialized app
+    router as steam_search_router,
+)
+
 app.include_router(steam_search_router)
 
-from .admin_console_routes import router as admin_console_router
+from .admin_console_routes import (  # noqa: E402 - routes import initialized app
+    router as admin_console_router,
+)
+
 app.include_router(admin_console_router)

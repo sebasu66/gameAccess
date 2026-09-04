@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "spawn": {
+    "space_id": "public_lounge",
+    "position": [-3.5, 0.24, 1.5]
+  },
+  "spaces": [
+    {
+      "id": "public_lounge",
+      "title": "Public Lounge",
+      "kind": "public",
+      "position": [0.0, 0.0, 0.0],
+      "size": [18.0, 4.2, 14.0],
+      "materials": {
+        "walls": "wall_concrete",
+        "floor": "floor_slate",
+        "ceiling": "ceiling_warm",
+        "trim": "trim_dark"
+      },
+      "openings": {
+        "east": [{"offset": 0.0, "width": 2.4, "height": 2.9}]
+      }
+    },
+    {
+      "id": "user_hallway",
+      "title": "Private Corridor",
+      "kind": "user_corridor",
+      "position": [12.0, 0.0, 0.0],
+      "size": [6.0, 3.35, 3.2],
+      "materials": {
+        "walls": "wall_concrete",
+        "floor": "floor_slate",
+        "ceiling": "ceiling_warm",
+        "trim": "hallway_accent"
+      },
+      "openings": {
+        "west": [{"offset": 0.0, "width": 2.4, "height": 2.9}],
+        "east": [{"offset": 0.0, "width": 2.4, "height": 2.9}]
+      },
+      "personalized": true
+    },
+    {
+      "id": "private_room",
+      "title": "Private Room",
+      "kind": "private",
+      "position": [20.0, 0.0, 0.0],
+      "size": [10.0, 3.6, 8.0],
+      "materials": {
+        "walls": "wall_concrete",
+        "floor": "floor_slate",
+        "ceiling": "ceiling_warm",
+        "trim": "trim_dark"
+      },
+      "openings": {
+        "west": [{"offset": 0.0, "width": 2.4, "height": 2.9}]
+      }
+    }
+  ],
+  "lights": [
+    {
+      "id": "PublicWarm",
+      "position": [-4.2, 3.25, 0.0],
+      "color": "#F2B982",
+      "energy": 3.2,
+      "range": 8.5,
+      "shadows": true
+    },
+    {
+      "id": "PublicCool",
+      "position": [4.6, 3.1, -2.2],
+      "color": "#73CBC4",
+      "energy": 2.3,
+      "range": 7.0,
+      "shadows": true
+    },
+    {
+      "id": "HallwayLight",
+      "position": [12.0, 2.65, 0.0],
+      "color": "#A5E1D9",
+      "energy": 1.8,
+      "range": 4.2,
+      "shadows": true
+    },
+    {
+      "id": "PrivateWarm",
+      "position": [20.0, 2.85, 0.5],
+      "color": "#E7A76E",
+      "energy": 2.6,
+      "range": 6.0,
+      "shadows": true
+    }
+  ],
+  "screens": [
+    {
+      "id": "public_media_wall",
+      "space_id": "public_lounge",
+      "position": [-4.0, 2.25, -6.78],
+      "rotation_degrees": [0.0, 0.0, 0.0],
+      "size": [6.4, 3.6],
+      "role": "shared_media"
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "arcade_machine",
+      "space_id": "public_lounge",
+      "position": [5.7, 0.0, -4.8],
+      "rotation_degrees": [0.0, -28.0, 0.0],
+      "scale": [0.8, 0.8, 0.8]
+    }
+  ]
+}

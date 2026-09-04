@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://c4ohjcbe8b27e"]
+
+[ext_resource type="Script" uid="uid://boqpblca365kr" path="res://scripts/current_showroom.gd" id="1_a0tk4"]
+[ext_resource type="PackedScene" path="res://scenes/Player.tscn" id="1_noarx"]
+[ext_resource type="PackedScene" uid="uid://c6aw1rex5ifhv" path="res://bk_assets/scenes/futuristic-metal_c0f478e8-f81f-4e87-8020-d05c5db70535/futuristic-metal-car-chowroom_ccd99a78-1620-4702-9ef5-8e733737afd4.blend" id="2_a0tk4"]
+
+[node name="Node3D" type="Node3D" unique_id=442173895]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2.020934)
+script = ExtResource("1_a0tk4")
+
+[node name="Player" parent="." unique_id=2003052044 instance=ExtResource("1_noarx")]
+transform = Transform3D(0.9926914, 0.12068023, 0, -0.12068023, 0.9926914, 0, 0, 0, 1, 0, 0, 0)
+motion_mode = 1
+
+[node name="metal" parent="." unique_id=1756635863 instance=ExtResource("2_a0tk4")]

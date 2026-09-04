@@ -137,3 +137,124 @@
 .library-room.is-showcase .library-room-feature-copy .eyebrow { animation: showcasePulse 2.4s ease-in-out infinite; }
 .library-room.is-showcase .library-room-feature-media { box-shadow: 0 28px 68px rgba(0,0,0,.5), 0 0 42px rgba(57,255,20,.08), inset 0 1px rgba(255,255,255,.09); }
 @keyframes showcasePulse { 50% { text-shadow: 0 0 24px rgba(57,255,20,.82); filter: brightness(1.35); } }
+
+/* Embedded 3D surfaces: tablet controller + room presentation display. */
+body:has(.library-room.surface-tablet) .topbar,
+body:has(.library-room.surface-display) .topbar,
+body:has(.library-room.surface-tablet) .system-banner,
+body:has(.library-room.surface-display) .system-banner,
+body:has(.library-room.surface-tablet) .magazine-view,
+body:has(.library-room.surface-display) .magazine-view,
+body:has(.library-room.surface-tablet) .window-chrome,
+body:has(.library-room.surface-display) .window-chrome { display: none !important; }
+
+body:has(.library-room.surface-tablet) .app-shell,
+body:has(.library-room.surface-display) .app-shell,
+body:has(.library-room.surface-tablet) .app-shell > main,
+body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; height: 100vh; margin: 0; padding: 0; overflow: hidden; }
+
+.library-room.surface-tablet {
+  height: 100vh; min-height: 0; grid-template-columns: minmax(250px, 31%) minmax(0, 1fr);
+  gap: 18px; padding: 20px 18px 42px; background: #05070b;
+}
+.library-tablet-control {
+  min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 20px;
+  padding: 22px; border: 1px solid rgba(255,255,255,.12); border-radius: 20px;
+  background: linear-gradient(155deg, rgba(20,28,37,.98), rgba(6,9,13,.98));
+  box-shadow: inset 0 1px rgba(255,255,255,.07), 0 18px 45px rgba(0,0,0,.38);
+}
+.library-tablet-selection h1 { margin: 8px 0 0; font-size: clamp(25px,3.2vw,46px); line-height: .98; letter-spacing: -.04em; }
+.library-room.surface-tablet .library-room-actions { align-items: center; }
+.library-room.surface-tablet .library-room-grid { grid-template-columns: repeat(auto-fill, minmax(104px,1fr)); gap: 12px; padding-bottom: 48px; }
+.library-room.surface-tablet .library-room-heading { margin-top: 3px; }
+.library-room.surface-tablet .library-room-hint { bottom: 8px; }
+
+.library-room.surface-display {
+  position: relative; display: block; width: 100%; height: 100vh; min-height: 0; padding: 0; overflow: hidden; background: #000;
+}
+.library-room.surface-display .library-room-feature { position: absolute; inset: 0; border: 0; border-radius: 0; box-shadow: none; }
+.library-room.surface-display .library-room-feature-media { inset: 0; border: 0; border-radius: 0; box-shadow: none; }
+.library-room.surface-display .library-room-feature-ambient { inset: 0; }
+.library-room.surface-display .library-room-feature-copy { left: clamp(34px,4vw,76px); right: auto; bottom: clamp(32px,5vh,72px); max-width: 78%; }
+.library-room.surface-display .library-room-feature-copy .eyebrow,
+.library-room.surface-display .library-room-feature-copy p,
+.library-room.surface-display .library-room-feature-copy .library-room-loading,
+.library-room.surface-display .library-room-actions,
+.library-room.surface-display .library-room-media-controls,
+.library-room.surface-display .library-room-hint { display: none !important; }
+.library-room.surface-display .library-room-feature-copy h1 {
+  max-width: 15ch; margin: 0; font-size: clamp(48px,6.5vw,104px); line-height: .9; letter-spacing: -.055em;
+  text-shadow: 0 5px 28px rgba(0,0,0,.92), 0 18px 70px rgba(0,0,0,.72);
+}
+.library-display-empty { width: 100%; height: 100%; display: grid; place-items: center; color: #8d99a8; font-size: 22px; background: #05070b; }
+
+/* Portrait phone controller v2 */
+.library-room.surface-tablet {
+  position: relative; display: flex; flex-direction: column; height: 100vh; min-height: 0;
+  gap: 10px; padding: 12px 10px 10px; overflow: hidden; background: #05070b;
+}
+.library-phone-top { flex: 0 0 auto; display: flex; flex-direction: column; gap: 9px; }
+.library-phone-search {
+  height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 11px; box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.16); border-radius: 15px; color: #9aa6b5;
+  background: rgba(14,19,26,.96); box-shadow: inset 0 1px rgba(255,255,255,.06);
+}
+.library-phone-search:focus-within { border-color: rgba(255,255,255,.42); box-shadow: 0 0 0 2px rgba(57,255,20,.18); }
+.library-phone-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #f7f9fc; background: transparent; font: inherit; font-size: 16px; }
+.library-phone-search input::placeholder { color: #6f7a88; }
+.library-phone-search button, .library-phone-release, .library-phone-details header button {
+  width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #aeb8c4; background: rgba(255,255,255,.07); cursor: pointer;
+}
+.library-phone-showcase { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border-radius: 12px; color: #8f9baa; background: rgba(255,255,255,.035); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.library-phone-selection {
+  position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 10px; align-items: start;
+  padding: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: linear-gradient(145deg, rgba(20,28,37,.96), rgba(7,10,14,.96));
+}
+.library-phone-selection-copy { min-width: 0; }
+.library-phone-selection-copy span { display: block; margin-bottom: 3px; color: #7f8b99; font-size: 9px; font-weight: 900; letter-spacing: .09em; }
+.library-phone-selection-copy strong { display: block; overflow: hidden; color: white; font-size: 15px; line-height: 1.12; text-overflow: ellipsis; white-space: nowrap; }
+.library-phone-release { grid-column: 2; grid-row: 1; }
+.library-phone-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) 46px; gap: 8px; }
+.library-phone-primary, .library-phone-more {
+  height: 44px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; color: #f7faff; cursor: pointer;
+  background: rgba(255,255,255,.08); box-shadow: inset 0 1px rgba(255,255,255,.08);
+}
+.library-phone-primary { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; }
+.library-phone-primary:not(:disabled) { background: linear-gradient(145deg, rgba(57,255,20,.24), rgba(57,255,20,.08)); border-color: rgba(114,255,90,.34); }
+.library-phone-primary:disabled { opacity: .38; }
+.library-phone-more { display: grid; place-items: center; padding: 0; }
+.library-room.surface-tablet .library-room-catalog { flex: 1 1 auto; min-height: 0; }
+.library-room.surface-tablet .library-room-heading { min-height: 16px; justify-content: flex-start; margin: 0 2px 5px; }
+.library-room.surface-tablet .library-room-heading small { font-size: 8px; letter-spacing: .06em; }
+.library-room.surface-tablet .library-room-grid {
+  flex: 1 1 auto; min-height: 0; overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable;
+  grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; align-content: start; padding: 3px 7px 12px 3px;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.34) rgba(255,255,255,.035);
+}
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar { width: 8px; }
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar-track { background: rgba(255,255,255,.035); border-radius: 99px; }
+.library-room.surface-tablet .library-room-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,.30); border-radius: 99px; }
+.library-room.surface-tablet .library-room-card-art { aspect-ratio: 2 / 3; }
+.library-room.surface-tablet .library-room-card-art img { width: 100%; height: 100%; object-fit: contain; object-position: center; background: #0d1219; }
+.library-room.surface-tablet .library-room-card { border-radius: 10px; }
+.library-room.surface-tablet .library-room-card-art { border-radius: 9px; border-width: 1px; }
+.library-room.surface-tablet .library-room-card.is-selected { transform: none; }
+.library-room.surface-tablet .library-room-card.is-selected .library-room-card-art { transform: none; box-shadow: 0 0 0 2px #39ff14, 0 0 18px rgba(57,255,20,.30); }
+.library-room.surface-tablet .library-room-hint { display: none !important; }
+.library-phone-details {
+  position: absolute; z-index: 50; inset: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.20); border-radius: 18px; background: rgba(8,12,17,.985);
+  box-shadow: 0 22px 70px rgba(0,0,0,.68), inset 0 1px rgba(255,255,255,.07); backdrop-filter: blur(20px);
+}
+.library-phone-details > header { flex: 0 0 auto; display: flex; justify-content: space-between; gap: 10px; align-items: start; padding: 15px 14px 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.library-phone-details h2 { margin: 4px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; }
+.library-phone-details-scroll { min-height: 0; overflow-y: auto; padding: 12px 14px 18px; }
+.library-phone-facts { margin: 0; display: grid; gap: 1px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; overflow: hidden; }
+.library-phone-facts div { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 8px; padding: 9px 10px; background: rgba(255,255,255,.035); }
+.library-phone-facts dt { color: #798696; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.library-phone-facts dd { margin: 0; color: #dce3eb; font-size: 11px; text-align: right; overflow-wrap: anywhere; }
+.library-phone-description { color: #bac4cf; font-size: 12px; line-height: 1.45; }
+.library-phone-meta { display: grid; grid-template-columns: 92px minmax(0,1fr); gap: 8px; margin: 10px 0; color: #b7c1cc; font-size: 11px; }
+.library-phone-meta strong { color: #7f8b99; text-transform: uppercase; font-size: 9px; letter-spacing: .05em; }
+.library-phone-screenshots { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; margin-top: 14px; }
+.library-phone-screenshots img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; background: #10161e; }

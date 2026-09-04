@@ -65,7 +65,7 @@ export function isActiveDownload(status?: SteamDownloadStatus) {
 
 function InstallStateBadge({ status, available }: { status?: SteamDownloadStatus; available: boolean }) {
   if (!isInstalled(status) || !available) return null;
-  return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title="Instalado Â· listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -93,12 +93,9 @@ export function useCrossfadeArtwork(source?: string): ArtworkState {
       const nextLayers: [string | null, string | null] = [...layersRef.current] as [string | null, string | null];
       nextLayers[next] = source;
       layersRef.current = nextLayers;
+      activeRef.current = next;
       setLayers(nextLayers);
-      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        activeRef.current = next;
-        setActiveLayer(next);
-      }));
+      setActiveLayer(next);
     };
 
     if (image.complete && image.naturalWidth) void reveal();
@@ -122,8 +119,11 @@ export function selectedHero(details: GameDetails | null, game?: CatalogGame) {
     details?.steam?.screenshots?.[0]?.full,
     details?.steam?.background,
     details?.steam?.hero_image,
-    game?.hero_image,
+    // Local library_hero URLs are optimistic and may 404 for older games.
+    // Use the selected game's known-valid Steam header until store metadata
+    // supplies a richer image, so the previous game's artwork can never stick.
     game?.header_image,
+    game?.hero_image,
     game?.capsule_image,
   );
 }
@@ -163,7 +163,7 @@ export function buildActions(
     {
       label: installed ? "Jugar" : "No instalado",
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,
-      disabled: !installed || busy || game.copies_available <= 0,
+      disabled: !installed || busy || (game.copies_available <= 0 && !game.local_primary_account_label),
       kind: "play",
     },
     {
@@ -251,9 +251,9 @@ export function handleGridKey(key: string, context: GridKeyContext) {
 export function LibraryHint() {
   return (
     <div className="library-room-hint">
-      <span>NAVEGAR · WASD / FLECHAS</span>
-      <span>ENTRAR / ACTIVAR · ENTER</span>
-      <span>VOLVER · ESC</span>
+      <span>NAVEGAR Â· WASD / FLECHAS</span>
+      <span>ENTRAR / ACTIVAR Â· ENTER</span>
+      <span>VOLVER Â· ESC</span>
     </div>
   );
 }
@@ -265,18 +265,18 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
           <span className="eyebrow">TU BIBLIOTECA</span>
-          <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
-          <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
-          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
+          <h1>{loading ? "Preparando tu bibliotecaâ€¦" : "Tu biblioteca estÃ¡ vacÃ­a"}</h1>
+          <p>{loading ? "GameAccess estÃ¡ cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavÃ­a. PodÃ©s seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarÃ¡n acÃ¡."}</p>
+          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando bibliotecaâ€¦</span> : null}
         </div>
       </aside>
       <section className="library-room-catalog">
-        <header className="library-room-heading"><small>0 juegos · WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><small>0 juegos Â· WASD / FLECHAS</small></header>
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />
-            <strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong>
-            <span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span>
+            <strong>{loading ? "Buscando juegosâ€¦" : "No hay juegos para mostrar"}</strong>
+            <span>{loading ? "La interfaz ya estÃ¡ lista; sÃ³lo estamos esperando los datos." : "Este es un estado vÃ¡lido y no bloquea GameAccess."}</span>
           </div>
         </div>
       </section>
@@ -363,7 +363,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
         <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
         <h1>{props.game.name}</h1>
         <p>{props.summary}</p>
-        {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
+        {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steamâ€¦</span> : null}
         <div className="library-room-actions">
           {props.actions.map((action, index) => (
             <button
@@ -396,10 +396,10 @@ interface CatalogPanelProps {
 
 export function CatalogPanel(props: CatalogPanelProps) {
   const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
+  const accounts = props.accountCount ? ` Â· ${props.accountCount} ${accountLabel}` : "";
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
+      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} Â· WASD / FLECHAS</small></header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <button
@@ -413,7 +413,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
           >
             <span className="library-room-card-art">
               <SteamCover game={game} />
-              <InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} available={game.copies_available > 0} />
+              <InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} available={game.copies_available > 0 || Boolean(game.local_primary_account_label)} />
             </span>
           </button>
         ))}
