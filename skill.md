@@ -2,7 +2,7 @@
 
 This file is the living knowledge base for the `gameAccess` project. Future work on this repository should read this file before changing architecture or implementing provider-specific behavior, and should append/update it when new technical, commercial, policy, or operational facts are discovered.
 
-Last updated: 2026-08-26.
+Last updated: 2026-09-04.
 
 ## Product thesis
 
@@ -320,9 +320,27 @@ For any product based on expiring hour pools, treat hours as perishable inventor
 
 Do not implement aggressive dynamic pricing before enough data exists. Start with a simple transparent tariff and collect demand/utilization data first.
 
+## Evidence-first execution protocol
+
+`docs/EXECUTION_PROTOCOL.md` is mandatory operating procedure for non-trivial engineering, provider/API research, and local-agent work in this project.
+
+The required sequence is:
+
+1. read the relevant project instructions/specifications;
+2. inspect the current code and runtime state instead of assuming what exists;
+3. inspect the schemas/contracts/capability registry of every tool that will be used;
+4. check current official documentation/source for external libraries, APIs, and services;
+5. reuse existing functions/actions/capabilities before creating another mechanism;
+6. design the smallest evidence-producing test;
+7. if one path is blocked, identify the blocked layer and enumerate other permitted end-to-end routes before concluding the task cannot be done.
+
+For `AI_Local_Access`, specifically inspect `runner.py`, `local_actions.py`, and the relevant action module before inventing job payloads or shell scripts. Search both the runner `CAPABILITIES` registry and registered actions such as `fs.read_text` before claiming a capability is missing.
+
+Do not disguise data or semantics to evade a safety/policy control. “Think outside the box” here means finding a different legitimate transport, API, existing capability, project script, environment/configuration mechanism, connector, or execution architecture that reaches the same end state.
+
 ## Research and implementation rules for future agents
 
-1. Read `skill.md`, `README.md`, and `docs/architecture.md` before provider-specific work.
+1. Read `skill.md`, `docs/EXECUTION_PROTOCOL.md`, `README.md`, and `docs/architecture.md` before provider-specific work.
 2. Preserve the separation between customer identity, provider account, lease, save profile, and game entitlement.
 3. Prefer official provider session/auth mechanisms over credential exposure.
 4. Do not implement DRM bypass, fabricated entitlements, Steamworks emulation, location masking for regional-pricing evasion, or anti-cheat evasion.
@@ -331,6 +349,9 @@ Do not implement aggressive dynamic pricing before enough data exists. Start wit
 7. Mark hypotheses clearly. Do not promote an inference to a confirmed platform capability without testing or authoritative documentation.
 8. Keep the initial business low-capital and just-in-time. Do not add infrastructure cost unless observed demand justifies it.
 9. Do not commit real operator/customer provider-account identifiers into the public repo; discover and map them locally at runtime.
+10. Never claim that a function, capability, action, file, endpoint, or integration is missing until the current repository/tool registry has actually been searched and the relevant implementation inspected.
+11. Before experimenting with a third-party dependency, verify its current version and consult current official documentation/upstream source or a maintained reference implementation.
+12. After a blocked approach, evaluate alternate permitted routes before adding complexity or asking the user to do manual work.
 
 ## Open technical questions
 
