@@ -17,13 +17,16 @@ const pool: LocalSteamPool = {
 describe("buildLocalCatalog", () => {
   it("creates catalog entries from real pool games", () => {
     const games = buildLocalCatalog(pool);
-    expect(games).toHaveLength(1);
+    expect(games).toHaveLength(2);
     expect(games[0]).toMatchObject({ app_id: 10, name: "Local Game", copies_total: 1, copies_available: 1 });
   });
 
   it("keeps ownership and Family accessibility separate", () => {
     const game = buildLocalCatalog(pool).find((item) => item.app_id === 20);
-    expect(game).toBeUndefined();
+    expect(game).toBeDefined();
+    expect(game).toMatchObject({ copies_total: 0, copies_available: 0, local_primary_account_label: "owner" });
+    expect(game?.local_account_labels).toEqual([]);
+    expect(game?.local_access_labels).toEqual(["owner", "second"]);
   });
 
   it("counts duplicate owners as copies but never Family access", () => {
@@ -57,6 +60,6 @@ describe("mergeCatalog", () => {
 
   it("retains local-only and remote-only games", () => {
     const remote: CatalogGame[] = [{ id: 99, slug: "remote-only", name: "Remote Only", app_id: 30, credit_cost_per_hour: 50, copies_total: 1, copies_available: 1 }];
-    expect(mergeCatalog(remote, buildLocalCatalog(pool)).map((item) => item.app_id).sort()).toEqual([10, 30]);
+    expect(mergeCatalog(remote, buildLocalCatalog(pool)).map((item) => item.app_id).sort()).toEqual([10, 20, 30]);
   });
 });

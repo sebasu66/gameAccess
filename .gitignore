@@ -44,3 +44,6 @@ tools/public/
 tools/siteserverui/
 tools/g2g-crawler/_analysis/
 tools/g2g-crawler/g2g-*-test.json
+
+# Local Game Access provider roster (credentials)
+cuentas.txt

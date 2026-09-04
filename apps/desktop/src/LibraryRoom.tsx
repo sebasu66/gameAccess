@@ -107,7 +107,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : (isTabletSurface ? undefined : displayGames[0]);
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id;
-  const accountCount = useMemo(() => new Set(games.flatMap((game) => game.local_account_labels ?? [])).size, [games]);
+  const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   const installed = isInstalled(download);
   const activeDownload = isActiveDownload(download);
@@ -448,7 +448,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activateAction = () => {
     if (!selectedGame) return;
     playUiSound("activate");
-    if (actionIndex === 0 && installed && !busy && selectedGame.copies_available > 0) void onPlay(selectedGame);
+    if (actionIndex === 0 && installed && !busy && (selectedGame.copies_available > 0 || Boolean(selectedGame.local_primary_account_label))) void onPlay(selectedGame);
     if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
     if (actionIndex === 2) onOpenDetails(selectedGame);
   };

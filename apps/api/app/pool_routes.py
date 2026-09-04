@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from . import main as core
+from .account_roster import load_account_roster, replace_runtime_roster
 
 router = APIRouter(prefix="/admin/pool", tags=["pool"])
 
@@ -52,6 +53,40 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
         slug = f"{base}-{suffix}"
         suffix += 1
     return slug
+
+
+def sync_runtime_account_roster(session: Session) -> int:
+    records = load_account_roster()
+    replace_runtime_roster(records)
+    for record in records:
+        account = session.exec(select(core.ProviderAccount).where(core.ProviderAccount.label == record.label)).first()
+        if account is None:
+            account = core.ProviderAccount(label=record.label, provider="steam", status=core.AccountStatus.free)
+        notes: dict[str, Any] = {}
+        try:
+            decoded = json.loads(account.notes or "{}")
+            if isinstance(decoded, dict):
+                notes = decoded
+        except Exception:
+            notes = {}
+        notes.update({"source": "local-account-roster", "account_name": record.login})
+        account.provider = "steam"
+        account.notes = json.dumps(notes, ensure_ascii=False, separators=(",", ":"))
+        session.add(account)
+    session.commit()
+    return len(records)
+
+
+@core.app.on_event("startup")
+def sync_runtime_account_roster_on_startup() -> None:
+    with Session(core.engine) as session:
+        sync_runtime_account_roster(session)
+
+
+@router.get("/roster-status")
+def roster_status(session: Session = Depends(core.get_session)) -> dict:
+    count = sync_runtime_account_roster(session)
+    return {"ok": True, "accounts": count}
 
 
 @router.post("/sync")

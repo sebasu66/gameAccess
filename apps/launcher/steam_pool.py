@@ -10,7 +10,8 @@ Two Steam signals are deliberately kept separate:
 
 The scanner reads only key names/IDs from ticket sections; it does not emit the
 actual ticket blobs, passwords, Steam Guard secrets, cookies, login keys, auth
-blobs, RememberPassword, or other session material.
+blobs, or other session material. Personal/local accounts are those Steam marks
+with ``RememberPassword=1`` in ``loginusers.vdf``.
 """
 
 from __future__ import annotations
@@ -142,7 +143,7 @@ def _largest_named_numeric_block(node: Any, wanted_name: str) -> dict[str, Any] 
 
 
 def remembered_account_identities() -> list[dict[str, Any]]:
-    """Read only public identity fields from Steam's remembered-account list."""
+    """Read identities that Steam explicitly marks as remembered on this PC."""
     root = steam_root()
     if not root:
         return []
@@ -157,6 +158,8 @@ def remembered_account_identities() -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         for steam_id64, fields in users.items():
             if not str(steam_id64).isdigit() or not isinstance(fields, dict):
+                continue
+            if str(_ci_get(fields, "RememberPassword") or "").strip() != "1":
                 continue
             account_name = str(_ci_get(fields, "AccountName") or "").strip()
             persona_name = str(_ci_get(fields, "PersonaName") or account_name).strip()
