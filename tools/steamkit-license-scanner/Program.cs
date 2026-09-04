@@ -115,7 +115,7 @@ internal static class Program
                 return 4;
             }
 
-            _ = steamUser.LogOn(new SteamUser.LogOnDetails
+            steamUser.LogOn(new SteamUser.LogOnDetails
             {
                 Username = pollResponse.AccountName,
                 AccessToken = pollResponse.RefreshToken,
@@ -189,12 +189,15 @@ internal static class Program
                         resolvedPackages.Add(packageId);
                         var appIds = new SortedSet<uint>();
                         var appIdNode = pair.Value.KeyValues["appids"];
-                        foreach (var child in appIdNode.Children)
+                        if (appIdNode is not null)
                         {
-                            var appId = child.AsUnsignedInteger();
-                            if (appId > 0)
+                            foreach (var child in appIdNode.Children)
                             {
-                                appIds.Add(appId);
+                                var appId = child.AsUnsignedInteger();
+                                if (appId > 0)
+                                {
+                                    appIds.Add(appId);
+                                }
                             }
                         }
                         packageApps[packageId] = appIds;
