@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from . import main as core
+from . import family_capacity
 
 router = APIRouter(prefix="/admin-console", tags=["admin-console"])
 
@@ -199,15 +200,14 @@ def dashboard(session: Session) -> dict:
     license_rows = []
     for game in games:
         owners = []
-        available = 0
         for mapping in mappings_by_game.get(game.id or -1, []):
             account = session.get(core.ProviderAccount, mapping.account_id)
             if not account:
                 continue
             owners.append({"id": account.id, "label": account.label, "status": account.status})
-            if account.status == core.AccountStatus.free:
-                available += 1
-        if owners or game.active:
+        total, available = core.game_capacity(session, game)
+        demand = family_capacity.demand_fields(session, int(game.id or 0))
+        if total or owners or game.active:
             license_rows.append(
                 {
                     "game_id": game.id,
@@ -215,9 +215,11 @@ def dashboard(session: Session) -> dict:
                     "name": game.name,
                     "active": game.active,
                     "cost_per_hour": game.credit_cost_per_hour,
-                    "copies_total": len(owners),
+                    "copies_total": total,
                     "copies_available": available,
                     "owners": owners,
+                    "families": family_capacity.family_breakdown_for_game(session, int(game.id or 0)),
+                    **demand,
                 }
             )
     license_rows.sort(key=lambda item: (-item["copies_total"], item["name"].casefold()))
@@ -324,8 +326,9 @@ def dashboard(session: Session) -> dict:
             "accounts_leased": sum(1 for account in accounts if account.status == core.AccountStatus.leased),
             "accounts_disabled": sum(1 for account in accounts if account.status == core.AccountStatus.disabled),
             "active_games": active_game_count,
-            "license_mappings": len(mappings),
-            "distinct_licensed_games": len(mappings_by_game),
+            "license_mappings": sum(row["copies_total"] for row in license_rows),
+            "account_game_mappings": len(mappings),
+            "distinct_licensed_games": sum(1 for row in license_rows if row["copies_total"] > 0),
             "active_leases": len(active_leases),
             "users": len(users),
             "credits_total": sum(user.credits for user in users),
@@ -336,7 +339,7 @@ def dashboard(session: Session) -> dict:
         "leases": recent_leases,
         "diagnostics": diagnostics,
         "tasks": task_rows,
-        "seat_model": "Cada ProviderAccount cuenta hoy como un asiento operativo. Steam Families se modelará como capa separada sin cambiar el inventario de licencias.",
+        "seat_model": "Los asientos se derivan por familia: min(copias libres del juego, miembros libres). La asignación simula cada candidato y elige el menor daño ponderado al pool.",
     }
 
 

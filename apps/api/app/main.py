@@ -187,20 +187,16 @@ def seed_defaults(session: Session) -> None:
 
 
 def game_capacity(session: Session, game: Game) -> tuple[int, int]:
-    owned = session.exec(
-        select(AccountGame).where(AccountGame.game_id == game.id)
-    ).all()
-    account_ids = [row.account_id for row in owned]
-    available = 0
-    for account_id in account_ids:
-        account = session.get(ProviderAccount, account_id)
-        if account and account.status == AccountStatus.free:
-            available += 1
-    return len(account_ids), available
+    from . import family_capacity
+
+    return family_capacity.game_capacity(session, game)
 
 
 def game_summary(session: Session, game: Game) -> dict:
+    from . import family_capacity
+
     total, available = game_capacity(session, game)
+    demand = family_capacity.demand_fields(session, int(game.id or 0))
     assets = steam_assets(game.app_id)
     return {
         "id": game.id,
@@ -213,6 +209,7 @@ def game_summary(session: Session, game: Game) -> dict:
         "availability_state": "ready"
         if available > 0
         else ("owned-busy" if total > 0 else "unavailable"),
+        **demand,
         **assets,
     }
 
@@ -448,17 +445,12 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
     if active_for_user:
         raise HTTPException(409, "user already has an active lease")
 
-    mappings = session.exec(
-        select(AccountGame).where(AccountGame.game_id == game.id)
-    ).all()
-    selected = None
-    for mapping in mappings:
-        account = session.get(ProviderAccount, mapping.account_id)
-        if account and account.status == AccountStatus.free:
-            selected = account
-            break
-    if not selected:
+    from . import family_capacity
+
+    selection = family_capacity.select_best_account(session, game)
+    if not selection:
         raise HTTPException(409, "no account currently available for this game")
+    selected = selection["account"]
 
     cost = max(1, round(game.credit_cost_per_hour * (req.minutes / 60)))
     if user.credits < cost:
@@ -491,6 +483,14 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
     )
     session.commit()
     session.refresh(lease)
+    family_capacity.register_lease_allocation(
+        session,
+        int(lease.id),
+        selection.get("family_id"),
+        selection.get("license_copy_id"),
+    )
+    demand = family_capacity.record_successful_lease(session, int(game.id))
+    session.commit()
     return {
         "lease_id": lease.id,
         "user_id": user.id,
@@ -499,6 +499,20 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
             "id": selected.id,
             "label": selected.label,
             "provider": selected.provider,
+        },
+        "family_id": selection.get("family_id"),
+        "allocation": {
+            "mode": selection.get("mode"),
+            "pool_damage": selection.get("pool_damage"),
+            "newly_unavailable_games": selection.get("newly_unavailable_games"),
+            "remaining_seats": selection.get("remaining_seats"),
+        },
+        "demand": {
+            "request_count_total": demand.request_count_total,
+            "successful_leases": demand.successful_leases,
+            "demand_value": demand.demand_value,
+            "price_factor": demand.price_factor,
+            "pool_value": round(demand.demand_value * demand.price_factor, 4),
         },
         "starts_at": starts,
         "expires_at": expires,

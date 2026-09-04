@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from . import main as core
+from . import family_capacity
 from .account_roster import load_account_roster, replace_runtime_roster
 
 router = APIRouter(prefix="/admin/pool", tags=["pool"])
@@ -47,6 +48,22 @@ class PoolSyncInput(BaseModel):
     verification_errors: list[dict[str, Any]] = []
     accounts: list[PoolAccountInput]
     games: list[PoolGameInput]
+
+
+class FamilyLicenseInput(BaseModel):
+    app_id: int = Field(gt=0)
+    quantity: int = Field(ge=0)
+    owner_labels: list[str] = []
+
+
+class FamilyInput(BaseModel):
+    family_key: str = Field(min_length=1, max_length=200)
+    members: list[str] = []
+    licenses: list[FamilyLicenseInput] = []
+
+
+class FamilyGraphSyncInput(BaseModel):
+    families: list[FamilyInput]
 
 
 def _unique_slug(session: Session, name: str, app_id: int) -> str:
@@ -304,3 +321,16 @@ def sync_pool(req: PoolSyncInput, session: Session = Depends(core.get_session)) 
         "license_semantics": "per-account-authoritative-preserve-failed-provider",
         "accounts": [_account_summary(session, account) for account in synced_accounts],
     }
+
+@router.post("/families/sync")
+def sync_family_graph(req: FamilyGraphSyncInput, session: Session = Depends(core.get_session)) -> dict:
+    result = family_capacity.replace_family_graph(
+        session, [family.model_dump() for family in req.families]
+    )
+    return {
+        "ok": True,
+        **result,
+        "capacity_semantics": "family-license-copies-x-free-members",
+        "allocation_semantics": "simulate-each-candidate-minimize-weighted-pool-damage",
+    }
+
