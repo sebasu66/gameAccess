@@ -160,6 +160,8 @@ def remembered_account_identities() -> list[dict[str, Any]]:
                 continue
             account_name = str(_ci_get(fields, "AccountName") or "").strip()
             persona_name = str(_ci_get(fields, "PersonaName") or account_name).strip()
+            remember_raw = str(_ci_get(fields, "RememberPassword") or "").strip().casefold()
+            remember_password = remember_raw in {"1", "true", "yes"}
             steam64 = int(steam_id64)
             user32 = steam64 - STEAM_ID64_BASE if steam64 >= STEAM_ID64_BASE else None
             if user32 is not None and user32 <= 0:
@@ -170,11 +172,22 @@ def remembered_account_identities() -> list[dict[str, Any]]:
                     "user_id32": user32,
                     "account_name": account_name,
                     "display_name": persona_name,
+                    "remember_password": remember_password,
+                    "is_personal": remember_password,
                 }
             )
         return result
     except Exception:
         return []
+
+
+def personal_account_identities() -> list[dict[str, Any]]:
+    """Return only personal/local Steam accounts.
+
+    Per the Game Access account-classification contract, RememberPassword=1 is
+    the sole local/personal signal. Steam Guard state is intentionally ignored.
+    """
+    return [item for item in remembered_account_identities() if item.get("remember_password") is True]
 
 
 def _localconfig(user_id32: int) -> dict[str, Any]:

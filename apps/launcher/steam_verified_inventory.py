@@ -85,10 +85,37 @@ def _scan_current(expected_identity: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
-    identities = [item for item in remembered_account_identities() if isinstance(item.get("user_id32"), int)]
+def verify_all_remembered_accounts(
+    *,
+    save: bool = True,
+    account_names: set[str] | None = None,
+) -> dict[str, Any]:
+    all_identities = [item for item in remembered_account_identities() if isinstance(item.get("user_id32"), int)]
+    wanted = (
+        {str(name).strip().casefold() for name in account_names}
+        if account_names is not None
+        else None
+    )
+    identities = (
+        [
+            item
+            for item in all_identities
+            if str(item.get("account_name") or "").strip().casefold() in wanted
+        ]
+        if wanted is not None
+        else all_identities
+    )
+    matched_names = {
+        str(item.get("account_name") or "").strip().casefold()
+        for item in identities
+    }
+    missing_account_count = len(wanted - matched_names) if wanted is not None else 0
     if not identities:
-        raise RuntimeError("Steam has no remembered account identities")
+        raise RuntimeError(
+            "Steam has no remembered account identities matching the Game Access roster"
+            if wanted is not None
+            else "Steam has no remembered account identities"
+        )
 
     original_user = active_user_id32()
     identity_by_user = {int(item["user_id32"]): item for item in identities}
@@ -166,8 +193,10 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
     scan_errors = [error for error in errors if not str(error.get("error", "")).startswith("restore failed:")]
     result = {
         "ok": bool(scanned_seats),
-        "complete": len(scanned_seats) == len(identities) and not scan_errors,
+        "complete": len(scanned_seats) == len(identities) and not scan_errors and missing_account_count == 0,
         "source": "steam-console-licenses-print",
+        "requested_account_count": len(wanted) if wanted is not None else len(identities),
+        "missing_account_count": missing_account_count,
         "verified_at": now_iso(),
         "original_active_user_id32": original_user,
         "final_active_user_id32": active_user_id32(),
