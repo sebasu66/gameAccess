@@ -116,7 +116,11 @@ fn validate_provider(app_id: u32) -> Result<String, String> {
         .output()
         .map_err(|err| format!("Could not validate provider download ownership: {err}"))?;
     let payload = parse_last_json_line(&output.stdout)?;
-    if !output.status.success() || !payload.get("ok").and_then(|value| value.as_bool()).unwrap_or(false)
+    if !output.status.success()
+        || !payload
+            .get("ok")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
     {
         return Err(payload
             .get("error")
