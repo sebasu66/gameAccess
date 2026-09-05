@@ -86,6 +86,7 @@ class LeaseRequest(BaseModel):
     user_id: int
     game_id: int
     minutes: int = Field(ge=5, le=24 * 60)
+    replace_existing: bool = False
 
 
 class CreditRequest(BaseModel):
@@ -460,7 +461,15 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
         )
     ).first()
     if active_for_user:
-        raise HTTPException(409, "user already has an active lease")
+        if not req.replace_existing:
+            raise HTTPException(409, "user already has an active lease")
+        active_for_user.status = LeaseStatus.released
+        stale_account = session.get(ProviderAccount, active_for_user.account_id)
+        if stale_account and stale_account.status == AccountStatus.leased:
+            stale_account.status = AccountStatus.free
+            session.add(stale_account)
+        session.add(active_for_user)
+        session.commit()
 
     from . import family_capacity
 

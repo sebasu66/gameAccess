@@ -1,4 +1,4 @@
-import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount, loginProviderSteam } from "./native";
+import { getLocalSteamPool, getSteamStoreMetadata, getSteamSessionStatus, switchSteamAccount, loginProviderSteam } from "./native";
 import { AsyncResourceCache } from "./asyncResourceCache";
 import { buildLocalCatalog } from "./catalog";
 import { getCatalogMode } from "./catalogMode";
@@ -290,7 +290,15 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
 
   if (!API) throw new Error("El backend GameAccess no está conectado.");
 
-  const lease = await request<LeaseResponse>("/leases", { method: "POST", body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }) });
+  const session = await getSteamSessionStatus().catch(() => null);
+  if (session && session.appId && !session.done && session.phase !== "idle") {
+    throw new Error("Ya hay un juego en ejecución. Cerralo antes de iniciar otro.");
+  }
+
+  const lease = await request<LeaseResponse>("/leases", {
+    method: "POST",
+    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
+  });
   if (lease.session_action === "provider_adapter_required") {
     if (!lease.account?.label) {
       await releaseFailedLease(lease);
