@@ -1,0 +1,47 @@
+name: Apply stale lease repair
+
+on:
+  push:
+    paths:
+      - "tools/dev/fix_stale_active_lease.py"
+      - ".github/workflows/apply-stale-lease-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply repair
+        run: python tools/dev/fix_stale_active_lease.py
+      - name: Install API test dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt pytest
+      - name: Test API lease replacement
+        working-directory: apps/api
+        run: pytest tests/test_lease_replacement.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Test desktop lease guard
+        working-directory: apps/desktop
+        run: npm test -- --run src/leaseGuard.test.ts
+      - name: Build desktop
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Commit repair
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/api/app/main.py apps/api/tests/test_lease_replacement.py apps/desktop/src/api.ts apps/desktop/src/leaseGuard.test.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix(leases): replace stale user lease safely"
+          git push
