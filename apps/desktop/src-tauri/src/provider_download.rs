@@ -117,6 +117,50 @@ pub fn provider_download_status(app_id: u32) -> Result<Option<ProviderDownloadSt
     Ok(Some(status))
 }
 
+fn write_provider_download_status(
+    launcher: &Path,
+    status: &ProviderDownloadStatus,
+) -> Result<(), String> {
+    let path = status_path(launcher, status.app_id);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Could not create provider status cache: {err}"))?;
+    }
+    let body = serde_json::to_vec(status)
+        .map_err(|err| format!("Could not encode provider status cache: {err}"))?;
+    let temp = path.with_extension("json.tmp");
+    fs::write(&temp, body)
+        .map_err(|err| format!("Could not write provider status cache: {err}"))?;
+    fs::rename(temp, path).map_err(|err| format!("Could not publish provider status cache: {err}"))
+}
+
+pub fn provider_installed_app_ids() -> Vec<u32> {
+    let Ok(launcher) = launcher_dir() else {
+        return Vec::new();
+    };
+    let Some(root) = status_path(&launcher, 0).parent().map(Path::to_path_buf) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut ids = Vec::new();
+    for entry in entries.flatten() {
+        let Ok(body) = fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        let Ok(status) = serde_json::from_str::<ProviderDownloadStatus>(&body) else {
+            continue;
+        };
+        if status.installed || status.state == "installed" {
+            ids.push(status.app_id);
+        }
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
 fn validate_provider(app_id: u32) -> Result<String, String> {
     let launcher = launcher_dir()?;
     let python = python_executable(&launcher);
@@ -199,7 +243,7 @@ fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadSt
             .unwrap_or("Could not estimate provider download size")
             .to_string());
     }
-    Ok(ProviderDownloadStatus {
+    let status = ProviderDownloadStatus {
         app_id,
         state: "not-installed".into(),
         progress: None,
@@ -211,7 +255,9 @@ fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadSt
         provider_id: Some(provider_id),
         prepared_target: None,
         error: None,
-    })
+    };
+    write_provider_download_status(&launcher, &status)?;
+    Ok(status)
 }
 
 #[tauri::command]

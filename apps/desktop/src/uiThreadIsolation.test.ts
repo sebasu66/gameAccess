@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import providerDownloadSource from "../src-tauri/src/provider_download.rs?raw";
 import tauriMainSource from "../src-tauri/src/main.rs?raw";
+import appSource from "./App.tsx?raw";
 import libraryRoomSource from "./LibraryRoom.tsx?raw";
 import { selectedMovie, selectedVideo } from "./LibraryRoomParts";
 import type { GameDetails } from "./types";
@@ -19,6 +20,13 @@ describe("UI thread isolation contract", () => {
     expect(libraryRoomSource).toContain(".then((value)");
     expect(libraryRoomSource).toContain("let cancelled = false;");
     expect(libraryRoomSource).not.toMatch(/await\s+loadDetails\(requestedGameId\)/);
+  });
+
+  it("does not fan out heavy details or per-game download probes at catalog startup", () => {
+    expect(appSource).not.toContain("games.slice(0, 8)");
+    expect(appSource).not.toContain("games.slice(0, 24)");
+    expect(appSource).toContain("steamInstalledAppIds()");
+    expect(libraryRoomSource).toContain("detailRequestedGameId === selectedGameIdResolved");
   });
 
   it("keeps Steam Store metadata off the blocking Tauri command path", () => {

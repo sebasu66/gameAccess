@@ -11,6 +11,8 @@ const API = (import.meta.env.VITE_GAMEACCESS_API ?? DEFAULT_API).replace(/\/$/, 
 let localCatalog: CatalogGame[] = [];
 
 const steamMetadataCache = new Map<number, SteamMetadata>();
+const gameDetailsCache = new Map<number, GameDetails>();
+const gameDetailsRequests = new Map<number, Promise<GameDetails>>();
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};
 
@@ -188,13 +190,29 @@ export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] =
   return catalog.find((item) => item.id === gameId || item.app_id === gameId);
 }
 
-export const loadDetails = async (gameId: number) => {
-  if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+export const loadDetails = async (gameId: number): Promise<GameDetails> => {
+  const cached = gameDetailsCache.get(gameId);
+  if (cached) return cached;
+  const pending = gameDetailsRequests.get(gameId);
+  if (pending) return pending;
+
+  const requestDetails = (async () => {
+    if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+    try {
+      return await request<GameDetails>(`/games/${gameId}/details`);
+    } catch {
+      if (findLocalGameForDetails(gameId)) return loadLocalDetails(gameId);
+      throw new Error("No se pudo obtener la ficha del juego");
+    }
+  })();
+
+  gameDetailsRequests.set(gameId, requestDetails);
   try {
-    return await request<GameDetails>(`/games/${gameId}/details`);
-  } catch {
-    if (findLocalGameForDetails(gameId)) return loadLocalDetails(gameId);
-    throw new Error("No se pudo obtener la ficha del juego");
+    const details = await requestDetails;
+    gameDetailsCache.set(gameId, details);
+    return details;
+  } finally {
+    if (gameDetailsRequests.get(gameId) === requestDetails) gameDetailsRequests.delete(gameId);
   }
 };
 
