@@ -1,22 +1,18 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Search } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { CATALOG_TABS } from "./CatalogTabs";
 import type { CatalogMode } from "./catalogMode";
-import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
 
-type Direction = "left" | "right" | "up" | "down";
 type ModeUiState = {
   selectedGameId: number | null;
-  query: string;
   gridScrollTop: number;
   detailScrollTop: number;
 };
 
 const stateByMode = new Map<CatalogMode, ModeUiState>();
 
-const emptyState = (): ModeUiState => ({ selectedGameId: null, query: "", gridScrollTop: 0, detailScrollTop: 0 });
+const emptyState = (): ModeUiState => ({ selectedGameId: null, gridScrollTop: 0, detailScrollTop: 0 });
 const libraryRoot = () => document.querySelector<HTMLElement>(".library-room:not(.surface-display):not(.surface-tablet)");
 const libraryGrid = () => libraryRoot()?.querySelector<HTMLElement>(".library-room-grid") ?? null;
 const detailPanel = () => libraryRoot()?.querySelector<HTMLElement>(".library-room-feature") ?? null;
@@ -52,23 +48,6 @@ function focusGrid(): void {
   libraryRoot()?.focus({ preventScroll: true });
 }
 
-function gridColumnCount(items: HTMLElement[]): number {
-  if (items.length < 2) return 1;
-  const firstTop = items[0].offsetTop;
-  const count = items.findIndex((item, index) => index > 0 && Math.abs(item.offsetTop - firstTop) > 1);
-  return count > 0 ? count : Math.max(1, Math.round(Math.sqrt(items.length)));
-}
-
-export function nextGridIndex(index: number, count: number, columns: number, direction: Direction): number {
-  if (count <= 0) return -1;
-  const safe = Math.max(0, Math.min(count - 1, index));
-  const cols = Math.max(1, columns);
-  if (direction === "left") return safe % cols === 0 ? safe : safe - 1;
-  if (direction === "right") return safe % cols === cols - 1 || safe === count - 1 ? safe : safe + 1;
-  if (direction === "up") return Math.max(0, safe - cols);
-  return Math.min(count - 1, safe + cols);
-}
-
 export function nextCatalogMode(current: CatalogMode, backwards = false): CatalogMode {
   const available = CATALOG_TABS.map((tab) => tab.id);
   const currentIndex = Math.max(0, available.indexOf(current));
@@ -78,23 +57,15 @@ export function nextCatalogMode(current: CatalogMode, backwards = false): Catalo
 
 export function captureLibraryUiState(mode: CatalogMode): void {
   const previous = stateByMode.get(mode) ?? emptyState();
-  const query = document.querySelector<HTMLInputElement>(".library-global-search input")?.value ?? previous.query;
   stateByMode.set(mode, {
     selectedGameId: gameIdOf(selectedCard()) ?? previous.selectedGameId,
-    query,
     gridScrollTop: libraryGrid()?.scrollTop ?? previous.gridScrollTop,
     detailScrollTop: detailPanel()?.scrollTop ?? previous.detailScrollTop,
   });
 }
 
-function dispatchQuery(query: string): void {
-  window.dispatchEvent(new CustomEvent(LIBRARY_SEARCH_EVENT, { detail: { query } }));
-}
-
-function restoreMode(mode: CatalogMode, setQuery: (value: string) => void): void {
+function restoreMode(mode: CatalogMode): void {
   const state = stateByMode.get(mode) ?? emptyState();
-  setQuery(state.query);
-  dispatchQuery(state.query);
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
       const allCards = cards();
@@ -107,19 +78,6 @@ function restoreMode(mode: CatalogMode, setQuery: (value: string) => void): void
       focusGrid();
     });
   });
-}
-
-function moveSelection(direction: Direction): void {
-  const items = cards();
-  if (!items.length) return;
-  const selected = selectedCard();
-  const index = Math.max(0, selected ? items.indexOf(selected) : 0);
-  const next = nextGridIndex(index, items.length, gridColumnCount(items), direction);
-  const target = items[next];
-  if (!target || target === selected) return;
-  target.click();
-  target.focus({ preventScroll: true });
-  target.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
 function enterDetail(): void {
@@ -147,38 +105,19 @@ function refocusOperationalSurface(): void {
 }
 
 export default function LibraryInputController({ mode, onModeChange }: { mode: CatalogMode; onModeChange: (mode: CatalogMode) => void }) {
-  const [query, setQuery] = useState(() => stateByMode.get(mode)?.query ?? "");
   const modeRef = useRef(mode);
 
   useEffect(() => {
     modeRef.current = mode;
-    restoreMode(mode, setQuery);
+    restoreMode(mode);
   }, [mode]);
-
-  const changeQuery = useCallback((value: string) => {
-    setQuery(value);
-    const state = stateByMode.get(modeRef.current) ?? emptyState();
-    stateByMode.set(modeRef.current, { ...state, query: value });
-    dispatchQuery(value);
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!libraryRoot()) return;
-      const currentModal = modal();
-      if (currentModal) return;
+      if (!libraryRoot() || modal()) return;
       const key = event.key.toLowerCase();
-      const editable = isEditable(event.target);
 
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && key === "f") {
-        event.preventDefault();
-        event.stopPropagation();
-        document.querySelector<HTMLInputElement>(".library-global-search input")?.focus({ preventScroll: true });
-        return;
-      }
-      if (event.altKey || event.metaKey || (event.ctrlKey && key !== "f")) return;
-
-      if (key === "tab") {
+      if (key === "tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
         if (event.repeat) return;
         event.preventDefault();
         event.stopPropagation();
@@ -187,8 +126,8 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
         return;
       }
 
-      if (editable) {
-        if (key === "escape" && event.target instanceof HTMLElement && event.target.closest(".library-global-search")) {
+      if (isEditable(event.target)) {
+        if (key === "escape" && event.target instanceof HTMLElement && event.target.closest(".global-search")) {
           event.preventDefault();
           event.stopPropagation();
           focusGrid();
@@ -199,14 +138,10 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
       const active = document.activeElement as HTMLElement | null;
       const inDetail = Boolean(active?.closest(".library-room-feature"));
       if (key === "escape") {
+        if (!inDetail) return;
         event.preventDefault();
         event.stopPropagation();
-        if (inDetail) {
-          focusGrid();
-        } else if (query) {
-          changeQuery("");
-          window.requestAnimationFrame(focusGrid);
-        }
+        focusGrid();
         return;
       }
       if (key === "pageup" || key === "pagedown") {
@@ -221,21 +156,13 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
         event.preventDefault();
         event.stopPropagation();
         enterDetail();
-        return;
       }
-      const direction: Direction | null = key === "arrowleft" || key === "a" ? "left"
-        : key === "arrowright" || key === "d" ? "right"
-          : key === "arrowup" || key === "w" ? "up"
-            : key === "arrowdown" || key === "s" ? "down" : null;
-      if (direction) {
-        event.preventDefault();
-        event.stopPropagation();
-        moveSelection(direction);
-      }
+      // Directional keys deliberately bubble to LibraryRoom. It owns the actual
+      // rendered column count, so Up/Down move exactly one visual row.
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [changeQuery, onModeChange, query]);
+  }, [onModeChange]);
 
   useEffect(() => {
     const onFocus = () => refocusOperationalSurface();
@@ -260,16 +187,6 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
     };
   }, []);
 
-  return (
-    <label className="library-global-search" aria-label="Buscar en la biblioteca">
-      <Search size={15} aria-hidden="true" />
-      <input
-        value={query}
-        onChange={(event) => changeQuery(event.currentTarget.value)}
-        placeholder="Buscar juegos · Ctrl+F"
-        autoComplete="off"
-        spellCheck={false}
-      />
-    </label>
-  );
+  // Search UI lives in SteamGlobalSearch inside the existing right-side topbar.
+  return null;
 }
