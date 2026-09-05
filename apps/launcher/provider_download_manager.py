@@ -44,8 +44,7 @@ def _append_status_log(body: dict[str, Any]) -> None:
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
     entry = {"at": datetime.now(timezone.utc).isoformat(), **body}
     with log_path(int(body["app_id"])).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=True) + "
-")
+        handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
 
 
 def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
