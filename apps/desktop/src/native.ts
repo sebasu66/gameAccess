@@ -224,9 +224,9 @@ export async function openSteamInstall(appId: number): Promise<void> {
 
   try {
     if (getCatalogMode() === "gameaccess") {
-      await invoke<SteamDownloadStatus>("start_provider_download", { appId });
-      await waitForSteamInstallConfirmation(appId);
-      return;
+      // Temporary fallback policy: do not start DepotDownloader here. The caller
+      // catches this and reserves/logs in a provider before asking Steam to install.
+      throw new Error("Direct provider download is temporarily bypassed; switching to Steam login fallback.");
     }
 
     const pool = await getLocalSteamPool();

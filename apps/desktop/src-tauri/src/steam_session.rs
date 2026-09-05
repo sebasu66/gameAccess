@@ -286,7 +286,11 @@ fn direct_login(
 }
 
 #[tauri::command]
-pub async fn login_provider_steam(account_name: String, password: String, expected_user_id32: u32) -> Result<(), String> {
+pub async fn login_provider_steam(
+    account_name: String,
+    password: String,
+    expected_user_id32: u32,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
         {
@@ -294,17 +298,27 @@ pub async fn login_provider_steam(account_name: String, password: String, expect
                 return Err("Incomplete provider login".into());
             }
             let steam = find_steam_exe().ok_or("Steam executable was not found")?;
-            if active_user_id32() == Some(expected_user_id32) && steam_running() { return Ok(()); }
+            // Provider sessions must never inherit the previously active Steam session.
+            // Always shut Steam down completely before starting the requested provider.
             stop_steam(&steam);
-            Command::new(&steam).args(["-silent", "-login", &account_name, &password])
-                .creation_flags(CREATE_NO_WINDOW).spawn()
+            if steam_running() {
+                return Err("Previous Steam session did not close before provider login".into());
+            }
+            Command::new(&steam)
+                .args(["-silent", "-login", &account_name, &password])
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
                 .map_err(|_| "Could not start Steam provider login".to_string())?;
             wait_for_account(Some(expected_user_id32))?;
             Ok(())
         }
         #[cfg(not(target_os = "windows"))]
-        { Err("Provider login requires Windows".into()) }
-    }).await.map_err(|_| "Provider login task failed".to_string())?
+        {
+            Err("Provider login requires Windows".into())
+        }
+    })
+    .await
+    .map_err(|_| "Provider login task failed".to_string())?
 }
 
 #[tauri::command]
