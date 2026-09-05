@@ -202,7 +202,8 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
     try {
       return await request<GameDetails>(`/games/${gameId}/details`);
     } catch {
-      if (findLocalGameForDetails(gameId)) return loadLocalDetails(gameId);
+      // Never fall through to localCatalog outside Local mode. A Steam AppID
+      // may intentionally exist in both catalogs with different license routes.
       throw new Error("No se pudo obtener la ficha del juego");
     }
   });
@@ -264,7 +265,11 @@ export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promis
 }
 
 export const leaseGame = async (gameId: number, minutes = 60) => {
-  const game = localCatalog.find((item) => item.id === gameId);
+  // An AppID can exist in both catalogs. Only Local mode may route through a
+  // remembered personal account; GameAccess mode must always lease remotely.
+  const game = getCatalogMode() === "local"
+    ? localCatalog.find((item) => item.id === gameId)
+    : undefined;
 
   if (game) {
     const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
