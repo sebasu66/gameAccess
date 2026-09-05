@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "tools/dev/fix_stale_active_lease.py"
+      - "tools/dev/fix_stale_active_lease_test.py"
       - ".github/workflows/apply-stale-lease-fix.yml"
 
 permissions:
@@ -21,7 +22,9 @@ jobs:
         with:
           node-version: "22"
       - name: Apply repair
-        run: python tools/dev/fix_stale_active_lease.py
+        run: |
+          python tools/dev/fix_stale_active_lease.py
+          python tools/dev/fix_stale_active_lease_test.py
       - name: Install API test dependencies
         working-directory: apps/api
         run: pip install -r requirements.txt pytest
