@@ -239,7 +239,8 @@ def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
     library_folders = _steam_library_folders(root)
 
     return {
-        "ok": bool(catalog.get("ok")),
+        "ok": bool(accounts and games),
+        "catalog_ok": bool(catalog.get("ok")),
         "source": ownership_meta["source"],
         "catalog_source": catalog.get("source"),
         "verification_complete": verification_complete,
