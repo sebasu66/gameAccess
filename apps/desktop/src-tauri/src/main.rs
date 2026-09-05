@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod provider_download;
 mod steam_session;
 
 use gameaccess_desktop::native_core;
@@ -256,6 +257,8 @@ fn main() {
             verify_local_steam_inventory,
             machine_profile,
             switch_steam_account,
+            provider_download::start_provider_download,
+            provider_download::provider_download_status,
             steam_session::save_steam_credential,
             steam_session::remove_steam_credential,
             steam_session::has_steam_credential,
