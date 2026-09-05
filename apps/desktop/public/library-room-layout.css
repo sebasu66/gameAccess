@@ -1,18 +1,22 @@
-/* Desktop library layout contract: the game grid is the primary surface.
-   Keep the detail document useful but bounded so browsing never feels cramped. */
+/* Desktop library layout contract: detail and game grid share the workspace 50/50.
+   Tablet and display surfaces keep their dedicated layouts. */
 @media (min-width: 761px) {
   .library-room:not(.surface-tablet):not(.surface-display) {
-    grid-template-columns: clamp(300px, 31vw, 450px) minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: clamp(14px, 1.4vw, 22px) !important;
+  }
+
+  .library-room:not(.surface-tablet):not(.surface-display) > * {
+    min-width: 0;
+  }
+
+  .library-room:not(.surface-tablet):not(.surface-display) .library-room-feature,
+  .library-room:not(.surface-tablet):not(.surface-display) .library-room-catalog {
+    min-width: 0;
+    overflow: hidden;
   }
 
   .library-room:not(.surface-tablet):not(.surface-display) .library-room-grid {
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .library-room:not(.surface-tablet):not(.surface-display) {
-    grid-template-columns: minmax(360px, 440px) minmax(0, 1fr) !important;
   }
 }
