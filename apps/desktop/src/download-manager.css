@@ -1,3 +1,12 @@
+.library-room-card-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.library-room-card-shell > .library-room-card {
+  width: 100%;
+}
+
 .library-room-card-cover-base,
 .library-room-card-color-fill {
   position: absolute;
@@ -60,6 +69,43 @@
   font-weight: 900;
   letter-spacing: .04em;
   text-transform: uppercase;
+}
+
+.library-card-play {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 8;
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(171,255,153,.7);
+  border-radius: 999px;
+  color: #061006;
+  background: rgba(57,255,20,.96);
+  box-shadow: 0 0 20px rgba(57,255,20,.28), 0 7px 18px rgba(0,0,0,.38);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+
+.library-card-play:hover:not(:disabled),
+.library-card-play:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(57,255,20,.42), 0 8px 20px rgba(0,0,0,.44);
+}
+
+.library-card-play:disabled {
+  color: #9aa79b;
+  border-color: rgba(255,255,255,.22);
+  background: rgba(20,28,21,.82);
+  box-shadow: 0 6px 18px rgba(0,0,0,.3);
+  cursor: not-allowed;
 }
 
 .download-complete-backdrop {
