@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { getCatalogMode } from "./catalogMode";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import {
@@ -39,6 +40,9 @@ export interface SteamDownloadStatus {
   bytes_downloaded: number | null;
   bytes_total: number | null;
   installed: boolean;
+  provider_id?: string | null;
+  prepared_target?: string | null;
+  error?: string | null;
 }
 
 export interface SteamLibraryFolder {
@@ -176,10 +180,11 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
     const status = await steamDownloadStatus(appId);
+    if (status.error) throw new Error(status.error);
     if (status.installed || ["preparing", "downloading", "paused"].includes(status.state)) return;
     await delay(900);
   }
-  throw new Error("Steam no confirmó el inicio de la descarga. La solicitud se quitó de pendientes.");
+  throw new Error("Steam no confirmÃ³ el inicio de la descarga. La solicitud se quitÃ³ de pendientes.");
 }
 
 export async function saveSteamCredential(accountName: string, password: string): Promise<void> {
@@ -205,7 +210,7 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
 }
 
 export async function openSteamInstall(appId: number): Promise<void> {
-  if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  if (!appId) throw new Error("Este juego todavÃ­a no tiene Steam AppID configurado.");
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
     try {
@@ -218,6 +223,12 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 
   try {
+    if (getCatalogMode() === "gameaccess") {
+      await invoke<SteamDownloadStatus>("start_provider_download", { appId });
+      await waitForSteamInstallConfirmation(appId);
+      return;
+    }
+
     const pool = await getLocalSteamPool();
     if (!pool) throw new Error("No se pudo leer el inventario local de licencias Steam.");
     const accountLabel = resolveSteamInstallOwner(pool.accounts, appId);
@@ -232,7 +243,7 @@ export async function openSteamInstall(appId: number): Promise<void> {
 }
 
 export async function openSteamRun(appId: number): Promise<void> {
-  if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  if (!appId) throw new Error("Este juego todavÃ­a no tiene Steam AppID configurado.");
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });
@@ -293,6 +304,30 @@ export async function loginProviderSteam(credentials: { accountName: string; pas
   await invoke("login_provider_steam", credentials);
 }
 
+function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {
+  const previous = pool?.accounts.find((account) => account.active);
+  if (!previous) return;
+  rememberPreviousSteamAccount({
+    accountName: accountName(previous),
+    userId32: previous.user_id32 ?? null,
+  });
+}
+
+async function tryDirectSteamSwitch(
+  target: LocalSteamAccount | undefined,
+): Promise<SteamAccountSwitchResult | null> {
+  if (!target) return null;
+  const targetName = accountName(target);
+  if (!targetName) return null;
+  if (!(await hasSteamCredential(targetName))) return null;
+  const direct = await invoke<SteamAccountSwitchResult>("direct_switch_steam_account", {
+    accountName: targetName,
+    expectedUserId32: target.user_id32 ?? null,
+  });
+  if (!direct.ok) throw new Error(direct.message || "Steam no pudo iniciar la cuenta configurada.");
+  return direct;
+}
+
 export async function switchSteamAccount(accountLabel: string): Promise<SteamAccountSwitchResult> {
   if (!accountLabel.trim()) throw new Error("El proveedor no tiene un perfil Steam visible configurado.");
   if (!hasTauriRuntime()) {
@@ -307,25 +342,12 @@ export async function switchSteamAccount(accountLabel: string): Promise<SteamAcc
   const pool = await getLocalSteamPool();
   const target = pool ? findSteamAccount(pool.accounts, accountLabel) : undefined;
   if (target?.active) {
-    return { ok: true, stage: "ready", message: `Steam ya está usando ${target.label}.` };
+    return { ok: true, stage: "ready", message: `Steam ya estÃ¡ usando ${target.label}.` };
   }
 
-  const previous = pool?.accounts.find((account) => account.active);
-  if (previous) {
-    rememberPreviousSteamAccount({ accountName: accountName(previous), userId32: previous.user_id32 ?? null });
-  }
-
-  if (target) {
-    const targetName = accountName(target);
-    if (targetName && await hasSteamCredential(targetName)) {
-      const direct = await invoke<SteamAccountSwitchResult>("direct_switch_steam_account", {
-        accountName: targetName,
-        expectedUserId32: target.user_id32 ?? null,
-      });
-      if (!direct.ok) throw new Error(direct.message || "Steam no pudo iniciar la cuenta configurada.");
-      return direct;
-    }
-  }
+  rememberActiveSteamAccount(pool);
+  const direct = await tryDirectSteamSwitch(target);
+  if (direct) return direct;
 
   const result = await invoke<SteamAccountSwitchResult>("switch_steam_account", { accountLabel });
   if (!result.ok) throw new Error(result.message || "Steam no pudo cambiar de perfil.");
@@ -353,10 +375,14 @@ export async function openSteamClient(): Promise<void> {
 }
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
-  if (!appId) throw new Error("AppID inválido");
+  if (!appId) throw new Error("AppID invÃ¡lido");
   if (!hasTauriRuntime()) {
     try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
     catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
+  }
+  if (getCatalogMode() === "gameaccess") {
+    const providerStatus = await invoke<SteamDownloadStatus | null>("provider_download_status", { appId });
+    if (providerStatus) return providerStatus;
   }
   return invoke<SteamDownloadStatus>("steam_download_status", { appId });
 }

@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import requests
-
 from provider_inventory import build_provider_catalog
 from provider_license_scan import (
     DEFAULT_DIAGNOSTIC_OUTPUT,
@@ -135,9 +133,6 @@ def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str,
                 "scan_error": None,
             }
 
-    # Diagnostic snapshots are useful only when they are newer than the
-    # complete authoritative inventory. An old failed batch must never override
-    # a later successful full-roster scan.
     diagnostic_is_newer = bool(
         diagnostic
         and (not authoritative or _inventory_time(diagnostic) > _inventory_time(authoritative))
@@ -259,11 +254,15 @@ def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
         "candidate_app_count": catalog.get("candidate_app_count", 0),
         "owned_unique_app_count": len(licenses),
         "accessible_app_count": catalog.get("accessible_unique_app_count", 0),
-        "ownership_error": None if verification_complete else "Some Steam providers are currently unverified or unavailable",
+        "ownership_error": None
+        if verification_complete
+        else "Some Steam providers are currently unverified or unavailable",
     }
 
 
 def sync_backend(pool: dict[str, Any], api: str = "http://127.0.0.1:38147") -> dict[str, Any]:
+    import requests
+
     response = requests.post(
         f"{api.rstrip('/')}/admin/pool/sync",
         json={
@@ -321,8 +320,16 @@ def main() -> int:
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--compact", action="store_true")
-    parser.add_argument("--refresh-licenses", action="store_true", help="headlessly rescan all provider licenses with SteamKit first")
-    parser.add_argument("--require-verified", action="store_true", help="refuse backend sync unless every provider has verified SteamKit ownership")
+    parser.add_argument(
+        "--refresh-licenses",
+        action="store_true",
+        help="headlessly rescan all provider licenses with SteamKit first",
+    )
+    parser.add_argument(
+        "--require-verified",
+        action="store_true",
+        help="refuse backend sync unless every provider has verified SteamKit ownership",
+    )
     args = parser.parse_args()
 
     pool = build_game_pool(refresh_licenses=args.refresh_licenses)
@@ -330,7 +337,16 @@ def main() -> int:
         print(json.dumps({"ok": False, "pool": compact_pool(pool)}, ensure_ascii=False))
         return 1
     if args.require_verified and not pool.get("verification_complete"):
-        print(json.dumps({"ok": False, "error": "SteamKit ownership inventory is incomplete", "pool": compact_pool(pool)}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "SteamKit ownership inventory is incomplete",
+                    "pool": compact_pool(pool),
+                },
+                ensure_ascii=False,
+            )
+        )
         return 2
 
     result: dict[str, Any] = {"pool": compact_pool(pool) if args.compact else pool}

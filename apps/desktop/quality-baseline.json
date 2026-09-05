@@ -3,11 +3,11 @@
     "maxClassLines":  600,
     "maxFunctionComplexity":  15,
     "legacyBlobShas":  {
-                           "src/App.tsx":  "5479cc3245cbd3422905f326a0b87b726dfb266f",
+                           "src/App.tsx":  "9fa34a373406b7fd17fbf6346f17615a39b8299a",
                            "src/LibraryRoom.tsx":  "21f2c0a7c85b5d941bcd401fa017d1b772296df8",
                            "src/RuntimeGate.tsx":  "f1f09eed1d90e28d9e9860f24e624135c0d7afba",
                            "src/SteamStoreDetail.tsx":  "241562b27d184837e7b97f9b47fab425148cfcfd",
-                           "src/api.ts":  "f64c72987e8ab5f5af05199fe217e8cfcb6b473f",
+                           "src/api.ts":  "30cf98bcece8e6631caa331c4826f2e551bddd86",
                            "src/native.ts":  "53404d1d6291942ed501c2144b7fbe178587ca56"
                        }
 }

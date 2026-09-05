@@ -560,7 +560,10 @@ fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<s
     let path = steam_media_cache_path(app_id)?;
     if let Some(max_age) = max_age_seconds {
         let modified = fs::metadata(&path).ok()?.modified().ok()?;
-        let age = std::time::SystemTime::now().duration_since(modified).ok()?.as_secs();
+        let age = std::time::SystemTime::now()
+            .duration_since(modified)
+            .ok()?
+            .as_secs();
         if age > max_age {
             return None;
         }
@@ -570,8 +573,12 @@ fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<s
 }
 
 fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
-    let Some(path) = steam_media_cache_path(app_id) else { return; };
-    let Ok(body) = serde_json::to_vec(data) else { return; };
+    let Some(path) = steam_media_cache_path(app_id) else {
+        return;
+    };
+    let Ok(body) = serde_json::to_vec(data) else {
+        return;
+    };
     let tmp = path.with_extension("json.tmp");
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(tmp, path);
@@ -646,8 +653,9 @@ pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        read_steam_media_cache(app_id, None)
-            .ok_or_else(|| "Steam Store metadata bridge is currently implemented for Windows".into())
+        read_steam_media_cache(app_id, None).ok_or_else(|| {
+            "Steam Store metadata bridge is currently implemented for Windows".into()
+        })
     }
 }
 
