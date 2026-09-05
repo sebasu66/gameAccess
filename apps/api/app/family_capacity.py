@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from typing import Any, Optional
 
@@ -57,6 +58,45 @@ def _family_inventory_present(session: Session) -> bool:
     return session.exec(select(ProviderFamily)).first() is not None
 
 
+def _accessible_app_ids(account: core.ProviderAccount) -> set[int] | None:
+    try:
+        notes = json.loads(account.notes or "{}")
+    except Exception:
+        return None
+    if not isinstance(notes, dict) or "accessible_app_ids" not in notes:
+        return None
+    raw = notes.get("accessible_app_ids")
+    if not isinstance(raw, list):
+        return None
+    result: set[int] = set()
+    for value in raw:
+        try:
+            result.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _account_can_launch_family_game(
+    state: dict[str, Any], family_id: int, game_id: int, account_id: int
+) -> bool:
+    copies: list[FamilyGameLicenseCopy] = state["copies_by_family_game"].get(
+        (family_id, game_id), []
+    )
+    if any(
+        copy.owner_account_id is not None and int(copy.owner_account_id) == account_id
+        for copy in copies
+    ):
+        return True
+
+    account = state["account_by_id"].get(account_id)
+    game = state["game_by_id"].get(game_id)
+    if not account or not game or not game.app_id:
+        return False
+    accessible = _accessible_app_ids(account)
+    return accessible is not None and int(game.app_id) in accessible
+
+
 def _state(session: Session) -> dict[str, Any]:
     families = session.exec(select(ProviderFamily)).all()
     members = session.exec(select(FamilyMember)).all()
@@ -94,9 +134,11 @@ def _state(session: Session) -> dict[str, Any]:
             used_copy_ids.add(int(allocation.license_copy_id))
 
     demand_by_game = {int(d.game_id): d for d in demands}
+    game_by_id = {int(game.id): game for game in games if game.id is not None}
     return {
         "family_by_id": family_by_id,
         "account_by_id": account_by_id,
+        "game_by_id": game_by_id,
         "members_by_family": members_by_family,
         "family_by_account": family_by_account,
         "copies_by_family_game": copies_by_family_game,
@@ -124,14 +166,14 @@ def _snapshot(
     ]
     usage_by_family_game: dict[tuple[int, int], int] = state["usage_by_family_game"]
 
-    enabled_members: dict[int, int] = {}
-    free_members: dict[int, int] = {}
-    for family_id, member_ids in members_by_family.items():
+    for (family_id, game_id), copies in copies_by_family_game.items():
         enabled = 0
         free = 0
-        for account_id in member_ids:
+        for account_id in members_by_family.get(family_id, []):
             account = account_by_id.get(account_id)
             if not account or account.status == core.AccountStatus.disabled:
+                continue
+            if not _account_can_launch_family_game(state, family_id, game_id, account_id):
                 continue
             enabled += 1
             is_free = account.status == core.AccountStatus.free
@@ -139,18 +181,13 @@ def _snapshot(
                 is_free = False
             if is_free:
                 free += 1
-        enabled_members[family_id] = enabled
-        free_members[family_id] = free
 
-    for (family_id, game_id), copies in copies_by_family_game.items():
         quantity = len(copies)
         used = int(usage_by_family_game.get((family_id, game_id), 0))
         if simulated_family_id == family_id and simulated_game_id == game_id:
             used += 1
-        total_by_game[game_id] += min(quantity, enabled_members.get(family_id, 0))
-        available_by_game[game_id] += min(
-            max(quantity - used, 0), free_members.get(family_id, 0)
-        )
+        total_by_game[game_id] += min(quantity, enabled)
+        available_by_game[game_id] += min(max(quantity - used, 0), free)
 
     game_ids = {int(game.id) for game in state["games"] if game.id is not None}
     return {
@@ -330,6 +367,8 @@ def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | N
         for account_id in state["members_by_family"].get(family_id, []):
             account = state["account_by_id"].get(account_id)
             if not account or account.status != core.AccountStatus.free:
+                continue
+            if not _account_can_launch_family_game(state, family_id, game_id, account_id):
                 continue
             after = _snapshot(
                 state,

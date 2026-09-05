@@ -1,3 +1,5 @@
+import json
+
 from sqlmodel import Session, SQLModel, create_engine
 
 from app import main as core
@@ -131,3 +133,47 @@ def test_demand_value_increases_and_is_bounded(tmp_path) -> None:
         assert fields["request_count_total"] == 100
         assert fields["successful_leases"] == 100
         assert fields["demand_value"] == capacity.DEMAND_MAX
+
+
+def test_family_member_without_verified_access_is_not_a_launch_candidate(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="shared", name="Shared", app_id=4242, active=True)
+        owner = core.ProviderAccount(label="owner", provider="steam", status=core.AccountStatus.free)
+        child = core.ProviderAccount(
+            label="child",
+            provider="steam",
+            status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": []}),
+        )
+        session.add(game)
+        session.add(owner)
+        session.add(child)
+        session.commit()
+        for row in (game, owner, child):
+            session.refresh(row)
+
+        capacity.replace_family_graph(
+            session,
+            [{
+                "family_key": "shared-family",
+                "members": ["owner", "child"],
+                "licenses": [{"app_id": 4242, "quantity": 1, "owner_labels": ["owner"]}],
+            }],
+        )
+
+        owner.status = core.AccountStatus.leased
+        session.add(owner)
+        session.commit()
+
+        assert capacity.game_capacity(session, game) == (1, 0)
+        assert capacity.select_best_account(session, game) is None
+
+        child.notes = json.dumps({"accessible_app_ids": [4242]})
+        session.add(child)
+        session.commit()
+
+        assert capacity.game_capacity(session, game) == (1, 1)
+        selection = capacity.select_best_account(session, game)
+        assert selection is not None
+        assert selection["account"].label == "child"
