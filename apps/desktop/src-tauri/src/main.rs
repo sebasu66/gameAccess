@@ -197,6 +197,91 @@ fn open_steam_run(app_id: u32) -> Result<(), String> {
     native_core::open_steam_run(app_id)
 }
 
+fn quoted_vdf_value(text: &str, key: &str) -> Option<String> {
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split('"').collect();
+        if parts.len() >= 4 && parts[1].eq_ignore_ascii_case(key) {
+            return Some(parts[3].replace("\\\\", "\\"));
+        }
+    }
+    None
+}
+
+fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
+    let steam_root = native_core::runtime_prerequisites()
+        .steam_path
+        .map(PathBuf::from)
+        .ok_or_else(|| "Steam no está instalado o no pudo ser localizado.".to_string())?;
+    let mut roots = vec![steam_root.clone()];
+    let library_file = steam_root.join("steamapps").join("libraryfolders.vdf");
+    if let Ok(text) = fs::read_to_string(library_file) {
+        for line in text.lines() {
+            let parts: Vec<&str> = line.split('"').collect();
+            if parts.len() < 4 || !parts[1].eq_ignore_ascii_case("path") {
+                continue;
+            }
+            let candidate = PathBuf::from(parts[3].replace("\\\\", "\\"));
+            if !roots.iter().any(|root| root == &candidate) {
+                roots.push(candidate);
+            }
+        }
+    }
+    Ok(roots)
+}
+
+fn installed_game_folder(app_id: u32) -> Result<PathBuf, String> {
+    for root in steam_library_roots_for_folder_open()? {
+        let manifest = root
+            .join("steamapps")
+            .join(format!("appmanifest_{app_id}.acf"));
+        let Ok(text) = fs::read_to_string(&manifest) else {
+            continue;
+        };
+        let state_flags = quoted_vdf_value(&text, "StateFlags")
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(0);
+        if state_flags & 4 != 4 {
+            continue;
+        }
+        let Some(install_dir) = quoted_vdf_value(&text, "installdir") else {
+            continue;
+        };
+        let folder = root.join("steamapps").join("common").join(install_dir);
+        if folder.is_dir() {
+            return Ok(folder);
+        }
+    }
+    Err(format!(
+        "Steam no informa una carpeta de instalación lista para AppID {app_id}."
+    ))
+}
+
+#[tauri::command]
+fn open_game_install_folder(app_id: u32) -> Result<String, String> {
+    let folder = installed_game_folder(app_id)?;
+
+    #[cfg(target_os = "windows")]
+    Command::new("explorer.exe")
+        .arg(&folder)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|err| format!("No pudimos abrir la carpeta de instalación: {err}"))?;
+
+    #[cfg(target_os = "macos")]
+    Command::new("open")
+        .arg(&folder)
+        .spawn()
+        .map_err(|err| format!("No pudimos abrir la carpeta de instalación: {err}"))?;
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    Command::new("xdg-open")
+        .arg(&folder)
+        .spawn()
+        .map_err(|err| format!("No pudimos abrir la carpeta de instalación: {err}"))?;
+
+    Ok(folder.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, String> {
     tauri::async_runtime::spawn_blocking(move || native_core::steam_download_status(app_id))
@@ -321,6 +406,7 @@ fn main() {
             open_steam_client,
             open_steam_install,
             open_steam_run,
+            open_game_install_folder,
             steam_download_status,
             steam_download_metrics,
             installed_app_ids,
