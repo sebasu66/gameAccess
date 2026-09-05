@@ -1,15 +1,16 @@
 .catalog-tabs {
   position: fixed;
-  top: 11px;
+  top: 17px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 80;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px;
+  padding: 3px;
   border: 1px solid rgba(255,255,255,.08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(8,12,18,.72);
   backdrop-filter: blur(18px);
   box-shadow: 0 12px 36px rgba(0,0,0,.24);
@@ -17,10 +18,10 @@
 
 .catalog-tabs button {
   min-width: 112px;
-  height: 34px;
+  height: 32px;
   padding: 0 15px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: rgba(235,242,248,.62);
   font: inherit;
