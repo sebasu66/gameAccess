@@ -62,3 +62,38 @@ export function shouldReleaseMissingDownload(
   if (wasActive) return missingPolls >= 2;
   return elapsedMs >= DOWNLOAD_CONFIRMATION_GRACE_MS;
 }
+
+export function downloadProgress(status?: SteamDownloadStatus): number {
+  if (!status) return 0;
+  if (status.installed || status.state === "installed") return 100;
+  const total = status.bytes_total ?? 0;
+  const downloaded = status.bytes_downloaded ?? 0;
+  const fromBytes = total > 0 ? downloaded / total * 100 : null;
+  const raw = fromBytes ?? status.progress ?? (status.state === "requested" ? 0 : 0);
+  return Math.max(0, Math.min(100, raw));
+}
+
+export function formatDownloadBytes(value: number | null | undefined): string {
+  if (!value || value <= 0) return "Calculando…";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+  return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+export function formatDownloadEta(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "Calculando…";
+  const rounded = Math.ceil(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  if (hours > 0) return `${hours} h ${Math.max(1, minutes)} min`;
+  if (minutes > 0) return `${minutes} min ${secs ? `${secs} s` : ""}`.trim();
+  return `${secs} s`;
+}
+
+export function formatDownloadSpeed(value: number | null | undefined): string {
+  if (!value || value <= 0) return "—";
+  return `${formatDownloadBytes(value)}/s`;
+}

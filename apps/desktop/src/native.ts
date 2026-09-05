@@ -39,6 +39,8 @@ export interface SteamDownloadStatus {
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;
+  speed_bps?: number | null;
+  eta_seconds?: number | null;
   installed: boolean;
   provider_id?: string | null;
   prepared_target?: string | null;
@@ -401,6 +403,12 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
     if (providerStatus) return providerStatus;
   }
   return invoke<SteamDownloadStatus>("steam_download_status", { appId });
+}
+
+export async function providerDownloadEstimate(appId: number): Promise<SteamDownloadStatus | null> {
+  if (!appId || !hasTauriRuntime() || getCatalogMode() !== "gameaccess") return null;
+  try { return await invoke<SteamDownloadStatus>("provider_download_estimate", { appId }); }
+  catch { return null; }
 }
 
 export async function getMachineProfile(): Promise<MachineProfile | null> {

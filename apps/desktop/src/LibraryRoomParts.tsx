@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Info, Loader2, Play, Volume2, VolumeX } from "lucide-react";
+import { Download, Gamepad2, Info, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
 
+import { downloadProgress, formatDownloadBytes, formatDownloadEta, formatDownloadSpeed } from "./downloadManager";
 import type { SteamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
@@ -346,6 +347,10 @@ interface FeaturePanelProps extends MediaPanelProps {
   showcaseMode: boolean;
   summary: string;
   loadingDetails: boolean;
+  details: GameDetails | null;
+  download?: SteamDownloadStatus;
+  preference?: 1 | -1;
+  onPreference: (value: 1 | -1) => void;
   actions: LibraryAction[];
   focusZone: FocusZone;
   actionIndex: number;
@@ -355,34 +360,31 @@ interface FeaturePanelProps extends MediaPanelProps {
   onAction: (index: number) => void;
 }
 
+function plainText(value?: string | null) { return (value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
+function multiplayerModes(details: GameDetails | null): string[] {
+  const categories = details?.steam?.categories ?? [];
+  const signals = [["Multi-player","Multijugador"],["Online PvP","PvP online"],["Online Co-op","Co-op online"],["Shared/Split Screen PvP","PvP local / pantalla dividida"],["Shared/Split Screen Co-op","Co-op local / pantalla dividida"],["LAN PvP","PvP LAN"],["LAN Co-op","Co-op LAN"],["Cross-Platform Multiplayer","Cross-platform"],["Remote Play Together","Remote Play Together"]] as const;
+  return signals.filter(([needle]) => categories.some((value) => value.toLowerCase().includes(needle.toLowerCase()))).map(([,label]) => label);
+}
 export function FeaturePanel(props: FeaturePanelProps) {
-  return (
-    <aside className="library-room-feature">
-      <MediaPanel {...props} />
-      <div className="library-room-feature-copy">
-        <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
-        <h1>{props.game.name}</h1>
-        <p>{props.summary}</p>
-        {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando medios de Steam…</span> : null}
-        <div className="library-room-actions">
-          {props.actions.map((action, index) => (
-            <button
-              type="button"
-              key={action.label}
-              ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
-              data-action={action.kind}
-              className={`library-room-action ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`}
-              onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
-              onClick={() => props.onAction(index)}
-              disabled={action.disabled}
-            >
-              {action.icon}<strong>{action.label}</strong>
-            </button>
-          ))}
-        </div>
+  const progress=downloadProgress(props.download); const activeDownload=isActiveDownload(props.download); const modes=multiplayerModes(props.details); const steam=props.details?.steam;
+  return <aside className="library-room-feature">
+    <MediaPanel {...props} />
+    <div className="library-room-feature-copy">
+      <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span><h1>{props.game.name}</h1><p>{props.summary}</p>
+      {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}
+      <div className="library-room-actions glass-actions-row">{props.actions.map((action,index)=><button type="button" key={action.label} ref={(node)=>{if(props.actionRefs.current) props.actionRefs.current[index]=node;}} data-action={action.kind} className={`glass-action ${action.kind === "play" ? "play" : action.kind === "download" ? "download" : "neutral"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={()=>{props.setFocusZone("actions");props.setActionIndex(index);}} onClick={()=>props.onAction(index)} disabled={action.disabled}><span className="glass-action-icon">{action.icon}</span><span className="glass-action-label">{action.label}</span></button>)}</div>
+      <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}><span>¿Te gusta?</span><button type="button" className={props.preference===1?"selected":""} onClick={()=>props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18}/></button><button type="button" className={props.preference===-1?"selected negative":""} onClick={()=>props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18}/></button></div>
+      <section className="library-room-download-facts" aria-label="Descarga"><div><span>Tamaño de descarga</span><strong>{formatDownloadBytes(props.download?.bytes_total)}</strong></div><div><span>Descargado</span><strong>{formatDownloadBytes(props.download?.bytes_downloaded)}</strong></div><div><span>Velocidad</span><strong>{formatDownloadSpeed(props.download?.speed_bps)}</strong></div><div><span>Tiempo restante</span><strong>{activeDownload?formatDownloadEta(props.download?.eta_seconds):"—"}</strong></div>{activeDownload?<div className="library-room-progress-wide"><span style={{width:`${progress}%`}}/><strong>{Math.round(progress)}%</strong></div>:null}</section>
+      <div className="library-room-detail-sections">
+        <section><h3>Detalles</h3><dl className="library-room-detail-facts"><div><dt>Género</dt><dd>{steam?.genres?.length?steam.genres.join(" · "):"—"}</dd></div><div><dt>Multijugador</dt><dd>{modes.length?modes.join(" · "):"Un jugador / no informado"}</dd></div><div><dt>Desarrollador</dt><dd>{steam?.developers?.join(", ")||"—"}</dd></div><div><dt>Publisher</dt><dd>{steam?.publishers?.join(", ")||"—"}</dd></div><div><dt>Lanzamiento</dt><dd>{steam?.release_date||"—"}</dd></div><div><dt>Copias</dt><dd>{props.game.copies_available} / {props.game.copies_total} disponibles</dd></div></dl></section>
+        {plainText(steam?.about_the_game)?<section><h3>Acerca del juego</h3><p>{plainText(steam?.about_the_game)}</p></section>:null}
+        {plainText(steam?.minimum_requirements)?<section><h3>Requisitos mínimos</h3><p>{plainText(steam?.minimum_requirements)}</p></section>:null}
+        {plainText(steam?.recommended_requirements)?<section><h3>Requisitos recomendados</h3><p>{plainText(steam?.recommended_requirements)}</p></section>:null}
+        {steam?.screenshots?.length?<section><h3>Capturas</h3><div className="library-room-screenshots">{steam.screenshots.slice(0,8).map((shot,index)=>shot.thumbnail||shot.full?<img key={shot.id??index} src={shot.thumbnail??shot.full} alt="" loading="lazy"/>:null)}</div></section>:null}
       </div>
-    </aside>
-  );
+    </div>
+  </aside>;
 }
 
 interface CatalogPanelProps {

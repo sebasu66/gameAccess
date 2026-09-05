@@ -806,13 +806,19 @@ export default function App() {
 
   const orderedLibrary = useMemo(() => {
     const order = new Map(recentIds.map((id, index) => [id, index]));
+    const rank = (game: CatalogGame) => {
+      if (preferences[game.id] === -1) return 2;
+      const status = game.app_id ? downloads[game.app_id] : undefined;
+      if (preferences[game.id] === 1 || status?.installed || status?.state === "installed") return 0;
+      return 1;
+    };
     return [...games].sort((left, right) => {
-      const leftRecent = order.get(left.id);
-      const rightRecent = order.get(right.id);
+      const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
+      const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
       if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
       return left.name.localeCompare(right.name, "es");
     });
-  }, [games, recentIds]);
+  }, [games, recentIds, preferences, downloads]);
 
   const magazineGames = orderedLibrary;
   useEffect(() => {
@@ -1024,7 +1030,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Modo offline: mostrando el catálogo combinado de las cuentas Steam detectadas en esta PC.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} onOpenDetails={openGame} />
+        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} />
         {featured ? (
           <section className="magazine-view" aria-label="Biblioteca en vista revista">
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>

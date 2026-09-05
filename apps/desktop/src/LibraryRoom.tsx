@@ -34,7 +34,7 @@ import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { calculateSelectionScrollTop } from "./libraryNavigation";
 import type { LibrarySearchEventDetail } from "./librarySearch";
-import { steamDownloadStatus } from "./native";
+import { providerDownloadEstimate, steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 
@@ -44,7 +44,9 @@ interface LibraryRoomProps {
   busy: boolean;
   onPlay: (game: CatalogGame) => void | Promise<void>;
   onDownload: (game: CatalogGame) => void | Promise<void>;
-  onOpenDetails: (game: CatalogGame) => void;
+  onOpenDetails?: (game: CatalogGame) => void;
+  preferences?: Record<number, 1 | -1>;
+  onPreference?: (gameId: number, value: 1 | -1) => void;
   loading?: boolean;
 }
 
@@ -63,7 +65,7 @@ function formatBytes(value: number | null | undefined) {
   return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
-export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, onOpenDetails, loading = false }: LibraryRoomProps) {
+export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false }: LibraryRoomProps) {
   const surfaceMode = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("surface");
   const isTabletSurface = surfaceMode === "tablet";
   const isDisplaySurface = surfaceMode === "display";
@@ -76,6 +78,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const requestStartedAtRef = useRef(new Map<number, number>());
   const activeSeenRef = useRef(new Set<number>());
   const missingPollsRef = useRef(new Map<number, number>());
+  const estimateAttemptedRef = useRef(new Set<number>());
 
   const [selectedGameId, setSelectedGameId] = useState<number | null>(() => isTabletSurface ? null : (games[0]?.id ?? null));
   const [focusZone, setFocusZone] = useState<FocusZone>("grid");
@@ -96,7 +99,16 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [displayPinned, setDisplayPinned] = useState(false);
 
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
-  const searchedGames = useMemo(() => filterLibraryGames(games, searchQuery), [games, searchQuery]);
+  const searchedGames = useMemo(() => {
+    const filtered = filterLibraryGames(games, searchQuery);
+    const rank = (game: CatalogGame) => {
+      if (preferences[game.id] === -1) return 2;
+      const status = game.app_id ? effectiveDownloads[game.app_id] : undefined;
+      if (preferences[game.id] === 1 || isInstalled(status)) return 0;
+      return 1;
+    };
+    return [...filtered].sort((left, right) => rank(left) - rank(right));
+  }, [games, searchQuery, preferences, effectiveDownloads]);
   const displayGames = useMemo(
     () => pinDownloadingGames(searchedGames, effectiveDownloads, trackedAppIds),
     [searchedGames, effectiveDownloads, trackedAppIds],
@@ -378,6 +390,19 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [selectedGameIdResolved, isTabletSurface, tabletDetailsOpen]);
 
   useEffect(() => {
+    if (!selectedAppId || download?.bytes_total || activeDownload || installed || estimateAttemptedRef.current.has(selectedAppId)) return;
+    const appId = selectedAppId;
+    const timer = window.setTimeout(() => {
+      estimateAttemptedRef.current.add(appId);
+      void providerDownloadEstimate(appId).then((status) => {
+        if (!status?.bytes_total) return;
+        setManagedDownloads((current) => ({ ...current, [appId]: { ...(current[appId] ?? status), bytes_total: status.bytes_total } }));
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [selectedAppId, download?.bytes_total, activeDownload, installed]);
+
+  useEffect(() => {
     if (isTabletSurface) setTabletDetailsOpen(false);
   }, [isTabletSurface]);
 
@@ -444,12 +469,18 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (value > 0) void video.play().catch(() => undefined);
   };
 
+  const scrollToIntegratedDetails = () => {
+    const feature = rootRef.current?.querySelector<HTMLElement>(".library-room-feature");
+    const detail = feature?.querySelector<HTMLElement>(".library-room-detail-sections");
+    if (feature && detail) feature.scrollTo({ top: Math.max(0, detail.offsetTop - 12), behavior: "smooth" });
+  };
+
   const activateAction = () => {
     if (!selectedGame) return;
     playUiSound("activate");
     if (actionIndex === 0 && installed && !busy && (selectedGame.copies_available > 0 || Boolean(selectedGame.local_primary_account_label))) void onPlay(selectedGame);
     if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
-    if (actionIndex === 2) onOpenDetails(selectedGame);
+    if (actionIndex === 2) scrollToIntegratedDetails();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -477,7 +508,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     playUiSound("activate");
     if (action.kind === "play") void onPlay(selectedGame);
     else if (action.kind === "download") void onDownload(selectedGame);
-    else onOpenDetails(selectedGame);
+    else scrollToIntegratedDetails();
   };
 
   const onSelectGame = (index: number) => {
@@ -517,6 +548,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             showcaseMode={!displayPinned}
             summary={summary}
             loadingDetails={loadingDetails}
+            details={currentDetails}
+            download={download}
+            preference={preferences[selectedGame.id]}
+            onPreference={(value) => onPreference(selectedGame.id, value)}
             actions={actions}
             focusZone="grid"
             actionIndex={actionIndex}
@@ -665,6 +700,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
             showcaseMode={showcaseMode}
             summary={summary}
             loadingDetails={loadingDetails}
+            details={currentDetails}
+            download={download}
+            preference={preferences[selectedGame.id]}
+            onPreference={(value) => onPreference(selectedGame.id, value)}
             actions={actions}
             focusZone={focusZone}
             actionIndex={actionIndex}

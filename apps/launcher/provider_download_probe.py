@@ -18,8 +18,12 @@ import argparse
 import hashlib
 import json
 import os
+import queue
+import re
 import subprocess
 import tempfile
+import threading
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -179,6 +183,80 @@ def _directory_stats(path: Path) -> tuple[int, int]:
     return files, total
 
 
+def _manifest_totals(path: Path) -> dict[str, int]:
+    totals: dict[str, int] = {}
+    if not path.exists():
+        return totals
+    for manifest in path.rglob("manifest_*.txt"):
+        try:
+            body = manifest.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        depot = re.search(r"Content Manifest for Depot\s+(\d+)", body)
+        size = re.search(r"Total bytes on disk\s*:\s*(\d+)", body)
+        if depot and size:
+            totals[depot.group(1)] = int(size.group(1))
+    return totals
+
+
+def _run_streaming(
+    argv: list[str],
+    *,
+    password: str,
+    login: str,
+    cwd: Path,
+    timeout_seconds: int,
+    on_output: callable | None,
+) -> tuple[int, str]:
+    process = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        cwd=cwd,
+    )
+    if process.stdin is None or process.stdout is None:
+        process.kill()
+        raise RuntimeError("DepotDownloader pipes were not created")
+    process.stdin.write(password + os.linesep)
+    process.stdin.flush()
+    process.stdin.close()
+
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def read_output() -> None:
+        try:
+            for raw in process.stdout:
+                lines.put(raw)
+        finally:
+            lines.put(None)
+
+    threading.Thread(target=read_output, daemon=True).start()
+    collected: list[str] = []
+    deadline = time.monotonic() + timeout_seconds
+    ended = False
+    while not ended:
+        if time.monotonic() >= deadline:
+            process.kill()
+            raise subprocess.TimeoutExpired(argv, timeout_seconds)
+        try:
+            raw = lines.get(timeout=0.25)
+        except queue.Empty:
+            if process.poll() is not None:
+                continue
+            continue
+        if raw is None:
+            ended = True
+            continue
+        safe = _sanitize(raw.rstrip("\r\n"), password, login)
+        collected.append(safe)
+        if on_output is not None:
+            on_output(safe)
+    return process.wait(timeout=10), "\n".join(collected)
+
+
 def run_probe(
     provider_id: str,
     app_id: int,
@@ -186,6 +264,7 @@ def run_probe(
     manifest_only: bool,
     download: bool,
     timeout_seconds: int,
+    progress_callback=None,
 ) -> dict[str, Any]:
     if manifest_only == download:
         raise ValueError("select exactly one of --manifest-only or --download")
@@ -225,20 +304,34 @@ def run_probe(
     if manifest_only:
         argv.append("-manifest-only")
 
-    completed = subprocess.run(
-        argv,
-        input=credential.password + os.linesep,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=target,
-        timeout=timeout_seconds,
-    )
-    stdout = _sanitize(completed.stdout or "", credential.password, credential.login)
-    stderr = _sanitize(completed.stderr or "", credential.password, credential.login)
-    files, total_bytes = _directory_stats(target)
+    if download and progress_callback is not None:
+        returncode, stdout = _run_streaming(
+            argv,
+            password=credential.password,
+            login=credential.login,
+            cwd=target,
+            timeout_seconds=timeout_seconds,
+            on_output=progress_callback,
+        )
+        stderr = ""
+    else:
+        completed = subprocess.run(
+            argv,
+            input=credential.password + os.linesep,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=target,
+            timeout=timeout_seconds,
+        )
+        returncode = completed.returncode
+        stdout = _sanitize(completed.stdout or "", credential.password, credential.login)
+        stderr = _sanitize(completed.stderr or "", credential.password, credential.login)
+    files, directory_bytes = _directory_stats(target)
+    depot_totals = _manifest_totals(target) if manifest_only else {}
+    total_bytes = sum(depot_totals.values()) if depot_totals else directory_bytes
     return {
-        "ok": completed.returncode == 0,
+        "ok": returncode == 0,
         "provider_id": provider_id,
         "app_id": app_id,
         "name": candidates[app_id]["name"],
@@ -248,6 +341,7 @@ def run_probe(
         "target": str(target),
         "file_count": files,
         "total_bytes": total_bytes,
+        "depot_totals": depot_totals,
         "tool": tool,
         "stdout_tail": stdout[-6000:],
         "stderr_tail": stderr[-3000:],

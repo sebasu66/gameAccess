@@ -18,6 +18,10 @@ pub struct ProviderDownloadStatus {
     pub progress: Option<f64>,
     pub bytes_downloaded: Option<u64>,
     pub bytes_total: Option<u64>,
+    #[serde(default)]
+    pub speed_bps: Option<u64>,
+    #[serde(default)]
+    pub eta_seconds: Option<u64>,
     pub installed: bool,
     #[serde(default)]
     pub provider_id: Option<String>,
@@ -158,6 +162,60 @@ fn validate_provider(app_id: u32) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn provider_download_estimate(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+    if app_id == 0 {
+        return Err("Invalid Steam AppID".into());
+    }
+    if let Some(status) = provider_download_status(app_id)? {
+        if status.bytes_total.is_some() {
+            return Ok(status);
+        }
+    }
+    let provider_id = validate_provider(app_id)?;
+    let launcher = launcher_dir()?;
+    let python = python_executable(&launcher);
+    let script = manager_script(&launcher);
+    let mut command = Command::new(python);
+    command
+        .current_dir(&launcher)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .args([
+            script.to_string_lossy().as_ref(),
+            "--app-id",
+            &app_id.to_string(),
+            "--estimate",
+            "--provider-id",
+            &provider_id,
+        ]);
+    hide_window(&mut command);
+    let output = command
+        .output()
+        .map_err(|err| format!("Could not estimate provider download size: {err}"))?;
+    let payload = parse_last_json_line(&output.stdout)?;
+    if !output.status.success() || !payload.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Err(payload
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Could not estimate provider download size")
+            .to_string());
+    }
+    Ok(ProviderDownloadStatus {
+        app_id,
+        state: "not-installed".into(),
+        progress: None,
+        bytes_downloaded: None,
+        bytes_total: payload.get("bytes_total").and_then(|v| v.as_u64()),
+        speed_bps: None,
+        eta_seconds: None,
+        installed: false,
+        provider_id: Some(provider_id),
+        prepared_target: None,
+        error: None,
+    })
+}
+
+#[tauri::command]
 pub fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
@@ -205,6 +263,8 @@ pub fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, St
         progress: None,
         bytes_downloaded: None,
         bytes_total: None,
+        speed_bps: None,
+        eta_seconds: None,
         installed: false,
         provider_id: Some(provider_id),
         prepared_target: None,

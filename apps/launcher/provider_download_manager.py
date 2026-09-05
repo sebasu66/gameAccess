@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +45,8 @@ def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         "progress": payload.get("progress"),
         "bytes_downloaded": payload.get("bytes_downloaded"),
         "bytes_total": payload.get("bytes_total"),
+        "speed_bps": payload.get("speed_bps"),
+        "eta_seconds": payload.get("eta_seconds"),
         "installed": bool(payload.get("installed")),
         "provider_id": payload.get("provider_id"),
         "prepared_target": payload.get("prepared_target"),
@@ -172,81 +176,61 @@ def _prepared_library(state: dict[str, Any]) -> dict[str, Any] | None:
     return min(candidates, key=lambda item: int(item.get("index") or 0)) if candidates else None
 
 
+def estimate_download(app_id: int, provider_id: str) -> dict[str, Any]:
+    result = run_probe(provider_id, app_id, manifest_only=True, download=False, timeout_seconds=10 * 60)
+    if not result.get("ok"):
+        detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[-1000:]
+        raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
+    total = int(result.get("total_bytes") or 0)
+    return {"ok": True, "app_id": app_id, "provider_id": provider_id, "bytes_total": total or None, "depot_totals": result.get("depot_totals") or {}}
+
+
 def run_download(app_id: int, provider_id: str) -> dict[str, Any]:
     current = read_status(app_id)
     if current and str(current.get("state")) in ACTIVE_STATES:
         return current
-
-    write_status(
-        app_id,
-        {
-            "state": "preparing",
-            "progress": None,
-            "bytes_downloaded": None,
-            "bytes_total": None,
-            "installed": False,
-            "provider_id": provider_id,
-        },
-    )
-
+    write_status(app_id, {"state": "preparing", "progress": 0.0, "bytes_downloaded": 0, "bytes_total": None, "speed_bps": None, "eta_seconds": None, "installed": False, "provider_id": provider_id})
     try:
-        result = run_probe(
-            provider_id,
-            app_id,
-            manifest_only=False,
-            download=True,
-            timeout_seconds=6 * 60 * 60,
-        )
+        estimate = estimate_download(app_id, provider_id)
+        depot_totals = {str(k): int(v) for k, v in (estimate.get("depot_totals") or {}).items() if str(v).isdigit() and int(v) > 0}
+        total = int(estimate.get("bytes_total") or 0)
+        write_status(app_id, {"state": "preparing", "progress": 0.0, "bytes_downloaded": 0, "bytes_total": total or None, "speed_bps": None, "eta_seconds": None, "installed": False, "provider_id": provider_id})
+        current_depot = None
+        depot_progress = {key: 0.0 for key in depot_totals}
+        started_at = time.monotonic(); last_write = 0.0
+        def on_output(line: str) -> None:
+            nonlocal current_depot, last_write
+            depot = re.search(r"Downloading depot\s+(\d+)", line)
+            if depot:
+                current_depot = depot.group(1); return
+            match = re.match(r"\s*(\d+(?:\.\d+)?)%\s+", line)
+            if not match: return
+            pct = max(0.0, min(100.0, float(match.group(1))))
+            if current_depot and current_depot in depot_progress: depot_progress[current_depot] = max(depot_progress[current_depot], pct)
+            if total > 0 and depot_totals:
+                downloaded = int(sum(depot_totals[k] * depot_progress.get(k, 0.0) / 100.0 for k in depot_totals)); overall = downloaded / total * 100.0
+            else:
+                downloaded = 0; overall = pct
+            elapsed=max(.001,time.monotonic()-started_at); speed=downloaded/elapsed if downloaded>0 else None; eta=(total-downloaded)/speed if speed and total>downloaded else None
+            now=time.monotonic()
+            if now-last_write < .35 and overall < 100: return
+            last_write=now
+            write_status(app_id,{"state":"downloading","progress":overall,"bytes_downloaded":downloaded or None,"bytes_total":total or None,"speed_bps":int(speed) if speed else None,"eta_seconds":int(eta) if eta else None,"installed":False,"provider_id":provider_id})
+        result=run_probe(provider_id,app_id,manifest_only=False,download=True,timeout_seconds=6*60*60,progress_callback=on_output)
         if not result.get("ok"):
-            detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[-1000:]
-            raise RuntimeError(detail or "DepotDownloader no pudo completar la descarga")
-
-        state = inspect(app_id, provider_id)
-        existing = next(
-            (item for item in state.get("libraries", []) if item.get("manifest_exists")),
-            None,
-        )
-        if existing:
-            target = str(existing.get("target") or "")
+            detail=str(result.get("stderr_tail") or result.get("stdout_tail") or "")[-1000:]; raise RuntimeError(detail or "DepotDownloader no pudo completar la descarga")
+        state=inspect(app_id,provider_id); existing=next((item for item in state.get("libraries",[]) if item.get("manifest_exists")),None)
+        if existing: target=str(existing.get("target") or "")
         else:
-            library = _prepared_library(state)
-            if library is None:
-                raise RuntimeError(
-                    "No hay una biblioteca Steam con espacio suficiente para preparar la descarga."
-                )
-            prepared = prepare(app_id, provider_id, int(library["index"]))
-            if not prepared.get("ok") or not prepared.get("prepared"):
-                raise RuntimeError(
-                    str(prepared.get("reason") or "No se pudieron preparar los archivos para Steam")
-                )
-            target = str(prepared.get("target") or "")
-
-        total = int(state.get("source_bytes") or result.get("total_bytes") or 0)
-        return write_status(
-            app_id,
-            {
-                "state": "installed",
-                "progress": 100.0,
-                "bytes_downloaded": total or None,
-                "bytes_total": total or None,
-                "installed": True,
-                "provider_id": provider_id,
-                "prepared_target": target,
-            },
-        )
+            library=_prepared_library(state)
+            if library is None: raise RuntimeError("No hay una biblioteca Steam con espacio suficiente para preparar la descarga.")
+            prepared=prepare(app_id,provider_id,int(library["index"]))
+            if not prepared.get("ok") or not prepared.get("prepared"): raise RuntimeError(str(prepared.get("reason") or "No se pudieron preparar los archivos para Steam"))
+            target=str(prepared.get("target") or "")
+        final_total=int(state.get("source_bytes") or result.get("total_bytes") or total or 0)
+        return write_status(app_id,{"state":"installed","progress":100.0,"bytes_downloaded":final_total or None,"bytes_total":final_total or None,"speed_bps":None,"eta_seconds":0,"installed":True,"provider_id":provider_id,"prepared_target":target})
     except Exception as exc:
-        return write_status(
-            app_id,
-            {
-                "state": "not-installed",
-                "progress": None,
-                "bytes_downloaded": None,
-                "bytes_total": None,
-                "installed": False,
-                "provider_id": provider_id,
-                "error": str(exc)[:1200],
-            },
-        )
+        return write_status(app_id,{"state":"not-installed","progress":None,"bytes_downloaded":None,"bytes_total":None,"speed_bps":None,"eta_seconds":None,"installed":False,"provider_id":provider_id,"error":str(exc)[:1200]})
 
 
 def _print(value: dict[str, Any]) -> None:
@@ -258,6 +242,7 @@ def main() -> int:
     parser.add_argument("--app-id", type=int, required=True)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--validate", action="store_true")
+    mode.add_argument("--estimate", action="store_true")
     mode.add_argument("--run", action="store_true")
     parser.add_argument("--provider-id")
     args = parser.parse_args()
@@ -277,6 +262,12 @@ def main() -> int:
         except Exception as exc:
             _print({"ok": False, "app_id": args.app_id, "error": str(exc)[:1200]})
             return 2
+
+    if args.estimate:
+        try:
+            _print(estimate_download(args.app_id, provider_id)); return 0
+        except Exception as exc:
+            _print({"ok": False, "app_id": args.app_id, "provider_id": provider_id, "error": str(exc)[:1200]}); return 2
 
     result = run_download(args.app_id, provider_id)
     _print(result)

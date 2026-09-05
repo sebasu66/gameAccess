@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { Gamepad2, Loader2, Play } from "lucide-react";
 
-import { isTrackedDownload } from "./downloadManager";
+import { downloadProgress, isTrackedDownload } from "./downloadManager";
 import { libraryArtworkCandidates } from "./libraryArtwork";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { SteamDownloadStatus } from "./native";
@@ -50,7 +50,7 @@ interface DownloadGameCardProps {
 function DownloadGameCard({ game, index, selected, status, pinned, onSelect }: DownloadGameCardProps) {
   const active = isTrackedDownload(status);
   const ready = Boolean(status?.installed || status?.state === "installed");
-  const progress = Math.max(0, Math.min(100, status?.progress ?? 0));
+  const progress = downloadProgress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
   const accessibilityState = active ? ` · descarga ${label}` : "";
