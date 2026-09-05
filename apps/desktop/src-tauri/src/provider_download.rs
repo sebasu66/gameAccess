@@ -72,6 +72,15 @@ fn status_path(launcher: &Path, app_id: u32) -> PathBuf {
         .join(format!("app-{app_id}.json"))
 }
 
+fn clear_provider_download_status(launcher: &Path, app_id: u32) -> Result<(), String> {
+    let path = status_path(launcher, app_id);
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Could not clear stale provider download status: {err}")),
+    }
+}
+
 fn hide_window(command: &mut Command) {
     #[cfg(target_os = "windows")]
     command.creation_flags(CREATE_NO_WINDOW);
@@ -161,6 +170,7 @@ pub fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, St
 
     let provider_id = validate_provider(app_id)?;
     let launcher = launcher_dir()?;
+    clear_provider_download_status(&launcher, app_id)?;
     let python = python_executable(&launcher);
     let script = manager_script(&launcher);
     let app_id_arg = app_id.to_string();
