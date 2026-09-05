@@ -25,7 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { leaseGame, loadDetails, loadHome, releaseDownloadFallbackLease } from "./api";
+import { leaseGame, loadDetails, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
 import {
@@ -945,21 +945,32 @@ export default function App() {
       return;
     }
 
+    let leaseForRollback: Awaited<ReturnType<typeof leaseGame>> | null = null;
     try {
       const lease = await leaseGame(game.id, 60);
+      leaseForRollback = lease;
       setUser((current) => ({ ...current, credits: lease.credits_remaining }));
       setSession({ game, phase: "preparing", title: "Reserva confirmada", detail: "Ahora gameAccess prepara la sesión de juego asignada a esta reserva." });
       if (lease.session_action === "launch_ready" && lease.game.app_id) {
         await wait(450);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
         await openSteamRun(lease.game.app_id);
+        // The launch command was accepted; from here this is a live session, not rollback work.
+        leaseForRollback = null;
         await wait(450);
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
       } else {
+        // A waiting adapter intentionally owns the reservation.
+        leaseForRollback = null;
         setSession({ game, phase: "waiting-adapter", title: "Reserva lista para el adaptador local", detail: "La reserva ya existe. Falta conectar a este cliente el paso local que prepara la sesión de Steam antes de lanzar el juego." });
       }
       await refresh();
     } catch (err) {
+      if (leaseForRollback) {
+        await releaseFailedLease(leaseForRollback);
+        leaseForRollback = null;
+        await refresh().catch(() => undefined);
+      }
       setSession({ game, phase: "error", title: "No pudimos iniciar la sesión", detail: err instanceof Error ? err.message : String(err) });
     } finally {
       setLeaseBusy(false);

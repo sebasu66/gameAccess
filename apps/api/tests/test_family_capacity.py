@@ -23,7 +23,12 @@ def _seed_example(session: Session):
         games[slug] = game
     accounts = {}
     for label in ("X", "Y", "Z", "V"):
-        account = core.ProviderAccount(label=label, provider="steam", status=core.AccountStatus.free)
+        account = core.ProviderAccount(
+            label=label,
+            provider="steam",
+            status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": [10, 20, 30]}),
+        )
         session.add(account)
         accounts[label] = account
     session.commit()
@@ -177,3 +182,62 @@ def test_family_member_without_verified_access_is_not_a_launch_candidate(tmp_pat
         selection = capacity.select_best_account(session, game)
         assert selection is not None
         assert selection["account"].label == "child"
+
+
+def test_direct_owner_without_current_access_is_not_assigned(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="poppy", name="Poppy Playtime", app_id=1721470, active=True)
+        owner = core.ProviderAccount(
+            label="owner-no-access", provider="steam", status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": []}),
+        )
+        usable = core.ProviderAccount(
+            label="family-access", provider="steam", status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": [1721470]}),
+        )
+        session.add(game)
+        session.add(owner)
+        session.add(usable)
+        session.commit()
+        for row in (game, owner, usable):
+            session.refresh(row)
+        capacity.replace_family_graph(
+            session,
+            [{
+                "family_key": "poppy-family",
+                "members": ["owner-no-access", "family-access"],
+                "licenses": [{"app_id": 1721470, "quantity": 1, "owner_labels": ["owner-no-access"]}],
+            }],
+        )
+        selection = capacity.select_best_account(session, game)
+        assert selection is not None
+        assert selection["account"].label == "family-access"
+        assert capacity.game_capacity(session, game)[1] == 1
+
+
+def test_no_currently_accessible_member_makes_family_copy_unavailable(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="blocked", name="Blocked", app_id=1721470, active=True)
+        owner = core.ProviderAccount(
+            label="blocked-owner", provider="steam", status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": []}),
+        )
+        session.add(game)
+        session.add(owner)
+        session.commit()
+        session.refresh(game)
+        session.refresh(owner)
+        capacity.replace_family_graph(
+            session,
+            [{
+                "family_key": "blocked-family",
+                "members": ["blocked-owner"],
+                "licenses": [{"app_id": 1721470, "quantity": 1, "owner_labels": ["blocked-owner"]}],
+            }],
+        )
+        assert capacity.select_best_account(session, game) is None
+        total, available = capacity.game_capacity(session, game)
+        assert total >= 1
+        assert available == 0

@@ -139,7 +139,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json() as { detail?: unknown };
+      if (body?.detail) detail = `${response.status} ${String(body.detail)}`;
+    } catch {
+      // Keep the HTTP status when the backend did not return JSON.
+    }
+    throw new Error(detail);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -212,7 +221,7 @@ export const loadSteamApp = async (appId: number) => {
   return request<SteamMetadata>(`/steam/apps/${appId}`);
 };
 
-async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
+export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
     request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
     request("/credits", {
@@ -265,7 +274,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   const lease = await request<LeaseResponse>("/leases", { method: "POST", body: JSON.stringify({ user_id: 1, game_id: gameId, minutes }) });
   if (lease.session_action === "provider_adapter_required") {
     if (!lease.account?.label) {
-      await rollbackFailedLease(lease);
+      await releaseFailedLease(lease);
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
@@ -273,7 +282,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
       await loginProviderSteam(credentials);
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
-      await rollbackFailedLease(lease);
+      await releaseFailedLease(lease);
       throw error;
     }
   }

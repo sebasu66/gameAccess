@@ -80,15 +80,9 @@ def _accessible_app_ids(account: core.ProviderAccount) -> set[int] | None:
 def _account_can_launch_family_game(
     state: dict[str, Any], family_id: int, game_id: int, account_id: int
 ) -> bool:
-    copies: list[FamilyGameLicenseCopy] = state["copies_by_family_game"].get(
-        (family_id, game_id), []
-    )
-    if any(
-        copy.owner_account_id is not None and int(copy.owner_account_id) == account_id
-        for copy in copies
-    ):
-        return True
-
+    # License ownership determines family copy inventory, but it does not prove
+    # that this exact Steam seat can launch the app right now. Session assignment
+    # therefore fails closed unless the latest per-account access scan includes it.
     account = state["account_by_id"].get(account_id)
     game = state["game_by_id"].get(game_id)
     if not account or not game or not game.app_id:
@@ -173,9 +167,11 @@ def _snapshot(
             account = account_by_id.get(account_id)
             if not account or account.status == core.AccountStatus.disabled:
                 continue
+            # Total capacity is license inventory constrained by enabled family seats.
+            # Current accessibility only affects whether a seat is available to play now.
+            enabled += 1
             if not _account_can_launch_family_game(state, family_id, game_id, account_id):
                 continue
-            enabled += 1
             is_free = account.status == core.AccountStatus.free
             if simulated_busy_account_id == account_id:
                 is_free = False
