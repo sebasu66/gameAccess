@@ -161,8 +161,7 @@ fn validate_provider(app_id: u32) -> Result<String, String> {
         .ok_or_else(|| "Verified provider result did not include a provider id".to_string())
 }
 
-#[tauri::command]
-pub fn provider_download_estimate(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
     }
@@ -216,7 +215,16 @@ pub fn provider_download_estimate(app_id: u32) -> Result<ProviderDownloadStatus,
 }
 
 #[tauri::command]
-pub fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+pub async fn provider_download_estimate(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+    // UI THREAD CONTRACT: provider validation and manifest probing may launch Python
+    // and wait on network/filesystem work. Never execute that blocking work inside
+    // the Tauri command future itself; keep it on the blocking pool.
+    tauri::async_runtime::spawn_blocking(move || provider_download_estimate_blocking(app_id))
+        .await
+        .map_err(|err| format!("Provider download estimate task failed: {err}"))?
+}
+
+fn start_provider_download_blocking(app_id: u32) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
     }
@@ -270,6 +278,15 @@ pub fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, St
         prepared_target: None,
         error: None,
     })
+}
+
+#[tauri::command]
+pub async fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+    // Starting a provider download includes ownership validation. That is also
+    // blocking external work and must never stall rendering/input handling.
+    tauri::async_runtime::spawn_blocking(move || start_provider_download_blocking(app_id))
+        .await
+        .map_err(|err| format!("Provider download start task failed: {err}"))?
 }
 
 #[cfg(test)]
