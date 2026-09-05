@@ -337,3 +337,200 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
   padding-top: 10px;
 }
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-screenshots { gap: 10px; }
+
+
+/* 2026-09 single-document desktop detail. This intentionally replaces the old
+   overlay + appended More Info visual model instead of trying to skin it. */
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature {
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #070a0f !important;
+  isolation: auto !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature::after,
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-ambient {
+  display: none !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-media {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: clamp(260px, 38vh, 410px) !important;
+  min-height: 260px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid rgba(255,255,255,.09) !important;
+  box-shadow: none !important;
+  background: #0b1118 !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-copy {
+  position: relative !important;
+  inset: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 24px 26px 44px !important;
+  background: #070a0f !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-overview {
+  margin: 0;
+  padding: 0 0 22px;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-overview h1 {
+  max-width: none;
+  margin: 7px 0 10px;
+  font-size: clamp(34px,3.2vw,54px);
+  line-height: .98;
+  text-shadow: none;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-lead {
+  max-width: none !important;
+  margin: 0 0 16px !important;
+  color: #c8d0da !important;
+  text-shadow: none !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-unified-facts {
+  display: grid;
+  grid-template-columns: minmax(0,1.15fr) minmax(190px,.85fr);
+  gap: 26px;
+  padding: 22px 0;
+  border-top: 1px solid rgba(255,255,255,.10);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.library-room-game-facts {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+.library-room-game-facts > div {
+  display: grid;
+  grid-template-columns: 105px minmax(0,1fr);
+  gap: 12px;
+}
+.library-room-game-facts dt {
+  color: #738091;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.library-room-game-facts dd {
+  margin: 0;
+  color: #e1e7ee;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.library-room-download-summary {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  align-content: start;
+  gap: 12px 18px;
+}
+.library-room-download-summary > div:not(.library-room-progress-inline) { min-width: 0; }
+.library-room-download-summary span {
+  display: block;
+  color: #738091;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.library-room-download-summary strong {
+  display: block;
+  margin-top: 3px;
+  color: #f1f5f8;
+  font-size: 12px;
+}
+.library-room-progress-inline {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 22px;
+  margin-top: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.07);
+}
+.library-room-progress-inline > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg,rgba(0,188,255,.68),rgba(57,255,20,.78));
+}
+.library-room-progress-inline > strong {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 100%;
+  place-items: center;
+  margin: 0;
+  font-size: 10px;
+}
+.library-room-copy-block,
+.library-room-requirements-block,
+.library-room-gallery-block {
+  margin: 0;
+  padding: 24px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.library-room-copy-block h3,
+.library-room-requirements-block h3,
+.library-room-gallery-block h3 {
+  margin: 0 0 10px;
+  color: #f4f7fa;
+  font-size: 12px;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.library-room-copy-block p,
+.library-room-requirements-block p {
+  max-width: none !important;
+  margin: 0 !important;
+  color: #aeb9c5 !important;
+  font-size: 12px;
+  line-height: 1.58;
+  text-shadow: none !important;
+}
+.library-room-requirements-block {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 28px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.library-room-gallery-block {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.library-room-gallery-block .library-room-screenshots {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.library-room-gallery-block .library-room-screenshots img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  object-fit: cover;
+  border: 0;
+  border-radius: 8px;
+  background: #0d141d;
+}
+.library-room.surface-display .library-room-unified-facts,
+.library-room.surface-display .library-room-copy-block,
+.library-room.surface-display .library-room-requirements-block,
+.library-room.surface-display .library-room-gallery-block,
+.library-room.surface-display .library-room-preferences { display: none !important; }
+@media (max-width: 1050px) {
+  .library-room:not(.surface-display):not(.surface-tablet) .library-room-unified-facts,
+  .library-room:not(.surface-display):not(.surface-tablet) .library-room-requirements-block { grid-template-columns: 1fr; }
+}
