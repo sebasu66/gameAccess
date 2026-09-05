@@ -61,6 +61,42 @@ def _login_id_for_provider(provider_id: str) -> int:
     return LOGIN_ID_BASE + slot
 
 
+STEAM_ID64_ACCOUNT_BASE = 76561197960265728
+
+
+def _account_id32_from_steam64(steam_id64: str | int | None) -> int | None:
+    try:
+        value = int(steam_id64 or 0)
+    except (TypeError, ValueError):
+        return None
+    account_id = value - STEAM_ID64_ACCOUNT_BASE
+    return account_id if account_id > 0 else None
+
+
+def _resolve_original_owner_provider(
+    *,
+    current_provider_id: str,
+    current_user_id32: int | None,
+    owner_account_id: int | None,
+    borrowed: bool,
+    owner_provider_by_user32: dict[int, str],
+) -> str | None:
+    """Resolve the permanent/original Steam owner for a package.
+
+    OwnerAccountID is authoritative even when Steam does not set the Borrowed
+    flag. A family member must never become a download owner merely because the
+    package is visible in their LicenseList.
+    """
+    owner_id = int(owner_account_id or 0)
+    if owner_id > 0:
+        if current_user_id32 and owner_id == current_user_id32:
+            return current_provider_id
+        return owner_provider_by_user32.get(owner_id)
+    if borrowed:
+        return None
+    return current_provider_id
+
+
 def _run_provider(
     login: str,
     password: str,
@@ -158,11 +194,15 @@ def scan_provider_licenses(
         packages = result.get("packages") if isinstance(result.get("packages"), list) else []
         family_key = ""
         family_member_provider_ids: list[str] = []
+        scanner_user_id32: int | None = None
         if status == "ok":
             scanner_steam64 = str(result.get("steam_id64") or "")
             if scanner_steam64.isdigit():
                 provider_by_steam64[scanner_steam64] = credential.provider_id
                 scanned_steam64_by_provider[credential.provider_id] = scanner_steam64
+                scanner_user_id32 = _account_id32_from_steam64(scanner_steam64)
+                if scanner_user_id32:
+                    owner_provider_by_user32[scanner_user_id32] = credential.provider_id
             raw_family_id = result.get("family_group_id")
             try:
                 family_group_id = int(raw_family_id or 0)
@@ -234,13 +274,13 @@ def scan_provider_licenses(
             if not app_ids:
                 continue
             owner_id = package.get("owner_account_id")
-            owner_provider = (
-                owner_provider_by_user32.get(int(owner_id))
-                if isinstance(owner_id, int) and owner_id > 0
-                else None
+            owner_provider = _resolve_original_owner_provider(
+                current_provider_id=credential.provider_id,
+                current_user_id32=scanner_user_id32,
+                owner_account_id=owner_id if isinstance(owner_id, int) else None,
+                borrowed=bool(package.get("borrowed")),
+                owner_provider_by_user32=owner_provider_by_user32,
             )
-            if owner_provider is None and not package.get("borrowed"):
-                owner_provider = credential.provider_id
             if owner_provider is None:
                 if isinstance(owner_id, int) and owner_id > 0:
                     unmapped_owner_ids.add(owner_id)

@@ -22,6 +22,8 @@ from provider_download_probe import (
     run_probe,
     verified_provider_ids_for_app,
 )
+from provider_inventory import build_provider_catalog
+from provider_license_scan import persist_scan_result, scan_provider_licenses
 from steam_prepare_import import inspect, prepare
 
 RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
@@ -64,6 +66,73 @@ def read_status(app_id: int) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def _scan_owned_provider_ids(inventory: dict[str, Any], app_id: int) -> list[str]:
+    owners: list[str] = []
+    for account in inventory.get("accounts", []):
+        if not isinstance(account, dict):
+            continue
+        owned = {
+            int(value)
+            for value in account.get("owned_app_ids") or []
+            if str(value).isdigit() and int(value) > 0
+        }
+        provider_id = str(account.get("provider_id") or "").strip()
+        if provider_id and app_id in owned:
+            owners.append(provider_id)
+    return sorted(set(owners))
+
+
+def _cached_access_provider_ids(app_id: int) -> list[str]:
+    catalog = build_provider_catalog()
+    providers = []
+    for account in catalog.get("accounts", []):
+        if not isinstance(account, dict):
+            continue
+        accessible = {
+            int(value)
+            for value in account.get("accessible_app_ids") or []
+            if str(value).isdigit() and int(value) > 0
+        }
+        provider_id = str(account.get("provider_id") or "").strip()
+        if provider_id and app_id in accessible:
+            providers.append(provider_id)
+    return sorted(set(providers))
+
+
+def refresh_original_owner_for_app(app_id: int) -> str:
+    candidates = _cached_access_provider_ids(app_id)
+    if not candidates:
+        raise RuntimeError(
+            f"GameAccess no encontró ninguna cuenta proveedora con AppID {app_id} en el catálogo local."
+        )
+
+    errors: list[str] = []
+    for candidate in candidates:
+        try:
+            scan = scan_provider_licenses(provider_ids={candidate})
+            owners = _scan_owned_provider_ids(scan, app_id)
+            if not owners:
+                errors.append(f"{candidate}: sin propietario original")
+                continue
+
+            for owner in owners:
+                owner_scan = scan if owner == candidate else scan_provider_licenses(provider_ids={owner})
+                confirmed = _scan_owned_provider_ids(owner_scan, app_id)
+                if owner not in confirmed:
+                    errors.append(f"{owner}: no confirmó propiedad directa")
+                    continue
+                persist_scan_result(owner_scan)
+                return owner
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+
+    detail = "; ".join(errors[:4])
+    raise RuntimeError(
+        f"GameAccess no pudo verificar la cuenta propietaria original de AppID {app_id}."
+        + (f" ({detail})" if detail else "")
+    )
+
+
 def verified_provider_for_app(app_id: int) -> str:
     owners = verified_provider_ids_for_app(app_id)
     if not owners:
@@ -87,7 +156,7 @@ def verified_provider_for_app(app_id: int) -> str:
 
 
 def validation_result(app_id: int) -> dict[str, Any]:
-    provider_id = verified_provider_for_app(app_id)
+    provider_id = refresh_original_owner_for_app(app_id)
     return {"ok": True, "app_id": app_id, "provider_id": provider_id}
 
 
