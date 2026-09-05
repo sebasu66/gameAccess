@@ -25,6 +25,7 @@ function statusLabel(status: SteamDownloadStatus | undefined, progress: number) 
     case "requested": return "Pendiente";
     case "preparing": return "Preparando";
     case "paused": return "Pausado";
+    case "cancelling": return "Cancelando";
     default: return `${Math.round(progress)}%`;
   }
 }
@@ -77,6 +78,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onP
         type="button"
         className={cardClass(selected, active, pinned)}
         style={style}
+        data-library-game-id={game.id}
         onClick={() => onSelect(index)}
         aria-current={selected ? "true" : undefined}
         aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${accessibilityState}`}

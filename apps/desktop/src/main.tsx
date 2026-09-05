@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import CatalogTabs from "./CatalogTabs";
+import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
 import SteamSessionSettings from "./SteamSessionSettings";
 import WindowChrome from "./WindowChrome";
@@ -15,6 +16,7 @@ import "./download-manager.css";
 import "./bootstrap.css";
 import "./steam-session-settings.css";
 import "./catalog-tabs.css";
+import "./library-input-controller.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -28,11 +30,15 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 
 function CatalogShell() {
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
-  const changeMode = (next: CatalogMode) => {
+  const surface = new URLSearchParams(window.location.search).get("surface");
+  const auxiliarySurface = surface === "tablet" || surface === "display";
+  const changeMode = React.useCallback((next: CatalogMode) => {
+    if (next === mode) return;
+    if (!auxiliarySurface) captureLibraryUiState(mode);
     setCatalogMode(next);
     setMode(next);
-  };
-  return <><CatalogTabs mode={mode} onChange={changeMode} /><App key={mode} /></>;
+  }, [auxiliarySurface, mode]);
+  return <><CatalogTabs mode={mode} onChange={changeMode} />{!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}<App key={mode} /></>;
 }
 
 const root = document.getElementById("root");

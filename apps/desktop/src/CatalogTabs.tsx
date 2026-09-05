@@ -1,6 +1,6 @@
 import type { CatalogMode } from "./catalogMode";
 
-const tabs: Array<{ id: CatalogMode; label: string }> = [
+export const CATALOG_TABS: Array<{ id: CatalogMode; label: string }> = [
   { id: "local", label: "Propios" },
   { id: "gameaccess", label: "GameAccess" },
   { id: "store", label: "Store" },
@@ -9,7 +9,7 @@ const tabs: Array<{ id: CatalogMode; label: string }> = [
 export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onChange: (mode: CatalogMode) => void }) {
   return (
     <nav className="catalog-tabs" aria-label="Origen del catálogo">
-      {tabs.map((tab) => (
+      {CATALOG_TABS.map((tab) => (
         <button
           type="button"
           key={tab.id}
