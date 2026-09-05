@@ -1,4 +1,4 @@
-import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount } from "./native";
+import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount, loginProviderSteam } from "./native";
 import { buildLocalCatalog } from "./catalog";
 import { getCatalogMode } from "./catalogMode";
 import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
@@ -255,7 +255,8 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
-      await switchSteamAccount(lease.account.label);
+      const credentials = await request<{ accountName: string; password: string; expectedUserId32: number }>(`/leases/${lease.lease_id}/steam-login`, { method: "POST" });
+      await loginProviderSteam(credentials);
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
       await rollbackFailedLease(lease);

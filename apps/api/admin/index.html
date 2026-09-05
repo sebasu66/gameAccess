@@ -113,6 +113,7 @@
   const API = location.pathname.startsWith('/admin-console') ? '/admin-console' : 'http://127.0.0.1:38147/admin-console';
   let data = {stats:{},accounts:[],licenses:[],seats:[],leases:[],diagnostics:[],tasks:[]};
   let currentTab='overview';
+  let refreshPending=false;
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const fmtDate=v=>v?new Date(v).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'medium'}):'—';
@@ -126,8 +127,11 @@
   async function api(path,opts={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...opts});let body=null;try{body=await r.json()}catch{}if(!r.ok)throw new Error(body?.detail||`${r.status} ${r.statusText}`);return body;}
 
   async function refresh(manual=false){
+    if(refreshPending)return;
+    refreshPending=true;
     try{data=await api('/overview');$('liveText').textContent='Backend conectado · '+new Date(data.generated_at).toLocaleTimeString('es-AR');$('liveText').classList.remove('offline');renderAll();if(manual)toast('Datos actualizados');}
     catch(err){$('liveText').textContent='Backend sin respuesta';$('liveText').classList.add('offline');if(manual)toast(err.message,true)}
+    finally{refreshPending=false}
   }
 
   function renderAll(){

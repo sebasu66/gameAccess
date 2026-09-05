@@ -260,6 +260,7 @@ fn main() {
             steam_session::remove_steam_credential,
             steam_session::has_steam_credential,
             steam_session::direct_switch_steam_account,
+            steam_session::login_provider_steam,
             steam_session::start_steam_game_session,
             steam_session::steam_session_status,
             visual_debug_config,

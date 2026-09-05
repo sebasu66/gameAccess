@@ -373,15 +373,12 @@ def register_lease_allocation(
     )
 
 
-def family_breakdown_for_game(session: Session, game_id: int) -> list[dict[str, Any]]:
+def family_breakdowns_by_game(session: Session) -> dict[int, list[dict[str, Any]]]:
     if not _family_inventory_present(session):
-        return []
+        return {}
     state = _state(session)
-    current = _snapshot(state)
-    result: list[dict[str, Any]] = []
-    for (family_id, candidate_game_id), copies in state["copies_by_family_game"].items():
-        if candidate_game_id != game_id:
-            continue
+    result: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for (family_id, game_id), copies in state["copies_by_family_game"].items():
         member_ids = state["members_by_family"].get(family_id, [])
         members = [state["account_by_id"].get(account_id) for account_id in member_ids]
         enabled = [m for m in members if m and m.status != core.AccountStatus.disabled]
@@ -393,7 +390,7 @@ def family_breakdown_for_game(session: Session, game_id: int) -> list[dict[str, 
             if owner:
                 owners.append(owner.label)
         family = state["family_by_id"].get(family_id)
-        result.append(
+        result[game_id].append(
             {
                 "family_id": family_id,
                 "family_key": family.external_key if family else f"family:{family_id}",
@@ -405,8 +402,13 @@ def family_breakdown_for_game(session: Session, game_id: int) -> list[dict[str, 
                 "owners": owners,
             }
         )
-    result.sort(key=lambda item: item["family_key"])
-    return result
+    for rows in result.values():
+        rows.sort(key=lambda item: item["family_key"])
+    return dict(result)
+
+
+def family_breakdown_for_game(session: Session, game_id: int) -> list[dict[str, Any]]:
+    return family_breakdowns_by_game(session).get(game_id, [])
 
 
 def replace_family_graph(session: Session, families: list[dict[str, Any]]) -> dict[str, int]:

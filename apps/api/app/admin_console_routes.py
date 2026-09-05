@@ -165,6 +165,12 @@ def dashboard(session: Session) -> dict:
     users = session.exec(select(core.User)).all()
     mappings = session.exec(select(core.AccountGame)).all()
     leases = session.exec(select(core.Lease)).all()
+    metrics_by_game = family_capacity.catalog_metrics(session)
+    family_rows_by_game = family_capacity.family_breakdowns_by_game(session)
+
+    games_by_id = {int(game.id): game for game in games if game.id is not None}
+    accounts_by_id = {int(account.id): account for account in accounts if account.id is not None}
+    users_by_id = {int(user.id): user for user in users if user.id is not None}
 
     active_leases = [lease for lease in leases if lease.status == core.LeaseStatus.active]
     active_by_account = {lease.account_id: lease for lease in active_leases}
@@ -177,7 +183,7 @@ def dashboard(session: Session) -> dict:
     account_rows = []
     for account in accounts:
         rows = mappings_by_account.get(account.id or -1, [])
-        owned_games = [session.get(core.Game, row.game_id) for row in rows]
+        owned_games = [games_by_id.get(row.game_id) for row in rows]
         notes = parse_notes(account.notes)
         lease = active_by_account.get(account.id or -1)
         account_rows.append(
@@ -201,12 +207,26 @@ def dashboard(session: Session) -> dict:
     for game in games:
         owners = []
         for mapping in mappings_by_game.get(game.id or -1, []):
-            account = session.get(core.ProviderAccount, mapping.account_id)
+            account = accounts_by_id.get(mapping.account_id)
             if not account:
                 continue
             owners.append({"id": account.id, "label": account.label, "status": account.status})
-        total, available = core.game_capacity(session, game)
-        demand = family_capacity.demand_fields(session, int(game.id or 0))
+        game_id = int(game.id or 0)
+        metrics = metrics_by_game.get(game_id, {})
+        total = int(metrics.get("total", len(owners)))
+        available = int(
+            metrics.get(
+                "available",
+                sum(1 for owner in owners if owner["status"] == core.AccountStatus.free),
+            )
+        )
+        demand = {
+            "request_count_total": int(metrics.get("request_count_total", 0)),
+            "successful_leases": int(metrics.get("successful_leases", 0)),
+            "demand_value": float(metrics.get("demand_value", family_capacity.DEMAND_START)),
+            "price_factor": float(metrics.get("price_factor", 1.0)),
+            "pool_value": float(metrics.get("pool_value", family_capacity.DEMAND_START)),
+        }
         if total or owners or game.active:
             license_rows.append(
                 {
@@ -218,7 +238,7 @@ def dashboard(session: Session) -> dict:
                     "copies_total": total,
                     "copies_available": available,
                     "owners": owners,
-                    "families": family_capacity.family_breakdown_for_game(session, int(game.id or 0)),
+                    "families": family_rows_by_game.get(game_id, []),
                     **demand,
                 }
             )
@@ -237,9 +257,9 @@ def dashboard(session: Session) -> dict:
 
     recent_leases = []
     for lease in sorted(leases, key=lambda item: item.starts_at, reverse=True)[:30]:
-        game = session.get(core.Game, lease.game_id)
-        account = session.get(core.ProviderAccount, lease.account_id)
-        user = session.get(core.User, lease.user_id)
+        game = games_by_id.get(lease.game_id)
+        account = accounts_by_id.get(lease.account_id)
+        user = users_by_id.get(lease.user_id)
         recent_leases.append(
             {
                 "id": lease.id,

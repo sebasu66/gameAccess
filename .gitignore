@@ -48,3 +48,11 @@ tools/g2g-crawler/g2g-*-test.json
 # Local Game Access provider roster (credentials)
 cuentas.txt
 accFull.csv
+
+# Local GameAccess build/test artifacts
+GameAccess-latest.exe
+GameAccess-latest.build.json
+GameAccess-ctrlf-test.exe
+apps/desktop/src-tauri/target-*/
+apps/api/.admin_tasks/
+apps/api/*.log

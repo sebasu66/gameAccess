@@ -288,6 +288,11 @@ export async function openSteamRun(appId: number): Promise<void> {
   });
 }
 
+export async function loginProviderSteam(credentials: { accountName: string; password: string; expectedUserId32: number }): Promise<void> {
+  if (!hasTauriRuntime()) throw new Error("El login de proveedores requiere la aplicación de escritorio.");
+  await invoke("login_provider_steam", credentials);
+}
+
 export async function switchSteamAccount(accountLabel: string): Promise<SteamAccountSwitchResult> {
   if (!accountLabel.trim()) throw new Error("El proveedor no tiene un perfil Steam visible configurado.");
   if (!hasTauriRuntime()) {

@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField
@@ -149,7 +149,8 @@ def expire_old_leases(session: Session) -> None:
     leases = session.exec(select(Lease).where(Lease.status == LeaseStatus.active)).all()
     changed = False
     for lease in leases:
-        if lease.expires_at <= now:
+        expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
+        if expires <= now:
             lease.status = LeaseStatus.expired
             account = session.get(ProviderAccount, lease.account_id)
             if account and account.status == AccountStatus.leased:
@@ -535,6 +536,32 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
         "credits_remaining": user.credits,
         "session_action": "provider_adapter_required",
     }
+
+
+@app.post("/leases/{lease_id}/steam-login")
+def lease_steam_login(lease_id: int, request: Request, session: Session = Depends(get_session)) -> dict:
+    # Development transport: never expose provider credentials to remote callers.
+    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(403, "Steam login transport is local-only")
+    lease = session.get(Lease, lease_id)
+    if not lease or lease.status != LeaseStatus.active:
+        raise HTTPException(409, "An active reservation is required")
+    expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
+    if expires <= now_utc():
+        raise HTTPException(409, "Reservation expired")
+    account = session.get(ProviderAccount, lease.account_id)
+    from .account_roster import credential_for_label
+    import json
+    credential = credential_for_label(account.label) if account else None
+    if not credential:
+        raise HTTPException(409, "Assigned provider credentials unavailable")
+    notes = json.loads(account.notes or "{}")
+    expected = notes.get("user_id32")
+    if not expected and notes.get("steam_id64"):
+        expected = int(notes["steam_id64"]) - 76561197960265728
+    if not expected:
+        raise HTTPException(409, "Assigned Steam identity is not verified")
+    return {"accountName": credential.login, "password": credential.password, "expectedUserId32": int(expected)}
 
 
 @app.get("/leases/{lease_id}")

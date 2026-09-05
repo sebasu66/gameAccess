@@ -62,6 +62,20 @@ def test_family_capacity_counts_independent_copies_not_visible_accounts(tmp_path
         assert capacity.game_capacity(session, games["c"]) == (1, 1)
 
 
+def test_family_breakdowns_are_built_from_one_snapshot(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        games, _accounts = _seed_example(session)
+        breakdowns = capacity.family_breakdowns_by_game(session)
+
+        assert [row["family_key"] for row in breakdowns[int(games["a"].id)]] == [
+            "family-1",
+            "family-2",
+        ]
+        assert breakdowns[int(games["b"].id)][0]["available_seats"] == 1
+        assert breakdowns[int(games["c"].id)][0]["owners"] == ["V"]
+
+
 def test_simulation_prefers_family_that_preserves_more_pool_capacity(tmp_path) -> None:
     engine = _make_session(tmp_path)
     with Session(engine) as session:

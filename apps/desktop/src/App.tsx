@@ -615,7 +615,7 @@ export default function App() {
       const home = await loadHome();
       setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
     } catch (error) {
-      setGames([]); setToast(`No pudimos cargar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
+      setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
     } finally { setLoading(false); }
   };
 
@@ -839,6 +839,25 @@ export default function App() {
 
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
+
+  useEffect(() => {
+    const appId = selected?.app_id;
+    if (!appId) return;
+    let cancelled = false;
+    let pending = false;
+    const probe = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const status = await steamDownloadStatus(appId);
+        if (!cancelled) setDownloads((current) => ({ ...current, [appId]: status }));
+      } catch { /* retain the last known installation state */ }
+      finally { pending = false; }
+    };
+    void probe();
+    const timer = window.setInterval(() => void probe(), 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [selected?.app_id]);
 
   const openGame = (game: CatalogGame) => setSelected(game);
 
