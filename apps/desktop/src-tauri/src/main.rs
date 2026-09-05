@@ -280,6 +280,7 @@ fn main() {
             machine_profile,
             switch_steam_account,
             provider_download::start_provider_download,
+            provider_download::cancel_provider_download,
             provider_download::provider_download_status,
             provider_download::provider_download_estimate,
             steam_session::save_steam_credential,
