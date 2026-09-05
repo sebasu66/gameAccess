@@ -1,4 +1,5 @@
 import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount, loginProviderSteam } from "./native";
+import { AsyncResourceCache } from "./asyncResourceCache";
 import { buildLocalCatalog } from "./catalog";
 import { getCatalogMode } from "./catalogMode";
 import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
@@ -7,14 +8,18 @@ import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearc
 // An empty value deliberately means offline mode; no localhost server is required.
 const DEFAULT_API = "http://127.0.0.1:38147";
 const API = (import.meta.env.VITE_GAMEACCESS_API ?? DEFAULT_API).replace(/\/$/, "");
+const DETAIL_TTL_MS = 10 * 60 * 1000;
 
 let localCatalog: CatalogGame[] = [];
 
 const steamMetadataCache = new Map<number, SteamMetadata>();
-const gameDetailsCache = new Map<number, GameDetails>();
-const gameDetailsRequests = new Map<number, Promise<GameDetails>>();
+const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ ttlMs: DETAIL_TTL_MS });
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};
+
+function detailCacheKey(gameId: number): string {
+  return `${getCatalogMode()}|${API || "offline"}|${gameId}`;
+}
 
 function normalizeSteamStoreMetadata(game: CatalogGame, raw: Record<string, unknown>): SteamMetadata {
   const data = record(raw);
@@ -191,12 +196,8 @@ export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] =
 }
 
 export const loadDetails = async (gameId: number): Promise<GameDetails> => {
-  const cached = gameDetailsCache.get(gameId);
-  if (cached) return cached;
-  const pending = gameDetailsRequests.get(gameId);
-  if (pending) return pending;
-
-  const requestDetails = (async () => {
+  const key = detailCacheKey(gameId);
+  return gameDetailsResources.get(key, async () => {
     if (getCatalogMode() === "local") return loadLocalDetails(gameId);
     try {
       return await request<GameDetails>(`/games/${gameId}/details`);
@@ -204,17 +205,12 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
       if (findLocalGameForDetails(gameId)) return loadLocalDetails(gameId);
       throw new Error("No se pudo obtener la ficha del juego");
     }
-  })();
-
-  gameDetailsRequests.set(gameId, requestDetails);
-  try {
-    const details = await requestDetails;
-    gameDetailsCache.set(gameId, details);
-    return details;
-  } finally {
-    if (gameDetailsRequests.get(gameId) === requestDetails) gameDetailsRequests.delete(gameId);
-  }
+  });
 };
+
+export function invalidateDetails(gameId: number): void {
+  gameDetailsResources.invalidate(detailCacheKey(gameId));
+}
 
 const localSearch = async (query: string, limit = 20): Promise<SteamSearchResponse> => ({
   query,
