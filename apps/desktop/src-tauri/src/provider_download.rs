@@ -77,7 +77,9 @@ fn clear_provider_download_status(launcher: &Path, app_id: u32) -> Result<(), St
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(format!("Could not clear stale provider download status: {err}")),
+        Err(err) => Err(format!(
+            "Could not clear stale provider download status: {err}"
+        )),
     }
 }
 
