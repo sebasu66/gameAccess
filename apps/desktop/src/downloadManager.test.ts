@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   didDownloadJustComplete,
+  formatDownloadBytes,
+  formatDownloadEta,
   pinDownloadingGames,
   requestedDownloadStatus,
   shouldReleaseMissingDownload,
@@ -58,5 +60,10 @@ describe("Steam download manager", () => {
     expect(didDownloadJustComplete("preparing", installed)).toBe(true);
     expect(didDownloadJustComplete(undefined, installed)).toBe(false);
     expect(didDownloadJustComplete("installed", installed)).toBe(false);
+  });
+
+  it("shows unknown Steam size and ETA as passive missing data", () => {
+    expect(formatDownloadBytes(null)).toBe("—");
+    expect(formatDownloadEta(undefined)).toBe("—");
   });
 });
