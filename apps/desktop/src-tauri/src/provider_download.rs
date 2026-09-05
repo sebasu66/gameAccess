@@ -34,6 +34,15 @@ fn launcher_dir() -> Result<PathBuf, String> {
             return Ok(candidate);
         }
     }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
+                if candidate.is_dir() {
+                    return Ok(candidate);
+                }
+            }
+        }
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|desktop| desktop.parent())
