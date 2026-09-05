@@ -4,6 +4,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
   plugins: [react()],
+  define: {
+    __BUILD_TIMESTAMP__: JSON.stringify(process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString()),
+  },
   clearScreen: false,
   server: {
     port: 1420,

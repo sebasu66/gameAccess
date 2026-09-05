@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Minus, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import BuildStamp from "./BuildStamp";
 
 const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -27,6 +28,7 @@ export default function WindowChrome() {
 
   return (
     <div className="window-chrome" data-tauri-drag-region onDoubleClick={() => void toggleMaximize()}>
+      <BuildStamp />
       <div className="window-drag-space" data-tauri-drag-region aria-hidden="true" onMouseDown={(event) => void startDragging(event)} />
       <div className="window-controls">
         <button aria-label="Minimizar" title="Minimizar" onDoubleClick={(event) => event.stopPropagation()} onClick={() => void appWindow.minimize()}><Minus size={15} /></button>

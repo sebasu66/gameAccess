@@ -1,5 +1,12 @@
 # gameAccess
 
+## Build and run the Windows app
+
+Run `powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1` from the repository root (Node/npm, Rust and Tauri Windows build prerequisites must be installed).
+The script closes only this project's app, builds a production Tauri executable, replaces `GameAccess-latest.exe` in the root and opens it. Steam, games, backend and download workers are not stopped. Use `-NoRun` to build/copy without opening the app. Build failure preserves the previous root executable and returns a nonzero exit code.
+
+The title bar shows **Build: [UTC timestamp]**, embedded during compilation, not the launch time. The executable name and product version stay unchanged. The script prints the final SHA256 hash. No installer is built.
+
 > **Project status / handoff document**  
 > Last reviewed: 2026-08-28
 
