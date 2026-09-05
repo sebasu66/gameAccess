@@ -1,0 +1,18 @@
+/* Desktop library layout contract: the game grid is the primary surface.
+   Keep the detail document useful but bounded so browsing never feels cramped. */
+@media (min-width: 761px) {
+  .library-room:not(.surface-tablet):not(.surface-display) {
+    grid-template-columns: clamp(300px, 31vw, 450px) minmax(0, 1fr) !important;
+    gap: clamp(14px, 1.4vw, 22px) !important;
+  }
+
+  .library-room:not(.surface-tablet):not(.surface-display) .library-room-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .library-room:not(.surface-tablet):not(.surface-display) {
+    grid-template-columns: minmax(360px, 440px) minmax(0, 1fr) !important;
+  }
+}
