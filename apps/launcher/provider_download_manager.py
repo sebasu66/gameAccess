@@ -1,11 +1,12 @@
 """Run GameAccess provider downloads without consulting personal Steam licenses.
 
-The desktop uses this manager only for the ``gameaccess`` catalog.  It selects a
-provider from the authoritative SteamKit ownership snapshot, delegates the CDN
-transfer to ``provider_download_probe.py``, and then prepares the downloaded
-files for Steam's supported existing-files discovery flow.
+The desktop uses this manager only for the ``gameaccess`` catalog. It selects a
+provider from the same best-known SteamKit ownership state used by backend pool
+sync, delegates the CDN transfer to ``provider_download_probe.py``, and then
+prepares the downloaded files for Steam's supported existing-files discovery
+flow.
 
-Provider passwords remain inside the existing roster/downloader boundary.  This
+Provider passwords remain inside the existing roster/downloader boundary. This
 module persists only opaque provider ids, AppIDs, byte counts, state, and a
 sanitized error message for the desktop status bridge.
 """
@@ -16,8 +17,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from provider_download_probe import provider_candidates, run_probe
-from provider_license_scan import load_provider_license_inventory
+from provider_download_probe import (
+    provider_candidates,
+    run_probe,
+    verified_provider_ids_for_app,
+)
 from steam_prepare_import import inspect, prepare
 
 RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
@@ -61,32 +65,14 @@ def read_status(app_id: int) -> dict[str, Any] | None:
 
 
 def verified_provider_for_app(app_id: int) -> str:
-    inventory = load_provider_license_inventory()
-    if not inventory:
-        raise RuntimeError(
-            "GameAccess no tiene todavía un inventario SteamKit de licencias de proveedores."
-        )
-
-    owners = []
-    for account in inventory.get("accounts", []):
-        if not isinstance(account, dict) or account.get("scan_status") != "ok":
-            continue
-        owned = {
-            int(value)
-            for value in account.get("owned_app_ids") or []
-            if str(value).isdigit() and int(value) > 0
-        }
-        provider_id = str(account.get("provider_id") or "").strip()
-        if provider_id and app_id in owned:
-            owners.append(provider_id)
-
+    owners = verified_provider_ids_for_app(app_id)
     if not owners:
         raise RuntimeError(
             f"GameAccess no encontró una licencia SteamKit verificada para AppID {app_id}."
         )
 
     errors: list[str] = []
-    for provider_id in sorted(set(owners)):
+    for provider_id in owners:
         try:
             if any(item["app_id"] == app_id for item in provider_candidates(provider_id)):
                 return provider_id
