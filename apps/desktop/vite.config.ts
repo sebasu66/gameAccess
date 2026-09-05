@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
@@ -7,6 +7,8 @@ export default defineConfig({
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString()),
   },
+  // Preserve the raw layout stylesheet in contract tests; Vitest otherwise stubs CSS.
+  test: { css: { include: [/library-room-layout\.css/] } },
   clearScreen: false,
   server: {
     port: 1420,
