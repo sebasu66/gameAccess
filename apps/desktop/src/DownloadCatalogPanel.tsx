@@ -53,7 +53,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect }: D
   const progress = downloadProgress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
-  const accessibilityState = active ? ` · descarga ${label}` : "";
+  const accessibilityState = active ? ` · descarga ${label}` : ready ? " · instalado" : "";
 
   return (
     <button
@@ -68,7 +68,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect }: D
       <span className="library-room-card-art">
         <span className="library-room-card-cover-base"><SteamCover game={game} /></span>
         {active ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
-        {ready && game.copies_available > 0 ? <ReadyBadge /> : null}
+        {ready ? <ReadyBadge /> : null}
         {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
       </span>
     </button>
