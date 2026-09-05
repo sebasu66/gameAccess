@@ -1,7 +1,8 @@
 """Build and synchronize the GameAccess Steam provider pool.
 
-Catalog reach and ownership are deliberately separate. Catalog reach comes from
-cached local Steam metadata. Ownership comes from SteamKit LicenseList + PICS.
+Catalog membership comes only from verified provider ownership. Cached local
+Steam metadata is useful for discovering names and current accessibility, but
+it must never make a locally/family-visible game part of the GameAccess catalog.
 A failed provider scan must not block verified ownership updates for the other
 providers, and it must not make the failed provider look available.
 """
@@ -185,20 +186,20 @@ def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
         persist_scan_result(refreshed)
 
     ownership_state, ownership_meta = _ownership_state_by_provider()
-    games = list(catalog.get("games") or [])
-    game_ids = {int(game["app_id"]) for game in games}
+    candidate_games = list(catalog.get("games") or [])
+    candidate_game_ids = {int(game["app_id"]) for game in candidate_games}
 
     accounts: list[dict[str, Any]] = []
     for account in catalog.get("accounts", []):
         provider_id = str(account.get("provider_id") or "")
         state = ownership_state.get(provider_id, {})
         owned = sorted(
-            app_id for app_id in set(state.get("owned_app_ids") or []) if app_id in game_ids
+            app_id for app_id in set(state.get("owned_app_ids") or []) if app_id in candidate_game_ids
         )
         accessible = sorted(
             int(app_id)
             for app_id in account.get("accessible_app_ids") or []
-            if int(app_id) in game_ids
+            if int(app_id) in candidate_game_ids
         )
         accounts.append(
             {
@@ -222,6 +223,15 @@ def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
     for account in accounts:
         for app_id in account["app_ids"]:
             licenses.setdefault(app_id, []).append(account["provider_id"])
+
+    # Critical boundary: accessibility/install state never grants GameAccess
+    # catalog membership. Only AppIDs owned by at least one verified provider
+    # are published to the backend catalog.
+    licensed_app_ids = set(licenses)
+    games = [
+        game for game in candidate_games
+        if int(game.get("app_id") or 0) in licensed_app_ids
+    ]
 
     verified_account_count = sum(1 for account in accounts if account["inventory_complete"])
     verification_complete = bool(accounts) and verified_account_count == len(accounts)
