@@ -46,7 +46,7 @@ import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { calculateSelectionScrollTop } from "./libraryNavigation";
 import type { LibrarySearchEventDetail } from "./librarySearch";
-import { providerDownloadEstimate, steamDownloadStatus } from "./native";
+import { steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 
@@ -76,17 +76,6 @@ function formatBytes(value: number | null | undefined) {
   let unit = 0;
   while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
   return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
-function estimateStatus(appId: number, bytesTotal: number): ManagedDownloadStatus {
-  return {
-    app_id: appId,
-    state: "not-installed",
-    progress: null,
-    bytes_downloaded: null,
-    bytes_total: bytesTotal,
-    installed: false,
-  };
 }
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false }: LibraryRoomProps) {
@@ -119,7 +108,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [videoMuted, setVideoMuted] = useState(true);
   const [videoVolume, setVideoVolume] = useState(0.68);
   const [managedDownloads, setManagedDownloads] = useState<DownloadMap>({});
-  const [estimatesByAppId, setEstimatesByAppId] = useState<Record<number, number>>({});
   const [trackedAppIds, setTrackedAppIds] = useState<number[]>([]);
   const [completionQueue, setCompletionQueue] = useState<CompletionEntry[]>([]);
   const [cancelGame, setCancelGame] = useState<CatalogGame | null>(null);
@@ -155,11 +143,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   const installed = isInstalled(download);
   const activeDownload = isActiveDownload(download);
-  const estimateBytes = selectedAppId ? estimatesByAppId[selectedAppId] : undefined;
-  const detailDownload = useMemo<ManagedDownloadStatus | undefined>(() => {
-    if (!selectedAppId || estimateBytes == null || download?.bytes_total != null) return download;
-    return download ? { ...download, bytes_total: estimateBytes } : estimateStatus(selectedAppId, estimateBytes);
-  }, [download, estimateBytes, selectedAppId]);
+  const detailDownload = download;
   const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
   const hero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
   const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
@@ -465,18 +449,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     return () => { cancelled = true; };
   }, [selectedGameIdResolved, isTabletSurface, tabletDetailsOpen, detailRequestedGameId]);
 
-  useEffect(() => {
-    if (detailRequestedGameId !== selectedGameIdResolved || !selectedAppId || download?.bytes_total != null || estimatesByAppId[selectedAppId] != null || activeDownload || installed) return;
-    const appId = selectedAppId;
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void providerDownloadEstimate(appId).then((status) => {
-        if (cancelled || status?.bytes_total == null) return;
-        setEstimatesByAppId((current) => ({ ...current, [appId]: status.bytes_total! }));
-      });
-    }, 700);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [selectedAppId, download?.bytes_total, activeDownload, installed, detailRequestedGameId, selectedGameIdResolved, estimatesByAppId]);
 
   useEffect(() => { if (isTabletSurface) setTabletDetailsOpen(false); }, [isTabletSurface]);
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
