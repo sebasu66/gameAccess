@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::{
+    collections::HashSet,
     env, fs,
     path::{Path, PathBuf},
     process::Command,
@@ -301,6 +302,40 @@ pub fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
         bytes_total,
         installed,
     }
+}
+
+pub fn steam_installed_app_ids() -> Vec<u32> {
+    let mut ids = HashSet::new();
+    for root in steam_library_roots() {
+        let steamapps = root.join("steamapps");
+        let Ok(entries) = fs::read_dir(steamapps) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let Some(raw_id) = name
+                .strip_prefix("appmanifest_")
+                .and_then(|value| value.strip_suffix(".acf"))
+            else {
+                continue;
+            };
+            let Ok(app_id) = raw_id.parse::<u32>() else {
+                continue;
+            };
+            let Ok(body) = fs::read_to_string(entry.path()) else {
+                continue;
+            };
+            let state_flags = quoted_value(&body, "StateFlags")
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or(0);
+            if state_flags & 4 == 4 {
+                ids.insert(app_id);
+            }
+        }
+    }
+    let mut result: Vec<u32> = ids.into_iter().collect();
+    result.sort_unstable();
+    result
 }
 
 #[cfg(target_os = "windows")]

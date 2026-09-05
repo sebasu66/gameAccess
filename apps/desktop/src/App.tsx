@@ -38,6 +38,7 @@ import {
   openSteamRun,
   steamDownloadStatus,
   steamInstalled,
+  steamInstalledAppIds,
   switchSteamAccount,
   setVisualDebugViewport,
   type MachineProfile,
@@ -624,6 +625,20 @@ export default function App() {
     void refresh();
     steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
+    // Lightweight baseline only: installed AppIDs for green grid badges.
+    // Do not load per-game size/progress/details until that game is navigated to.
+    steamInstalledAppIds().then((appIds) => {
+      const installedMap: DownloadMap = {};
+      for (const appId of appIds) {
+        installedMap[appId] = {
+          app_id: appId, state: "installed", progress: 100,
+          bytes_downloaded: null, bytes_total: null, installed: true,
+        };
+      }
+      if (Object.keys(installedMap).length) {
+        setDownloads((current) => ({ ...installedMap, ...current }));
+      }
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -707,50 +722,7 @@ export default function App() {
     void run().catch((error) => setToast(`Visual debug falló: ${error instanceof Error ? error.message : String(error)}`));
   }, [loading, games.length]);
 
-  useEffect(() => {
-    if (!games.length) return;
-    let cancelled = false;
-    const preload = async () => {
-      const next: Partial<Record<number, GameDetails>> = {};
-      const initial = games.slice(0, 8);
-      for (let index = 0; index < initial.length && !cancelled; index += 2) {
-        const batch = initial.slice(index, index + 2);
-        await Promise.all(batch.map(async (game) => {
-          try { next[game.id] = await loadDetails(game.id); } catch { /* metadata remains lazy */ }
-        }));
-        if (!cancelled) setDetailsById((current) => ({ ...current, ...next }));
-        await new Promise((resolve) => window.setTimeout(resolve, 0));
-      }
-      if (!cancelled) setDetailsById((current) => ({ ...current, ...next }));
-    };
-    void preload();
-    return () => { cancelled = true; };
-  }, [games]);
 
-  useEffect(() => {
-    if (!games.length) return;
-    let cancelled = false;
-    const probe = async () => {
-      // Never fan out native filesystem work for the whole catalog at startup.
-      // Prime only the first visible games and yield between small batches.
-      const initial = games.slice(0, 24).filter((game) => Boolean(game.app_id));
-      for (let index = 0; index < initial.length && !cancelled; index += 4) {
-        const batch = initial.slice(index, index + 4);
-        const results = await Promise.all(batch.map(async (game) => {
-          try { return game.app_id ? await steamDownloadStatus(game.app_id) : null; }
-          catch { return null; }
-        }));
-        const next: DownloadMap = {};
-        for (const status of results) if (status) next[status.app_id] = status;
-        if (!cancelled && Object.keys(next).length) {
-          setDownloads((current) => ({ ...current, ...next }));
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 0));
-      }
-    };
-    void probe();
-    return () => { cancelled = true; };
-  }, [games]);
 
   useEffect(() => {
     const activeIds = Object.entries(downloads)

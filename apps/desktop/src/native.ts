@@ -378,6 +378,12 @@ export async function steamInstalled(): Promise<boolean> {
   catch { return true; }
 }
 
+export async function steamInstalledAppIds(): Promise<number[]> {
+  if (!hasTauriRuntime()) return [];
+  try { return await invoke<number[]>("installed_app_ids"); }
+  catch { return []; }
+}
+
 export async function getRuntimePrerequisites(): Promise<RuntimePrerequisites> {
   if (hasTauriRuntime()) return invoke<RuntimePrerequisites>("runtime_prerequisites");
   try { return await bridgeRequest<RuntimePrerequisites>("/runtime-prerequisites"); }
@@ -417,10 +423,13 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
   catch { return null; }
 }
 
+const steamStoreMetadataCache = new Map<number, Record<string, unknown>>();
 const steamStoreMetadataRequests = new Map<number, Promise<Record<string, unknown> | null>>();
 
 export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
   if (!appId) return null;
+  const cached = steamStoreMetadataCache.get(appId);
+  if (cached) return cached;
   const existing = steamStoreMetadataRequests.get(appId);
   if (existing) return existing;
   const request = (async () => {
@@ -429,6 +438,11 @@ export async function getSteamStoreMetadata(appId: number): Promise<Record<strin
     catch { return null; }
   })();
   steamStoreMetadataRequests.set(appId, request);
-  try { return await request; }
-  finally { steamStoreMetadataRequests.delete(appId); }
+  try {
+    const value = await request;
+    if (value) steamStoreMetadataCache.set(appId, value);
+    return value;
+  } finally {
+    steamStoreMetadataRequests.delete(appId);
+  }
 }

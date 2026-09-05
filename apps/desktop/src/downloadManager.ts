@@ -52,6 +52,11 @@ export function pinDownloadingGames(
   return [...pinned, ...normal];
 }
 
+export function didDownloadJustComplete(previousState: string | undefined, status: SteamDownloadStatus): boolean {
+  if (!previousState || !ACTIVE_STATES.has(previousState as SteamDownloadStatus["state"])) return false;
+  return Boolean(status.installed || status.state === "installed");
+}
+
 export function shouldReleaseMissingDownload(
   status: SteamDownloadStatus,
   wasActive: boolean,

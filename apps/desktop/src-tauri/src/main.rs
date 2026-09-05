@@ -204,6 +204,19 @@ async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, Strin
 }
 
 #[tauri::command]
+async fn installed_app_ids() -> Result<Vec<u32>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut ids = native_core::steam_installed_app_ids();
+        ids.extend(provider_download::provider_installed_app_ids());
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    })
+    .await
+    .map_err(|err| format!("Installed-AppID scan failed: {err}"))
+}
+
+#[tauri::command]
 async fn machine_profile() -> Result<MachineProfile, String> {
     tauri::async_runtime::spawn_blocking(native_core::machine_profile)
         .await
@@ -252,6 +265,7 @@ fn main() {
             open_steam_install,
             open_steam_run,
             steam_download_status,
+            installed_app_ids,
             steam_store_metadata,
             local_steam_pool,
             verify_local_steam_inventory,

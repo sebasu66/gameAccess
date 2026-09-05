@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  didDownloadJustComplete,
   pinDownloadingGames,
   requestedDownloadStatus,
   shouldReleaseMissingDownload,
@@ -50,5 +51,12 @@ describe("Steam download manager", () => {
   it("releases a download after Steam had activity and then disappears twice", () => {
     expect(shouldReleaseMissingDownload(missing, true, 1, 5_000)).toBe(false);
     expect(shouldReleaseMissingDownload(missing, true, 2, 7_500)).toBe(true);
+  });
+
+  it("detects a real active-to-installed transition for the play-now dialog", () => {
+    expect(didDownloadJustComplete("downloading", installed)).toBe(true);
+    expect(didDownloadJustComplete("preparing", installed)).toBe(true);
+    expect(didDownloadJustComplete(undefined, installed)).toBe(false);
+    expect(didDownloadJustComplete("installed", installed)).toBe(false);
   });
 });
