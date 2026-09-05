@@ -337,7 +337,7 @@ def run_probe(
         "name": candidates[app_id]["name"],
         "mode": mode,
         "login_id": login_id,
-        "exit_code": completed.returncode,
+        "exit_code": returncode,
         "target": str(target),
         "file_count": files,
         "total_bytes": total_bytes,

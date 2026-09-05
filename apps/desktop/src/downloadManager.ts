@@ -55,7 +55,7 @@ export function pinDownloadingGames(
 
 export function didDownloadJustComplete(previousState: string | undefined, status: ManagedDownloadStatus): boolean {
   if (!previousState || !ACTIVE_STATES.has(previousState as ManagedDownloadStatus["state"])) return false;
-  return Boolean(status.installed || status.state === "installed");
+  return Boolean(status.installed || status.state === "installed" || status.state === "prepared");
 }
 
 export function shouldReleaseMissingDownload(
@@ -72,7 +72,7 @@ export function shouldReleaseMissingDownload(
 
 export function downloadProgress(status?: ManagedDownloadStatus): number {
   if (!status) return 0;
-  if (status.installed || status.state === "installed") return 100;
+  if (status.installed || status.state === "installed" || status.state === "prepared") return 100;
   const total = status.bytes_total ?? 0;
   const downloaded = status.bytes_downloaded ?? 0;
   const fromBytes = total > 0 ? downloaded / total * 100 : null;

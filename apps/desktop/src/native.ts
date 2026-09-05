@@ -37,7 +37,7 @@ async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface SteamDownloadStatus {
   app_id: number;
-  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "installed" | "unknown";
+  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "prepared" | "installed" | "unknown";
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;

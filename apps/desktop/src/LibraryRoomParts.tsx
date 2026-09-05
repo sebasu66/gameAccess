@@ -57,7 +57,7 @@ function SteamCover({ game }: { game: CatalogGame }) {
 }
 
 export function isInstalled(status?: ManagedDownloadStatus) {
-  return status?.state === "installed" || status?.installed === true;
+  return status?.state === "installed" || status?.state === "prepared" || status?.installed === true;
 }
 
 export function isActiveDownload(status?: ManagedDownloadStatus) {
@@ -66,7 +66,7 @@ export function isActiveDownload(status?: ManagedDownloadStatus) {
 
 function InstallStateBadge({ status }: { status?: ManagedDownloadStatus }) {
   if (!isInstalled(status)) return null;
-  return <span className="library-install-state ready" title="Instalado"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title="Listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {

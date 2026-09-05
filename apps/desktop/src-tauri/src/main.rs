@@ -384,7 +384,7 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
                 .ok()
                 .flatten()
                 .is_some_and(|status| {
-                    (status.installed || status.state == "installed")
+                    (status.installed || matches!(status.state.as_str(), "installed" | "prepared"))
                         && status.prepared_target.as_ref().is_some_and(|target| std::path::Path::new(target).exists())
                 })
         })

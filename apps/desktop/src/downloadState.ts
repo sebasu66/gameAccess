@@ -76,6 +76,20 @@ export function reconcileSteamAndProviderStatus(
     return reconcileDownloadStatus(steam, provider) ?? steam;
   }
 
+  if (provider.state === "prepared" && provider.prepared_target) {
+    return {
+      ...steam,
+      ...provider,
+      state: "prepared",
+      installed: false,
+      progress: 100,
+      bytes_downloaded: provider.bytes_downloaded ?? steam.bytes_downloaded,
+      bytes_total: provider.bytes_total ?? steam.bytes_total,
+      speed_bps: null,
+      eta_seconds: 0,
+    };
+  }
+
   if ((provider.installed || provider.state === "installed") && provider.prepared_target) {
     return reconcileDownloadStatus(steam, provider) ?? steam;
   }

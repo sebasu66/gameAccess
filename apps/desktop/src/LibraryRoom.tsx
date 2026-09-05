@@ -282,7 +282,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const probeOne = async (appId: number) => {
       const status = await steamDownloadStatus(appId) as ManagedDownloadStatus;
       if (cancelled) return;
-      if (status.installed || status.state === "installed") {
+      if (status.installed || status.state === "installed" || status.state === "prepared") {
         setManagedDownloads((current) => ({ ...current, [appId]: status }));
         release(appId);
         await persistCompletion(appId);
@@ -301,6 +301,12 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
         return;
       }
       if (status.state !== "not-installed") return;
+      if (status.error) {
+        setManagedDownloads((current) => ({ ...current, [appId]: status }));
+        release(appId);
+        await cancelDownloadLifecycle(appId).catch(() => undefined);
+        return;
+      }
       const missingPolls = (missingPollsRef.current.get(appId) ?? 0) + 1;
       missingPollsRef.current.set(appId, missingPolls);
       const elapsed = Date.now() - (requestStartedAtRef.current.get(appId) ?? Date.now());

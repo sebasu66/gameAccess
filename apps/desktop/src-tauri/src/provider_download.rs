@@ -187,7 +187,7 @@ fn start_provider_download_blocking(app_id: u32, requested_job_id: Option<String
     if app_id == 0 { return Err("Invalid Steam AppID".into()); }
     if let Some(status) = provider_download_status(app_id)? {
         if is_active_state(&status.state) { return Ok(status); }
-        if status.installed || status.state == "installed" { return Ok(status); }
+        if status.installed || matches!(status.state.as_str(), "installed" | "prepared") { return Ok(status); }
     }
 
     let launcher = launcher_dir()?;
@@ -264,7 +264,7 @@ fn cancel_provider_download_blocking(app_id: u32, job_id: String) -> Result<Prov
     let launcher = launcher_dir()?;
     let mut status = provider_download_status(app_id)?.ok_or_else(|| "No managed provider download exists for this AppID".to_string())?;
     if status.job_id.as_deref() != Some(job_id.as_str()) { return Err("Download job identity no longer matches the active work".into()); }
-    if status.installed || status.state == "installed" || status.state == "cancelled" { return Ok(status); }
+    if status.installed || matches!(status.state.as_str(), "installed" | "prepared" | "cancelled") { return Ok(status); }
     if !is_active_state(&status.state) { return Err(format!("Download cannot be cancelled from state {}", status.state)); }
 
     status.state = "cancelling".into();

@@ -18,6 +18,7 @@ import os
 import re
 import time
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
 from provider_download_probe import provider_candidates, run_probe, verified_provider_ids_for_app
@@ -27,11 +28,24 @@ from steam_prepare_import import inspect, prepare
 
 RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
 STATUS_ROOT = RUNTIME_ROOT / "downloads" / "status"
+LOG_ROOT = RUNTIME_ROOT / "downloads" / "logs"
 ACTIVE_STATES = {"requested", "preparing", "downloading", "paused", "cancelling"}
 
 
 def status_path(app_id: int) -> Path:
     return STATUS_ROOT / f"app-{app_id}.json"
+
+
+def log_path(app_id: int) -> Path:
+    return LOG_ROOT / f"app-{app_id}.jsonl"
+
+
+def _append_status_log(body: dict[str, Any]) -> None:
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    entry = {"at": datetime.now(timezone.utc).isoformat(), **body}
+    with log_path(int(body["app_id"])).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=True) + "
+")
 
 
 def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -52,9 +66,20 @@ def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         "worker_pid": payload.get("worker_pid"),
     }
     target = status_path(app_id)
+    previous: dict[str, Any] = {}
+    if target.is_file():
+        try:
+            value = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                previous = value
+        except (OSError, json.JSONDecodeError):
+            pass
     temp = target.with_suffix(".tmp")
     temp.write_text(json.dumps(body, ensure_ascii=True), encoding="utf-8")
     temp.replace(target)
+    transition_keys = ("state", "error", "job_id", "provider_id", "prepared_target")
+    if not previous or any(previous.get(key) != body.get(key) for key in transition_keys):
+        _append_status_log(body)
     return body
 
 
@@ -256,7 +281,7 @@ def run_download(app_id: int, provider_id: str | None, job_id: str) -> dict[str,
         final_total = int(state.get("source_bytes") or result.get("total_bytes") or total or 0)
         # Completion wins over a late cancellation request once preparation has
         # produced a validated install target.
-        return write_status(app_id, {"state": "installed", "progress": 100.0, "bytes_downloaded": final_total or None, "bytes_total": final_total or None, "speed_bps": None, "eta_seconds": 0, "installed": True, "provider_id": provider_id, "prepared_target": target, "job_id": job_id, "worker_pid": None})
+        return write_status(app_id, {"state": "prepared", "progress": 100.0, "bytes_downloaded": final_total or None, "bytes_total": final_total or None, "speed_bps": None, "eta_seconds": 0, "installed": False, "provider_id": provider_id, "prepared_target": target, "job_id": job_id, "worker_pid": None})
     except Exception as exc:
         if cancellation_requested(app_id, job_id):
             return cancelled_status(app_id, job_id, provider_id)
@@ -302,7 +327,7 @@ def main() -> int:
         return 2
     result = run_download(args.app_id, provider_id, job_id)
     _print(result)
-    if result.get("installed"):
+    if result.get("installed") or result.get("state") == "prepared":
         return 0
     return 3 if result.get("state") == "cancelled" else 2
 
