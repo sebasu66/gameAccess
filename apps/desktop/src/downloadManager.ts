@@ -81,7 +81,7 @@ export function downloadProgress(status?: ManagedDownloadStatus): number {
 }
 
 export function formatDownloadBytes(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value) || value < 0) return "Calculando…";
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let size = value;
   let unit = 0;
@@ -90,7 +90,7 @@ export function formatDownloadBytes(value: number | null | undefined): string {
 }
 
 export function formatDownloadEta(seconds: number | null | undefined): string {
-  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "Calculando…";
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "—";
   const rounded = Math.ceil(seconds);
   if (rounded === 0) return "0 s";
   const hours = Math.floor(rounded / 3600);
