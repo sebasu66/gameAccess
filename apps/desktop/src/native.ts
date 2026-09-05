@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { getCatalogMode } from "./catalogMode";
+import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
 import { reconcileSteamAndProviderStatus } from "./downloadState";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
@@ -36,7 +37,7 @@ async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface SteamDownloadStatus {
   app_id: number;
-  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "installed" | "unknown";
+  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "installed" | "unknown";
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;
@@ -46,6 +47,8 @@ export interface SteamDownloadStatus {
   provider_id?: string | null;
   prepared_target?: string | null;
   error?: string | null;
+  job_id?: string | null;
+  worker_pid?: number | null;
 }
 
 export interface SteamLibraryFolder {
@@ -214,6 +217,7 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
 
 export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
     try {
@@ -227,7 +231,7 @@ export async function openSteamInstall(appId: number): Promise<void> {
 
   try {
     if (getCatalogMode() === "gameaccess") {
-      await invoke<SteamDownloadStatus>("start_provider_download", { appId });
+      await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
       await waitForSteamInstallConfirmation(appId);
       return;
     }
@@ -239,6 +243,7 @@ export async function openSteamInstall(appId: number): Promise<void> {
     await invoke("open_steam_install", { appId });
     await waitForSteamInstallConfirmation(appId);
   } catch (error) {
+    if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
     dispatchDownloadEvent("gameaccess:steam-download-request-failed", appId, message);
     throw error;
@@ -247,6 +252,7 @@ export async function openSteamInstall(appId: number): Promise<void> {
 
 export async function openSteamClientInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
     try {
@@ -257,8 +263,13 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
     }
     return;
   }
-  await invoke("open_steam_install", { appId });
-  await waitForSteamInstallConfirmation(appId);
+  try {
+    await invoke("open_steam_install", { appId });
+    await waitForSteamInstallConfirmation(appId);
+  } catch (error) {
+    if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function openSteamRun(appId: number): Promise<void> {
@@ -282,7 +293,6 @@ export async function openSteamRun(appId: number): Promise<void> {
   try {
     ownerLabel = resolveSteamInstallOwner(pool.accounts, appId);
   } catch {
-    // Provider/leased sessions do not necessarily exist in the local ownership pool yet.
     await invoke("open_steam_run", { appId });
     return;
   }
@@ -332,9 +342,7 @@ function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {
   });
 }
 
-async function tryDirectSteamSwitch(
-  target: LocalSteamAccount | undefined,
-): Promise<SteamAccountSwitchResult | null> {
+async function tryDirectSteamSwitch(target: LocalSteamAccount | undefined): Promise<SteamAccountSwitchResult | null> {
   if (!target) return null;
   const targetName = accountName(target);
   if (!targetName) return null;
@@ -409,8 +417,6 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
     return invoke<SteamDownloadStatus>("steam_download_status", { appId });
   }
 
-  // Provider cache is advisory. Always read Steam too so stale/corrupt provider
-  // state can never hide a real local manifest.
   const [steamResult, providerResult] = await Promise.allSettled([
     invoke<SteamDownloadStatus>("steam_download_status", { appId }),
     invoke<SteamDownloadStatus | null>("provider_download_status", { appId }),

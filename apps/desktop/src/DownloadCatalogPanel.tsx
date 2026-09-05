@@ -3,9 +3,10 @@ import type { CSSProperties, RefObject } from "react";
 import { Gamepad2, Loader2, Play } from "lucide-react";
 
 import { downloadProgress, isTrackedDownload } from "./downloadManager";
+import type { ManagedDownloadStatus } from "./downloadTypes";
+import { playAvailability } from "./gameAvailability";
 import { libraryArtworkCandidates } from "./libraryArtwork";
 import type { DownloadMap } from "./LibraryRoomParts";
-import type { SteamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
 function SteamCover({ game }: { game: CatalogGame }) {
@@ -20,7 +21,7 @@ function ReadyBadge() {
   return <span className="library-install-state ready" title="Instalado"><Play size={12} fill="currentColor" /></span>;
 }
 
-function statusLabel(status: SteamDownloadStatus | undefined, progress: number) {
+function statusLabel(status: ManagedDownloadStatus | undefined, progress: number) {
   switch (status?.state) {
     case "requested": return "Pendiente";
     case "preparing": return "Preparando";
@@ -39,17 +40,13 @@ function cardClass(selected: boolean, active: boolean, pinned: boolean) {
   ].filter(Boolean).join(" ");
 }
 
-export function cardPlayState(game: CatalogGame, status?: SteamDownloadStatus) {
+export function cardPlayState(game: CatalogGame, status?: ManagedDownloadStatus) {
   const installed = Boolean(status?.installed || status?.state === "installed");
-  const licensed = game.copies_available > 0 || Boolean(game.local_primary_account_label);
+  const availability = playAvailability(game);
   return {
     installed,
-    licensed,
-    title: !installed
-      ? "No instalado"
-      : licensed
-        ? `Jugar ${game.name}`
-        : `${game.name} está instalado, pero no hay una licencia disponible`,
+    licensed: availability.licensed,
+    title: !installed ? "No instalado" : availability.allowed ? `Jugar ${game.name}` : availability.reason ?? `No se puede jugar ${game.name}`,
   };
 }
 
@@ -57,7 +54,7 @@ interface DownloadGameCardProps {
   game: CatalogGame;
   index: number;
   selected: boolean;
-  status?: SteamDownloadStatus;
+  status?: ManagedDownloadStatus;
   pinned: boolean;
   onSelect: (index: number) => void;
   onPlay?: (game: CatalogGame) => void | Promise<void>;

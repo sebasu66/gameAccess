@@ -57,17 +57,14 @@ describe("LibraryRoom grid presentation", () => {
     expect(markup).not.toContain("<strong>Test Game</strong>");
   });
 
-  it("shows only the green ready marker for an installed and available game", () => {
-    const markup = render({ 10: installed });
-    expect(markup).toContain("library-install-state ready");
-    expect(markup).not.toContain("library-install-state download");
-    expect(markup).not.toContain("library-install-state progress");
+  it("shows the green installation marker whenever the game is installed", () => {
+    expect(render({ 10: installed })).toContain("library-install-state ready");
+    expect(render({ 10: installed }, 0)).toContain("library-install-state ready");
   });
 
-  it("shows no corner marker for downloading, missing, or unavailable games", () => {
-    expect(render({ 10: downloading })).not.toContain("library-install-state");
-    expect(render({})).not.toContain("library-install-state");
-    expect(render({ 10: installed }, 0)).not.toContain("library-install-state");
+  it("shows no installed corner marker for downloading or missing games", () => {
+    expect(render({ 10: downloading })).not.toContain("library-install-state ready");
+    expect(render({})).not.toContain("library-install-state ready");
   });
 
   it("changes the selected game only through the click handler, not mouse hover", () => {

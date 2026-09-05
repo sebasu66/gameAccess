@@ -1,22 +1,23 @@
-import type { SteamDownloadStatus } from "./native";
+import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 
 export const DOWNLOAD_REQUESTED_EVENT = "gameaccess:steam-download-requested";
 export const DOWNLOAD_REQUEST_FAILED_EVENT = "gameaccess:steam-download-request-failed";
 export const DOWNLOAD_CONFIRMATION_GRACE_MS = 90_000;
 
-const ACTIVE_STATES = new Set<SteamDownloadStatus["state"]>([
+const ACTIVE_STATES = new Set<ManagedDownloadStatus["state"]>([
   "requested",
   "preparing",
   "downloading",
   "paused",
+  "cancelling",
 ]);
 
-export function isTrackedDownload(status?: SteamDownloadStatus): boolean {
+export function isTrackedDownload(status?: ManagedDownloadStatus): boolean {
   return Boolean(status && ACTIVE_STATES.has(status.state));
 }
 
-export function requestedDownloadStatus(appId: number): SteamDownloadStatus {
+export function requestedDownloadStatus(appId: number): ManagedDownloadStatus {
   return {
     app_id: appId,
     state: "requested",
@@ -29,7 +30,7 @@ export function requestedDownloadStatus(appId: number): SteamDownloadStatus {
 
 export function pinDownloadingGames(
   games: CatalogGame[],
-  downloads: Record<number, SteamDownloadStatus>,
+  downloads: Record<number, ManagedDownloadStatus>,
   trackedAppIds: number[],
 ): CatalogGame[] {
   const originalPosition = new Map(games.map((game, index) => [game.id, index]));
@@ -52,23 +53,24 @@ export function pinDownloadingGames(
   return [...pinned, ...normal];
 }
 
-export function didDownloadJustComplete(previousState: string | undefined, status: SteamDownloadStatus): boolean {
-  if (!previousState || !ACTIVE_STATES.has(previousState as SteamDownloadStatus["state"])) return false;
+export function didDownloadJustComplete(previousState: string | undefined, status: ManagedDownloadStatus): boolean {
+  if (!previousState || !ACTIVE_STATES.has(previousState as ManagedDownloadStatus["state"])) return false;
   return Boolean(status.installed || status.state === "installed");
 }
 
 export function shouldReleaseMissingDownload(
-  status: SteamDownloadStatus,
+  status: ManagedDownloadStatus,
   wasActive: boolean,
   missingPolls: number,
   elapsedMs: number,
 ): boolean {
-  if (status.state !== "not-installed") return false;
+  if (status.state !== "not-installed" && status.state !== "cancelled") return false;
+  if (status.state === "cancelled") return true;
   if (wasActive) return missingPolls >= 2;
   return elapsedMs >= DOWNLOAD_CONFIRMATION_GRACE_MS;
 }
 
-export function downloadProgress(status?: SteamDownloadStatus): number {
+export function downloadProgress(status?: ManagedDownloadStatus): number {
   if (!status) return 0;
   if (status.installed || status.state === "installed") return 100;
   const total = status.bytes_total ?? 0;

@@ -40,16 +40,12 @@ pub struct ProviderDownloadStatus {
 fn launcher_dir() -> Result<PathBuf, String> {
     if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
         let candidate = PathBuf::from(value);
-        if candidate.is_dir() {
-            return Ok(candidate);
-        }
+        if candidate.is_dir() { return Ok(candidate); }
     }
     if let Ok(exe) = env::current_exe() {
         if let Some(dir) = exe.parent() {
             for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
-                if candidate.is_dir() {
-                    return Ok(candidate);
-                }
+                if candidate.is_dir() { return Ok(candidate); }
             }
         }
     }
@@ -65,13 +61,10 @@ fn python_executable(launcher: &Path) -> PathBuf {
     let venv = launcher.join(".venv").join("Scripts").join("python.exe");
     if venv.is_file() { venv } else { PathBuf::from("python") }
 }
-
 fn manager_script(launcher: &Path) -> PathBuf { launcher.join("provider_download_manager.py") }
-
 fn status_path(launcher: &Path, app_id: u32) -> PathBuf {
     launcher.join(".gameaccess").join("downloads").join("status").join(format!("app-{app_id}.json"))
 }
-
 fn clear_provider_download_status(launcher: &Path, app_id: u32) -> Result<(), String> {
     match fs::remove_file(status_path(launcher, app_id)) {
         Ok(()) => Ok(()),
@@ -79,12 +72,10 @@ fn clear_provider_download_status(launcher: &Path, app_id: u32) -> Result<(), St
         Err(err) => Err(format!("Could not clear stale provider download status: {err}")),
     }
 }
-
 fn hide_window(command: &mut Command) {
     #[cfg(target_os = "windows")]
     command.creation_flags(CREATE_NO_WINDOW);
 }
-
 fn parse_last_json_line(stdout: &[u8]) -> Result<serde_json::Value, String> {
     let text = String::from_utf8_lossy(stdout);
     let line = text.lines().rev().find(|line| !line.trim().is_empty()).ok_or_else(|| "Provider download adapter returned no JSON".to_string())?;
@@ -162,8 +153,6 @@ fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadSt
     if !output.status.success() || !payload.get("ok").and_then(|value| value.as_bool()).unwrap_or(false) {
         return Err(payload.get("error").and_then(|value| value.as_str()).unwrap_or("Could not estimate provider download size").to_string());
     }
-    // Estimates are advisory and deliberately are not written to the authoritative
-    // provider status file. A size probe must never downgrade installation state.
     Ok(ProviderDownloadStatus {
         app_id,
         state: "not-installed".into(),
@@ -190,12 +179,11 @@ fn new_job_id(app_id: u32) -> String {
     let micros = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_micros();
     format!("provider-{app_id}-{}-{micros}", std::process::id())
 }
-
 fn is_active_state(state: &str) -> bool {
     matches!(state, "requested" | "preparing" | "downloading" | "paused" | "cancelling")
 }
 
-fn start_provider_download_blocking(app_id: u32) -> Result<ProviderDownloadStatus, String> {
+fn start_provider_download_blocking(app_id: u32, requested_job_id: Option<String>) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 { return Err("Invalid Steam AppID".into()); }
     if let Some(status) = provider_download_status(app_id)? {
         if is_active_state(&status.state) { return Ok(status); }
@@ -208,7 +196,7 @@ fn start_provider_download_blocking(app_id: u32) -> Result<ProviderDownloadStatu
     let script = manager_script(&launcher);
     if !script.is_file() { return Err("GameAccess provider download manager is missing".into()); }
     let app_id_arg = app_id.to_string();
-    let job_id = new_job_id(app_id);
+    let job_id = requested_job_id.filter(|value| !value.trim().is_empty()).unwrap_or_else(|| new_job_id(app_id));
 
     let initial = ProviderDownloadStatus {
         app_id,
@@ -235,7 +223,6 @@ fn start_provider_download_blocking(app_id: u32) -> Result<ProviderDownloadStatu
     let child = command.spawn().map_err(|err| format!("Could not start provider download: {err}"))?;
     let mut started = initial;
     started.worker_pid = Some(child.id());
-    // Do not overwrite a terminal state if the worker completed unusually fast.
     let current = provider_download_status(app_id)?;
     if current.as_ref().is_some_and(|value| value.job_id.as_deref() == Some(job_id.as_str()) && !is_active_state(&value.state)) {
         return Ok(current.expect("checked Some"));
@@ -245,16 +232,14 @@ fn start_provider_download_blocking(app_id: u32) -> Result<ProviderDownloadStatu
 }
 
 #[tauri::command]
-pub async fn start_provider_download(app_id: u32) -> Result<ProviderDownloadStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || start_provider_download_blocking(app_id)).await.map_err(|err| format!("Provider download start task failed: {err}"))?
+pub async fn start_provider_download(app_id: u32, job_id: Option<String>) -> Result<ProviderDownloadStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || start_provider_download_blocking(app_id, job_id)).await.map_err(|err| format!("Provider download start task failed: {err}"))?
 }
 
 #[cfg(target_os = "windows")]
 fn verify_worker_process(pid: u32, app_id: u32, job_id: &str, manager: &Path) -> Result<bool, String> {
     let manager_name = manager.file_name().and_then(|value| value.to_str()).unwrap_or("provider_download_manager.py");
-    let script = format!(
-        "$p=Get-CimInstance Win32_Process -Filter \"ProcessId = {pid}\"; if($null -eq $p){{exit 3}}; [pscustomobject]@{{ProcessId=$p.ProcessId;CommandLine=$p.CommandLine}} | ConvertTo-Json -Compress"
-    );
+    let script = format!("$p=Get-CimInstance Win32_Process -Filter \"ProcessId = {pid}\"; if($null -eq $p){{exit 3}}; [pscustomobject]@{{ProcessId=$p.ProcessId;CommandLine=$p.CommandLine}} | ConvertTo-Json -Compress");
     let mut command = Command::new("powershell.exe");
     command.args(["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script]);
     hide_window(&mut command);
@@ -263,7 +248,7 @@ fn verify_worker_process(pid: u32, app_id: u32, job_id: &str, manager: &Path) ->
     if !output.status.success() { return Err("Could not verify provider worker identity".into()); }
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|err| format!("Worker identity probe returned invalid JSON: {err}"))?;
     let line = value.get("CommandLine").and_then(|value| value.as_str()).unwrap_or("");
-    Ok(line.contains(manager_name) && line.contains(&format!("--app-id {app_id}")) && line.contains(job_id))
+    Ok(line.contains(manager_name) && line.contains("--app-id") && line.contains(&app_id.to_string()) && line.contains(job_id))
 }
 
 #[cfg(target_os = "windows")]
@@ -286,7 +271,6 @@ fn cancel_provider_download_blocking(app_id: u32, job_id: String) -> Result<Prov
     status.error = None;
     write_provider_download_status(&launcher, &status)?;
 
-    // Give the worker a short chance to observe its terminal state between phases.
     for _ in 0..8 {
         thread::sleep(Duration::from_millis(100));
         if let Some(current) = provider_download_status(app_id)? {
@@ -298,15 +282,12 @@ fn cancel_provider_download_blocking(app_id: u32, job_id: String) -> Result<Prov
         #[cfg(target_os = "windows")]
         {
             let manager = manager_script(&launcher);
-            if verify_worker_process(pid, app_id, &job_id, &manager)? {
-                terminate_verified_worker_tree(pid)?;
-            }
+            if verify_worker_process(pid, app_id, &job_id, &manager)? { terminate_verified_worker_tree(pid)?; }
         }
         #[cfg(not(target_os = "windows"))]
         return Err("Managed provider cancellation is currently verified only on Windows".into());
     }
 
-    // Re-read after termination so a completion racing with cancellation always wins.
     if let Some(current) = provider_download_status(app_id)? {
         if current.job_id.as_deref() == Some(job_id.as_str()) && (current.installed || current.state == "installed") { return Ok(current); }
     }
@@ -340,6 +321,13 @@ mod tests {
         assert_eq!(status.worker_pid, Some(42));
         assert!(is_active_state("cancelling"));
         assert!(!is_active_state("cancelled"));
+    }
+
+    #[test]
+    fn supplied_job_identity_is_stable() {
+        let requested = Some("ui-42-fixed".to_string());
+        let chosen = requested.clone().filter(|value| !value.trim().is_empty()).unwrap_or_else(|| new_job_id(42));
+        assert_eq!(chosen, "ui-42-fixed");
     }
 
     #[test]

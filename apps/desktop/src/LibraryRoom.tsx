@@ -3,9 +3,18 @@ import type { KeyboardEvent } from "react";
 import { MoreHorizontal, Search, Tv2, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import DownloadCompleteDialog from "./DownloadCompleteDialog";
+import { cancelManagedDownload } from "./downloadCancellation";
+import {
+  acknowledgeDownloadCompletion,
+  cancelDownloadLifecycle,
+  pendingDownloadCompletions,
+  recordDownloadCompletion,
+  type DownloadJobRecord,
+} from "./downloadLifecycle";
 import {
   DOWNLOAD_REQUESTED_EVENT,
   DOWNLOAD_REQUEST_FAILED_EVENT,
@@ -15,6 +24,7 @@ import {
   requestedDownloadStatus,
   shouldReleaseMissingDownload,
 } from "./downloadManager";
+import type { ManagedDownloadStatus } from "./downloadTypes";
 import {
   buildActions,
   EmptyLibraryContent,
@@ -53,18 +63,30 @@ interface LibraryRoomProps {
 }
 
 type DownloadEventDetail = { appId?: number; error?: string };
+type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 type CefWindow = Window & {
   sendIpcMessage?: (message: string) => void;
   onIpcMessage?: (message: string) => void;
 };
 
 function formatBytes(value: number | null | undefined) {
-  if (!value || value <= 0) return "No informado por Steam";
+  if (value == null || value < 0) return "No informado por Steam";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let size = value;
   let unit = 0;
   while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
   return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function estimateStatus(appId: number, bytesTotal: number): ManagedDownloadStatus {
+  return {
+    app_id: appId,
+    state: "not-installed",
+    progress: null,
+    bytes_downloaded: null,
+    bytes_total: bytesTotal,
+    installed: false,
+  };
 }
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false }: LibraryRoomProps) {
@@ -80,9 +102,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const requestStartedAtRef = useRef(new Map<number, number>());
   const activeSeenRef = useRef(new Set<number>());
   const missingPollsRef = useRef(new Map<number, number>());
-  const estimateAttemptedRef = useRef(new Set<number>());
-  const completionNotifiedRef = useRef(new Set<number>());
   const previousDownloadStatesRef = useRef(new Map<number, string>());
+  const completionHandlingRef = useRef(new Set<string>());
+  const gamesByAppIdRef = useRef(new Map<number, CatalogGame>());
 
   const [selectedGameId, setSelectedGameId] = useState<number | null>(() => isTabletSurface ? null : (games[0]?.id ?? null));
   const [detailRequestedGameId, setDetailRequestedGameId] = useState<number | null>(null);
@@ -97,11 +119,17 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [videoMuted, setVideoMuted] = useState(true);
   const [videoVolume, setVideoVolume] = useState(0.68);
   const [managedDownloads, setManagedDownloads] = useState<DownloadMap>({});
+  const [estimatesByAppId, setEstimatesByAppId] = useState<Record<number, number>>({});
   const [trackedAppIds, setTrackedAppIds] = useState<number[]>([]);
-  const [completedGame, setCompletedGame] = useState<CatalogGame | null>(null);
+  const [completionQueue, setCompletionQueue] = useState<CompletionEntry[]>([]);
+  const [cancelGame, setCancelGame] = useState<CatalogGame | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tabletDetailsOpen, setTabletDetailsOpen] = useState(false);
   const [displayPinned, setDisplayPinned] = useState(false);
+
+  gamesByAppIdRef.current = new Map(games.flatMap((game) => game.app_id ? [[game.app_id, game] as const] : []));
 
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
   const searchedGames = useMemo(() => {
@@ -127,16 +155,30 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   const installed = isInstalled(download);
   const activeDownload = isActiveDownload(download);
+  const estimateBytes = selectedAppId ? estimatesByAppId[selectedAppId] : undefined;
+  const detailDownload = useMemo<ManagedDownloadStatus | undefined>(() => {
+    if (!selectedAppId || estimateBytes == null || download?.bytes_total != null) return download;
+    return download ? { ...download, bytes_total: estimateBytes } : estimateStatus(selectedAppId, estimateBytes);
+  }, [download, estimateBytes, selectedAppId]);
   const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
   const hero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
   const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
   const videoSrc = isTabletSurface ? undefined : selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(currentDetails);
-  const actions = useMemo(
-    () => buildActions(selectedGame, installed, activeDownload, busy, download?.progress),
-    [selectedGame, installed, activeDownload, busy, download?.progress],
-  );
+  const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
+  const currentCompletion = completionQueue[0];
+
+  const enqueueCompletion = useCallback((record: DownloadJobRecord | null) => {
+    if (!record) return;
+    const game = gamesByAppIdRef.current.get(record.app_id);
+    if (!game) return;
+    setCompletionQueue((current) => current.some((entry) => entry.record.job_id === record.job_id) ? current : [...current, { record, game }]);
+  }, []);
+
+  const persistCompletion = useCallback(async (appId: number) => {
+    try { enqueueCompletion(await recordDownloadCompletion(appId)); } catch { /* retry through pending scan */ }
+  }, [enqueueCompletion]);
 
   useEffect(() => {
     const handleSearch = (event: Event) => {
@@ -163,12 +205,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   useEffect(() => {
     if (!isTabletSurface) return;
     const payload = selectedGame && selectedGameIdResolved != null
-      ? JSON.stringify({
-          type: "game-selection",
-          gameId: selectedGameIdResolved,
-          appId: selectedGame.app_id ?? null,
-          name: selectedGame.name,
-        })
+      ? JSON.stringify({ type: "game-selection", gameId: selectedGameIdResolved, appId: selectedGame.app_id ?? null, name: selectedGame.name })
       : JSON.stringify({ type: "game-selection-clear" });
     (window as CefWindow).sendIpcMessage?.(payload);
   }, [isTabletSurface, selectedGameIdResolved, selectedGame]);
@@ -187,9 +224,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
         } else if (payload.type === "game-selection-clear") {
           setDisplayPinned(false);
         }
-      } catch {
-        // Ignore unrelated CEF IPC messages.
-      }
+      } catch { /* ignore unrelated CEF IPC */ }
     };
     return () => { cefWindow.onIpcMessage = previous; };
   }, [isDisplaySurface]);
@@ -210,7 +245,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       const { appId } = (event as CustomEvent<DownloadEventDetail>).detail ?? {};
       if (!appId) return;
       requestStartedAtRef.current.set(appId, Date.now());
-      completionNotifiedRef.current.delete(appId);
       missingPollsRef.current.set(appId, 0);
       activeSeenRef.current.delete(appId);
       setManagedDownloads((current) => ({ ...current, [appId]: requestedDownloadStatus(appId) }));
@@ -219,6 +253,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const failed = (event: Event) => {
       const { appId } = (event as CustomEvent<DownloadEventDetail>).detail ?? {};
       if (!appId) return;
+      void cancelDownloadLifecycle(appId).catch(() => undefined);
       requestStartedAtRef.current.delete(appId);
       missingPollsRef.current.delete(appId);
       activeSeenRef.current.delete(appId);
@@ -238,9 +273,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, []);
 
   useEffect(() => {
-    const discovered = Object.values(downloads)
-      .filter((status) => isTrackedDownload(status))
-      .map((status) => status.app_id);
+    const discovered = Object.values(downloads).filter((status) => isTrackedDownload(status)).map((status) => status.app_id);
     if (!discovered.length) return;
     const now = Date.now();
     for (const appId of discovered) {
@@ -253,6 +286,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   useEffect(() => {
     if (!trackedAppIds.length) return;
     let cancelled = false;
+    let timer: number | null = null;
 
     const release = (appId: number) => {
       requestStartedAtRef.current.delete(appId);
@@ -262,16 +296,18 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     };
 
     const probeOne = async (appId: number) => {
-      const status = await steamDownloadStatus(appId);
+      const status = await steamDownloadStatus(appId) as ManagedDownloadStatus;
       if (cancelled) return;
       if (status.installed || status.state === "installed") {
         setManagedDownloads((current) => ({ ...current, [appId]: status }));
-        const game = games.find((item) => item.app_id === appId);
         release(appId);
-        if (game && !completionNotifiedRef.current.has(appId)) {
-          completionNotifiedRef.current.add(appId);
-          setCompletedGame(game);
-        }
+        await persistCompletion(appId);
+        return;
+      }
+      if (status.state === "cancelled") {
+        setManagedDownloads((current) => ({ ...current, [appId]: status }));
+        release(appId);
+        await cancelDownloadLifecycle(appId).catch(() => undefined);
         return;
       }
       if (isTrackedDownload(status) && status.state !== "requested") {
@@ -289,31 +325,40 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       release(appId);
     };
 
-    const probe = () => {
-      void Promise.all(trackedAppIds.map((appId) => probeOne(appId).catch(() => undefined)));
+    const probe = async () => {
+      await Promise.all(trackedAppIds.map((appId) => probeOne(appId).catch(() => undefined)));
+      if (!cancelled) timer = window.setTimeout(() => void probe(), 2500);
     };
-    probe();
-    const timer = window.setInterval(probe, 2500);
+    void probe();
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer !== null) window.clearTimeout(timer);
     };
-  }, [trackedAppIds, games]);
+  }, [trackedAppIds, persistCompletion]);
 
   useEffect(() => {
     for (const [rawAppId, status] of Object.entries(effectiveDownloads)) {
       const appId = Number(rawAppId);
       const previousState = previousDownloadStatesRef.current.get(appId);
-      if (didDownloadJustComplete(previousState, status) && !completionNotifiedRef.current.has(appId)) {
-        const game = games.find((item) => item.app_id === appId);
-        if (game) {
-          completionNotifiedRef.current.add(appId);
-          setCompletedGame(game);
-        }
-      }
+      if (didDownloadJustComplete(previousState, status)) void persistCompletion(appId);
       previousDownloadStatesRef.current.set(appId, status.state);
     }
-  }, [effectiveDownloads, games]);
+  }, [effectiveDownloads, persistCompletion]);
+
+  useEffect(() => {
+    if (!games.length) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const refresh = async () => {
+      try {
+        const records = await pendingDownloadCompletions();
+        if (!cancelled) records.forEach(enqueueCompletion);
+      } catch { /* runtime store can retry */ }
+      if (!cancelled) timer = window.setTimeout(() => void refresh(), 4000);
+    };
+    void refresh();
+    return () => { cancelled = true; if (timer !== null) window.clearTimeout(timer); };
+  }, [games.length, enqueueCompletion]);
 
   const markActivity = useCallback(() => {
     setShowcaseMode(false);
@@ -332,14 +377,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const immediate = () => markActivity();
     const highFrequency = () => {
       if (trailingTimer !== null) window.clearTimeout(trailingTimer);
-      trailingTimer = window.setTimeout(() => {
-        trailingTimer = null;
-        markActivity();
-      }, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS);
+      trailingTimer = window.setTimeout(() => { trailingTimer = null; markActivity(); }, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS);
     };
-    const visibleAgain = () => {
-      if (document.visibilityState === "visible") markActivity();
-    };
+    const visibleAgain = () => { if (document.visibilityState === "visible") markActivity(); };
     for (const eventName of IMMEDIATE_ACTIVITY_EVENTS) window.addEventListener(eventName, immediate, { passive: true });
     for (const eventName of HIGH_FREQUENCY_ACTIVITY_EVENTS) window.addEventListener(eventName, highFrequency, { passive: true });
     document.addEventListener("visibilitychange", visibleAgain);
@@ -353,10 +393,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [markActivity]);
 
   useEffect(() => {
-    if (!showcaseMode) {
-      showcaseEnteredRef.current = false;
-      return;
-    }
+    if (!showcaseMode) { showcaseEnteredRef.current = false; return; }
     if (displayGames.length < 2 || showcaseEnteredRef.current) return;
     showcaseEnteredRef.current = true;
     let next = Math.floor(Math.random() * displayGames.length);
@@ -404,13 +441,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const grid = gridRef.current;
     const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");
     if (!grid || !card) return;
-    const nextTop = calculateSelectionScrollTop({
-      scrollTop: grid.scrollTop,
-      viewportHeight: grid.clientHeight,
-      itemTop: card.offsetTop,
-      itemHeight: card.offsetHeight,
-      padding: 8,
-    });
+    const nextTop = calculateSelectionScrollTop({ scrollTop: grid.scrollTop, viewportHeight: grid.clientHeight, itemTop: card.offsetTop, itemHeight: card.offsetHeight, padding: 8 });
     if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });
   }, [isTabletSurface, selectedIndex]);
 
@@ -435,28 +466,20 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [selectedGameIdResolved, isTabletSurface, tabletDetailsOpen, detailRequestedGameId]);
 
   useEffect(() => {
-    if (detailRequestedGameId !== selectedGameIdResolved || !selectedAppId || download?.bytes_total || activeDownload || installed || estimateAttemptedRef.current.has(selectedAppId)) return;
+    if (detailRequestedGameId !== selectedGameIdResolved || !selectedAppId || download?.bytes_total != null || estimatesByAppId[selectedAppId] != null || activeDownload || installed) return;
     const appId = selectedAppId;
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      estimateAttemptedRef.current.add(appId);
       void providerDownloadEstimate(appId).then((status) => {
-        if (!status?.bytes_total) return;
-        setManagedDownloads((current) => ({ ...current, [appId]: { ...(current[appId] ?? status), bytes_total: status.bytes_total } }));
+        if (cancelled || status?.bytes_total == null) return;
+        setEstimatesByAppId((current) => ({ ...current, [appId]: status.bytes_total! }));
       });
     }, 700);
-    return () => window.clearTimeout(timer);
-  }, [selectedAppId, download?.bytes_total, activeDownload, installed, detailRequestedGameId, selectedGameIdResolved]);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [selectedAppId, download?.bytes_total, activeDownload, installed, detailRequestedGameId, selectedGameIdResolved, estimatesByAppId]);
 
-  useEffect(() => {
-    if (isTabletSurface) setTabletDetailsOpen(false);
-  }, [isTabletSurface]);
-
-  useEffect(() => {
-    if (selectedGameIdResolved == null) return;
-    if (installed) setActionIndex(0);
-    else if (selectedAppId) setActionIndex(1);
-    else setActionIndex(0);
-  }, [selectedGameIdResolved, selectedAppId, installed]);
+  useEffect(() => { if (isTabletSurface) setTabletDetailsOpen(false); }, [isTabletSurface]);
+  useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
 
   const moveGrid = (delta: number) => {
     const next = Math.max(0, Math.min(displayGames.length - 1, selectedIndex + delta));
@@ -470,32 +493,19 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const enterActions = () => {
     playUiSound("activate");
     setFocusZone("actions");
-    window.requestAnimationFrame(() => actionRefs.current[actionIndex]?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => actionRefs.current[0]?.focus({ preventScroll: true }));
   };
-
-  const returnToGrid = () => {
-    setFocusZone("grid");
-    rootRef.current?.focus({ preventScroll: true });
-  };
+  const returnToGrid = () => { setFocusZone("grid"); rootRef.current?.focus({ preventScroll: true }); };
 
   const startVideoPastIntro = (video: HTMLVideoElement) => {
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     const gameplayStart = duration > 0 ? Math.min(Math.max(7, duration * 0.14), Math.max(0, duration - 4)) : 7;
-    try {
-      video.currentTime = gameplayStart;
-    } catch {
-      // Metadata can race on WebView2.
-    }
+    try { video.currentTime = gameplayStart; } catch { /* WebView metadata race */ }
     video.volume = videoVolume;
     video.muted = videoMuted;
     void video.play().catch(() => undefined);
   };
-
-  const handleVideoReady = (video: HTMLVideoElement) => {
-    setReadyVideoSrc(videoSrc ?? null);
-    void video.play().catch(() => undefined);
-  };
-
+  const handleVideoReady = (video: HTMLVideoElement) => { setReadyVideoSrc(videoSrc ?? null); void video.play().catch(() => undefined); };
   const toggleVideoSound = () => {
     const nextMuted = !videoMuted;
     setVideoMuted(nextMuted);
@@ -505,7 +515,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     video.volume = videoVolume;
     if (!nextMuted) void video.play().catch(() => undefined);
   };
-
   const changeVideoVolume = (value: number) => {
     setVideoVolume(value);
     setVideoMuted(value <= 0);
@@ -516,12 +525,20 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (value > 0) void video.play().catch(() => undefined);
   };
 
-  const activateAction = () => {
-    if (!selectedGame) return;
+  const onAction = (index: number) => {
+    setActionIndex(index);
+    const action = actions[index];
+    if (!action || action.disabled || !selectedGame) return;
     playUiSound("activate");
-    if (actionIndex === 0 && installed && !busy && (selectedGame.copies_available > 0 || Boolean(selectedGame.local_primary_account_label))) void onPlay(selectedGame);
-    if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
+    if (action.kind === "play") void onPlay(selectedGame);
+    else if (action.kind === "download") void onDownload(selectedGame);
+    else if (action.kind === "cancel") {
+      setCancelError(null);
+      setCancelling(false);
+      setCancelGame(selectedGame);
+    }
   };
+  const activateAction = () => onAction(actionIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     markActivity();
@@ -537,19 +554,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     }
     const context = { actionIndex, actionRefs, setActionIndex, returnToGrid, activateAction };
     const gridContext = { selectedIndex, columns, enterActions, moveGrid };
-    const handled = focusZone === "actions"
-      ? handleActionKey(event.key.toLowerCase(), context)
-      : handleGridKey(event.key.toLowerCase(), gridContext);
+    const handled = focusZone === "actions" ? handleActionKey(event.key.toLowerCase(), context) : handleGridKey(event.key.toLowerCase(), gridContext);
     if (handled) event.preventDefault();
-  };
-
-  const onAction = (index: number) => {
-    setActionIndex(index);
-    const action = actions[index];
-    if (!action || action.disabled || !selectedGame) return;
-    playUiSound("activate");
-    if (action.kind === "play") void onPlay(selectedGame);
-    else if (action.kind === "download") void onDownload(selectedGame);
   };
 
   const onSelectGame = (index: number) => {
@@ -561,134 +567,128 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     rootRef.current?.focus({ preventScroll: true });
   };
 
-  const playCompletedGame = () => {
-    const game = completedGame;
-    setCompletedGame(null);
-    if (game) void onPlay(game);
+  const dismissCompletion = async (play: boolean) => {
+    const entry = completionQueue[0];
+    if (!entry || completionHandlingRef.current.has(entry.record.job_id)) return;
+    completionHandlingRef.current.add(entry.record.job_id);
+    try {
+      await acknowledgeDownloadCompletion(entry.record.job_id);
+      setCompletionQueue((current) => current.filter((item) => item.record.job_id !== entry.record.job_id));
+      if (play) void onPlay(entry.game);
+    } finally {
+      completionHandlingRef.current.delete(entry.record.job_id);
+    }
+  };
+
+  const confirmCancellation = async () => {
+    if (!cancelGame?.app_id || cancelling) return;
+    const appId = cancelGame.app_id;
+    const status = effectiveDownloads[appId];
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const result = await cancelManagedDownload(appId, status?.job_id);
+      if (!result.supported) {
+        setCancelError(result.message ?? "Esta descarga debe administrarse desde Steam.");
+        return;
+      }
+      if (result.status) {
+        const next = result.status as ManagedDownloadStatus;
+        setManagedDownloads((current) => ({ ...current, [appId]: next }));
+        if (next.installed || next.state === "installed") {
+          await persistCompletion(appId);
+        } else if (next.state === "cancelled") {
+          await cancelDownloadLifecycle(appId).catch(() => undefined);
+          setTrackedAppIds((current) => current.filter((id) => id !== appId));
+        }
+      }
+      setCancelGame(null);
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const surfaceClass = isTabletSurface ? "surface-tablet" : isDisplaySurface ? "surface-display" : "";
   const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${surfaceClass}`.trim();
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
 
+  const detailPanel = selectedGame ? (
+    <FeaturePanel
+      game={selectedGame}
+      artwork={artwork}
+      movie={movie}
+      videoSrc={videoSrc}
+      readyVideoSrc={readyVideoSrc}
+      videoMuted={videoMuted}
+      videoVolume={videoVolume}
+      videoRef={videoRef}
+      onVideoMetadata={startVideoPastIntro}
+      onVideoReady={handleVideoReady}
+      onToggleSound={toggleVideoSound}
+      onVolumeChange={changeVideoVolume}
+      showcaseMode={isDisplaySurface ? !displayPinned : showcaseMode}
+      summary={summary}
+      loadingDetails={loadingDetails}
+      details={currentDetails}
+      download={detailDownload}
+      preference={preferences[selectedGame.id]}
+      onPreference={(value) => onPreference(selectedGame.id, value)}
+      actions={actions}
+      focusZone={isDisplaySurface ? "grid" : focusZone}
+      actionIndex={actionIndex}
+      actionRefs={actionRefs}
+      setFocusZone={setFocusZone}
+      setActionIndex={setActionIndex}
+      onAction={onAction}
+    />
+  ) : null;
+
   if (isDisplaySurface) {
     return (
       <section className={rootClass} aria-label="Pantalla principal de biblioteca">
-        {selectedGame ? (
-          <FeaturePanel
-            game={selectedGame}
-            artwork={artwork}
-            movie={movie}
-            videoSrc={videoSrc}
-            readyVideoSrc={readyVideoSrc}
-            videoMuted={videoMuted}
-            videoVolume={videoVolume}
-            videoRef={videoRef}
-            onVideoMetadata={startVideoPastIntro}
-            onVideoReady={handleVideoReady}
-            onToggleSound={toggleVideoSound}
-            onVolumeChange={changeVideoVolume}
-            showcaseMode={!displayPinned}
-            summary={summary}
-            loadingDetails={loadingDetails}
-            details={currentDetails}
-            download={download}
-            preference={preferences[selectedGame.id]}
-            onPreference={(value) => onPreference(selectedGame.id, value)}
-            actions={actions}
-            focusZone="grid"
-            actionIndex={actionIndex}
-            actionRefs={actionRefs}
-            setFocusZone={setFocusZone}
-            setActionIndex={setActionIndex}
-            onAction={onAction}
-          />
-        ) : <div className="library-display-empty">Seleccioná un juego desde la tablet</div>}
+        {detailPanel ?? <div className="library-display-empty">Seleccioná un juego desde la tablet</div>}
       </section>
     );
   }
 
   if (isTabletSurface) {
-    const primaryActionIndex = selectedGame ? (installed ? 0 : selectedAppId ? 1 : -1) : -1;
-    const primaryAction = primaryActionIndex >= 0 ? actions[primaryActionIndex] : undefined;
-    const accountLabel = selectedGame?.local_account_labels?.length
-      ? selectedGame.local_account_labels.join(", ")
-      : selectedGame?.local_primary_account_label ?? "No informado";
+    const primaryAction = selectedGame ? actions[0] : undefined;
+    const accountLabel = selectedGame?.local_account_labels?.length ? selectedGame.local_account_labels.join(", ") : selectedGame?.local_primary_account_label ?? "No informado";
     const accessLabel = selectedGame?.local_access_labels?.length ? selectedGame.local_access_labels.join(", ") : "No informado";
-
     return (
       <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Control de biblioteca">
         <header className="library-phone-top">
           <label className="library-phone-search" onKeyDown={(event) => event.stopPropagation()}>
             <Search size={18} />
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.currentTarget.value)}
-              placeholder="Buscar juegos"
-              autoComplete="off"
-              aria-label="Buscar en tu biblioteca"
-            />
-            {searchQuery ? (
-              <button type="button" onClick={() => setSearchQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button>
-            ) : null}
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Buscar juegos" autoComplete="off" aria-label="Buscar en tu biblioteca" />
+            {searchQuery ? <button type="button" onClick={() => setSearchQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}
           </label>
-
           {selectedGame ? (
             <div className="library-phone-selection">
               <div className="library-phone-selection-copy">
                 <span>{installed ? "INSTALADO" : activeDownload ? `DESCARGANDO ${Math.round(download?.progress ?? 0)}%` : "SELECCIONADO"}</span>
                 <strong>{selectedGame.name}</strong>
               </div>
-              <button
-                type="button"
-                className="library-phone-release"
-                title="Volver al modo vitrina de la TV"
-                aria-label="Volver al modo vitrina de la TV"
-                onClick={() => { setSelectedGameId(null); setTabletDetailsOpen(false); }}
-              ><X size={16} /></button>
+              <button type="button" className="library-phone-release" title="Volver al modo vitrina de la TV" aria-label="Volver al modo vitrina de la TV" onClick={() => { setSelectedGameId(null); setTabletDetailsOpen(false); }}><X size={16} /></button>
               <div className="library-phone-actions">
-                {primaryAction ? (
-                  <button
-                    type="button"
-                    className="library-phone-primary"
-                    disabled={primaryAction.disabled}
-                    onClick={() => onAction(primaryActionIndex)}
-                  >{primaryAction.icon}<strong>{primaryAction.label}</strong></button>
-                ) : null}
-                <button
-                  type="button"
-                  className="library-phone-more"
-                  aria-label="Administrar juego"
-                  title="Administrar juego"
-                  onClick={() => { setDetailRequestedGameId(selectedGame.id); setTabletDetailsOpen(true); }}
-                ><MoreHorizontal size={22} /></button>
+                {primaryAction ? <button type="button" className="library-phone-primary" disabled={primaryAction.disabled} onClick={() => onAction(0)}>{primaryAction.icon}<strong>{primaryAction.label}</strong></button> : null}
+                <button type="button" className="library-phone-more" aria-label="Administrar juego" title="Administrar juego" onClick={() => { setDetailRequestedGameId(selectedGame.id); setTabletDetailsOpen(true); }}><MoreHorizontal size={22} /></button>
               </div>
             </div>
-          ) : (
-            <div className="library-phone-showcase"><Tv2 size={18} /><span>TV en modo vitrina</span></div>
-          )}
+          ) : <div className="library-phone-showcase"><Tv2 size={18} /><span>TV en modo vitrina</span></div>}
         </header>
 
-        <DownloadCatalogPanel
-          games={displayGames}
-          downloads={effectiveDownloads}
-          accountCount={accountCount}
-          selectedIndex={selectedIndex}
-          gridRef={gridRef}
-          pinnedAppIds={pinnedAppIds}
-          onSelect={onSelectGame}
-        />
+        <DownloadCatalogPanel games={displayGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} onSelect={onSelectGame} onPlay={onPlay} />
 
         {tabletDetailsOpen && selectedGame ? (
           <aside className="library-phone-details" onPointerDown={(event) => event.stopPropagation()}>
-            <header>
-              <div><span className="eyebrow">ADMINISTRAR</span><h2>{selectedGame.name}</h2></div>
-              <button type="button" onClick={() => setTabletDetailsOpen(false)} aria-label="Cerrar"><X size={18} /></button>
-            </header>
+            <header><div><span className="eyebrow">ADMINISTRAR</span><h2>{selectedGame.name}</h2></div><button type="button" onClick={() => setTabletDetailsOpen(false)} aria-label="Cerrar"><X size={18} /></button></header>
             <div className="library-phone-details-scroll">
               <dl className="library-phone-facts">
-                <div><dt>Estado</dt><dd>{installed ? "Instalado" : activeDownload ? `Descargando ${Math.round(download?.progress ?? 0)}%` : "No instalado"}</dd></div>
-                <div><dt>Espacio</dt><dd>{formatBytes(download?.bytes_total)}</dd></div>
+                <div><dt>Estado</dt><dd>{installed ? "Instalado" : download?.state === "cancelling" ? "Cancelando" : activeDownload ? `Descargando ${Math.round(download?.progress ?? 0)}%` : "No instalado"}</dd></div>
+                <div><dt>Espacio</dt><dd>{formatBytes(detailDownload?.bytes_total)}</dd></div>
                 <div><dt>Cuenta Steam</dt><dd>{accountLabel}</dd></div>
                 <div><dt>Acceso</dt><dd>{accessLabel}</dd></div>
                 <div><dt>Steam AppID</dt><dd>{selectedGame.app_id ?? "—"}</dd></div>
@@ -700,25 +700,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
               {details?.steam?.developers?.length ? <p className="library-phone-meta"><strong>Desarrollador</strong>{details.steam.developers.join(", ")}</p> : null}
               {details?.steam?.publishers?.length ? <p className="library-phone-meta"><strong>Publisher</strong>{details.steam.publishers.join(", ")}</p> : null}
               {details?.steam?.genres?.length ? <p className="library-phone-meta"><strong>Géneros</strong>{details.steam.genres.join(" · ")}</p> : null}
-              {details?.steam?.screenshots?.length ? (
-                <div className="library-phone-screenshots">
-                  {details.steam.screenshots.slice(0, 6).map((shot, index) => shot.thumbnail || shot.full ? (
-                    <img key={shot.id ?? index} src={shot.thumbnail ?? shot.full} alt="" loading="lazy" draggable={false} />
-                  ) : null)}
-                </div>
-              ) : null}
+              {details?.steam?.screenshots?.length ? <div className="library-phone-screenshots">{details.steam.screenshots.slice(0, 6).map((shot, index) => shot.thumbnail || shot.full ? <img key={shot.id ?? index} src={shot.thumbnail ?? shot.full} alt="" loading="lazy" draggable={false} /> : null)}</div> : null}
             </div>
           </aside>
         ) : null}
 
-        {completedGame ? (
-          <DownloadCompleteDialog
-            game={completedGame}
-            busy={busy}
-            onPlay={playCompletedGame}
-            onClose={() => setCompletedGame(null)}
-          />
-        ) : null}
+        {currentCompletion ? <DownloadCompleteDialog game={currentCompletion.game} busy={busy} onPlay={() => void dismissCompletion(true)} onClose={() => void dismissCompletion(false)} /> : null}
+        {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
       </section>
     );
   }
@@ -727,54 +715,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
       {selectedGame ? (
         <>
-          <FeaturePanel
-            game={selectedGame}
-            artwork={artwork}
-            movie={movie}
-            videoSrc={videoSrc}
-            readyVideoSrc={readyVideoSrc}
-            videoMuted={videoMuted}
-            videoVolume={videoVolume}
-            videoRef={videoRef}
-            onVideoMetadata={startVideoPastIntro}
-            onVideoReady={handleVideoReady}
-            onToggleSound={toggleVideoSound}
-            onVolumeChange={changeVideoVolume}
-            showcaseMode={showcaseMode}
-            summary={summary}
-            loadingDetails={loadingDetails}
-            details={currentDetails}
-            download={download}
-            preference={preferences[selectedGame.id]}
-            onPreference={(value) => onPreference(selectedGame.id, value)}
-            actions={actions}
-            focusZone={focusZone}
-            actionIndex={actionIndex}
-            actionRefs={actionRefs}
-            setFocusZone={setFocusZone}
-            setActionIndex={setActionIndex}
-            onAction={onAction}
-          />
-          <DownloadCatalogPanel
-            games={displayGames}
-            downloads={effectiveDownloads}
-            accountCount={accountCount}
-            selectedIndex={selectedIndex}
-            gridRef={gridRef}
-            pinnedAppIds={pinnedAppIds}
-            onSelect={onSelectGame}
-          />
+          {detailPanel}
+          <DownloadCatalogPanel games={displayGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} onSelect={onSelectGame} onPlay={onPlay} />
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />
-      {completedGame ? (
-        <DownloadCompleteDialog
-          game={completedGame}
-          busy={busy}
-          onPlay={playCompletedGame}
-          onClose={() => setCompletedGame(null)}
-        />
-      ) : null}
+      {currentCompletion ? <DownloadCompleteDialog game={currentCompletion.game} busy={busy} onPlay={() => void dismissCompletion(true)} onClose={() => void dismissCompletion(false)} /> : null}
+      {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
     </section>
   );
 }

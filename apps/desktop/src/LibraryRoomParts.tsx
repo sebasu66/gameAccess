@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
+import { Download, Gamepad2, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX, XCircle } from "lucide-react";
 
-import { downloadProgress, formatDownloadBytes, formatDownloadEta, formatDownloadSpeed } from "./downloadManager";
-import type { SteamDownloadStatus } from "./native";
+import { downloadProgress, formatDownloadBytes, formatDownloadEta, formatDownloadSpeed, isTrackedDownload } from "./downloadManager";
+import type { ManagedDownloadStatus } from "./downloadTypes";
+import { playAvailability } from "./gameAvailability";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 
-export type DownloadMap = Record<number, SteamDownloadStatus>;
+export type DownloadMap = Record<number, ManagedDownloadStatus>;
 export type FocusZone = "grid" | "actions";
 
 export type LibraryAction = {
   label: string;
   icon: ReactNode;
   disabled: boolean;
-  kind: "play" | "download" | "details";
+  kind: "play" | "download" | "cancel" | "verify";
+  reason?: string | null;
 };
 
 export interface ArtworkState {
@@ -22,10 +24,8 @@ export interface ArtworkState {
   activeLayer: number;
 }
 
-const ACTIVE_DOWNLOAD_STATES = new Set(["requested", "preparing", "downloading"]);
-const ACTION_BACK_KEYS = new Set(["escape", "s", "arrowdown"]);
 const ACTION_PREVIOUS_KEYS = new Set(["a", "arrowleft", "w", "arrowup"]);
-const ACTION_NEXT_KEYS = new Set(["d", "arrowright"]);
+const ACTION_NEXT_KEYS = new Set(["d", "arrowright", "s", "arrowdown"]);
 
 export function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
   for (const value of values) {
@@ -56,17 +56,17 @@ function SteamCover({ game }: { game: CatalogGame }) {
   return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
 }
 
-export function isInstalled(status?: SteamDownloadStatus) {
+export function isInstalled(status?: ManagedDownloadStatus) {
   return status?.state === "installed" || status?.installed === true;
 }
 
-export function isActiveDownload(status?: SteamDownloadStatus) {
-  return Boolean(status && ACTIVE_DOWNLOAD_STATES.has(status.state));
+export function isActiveDownload(status?: ManagedDownloadStatus) {
+  return isTrackedDownload(status);
 }
 
-function InstallStateBadge({ status, available }: { status?: SteamDownloadStatus; available: boolean }) {
-  if (!isInstalled(status) || !available) return null;
-  return <span className="library-install-state ready" title="Instalado · listo para jugar"><Play size={12} fill="currentColor" /></span>;
+function InstallStateBadge({ status }: { status?: ManagedDownloadStatus }) {
+  if (!isInstalled(status)) return null;
+  return <span className="library-install-state ready" title="Instalado"><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -84,11 +84,7 @@ export function useCrossfadeArtwork(source?: string): ArtworkState {
     image.src = source;
 
     const reveal = async () => {
-      try {
-        await image.decode();
-      } catch {
-        // onload is enough on engines without decode support.
-      }
+      try { await image.decode(); } catch { /* onload is enough when decode is unavailable */ }
       if (cancelled || !image.naturalWidth) return;
       const next = activeRef.current === 0 ? 1 : 0;
       const nextLayers: [string | null, string | null] = [...layersRef.current] as [string | null, string | null];
@@ -101,10 +97,7 @@ export function useCrossfadeArtwork(source?: string): ArtworkState {
 
     if (image.complete && image.naturalWidth) void reveal();
     else image.onload = () => { void reveal(); };
-    return () => {
-      cancelled = true;
-      image.onload = null;
-    };
+    return () => { cancelled = true; image.onload = null; };
   }, [source]);
 
   return { layers, activeLayer };
@@ -120,9 +113,6 @@ export function selectedHero(details: GameDetails | null, game?: CatalogGame) {
     details?.steam?.screenshots?.[0]?.full,
     details?.steam?.background,
     details?.steam?.hero_image,
-    // Local library_hero URLs are optimistic and may 404 for older games.
-    // Use the selected game's known-valid Steam header until store metadata
-    // supplies a richer image, so the previous game's artwork can never stick.
     game?.header_image,
     game?.hero_image,
     game?.capsule_image,
@@ -140,10 +130,7 @@ export function selectedVideo(movie?: SteamMovie) {
 }
 
 export function selectedSummary(details: GameDetails | null) {
-  return firstPresent(
-    details?.steam?.short_description,
-    "Seleccionado de la biblioteca combinada de tus cuentas Steam.",
-  ) ?? "";
+  return firstPresent(details?.steam?.short_description, "Seleccionado de la biblioteca combinada de tus cuentas Steam.") ?? "";
 }
 
 export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, hasSelection: boolean) {
@@ -152,28 +139,33 @@ export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, ha
   return `library-room focus-${focusZone}`;
 }
 
-export function buildActions(
-  game: CatalogGame | undefined,
-  installed: boolean,
-  activeDownload: boolean,
-  busy: boolean,
-  progress?: number | null,
-): LibraryAction[] {
+export function buildActions(game: CatalogGame | undefined, status: ManagedDownloadStatus | undefined, busy: boolean): LibraryAction[] {
   if (!game) return [];
-  return [
-    {
-      label: installed ? "Jugar" : "No instalado",
+  if (isInstalled(status)) {
+    const availability = playAvailability(game, busy);
+    return [{
+      label: "Jugar",
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,
-      disabled: !installed || busy || (game.copies_available <= 0 && !game.local_primary_account_label),
+      disabled: !availability.allowed,
+      reason: availability.reason,
       kind: "play",
-    },
-    {
-      label: installed ? "Instalado" : activeDownload ? `${Math.round(progress ?? 0)}%` : "Descargar",
-      icon: activeDownload ? <Loader2 className="spin" size={23} /> : <Download size={23} />,
-      disabled: !game.app_id || installed || activeDownload,
-      kind: "download",
-    },
-  ];
+    }];
+  }
+  if (status?.state === "cancelling") {
+    return [{ label: "Cancelando…", icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "cancel" }];
+  }
+  if (isTrackedDownload(status)) {
+    return [{ label: "Cancelar descarga", icon: <XCircle size={23} />, disabled: false, kind: "cancel" }];
+  }
+  if (status?.state === "unknown") {
+    return [{ label: "Verificando…", icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
+  }
+  return [{
+    label: "Descargar",
+    icon: <Download size={23} />,
+    disabled: !game.app_id,
+    kind: "download",
+  }];
 }
 
 export interface ActionKeyContext {
@@ -195,7 +187,7 @@ function actionCount(context: ActionKeyContext) {
 }
 
 export function handleActionKey(key: string, context: ActionKeyContext) {
-  if (ACTION_BACK_KEYS.has(key)) {
+  if (key === "escape") {
     context.returnToGrid();
     return true;
   }
@@ -227,13 +219,12 @@ export function handleGridKey(key: string, context: GridKeyContext) {
     return true;
   }
   if (key === "escape") return true;
-  if (ACTION_PREVIOUS_KEYS.has(key)) {
-    if (context.selectedIndex % context.columns === 0) context.enterActions();
-    else context.moveGrid(-1);
+  if (key === "a" || key === "arrowleft") {
+    if (context.selectedIndex % context.columns !== 0) context.moveGrid(-1);
     return true;
   }
-  if (ACTION_NEXT_KEYS.has(key)) {
-    context.moveGrid(1);
+  if (key === "d" || key === "arrowright") {
+    if (context.selectedIndex % context.columns !== context.columns - 1) context.moveGrid(1);
     return true;
   }
   if (key === "w" || key === "arrowup") {
@@ -346,7 +337,7 @@ interface FeaturePanelProps extends MediaPanelProps {
   summary: string;
   loadingDetails: boolean;
   details: GameDetails | null;
-  download?: SteamDownloadStatus;
+  download?: ManagedDownloadStatus;
   preference?: 1 | -1;
   onPreference: (value: 1 | -1) => void;
   actions: LibraryAction[];
@@ -384,7 +375,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
           {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}
           <div className="library-room-actions glass-actions-row">
             {props.actions.map((action, index) => (
-              <button type="button" key={action.label} ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} data-action={action.kind} className={`glass-action ${action.kind === "play" ? "play" : "download"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={() => props.onAction(index)} disabled={action.disabled}>
+              <button type="button" key={`${action.kind}-${action.label}`} ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} data-action={action.kind} title={action.reason ?? undefined} className={`glass-action ${action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={() => props.onAction(index)} disabled={action.disabled}>
                 <span className="glass-action-icon">{action.icon}</span><span className="glass-action-label">{action.label}</span>
               </button>
             ))}
@@ -453,6 +444,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
             type="button"
             key={game.id}
             className={`library-room-card ${index === props.selectedIndex ? "is-selected" : ""}`}
+            data-library-game-id={game.id}
             onClick={() => props.onSelect(index)}
             aria-current={index === props.selectedIndex ? "true" : undefined}
             aria-label={`${index === props.selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
@@ -460,7 +452,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
           >
             <span className="library-room-card-art">
               <SteamCover game={game} />
-              <InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} available={game.copies_available > 0 || Boolean(game.local_primary_account_label)} />
+              <InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} />
             </span>
           </button>
         ))}

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod download_lifecycle;
 mod provider_download;
 mod steam_session;
 
@@ -258,6 +259,55 @@ async fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> 
         .map_err(|err| format!("Steam metadata task failed: {err}"))?
 }
 
+#[tauri::command]
+async fn register_download_job(app_id: u32, job_id: String) -> Result<download_lifecycle::DownloadJobRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || download_lifecycle::register_download_job(app_id, job_id))
+        .await
+        .map_err(|err| format!("Download lifecycle registration failed: {err}"))?
+}
+
+#[tauri::command]
+async fn record_download_completion(app_id: u32) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || download_lifecycle::complete_latest_for_app(app_id))
+        .await
+        .map_err(|err| format!("Download completion persistence failed: {err}"))?
+}
+
+#[tauri::command]
+async fn acknowledge_download_completion(job_id: String) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || download_lifecycle::acknowledge(&job_id))
+        .await
+        .map_err(|err| format!("Download completion acknowledgement failed: {err}"))?
+}
+
+#[tauri::command]
+async fn cancel_download_lifecycle(app_id: u32) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || download_lifecycle::cancel_latest_for_app(app_id))
+        .await
+        .map_err(|err| format!("Download lifecycle cancellation failed: {err}"))?
+}
+
+#[tauri::command]
+async fn pending_download_completions() -> Result<Vec<download_lifecycle::DownloadJobRecord>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        download_lifecycle::pending_with(|app_id| {
+            let steam = native_core::steam_download_status(app_id);
+            if steam.installed || steam.state == "installed" {
+                return true;
+            }
+            provider_download::provider_download_status(app_id)
+                .ok()
+                .flatten()
+                .is_some_and(|status| {
+                    (status.installed || status.state == "installed")
+                        && status.prepared_target.as_ref().is_some_and(|target| std::path::Path::new(target).exists())
+                })
+        })
+    })
+    .await
+    .map_err(|err| format!("Pending download completion scan failed: {err}"))?
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     tauri::Builder::default()
@@ -279,6 +329,11 @@ fn main() {
             verify_local_steam_inventory,
             machine_profile,
             switch_steam_account,
+            register_download_job,
+            record_download_completion,
+            pending_download_completions,
+            acknowledge_download_completion,
+            cancel_download_lifecycle,
             provider_download::start_provider_download,
             provider_download::cancel_provider_download,
             provider_download::provider_download_status,

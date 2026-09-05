@@ -5,6 +5,7 @@ const ACTIVE_STATES = new Set<SteamDownloadStatus["state"]>([
   "preparing",
   "downloading",
   "paused",
+  "cancelling",
 ]);
 
 export function isTransferState(status: SteamDownloadStatus | null | undefined): boolean {
@@ -22,8 +23,6 @@ export function reconcileDownloadStatus(
     base.installed || base.state === "installed" || overlay.installed || overlay.state === "installed",
   );
 
-  // Transfer state is independent from installation evidence. This matters for
-  // updates: a game may already be installed while a new build is downloading.
   if (isTransferState(overlay)) {
     return {
       ...base,
@@ -50,8 +49,8 @@ export function reconcileDownloadStatus(
     };
   }
 
-  // A failed/unknown overlay is not fresh negative evidence and must not erase a
-  // more specific base state.
+  if (overlay.state === "cancelled") return { ...base, ...overlay, installed: false };
+
   if (overlay.state === "unknown" || overlay.error) {
     return {
       ...overlay,
@@ -63,11 +62,6 @@ export function reconcileDownloadStatus(
   return { ...base, ...overlay, installed: false };
 }
 
-/**
- * Reconcile a freshly-read Steam manifest with the provider cache.
- * Steam is always consulted first. A cached provider `not-installed`, error or
- * malformed result must therefore never hide a valid local Steam installation.
- */
 export function reconcileSteamAndProviderStatus(
   steam: SteamDownloadStatus,
   provider: SteamDownloadStatus | null | undefined,
@@ -78,24 +72,21 @@ export function reconcileSteamAndProviderStatus(
     return reconcileDownloadStatus(provider, steam) ?? steam;
   }
 
-  if (isTransferState(provider)) {
+  if (isTransferState(provider) || provider.state === "cancelled") {
     return reconcileDownloadStatus(steam, provider) ?? steam;
   }
 
-  // Provider installations are only considered usable when the provider has a
-  // concrete prepared target. Rust also validates cached provider targets before
-  // adding them to the global installed inventory.
   if ((provider.installed || provider.state === "installed") && provider.prepared_target) {
     return reconcileDownloadStatus(steam, provider) ?? steam;
   }
 
-  // Fresh local negative evidence wins over old provider cache state. Keep only
-  // non-authoritative provider metadata that can help a later provider request.
   if (steam.state === "not-installed") {
     return {
       ...steam,
       provider_id: provider.provider_id ?? steam.provider_id,
       prepared_target: provider.prepared_target ?? steam.prepared_target,
+      job_id: provider.job_id ?? steam.job_id,
+      worker_pid: provider.worker_pid ?? steam.worker_pid,
       error: provider.error ?? steam.error,
     };
   }
