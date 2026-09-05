@@ -25,8 +25,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from pool_sync import _ownership_state_by_provider
 from provider_inventory import build_provider_catalog
-from provider_license_scan import load_provider_license_inventory
 from provider_roster import credential_by_provider_id
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -116,22 +116,36 @@ def ensure_depotdownloader() -> dict[str, Any]:
     }
 
 
-def provider_candidates(provider_id: str) -> list[dict[str, Any]]:
-    inventory = load_provider_license_inventory()
-    if not inventory:
-        raise RuntimeError("No local SteamKit provider license snapshot exists yet")
-    account = next(
-        (
-            item
-            for item in inventory.get("accounts", [])
-            if isinstance(item, dict) and item.get("provider_id") == provider_id
-        ),
-        None,
-    )
-    if not account or account.get("scan_status") != "ok":
-        raise RuntimeError(f"{provider_id} does not have a successful SteamKit ownership snapshot")
+def verified_owned_ids(provider_id: str) -> set[int]:
+    ownership_state, _ = _ownership_state_by_provider()
+    state = ownership_state.get(provider_id)
+    if not state or not state.get("inventory_complete"):
+        raise RuntimeError(f"{provider_id} does not have verified SteamKit ownership")
+    return {
+        int(app_id)
+        for app_id in state.get("owned_app_ids") or []
+        if str(app_id).isdigit() and int(app_id) > 0
+    }
 
-    owned_ids = {int(app_id) for app_id in account.get("owned_app_ids") or [] if int(app_id) > 0}
+
+def verified_provider_ids_for_app(app_id: int) -> list[str]:
+    ownership_state, _ = _ownership_state_by_provider()
+    providers = []
+    for provider_id, state in ownership_state.items():
+        if not state.get("inventory_complete"):
+            continue
+        owned_ids = {
+            int(value)
+            for value in state.get("owned_app_ids") or []
+            if str(value).isdigit() and int(value) > 0
+        }
+        if app_id in owned_ids:
+            providers.append(provider_id)
+    return sorted(set(providers))
+
+
+def provider_candidates(provider_id: str) -> list[dict[str, Any]]:
+    owned_ids = verified_owned_ids(provider_id)
     catalog = build_provider_catalog()
     by_app = {
         int(game["app_id"]): game
