@@ -3,6 +3,7 @@ import type { KeyboardEvent } from "react";
 import { MoreHorizontal, Search, Tv2, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import DownloadCompleteDialog from "./DownloadCompleteDialog";
 import {
@@ -158,6 +159,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     }
     setSelectedGameId(displayGames[0].id);
   }, [displayGames, selectedGameId, isTabletSurface]);
+
   useEffect(() => {
     if (!isTabletSurface) return;
     const payload = selectedGame && selectedGameIdResolved != null
@@ -320,14 +322,33 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     idleTimerRef.current = window.setTimeout(() => {
       setFocusZone("grid");
       setShowcaseMode(true);
-    }, 30_000);
+    }, DESKTOP_IDLE_TIMEOUT_MS);
   }, [isTabletSurface, isDisplaySurface]);
 
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
     markActivity();
+    let trailingTimer: number | null = null;
+    const immediate = () => markActivity();
+    const highFrequency = () => {
+      if (trailingTimer !== null) window.clearTimeout(trailingTimer);
+      trailingTimer = window.setTimeout(() => {
+        trailingTimer = null;
+        markActivity();
+      }, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS);
+    };
+    const visibleAgain = () => {
+      if (document.visibilityState === "visible") markActivity();
+    };
+    for (const eventName of IMMEDIATE_ACTIVITY_EVENTS) window.addEventListener(eventName, immediate, { passive: true });
+    for (const eventName of HIGH_FREQUENCY_ACTIVITY_EVENTS) window.addEventListener(eventName, highFrequency, { passive: true });
+    document.addEventListener("visibilitychange", visibleAgain);
     return () => {
       if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+      if (trailingTimer !== null) window.clearTimeout(trailingTimer);
+      for (const eventName of IMMEDIATE_ACTIVITY_EVENTS) window.removeEventListener(eventName, immediate);
+      for (const eventName of HIGH_FREQUENCY_ACTIVITY_EVENTS) window.removeEventListener(eventName, highFrequency);
+      document.removeEventListener("visibilitychange", visibleAgain);
     };
   }, [markActivity]);
 
@@ -529,7 +550,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     playUiSound("activate");
     if (action.kind === "play") void onPlay(selectedGame);
     else if (action.kind === "download") void onDownload(selectedGame);
-
   };
 
   const onSelectGame = (index: number) => {
