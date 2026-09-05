@@ -23,6 +23,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       />,
     );
     expect(markup).toContain("library-install-state ready");
+    expect(markup).toContain("data-install-folder-available=\"true\"");
     expect(markup).not.toContain("library-card-play");
     expect(markup).not.toContain("aria-label=\"Jugar Installed\"");
   });
@@ -40,6 +41,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       />,
     );
     expect(markup).toContain("data-library-game-id=\"1\"");
+    expect(markup).toContain("data-install-folder-available=\"false\"");
     expect(markup).toContain("aria-current=\"true\"");
     expect(markup).toContain("Seleccionado: Installed");
   });
