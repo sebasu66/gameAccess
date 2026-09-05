@@ -33,14 +33,18 @@ export class AsyncResourceCache<K, V> {
     const inFlight = this.pending.get(key);
     if (inFlight) return inFlight;
 
-    const request = loader();
+    let request: Promise<V>;
+    request = Promise.resolve()
+      .then(loader)
+      .then((value) => {
+        this.resolved.set(key, { value, expiresAt: this.now() + this.ttlMs });
+        return value;
+      })
+      .finally(() => {
+        if (this.pending.get(key) === request) this.pending.delete(key);
+      });
     this.pending.set(key, request);
-    return request.then((value) => {
-      this.resolved.set(key, { value, expiresAt: this.now() + this.ttlMs });
-      return value;
-    }).finally(() => {
-      if (this.pending.get(key) === request) this.pending.delete(key);
-    });
+    return request;
   }
 
   invalidate(key: K): void {
