@@ -30,7 +30,9 @@ def test_verified_provider_ids_follow_shared_backend_ownership_state(monkeypatch
         ),
     )
 
-    assert provider_download_probe.verified_provider_ids_for_app(222) == ["provider-002"]
+    assert provider_download_probe.verified_provider_ids_for_app(222) == [
+        "provider-002"
+    ]
 
 
 def test_provider_candidates_use_shared_verified_ownership(monkeypatch):
