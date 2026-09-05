@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { getCatalogMode } from "./catalogMode";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import {
@@ -39,6 +40,9 @@ export interface SteamDownloadStatus {
   bytes_downloaded: number | null;
   bytes_total: number | null;
   installed: boolean;
+  provider_id?: string | null;
+  prepared_target?: string | null;
+  error?: string | null;
 }
 
 export interface SteamLibraryFolder {
@@ -176,6 +180,7 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
     const status = await steamDownloadStatus(appId);
+    if (status.error) throw new Error(status.error);
     if (status.installed || ["preparing", "downloading", "paused"].includes(status.state)) return;
     await delay(900);
   }
@@ -218,6 +223,12 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 
   try {
+    if (getCatalogMode() === "gameaccess") {
+      await invoke<SteamDownloadStatus>("start_provider_download", { appId });
+      await waitForSteamInstallConfirmation(appId);
+      return;
+    }
+
     const pool = await getLocalSteamPool();
     if (!pool) throw new Error("No se pudo leer el inventario local de licencias Steam.");
     const accountLabel = resolveSteamInstallOwner(pool.accounts, appId);
@@ -352,6 +363,10 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
   if (!hasTauriRuntime()) {
     try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
     catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
+  }
+  if (getCatalogMode() === "gameaccess") {
+    const providerStatus = await invoke<SteamDownloadStatus | null>("provider_download_status", { appId });
+    if (providerStatus) return providerStatus;
   }
   return invoke<SteamDownloadStatus>("steam_download_status", { appId });
 }
