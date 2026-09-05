@@ -1,9 +1,6 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const cssPath = fileURLToPath(new URL("../public/library-room-layout.css", import.meta.url));
-const css = readFileSync(cssPath, "utf-8");
+import css from "../public/library-room-layout.css?raw";
 
 describe("desktop library layout contract", () => {
   it("keeps the desktop detail and grid columns at a real 50/50 split", () => {
