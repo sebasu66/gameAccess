@@ -410,7 +410,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (selectedGameIdResolved == null) return;
     if (installed) setActionIndex(0);
     else if (selectedAppId) setActionIndex(1);
-    else setActionIndex(2);
+    else setActionIndex(0);
   }, [selectedGameIdResolved, selectedAppId, installed]);
 
   const moveGrid = (delta: number) => {
@@ -469,18 +469,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (value > 0) void video.play().catch(() => undefined);
   };
 
-  const scrollToIntegratedDetails = () => {
-    const feature = rootRef.current?.querySelector<HTMLElement>(".library-room-feature");
-    const detail = feature?.querySelector<HTMLElement>(".library-room-detail-sections");
-    if (feature && detail) feature.scrollTo({ top: Math.max(0, detail.offsetTop - 12), behavior: "smooth" });
-  };
-
   const activateAction = () => {
     if (!selectedGame) return;
     playUiSound("activate");
     if (actionIndex === 0 && installed && !busy && (selectedGame.copies_available > 0 || Boolean(selectedGame.local_primary_account_label))) void onPlay(selectedGame);
     if (actionIndex === 1 && selectedGame.app_id && !installed && !activeDownload) void onDownload(selectedGame);
-    if (actionIndex === 2) scrollToIntegratedDetails();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -508,7 +501,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     playUiSound("activate");
     if (action.kind === "play") void onPlay(selectedGame);
     else if (action.kind === "download") void onDownload(selectedGame);
-    else scrollToIntegratedDetails();
+
   };
 
   const onSelectGame = (index: number) => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Info, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
+import { Download, Gamepad2, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
 
 import { downloadProgress, formatDownloadBytes, formatDownloadEta, formatDownloadSpeed } from "./downloadManager";
 import type { SteamDownloadStatus } from "./native";
@@ -173,12 +173,6 @@ export function buildActions(
       disabled: !game.app_id || installed || activeDownload,
       kind: "download",
     },
-    {
-      label: "Ficha completa",
-      icon: <Info size={23} />,
-      disabled: false,
-      kind: "details",
-    },
   ];
 }
 
@@ -196,17 +190,21 @@ function focusAction(index: number, context: ActionKeyContext) {
   context.actionRefs.current?.[index]?.focus({ preventScroll: true });
 }
 
+function actionCount(context: ActionKeyContext) {
+  return Math.max(1, context.actionRefs.current?.filter(Boolean).length ?? 0);
+}
+
 export function handleActionKey(key: string, context: ActionKeyContext) {
   if (ACTION_BACK_KEYS.has(key)) {
     context.returnToGrid();
     return true;
   }
   if (ACTION_PREVIOUS_KEYS.has(key)) {
-    focusAction((context.actionIndex - 1 + 3) % 3, context);
+    focusAction((context.actionIndex - 1 + actionCount(context)) % actionCount(context), context);
     return true;
   }
   if (ACTION_NEXT_KEYS.has(key)) {
-    focusAction((context.actionIndex + 1) % 3, context);
+    focusAction((context.actionIndex + 1) % actionCount(context), context);
     return true;
   }
   if (key === "enter") {
@@ -377,7 +375,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
       <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}><span>¿Te gusta?</span><button type="button" className={props.preference===1?"selected":""} onClick={()=>props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18}/></button><button type="button" className={props.preference===-1?"selected negative":""} onClick={()=>props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18}/></button></div>
       <section className="library-room-download-facts" aria-label="Descarga"><div><span>Tamaño de descarga</span><strong>{formatDownloadBytes(props.download?.bytes_total)}</strong></div><div><span>Descargado</span><strong>{formatDownloadBytes(props.download?.bytes_downloaded)}</strong></div><div><span>Velocidad</span><strong>{formatDownloadSpeed(props.download?.speed_bps)}</strong></div><div><span>Tiempo restante</span><strong>{activeDownload?formatDownloadEta(props.download?.eta_seconds):"—"}</strong></div>{activeDownload?<div className="library-room-progress-wide"><span style={{width:`${progress}%`}}/><strong>{Math.round(progress)}%</strong></div>:null}</section>
       <div className="library-room-detail-sections">
-        <section><h3>Detalles</h3><dl className="library-room-detail-facts"><div><dt>Género</dt><dd>{steam?.genres?.length?steam.genres.join(" · "):"—"}</dd></div><div><dt>Multijugador</dt><dd>{modes.length?modes.join(" · "):"Un jugador / no informado"}</dd></div><div><dt>Desarrollador</dt><dd>{steam?.developers?.join(", ")||"—"}</dd></div><div><dt>Publisher</dt><dd>{steam?.publishers?.join(", ")||"—"}</dd></div><div><dt>Lanzamiento</dt><dd>{steam?.release_date||"—"}</dd></div><div><dt>Copias</dt><dd>{props.game.copies_available} / {props.game.copies_total} disponibles</dd></div></dl></section>
+        <section className="library-room-facts-section"><dl className="library-room-detail-facts"><div><dt>Género</dt><dd>{steam?.genres?.length?steam.genres.join(" · "):"—"}</dd></div><div><dt>Multijugador</dt><dd>{modes.length?modes.join(" · "):"Un jugador / no informado"}</dd></div><div><dt>Desarrollador</dt><dd>{steam?.developers?.join(", ")||"—"}</dd></div><div><dt>Publisher</dt><dd>{steam?.publishers?.join(", ")||"—"}</dd></div><div><dt>Lanzamiento</dt><dd>{steam?.release_date||"—"}</dd></div><div><dt>Copias</dt><dd>{props.game.copies_available} / {props.game.copies_total} disponibles</dd></div></dl></section>
         {plainText(steam?.about_the_game)?<section><h3>Acerca del juego</h3><p>{plainText(steam?.about_the_game)}</p></section>:null}
         {plainText(steam?.minimum_requirements)?<section><h3>Requisitos mínimos</h3><p>{plainText(steam?.minimum_requirements)}</p></section>:null}
         {plainText(steam?.recommended_requirements)?<section><h3>Requisitos recomendados</h3><p>{plainText(steam?.recommended_requirements)}</p></section>:null}

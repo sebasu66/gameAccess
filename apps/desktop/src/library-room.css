@@ -267,3 +267,73 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
 .library-room-preferences{display:flex;align-items:center;gap:8px;margin-top:14px;color:rgba(255,255,255,.72);font-size:12px;font-weight:750}.library-room-preferences button{width:38px;height:34px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12);border-radius:10px;color:rgba(255,255,255,.7);background:rgba(255,255,255,.055);cursor:pointer}.library-room-preferences button.selected{color:#07140c;background:rgba(57,255,20,.92);border-color:rgba(57,255,20,.8)}.library-room-preferences button.selected.negative{color:#fff;background:rgba(255,72,72,.76);border-color:rgba(255,100,100,.88)}
 .library-room-download-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:18px}.library-room-download-facts>div:not(.library-room-progress-wide){padding:10px 12px;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:rgba(4,8,13,.42)}.library-room-download-facts span{display:block;color:rgba(255,255,255,.52);font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.06em}.library-room-download-facts strong{display:block;margin-top:4px;color:#f7fbff;font-size:13px}.library-room-progress-wide{grid-column:1/-1;position:relative;height:26px;overflow:hidden;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(255,255,255,.055)}.library-room-progress-wide>span{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,rgba(0,188,255,.62),rgba(57,255,20,.75));transition:width .45s ease}.library-room-progress-wide>strong{position:relative;z-index:1;display:grid;height:100%;place-items:center;margin:0;font-size:11px}
 .library-room-detail-sections{display:grid;gap:14px;margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.1)}.library-room-detail-sections section{padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(3,7,12,.38)}.library-room-detail-sections h3{margin:0 0 9px;font-size:13px;text-transform:uppercase;letter-spacing:.08em}.library-room-detail-sections p{margin:0;color:rgba(235,242,249,.74);font-size:12px;line-height:1.55}.library-room-detail-facts{display:grid;gap:7px;margin:0}.library-room-detail-facts div{display:grid;grid-template-columns:105px 1fr;gap:10px}.library-room-detail-facts dt{color:rgba(255,255,255,.48);font-size:10px;font-weight:800;text-transform:uppercase}.library-room-detail-facts dd{margin:0;color:rgba(255,255,255,.88);font-size:12px}.library-room-screenshots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.library-room-screenshots img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:9px;border:1px solid rgba(255,255,255,.08)}
+
+
+/* The normal desktop library detail is ONE continuous scroll document.
+   Media is its hero, and the metadata continues directly underneath it.
+   Do not render the old summary view and the old More Info view as stacked cards. */
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature {
+  display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: linear-gradient(180deg, rgba(10,14,20,.98), rgba(5,8,12,.98)) !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-media {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: clamp(250px, 37vh, 390px) !important;
+  min-height: 250px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-copy {
+  position: relative !important;
+  inset: auto !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 22px 24px 36px !important;
+  background: transparent !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-copy::before,
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-copy::after { display:none !important; }
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-feature-copy > p {
+  max-width: none !important;
+  margin-bottom: 14px !important;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-download-facts {
+  margin-top: 18px;
+  padding: 16px 0 4px;
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-download-facts > div:not(.library-room-progress-wide) {
+  padding: 4px 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-detail-sections {
+  display: block;
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: 0;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-detail-sections > section {
+  margin: 0;
+  padding: 18px 0;
+  border: 0;
+  border-top: 1px solid rgba(255,255,255,.10);
+  border-radius: 0;
+  background: transparent;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-detail-sections > section:first-child {
+  border-top: 0;
+  padding-top: 10px;
+}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-screenshots { gap: 10px; }
