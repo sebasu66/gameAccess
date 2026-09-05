@@ -299,6 +299,30 @@ export async function openSteamRun(appId: number): Promise<void> {
   });
 }
 
+function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {
+  const previous = pool?.accounts.find((account) => account.active);
+  if (!previous) return;
+  rememberPreviousSteamAccount({
+    accountName: accountName(previous),
+    userId32: previous.user_id32 ?? null,
+  });
+}
+
+async function tryDirectSteamSwitch(
+  target: LocalSteamAccount | undefined,
+): Promise<SteamAccountSwitchResult | null> {
+  if (!target) return null;
+  const targetName = accountName(target);
+  if (!targetName) return null;
+  if (!(await hasSteamCredential(targetName))) return null;
+  const direct = await invoke<SteamAccountSwitchResult>("direct_switch_steam_account", {
+    accountName: targetName,
+    expectedUserId32: target.user_id32 ?? null,
+  });
+  if (!direct.ok) throw new Error(direct.message || "Steam no pudo iniciar la cuenta configurada.");
+  return direct;
+}
+
 export async function switchSteamAccount(accountLabel: string): Promise<SteamAccountSwitchResult> {
   if (!accountLabel.trim()) throw new Error("El proveedor no tiene un perfil Steam visible configurado.");
   if (!hasTauriRuntime()) {
@@ -316,22 +340,9 @@ export async function switchSteamAccount(accountLabel: string): Promise<SteamAcc
     return { ok: true, stage: "ready", message: `Steam ya está usando ${target.label}.` };
   }
 
-  const previous = pool?.accounts.find((account) => account.active);
-  if (previous) {
-    rememberPreviousSteamAccount({ accountName: accountName(previous), userId32: previous.user_id32 ?? null });
-  }
-
-  if (target) {
-    const targetName = accountName(target);
-    if (targetName && await hasSteamCredential(targetName)) {
-      const direct = await invoke<SteamAccountSwitchResult>("direct_switch_steam_account", {
-        accountName: targetName,
-        expectedUserId32: target.user_id32 ?? null,
-      });
-      if (!direct.ok) throw new Error(direct.message || "Steam no pudo iniciar la cuenta configurada.");
-      return direct;
-    }
-  }
+  rememberActiveSteamAccount(pool);
+  const direct = await tryDirectSteamSwitch(target);
+  if (direct) return direct;
 
   const result = await invoke<SteamAccountSwitchResult>("switch_steam_account", { accountLabel });
   if (!result.ok) throw new Error(result.message || "Steam no pudo cambiar de perfil.");
