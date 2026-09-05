@@ -4,7 +4,6 @@ import { Gamepad2, Loader2, Play } from "lucide-react";
 
 import { downloadProgress, isTrackedDownload } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import { playAvailability } from "./gameAvailability";
 import { libraryArtworkCandidates } from "./libraryArtwork";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
@@ -40,16 +39,6 @@ function cardClass(selected: boolean, active: boolean, pinned: boolean) {
   ].filter(Boolean).join(" ");
 }
 
-export function cardPlayState(game: CatalogGame, status?: ManagedDownloadStatus) {
-  const installed = Boolean(status?.installed || status?.state === "installed");
-  const availability = playAvailability(game);
-  return {
-    installed,
-    licensed: availability.licensed,
-    title: !installed ? "No instalado" : availability.allowed ? `Jugar ${game.name}` : availability.reason ?? `No se puede jugar ${game.name}`,
-  };
-}
-
 interface DownloadGameCardProps {
   game: CatalogGame;
   index: number;
@@ -57,13 +46,11 @@ interface DownloadGameCardProps {
   status?: ManagedDownloadStatus;
   pinned: boolean;
   onSelect: (index: number) => void;
-  onPlay?: (game: CatalogGame) => void | Promise<void>;
 }
 
-function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onPlay }: DownloadGameCardProps) {
+function DownloadGameCard({ game, index, selected, status, pinned, onSelect }: DownloadGameCardProps) {
   const active = isTrackedDownload(status);
   const ready = Boolean(status?.installed || status?.state === "installed");
-  const play = cardPlayState(game, status);
   const progress = downloadProgress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
@@ -88,19 +75,6 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onP
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
         </span>
       </button>
-      {play.installed ? (
-        <button
-          type="button"
-          className="library-card-play"
-          disabled={!play.licensed || !onPlay}
-          title={play.title}
-          aria-label={play.title}
-          onClick={() => { if (play.licensed && onPlay) void onPlay(game); }}
-        >
-          <Play size={13} fill="currentColor" />
-          <span>Jugar</span>
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -133,7 +107,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
             status={game.app_id ? props.downloads[game.app_id] : undefined}
             pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))}
             onSelect={props.onSelect}
-            onPlay={props.onPlay}
           />
         ))}
       </div>
