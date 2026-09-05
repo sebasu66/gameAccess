@@ -242,6 +242,22 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 }
 
+export async function openSteamClientInstall(appId: number): Promise<void> {
+  if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
+  if (!hasTauriRuntime()) {
+    try {
+      await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
+      await waitForSteamInstallConfirmation(appId);
+    } catch {
+      window.location.href = `steam://install/${appId}`;
+    }
+    return;
+  }
+  await invoke("open_steam_install", { appId });
+  await waitForSteamInstallConfirmation(appId);
+}
+
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavÃ­a no tiene Steam AppID configurado.");
   if (!hasTauriRuntime()) {

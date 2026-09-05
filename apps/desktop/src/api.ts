@@ -226,6 +226,20 @@ async function rollbackFailedLease(lease: LeaseResponse): Promise<void> {
   ]);
 }
 
+export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promise<void> {
+  await Promise.allSettled([
+    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request("/credits", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: 1,
+        amount: lease.credits_spent,
+        reason: `lease-release:${lease.lease_id}:download-login-fallback`,
+      }),
+    }),
+  ]);
+}
+
 export const leaseGame = async (gameId: number, minutes = 60) => {
   const game = localCatalog.find((item) => item.id === gameId);
 

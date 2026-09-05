@@ -25,7 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { leaseGame, loadDetails, loadHome } from "./api";
+import { leaseGame, loadDetails, loadHome, releaseDownloadFallbackLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
 import {
@@ -34,6 +34,7 @@ import {
   captureVisualDebug,
   finishVisualDebug,
   openSteamInstall,
+  openSteamClientInstall,
   openSteamRun,
   steamDownloadStatus,
   steamInstalled,
@@ -877,13 +878,29 @@ export default function App() {
 
   const startDownload = async (game: CatalogGame) => {
     if (!game.app_id) return;
-    try {
-      await openSteamInstall(game.app_id);
+    const markRequested = () => {
       setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));
       rememberRecent(game);
+    };
+    try {
+      await openSteamInstall(game.app_id);
+      markRequested();
       setToast("Steam recibió la descarga. gameAccess va a seguir su progreso cuando Steam cree la instalación.");
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : String(err));
+    } catch (directError) {
+      try {
+        const fallbackLease = await leaseGame(game.id, 5);
+        try {
+          await openSteamClientInstall(game.app_id);
+        } finally {
+          await releaseDownloadFallbackLease(fallbackLease);
+        }
+        markRequested();
+        setToast("No se pudo usar la descarga directa. gameAccess inició una cuenta proveedora y dejó la descarga a cargo de Steam.");
+      } catch (fallbackError) {
+        const directMessage = directError instanceof Error ? directError.message : String(directError);
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        setToast(`Descarga directa: ${directMessage} · Fallback Steam: ${fallbackMessage}`);
+      }
     }
   };
 
