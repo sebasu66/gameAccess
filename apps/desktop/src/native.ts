@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { getCatalogMode } from "./catalogMode";
+import { reconcileSteamAndProviderStatus } from "./downloadState";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import {
@@ -186,7 +187,7 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
     if (status.installed || ["preparing", "downloading", "paused"].includes(status.state)) return;
     await delay(900);
   }
-  throw new Error("Steam no confirmÃ³ el inicio de la descarga. La solicitud se quitÃ³ de pendientes.");
+  throw new Error("Steam no confirmó el inicio de la descarga. La solicitud se quitó de pendientes.");
 }
 
 export async function saveSteamCredential(accountName: string, password: string): Promise<void> {
@@ -212,7 +213,7 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
 }
 
 export async function openSteamInstall(appId: number): Promise<void> {
-  if (!appId) throw new Error("Este juego todavÃ­a no tiene Steam AppID configurado.");
+  if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
     try {
@@ -261,7 +262,7 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
 }
 
 export async function openSteamRun(appId: number): Promise<void> {
-  if (!appId) throw new Error("Este juego todavÃ­a no tiene Steam AppID configurado.");
+  if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });
@@ -360,7 +361,7 @@ export async function switchSteamAccount(accountLabel: string): Promise<SteamAcc
   const pool = await getLocalSteamPool();
   const target = pool ? findSteamAccount(pool.accounts, accountLabel) : undefined;
   if (target?.active) {
-    return { ok: true, stage: "ready", message: `Steam ya estÃ¡ usando ${target.label}.` };
+    return { ok: true, stage: "ready", message: `Steam ya está usando ${target.label}.` };
   }
 
   rememberActiveSteamAccount(pool);
@@ -399,16 +400,39 @@ export async function openSteamClient(): Promise<void> {
 }
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
-  if (!appId) throw new Error("AppID invÃ¡lido");
+  if (!appId) throw new Error("AppID inválido");
   if (!hasTauriRuntime()) {
     try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
     catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
   }
-  if (getCatalogMode() === "gameaccess") {
-    const providerStatus = await invoke<SteamDownloadStatus | null>("provider_download_status", { appId });
-    if (providerStatus) return providerStatus;
+  if (getCatalogMode() !== "gameaccess") {
+    return invoke<SteamDownloadStatus>("steam_download_status", { appId });
   }
-  return invoke<SteamDownloadStatus>("steam_download_status", { appId });
+
+  // Provider cache is advisory. Always read Steam too so stale/corrupt provider
+  // state can never hide a real local manifest.
+  const [steamResult, providerResult] = await Promise.allSettled([
+    invoke<SteamDownloadStatus>("steam_download_status", { appId }),
+    invoke<SteamDownloadStatus | null>("provider_download_status", { appId }),
+  ]);
+
+  if (steamResult.status === "fulfilled") {
+    return reconcileSteamAndProviderStatus(
+      steamResult.value,
+      providerResult.status === "fulfilled" ? providerResult.value : null,
+    );
+  }
+  if (providerResult.status === "fulfilled" && providerResult.value) return providerResult.value;
+
+  return {
+    app_id: appId,
+    state: "unknown",
+    progress: null,
+    bytes_downloaded: null,
+    bytes_total: null,
+    installed: false,
+    error: steamResult.reason instanceof Error ? steamResult.reason.message : String(steamResult.reason ?? "No se pudo verificar la instalación"),
+  };
 }
 
 export async function providerDownloadEstimate(appId: number): Promise<SteamDownloadStatus | null> {
