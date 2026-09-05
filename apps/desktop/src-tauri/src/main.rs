@@ -3,7 +3,7 @@
 mod provider_download;
 mod steam_session;
 
-use gameaccess_desktop::native_core;
+use gameaccess_desktop::{download_metrics, native_core};
 use native_core::{
     MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus,
 };
@@ -204,6 +204,13 @@ async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, Strin
 }
 
 #[tauri::command]
+async fn steam_download_metrics(app_id: u32) -> Result<download_metrics::DownloadMetrics, String> {
+    tauri::async_runtime::spawn_blocking(move || download_metrics::download_metrics(app_id))
+        .await
+        .map_err(|err| format!("Steam download-metrics task failed: {err}"))
+}
+
+#[tauri::command]
 async fn installed_app_ids() -> Result<Vec<u32>, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let mut ids = native_core::steam_installed_app_ids();
@@ -265,6 +272,7 @@ fn main() {
             open_steam_install,
             open_steam_run,
             steam_download_status,
+            steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
             local_steam_pool,

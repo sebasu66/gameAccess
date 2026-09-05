@@ -74,12 +74,12 @@ export function downloadProgress(status?: SteamDownloadStatus): number {
   const total = status.bytes_total ?? 0;
   const downloaded = status.bytes_downloaded ?? 0;
   const fromBytes = total > 0 ? downloaded / total * 100 : null;
-  const raw = fromBytes ?? status.progress ?? (status.state === "requested" ? 0 : 0);
+  const raw = fromBytes ?? status.progress ?? 0;
   return Math.max(0, Math.min(100, raw));
 }
 
 export function formatDownloadBytes(value: number | null | undefined): string {
-  if (!value || value <= 0) return "Calculando…";
+  if (value == null || !Number.isFinite(value) || value < 0) return "Calculando…";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let size = value;
   let unit = 0;
@@ -88,8 +88,9 @@ export function formatDownloadBytes(value: number | null | undefined): string {
 }
 
 export function formatDownloadEta(seconds: number | null | undefined): string {
-  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "Calculando…";
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "Calculando…";
   const rounded = Math.ceil(seconds);
+  if (rounded === 0) return "0 s";
   const hours = Math.floor(rounded / 3600);
   const minutes = Math.floor((rounded % 3600) / 60);
   const secs = rounded % 60;
@@ -99,6 +100,7 @@ export function formatDownloadEta(seconds: number | null | undefined): string {
 }
 
 export function formatDownloadSpeed(value: number | null | undefined): string {
-  if (!value || value <= 0) return "—";
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
+  if (value === 0) return "0 B/s";
   return `${formatDownloadBytes(value)}/s`;
 }
