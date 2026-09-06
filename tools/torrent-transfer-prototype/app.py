@@ -7,7 +7,13 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-from transfer_core import CancelledError, TransferOrchestrator, default_fileq_api_key, default_real_debrid_token, default_viking_user_hash
+from transfer_core import (
+    CancelledError,
+    TransferOrchestrator,
+    default_fileq_api_key,
+    default_real_debrid_token,
+    default_viking_user_hash,
+)
 
 
 class TorrentTransferApp(tk.Tk):
@@ -16,9 +22,11 @@ class TorrentTransferApp(tk.Tk):
         self.title("GameAccess — Torrent → File Host Prototype")
         self.geometry("900x720")
         self.minsize(760, 620)
+
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.cancel_event = threading.Event()
         self.worker: threading.Thread | None = None
+
         self.source_var = tk.StringVar()
         self.destination_var = tk.StringVar(value="ViKiNG FiLE (anonymous)")
         self.selection_var = tk.StringVar(value="Largest file")
@@ -28,6 +36,7 @@ class TorrentTransferApp(tk.Tk):
         self.stage_var = tk.StringVar(value="Idle")
         self.progress_var = tk.DoubleVar(value=0)
         self.result_urls: list[str] = []
+
         self._build()
         self.after(100, self._drain_events)
 
@@ -36,31 +45,58 @@ class TorrentTransferApp(tk.Tk):
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
         root.rowconfigure(6, weight=1)
+
         ttk.Label(root, text="Torrent source", font=("", 11, "bold")).grid(row=0, column=0, sticky="w")
         source_row = ttk.Frame(root)
         source_row.grid(row=1, column=0, sticky="ew", pady=(6, 12))
         source_row.columnconfigure(0, weight=1)
         ttk.Entry(source_row, textvariable=self.source_var).grid(row=0, column=0, sticky="ew")
         ttk.Button(source_row, text="Browse .torrent…", command=self._browse).grid(row=0, column=1, padx=(8, 0))
-        ttk.Label(root, text="Paste a magnet link or a local .torrent path. The torrent payload is fetched by Real-Debrid, not by this PC.").grid(row=2, column=0, sticky="w", pady=(0, 14))
+        ttk.Label(
+            root,
+            text="Paste a magnet link or a local .torrent path. The torrent payload is fetched by Real-Debrid, not by this PC.",
+        ).grid(row=2, column=0, sticky="w", pady=(0, 14))
+
         options = ttk.LabelFrame(root, text="Transfer options", padding=10)
         options.grid(row=3, column=0, sticky="ew")
         for c in (1, 3):
             options.columnconfigure(c, weight=1)
+
         ttk.Label(options, text="Destination").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        dest = ttk.Combobox(options, textvariable=self.destination_var, state="readonly", values=["ViKiNG FiLE (anonymous)", "FileQ"])
+        dest = ttk.Combobox(
+            options,
+            textvariable=self.destination_var,
+            state="readonly",
+            values=["ViKiNG FiLE (anonymous)", "FileQ"],
+        )
         dest.grid(row=0, column=1, sticky="ew")
         dest.bind("<<ComboboxSelected>>", lambda _e: self._update_destination_hint())
+
         ttk.Label(options, text="Torrent files").grid(row=0, column=2, sticky="w", padx=(18, 8))
-        ttk.Combobox(options, textvariable=self.selection_var, state="readonly", values=["Largest file", "All files"]).grid(row=0, column=3, sticky="ew")
+        ttk.Combobox(
+            options,
+            textvariable=self.selection_var,
+            state="readonly",
+            values=["Largest file", "All files"],
+        ).grid(row=0, column=3, sticky="ew")
+
         ttk.Label(options, text="Real-Debrid token").grid(row=1, column=0, sticky="w", pady=(10, 0), padx=(0, 8))
         ttk.Entry(options, textvariable=self.rd_token_var, show="•").grid(row=1, column=1, columnspan=3, sticky="ew", pady=(10, 0))
+
         ttk.Label(options, text="ViKiNG user hash (optional)").grid(row=2, column=0, sticky="w", pady=(8, 0), padx=(0, 8))
-        ttk.Entry(options, textvariable=self.viking_hash_var).grid(row=2, column=1, sticky="ew", pady=(8, 0))
+        self.viking_entry = ttk.Entry(options, textvariable=self.viking_hash_var)
+        self.viking_entry.grid(row=2, column=1, sticky="ew", pady=(8, 0))
+
         ttk.Label(options, text="FileQ API key").grid(row=2, column=2, sticky="w", pady=(8, 0), padx=(18, 8))
-        ttk.Entry(options, textvariable=self.fileq_key_var, show="•").grid(row=2, column=3, sticky="ew", pady=(8, 0))
-        self.destination_hint = ttk.Label(options, text="ViKiNG supports documented anonymous remote URL upload; user hash is optional.")
+        self.fileq_entry = ttk.Entry(options, textvariable=self.fileq_key_var, show="•")
+        self.fileq_entry.grid(row=2, column=3, sticky="ew", pady=(8, 0))
+
+        self.destination_hint = ttk.Label(
+            options,
+            text="ViKiNG supports documented anonymous remote URL upload; user hash is optional.",
+        )
         self.destination_hint.grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
+
         action_row = ttk.Frame(root)
         action_row.grid(row=4, column=0, sticky="ew", pady=14)
         self.start_button = ttk.Button(action_row, text="Start server-to-server transfer", command=self._start)
@@ -68,11 +104,14 @@ class TorrentTransferApp(tk.Tk):
         self.cancel_button = ttk.Button(action_row, text="Cancel", command=self._cancel, state="disabled")
         self.cancel_button.pack(side="left", padx=(8, 0))
         ttk.Button(action_row, text="Copy final link(s)", command=self._copy_results).pack(side="right")
+
         status_box = ttk.LabelFrame(root, text="Current status", padding=10)
         status_box.grid(row=5, column=0, sticky="ew")
         status_box.columnconfigure(0, weight=1)
         ttk.Label(status_box, textvariable=self.stage_var).grid(row=0, column=0, sticky="w")
-        ttk.Progressbar(status_box, variable=self.progress_var, maximum=100).grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        self.progress = ttk.Progressbar(status_box, variable=self.progress_var, maximum=100)
+        self.progress.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+
         logs = ttk.LabelFrame(root, text="Transfer log / final links", padding=8)
         logs.grid(row=6, column=0, sticky="nsew", pady=(14, 0))
         logs.columnconfigure(0, weight=1)
@@ -82,18 +121,29 @@ class TorrentTransferApp(tk.Tk):
         scroll = ttk.Scrollbar(logs, command=self.log.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.log.configure(yscrollcommand=scroll.set)
-        ttk.Label(root, text="Credentials are kept only in memory. You can also set REAL_DEBRID_TOKEN, FILEQ_API_KEY, or VIKING_USER_HASH in your environment.").grid(row=7, column=0, sticky="w", pady=(10, 0))
+
+        ttk.Label(
+            root,
+            text="Credentials are kept only in memory. You can also set REAL_DEBRID_TOKEN, FILEQ_API_KEY, or VIKING_USER_HASH in your environment.",
+        ).grid(row=7, column=0, sticky="w", pady=(10, 0))
 
     def _browse(self) -> None:
-        path = filedialog.askopenfilename(title="Choose torrent", filetypes=[("Torrent files", "*.torrent"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(
+            title="Choose torrent",
+            filetypes=[("Torrent files", "*.torrent"), ("All files", "*.*")],
+        )
         if path:
             self.source_var.set(path)
 
     def _update_destination_hint(self) -> None:
         if self.destination_var.get().startswith("FileQ"):
-            self.destination_hint.configure(text="FileQ requires an account API key. Its free registered tier documents 5 GB max files and 20-day retention after last download.")
+            self.destination_hint.configure(
+                text="FileQ requires an account API key. Its free registered tier documents 5 GB max files and 20-day retention after last download."
+            )
         else:
-            self.destination_hint.configure(text="ViKiNG supports documented anonymous remote URL upload; regular files are deleted 15 days after last download.")
+            self.destination_hint.configure(
+                text="ViKiNG supports documented anonymous remote URL upload; regular files are deleted 15 days after last download."
+            )
 
     def _append(self, line: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -105,15 +155,20 @@ class TorrentTransferApp(tk.Tk):
     def _start(self) -> None:
         source = self.source_var.get().strip()
         token = self.rd_token_var.get().strip()
+        destination = self.destination_var.get()
+        viking_hash = self.viking_hash_var.get().strip()
+        fileq_key = self.fileq_key_var.get().strip()
+        selection_mode = "all" if self.selection_var.get() == "All files" else "largest"
         if not source:
             messagebox.showerror("Missing torrent", "Paste a magnet link or choose a .torrent file.")
             return
         if not token:
             messagebox.showerror("Missing Real-Debrid token", "A Real-Debrid API token is required for the torrent prototype.")
             return
-        if self.destination_var.get() == "FileQ" and not self.fileq_key_var.get().strip():
+        if destination == "FileQ" and not fileq_key:
             messagebox.showerror("Missing FileQ key", "FileQ remote upload requires your FileQ API key.")
             return
+
         self.cancel_event.clear()
         self.result_urls = []
         self.progress_var.set(0)
@@ -127,8 +182,18 @@ class TorrentTransferApp(tk.Tk):
 
         def work() -> None:
             try:
-                orchestrator = TransferOrchestrator(token, self.destination_var.get(), viking_user_hash=self.viking_hash_var.get(), fileq_api_key=self.fileq_key_var.get())
-                result = orchestrator.run(source, selection_mode="all" if self.selection_var.get() == "All files" else "largest", callback=status_callback, cancel_event=self.cancel_event)
+                orchestrator = TransferOrchestrator(
+                    token,
+                    destination,
+                    viking_user_hash=viking_hash,
+                    fileq_api_key=fileq_key,
+                )
+                result = orchestrator.run(
+                    source,
+                    selection_mode=selection_mode,
+                    callback=status_callback,
+                    cancel_event=self.cancel_event,
+                )
                 self.events.put(("done", result))
             except CancelledError as exc:
                 self.events.put(("cancelled", str(exc)))
