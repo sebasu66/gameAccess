@@ -35,6 +35,22 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+  peer-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebTorrent
+        run: npm install --no-audit --no-fund
+      - name: Verify direct localhost BitTorrent TCP transfer
+        run: node smoke-local-peer.mjs
+
   viking-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -52,6 +68,7 @@ jobs:
         run: node smoke-viking.mjs
 
   local-peer-e2e:
+    needs: [peer-smoke, viking-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
