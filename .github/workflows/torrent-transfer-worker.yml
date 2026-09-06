@@ -35,6 +35,22 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+  viking-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Upload and verify 1 MiB anonymous multipart sample
+        run: node smoke-viking.mjs
+
   sintel-e2e:
     if: >-
       github.event_name == 'workflow_dispatch' ||
