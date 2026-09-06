@@ -68,14 +68,14 @@ try {
   file.select(10)
   console.error(`[torrent] ${torrent.infoHash} selected ${file.path} (${file.length} bytes)`)
 
-  const local = new URL(file.streamURL)
-  console.error(`[server] local stream URL ${local.href}`)
+  const localFileUrl = new URL(file.streamURL, `http://127.0.0.1:${port}`)
+  console.error(`[server] local stream URL ${localFileUrl.href}`)
 
   cloudflared = spawn(cloudflaredBin, ['tunnel', '--url', `http://127.0.0.1:${port}`, '--no-autoupdate', '--loglevel', 'info'], {
     stdio: ['ignore', 'pipe', 'pipe']
   })
   const tunnelBase = await waitForTunnel(cloudflared)
-  const publicFileUrl = new URL(`${local.pathname}${local.search}`, tunnelBase).href
+  const publicFileUrl = new URL(`${localFileUrl.pathname}${localFileUrl.search}`, tunnelBase).href
   console.error(`[tunnel] public WebTorrent stream ${publicFileUrl}`)
 
   const rangeProbe = await fetchRange(publicFileUrl)
