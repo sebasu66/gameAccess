@@ -1,0 +1,17 @@
+{
+  "name": "gameaccess-torrent-transfer-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "transfer": "node cli-transfer.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "webtorrent": "3.0.21"
+  }
+}
