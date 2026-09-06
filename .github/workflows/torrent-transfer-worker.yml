@@ -51,7 +51,42 @@ jobs:
       - name: Upload and verify 1 MiB anonymous multipart sample
         run: node smoke-viking.mjs
 
+  http-remote-e2e:
+    if: contains(github.event.head_commit.message, '[http-remote-e2e]')
+    needs: [unit, viking-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebTorrent
+        run: npm install --no-audit --no-fund
+      - name: Install cloudflared Quick Tunnel client
+        run: |
+          curl -L --fail --retry 3 -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /tmp/cloudflared
+          /tmp/cloudflared --version
+      - name: WebTorrent createServer to Quick Tunnel to ViKiNG remote upload
+        env:
+          CLOUDFLARED_BIN: /tmp/cloudflared
+        run: |
+          node e2e-http-remote-viking.mjs | tee http-remote-result.json
+          grep -q '"status": "complete"' http-remote-result.json
+          grep -q '"verified": true' http-remote-result.json
+          grep -q 'https://vikingfile.com/f/' http-remote-result.json
+      - name: Print HTTP remote-upload result
+        if: always()
+        run: |
+          echo '--- HTTP remote upload result ---'
+          test -f http-remote-result.json && cat http-remote-result.json || true
+
   mainline-peer-e2e:
+    if: contains(github.event.head_commit.message, '[mainline-e2e]')
     needs: [unit, viking-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -69,11 +104,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y aria2
       - name: aria2 mainline BitTorrent peer to WebTorrent worker to ViKiNG
-        run: |
-          node e2e-aria2-peer.mjs | tee mainline-result.json
-          grep -q '"status": "complete"' mainline-result.json
-          grep -q '"verified": true' mainline-result.json
-          grep -q 'https://vikingfile.com/f/' mainline-result.json
+        run: node e2e-aria2-peer.mjs
 
   sintel-e2e:
     if: >-
