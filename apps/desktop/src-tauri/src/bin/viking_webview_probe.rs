@@ -62,11 +62,13 @@ fn main() {
                         *destination = chosen_destination;
                     }
                     DownloadEvent::Finished { url, path, success } => {
+                        let path_text = path
+                            .as_ref()
+                            .map(|value| value.display().to_string())
+                            .unwrap_or_else(|| "<none>".to_string());
                         println!(
                             "VIKING_PROBE download_finished success={} url={} path={}",
-                            success,
-                            url,
-                            path.display()
+                            success, url, path_text
                         );
                     }
                     _ => {}
