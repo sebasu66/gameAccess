@@ -79,9 +79,16 @@ class HostedFile:
 
 
 class HttpClient:
-    def request(self, method: str, url: str, *, headers: dict[str, str] | None = None,
-                form: dict[str, Any] | None = None, body: bytes | None = None,
-                timeout: int = 90) -> tuple[int, dict[str, str], bytes]:
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        form: dict[str, Any] | None = None,
+        body: bytes | None = None,
+        timeout: int = 90,
+    ) -> tuple[int, dict[str, str], bytes]:
         req_headers = dict(headers or {})
         data = body
         if form is not None:
@@ -103,7 +110,12 @@ class HttpClient:
         except urllib.error.URLError as exc:
             raise TransferError(f"Network error contacting {urllib.parse.urlsplit(url).netloc}: {exc.reason}") from exc
 
-    def json(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:
+    def json(
+        self,
+        method: str,
+        url: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         _status, _headers, body = self.request(method, url, **kwargs)
         try:
             parsed = json.loads(body.decode("utf-8"))
@@ -129,8 +141,12 @@ class RealDebridClient:
     def add_source(self, source: str) -> str:
         source = source.strip().strip('"')
         if is_magnet(source):
-            result = self.http.json("POST", f"{REAL_DEBRID_API}/torrents/addMagnet",
-                                    headers=self.headers, form={"magnet": source})
+            result = self.http.json(
+                "POST",
+                f"{REAL_DEBRID_API}/torrents/addMagnet",
+                headers=self.headers,
+                form={"magnet": source},
+            )
         else:
             path = Path(source).expanduser()
             if not path.is_file():
@@ -139,34 +155,58 @@ class RealDebridClient:
                 raise TransferError("Selected local file must have a .torrent extension.")
             headers = dict(self.headers)
             headers["Content-Type"] = "application/x-bittorrent"
-            result = self.http.json("PUT", f"{REAL_DEBRID_API}/torrents/addTorrent",
-                                    headers=headers, body=path.read_bytes())
+            result = self.http.json(
+                "PUT",
+                f"{REAL_DEBRID_API}/torrents/addTorrent",
+                headers=headers,
+                body=path.read_bytes(),
+            )
         torrent_id = str(result.get("id") or "").strip()
         if not torrent_id:
             raise TransferError(f"Real-Debrid did not return a torrent id: {result}")
         return torrent_id
 
     def info(self, torrent_id: str) -> dict[str, Any]:
-        return self.http.json("GET", f"{REAL_DEBRID_API}/torrents/info/{urllib.parse.quote(torrent_id)}",
-                              headers=self.headers)
+        return self.http.json(
+            "GET",
+            f"{REAL_DEBRID_API}/torrents/info/{urllib.parse.quote(torrent_id)}",
+            headers=self.headers,
+        )
 
     def select_files(self, torrent_id: str, file_ids: list[int]) -> None:
-        self.http.request("POST", f"{REAL_DEBRID_API}/torrents/selectFiles/{urllib.parse.quote(torrent_id)}",
-                          headers=self.headers, form={"files": ",".join(str(x) for x in file_ids)})
+        self.http.request(
+            "POST",
+            f"{REAL_DEBRID_API}/torrents/selectFiles/{urllib.parse.quote(torrent_id)}",
+            headers=self.headers,
+            form={"files": ",".join(str(x) for x in file_ids)},
+        )
 
     def unrestrict(self, link: str) -> RemoteFile:
-        result = self.http.json("POST", f"{REAL_DEBRID_API}/unrestrict/link", headers=self.headers,
-                                form={"link": link, "remote": 1})
+        result = self.http.json(
+            "POST",
+            f"{REAL_DEBRID_API}/unrestrict/link",
+            headers=self.headers,
+            form={"link": link, "remote": 1},
+        )
         download = str(result.get("download") or "").strip()
         if not download:
             raise TransferError(f"Real-Debrid did not return a remote download URL: {result}")
-        return RemoteFile(filename=str(result.get("filename") or "download.bin"),
-                          size=int(result["filesize"]) if result.get("filesize") is not None else None,
-                          url=download)
+        return RemoteFile(
+            filename=str(result.get("filename") or "download.bin"),
+            size=int(result["filesize"]) if result.get("filesize") is not None else None,
+            url=download,
+        )
 
-    def prepare_remote_files(self, source: str, *, selection_mode: str = "largest",
-                             callback: StatusCallback | None = None, cancel_event: Event | None = None,
-                             poll_seconds: float = 3.0, max_wait_seconds: int = 6 * 60 * 60) -> tuple[str, list[RemoteFile]]:
+    def prepare_remote_files(
+        self,
+        source: str,
+        *,
+        selection_mode: str = "largest",
+        callback: StatusCallback | None = None,
+        cancel_event: Event | None = None,
+        poll_seconds: float = 3.0,
+        max_wait_seconds: int = 6 * 60 * 60,
+    ) -> tuple[str, list[RemoteFile]]:
         _check_cancel(cancel_event)
         _emit(callback, "auth", "Checking Real-Debrid account...")
         user = self.user()
@@ -175,6 +215,7 @@ class RealDebridClient:
             raise TransferError("Real-Debrid torrent endpoints require a Premium account.")
         _emit(callback, "torrent_add", f"Adding torrent to Real-Debrid ({account_type})...")
         torrent_id = self.add_source(source)
+
         deadline = time.monotonic() + max_wait_seconds
         last_status = None
         while time.monotonic() < deadline:
@@ -187,14 +228,18 @@ class RealDebridClient:
                 last_status = status
             else:
                 _emit(callback, "torrent", f"Torrent: {status} ({progress}%)", progress=progress, torrent_id=torrent_id)
+
             if status == "waiting_files_selection":
                 ids = select_file_ids(info.get("files") or [], selection_mode)
                 chosen = [f for f in (info.get("files") or []) if f.get("id") in ids]
-                description = ", ".join(f"{Path(str(f.get('path') or '')).name} ({human_bytes(f.get('bytes'))})" for f in chosen)
+                description = ", ".join(
+                    f"{Path(str(f.get('path') or '')).name} ({human_bytes(f.get('bytes'))})" for f in chosen
+                )
                 _emit(callback, "select_files", f"Selecting {description or str(ids)}")
                 self.select_files(torrent_id, ids)
                 time.sleep(min(poll_seconds, 1.0))
                 continue
+
             if status == "downloaded":
                 links = info.get("links") or []
                 if not links:
@@ -206,9 +251,11 @@ class RealDebridClient:
                     _emit(callback, "unrestrict", f"Preparing remote URL {index}/{len(links)}...", progress=100)
                     remote_files.append(self.unrestrict(str(link)))
                 return torrent_id, remote_files
+
             if status in {"magnet_error", "error", "virus", "dead"}:
                 raise TransferError(f"Real-Debrid torrent failed with status: {status}")
             time.sleep(poll_seconds)
+
         raise TransferError("Timed out waiting for the torrent to complete on Real-Debrid.")
 
 
@@ -219,17 +266,25 @@ class VikingFileHost:
         self.user_hash = user_hash.strip()
         self.http = http or HttpClient()
 
-    def remote_upload(self, remote: RemoteFile, *, callback: StatusCallback | None = None,
-                      cancel_event: Event | None = None) -> HostedFile:
+    def remote_upload(
+        self,
+        remote: RemoteFile,
+        *,
+        callback: StatusCallback | None = None,
+        cancel_event: Event | None = None,
+    ) -> HostedFile:
         _check_cancel(cancel_event)
         _emit(callback, "destination", f"ViKiNG is fetching {remote.filename} directly from Real-Debrid...")
         server_data = self.http.json("GET", f"{VIKING_API}/get-server")
         server = str(server_data.get("server") or "").strip()
         if not server.startswith("http"):
             raise TransferError(f"ViKiNG did not return a valid upload server: {server_data}")
-        result = self.http.json("POST", server,
-                                form={"link": remote.url, "user": self.user_hash, "name": remote.filename},
-                                timeout=60 * 60)
+        result = self.http.json(
+            "POST",
+            server,
+            form={"link": remote.url, "user": self.user_hash, "name": remote.filename},
+            timeout=60 * 60,
+        )
         url = str(result.get("url") or "").strip()
         if not url:
             raise TransferError(f"ViKiNG remote upload did not return a final URL: {result}")
@@ -237,7 +292,8 @@ class VikingFileHost:
         file_hash = str(result.get("hash") or "").strip()
         if file_hash:
             check = self.http.json("POST", f"{VIKING_API}/check-file", form={"hash": file_hash})
-            if check.get("exist") is False:
+            exists = check.get("exist")
+            if exists is False:
                 raise TransferError("ViKiNG returned a URL but its verification endpoint says the file does not exist.")
         return HostedFile(filename=str(result.get("name") or remote.filename), url=url, provider=self.name)
 
@@ -263,8 +319,14 @@ class FileQHost:
                 return value
         return ""
 
-    def remote_upload(self, remote: RemoteFile, *, callback: StatusCallback | None = None,
-                      cancel_event: Event | None = None, max_wait_seconds: int = 60 * 60) -> HostedFile:
+    def remote_upload(
+        self,
+        remote: RemoteFile,
+        *,
+        callback: StatusCallback | None = None,
+        cancel_event: Event | None = None,
+        max_wait_seconds: int = 60 * 60,
+    ) -> HostedFile:
         _check_cancel(cancel_event)
         _emit(callback, "destination", f"FileQ is fetching {remote.filename} directly from Real-Debrid...")
         query = urllib.parse.urlencode({"key": self.api_key, "url": remote.url, "folder": 0})
@@ -273,14 +335,19 @@ class FileQHost:
             raise TransferError(f"FileQ rejected remote upload: {initial}")
         code = self._extract_file_code(initial)
         if not code:
-            raise TransferError("FileQ accepted the remote upload but did not return a file_code. Its public API documentation shows this ambiguity, so the prototype refuses to guess which account file is the new upload.")
+            raise TransferError(
+                "FileQ accepted the remote upload but did not return a file_code. "
+                "Its public API documentation shows this ambiguity, so the prototype refuses to guess which account file is the new upload."
+            )
+
         deadline = time.monotonic() + max_wait_seconds
         while time.monotonic() < deadline:
             _check_cancel(cancel_event)
             status_q = urllib.parse.urlencode({"key": self.api_key, "file_code": code})
             state = self.http.json("GET", f"{FILEQ_API}/upload/url?{status_q}", timeout=90)
             state_code = self._extract_file_code(state) or code
-            if int(state.get("status") or 0) == 200 and state_code:
+            state_message = str(state.get("msg") or "").strip().upper()
+            if int(state.get("status") or 0) == 200 and state_code and state_message != "WORKING":
                 url = f"https://fileq.net/{state_code}"
                 _emit(callback, "verify", f"FileQ returned final link: {url}")
                 return HostedFile(filename=remote.filename, url=url, provider=self.name)
@@ -290,8 +357,15 @@ class FileQHost:
 
 
 class TransferOrchestrator:
-    def __init__(self, real_debrid_token: str, destination: str, *, viking_user_hash: str = "",
-                 fileq_api_key: str = "", http: HttpClient | None = None):
+    def __init__(
+        self,
+        real_debrid_token: str,
+        destination: str,
+        *,
+        viking_user_hash: str = "",
+        fileq_api_key: str = "",
+        http: HttpClient | None = None,
+    ):
         self.http = http or HttpClient()
         self.rd = RealDebridClient(real_debrid_token, self.http)
         normalized = destination.strip().lower()
@@ -302,18 +376,45 @@ class TransferOrchestrator:
         else:
             raise TransferError(f"Unsupported destination: {destination}")
 
-    def run(self, source: str, *, selection_mode: str = "largest", callback: StatusCallback | None = None,
-            cancel_event: Event | None = None) -> dict[str, Any]:
-        torrent_id, remote_files = self.rd.prepare_remote_files(source, selection_mode=selection_mode,
-                                                                  callback=callback, cancel_event=cancel_event)
+    def run(
+        self,
+        source: str,
+        *,
+        selection_mode: str = "largest",
+        callback: StatusCallback | None = None,
+        cancel_event: Event | None = None,
+    ) -> dict[str, Any]:
+        torrent_id, remote_files = self.rd.prepare_remote_files(
+            source,
+            selection_mode=selection_mode,
+            callback=callback,
+            cancel_event=cancel_event,
+        )
         hosted: list[HostedFile] = []
         for index, remote in enumerate(remote_files, 1):
             _check_cancel(cancel_event)
-            _emit(callback, "destination", f"Uploading destination file {index}/{len(remote_files)}: {remote.filename} ({human_bytes(remote.size)})", progress=100)
-            hosted.append(self.destination.remote_upload(remote, callback=callback, cancel_event=cancel_event))
+            _emit(
+                callback,
+                "destination",
+                f"Uploading destination file {index}/{len(remote_files)}: {remote.filename} ({human_bytes(remote.size)})",
+                progress=100,
+            )
+            hosted.append(
+                self.destination.remote_upload(
+                    remote,
+                    callback=callback,
+                    cancel_event=cancel_event,
+                )
+            )
         _emit(callback, "complete", f"Transfer complete: {len(hosted)} file(s).", progress=100)
-        return {"torrent_id": torrent_id, "destination": self.destination.name,
-                "files": [{"filename": item.filename, "url": item.url, "provider": item.provider} for item in hosted]}
+        return {
+            "torrent_id": torrent_id,
+            "destination": self.destination.name,
+            "files": [
+                {"filename": item.filename, "url": item.url, "provider": item.provider}
+                for item in hosted
+            ],
+        }
 
 
 def default_real_debrid_token() -> str:
