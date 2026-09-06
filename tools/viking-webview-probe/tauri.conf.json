@@ -15,7 +15,7 @@
   "bundle": {
     "active": false,
     "icon": [
-      "../../apps/desktop/src-tauri/icons/icon.ico"
+      "icons/icon.ico"
     ]
   }
 }
