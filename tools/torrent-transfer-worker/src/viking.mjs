@@ -1,3 +1,5 @@
+import https from 'node:https'
+
 const API_BASE = 'https://vikingfile.com/api'
 
 export class VikingError extends Error {}
@@ -36,21 +38,50 @@ export async function createMultipartUpload(size) {
 }
 
 export async function uploadPart(url, stream, length) {
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: { 'content-length': String(length) },
-    body: stream,
-    duplex: 'half'
+  const target = new URL(url)
+  return await new Promise((resolve, reject) => {
+    const request = https.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || 443,
+      path: `${target.pathname}${target.search}`,
+      method: 'PUT',
+      headers: {
+        'content-length': String(length),
+        'content-type': 'application/octet-stream'
+      }
+    }, response => {
+      const chunks = []
+      response.on('data', chunk => {
+        if (chunks.reduce((n, item) => n + item.length, 0) < 8192) chunks.push(chunk)
+      })
+      response.on('end', () => {
+        const status = response.statusCode || 0
+        const text = Buffer.concat(chunks).toString('utf8').slice(0, 500)
+        if (status < 200 || status >= 300) {
+          reject(new VikingError(`ViKiNG part upload failed with HTTP ${status}: ${text}`))
+          return
+        }
+        const etag = response.headers.etag
+        if (!etag) {
+          reject(new VikingError('ViKiNG part upload succeeded but no ETag header was returned.'))
+          return
+        }
+        resolve(etag)
+      })
+    })
+
+    request.setTimeout(30 * 60 * 1000, () => {
+      request.destroy(new VikingError('ViKiNG part upload timed out.'))
+    })
+    request.on('error', error => {
+      reject(new VikingError(`ViKiNG part upload network failure: ${error?.code || error?.name || 'Error'}: ${error?.message || error}`))
+    })
+    stream.on('error', error => {
+      request.destroy(new VikingError(`Torrent stream failed during ViKiNG upload: ${error?.message || error}`))
+    })
+    stream.pipe(request)
   })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new VikingError(`ViKiNG part upload failed with HTTP ${response.status}: ${text.slice(0, 500)}`)
-  }
-  const etag = response.headers.get('etag')
-  if (!etag) {
-    throw new VikingError('ViKiNG part upload succeeded but no ETag header was returned.')
-  }
-  return etag
 }
 
 export async function completeMultipartUpload({ key, uploadId, parts, name, user = '' }) {
