@@ -53,6 +53,7 @@ async function spoolTorrentRangeToFile(file, start, end, destination) {
 export async function transferTorrentToViking({
   source,
   selector = 'largest',
+  peers = [],
   workDir = process.env.WORK_DIR || path.join(os.tmpdir(), 'gameaccess-torrent-worker'),
   vikingUser = process.env.VIKING_USER_HASH || '',
   onStatus = () => {},
@@ -78,6 +79,7 @@ export async function transferTorrentToViking({
       strategy: 'sequential'
     })
 
+    for (const peer of peers) torrent.addPeer(peer)
     for (const item of torrent.files) item.deselect()
     const file = chooseFile(torrent.files, selector)
     file.select(10)
@@ -167,7 +169,7 @@ export async function transferTorrentToViking({
 
     const result = {
       status: 'complete',
-      source,
+      source: typeof source === 'string' ? source : 'torrent-file-buffer',
       infoHash: torrent.infoHash,
       filename: file.name,
       bytes: file.length,
