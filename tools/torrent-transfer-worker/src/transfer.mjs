@@ -1,5 +1,7 @@
 import WebTorrent from 'webtorrent'
-import { mkdir } from 'node:fs/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { mkdir, rm } from 'node:fs/promises'
+import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { createMultipartUpload, uploadPart, completeMultipartUpload, verifyFile } from './viking.mjs'
@@ -39,6 +41,13 @@ function waitForMetadata(client, torrentId, opts) {
     torrent.once('error', fail)
     client.once('error', fail)
   })
+}
+
+async function spoolTorrentRangeToFile(file, start, end, destination) {
+  await pipeline(
+    file.createReadStream({ start, end }),
+    createWriteStream(destination)
+  )
 }
 
 export async function transferTorrentToViking({
@@ -97,10 +106,11 @@ export async function transferTorrentToViking({
       const end = Math.min(file.length - 1, start + upload.partSize - 1)
       const length = end - start + 1
       const partNumber = index + 1
+      const partPath = path.join(workDir, `viking-part-${torrent.infoHash}-${partNumber}.bin`)
 
       onStatus({
-        stage: 'streaming',
-        message: `Streaming part ${partNumber}/${expectedParts} from torrent peers to ViKiNG (${humanBytes(length)})…`,
+        stage: 'buffering_part',
+        message: `Fetching torrent part ${partNumber}/${expectedParts} into temporary buffer (${humanBytes(length)})…`,
         part: partNumber,
         parts: expectedParts,
         uploadedBytes,
@@ -109,10 +119,26 @@ export async function transferTorrentToViking({
         peers: torrent.numPeers
       })
 
-      const stream = file.createReadStream({ start, end })
-      const etag = await uploadPart(upload.urls[index], stream, length)
-      uploadedBytes += length
-      parts.push({ PartNumber: partNumber, ETag: etag })
+      try {
+        await spoolTorrentRangeToFile(file, start, end, partPath)
+
+        onStatus({
+          stage: 'uploading_part',
+          message: `Uploading buffered part ${partNumber}/${expectedParts} to ViKiNG…`,
+          part: partNumber,
+          parts: expectedParts,
+          uploadedBytes,
+          totalBytes: file.length,
+          torrentDownloadedBytes: file.downloaded,
+          peers: torrent.numPeers
+        })
+
+        const etag = await uploadPart(upload.urls[index], createReadStream(partPath), length)
+        uploadedBytes += length
+        parts.push({ PartNumber: partNumber, ETag: etag })
+      } finally {
+        await rm(partPath, { force: true }).catch(() => {})
+      }
 
       onStatus({
         stage: 'streaming',
@@ -149,7 +175,7 @@ export async function transferTorrentToViking({
       url: completed.url,
       hash: completed.hash,
       verified: verification.exist === true,
-      cacheMode: 'disk-backed WebTorrent chunk store; upload streams sequential multipart ranges'
+      cacheMode: 'disk-backed WebTorrent chunk store plus one temporary ViKiNG multipart buffer at a time'
     }
     onStatus({ stage: 'complete', message: `Transfer complete: ${completed.url}`, progress: 1, result })
     return result
