@@ -52,8 +52,12 @@ export async function uploadPart(url, stream, length) {
       }
     }, response => {
       const chunks = []
+      let captured = 0
       response.on('data', chunk => {
-        if (chunks.reduce((n, item) => n + item.length, 0) < 8192) chunks.push(chunk)
+        if (captured < 8192) {
+          chunks.push(chunk)
+          captured += chunk.length
+        }
       })
       response.on('end', () => {
         const status = response.statusCode || 0
@@ -78,7 +82,7 @@ export async function uploadPart(url, stream, length) {
       reject(new VikingError(`ViKiNG part upload network failure: ${error?.code || error?.name || 'Error'}: ${error?.message || error}`))
     })
     stream.on('error', error => {
-      request.destroy(new VikingError(`Torrent stream failed during ViKiNG upload: ${error?.message || error}`))
+      request.destroy(new VikingError(`Source stream failed during ViKiNG upload: ${error?.message || error}`))
     })
     stream.pipe(request)
   })
@@ -114,8 +118,9 @@ export async function verifyFile(hash) {
     body: formBody({ hash })
   })
   const data = await expectJson(response, 'ViKiNG verify file')
-  if (data.exist !== true) {
+  const item = Array.isArray(data) ? data.find(entry => entry?.hash === hash) || data[0] : data
+  if (!item || item.exist !== true) {
     throw new VikingError(`ViKiNG verification says the uploaded file is missing: ${JSON.stringify(data)}`)
   }
-  return data
+  return item
 }
