@@ -16,6 +16,19 @@ async function expectJson(response, label) {
   try { return JSON.parse(text) } catch { throw new VikingError(`${label} returned invalid JSON: ${text.slice(0, 500)}`) }
 }
 
+function parseJsonLines(text) {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+  try { return [JSON.parse(trimmed)] } catch {}
+  const parsed = []
+  for (const line of trimmed.split(/\r?\n/)) {
+    const value = line.trim()
+    if (!value) continue
+    try { parsed.push(JSON.parse(value)) } catch {}
+  }
+  return parsed
+}
+
 export async function createMultipartUpload(size) {
   const response = await fetch(`${API_BASE}/get-upload-url`, {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: formBody({ size })
@@ -69,7 +82,7 @@ export async function completeMultipartUpload({ key, uploadId, parts, name, user
   return data
 }
 
-export async function remoteUploadFromUrl(link, { name = '', user = '' } = {}) {
+export async function remoteUploadFromUrl(link, { name = '', user = '', onProgress = () => {} } = {}) {
   const serverResponse = await fetch(`${API_BASE}/get-server`)
   const serverData = await expectJson(serverResponse, 'ViKiNG get remote upload server')
   const server = String(serverData?.server || '').trim()
@@ -80,9 +93,19 @@ export async function remoteUploadFromUrl(link, { name = '', user = '' } = {}) {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: formBody({ link, user, name })
   })
-  const data = await expectJson(response, 'ViKiNG remote URL upload')
-  if (!data.url || !data.hash) throw new VikingError(`ViKiNG remote URL upload returned no final URL/hash: ${JSON.stringify(data)}`)
-  return data
+  const text = await response.text()
+  if (!response.ok) throw new VikingError(`ViKiNG remote URL upload failed with HTTP ${response.status}: ${text.slice(0, 1000)}`)
+
+  const events = parseJsonLines(text)
+  for (const event of events) {
+    if (event && typeof event === 'object' && event.progress != null) onProgress(event)
+  }
+  const final = [...events].reverse().find(event => event && typeof event === 'object' && event.url && event.hash)
+  if (!final) {
+    const tail = text.slice(-2000)
+    throw new VikingError(`ViKiNG remote URL upload returned progress but no final URL/hash. Response tail: ${tail}`)
+  }
+  return final
 }
 
 export async function verifyFile(hash) {
