@@ -62,7 +62,9 @@ export async function transferTorrentToViking({
   if (!source) throw new Error('Torrent source is required.')
   await mkdir(workDir, { recursive: true })
 
-  const client = new WebTorrent({ uploadLimit: 0 })
+  // -1 means unlimited. A worker should remain a normal BitTorrent participant;
+  // callers can add explicit throttling later if needed.
+  const client = new WebTorrent({ uploadLimit: -1 })
   let torrent
   const timeout = new Promise((_, reject) => {
     const timer = setTimeout(() => reject(new Error(`Transfer timed out after ${Math.round(timeoutMs / 60000)} minutes.`)), timeoutMs)
