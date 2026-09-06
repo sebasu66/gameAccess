@@ -158,14 +158,17 @@ fn main() {
                             }
                         }
                         DownloadEvent::Finished { url, path, success } => {
+                            let path_text = path
+                                .as_ref()
+                                .map(|value| value.to_string_lossy().to_string());
                             println!(
                                 "[probe] download-finished url={url} path={} success={success}",
-                                path.display()
+                                path_text.as_deref().unwrap_or("<none>")
                             );
                             if let Ok(mut state) = download_finished_state.lock() {
                                 state.download_finished = Some(DownloadRecord {
                                     url: url.to_string(),
-                                    path: Some(path.to_string_lossy().to_string()),
+                                    path: path_text,
                                     success: Some(success),
                                 });
                             }
