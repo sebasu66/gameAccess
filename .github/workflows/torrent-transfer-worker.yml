@@ -51,6 +51,26 @@ jobs:
       - name: Upload and verify 1 MiB anonymous multipart sample
         run: node smoke-viking.mjs
 
+  local-peer-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebTorrent
+        run: npm install --no-audit --no-fund
+      - name: BitTorrent local peer to anonymous ViKiNG E2E
+        run: |
+          node e2e-local-peer.mjs | tee local-peer-result.json
+          grep -q '"status": "complete"' local-peer-result.json
+          grep -q '"deterministicPeerTest": true' local-peer-result.json
+          grep -q 'https://vikingfile.com/f/' local-peer-result.json
+
   sintel-e2e:
     if: >-
       github.event_name == 'workflow_dispatch' ||
