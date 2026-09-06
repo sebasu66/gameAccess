@@ -2,7 +2,7 @@ name: gameAccess Tauri Windows
 
 on:
   push:
-    branches: [main]
+    branches: [main, "prototype/torrent-cloud-transfer"]
     paths:
       - "apps/desktop/src-tauri/**"
       - "apps/desktop/scripts/prepare-icons.mjs"
