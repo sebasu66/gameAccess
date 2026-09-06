@@ -1,0 +1,65 @@
+name: Torrent transfer worker prototype
+
+on:
+  push:
+    branches:
+      - prototype/torrent-cloud-transfer
+    paths:
+      - 'tools/torrent-transfer-worker/**'
+      - '.github/workflows/torrent-transfer-worker.yml'
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Run legal Sintel torrent -> ViKiNG end-to-end test'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebTorrent
+        run: npm install --no-audit --no-fund
+      - name: Run unit tests
+        run: npm test
+
+  sintel-e2e:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[torrent-e2e]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tools/torrent-transfer-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebTorrent
+        run: npm install --no-audit --no-fund
+      - name: Transfer official WebTorrent Sintel sample to ViKiNG
+        env:
+          WORK_DIR: ${{ runner.temp }}/gameaccess-torrent-worker
+        run: |
+          node cli-transfer.mjs --sintel | tee sintel-result.json
+          grep -q '"status": "complete"' sintel-result.json
+          grep -q 'https://vikingfile.com/f/' sintel-result.json
+      - name: Print test result
+        if: always()
+        run: |
+          echo '--- Sintel transfer result ---'
+          test -f sintel-result.json && cat sintel-result.json || true
