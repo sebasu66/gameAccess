@@ -65,6 +65,8 @@ try {
     '--enable-dht6=false',
     '--bt-enable-lpd=false',
     '--enable-peer-exchange=false',
+    '--bt-seed-unverified=true',
+    '--seed-ratio=0.0',
     '--seed-time=60',
     `--listen-port=${port}`,
     `--dht-listen-port=${port + 1}`,
