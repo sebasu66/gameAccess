@@ -35,22 +35,6 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-  peer-smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: tools/torrent-transfer-worker
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install WebTorrent
-        run: npm install --no-audit --no-fund
-      - name: Verify direct localhost BitTorrent TCP transfer
-        run: node smoke-local-peer.mjs
-
   viking-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -67,8 +51,8 @@ jobs:
       - name: Upload and verify 1 MiB anonymous multipart sample
         run: node smoke-viking.mjs
 
-  local-peer-e2e:
-    needs: [peer-smoke, viking-smoke]
+  mainline-peer-e2e:
+    needs: [unit, viking-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -79,14 +63,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install WebTorrent
-        run: npm install --no-audit --no-fund
-      - name: BitTorrent local peer to anonymous ViKiNG E2E
+      - name: Install WebTorrent and aria2
         run: |
-          node e2e-local-peer.mjs | tee local-peer-result.json
-          grep -q '"status": "complete"' local-peer-result.json
-          grep -q '"deterministicPeerTest": true' local-peer-result.json
-          grep -q 'https://vikingfile.com/f/' local-peer-result.json
+          npm install --no-audit --no-fund
+          sudo apt-get update -qq
+          sudo apt-get install -y aria2
+      - name: aria2 mainline BitTorrent peer to WebTorrent worker to ViKiNG
+        run: |
+          node e2e-aria2-peer.mjs | tee mainline-result.json
+          grep -q '"status": "complete"' mainline-result.json
+          grep -q '"verified": true' mainline-result.json
+          grep -q 'https://vikingfile.com/f/' mainline-result.json
 
   sintel-e2e:
     if: >-
