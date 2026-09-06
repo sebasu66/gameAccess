@@ -49,12 +49,27 @@ function waitForTunnel(proc, timeoutMs = 45_000) {
   })
 }
 
-async function fetchRange(url) {
-  const response = await fetch(url, { headers: { range: 'bytes=0-1023' } })
-  if (![200, 206].includes(response.status)) throw new Error(`Public WebTorrent URL returned HTTP ${response.status}`)
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (bytes.byteLength < 1) throw new Error('Public WebTorrent URL returned no bytes.')
-  return { status: response.status, bytes: bytes.byteLength, contentRange: response.headers.get('content-range') }
+async function fetchRange(url, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs
+  let lastError
+  let attempt = 0
+  while (Date.now() < deadline) {
+    attempt += 1
+    try {
+      const response = await fetch(url, { headers: { range: 'bytes=0-1023' } })
+      if ([200, 206].includes(response.status)) {
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        if (bytes.byteLength < 1) throw new Error('Public WebTorrent URL returned no bytes.')
+        return { status: response.status, bytes: bytes.byteLength, contentRange: response.headers.get('content-range'), attempts: attempt }
+      }
+      lastError = new Error(`HTTP ${response.status}`)
+    } catch (error) {
+      lastError = error
+    }
+    console.error(`[probe] tunnel not reachable yet (attempt ${attempt}): ${lastError?.cause?.code || lastError?.code || lastError?.message || lastError}`)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+  }
+  throw new Error(`Public WebTorrent URL did not become reachable within ${timeoutMs / 1000}s: ${lastError?.cause?.code || lastError?.code || lastError?.message || lastError}`)
 }
 
 try {
@@ -79,7 +94,7 @@ try {
   console.error(`[tunnel] public WebTorrent stream ${publicFileUrl}`)
 
   const rangeProbe = await fetchRange(publicFileUrl)
-  console.error(`[probe] HTTP ${rangeProbe.status}, ${rangeProbe.bytes} bytes, content-range=${rangeProbe.contentRange || 'none'}`)
+  console.error(`[probe] HTTP ${rangeProbe.status}, ${rangeProbe.bytes} bytes, content-range=${rangeProbe.contentRange || 'none'}, attempts=${rangeProbe.attempts}`)
 
   console.error('[viking] submitting public WebTorrent stream URL as remote upload…')
   const uploaded = await remoteUploadFromUrl(publicFileUrl, { name: `webtorrent-stream-${file.name}` })
