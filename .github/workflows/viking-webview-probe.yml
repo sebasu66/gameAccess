@@ -1,0 +1,65 @@
+name: ViKiNG WebView download probe
+
+on:
+  push:
+    branches:
+      - prototype/viking-webview-download
+    paths:
+      - 'tools/viking-webview-probe/**'
+      - '.github/workflows/viking-webview-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-webview-probe:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show WebView2 runtime
+        shell: powershell
+        run: |
+          $paths = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F1E7E4A4-4A9B-4A2F-9E0A-3DB8A4A58C8D}',
+            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F1E7E4A4-4A9B-4A2F-9E0A-3DB8A4A58C8D}'
+          )
+          foreach ($p in $paths) {
+            if (Test-Path $p) { Get-ItemProperty $p | Format-List * }
+          }
+          Get-Command msedge.exe -ErrorAction SilentlyContinue | Format-List *
+      - name: Build probe
+        run: cargo build --manifest-path tools/viking-webview-probe/Cargo.toml --release
+      - name: Run embedded ViKiNG landing probe
+        shell: powershell
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'viking-webview-probe.json'
+          $download = Join-Path $env:RUNNER_TEMP 'sintel-viking-probe.bin'
+          & .\tools\viking-webview-probe\target\release\viking-webview-probe.exe `
+            --url 'https://vikingfile.com/f/YLF8EL0zTY' `
+            --timeout 75 `
+            --report $report `
+            --download $download
+          if (Test-Path $report) {
+            Write-Host '--- probe report ---'
+            Get-Content $report
+          } else {
+            throw 'Probe did not produce a report.'
+          }
+          if (Test-Path $download) {
+            $item = Get-Item $download
+            Write-Host "download-bytes=$($item.Length)"
+          } else {
+            Write-Host 'download-bytes=0 (no browser download was started automatically)'
+          }
+      - name: Upload probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: viking-webview-probe
+          path: |
+            ${{ runner.temp }}/viking-webview-probe.json
+            ${{ runner.temp }}/sintel-viking-probe.bin
+          if-no-files-found: warn
+          retention-days: 1
