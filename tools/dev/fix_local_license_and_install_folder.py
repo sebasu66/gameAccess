@@ -60,6 +60,33 @@ def apply() -> list[str]:
         "<InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} />",
         "<InstallStateBadge game={game} status={game.app_id ? props.downloads[game.app_id] : undefined} />",
     )
+
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.tsx",
+        'import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2 } from "lucide-react";',
+        'import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2, XCircle } from "lucide-react";',
+    )
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.tsx",
+        'import { downloadProgress, isTrackedDownload } from "./downloadManager";\n',
+        'import { downloadProgress, isTrackedDownload } from "./downloadManager";\nimport { playAvailability } from "./gameAvailability";\n',
+    )
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.tsx",
+        """function ReadyBadge() {\n  return <span className=\"library-install-state ready\" title=\"Instalado\"><Play size={12} fill=\"currentColor\" /></span>;\n}\n""",
+        """function ReadyBadge({ licensed }: { licensed: boolean }) {\n  if (!licensed) {\n    return <span className=\"library-install-state no-license\" title=\"Instalado · sin licencia disponible\"><XCircle size={13} /></span>;\n  }\n  return <span className=\"library-install-state ready\" title=\"Listo para jugar\"><Play size={12} fill=\"currentColor\" /></span>;\n}\n""",
+    )
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.tsx",
+        """  const active = isTrackedDownload(status);\n  const ready = Boolean(status?.installed || status?.state === \"installed\");\n  const progress = downloadProgress(status);\n""",
+        """  const active = isTrackedDownload(status);\n  const ready = Boolean(status?.installed || status?.state === \"installed\");\n  const licensed = playAvailability(game).licensed;\n  const progress = downloadProgress(status);\n""",
+    )
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.tsx",
+        "{ready ? <ReadyBadge /> : null}",
+        "{ready ? <ReadyBadge licensed={licensed} /> : null}",
+    )
+
     patch(
         "apps/desktop/src/library-room.css",
         ".library-install-state.ready { color: #071405; background: rgba(57,255,20,.94); box-shadow: 0 0 16px rgba(57,255,20,.42), 0 5px 15px rgba(0,0,0,.42); }",
@@ -75,6 +102,11 @@ def apply() -> list[str]:
         "apps/desktop/src/LibraryRoom.test.tsx",
         """  it(\"shows the green installation marker whenever the game is installed\", () => {\n    expect(render({ 10: installed })).toContain(\"library-install-state ready\");\n    expect(render({ 10: installed }, 0)).toContain(\"library-install-state ready\");\n  });\n""",
         """  it(\"distinguishes installed games with and without a playable license\", () => {\n    expect(render({ 10: installed })).toContain(\"library-install-state ready\");\n    const withoutLicense = render({ 10: installed }, 0);\n    expect(withoutLicense).toContain(\"library-install-state no-license\");\n    expect(withoutLicense).toContain(\"sin licencia disponible\");\n    expect(withoutLicense).not.toContain(\"library-install-state ready\");\n  });\n""",
+    )
+    patch(
+        "apps/desktop/src/DownloadCatalogPanel.test.tsx",
+        """  it(\"keeps the card as a selection target so Enter can transfer focus to the existing detail panel\", () => {\n""",
+        """  it(\"marks an installed game without a license as unavailable instead of ready\", () => {\n    const markup = renderToStaticMarkup(\n      <DownloadCatalogPanel\n        games={[{ ...game, copies_total: 0, copies_available: 0 }]}\n        downloads={{ 42: installed }}\n        accountCount={1}\n        selectedIndex={0}\n        gridRef={createRef<HTMLDivElement>()}\n        pinnedAppIds={new Set()}\n        onSelect={() => undefined}\n      />,\n    );\n    expect(markup).toContain(\"library-install-state no-license\");\n    expect(markup).toContain(\"sin licencia disponible\");\n    expect(markup).not.toContain(\"library-install-state ready\");\n  });\n\n  it(\"keeps the card as a selection target so Enter can transfer focus to the existing detail panel\", () => {\n""",
     )
 
     patch(
