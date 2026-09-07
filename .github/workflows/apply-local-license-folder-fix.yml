@@ -1,0 +1,47 @@
+name: Apply local license and install-folder repair
+
+on:
+  push:
+    paths:
+      - "tools/dev/fix_local_license_and_install_folder.py"
+      - "tools/dev/fix_local_license_and_install_folder_test.py"
+      - ".github/workflows/apply-local-license-folder-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply repair
+        run: |
+          python tools/dev/fix_local_license_and_install_folder.py
+          python tools/dev/fix_local_license_and_install_folder_test.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Test ownership and library status regressions
+        working-directory: apps/desktop
+        run: npx vitest run src/catalog.test.ts src/LibraryRoom.test.tsx
+      - name: Build desktop
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check native desktop
+        working-directory: apps/desktop/src-tauri
+        run: cargo check
+      - name: Commit repair directly to main
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/desktop/src/catalog.ts apps/desktop/src/catalog.test.ts apps/desktop/src/LibraryRoomParts.tsx apps/desktop/src/LibraryRoom.test.tsx apps/desktop/src/library-room.css apps/desktop/src/App.tsx apps/desktop/src-tauri/src/main.rs
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix(desktop): require real local license and open install target"
+          git push origin HEAD:main
