@@ -195,30 +195,58 @@ fn main() {
     try { document.title = `GA_PROBE:${String(value).slice(0, 90)}`; } catch (_) {}
   };
   const textOf = (el) => String(el.innerText || el.textContent || el.value || '').trim();
-  let attempts = 0;
+  const isUsable = (el) => {
+    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+
+  let scans = 0;
+  let clicks = 0;
+  let lastSignature = '';
+  let sameSignatureClicks = 0;
 
   const findAndClickDownload = () => {
-    attempts += 1;
+    scans += 1;
     const controls = Array.from(document.querySelectorAll(
       'button, a, input[type="button"], input[type="submit"]'
     ));
     const target = controls.find((el) => {
+      if (!isUsable(el)) return false;
       const text = textOf(el).toLowerCase();
       return text === 'download' || text.startsWith('download ') || text.includes('download');
     });
 
     if (target) {
       const text = textOf(target) || target.tagName;
-      setProbeTitle(`clicking:${text}`);
-      console.log('[gameaccess-probe] clicking visible download control', target);
-      target.click();
+      const href = target.href || '';
+      const signature = `${text}|${href}`;
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        sameSignatureClicks = 0;
+      }
+
+      if (clicks < 6 && sameSignatureClicks < 3) {
+        clicks += 1;
+        sameSignatureClicks += 1;
+        setProbeTitle(`click:${clicks}:${text}`);
+        console.log('[gameaccess-probe] automatic download click', { clicks, text, href });
+        target.click();
+        setTimeout(findAndClickDownload, 3500);
+        return;
+      }
+
+      setProbeTitle(`waiting:${clicks}:${text}`);
+      setTimeout(findAndClickDownload, 1000);
       return;
     }
 
-    if (attempts < 25) {
+    if (scans < 120) {
+      setProbeTitle(`waiting-control:${clicks}`);
       setTimeout(findAndClickDownload, 1000);
     } else {
-      setProbeTitle('download-control-not-found');
+      setProbeTitle(`download-control-not-found:${clicks}`);
     }
   };
 
