@@ -42,10 +42,10 @@ class FreeVikingWizard(tk.Tk):
         root.rowconfigure(12, weight=1)
 
         ttk.Label(root, text="WebTorrent → ViKiNG → FREE download", font=("", 16, "bold")).grid(row=0, column=0, sticky="w")
-        ttk.Label(root, text="No Real-Debrid, premium account, or token.").grid(row=1, column=0, sticky="w", pady=(4, 16))
+        ttk.Label(root, text="No Real-Debrid, premium account, token, or HTTP metadata prefetch.").grid(row=1, column=0, sticky="w", pady=(4, 16))
 
         ttk.Label(root, text="1. Torrent → ViKiNG", font=("", 11, "bold")).grid(row=2, column=0, sticky="w")
-        ttk.Label(root, text="Torrent source: magnet, local .torrent, or .torrent URL").grid(row=3, column=0, sticky="w", pady=(5, 0))
+        ttk.Label(root, text="Torrent source: magnet link or local .torrent file").grid(row=3, column=0, sticky="w", pady=(5, 0))
 
         source_row = ttk.Frame(root)
         source_row.grid(row=4, column=0, sticky="ew", pady=(5, 10))
@@ -101,7 +101,10 @@ class FreeVikingWizard(tk.Tk):
     def _start(self) -> None:
         source = self.source_var.get().strip()
         if not source:
-            self.status_var.set("Paste a magnet/URL or choose a local .torrent file.")
+            self.status_var.set("Paste a magnet link or choose a local .torrent file.")
+            return
+        if source.lower().startswith(("http://", "https://")):
+            self.status_var.set("HTTP .torrent URLs are intentionally disabled. Use a magnet or local .torrent file.")
             return
         self._launch(["--source", source, "--file", self.selector_var.get().strip() or "largest"])
 
