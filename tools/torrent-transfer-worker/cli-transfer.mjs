@@ -1,4 +1,4 @@
-import { transferTorrentToViking, SINTEL_TORRENT_URL } from './src/transfer.mjs'
+import { transferTorrentToViking } from './src/transfer.mjs'
 
 function parseArgs(argv) {
   const args = { source: '', selector: 'largest', json: false }
@@ -6,7 +6,6 @@ function parseArgs(argv) {
     const value = argv[i]
     if (value === '--source') args.source = argv[++i] || ''
     else if (value === '--file') args.selector = argv[++i] || 'largest'
-    else if (value === '--sintel') args.source = SINTEL_TORRENT_URL
     else if (value === '--json') args.json = true
     else if (value === '--help' || value === '-h') args.help = true
     else throw new Error(`Unknown argument: ${value}`)
@@ -16,7 +15,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2))
 if (args.help || !args.source) {
-  console.log(`Usage:\n  node cli-transfer.mjs --source <magnet-or-torrent-url> [--file largest|index|path] [--json]\n  node cli-transfer.mjs --sintel [--json]\n`)
+  console.log(`Usage:\n  node cli-transfer.mjs --source <magnet|torrent-url|torrent-file-path> [--file largest|index|path] [--json]\n`)
   process.exit(args.help ? 0 : 2)
 }
 
