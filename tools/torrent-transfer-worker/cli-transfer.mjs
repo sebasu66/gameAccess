@@ -15,7 +15,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2))
 if (args.help || !args.source) {
-  console.log(`Usage:\n  node cli-transfer.mjs --source <magnet|torrent-url|torrent-file-path> [--file largest|index|path] [--json]\n`)
+  console.log(`Usage:\n  node cli-transfer.mjs --source <magnet|local-torrent-file-path> [--file largest|index|path] [--json]\n`)
   process.exit(args.help ? 0 : 2)
 }
 
