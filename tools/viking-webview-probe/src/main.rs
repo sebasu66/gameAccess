@@ -95,6 +95,27 @@ fn log_path_state(label: &str, path: &PathBuf) {
     }
 }
 
+fn validate_download_directory(dir: &PathBuf) {
+    println!("[probe] download directory={}", dir.display());
+    match fs::metadata(dir) {
+        Ok(meta) => println!(
+            "[probe] destination directory exists=true readonly={}",
+            meta.permissions().readonly()
+        ),
+        Err(error) => println!("[probe] destination directory metadata error={error}"),
+    }
+    let write_test = dir.join(".gameaccess-download-write-test.tmp");
+    match OpenOptions::new().create(true).truncate(true).write(true).open(&write_test) {
+        Ok(mut file) => {
+            let write_result = file.write_all(b"ok");
+            println!("[probe] destination write-test result={write_result:?}");
+            drop(file);
+            let _ = fs::remove_file(&write_test);
+        }
+        Err(error) => println!("[probe] destination write-test open error={error}"),
+    }
+}
+
 fn main() {
     let initial_url = arg_value("--url").unwrap_or_else(|| DEFAULT_URL.to_string());
     let timeout_secs = arg_value("--timeout")
@@ -103,9 +124,8 @@ fn main() {
     let report_path = arg_value("--report")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("viking-webview-probe.json"));
-    let download_path = arg_value("--download")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("gameaccess-viking-probe-download.bin"));
+    let exact_download_path = arg_value("--download").map(PathBuf::from);
+    let download_dir = arg_value("--download-dir").map(PathBuf::from);
 
     let parsed_url = initial_url
         .parse()
@@ -113,30 +133,19 @@ fn main() {
     let state = Arc::new(Mutex::new(ProbeState::new(initial_url.clone())));
 
     println!("[probe] opening {initial_url}");
-    println!("[probe] download destination={}", download_path.display());
     println!("[probe] timeout={timeout_secs}s");
 
-    if let Some(parent) = download_path.parent() {
-        println!("[probe] destination parent={}", parent.display());
-        match fs::metadata(parent) {
-            Ok(meta) => println!(
-                "[probe] destination parent exists=true readonly={}",
-                meta.permissions().readonly()
-            ),
-            Err(error) => println!("[probe] destination parent metadata error={error}"),
+    if let Some(dir) = download_dir.as_ref() {
+        validate_download_directory(dir);
+    } else if let Some(path) = exact_download_path.as_ref() {
+        println!("[probe] exact download destination={}", path.display());
+        if let Some(parent) = path.parent() {
+            validate_download_directory(&parent.to_path_buf());
         }
-        let write_test = parent.join(".gameaccess-download-write-test.tmp");
-        match OpenOptions::new().create(true).truncate(true).write(true).open(&write_test) {
-            Ok(mut file) => {
-                let write_result = file.write_all(b"ok");
-                println!("[probe] destination write-test result={write_result:?}");
-                drop(file);
-                let _ = fs::remove_file(&write_test);
-            }
-            Err(error) => println!("[probe] destination write-test open error={error}"),
-        }
+        log_path_state("startup", path);
+    } else {
+        println!("[probe] download destination will be chosen by the browser");
     }
-    log_path_state("startup", &download_path);
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -148,6 +157,8 @@ fn main() {
             let timeout_state = Arc::clone(&state);
             let timeout_report = report_path.clone();
             let finished_report = report_path.clone();
+            let requested_exact_path = exact_download_path.clone();
+            let requested_download_dir = download_dir.clone();
             let finished_handle = app.handle().clone();
             let timeout_handle = app.handle().clone();
 
@@ -182,9 +193,6 @@ fn main() {
                     }
 
                     if matches!(payload.event(), PageLoadEvent::Finished) {
-                        // Exercise the same visible Download control a user would click. This does
-                        // not interact with or bypass Cloudflare/Turnstile; it only clicks a normal
-                        // page control after the page has loaded successfully in WebView2.
                         let script = r#"
 (() => {
   if (window.__gameAccessDownloadProbeInstalled) return;
@@ -262,11 +270,24 @@ fn main() {
                         DownloadEvent::Requested { url, destination } => {
                             println!("[probe] download-requested {url}");
                             println!("[probe] browser-proposed-destination={}", destination.display());
-                            let browser_path = destination.clone();
-                            log_path_state("before-request", &browser_path);
-                            println!("[probe] using-browser-destination={}", browser_path.display());
 
-                            let monitor_path = browser_path.clone();
+                            let proposed = destination.clone();
+                            let chosen = if let Some(path) = requested_exact_path.as_ref() {
+                                path.clone()
+                            } else if let Some(dir) = requested_download_dir.as_ref() {
+                                match proposed.file_name() {
+                                    Some(filename) => dir.join(filename),
+                                    None => proposed.clone(),
+                                }
+                            } else {
+                                proposed.clone()
+                            };
+
+                            *destination = chosen.clone();
+                            println!("[probe] using-browser-destination={}", chosen.display());
+                            log_path_state("before-request", &chosen);
+
+                            let monitor_path = chosen.clone();
                             thread::spawn(move || {
                                 let mut last_len: Option<u64> = None;
                                 for tick in 1..=40 {
@@ -294,10 +315,11 @@ fn main() {
                             if let Ok(mut state) = download_state.lock() {
                                 state.download_requested = Some(DownloadRecord {
                                     url: url.to_string(),
-                                    path: Some(browser_path.to_string_lossy().to_string()),
+                                    path: Some(chosen.to_string_lossy().to_string()),
                                     success: None,
                                 });
                             }
+                            write_report(&download_state, &finished_report);
                         }
                         DownloadEvent::Finished { url, path, success } => {
                             let path_text = path
