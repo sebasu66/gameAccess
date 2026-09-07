@@ -1,0 +1,55 @@
+.catalog-refresh-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 42;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(14, 18, 28, 0.82);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.catalog-refresh-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(22, 28, 42, 0.92);
+}
+
+.catalog-refresh-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.catalog-refresh-button > span {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.catalog-refresh-button > strong {
+  font-size: 12px;
+  letter-spacing: 0.035em;
+}
+
+@media (max-width: 720px) {
+  .catalog-refresh-button {
+    right: 14px;
+    bottom: 14px;
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .catalog-refresh-button > strong {
+    display: none;
+  }
+}

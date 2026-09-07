@@ -17,6 +17,7 @@ import "./bootstrap.css";
 import "./steam-session-settings.css";
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
+import "./catalog-refresh.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -30,6 +31,7 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 
 function CatalogShell() {
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
+  const [refreshNonce, setRefreshNonce] = React.useState(0);
   const surface = new URLSearchParams(window.location.search).get("surface");
   const auxiliarySurface = surface === "tablet" || surface === "display";
   const changeMode = React.useCallback((next: CatalogMode) => {
@@ -38,7 +40,15 @@ function CatalogShell() {
     setCatalogMode(next);
     setMode(next);
   }, [auxiliarySurface, mode]);
-  return <><CatalogTabs mode={mode} onChange={changeMode} />{!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}<App key={mode} /></>;
+  const refreshCatalog = React.useCallback(() => {
+    setRefreshNonce((value) => value + 1);
+  }, []);
+  return <>
+    <CatalogTabs mode={mode} onChange={changeMode} />
+    {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
+    {!auxiliarySurface ? <button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label="Actualizar lista de juegos" title="Volver a pedir el catálogo al servidor"><span aria-hidden="true">↻</span><strong>Actualizar juegos</strong></button> : null}
+    <App key={`${mode}:${refreshNonce}`} />
+  </>;
 }
 
 const root = document.getElementById("root");
