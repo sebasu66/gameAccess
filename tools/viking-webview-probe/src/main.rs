@@ -221,7 +221,11 @@ fn main() {
                                 });
                             }
                             write_report(&download_finished_state, &finished_report);
-                            finished_handle.exit(if success { 0 } else { 2 });
+                            if success {
+                                finished_handle.exit(0);
+                            } else {
+                                println!("[probe] download failed; keeping window open for interactive inspection");
+                            }
                         }
                         _ => {}
                     }
