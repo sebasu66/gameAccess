@@ -32,20 +32,6 @@ test('humanBytes formats sizes', () => {
   assert.equal(humanBytes(1024 ** 3), '1.0 GB')
 })
 
-test('resolveTorrentSource downloads HTTP torrent metadata into a Buffer', async () => {
-  const expected = Buffer.from('d4:infode')
-  const fetchImpl = async () => ({
-    ok: true,
-    status: 200,
-    headers: { get: name => name.toLowerCase() === 'content-length' ? String(expected.length) : null },
-    arrayBuffer: async () => expected.buffer.slice(expected.byteOffset, expected.byteOffset + expected.byteLength)
-  })
-
-  const resolved = await resolveTorrentSource('https://example.test/file.torrent', fetchImpl)
-  assert.ok(Buffer.isBuffer(resolved))
-  assert.deepEqual(resolved, expected)
-})
-
 test('resolveTorrentSource reads local .torrent metadata into a Buffer', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'ga-torrent-test-'))
   const torrentPath = path.join(dir, 'sample.torrent')
@@ -65,17 +51,9 @@ test('resolveTorrentSource leaves magnets unchanged', async () => {
   assert.equal(await resolveTorrentSource(magnet), magnet)
 })
 
-test('resolveTorrentSource rejects HTML returned instead of torrent metadata', async () => {
-  const html = Buffer.from('<html>blocked</html>')
-  const fetchImpl = async () => ({
-    ok: true,
-    status: 200,
-    headers: { get: () => String(html.length) },
-    arrayBuffer: async () => html.buffer.slice(html.byteOffset, html.byteOffset + html.byteLength)
-  })
-
+test('resolveTorrentSource rejects HTTP torrent URLs instead of prefetching metadata', async () => {
   await assert.rejects(
-    () => resolveTorrentSource('https://example.test/file.torrent', fetchImpl),
-    /did not contain valid \.torrent metadata/i
+    () => resolveTorrentSource('https://example.test/file.torrent'),
+    /HTTP \.torrent URLs are not used/i
   )
 })
