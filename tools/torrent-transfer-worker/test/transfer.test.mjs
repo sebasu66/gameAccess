@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import os from 'node:os'
 import path from 'node:path'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { chooseFile, humanBytes, resolveTorrentSource } from '../src/transfer.mjs'
+import { chooseFile, humanBytes, normalizeParallelParts, resolveTorrentSource } from '../src/transfer.mjs'
 
 test('chooseFile selects largest file', () => {
   const files = [
@@ -30,6 +30,15 @@ test('chooseFile rejects unknown file', () => {
 test('humanBytes formats sizes', () => {
   assert.equal(humanBytes(1024), '1.0 KB')
   assert.equal(humanBytes(1024 ** 3), '1.0 GB')
+})
+
+test('parallel part count is limited to 1 through 10', () => {
+  assert.equal(normalizeParallelParts(1), 1)
+  assert.equal(normalizeParallelParts(6), 6)
+  assert.equal(normalizeParallelParts(10), 10)
+  assert.equal(normalizeParallelParts(0), 1)
+  assert.equal(normalizeParallelParts(99), 10)
+  assert.equal(normalizeParallelParts('bad'), 1)
 })
 
 test('resolveTorrentSource reads local .torrent metadata into a Buffer', async () => {
