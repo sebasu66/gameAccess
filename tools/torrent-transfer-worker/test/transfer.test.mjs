@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { chooseFile, humanBytes, SINTEL_TORRENT_URL } from '../src/transfer.mjs'
+import { chooseFile, humanBytes, resolveTorrentSource, SINTEL_TORRENT_URL } from '../src/transfer.mjs'
 
 test('chooseFile selects largest file', () => {
   const files = [
@@ -31,4 +31,38 @@ test('humanBytes formats sizes', () => {
 
 test('Sintel source is the official WebTorrent test torrent', () => {
   assert.equal(SINTEL_TORRENT_URL, 'https://webtorrent.io/torrents/sintel.torrent')
+})
+
+test('resolveTorrentSource downloads HTTP torrent metadata into a Buffer', async () => {
+  const expected = Buffer.from('d4:infode')
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: name => name.toLowerCase() === 'content-length' ? String(expected.length) : null },
+    arrayBuffer: async () => expected.buffer.slice(expected.byteOffset, expected.byteOffset + expected.byteLength)
+  })
+
+  const resolved = await resolveTorrentSource('https://example.test/file.torrent', fetchImpl)
+  assert.ok(Buffer.isBuffer(resolved))
+  assert.deepEqual(resolved, expected)
+})
+
+test('resolveTorrentSource leaves magnets unchanged', async () => {
+  const magnet = 'magnet:?xt=urn:btih:0123456789abcdef'
+  assert.equal(await resolveTorrentSource(magnet), magnet)
+})
+
+test('resolveTorrentSource rejects HTML returned instead of torrent metadata', async () => {
+  const html = Buffer.from('<html>blocked</html>')
+  const fetchImpl = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => String(html.length) },
+    arrayBuffer: async () => html.buffer.slice(html.byteOffset, html.byteOffset + html.byteLength)
+  })
+
+  await assert.rejects(
+    () => resolveTorrentSource('https://example.test/file.torrent', fetchImpl),
+    /did not return valid \.torrent metadata/i
+  )
 })
