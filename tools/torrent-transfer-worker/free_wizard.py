@@ -6,13 +6,13 @@ import subprocess
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import ttk
+from tkinter import filedialog, ttk
 
 
 class FreeVikingWizard(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("GameAccess — FREE Torrent → ViKiNG test")
+        self.title("GameAccess — FREE Torrent → ViKiNG")
         self.geometry("860x650")
         self.minsize(760, 560)
 
@@ -20,7 +20,7 @@ class FreeVikingWizard(tk.Tk):
         self.proc: subprocess.Popen[str] | None = None
         self.source_var = tk.StringVar()
         self.selector_var = tk.StringVar(value="largest")
-        self.status_var = tk.StringVar(value="Ready — no Real-Debrid token or ViKiNG account required")
+        self.status_var = tk.StringVar(value="Ready — WebTorrent → anonymous ViKiNG")
         self.final_link_var = tk.StringVar()
 
         self._build()
@@ -36,20 +36,22 @@ class FreeVikingWizard(tk.Tk):
         root.columnconfigure(0, weight=1)
         root.rowconfigure(8, weight=1)
 
-        ttk.Label(root, text="FREE Torrent → ViKiNG", font=("", 16, "bold")).grid(row=0, column=0, sticky="w")
-        ttk.Label(root, text="Uses WebTorrent + anonymous ViKiNG upload. No Real-Debrid, no premium account, no token.").grid(row=1, column=0, sticky="w", pady=(4, 16))
+        ttk.Label(root, text="Torrent → ViKiNG", font=("", 16, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(root, text="WebTorrent + anonymous ViKiNG. No Real-Debrid, premium account, or token.").grid(row=1, column=0, sticky="w", pady=(4, 16))
 
-        ttk.Label(root, text="Magnet or .torrent HTTP/HTTPS URL").grid(row=2, column=0, sticky="w")
-        ttk.Entry(root, textvariable=self.source_var).grid(row=3, column=0, sticky="ew", pady=(5, 10))
+        ttk.Label(root, text="Torrent source: magnet, local .torrent, or .torrent URL").grid(row=2, column=0, sticky="w")
+        source_row = ttk.Frame(root)
+        source_row.grid(row=3, column=0, sticky="ew", pady=(5, 10))
+        source_row.columnconfigure(0, weight=1)
+        ttk.Entry(source_row, textvariable=self.source_var).grid(row=0, column=0, sticky="ew")
+        ttk.Button(source_row, text="Browse .torrent…", command=self._browse_torrent).grid(row=0, column=1, padx=(8, 0))
 
         row = ttk.Frame(root)
         row.grid(row=4, column=0, sticky="ew")
         ttk.Label(row, text="File selector:").pack(side="left")
         ttk.Entry(row, textvariable=self.selector_var, width=24).pack(side="left", padx=(8, 14))
-        self.start_button = ttk.Button(row, text="Upload to ViKiNG", command=self._start_custom)
+        self.start_button = ttk.Button(row, text="Upload to ViKiNG", command=self._start)
         self.start_button.pack(side="left")
-        self.sintel_button = ttk.Button(row, text="Test with legal Sintel torrent", command=self._start_sintel)
-        self.sintel_button.pack(side="left", padx=(8, 0))
         self.stop_button = ttk.Button(row, text="Stop", command=self._stop, state="disabled")
         self.stop_button.pack(side="left", padx=(8, 0))
 
@@ -65,6 +67,14 @@ class FreeVikingWizard(tk.Tk):
         self.log = tk.Text(root, wrap="word", state="disabled")
         self.log.grid(row=8, column=0, sticky="nsew")
 
+    def _browse_torrent(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Choose .torrent file",
+            filetypes=[("Torrent files", "*.torrent"), ("All files", "*.*")],
+        )
+        if path:
+            self.source_var.set(path)
+
     def _append(self, text: str) -> None:
         self.log.configure(state="normal")
         self.log.insert("end", text.rstrip() + "\n")
@@ -72,27 +82,21 @@ class FreeVikingWizard(tk.Tk):
         self.log.configure(state="disabled")
 
     def _set_running(self, running: bool) -> None:
-        state = "disabled" if running else "normal"
-        self.start_button.configure(state=state)
-        self.sintel_button.configure(state=state)
+        self.start_button.configure(state="disabled" if running else "normal")
         self.stop_button.configure(state="normal" if running else "disabled")
 
-    def _start_custom(self) -> None:
+    def _start(self) -> None:
         source = self.source_var.get().strip()
         if not source:
-            self.status_var.set("Paste a magnet or .torrent URL, or use the Sintel test button.")
+            self.status_var.set("Paste a magnet/URL or choose a local .torrent file.")
             return
         self._launch(["--source", source, "--file", self.selector_var.get().strip() or "largest"])
-
-    def _start_sintel(self) -> None:
-        self._launch(["--sintel"])
 
     def _launch(self, args: list[str]) -> None:
         if self.proc and self.proc.poll() is None:
             return
         self.final_link_var.set("")
-        self.status_var.set("Starting free WebTorrent → ViKiNG transfer…")
-        self._append("No Real-Debrid or paid account is used.")
+        self.status_var.set("Starting WebTorrent → ViKiNG transfer…")
         self._set_running(True)
         threading.Thread(target=self._run, args=(args,), daemon=True).start()
 
@@ -105,17 +109,19 @@ class FreeVikingWizard(tk.Tk):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
             )
             self.proc = proc
 
-            def pump(stream, kind: str) -> None:
+            def pump(stream) -> None:
                 if not stream:
                     return
                 for line in stream:
                     self.events.put(("log", line.rstrip()))
 
-            t1 = threading.Thread(target=pump, args=(proc.stderr, "stderr"), daemon=True)
+            t1 = threading.Thread(target=pump, args=(proc.stderr,), daemon=True)
             t1.start()
             stdout = proc.stdout.read() if proc.stdout else ""
             code = proc.wait()
@@ -125,23 +131,7 @@ class FreeVikingWizard(tk.Tk):
             if code == 0:
                 try:
                     data = json.loads(stdout)
-                    link = data.get("url") or data.get("fileUrl") or data.get("finalUrl") or data.get("vikingUrl") or ""
-                    if not link:
-                        def find_link(value):
-                            if isinstance(value, str) and value.startswith("https://vikingfile.com/f/"):
-                                return value
-                            if isinstance(value, dict):
-                                for item in value.values():
-                                    hit = find_link(item)
-                                    if hit:
-                                        return hit
-                            if isinstance(value, list):
-                                for item in value:
-                                    hit = find_link(item)
-                                    if hit:
-                                        return hit
-                            return ""
-                        link = find_link(data)
+                    link = data.get("url") or ""
                     self.events.put(("done", link))
                 except Exception:
                     self.events.put(("done", ""))
