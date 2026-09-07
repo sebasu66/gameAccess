@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { chooseFile, humanBytes, resolveTorrentSource, SINTEL_TORRENT_URL } from '../src/transfer.mjs'
+import os from 'node:os'
+import path from 'node:path'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chooseFile, humanBytes, resolveTorrentSource } from '../src/transfer.mjs'
 
 test('chooseFile selects largest file', () => {
   const files = [
@@ -29,10 +32,6 @@ test('humanBytes formats sizes', () => {
   assert.equal(humanBytes(1024 ** 3), '1.0 GB')
 })
 
-test('Sintel source is the official WebTorrent test torrent', () => {
-  assert.equal(SINTEL_TORRENT_URL, 'https://webtorrent.io/torrents/sintel.torrent')
-})
-
 test('resolveTorrentSource downloads HTTP torrent metadata into a Buffer', async () => {
   const expected = Buffer.from('d4:infode')
   const fetchImpl = async () => ({
@@ -45,6 +44,20 @@ test('resolveTorrentSource downloads HTTP torrent metadata into a Buffer', async
   const resolved = await resolveTorrentSource('https://example.test/file.torrent', fetchImpl)
   assert.ok(Buffer.isBuffer(resolved))
   assert.deepEqual(resolved, expected)
+})
+
+test('resolveTorrentSource reads local .torrent metadata into a Buffer', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ga-torrent-test-'))
+  const torrentPath = path.join(dir, 'sample.torrent')
+  const expected = Buffer.from('d4:infode')
+  try {
+    await writeFile(torrentPath, expected)
+    const resolved = await resolveTorrentSource(torrentPath)
+    assert.ok(Buffer.isBuffer(resolved))
+    assert.deepEqual(resolved, expected)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 test('resolveTorrentSource leaves magnets unchanged', async () => {
@@ -63,6 +76,6 @@ test('resolveTorrentSource rejects HTML returned instead of torrent metadata', a
 
   await assert.rejects(
     () => resolveTorrentSource('https://example.test/file.torrent', fetchImpl),
-    /did not return valid \.torrent metadata/i
+    /did not contain valid \.torrent metadata/i
   )
 })
