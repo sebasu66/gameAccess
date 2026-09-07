@@ -30,7 +30,7 @@ jobs:
         run: npm ci
       - name: Test ownership and library status regressions
         working-directory: apps/desktop
-        run: npx vitest run src/catalog.test.ts src/LibraryRoom.test.tsx
+        run: npx vitest run src/catalog.test.ts src/LibraryRoom.test.tsx src/DownloadCatalogPanel.test.tsx
       - name: Build desktop
         working-directory: apps/desktop
         run: npm run build
@@ -41,7 +41,7 @@ jobs:
         run: |
           git config user.name "gameAccess CI"
           git config user.email "actions@users.noreply.github.com"
-          git add apps/desktop/src/catalog.ts apps/desktop/src/catalog.test.ts apps/desktop/src/LibraryRoomParts.tsx apps/desktop/src/LibraryRoom.test.tsx apps/desktop/src/library-room.css apps/desktop/src/App.tsx apps/desktop/src-tauri/src/main.rs
+          git add apps/desktop/src/catalog.ts apps/desktop/src/catalog.test.ts apps/desktop/src/LibraryRoomParts.tsx apps/desktop/src/LibraryRoom.test.tsx apps/desktop/src/DownloadCatalogPanel.tsx apps/desktop/src/DownloadCatalogPanel.test.tsx apps/desktop/src/library-room.css apps/desktop/src/App.tsx apps/desktop/src-tauri/src/main.rs
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "fix(desktop): require real local license and open install target"
           git push origin HEAD:main
