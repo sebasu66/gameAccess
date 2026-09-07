@@ -1,12 +1,11 @@
 import WebTorrent from 'webtorrent'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { pipeline } from 'node:stream/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { createMultipartUpload, uploadPart, completeMultipartUpload, verifyFile } from './viking.mjs'
 
-export const SINTEL_TORRENT_URL = 'https://webtorrent.io/torrents/sintel.torrent'
 const MAX_TORRENT_METADATA_BYTES = 20 * 1024 * 1024
 
 export function humanBytes(value) {
@@ -35,33 +34,45 @@ export function chooseFile(files, selector = 'largest') {
   return exact
 }
 
-export async function resolveTorrentSource(source, fetchImpl = fetch) {
-  if (typeof source !== 'string' || !/^https?:\/\//i.test(source)) return source
-
-  const response = await fetchImpl(source, { redirect: 'follow' })
-  if (!response.ok) {
-    throw new Error(`Torrent metadata request failed with HTTP ${response.status}.`)
-  }
-
-  const declaredLength = Number(response.headers?.get?.('content-length') || 0)
-  if (declaredLength > MAX_TORRENT_METADATA_BYTES) {
-    throw new Error(`Torrent metadata is too large (${humanBytes(declaredLength)}).`)
-  }
-
-  const bytes = Buffer.from(await response.arrayBuffer())
-  if (bytes.length === 0) throw new Error('Torrent metadata response was empty.')
+function validateTorrentMetadata(bytes) {
+  if (!Buffer.isBuffer(bytes)) bytes = Buffer.from(bytes)
+  if (bytes.length === 0) throw new Error('Torrent metadata was empty.')
   if (bytes.length > MAX_TORRENT_METADATA_BYTES) {
     throw new Error(`Torrent metadata is too large (${humanBytes(bytes.length)}).`)
   }
-
-  // A .torrent metainfo document is a bencoded dictionary, so it begins with "d".
-  // A different first byte usually means the URL returned HTML or another error page.
   if (bytes[0] !== 0x64) {
     const preview = bytes.subarray(0, 24).toString('utf8').replace(/\s+/g, ' ').trim()
-    throw new Error(`Torrent URL did not return valid .torrent metadata${preview ? ` (starts with: ${JSON.stringify(preview)})` : ''}.`)
+    throw new Error(`Source did not contain valid .torrent metadata${preview ? ` (starts with: ${JSON.stringify(preview)})` : ''}.`)
+  }
+  return bytes
+}
+
+export async function resolveTorrentSource(source, fetchImpl = fetch) {
+  if (Buffer.isBuffer(source) || source instanceof Uint8Array) {
+    return validateTorrentMetadata(Buffer.from(source))
   }
 
-  return bytes
+  if (typeof source !== 'string') return source
+  const value = source.trim()
+  if (!value) throw new Error('Torrent source is required.')
+
+  if (/^magnet:\?/i.test(value)) return value
+
+  if (/^https?:\/\//i.test(value)) {
+    const response = await fetchImpl(value, { redirect: 'follow' })
+    if (!response.ok) {
+      throw new Error(`Torrent metadata request failed with HTTP ${response.status}.`)
+    }
+
+    const declaredLength = Number(response.headers?.get?.('content-length') || 0)
+    if (declaredLength > MAX_TORRENT_METADATA_BYTES) {
+      throw new Error(`Torrent metadata is too large (${humanBytes(declaredLength)}).`)
+    }
+
+    return validateTorrentMetadata(Buffer.from(await response.arrayBuffer()))
+  }
+
+  return validateTorrentMetadata(await readFile(value))
 }
 
 function waitForMetadata(client, torrentId, opts) {
@@ -92,8 +103,6 @@ export async function transferTorrentToViking({
   if (!source) throw new Error('Torrent source is required.')
   await mkdir(workDir, { recursive: true })
 
-  // -1 means unlimited. A worker should remain a normal BitTorrent participant;
-  // callers can add explicit throttling later if needed.
   const client = new WebTorrent({ uploadLimit: -1 })
   let torrent
   const timeout = new Promise((_, reject) => {
