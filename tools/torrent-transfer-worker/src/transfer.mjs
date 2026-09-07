@@ -47,7 +47,7 @@ function validateTorrentMetadata(bytes) {
   return bytes
 }
 
-export async function resolveTorrentSource(source, fetchImpl = fetch) {
+export async function resolveTorrentSource(source) {
   if (Buffer.isBuffer(source) || source instanceof Uint8Array) {
     return validateTorrentMetadata(Buffer.from(source))
   }
@@ -59,17 +59,7 @@ export async function resolveTorrentSource(source, fetchImpl = fetch) {
   if (/^magnet:\?/i.test(value)) return value
 
   if (/^https?:\/\//i.test(value)) {
-    const response = await fetchImpl(value, { redirect: 'follow' })
-    if (!response.ok) {
-      throw new Error(`Torrent metadata request failed with HTTP ${response.status}.`)
-    }
-
-    const declaredLength = Number(response.headers?.get?.('content-length') || 0)
-    if (declaredLength > MAX_TORRENT_METADATA_BYTES) {
-      throw new Error(`Torrent metadata is too large (${humanBytes(declaredLength)}).`)
-    }
-
-    return validateTorrentMetadata(Buffer.from(await response.arrayBuffer()))
+    throw new Error('HTTP .torrent URLs are not used in this flow. Use a magnet link or a local .torrent file.')
   }
 
   return validateTorrentMetadata(await readFile(value))
@@ -111,7 +101,7 @@ export async function transferTorrentToViking({
   })
 
   const execute = async () => {
-    onStatus({ stage: 'metadata', message: 'Resolving torrent metadata…' })
+    onStatus({ stage: 'metadata', message: 'Resolving torrent in WebTorrent…' })
     const torrentSource = await resolveTorrentSource(source)
     torrent = await waitForMetadata(client, torrentSource, {
       path: workDir,
