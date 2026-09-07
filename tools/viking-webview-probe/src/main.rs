@@ -148,7 +148,6 @@ fn main() {
             let timeout_state = Arc::clone(&state);
             let timeout_report = report_path.clone();
             let finished_report = report_path.clone();
-            let requested_path = download_path.clone();
             let finished_handle = app.handle().clone();
             let timeout_handle = app.handle().clone();
 
@@ -263,11 +262,11 @@ fn main() {
                         DownloadEvent::Requested { url, destination } => {
                             println!("[probe] download-requested {url}");
                             println!("[probe] browser-proposed-destination={}", destination.display());
-                            log_path_state("before-request", &requested_path);
-                            *destination = requested_path.clone();
-                            println!("[probe] overridden-destination={}", destination.display());
+                            let browser_path = destination.clone();
+                            log_path_state("before-request", &browser_path);
+                            println!("[probe] using-browser-destination={}", browser_path.display());
 
-                            let monitor_path = requested_path.clone();
+                            let monitor_path = browser_path.clone();
                             thread::spawn(move || {
                                 let mut last_len: Option<u64> = None;
                                 for tick in 1..=40 {
@@ -295,7 +294,7 @@ fn main() {
                             if let Ok(mut state) = download_state.lock() {
                                 state.download_requested = Some(DownloadRecord {
                                     url: url.to_string(),
-                                    path: Some(requested_path.to_string_lossy().to_string()),
+                                    path: Some(browser_path.to_string_lossy().to_string()),
                                     success: None,
                                 });
                             }
@@ -308,7 +307,6 @@ fn main() {
                                 "[probe] download-finished url={url} path={} success={success}",
                                 path_text.as_deref().unwrap_or("<none>")
                             );
-                            log_path_state("finished-requested-target", &requested_path);
                             if let Some(actual_path) = path.as_ref() {
                                 log_path_state("finished-event-path", actual_path);
                             }
