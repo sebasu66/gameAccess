@@ -19,6 +19,12 @@ export function humanBytes(value) {
   return `${n.toFixed(1)} ${units[i]}`
 }
 
+export function normalizeParallelParts(value) {
+  const parsed = Number.parseInt(String(value), 10)
+  if (!Number.isFinite(parsed)) return 1
+  return Math.max(1, Math.min(10, parsed))
+}
+
 export function chooseFile(files, selector = 'largest') {
   if (!Array.isArray(files) || files.length === 0) throw new Error('Torrent contains no files.')
   if (selector === 'largest') {
@@ -84,6 +90,7 @@ async function spoolTorrentRangeToFile(file, start, end, destination) {
 export async function transferTorrentToViking({
   source,
   selector = 'largest',
+  parallelParts = 1,
   peers = [],
   workDir = process.env.WORK_DIR || path.join(os.tmpdir(), 'gameaccess-torrent-worker'),
   vikingUser = process.env.VIKING_USER_HASH || '',
@@ -93,6 +100,7 @@ export async function transferTorrentToViking({
   if (!source) throw new Error('Torrent source is required.')
   await mkdir(workDir, { recursive: true })
 
+  const concurrency = normalizeParallelParts(parallelParts)
   const client = new WebTorrent({ uploadLimit: -1 })
   let torrent
   const timeout = new Promise((_, reject) => {
@@ -132,10 +140,11 @@ export async function transferTorrentToViking({
       throw new Error(`ViKiNG returned ${upload.urls.length} part URLs but ${expectedParts} are required.`)
     }
 
-    const parts = []
+    const parts = new Array(expectedParts)
     let uploadedBytes = 0
+    let nextIndex = 0
 
-    for (let index = 0; index < expectedParts; index += 1) {
+    const uploadOnePart = async index => {
       const start = index * upload.partSize
       const end = Math.min(file.length - 1, start + upload.partSize - 1)
       const length = end - start + 1
@@ -147,6 +156,7 @@ export async function transferTorrentToViking({
         message: `Fetching torrent part ${partNumber}/${expectedParts} into temporary buffer (${humanBytes(length)})…`,
         part: partNumber,
         parts: expectedParts,
+        parallelParts: concurrency,
         uploadedBytes,
         totalBytes: file.length,
         torrentDownloadedBytes: file.downloaded,
@@ -161,6 +171,7 @@ export async function transferTorrentToViking({
           message: `Uploading buffered part ${partNumber}/${expectedParts} to ViKiNG…`,
           part: partNumber,
           parts: expectedParts,
+          parallelParts: concurrency,
           uploadedBytes,
           totalBytes: file.length,
           torrentDownloadedBytes: file.downloaded,
@@ -169,7 +180,7 @@ export async function transferTorrentToViking({
 
         const etag = await uploadPart(upload.urls[index], createReadStream(partPath), length)
         uploadedBytes += length
-        parts.push({ PartNumber: partNumber, ETag: etag })
+        parts[index] = { PartNumber: partNumber, ETag: etag }
       } finally {
         await rm(partPath, { force: true }).catch(() => {})
       }
@@ -179,6 +190,7 @@ export async function transferTorrentToViking({
         message: `Uploaded part ${partNumber}/${expectedParts}.`,
         part: partNumber,
         parts: expectedParts,
+        parallelParts: concurrency,
         uploadedBytes,
         totalBytes: file.length,
         progress: uploadedBytes / file.length,
@@ -186,6 +198,18 @@ export async function transferTorrentToViking({
         peers: torrent.numPeers
       })
     }
+
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex
+        nextIndex += 1
+        if (index >= expectedParts) return
+        await uploadOnePart(index)
+      }
+    }
+
+    const workerCount = Math.min(concurrency, expectedParts)
+    await Promise.all(Array.from({ length: workerCount }, () => worker()))
 
     onStatus({ stage: 'finalizing', message: 'Finalizing ViKiNG multipart upload…', progress: 1 })
     const completed = await completeMultipartUpload({
@@ -205,11 +229,12 @@ export async function transferTorrentToViking({
       infoHash: torrent.infoHash,
       filename: file.name,
       bytes: file.length,
+      parallelParts: concurrency,
       destination: 'ViKiNG FiLE',
       url: completed.url,
       hash: completed.hash,
       verified: verification.exist === true,
-      cacheMode: 'disk-backed WebTorrent chunk store plus one temporary ViKiNG multipart buffer at a time'
+      cacheMode: `disk-backed WebTorrent chunk store plus up to ${concurrency} temporary ViKiNG multipart buffers`
     }
     onStatus({ stage: 'complete', message: `Transfer complete: ${completed.url}`, progress: 1, result })
     return result
