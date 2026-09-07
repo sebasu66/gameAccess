@@ -20,6 +20,12 @@ def main() -> None:
     assert "library-install-state no-license" in parts
     assert "Instalado · sin licencia disponible" in parts
 
+    active_panel = text("apps/desktop/src/DownloadCatalogPanel.tsx")
+    assert 'import { playAvailability } from "./gameAvailability"' in active_panel
+    assert "ReadyBadge({ licensed }" in active_panel
+    assert "<ReadyBadge licensed={licensed} />" in active_panel
+    assert "library-install-state no-license" in active_panel
+
     app = text("apps/desktop/src/App.tsx")
     assert "No verified owner is available for AppID" in app
     assert 'title: "Sin licencia disponible"' in app
@@ -35,6 +41,9 @@ def main() -> None:
     room_test = text("apps/desktop/src/LibraryRoom.test.tsx")
     assert "distinguishes installed games with and without a playable license" in room_test
     assert "library-install-state no-license" in room_test
+
+    active_panel_test = text("apps/desktop/src/DownloadCatalogPanel.test.tsx")
+    assert "marks an installed game without a license as unavailable instead of ready" in active_panel_test
 
 
 if __name__ == "__main__":
