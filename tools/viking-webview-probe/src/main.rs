@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::{
-    fs::File,
+    fs::{self, File, OpenOptions},
+    io::Write,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
@@ -79,6 +80,21 @@ fn write_report(state: &Arc<Mutex<ProbeState>>, path: &PathBuf) {
     }
 }
 
+fn log_path_state(label: &str, path: &PathBuf) {
+    match fs::metadata(path) {
+        Ok(meta) => println!(
+            "[probe] path-state {label} path={} exists=true len={} readonly={}",
+            path.display(),
+            meta.len(),
+            meta.permissions().readonly()
+        ),
+        Err(error) => println!(
+            "[probe] path-state {label} path={} exists=false metadata_error={error}",
+            path.display()
+        ),
+    }
+}
+
 fn main() {
     let initial_url = arg_value("--url").unwrap_or_else(|| DEFAULT_URL.to_string());
     let timeout_secs = arg_value("--timeout")
@@ -99,6 +115,28 @@ fn main() {
     println!("[probe] opening {initial_url}");
     println!("[probe] download destination={}", download_path.display());
     println!("[probe] timeout={timeout_secs}s");
+
+    if let Some(parent) = download_path.parent() {
+        println!("[probe] destination parent={}", parent.display());
+        match fs::metadata(parent) {
+            Ok(meta) => println!(
+                "[probe] destination parent exists=true readonly={}",
+                meta.permissions().readonly()
+            ),
+            Err(error) => println!("[probe] destination parent metadata error={error}"),
+        }
+        let write_test = parent.join(".gameaccess-download-write-test.tmp");
+        match OpenOptions::new().create(true).truncate(true).write(true).open(&write_test) {
+            Ok(mut file) => {
+                let write_result = file.write_all(b"ok");
+                println!("[probe] destination write-test result={write_result:?}");
+                drop(file);
+                let _ = fs::remove_file(&write_test);
+            }
+            Err(error) => println!("[probe] destination write-test open error={error}"),
+        }
+    }
+    log_path_state("startup", &download_path);
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -196,7 +234,36 @@ fn main() {
                     match event {
                         DownloadEvent::Requested { url, destination } => {
                             println!("[probe] download-requested {url}");
+                            println!("[probe] browser-proposed-destination={}", destination.display());
+                            log_path_state("before-request", &requested_path);
                             *destination = requested_path.clone();
+                            println!("[probe] overridden-destination={}", destination.display());
+
+                            let monitor_path = requested_path.clone();
+                            thread::spawn(move || {
+                                let mut last_len: Option<u64> = None;
+                                for tick in 1..=40 {
+                                    thread::sleep(Duration::from_millis(250));
+                                    match fs::metadata(&monitor_path) {
+                                        Ok(meta) => {
+                                            let len = meta.len();
+                                            if last_len != Some(len) {
+                                                println!(
+                                                    "[probe] download-progress tick={tick} path={} len={len}",
+                                                    monitor_path.display()
+                                                );
+                                                last_len = Some(len);
+                                            }
+                                        }
+                                        Err(error) if tick == 1 || tick == 40 => println!(
+                                            "[probe] download-progress tick={tick} path={} metadata_error={error}",
+                                            monitor_path.display()
+                                        ),
+                                        Err(_) => {}
+                                    }
+                                }
+                            });
+
                             if let Ok(mut state) = download_state.lock() {
                                 state.download_requested = Some(DownloadRecord {
                                     url: url.to_string(),
@@ -213,6 +280,10 @@ fn main() {
                                 "[probe] download-finished url={url} path={} success={success}",
                                 path_text.as_deref().unwrap_or("<none>")
                             );
+                            log_path_state("finished-requested-target", &requested_path);
+                            if let Some(actual_path) = path.as_ref() {
+                                log_path_state("finished-event-path", actual_path);
+                            }
                             if let Ok(mut state) = download_finished_state.lock() {
                                 state.download_finished = Some(DownloadRecord {
                                     url: url.to_string(),
