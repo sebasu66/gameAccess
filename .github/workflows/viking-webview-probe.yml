@@ -53,13 +53,14 @@ jobs:
           } else {
             Write-Host 'download-bytes=0 (no browser download was started automatically)'
           }
-      - name: Upload probe report
+      - name: Upload Windows test app and report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: viking-webview-probe
+          name: viking-webview-probe-windows
           path: |
+            tools/viking-webview-probe/target/release/viking-webview-probe.exe
             ${{ runner.temp }}/viking-webview-probe.json
             ${{ runner.temp }}/sintel-viking-probe.bin
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 7
