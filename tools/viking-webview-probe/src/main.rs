@@ -131,7 +131,7 @@ fn main() {
                         state.titles.push(title);
                     }
                 })
-                .on_page_load(move |_window, payload| {
+                .on_page_load(move |window, payload| {
                     let event = match payload.event() {
                         PageLoadEvent::Started => "started",
                         PageLoadEvent::Finished => "finished",
@@ -142,6 +142,54 @@ fn main() {
                             event: event.to_string(),
                             url: payload.url().to_string(),
                         });
+                    }
+
+                    if matches!(payload.event(), PageLoadEvent::Finished) {
+                        // Exercise the same visible Download control a user would click. This does
+                        // not interact with or bypass Cloudflare/Turnstile; it only clicks a normal
+                        // page control after the page has loaded successfully in WebView2.
+                        let script = r#"
+(() => {
+  if (window.__gameAccessDownloadProbeInstalled) return;
+  window.__gameAccessDownloadProbeInstalled = true;
+
+  const setProbeTitle = (value) => {
+    try { document.title = `GA_PROBE:${String(value).slice(0, 90)}`; } catch (_) {}
+  };
+  const textOf = (el) => String(el.innerText || el.textContent || el.value || '').trim();
+  let attempts = 0;
+
+  const findAndClickDownload = () => {
+    attempts += 1;
+    const controls = Array.from(document.querySelectorAll(
+      'button, a, input[type="button"], input[type="submit"]'
+    ));
+    const target = controls.find((el) => {
+      const text = textOf(el).toLowerCase();
+      return text === 'download' || text.startsWith('download ') || text.includes('download');
+    });
+
+    if (target) {
+      const text = textOf(target) || target.tagName;
+      setProbeTitle(`clicking:${text}`);
+      console.log('[gameaccess-probe] clicking visible download control', target);
+      target.click();
+      return;
+    }
+
+    if (attempts < 25) {
+      setTimeout(findAndClickDownload, 1000);
+    } else {
+      setProbeTitle('download-control-not-found');
+    }
+  };
+
+  setTimeout(findAndClickDownload, 1500);
+})();
+"#;
+                        if let Err(error) = window.eval(script) {
+                            eprintln!("[probe] could not inject download click probe: {error}");
+                        }
                     }
                 })
                 .on_download(move |_webview, event| {
