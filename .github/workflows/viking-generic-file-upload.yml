@@ -1,0 +1,69 @@
+name: ViKiNG generic ZIP upload probe
+
+on:
+  push:
+    branches:
+      - prototype/viking-webview-download
+    paths:
+      - '.github/workflows/viking-generic-file-upload.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload-generic-zip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remote-upload pinned public ZIP to ViKiNG
+        shell: python
+        run: |
+          import json
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          api = 'https://vikingfile.com/api'
+          source = 'https://github.com/octocat/Hello-World/archive/7fd1a60b01f91b314f59955a4e4d4e80d8edf11d.zip'
+          name = 'gameaccess-test.zip'
+
+          with urllib.request.urlopen(f'{api}/get-server', timeout=60) as response:
+              server_data = json.loads(response.read().decode('utf-8'))
+          server = server_data['server']
+
+          body = urllib.parse.urlencode({'link': source, 'user': '', 'name': name}).encode('utf-8')
+          request = urllib.request.Request(server, data=body, method='POST')
+          request.add_header('Content-Type', 'application/x-www-form-urlencoded')
+          with urllib.request.urlopen(request, timeout=300) as response:
+              result = json.loads(response.read().decode('utf-8'))
+
+          final_url = str(result.get('url') or '')
+          if not final_url:
+              raise SystemExit(f'ViKiNG did not return final URL: {result}')
+
+          output = {
+              'source': source,
+              'requested_name': name,
+              'viking_url': final_url,
+              'viking_name': result.get('name'),
+              'hash': result.get('hash'),
+          }
+
+          file_hash = str(result.get('hash') or '')
+          if file_hash:
+              check_body = urllib.parse.urlencode({'hash': file_hash}).encode('utf-8')
+              check_req = urllib.request.Request(f'{api}/check-file', data=check_body, method='POST')
+              check_req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+              with urllib.request.urlopen(check_req, timeout=60) as response:
+                  output['check_file'] = json.loads(response.read().decode('utf-8'))
+
+          Path('viking-generic-upload.json').write_text(json.dumps(output, indent=2), encoding='utf-8')
+          print(json.dumps(output, indent=2))
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: viking-generic-upload
+          path: viking-generic-upload.json
+          retention-days: 1
