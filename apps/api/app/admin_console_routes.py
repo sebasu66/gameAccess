@@ -43,6 +43,11 @@ class SteamAccountCreateRequest(BaseModel):
     generate_password: bool = True
 
 
+class ProviderAccountOnboardRequest(BaseModel):
+    account_name: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=128)
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -431,6 +436,41 @@ def start_steam_account(req: SteamAccountCreateRequest) -> dict:
             "password": password,
         },
         "note": "La contraseña se devuelve una sola vez y no se guarda en el dashboard. CAPTCHA y verificación de email siguen siendo pasos humanos visibles.",
+    }
+
+
+@router.post("/tools/provider-account/start")
+def start_provider_account_onboard(req: ProviderAccountOnboardRequest) -> dict:
+    script = LAUNCHER_ROOT / "provider_account_onboard.py"
+    if not script.is_file():
+        raise HTTPException(500, "provider_account_onboard.py not found")
+    account_name = req.account_name.strip()
+    env = {
+        "GAMEACCESS_PROVIDER_ACCOUNT_USER": account_name,
+        "GAMEACCESS_PROVIDER_ACCOUNT_PASSWORD": req.password,
+    }
+    argv = [
+        str(launcher_python()),
+        str(script),
+        "--api",
+        "http://127.0.0.1:38147",
+        "--compact",
+    ]
+    try:
+        task = start_task(
+            "provider_account_onboard",
+            f"Agregar y escanear Steam {account_name}",
+            argv,
+            env=env,
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo iniciar el scan parcial: {exc}") from exc
+    return {
+        "ok": True,
+        "task": task,
+        "account_name": account_name,
+        "scan_scope": "single-provider",
+        "catalog_update": "single-account-only",
     }
 
 

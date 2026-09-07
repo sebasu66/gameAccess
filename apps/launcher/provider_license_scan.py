@@ -176,6 +176,9 @@ def scan_provider_licenses(
     owned_by_provider: dict[str, set[int]] = {
         credential.provider_id: set() for credential in credentials
     }
+    accessible_by_provider: dict[str, set[int]] = {
+        credential.provider_id: set() for credential in credentials
+    }
     unmapped_owner_ids: set[int] = set()
     family_key_by_provider: dict[str, str] = {}
     family_members_by_provider: dict[str, list[str]] = {}
@@ -221,8 +224,6 @@ def scan_provider_licenses(
                     for steam_id in result.get("family_member_steam_ids") or []
                     if str(steam_id).isdigit()
                 ]
-                # Resolve once now for diagnostics; a complete second pass below
-                # repeats this after every scanned provider SteamID is known.
                 family_member_provider_ids = sorted(
                     {
                         provider_by_steam64[str(steam_id)]
@@ -273,6 +274,10 @@ def scan_provider_licenses(
             }
             if not app_ids:
                 continue
+            # Every permanent package visible in this session is launch-access
+            # evidence for this provider seat, even if the original owner is a
+            # different member of the Steam Family.
+            accessible_by_provider.setdefault(credential.provider_id, set()).update(app_ids)
             owner_id = package.get("owner_account_id")
             owner_provider = _resolve_original_owner_provider(
                 current_provider_id=credential.provider_id,
@@ -287,10 +292,6 @@ def scan_provider_licenses(
                 continue
             owned_by_provider.setdefault(owner_provider, set()).update(app_ids)
 
-    # Resolve family members only after all account scans have completed.
-    # This avoids missing a sibling merely because its own SteamID was learned
-    # later in the scan order. Raw SteamIDs remain local/ephemeral and are not
-    # persisted in the inventory.
     final_provider_by_steam64 = dict(provider_by_steam64)
     final_provider_by_steam64.update(
         {steam64: provider_id for provider_id, steam64 in scanned_steam64_by_provider.items()}
@@ -325,6 +326,9 @@ def scan_provider_licenses(
         {
             "provider_id": credential.provider_id,
             "owned_app_ids": sorted(owned_by_provider.get(credential.provider_id, set())),
+            "accessible_app_ids": sorted(
+                accessible_by_provider.get(credential.provider_id, set())
+            ),
             "scan_status": next(
                 (
                     scan["status"]
@@ -388,12 +392,7 @@ def save_provider_license_inventory(
     *,
     allow_incomplete: bool = False,
 ) -> bool:
-    """Persist an ownership inventory without poisoning the authoritative file.
-
-    ``DEFAULT_OUTPUT`` is authoritative and therefore accepts only a complete
-    full-roster scan. Callers may explicitly persist incomplete diagnostics to
-    another path using ``allow_incomplete=True``.
-    """
+    """Persist an ownership inventory without poisoning the authoritative file."""
     path = Path(path)
     is_authoritative_path = path.resolve() == DEFAULT_OUTPUT.resolve()
     if is_authoritative_path and not inventory.get("complete"):
@@ -458,6 +457,7 @@ def compact_inventory(inventory: dict[str, Any]) -> dict[str, Any]:
             {
                 "provider_id": account["provider_id"],
                 "owned_game_count": len(account.get("owned_app_ids") or []),
+                "accessible_game_count": len(account.get("accessible_app_ids") or []),
                 "scan_status": account.get("scan_status"),
                 "family_key": account.get("family_key"),
                 "family_member_count": len(account.get("family_member_provider_ids") or []),
