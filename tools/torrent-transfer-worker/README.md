@@ -5,7 +5,7 @@ Prototype worker for transferring an authorized torrent directly into ViKiNG FiL
 ## Architecture
 
 ```text
-magnet / .torrent URL
+magnet / local .torrent / .torrent URL
         ↓
 WebTorrent on our worker
         ↓
@@ -17,8 +17,6 @@ final https://vikingfile.com/f/... URL
 ```
 
 The worker currently uses WebTorrent's disk-backed chunk store as a temporary cache, but it starts uploading each ViKiNG multipart range as soon as the required torrent pieces become available. It does not wait for the complete selected file before starting the destination upload.
-
-This makes the first production target a small VM with sufficient temporary disk (for example an Oracle Cloud VM). A future bounded/ring chunk store can remove the full-cache disk requirement.
 
 Use only for content you are authorized to download and redistribute.
 
@@ -39,16 +37,22 @@ Install:
 npm install
 ```
 
-Official legal test torrent (Sintel / WebTorrent):
-
-```bash
-npm run transfer -- --sintel
-```
-
-Arbitrary authorized torrent:
+Run with a magnet:
 
 ```bash
 npm run transfer -- --source 'magnet:?xt=...' --file largest
+```
+
+Run with a local `.torrent`:
+
+```bash
+npm run transfer -- --source 'C:/path/file.torrent' --file largest
+```
+
+Run with an HTTP/HTTPS `.torrent` URL:
+
+```bash
+npm run transfer -- --source 'https://example.com/file.torrent' --file largest
 ```
 
 `--file` accepts `largest`, a zero-based file index, an exact file path, or an exact filename.
@@ -90,22 +94,8 @@ docker build -t gameaccess-torrent-worker .
 docker run --rm -p 8787:8787 -v /srv/gameaccess-torrents:/data/jobs gameaccess-torrent-worker
 ```
 
-On an Oracle VM, mount a sufficiently large block volume at `/srv/gameaccess-torrents` and put the service behind HTTPS/reverse proxy before exposing it publicly.
+Before exposing the worker publicly, add authentication, quotas, source/size controls, timeout and disk checks, persistence, cleanup, HTTPS, and rate limits.
 
-## Security before public deployment
+## CI
 
-The prototype API intentionally stays small. Before exposing it on the Internet add:
-
-- API authentication;
-- per-user/job quotas;
-- source allow/deny policy and abuse controls;
-- maximum torrent/file size;
-- timeout and disk free-space checks;
-- job persistence (SQLite is sufficient initially);
-- automatic cleanup of abandoned jobs;
-- HTTPS;
-- rate limits.
-
-## CI smoke test
-
-The repository workflow `torrent-transfer-worker.yml` runs unit tests and can run a legal Sintel end-to-end smoke test. GitHub Actions is used only as development/CI validation, not as the production transfer service.
+The repository workflow `torrent-transfer-worker.yml` runs generic unit and transfer-path smoke tests. The production/user flow has no hard-coded torrent fixture.
