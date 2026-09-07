@@ -7,6 +7,7 @@ import os from 'node:os'
 import { createMultipartUpload, uploadPart, completeMultipartUpload, verifyFile } from './viking.mjs'
 
 export const SINTEL_TORRENT_URL = 'https://webtorrent.io/torrents/sintel.torrent'
+const MAX_TORRENT_METADATA_BYTES = 20 * 1024 * 1024
 
 export function humanBytes(value) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -32,6 +33,35 @@ export function chooseFile(files, selector = 'largest') {
   const exact = files.find(file => file.path === selector || file.name === selector)
   if (!exact) throw new Error(`Torrent file not found: ${selector}`)
   return exact
+}
+
+export async function resolveTorrentSource(source, fetchImpl = fetch) {
+  if (typeof source !== 'string' || !/^https?:\/\//i.test(source)) return source
+
+  const response = await fetchImpl(source, { redirect: 'follow' })
+  if (!response.ok) {
+    throw new Error(`Torrent metadata request failed with HTTP ${response.status}.`)
+  }
+
+  const declaredLength = Number(response.headers?.get?.('content-length') || 0)
+  if (declaredLength > MAX_TORRENT_METADATA_BYTES) {
+    throw new Error(`Torrent metadata is too large (${humanBytes(declaredLength)}).`)
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer())
+  if (bytes.length === 0) throw new Error('Torrent metadata response was empty.')
+  if (bytes.length > MAX_TORRENT_METADATA_BYTES) {
+    throw new Error(`Torrent metadata is too large (${humanBytes(bytes.length)}).`)
+  }
+
+  // A .torrent metainfo document is a bencoded dictionary, so it begins with "d".
+  // A different first byte usually means the URL returned HTML or another error page.
+  if (bytes[0] !== 0x64) {
+    const preview = bytes.subarray(0, 24).toString('utf8').replace(/\s+/g, ' ').trim()
+    throw new Error(`Torrent URL did not return valid .torrent metadata${preview ? ` (starts with: ${JSON.stringify(preview)})` : ''}.`)
+  }
+
+  return bytes
 }
 
 function waitForMetadata(client, torrentId, opts) {
@@ -73,7 +103,8 @@ export async function transferTorrentToViking({
 
   const execute = async () => {
     onStatus({ stage: 'metadata', message: 'Resolving torrent metadata…' })
-    torrent = await waitForMetadata(client, source, {
+    const torrentSource = await resolveTorrentSource(source)
+    torrent = await waitForMetadata(client, torrentSource, {
       path: workDir,
       deselect: true,
       destroyStoreOnDestroy: true,
