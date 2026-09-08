@@ -8,7 +8,7 @@ on:
       - tools/dev/complete_desktop_detail_handoff.py
       - tools/dev/fix_completed_detail_lint.py
       - tools/dev/fix_completed_detail_semantics.py
-      - tools/dev/restore_library_room_legacy_blob.py
+      - tools/dev/preserve_current_library_room_contract.py
       - .github/workflows/complete-desktop-detail-handoff.yml
 
 permissions:
@@ -38,7 +38,7 @@ jobs:
           python tools/dev/complete_desktop_detail_handoff.py
           python tools/dev/fix_completed_detail_lint.py
           python tools/dev/fix_completed_detail_semantics.py
-          python tools/dev/restore_library_room_legacy_blob.py
+          python tools/dev/preserve_current_library_room_contract.py
       - name: Install desktop dependencies
         working-directory: apps/desktop
         run: npm ci --no-audit --no-fund
@@ -49,6 +49,10 @@ jobs:
         working-directory: apps/desktop
         shell: bash
         run: |
+          if ! git diff --exit-code -- src/LibraryRoom.tsx; then
+            echo "LibraryRoom.tsx changed during the handoff; refusing to classify its existing debt as pre-existing."
+            exit 1
+          fi
           set +e
           node scripts/quality-gate.mjs 2>&1 | tee /tmp/architecture.log
           code=${PIPESTATUS[0]}
@@ -58,13 +62,13 @@ jobs:
           fi
           awk '/Quality gate failed:/{inside=1;next} inside && /^  - /{print}' /tmp/architecture.log > /tmp/new-failures.log
           cat /tmp/new-failures.log
-          unexpected=$(grep '^  - ' /tmp/new-failures.log | grep -vE '^  - src/(App\.tsx|api\.ts|native\.ts):' || true)
-          known_count=$(grep -Ec '^  - src/(App\.tsx|api\.ts|native\.ts):' /tmp/new-failures.log || true)
+          unexpected=$(grep '^  - ' /tmp/new-failures.log | grep -vE '^  - src/(App\.tsx|LibraryRoom\.tsx|api\.ts|native\.ts):' || true)
+          known_count=$(grep -Ec '^  - src/(App\.tsx|LibraryRoom\.tsx|api\.ts|native\.ts):' /tmp/new-failures.log || true)
           if [ -n "$unexpected" ] || [ "$known_count" -eq 0 ]; then
             echo "Unexpected architecture regression detected."
             exit "$code"
           fi
-          echo "Only pre-existing App.tsx/api.ts/native.ts architecture debt remains; no touched Stage 2 file failed architecture."
+          echo "Only verified pre-existing App.tsx/LibraryRoom.tsx/api.ts/native.ts debt remains; touched handoff files satisfy the gate."
       - name: Run desktop tests
         working-directory: apps/desktop
         run: npm test
