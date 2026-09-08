@@ -104,6 +104,10 @@ export interface LocalSteamAccount {
   user_id32?: number | null;
   app_ids: number[];
   accessible_app_ids: number[];
+  ticketed_app_count?: number;
+  ownership_source?: string;
+  ownership_verified?: boolean;
+  ownership_verified_at?: string | null;
   active: boolean;
 }
 
@@ -111,6 +115,8 @@ export interface LocalSteamPool {
   source: string;
   verification_complete: boolean;
   verified_at: string | null;
+  ownership_error?: string | null;
+  verified_account_count?: number;
   accounts: LocalSteamAccount[];
   games: Array<{ app_id: number; name: string; developer?: string; publisher?: string }>;
   library_folders?: SteamLibraryFolder[];

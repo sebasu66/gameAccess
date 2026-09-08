@@ -464,8 +464,8 @@ for app_id,item in cat.items():
  if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or ''})
 accounts=[]
 for a in p.get('accounts',[]):
- accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'active':bool(a.get('active'))})
-out={'source':'steam-local-remembered-accounts','verification_complete':bool(p.get('ok')),'verified_at':None,'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
+ accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'ticketed_app_count':int(a.get('ticketed_app_count') or 0),'ownership_source':a.get('ownership_source') or 'unverified','ownership_verified':bool(a.get('ownership_verified')),'ownership_verified_at':a.get('ownership_verified_at'),'active':bool(a.get('active'))})
+out={'source':p.get('ownership_source') or 'none','verification_complete':bool(p.get('ownership_complete')),'verified_at':p.get('ownership_verified_at'),'ownership_error':p.get('ownership_error'),'verified_account_count':int(p.get('verified_account_count') or 0),'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
     let output = Command::new(&python)
         .current_dir(&launcher)
         .env("PYTHONUTF8", "1")

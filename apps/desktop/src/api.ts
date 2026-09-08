@@ -31,13 +31,22 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
   }
 
   await narrate(
-    `The local Steam scan found ${pool.accounts.length} remembered account(s) and ${pool.games.length} Windows game record(s). Scanner verification_complete=${pool.verification_complete}.`,
+    `The local Steam scan found ${pool.accounts.length} remembered account(s) and ${pool.games.length} Windows game record(s). Verified ownership source='${pool.source}', verification_complete=${pool.verification_complete}, verified_at=${pool.verified_at ?? "unknown"}, verified_accounts=${pool.verified_account_count ?? 0}/${pool.accounts.length}.`,
     { area: "LOCAL STEAM" },
   );
+  if (pool.ownership_error) {
+    await narrate(
+      `Ownership verification note: ${pool.ownership_error}. The scanner fails closed: unverified accounts can contribute visible games but cannot make them playable.`,
+      { area: "LOCAL STEAM", level: "WARN" },
+    );
+  }
   await narrateBatch(
     pool.accounts.map((account) => {
       const label = account.account_name || account.label || "unnamed Steam account";
-      return `${label}: ${account.active ? "currently active" : "remembered but not active"}; app_ids ownership candidates=${account.app_ids.length}; accessible_app_ids visibility/access entries=${account.accessible_app_ids.length}. These two lists are intentionally not treated as the same thing.`;
+      const verified = account.ownership_verified
+        ? `VERIFIED ownership from ${account.ownership_source ?? pool.source}: ${account.app_ids.length} owned game(s)`
+        : "ownership NOT verified: 0 playable owned games";
+      return `${label}: ${account.active ? "currently active" : "remembered but not active"}; ${verified}; accessible_app_ids visibility/access entries=${account.accessible_app_ids.length}; local ticket entries=${account.ticketed_app_count ?? 0} (diagnostic only, never a license).`;
     }),
     { area: "LOCAL STEAM" },
   );

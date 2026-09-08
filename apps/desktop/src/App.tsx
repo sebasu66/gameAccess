@@ -1005,7 +1005,7 @@ export default function App() {
       </header>
 
       {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> Modo offline: mostrando el catálogo combinado de las cuentas Steam detectadas en esta PC.</div> : null}
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Store siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
         <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} />
