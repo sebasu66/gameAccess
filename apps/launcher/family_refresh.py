@@ -13,6 +13,7 @@ from provider_family_evidence import merge_family_evidence
 from provider_license_scan import (
     DEFAULT_OUTPUT,
     compact_inventory,
+    load_provider_license_inventory,
     persist_scan_result,
     scan_provider_licenses,
 )
@@ -111,8 +112,9 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     pool = build_game_pool(refresh_licenses=False)
     backend = sync_backend(pool, api)
 
+    baseline = load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True)
     cumulative = merge_family_evidence(
-        {},
+        baseline or {},
         inventory,
         DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
     )
