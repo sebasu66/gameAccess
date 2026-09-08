@@ -38,6 +38,9 @@ jobs:
       - name: Build desktop frontend
         working-directory: apps/desktop
         run: npm run build
+      - name: Prepare Tauri icons
+        working-directory: apps/desktop
+        run: npm run prepare-icons
       - name: Check native compile
         run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Validate diff
