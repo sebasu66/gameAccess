@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::{env, fs, path::{Path, PathBuf}, process::Command};
+use std::{env, fs, path::PathBuf, process::Command};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
