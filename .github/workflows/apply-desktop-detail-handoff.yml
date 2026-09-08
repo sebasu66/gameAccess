@@ -1,0 +1,66 @@
+name: Apply desktop detail handoff
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/dev/apply_desktop_detail_handoff.py
+      - .github/workflows/apply-desktop-detail-handoff.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Apply implementation
+        run: python tools/dev/apply_desktop_detail_handoff.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+      - name: Lint changed frontend sources
+        working-directory: apps/desktop
+        run: npx --yes @biomejs/biome@2.2.4 lint src/LibraryRoom.tsx src/LibraryRoomParts.tsx src/LibraryDetailPanel.tsx src/detailMediaSequence.ts src/useSelectedGameDetails.ts src/stage2DetailVisualContract.test.ts src/libraryLayoutContract.test.ts src/detailMediaSequence.test.ts src/useSelectedGameDetails.test.ts
+      - name: Enforce architecture limits
+        working-directory: apps/desktop
+        run: node scripts/quality-gate.mjs
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check patch
+        run: git diff --check
+      - name: Commit implementation to main
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            apps/desktop/src/LibraryRoom.tsx \
+            apps/desktop/src/LibraryRoomParts.tsx \
+            apps/desktop/src/LibraryDetailPanel.tsx \
+            apps/desktop/src/library-room.css \
+            apps/desktop/public/library-room-layout.css \
+            apps/desktop/src/stage2DetailVisualContract.test.ts \
+            apps/desktop/src/libraryLayoutContract.test.ts \
+            docs/UI_THREAD_CONTRACT.md \
+            docs/STAGE2_FIXES_2026-09-08.md \
+            README.md
+          if git diff --cached --quiet; then
+            echo "No implementation changes required."
+            exit 0
+          fi
+          git commit -m "feat(stage2): implement bounded desktop game detail"
+          git push origin HEAD:main
