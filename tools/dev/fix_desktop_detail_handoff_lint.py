@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,13 +12,6 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
             return text
         raise SystemExit(f"{label}: expected source not found")
     return text.replace(old, new, 1)
-
-
-def sub_once(text: str, pattern: str, replacement: str, label: str) -> str:
-    result, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
-    if count != 1:
-        raise SystemExit(f"{label}: expected one match, got {count}")
-    return result
 
 
 room_path = SRC / "LibraryRoom.tsx"
@@ -82,13 +74,16 @@ function SteamRichText({ html }: { html: string }) {
   const document = new DOMParser().parseFromString(html, "text/html");
   return <div className="steam-rich-text">{renderSteamNodes(Array.from(document.body.childNodes))}</div>;
 }
+
 '''
-panel = sub_once(
-    panel,
-    r'function sanitizeSteamRichHtml\(value\?: string \| null\) \{.*?\n\}\n\nfunction SteamRichText\(\{ html \}: \{ html: string \}\) \{.*?\n\}\n',
-    safe_renderer,
-    "safe Steam rich renderer",
-)
+start_marker = "function sanitizeSteamRichHtml"
+end_marker = "function useReducedMotion"
+if start_marker in panel:
+    start = panel.index(start_marker)
+    end = panel.index(end_marker, start)
+    panel = panel[:start] + safe_renderer + panel[end:]
+elif "function renderSteamNodes" not in panel:
+    raise SystemExit("safe Steam rich renderer: expected source not found")
 
 panel = panel.replace(
     '  }, [game.id, videoSrc, images.join("|"), reducedMotion, displaySurface]);',
