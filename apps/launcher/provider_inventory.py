@@ -83,6 +83,11 @@ def build_provider_catalog(
         account["accessible_app_ids"] = [
             app_id for app_id in account["accessible_app_ids"] if app_id in game_ids
         ]
+    accessible_game_ids = {
+        int(app_id)
+        for account in accounts
+        for app_id in account["accessible_app_ids"]
+    }
 
     return {
         "ok": bool(accounts) and mapping.get("missing_identity_count") == 0,
@@ -94,7 +99,7 @@ def build_provider_catalog(
         "local_library_nonempty_accounts": nonempty_accounts,
         "all_provider_remember_false": all(not account["remembered"] for account in accounts),
         "candidate_app_count": len(candidate_ids),
-        "accessible_unique_app_count": len(game_ids),
+        "accessible_unique_app_count": len(accessible_game_ids),
         "account_count": len(accounts),
         "game_count": len(games),
         "accounts": accounts,
