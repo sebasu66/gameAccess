@@ -20,7 +20,7 @@ def test_roster_preserves_parentheses_and_shell_metacharacters(tmp_path: Path) -
     assert credentials[0].password == password
 
 
-def test_roster_supports_csv_quoted_password_with_comma_and_parenthesis(tmp_path: Path) -> None:
+def test_roster_supports_csv_quoted_special_password(tmp_path: Path) -> None:
     path = tmp_path / "accFull.csv"
     password = 'p),ass"word'
     with path.open("w", encoding="utf-8", newline="") as handle:
