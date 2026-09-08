@@ -6,6 +6,16 @@ export interface SelectionScrollMetrics {
   padding?: number;
 }
 
+export interface SelectionRelativeTopMetrics {
+  scrollTop: number;
+  viewportTop: number;
+  itemTop: number;
+}
+
+export function selectionItemTopInScrollContainer(metrics: SelectionRelativeTopMetrics) {
+  return Math.max(0, metrics.scrollTop + metrics.itemTop - metrics.viewportTop);
+}
+
 export function calculateSelectionScrollTop(metrics: SelectionScrollMetrics) {
   const padding = Math.max(0, metrics.padding ?? 8);
   const visibleTop = metrics.scrollTop + padding;
