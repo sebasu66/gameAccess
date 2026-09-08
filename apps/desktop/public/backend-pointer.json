@@ -1,0 +1,4 @@
+{
+  "api_url": "",
+  "_help": "Set api_url to the current hosted GameAccess backend HTTPS URL. The desktop probes its local development server first and uses this pointer only when local is unavailable."
+}
