@@ -7,6 +7,7 @@ import { downloadProgress, isTrackedDownload } from "./downloadManager";
 import { playAvailability } from "./gameAvailability";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { libraryArtworkCandidates } from "./libraryArtwork";
+import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 
@@ -145,6 +146,27 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
   const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
+
+  useEffect(() => {
+    const grid = props.gridRef.current;
+    const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");
+    if (!grid || !card || props.selectedIndex < 0) return;
+    const gridRect = grid.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const itemTop = selectionItemTopInScrollContainer({
+      scrollTop: grid.scrollTop,
+      viewportTop: gridRect.top,
+      itemTop: cardRect.top,
+    });
+    const nextTop = calculateSelectionScrollTop({
+      scrollTop: grid.scrollTop,
+      viewportHeight: grid.clientHeight,
+      itemTop,
+      itemHeight: cardRect.height,
+      padding: 8,
+    });
+    if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });
+  }, [props.gridRef, props.selectedIndex]);
 
   useEffect(() => {
     if (!contextMenu) return;

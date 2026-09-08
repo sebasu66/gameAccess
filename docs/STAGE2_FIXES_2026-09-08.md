@@ -1,3 +1,5 @@
+
+> Desktop detail visual rules are superseded by `DESKTOP_DETAIL_LAYOUT_CONTRACT.md`. The remaining unrelated Stage 2 items stay queued.
 # GameAccess Stage 2 — confirmed fixes and UI contract
 
 Date: 2026-09-08
