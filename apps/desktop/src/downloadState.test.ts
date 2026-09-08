@@ -54,3 +54,11 @@ describe("installation/download reconciliation", () => {
     expect(reconcileSteamAndProviderStatus(steam, validatedProvider).state).toBe("installed");
   });
 });
+
+ it("releases a stale preparing state when the worker reports a terminal failure", () => {
+  const base = status({state: "preparing", job_id: "job-42"});
+  const failed = status({state: "not-installed", job_id: "job-42", error: "No verified provider"});
+  const result = reconcileDownloadStatus(base, failed);
+  expect(result?.state).toBe("not-installed");
+  expect(result?.error).toBe("No verified provider");
+});

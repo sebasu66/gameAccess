@@ -46,7 +46,7 @@ jobs:
           RELATIVE=()
           for FILE in "${FILES[@]}"; do RELATIVE+=("${FILE#apps/desktop/}"); done
           cd apps/desktop
-          npx --yes @biomejs/biome@2.2.4 lint "${RELATIVE[@]}"
+          npx --yes @biomejs/biome@2.2.4 lint --max-diagnostics=none --diagnostic-level=error "${RELATIVE[@]}"
       - name: Enforce architecture limits
         run: node scripts/quality-gate.mjs
       - name: Unit tests
@@ -138,15 +138,25 @@ jobs:
         env:
           PYTHONPATH: apps/api
         run: pytest -q apps/api/tests
-      - name: Launcher ownership unit tests
+  launcher-quality:
+    name: launcher-quality
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install launcher test dependencies
+        run: pip install -r apps/launcher/requirements.txt pytest
+      - name: Launcher ownership and inventory unit tests
         env:
           PYTHONPATH: apps/launcher
-        run: pytest -q apps/launcher/tests
+        run: python -m pytest -q apps/launcher/tests
 
   quality-gate:
     name: quality-gate
     if: always()
-    needs: [frontend-quality, native-quality, api-quality]
+    needs: [frontend-quality, native-quality, api-quality, launcher-quality]
     runs-on: ubuntu-latest
     steps:
       - name: Require every quality lane to pass
@@ -154,8 +164,10 @@ jobs:
           FRONTEND: ${{ needs.frontend-quality.result }}
           NATIVE: ${{ needs.native-quality.result }}
           API: ${{ needs.api-quality.result }}
+          LAUNCHER: ${{ needs.launcher-quality.result }}
         run: |
           echo "frontend=$FRONTEND native=$NATIVE api=$API"
           test "$FRONTEND" = success
           test "$NATIVE" = success
           test "$API" = success
+          test "$LAUNCHER" = success

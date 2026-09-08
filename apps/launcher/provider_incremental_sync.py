@@ -3,11 +3,12 @@
 This consumes ``provider_licenses.last_scan.json`` produced by the existing
 provider license scanner. It imports games for providers whose scan completed,
 updates those provider rows in the backend, and rebuilds family routing by
-overlaying the fresh rows on the last complete authoritative inventory.
+retaining timestamped verified evidence from successive partial scans.
 
 Credentials remain local in ``accFull.csv``. This command never prints account
 names or passwords and never performs a Steam login itself.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +17,7 @@ from typing import Any
 
 from family_refresh import build_family_graph
 from provider_account_onboard import _api_json, _import_verified_games
+from provider_family_evidence import merge_family_evidence
 from provider_license_scan import (
     DEFAULT_DIAGNOSTIC_OUTPUT,
     DEFAULT_OUTPUT,
@@ -24,7 +26,9 @@ from provider_license_scan import (
 from provider_roster import load_provider_credentials
 
 
-def _rows(inventory: dict[str, Any] | None, key: str = "accounts") -> dict[str, dict[str, Any]]:
+def _rows(
+    inventory: dict[str, Any] | None, key: str = "accounts"
+) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for row in (inventory or {}).get(key, []) or []:
         if not isinstance(row, dict):
@@ -59,7 +63,9 @@ def sync_recent_scan(
     credentials = {item.provider_id: item for item in load_provider_credentials()}
     successful = successful_provider_ids(fresh)
     if provider_ids is not None:
-        successful = [provider_id for provider_id in successful if provider_id in provider_ids]
+        successful = [
+            provider_id for provider_id in successful if provider_id in provider_ids
+        ]
 
     base = api.rstrip("/")
     _api_json("GET", f"{base}/admin/pool/roster-status", timeout=20.0)
@@ -81,7 +87,7 @@ def sync_recent_scan(
         accessible_app_ids = sorted(
             {
                 int(app_id)
-                for app_id in account.get("accessible_app_ids") or owned_app_ids
+                for app_id in account.get("accessible_app_ids", [])
                 if str(app_id).isdigit() and int(app_id) > 0
             }
         )
@@ -123,12 +129,16 @@ def sync_recent_scan(
             }
         )
 
-    authoritative = load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True) or {}
-    merged_accounts = {provider_id: dict(row) for provider_id, row in _rows(authoritative).items()}
-    for provider_id in successful:
-        if provider_id in fresh_accounts:
-            merged_accounts[provider_id] = dict(fresh_accounts[provider_id])
-    families = build_family_graph({"accounts": list(merged_accounts.values())})
+    authoritative = (
+        load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True) or {}
+    )
+    cumulative = merge_family_evidence(
+        authoritative,
+        fresh,
+        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+        selected={row["provider_id"] for row in providers},
+    )
+    families = build_family_graph(cumulative)
     family_sync = _api_json(
         "POST",
         f"{base}/admin/pool/families/sync",
@@ -148,7 +158,9 @@ def sync_recent_scan(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sync successful providers from the latest partial scan")
+    parser = argparse.ArgumentParser(
+        description="Sync successful providers from the latest partial scan"
+    )
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--provider-id", action="append", default=[])
     args = parser.parse_args()
@@ -161,3 +173,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

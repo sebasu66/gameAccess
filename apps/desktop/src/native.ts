@@ -6,11 +6,7 @@ import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycl
 import { reconcileSteamAndProviderStatus } from "./downloadState";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
-import {
-  consumePreviousSteamAccount,
-  loadSteamSessionPreferences,
-  rememberPreviousSteamAccount,
-} from "./steamSessionPreferences";
+import { consumePreviousSteamAccount, loadSteamSessionPreferences, rememberPreviousSteamAccount } from "./steamSessionPreferences";
 import type { SteamRestoreMode } from "./steamSessionPreferences";
 
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -126,7 +122,6 @@ export interface LocalSteamPool {
   library_folders?: SteamLibraryFolder[];
 }
 
-
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
   await narrate("Native layer: reading Steam remembered accounts and their local library/access data.", { area: "LOCAL STEAM" });
   try {
@@ -206,7 +201,6 @@ function dispatchDownloadEvent(name: string, appId: number, error?: string) {
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-
 async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
   const deadline = Date.now() + 90_000;
   let lastState = "";
@@ -227,7 +221,11 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
       await narrate(`Download for Steam AppID ${appId}: installation is complete and the game is ready on disk.`, { area: "DOWNLOAD" });
       return;
     }
-    if (["preparing", "downloading", "paused"].includes(status.state)) {
+    if (status.state === "preparing") {
+      await narrate(`GameAccess accepted AppID ${appId}; provider validation and download preparation are still pending.`, { area: "DOWNLOAD" });
+      return;
+    }
+    if (["downloading", "paused"].includes(status.state)) {
       await narrate(`Steam confirmed that download work for AppID ${appId} has started.`, { area: "DOWNLOAD" });
       return;
     }
@@ -258,7 +256,6 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   }
   return invoke<SteamSessionStatus>("steam_session_status");
 }
-
 
 export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
@@ -305,7 +302,6 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 }
 
-
 export async function openSteamClientInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   await narrate(`Direct Steam-client download requested for AppID ${appId}. This bypasses GameAccess provider download selection.`, { area: "DOWNLOAD" });
@@ -331,7 +327,6 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
     throw error;
   }
 }
-
 
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
@@ -374,33 +369,8 @@ export async function openSteamRun(appId: number): Promise<void> {
     throw new Error(`No se pudo resolver la cuenta Steam propietaria de AppID ${appId}.`);
   }
 
-  const preferences = loadSteamSessionPreferences();
-  const previous = consumePreviousSteamAccount();
-  const main = preferences.mainAccountName
-    ? findSteamAccount(refreshed.accounts, preferences.mainAccountName)
-    : undefined;
-  const mainAccountName = main ? accountName(main) : preferences.mainAccountName;
-  const restoreMode = await resolveSessionRestoreMode(
-    preferences.restoreMode,
-    mainAccountName,
-    previous?.accountName,
-  );
-
-  await narrate(`Starting tracked Steam game session for AppID ${appId} under '${accountName(owner)}'. Restore policy after play: '${restoreMode}'.`, { area: "LAUNCH" });
-  await invoke<SteamSessionStatus>("start_steam_game_session", {
-    request: {
-      appId,
-      accountName: accountName(owner),
-      expectedUserId32: owner.user_id32 ?? null,
-      restoreMode,
-      mainAccountName,
-      mainUserId32: main?.user_id32 ?? null,
-      previousAccountName: previous?.accountName ?? null,
-      previousUserId32: previous?.userId32 ?? null,
-    },
-  });
+  await startResolvedSteamSession(appId, owner, refreshed);
 }
-
 
 export async function loginProviderSteam(credentials: { accountName: string; password: string; expectedUserId32: number }): Promise<void> {
   if (!hasTauriRuntime()) throw new Error("El login de proveedores requiere la aplicación de escritorio.");
@@ -551,4 +521,32 @@ export async function getSteamStoreMetadata(appId: number): Promise<Record<strin
   } finally {
     steamStoreMetadataRequests.delete(appId);
   }
+}
+
+async function startResolvedSteamSession(appId: number, owner: LocalSteamAccount, refreshed: LocalSteamPool): Promise<void> {
+  const preferences = loadSteamSessionPreferences();
+  const previous = consumePreviousSteamAccount();
+  const main = preferences.mainAccountName
+    ? findSteamAccount(refreshed.accounts, preferences.mainAccountName)
+    : undefined;
+  const mainAccountName = main ? accountName(main) : preferences.mainAccountName;
+  const restoreMode = await resolveSessionRestoreMode(
+    preferences.restoreMode,
+    mainAccountName,
+    previous?.accountName,
+  );
+
+  await narrate(`Starting tracked Steam game session for AppID ${appId} under '${accountName(owner)}'. Restore policy after play: '${restoreMode}'.`, { area: "LAUNCH" });
+  await invoke<SteamSessionStatus>("start_steam_game_session", {
+    request: {
+      appId,
+      accountName: accountName(owner),
+      expectedUserId32: owner.user_id32 ?? null,
+      restoreMode,
+      mainAccountName,
+      mainUserId32: main?.user_id32 ?? null,
+      previousAccountName: previous?.accountName ?? null,
+      previousUserId32: previous?.userId32 ?? null,
+    },
+  });
 }

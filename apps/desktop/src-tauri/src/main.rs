@@ -30,8 +30,7 @@ fn narration_log_file() -> Result<PathBuf, String> {
 
 fn clean_narration_field(value: &str, fallback: &str) -> String {
     let cleaned = value
-        .replace('\r', " ")
-        .replace('\n', " ")
+        .replace(['\r', '\n'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
