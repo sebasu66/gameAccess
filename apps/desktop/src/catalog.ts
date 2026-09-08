@@ -14,8 +14,10 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
   const accounts = pool.accounts ?? [];
   const decisions: string[] = [];
   const catalog = (pool.games ?? []).flatMap((item): CatalogGame[] => {
+    // Defense in depth: app_ids alone is never enough. The native scanner must
+    // also explicitly say that this account was verified from licenses_print.
     const owners = accounts
-      .filter((account) => account.app_ids.includes(item.app_id))
+      .filter((account) => account.ownership_verified === true && account.app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
     const accessible = accounts
       .filter((account) => account.accessible_app_ids.includes(item.app_id))
@@ -28,11 +30,14 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
     const ownerText = ownerLabels.length ? ownerLabels.join(", ") : "none";
     const accessText = accessLabels.length ? accessLabels.join(", ") : "none";
     const decision = owners.length
-      ? `AVAILABLE locally because the local scanner supplied at least one ownership candidate in app_ids (${ownerText}).`
-      : "NOT AVAILABLE to play locally because no remembered account supplied this AppID in app_ids.";
+      ? `AVAILABLE locally because licenses_print verification confirms at least one owner (${ownerText}).`
+      : "NOT AVAILABLE to play locally because no remembered account has verified ownership for this AppID.";
     decisions.push(
-      `${item.name} (Steam AppID ${item.app_id}). Steam-visible/access accounts from accessible_app_ids: ${accessText}. Ownership candidates currently supplied by the local scanner in app_ids: ${ownerText}. Rule applied: accessible_app_ids by itself never grants play; at least one app_ids owner candidate is required. Decision: ${decision}`,
+      `${item.name} (Steam AppID ${item.app_id}). Steam-visible/access accounts from accessible_app_ids: ${accessText}. Verified owners from licenses_print-backed app_ids: ${ownerText}. Rule applied: visibility and local ticket history never grant play; an account must have ownership_verified=true and contain the AppID in app_ids. Decision: ${decision}`,
     );
+
+    const relevantAccounts = owners.length ? owners : accessible;
+    const gameOwnershipVerified = relevantAccounts.length > 0 && relevantAccounts.every((account) => account.ownership_verified === true);
 
     return [{
       id: item.app_id,
@@ -47,7 +52,7 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       local_access_labels: accessLabels,
       local_primary_account_label: owners[0]?.account_name || owners[0]?.label,
       local_owner_steam_ids: owners.map((account) => account.steam_id64).filter((value): value is string => Boolean(value)),
-      local_inventory_verified: pool.verification_complete,
+      local_inventory_verified: gameOwnershipVerified,
       local_inventory_verified_at: pool.verified_at,
       ...steamAssets(item.app_id),
     }];
