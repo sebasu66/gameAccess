@@ -44,7 +44,7 @@ import {
 } from "./LibraryRoomParts";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
-import { calculateSelectionScrollTop } from "./libraryNavigation";
+import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { LibrarySearchEventDetail } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
 import { playUiSound } from "./uiSounds";
@@ -427,13 +427,29 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [displayGames.length]);
 
   useEffect(() => {
-    if (!isTabletSurface || selectedIndex < 0) return;
+    if (selectedIndex < 0 || isDisplaySurface) return;
     const grid = gridRef.current;
     const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");
     if (!grid || !card) return;
-    const nextTop = calculateSelectionScrollTop({ scrollTop: grid.scrollTop, viewportHeight: grid.clientHeight, itemTop: card.offsetTop, itemHeight: card.offsetHeight, padding: 8 });
-    if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });
-  }, [isTabletSurface, selectedIndex]);
+
+    const gridRect = grid.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const itemTop = selectionItemTopInScrollContainer({
+      scrollTop: grid.scrollTop,
+      viewportTop: gridRect.top,
+      itemTop: cardRect.top,
+    });
+    const nextTop = calculateSelectionScrollTop({
+      scrollTop: grid.scrollTop,
+      viewportHeight: grid.clientHeight,
+      itemTop,
+      itemHeight: cardRect.height,
+      padding: 8,
+    });
+    if (Math.abs(nextTop - grid.scrollTop) > 1) {
+      grid.scrollTo({ top: nextTop, behavior: "auto" });
+    }
+  }, [isDisplaySurface, selectedIndex]);
 
   useEffect(() => {
     const shouldLoadDetails = (!isTabletSurface || tabletDetailsOpen) && detailRequestedGameId === selectedGameIdResolved;
