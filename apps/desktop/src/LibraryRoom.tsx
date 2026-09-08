@@ -1,7 +1,6 @@
+import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { MoreHorizontal, Search, Tv2, X } from "lucide-react";
 
 import { loadDetails } from "./api";
 import CancelDownloadDialog from "./CancelDownloadDialog";
@@ -9,42 +8,10 @@ import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import DownloadCompleteDialog from "./DownloadCompleteDialog";
 import { cancelManagedDownload } from "./downloadCancellation";
-import {
-  acknowledgeDownloadCompletion,
-  cancelDownloadLifecycle,
-  pendingDownloadCompletions,
-  recordDownloadCompletion,
-  type DownloadJobRecord,
-} from "./downloadLifecycle";
-import {
-  DOWNLOAD_REQUESTED_EVENT,
-  DOWNLOAD_REQUEST_FAILED_EVENT,
-  didDownloadJustComplete,
-  isTrackedDownload,
-  pinDownloadingGames,
-  requestedDownloadStatus,
-  shouldReleaseMissingDownload,
-} from "./downloadManager";
+import { acknowledgeDownloadCompletion, cancelDownloadLifecycle, pendingDownloadCompletions, recordDownloadCompletion, type DownloadJobRecord } from "./downloadLifecycle";
+import { DOWNLOAD_REQUESTED_EVENT, DOWNLOAD_REQUEST_FAILED_EVENT, didDownloadJustComplete, isTrackedDownload, pinDownloadingGames, requestedDownloadStatus, shouldReleaseMissingDownload } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import {
-  buildActions,
-  EmptyLibraryContent,
-  FeaturePanel,
-  handleActionKey,
-  handleGridKey,
-  isActiveDownload,
-  isInstalled,
-  LibraryHint,
-  libraryRoomClass,
-  selectedDownload,
-  selectedHero,
-  selectedPortraitHero,
-  selectedWideArtworkSlides,
-  selectedMovie,
-  selectedSummary,
-  selectedVideo,
-  useCrossfadeArtwork,
-} from "./LibraryRoomParts";
+import { buildActions, EmptyLibraryContent, FeaturePanel, handleActionKey, handleGridKey, isActiveDownload, isInstalled, LibraryHint, libraryRoomClass, selectedDownload, selectedHero, selectedPortraitHero, selectedWideArtworkSlides, selectedMovie, selectedSummary, selectedVideo, useCrossfadeArtwork } from "./LibraryRoomParts";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
@@ -67,24 +34,8 @@ interface LibraryRoomProps {
 
 type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
-type CefWindow = Window & {
-  sendIpcMessage?: (message: string) => void;
-  onIpcMessage?: (message: string) => void;
-};
-
-function formatBytes(value: number | null | undefined) {
-  if (value == null || value < 0) return "No informado por Steam";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
-  return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false }: LibraryRoomProps) {
-  const surfaceMode = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("surface");
-  const isTabletSurface = surfaceMode === "tablet";
-  const isDisplaySurface = surfaceMode === "display";
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -98,7 +49,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const completionHandlingRef = useRef(new Set<string>());
   const gamesByAppIdRef = useRef(new Map<number, CatalogGame>());
 
-  const [selectedGameId, setSelectedGameId] = useState<number | null>(() => isTabletSurface ? null : (games[0]?.id ?? null));
+  const [selectedGameId, setSelectedGameId] = useState<number | null>(() => games[0]?.id ?? null);
   const [detailRequestedGameId, setDetailRequestedGameId] = useState<number | null>(null);
   const [focusZone, setFocusZone] = useState<FocusZone>("grid");
   const [actionIndex, setActionIndex] = useState(0);
@@ -117,9 +68,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tabletDetailsOpen, setTabletDetailsOpen] = useState(false);
-  const [displayPinned, setDisplayPinned] = useState(false);
-  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const isWindowMaximized = useDesktopWindowMaximized();
   const [artworkSlideIndex, setArtworkSlideIndex] = useState(0);
 
   gamesByAppIdRef.current = new Map(games.flatMap((game) => game.app_id ? [[game.app_id, game] as const] : []));
@@ -140,8 +89,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     [searchedGames, effectiveDownloads, trackedAppIds],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
-  const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : (isTabletSurface ? -1 : 0);
-  const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : (isTabletSurface ? undefined : displayGames[0]);
+  const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
+  const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
@@ -150,13 +99,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activeDownload = isActiveDownload(download);
   const detailDownload = download;
   const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
-  const fallbackHero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
-  const portraitHero = isTabletSurface ? undefined : selectedPortraitHero(selectedGame);
-  const wideArtworkSlides = isTabletSurface ? [] : selectedWideArtworkSlides(currentDetails, selectedGame);
+  const fallbackHero = selectedHero(currentDetails, selectedGame);
+  const portraitHero = selectedPortraitHero(selectedGame);
+  const wideArtworkSlides = selectedWideArtworkSlides(currentDetails, selectedGame);
   const wideHero = wideArtworkSlides.length ? wideArtworkSlides[artworkSlideIndex % wideArtworkSlides.length] : undefined;
-  const hero = isTabletSurface ? undefined : (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
-  const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
-  const videoSrc = isDisplaySurface ? selectedVideo(movie) : undefined;
+  const hero = (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
+  const movie = selectedMovie(currentDetails);
+  const videoSrc = selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(currentDetails);
   const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
@@ -188,93 +137,20 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       return;
     }
     if (selectedGameId != null && displayGames.some((game) => game.id === selectedGameId)) return;
-    if (isTabletSurface) {
-      if (selectedGameId != null) setSelectedGameId(null);
-      return;
-    }
     setSelectedGameId(displayGames[0].id);
-  }, [displayGames, selectedGameId, isTabletSurface]);
-
-  useEffect(() => {
-    if (!isTabletSurface) return;
-    const payload = selectedGame && selectedGameIdResolved != null
-      ? JSON.stringify({ type: "game-selection", gameId: selectedGameIdResolved, appId: selectedGame.app_id ?? null, name: selectedGame.name })
-      : JSON.stringify({ type: "game-selection-clear" });
-    (window as CefWindow).sendIpcMessage?.(payload);
-  }, [isTabletSurface, selectedGameIdResolved, selectedGame]);
-
-  useEffect(() => {
-    if (!isDisplaySurface) return;
-    const cefWindow = window as CefWindow;
-    const previous = cefWindow.onIpcMessage;
-    cefWindow.onIpcMessage = (message: string) => {
-      try {
-        const payload = JSON.parse(message) as { type?: string; gameId?: number };
-        if (payload.type === "game-selection" && Number.isFinite(payload.gameId)) {
-          setDisplayPinned(true);
-          setSelectedGameId(payload.gameId ?? null);
-          setDetailRequestedGameId(payload.gameId ?? null);
-        } else if (payload.type === "game-selection-clear") {
-          setDisplayPinned(false);
-        }
-      } catch { /* ignore unrelated CEF IPC */ }
-    };
-    return () => { cefWindow.onIpcMessage = previous; };
-  }, [isDisplaySurface]);
-
-  useEffect(() => {
-    if (!isDisplaySurface || displayPinned || displayGames.length < 2 || selectedGameIdResolved == null) return;
-    const holdMs = videoSrc ? 45_000 : 18_000;
-    const timer = window.setTimeout(() => {
-      const current = Math.max(0, displayGames.findIndex((game) => game.id === selectedGameIdResolved));
-      const next = (current + 1) % displayGames.length;
-      setSelectedGameId(displayGames[next]?.id ?? displayGames[0]?.id ?? null);
-    }, holdMs);
-    return () => window.clearTimeout(timer);
-  }, [isDisplaySurface, displayPinned, displayGames, selectedGameIdResolved, videoSrc]);
-
-  useEffect(() => {
-    if (isTabletSurface || isDisplaySurface) {
-      setIsWindowMaximized(false);
-      return;
-    }
-
-    let cancelled = false;
-    let unlisten: (() => void) | undefined;
-    const apply = (value: boolean) => { if (!cancelled) setIsWindowMaximized(value); };
-
-    if ("__TAURI_INTERNALS__" in window) {
-      const appWindow = getCurrentWindow();
-      const refresh = () => { void appWindow.isMaximized().then(apply).catch(() => undefined); };
-      refresh();
-      void appWindow.onResized(() => refresh()).then((stop) => {
-        if (cancelled) stop();
-        else unlisten = stop;
-      }).catch(() => undefined);
-    } else {
-      const refresh = () => apply(window.innerWidth >= 1500 && window.innerWidth / Math.max(1, window.innerHeight) >= 1.45);
-      refresh();
-      window.addEventListener("resize", refresh);
-      unlisten = () => window.removeEventListener("resize", refresh);
-    }
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [isTabletSurface, isDisplaySurface]);
+  }, [displayGames, selectedGameId]);
 
   useEffect(() => {
     setArtworkSlideIndex(0);
   }, [selectedGameIdResolved, isWindowMaximized]);
 
   useEffect(() => {
-    if (!isWindowMaximized || isTabletSurface || isDisplaySurface || wideArtworkSlides.length < 2) return;
+    if (!isWindowMaximized || wideArtworkSlides.length < 2) return;
     const timer = window.setInterval(() => {
       setArtworkSlideIndex((current) => (current + 1) % wideArtworkSlides.length);
     }, 8_000);
     return () => window.clearInterval(timer);
-  }, [isWindowMaximized, isTabletSurface, isDisplaySurface, selectedGameIdResolved, wideArtworkSlides.length]);
+  }, [isWindowMaximized, selectedGameIdResolved, wideArtworkSlides.length]);
 
   useEffect(() => {
     const requested = (event: Event) => {
@@ -405,12 +281,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const markActivity = useCallback(() => {
     setShowcaseMode(false);
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
-    if (isTabletSurface || isDisplaySurface) return;
     idleTimerRef.current = window.setTimeout(() => {
       setFocusZone("grid");
       setShowcaseMode(true);
     }, DESKTOP_IDLE_TIMEOUT_MS);
-  }, [isTabletSurface, isDisplaySurface]);
+  }, []);
 
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
@@ -479,7 +354,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [displayGames.length]);
 
   useEffect(() => {
-    if (selectedIndex < 0 || isDisplaySurface) return;
+    if (selectedIndex < 0) return;
     const grid = gridRef.current;
     const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");
     if (!grid || !card) return;
@@ -501,10 +376,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     if (Math.abs(nextTop - grid.scrollTop) > 1) {
       grid.scrollTo({ top: nextTop, behavior: "auto" });
     }
-  }, [isDisplaySurface, selectedIndex]);
+  }, [selectedIndex]);
 
   useEffect(() => {
-    const shouldLoadDetails = (!isTabletSurface || tabletDetailsOpen) && detailRequestedGameId === selectedGameIdResolved;
+    const shouldLoadDetails = detailRequestedGameId === selectedGameIdResolved;
     if (!shouldLoadDetails || selectedGameIdResolved == null) {
       setDetails(null);
       setDetailsGameId(null);
@@ -521,10 +396,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGameIdResolved, isTabletSurface, tabletDetailsOpen, detailRequestedGameId]);
+  }, [selectedGameIdResolved, detailRequestedGameId]);
 
-
-  useEffect(() => { if (isTabletSurface) setTabletDetailsOpen(false); }, [isTabletSurface]);
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
 
   const moveGrid = (delta: number) => {
@@ -608,7 +481,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const gameId = displayGames[index]?.id ?? null;
     setSelectedGameId(gameId);
     setDetailRequestedGameId(gameId);
-    setTabletDetailsOpen(false);
     setFocusZone("grid");
     rootRef.current?.focus({ preventScroll: true });
   };
@@ -656,9 +528,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     }
   };
 
-  const surfaceClass = isTabletSurface ? "surface-tablet" : isDisplaySurface ? "surface-display" : "";
-  const windowLayoutClass = !isTabletSurface && !isDisplaySurface && isWindowMaximized ? "is-maximized" : "";
-  const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${surfaceClass} ${windowLayoutClass}`.trim();
+  const windowLayoutClass = isWindowMaximized ? "is-maximized" : "";
+  const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${windowLayoutClass}`.trim();
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
 
   const detailPanel = selectedGame ? (
@@ -675,7 +546,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       onVideoReady={handleVideoReady}
       onToggleSound={toggleVideoSound}
       onVolumeChange={changeVideoVolume}
-      showcaseMode={isDisplaySurface ? !displayPinned : showcaseMode}
+      showcaseMode={showcaseMode}
       summary={summary}
       loadingDetails={loadingDetails}
       details={currentDetails}
@@ -683,7 +554,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       preference={preferences[selectedGame.id]}
       onPreference={(value) => onPreference(selectedGame.id, value)}
       actions={actions}
-      focusZone={isDisplaySurface ? "grid" : focusZone}
+      focusZone={focusZone}
       actionIndex={actionIndex}
       actionRefs={actionRefs}
       setFocusZone={setFocusZone}
@@ -691,72 +562,6 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       onAction={onAction}
     />
   ) : null;
-
-  if (isDisplaySurface) {
-    return (
-      <section className={rootClass} aria-label="Pantalla principal de biblioteca">
-        {detailPanel ?? <div className="library-display-empty">Seleccioná un juego desde la tablet</div>}
-      </section>
-    );
-  }
-
-  if (isTabletSurface) {
-    const primaryAction = selectedGame ? actions[0] : undefined;
-    const accountLabel = selectedGame?.local_account_labels?.length ? selectedGame.local_account_labels.join(", ") : selectedGame?.local_primary_account_label ?? "No informado";
-    const accessLabel = selectedGame?.local_access_labels?.length ? selectedGame.local_access_labels.join(", ") : "No informado";
-    return (
-      <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Control de biblioteca">
-        <header className="library-phone-top">
-          <label className="library-phone-search" onKeyDown={(event) => event.stopPropagation()}>
-            <Search size={18} />
-            <input value={searchQuery} onChange={(event) => setSearchQuery(event.currentTarget.value)} placeholder="Buscar juegos" autoComplete="off" aria-label="Buscar en tu biblioteca" />
-            {searchQuery ? <button type="button" onClick={() => setSearchQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}
-          </label>
-          {selectedGame ? (
-            <div className="library-phone-selection">
-              <div className="library-phone-selection-copy">
-                <span>{installed ? "INSTALADO" : activeDownload ? `DESCARGANDO ${Math.round(download?.progress ?? 0)}%` : "SELECCIONADO"}</span>
-                <strong>{selectedGame.name}</strong>
-              </div>
-              <button type="button" className="library-phone-release" title="Volver al modo vitrina de la TV" aria-label="Volver al modo vitrina de la TV" onClick={() => { setSelectedGameId(null); setTabletDetailsOpen(false); }}><X size={16} /></button>
-              <div className="library-phone-actions">
-                {primaryAction ? <button type="button" className="library-phone-primary" disabled={primaryAction.disabled} onClick={() => onAction(0)}>{primaryAction.icon}<strong>{primaryAction.label}</strong></button> : null}
-                <button type="button" className="library-phone-more" aria-label="Administrar juego" title="Administrar juego" onClick={() => { setDetailRequestedGameId(selectedGame.id); setTabletDetailsOpen(true); }}><MoreHorizontal size={22} /></button>
-              </div>
-            </div>
-          ) : <div className="library-phone-showcase"><Tv2 size={18} /><span>TV en modo vitrina</span></div>}
-        </header>
-
-        <DownloadCatalogPanel games={displayGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} onSelect={onSelectGame} onPlay={onPlay} />
-
-        {tabletDetailsOpen && selectedGame ? (
-          <aside className="library-phone-details" onPointerDown={(event) => event.stopPropagation()}>
-            <header><div><span className="eyebrow">ADMINISTRAR</span><h2>{selectedGame.name}</h2></div><button type="button" onClick={() => setTabletDetailsOpen(false)} aria-label="Cerrar"><X size={18} /></button></header>
-            <div className="library-phone-details-scroll">
-              <dl className="library-phone-facts">
-                <div><dt>Estado</dt><dd>{installed ? "Instalado" : download?.state === "cancelling" ? "Cancelando" : activeDownload ? `Descargando ${Math.round(download?.progress ?? 0)}%` : "No instalado"}</dd></div>
-                <div><dt>Espacio</dt><dd>{formatBytes(detailDownload?.bytes_total)}</dd></div>
-                <div><dt>Cuenta Steam</dt><dd>{accountLabel}</dd></div>
-                <div><dt>Acceso</dt><dd>{accessLabel}</dd></div>
-                <div><dt>Steam AppID</dt><dd>{selectedGame.app_id ?? "—"}</dd></div>
-                <div><dt>Copias</dt><dd>{selectedGame.copies_available} / {selectedGame.copies_total} disponibles</dd></div>
-                <div><dt>Inventario</dt><dd>{selectedGame.local_inventory_verified ? "Verificado" : "Sin verificar"}</dd></div>
-              </dl>
-              {loadingDetails ? <span className="library-room-loading">Cargando datos…</span> : null}
-              {details?.steam?.short_description ? <p className="library-phone-description">{details.steam.short_description}</p> : null}
-              {details?.steam?.developers?.length ? <p className="library-phone-meta"><strong>Desarrollador</strong>{details.steam.developers.join(", ")}</p> : null}
-              {details?.steam?.publishers?.length ? <p className="library-phone-meta"><strong>Publisher</strong>{details.steam.publishers.join(", ")}</p> : null}
-              {details?.steam?.genres?.length ? <p className="library-phone-meta"><strong>Géneros</strong>{details.steam.genres.join(" · ")}</p> : null}
-              {details?.steam?.screenshots?.length ? <div className="library-phone-screenshots">{details.steam.screenshots.slice(0, 6).map((shot, index) => shot.thumbnail || shot.full ? <img key={shot.id ?? index} src={shot.thumbnail ?? shot.full} alt="" loading="lazy" draggable={false} /> : null)}</div> : null}
-            </div>
-          </aside>
-        ) : null}
-
-        {currentCompletion ? <DownloadCompleteDialog game={currentCompletion.game} busy={busy} onPlay={() => void dismissCompletion(true)} onClose={() => void dismissCompletion(false)} /> : null}
-        {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
-      </section>
-    );
-  }
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">

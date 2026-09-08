@@ -12,6 +12,30 @@ export function isTransferState(status: SteamDownloadStatus | null | undefined):
   return Boolean(status && ACTIVE_STATES.has(status.state));
 }
 
+function transferMetrics(base: SteamDownloadStatus, overlay: SteamDownloadStatus) {
+  return {
+    bytes_downloaded: overlay.bytes_downloaded ?? base.bytes_downloaded,
+    bytes_total: overlay.bytes_total ?? base.bytes_total,
+    speed_bps: overlay.speed_bps ?? base.speed_bps,
+    eta_seconds: overlay.eta_seconds ?? base.eta_seconds,
+  };
+}
+
+function hasInstallation(status: SteamDownloadStatus): boolean {
+  return status.installed || status.state === "installed";
+}
+
+function providerMetadata(steam: SteamDownloadStatus, provider: SteamDownloadStatus) {
+  return {
+    ...steam,
+    provider_id: provider.provider_id ?? steam.provider_id,
+    prepared_target: provider.prepared_target ?? steam.prepared_target,
+    job_id: provider.job_id ?? steam.job_id,
+    worker_pid: provider.worker_pid ?? steam.worker_pid,
+    error: provider.error ?? steam.error,
+  };
+}
+
 export function reconcileDownloadStatus(
   base: SteamDownloadStatus | null | undefined,
   overlay: SteamDownloadStatus | null | undefined,
@@ -20,7 +44,7 @@ export function reconcileDownloadStatus(
   if (!overlay) return base;
 
   const installed = Boolean(
-    base.installed || base.state === "installed" || overlay.installed || overlay.state === "installed",
+    hasInstallation(base) || hasInstallation(overlay),
   );
 
   if (isTransferState(overlay)) {
@@ -28,10 +52,7 @@ export function reconcileDownloadStatus(
       ...base,
       ...overlay,
       installed,
-      bytes_downloaded: overlay.bytes_downloaded ?? base.bytes_downloaded,
-      bytes_total: overlay.bytes_total ?? base.bytes_total,
-      speed_bps: overlay.speed_bps ?? base.speed_bps,
-      eta_seconds: overlay.eta_seconds ?? base.eta_seconds,
+      ...transferMetrics(base, overlay),
     };
   }
 
@@ -42,14 +63,16 @@ export function reconcileDownloadStatus(
       state: "installed",
       installed: true,
       progress: 100,
-      bytes_downloaded: overlay.bytes_downloaded ?? base.bytes_downloaded,
-      bytes_total: overlay.bytes_total ?? base.bytes_total,
+      ...transferMetrics(base, overlay),
       speed_bps: null,
       eta_seconds: 0,
     };
   }
 
   if (overlay.state === "cancelled") return { ...base, ...overlay, installed: false };
+
+  // A terminal worker error must stop a stale requested/preparing overlay.
+  if (overlay.error && overlay.state === "not-installed") return { ...base, ...overlay, installed: false };
 
   if (overlay.state === "unknown" || overlay.error) {
     return {
@@ -68,7 +91,7 @@ export function reconcileSteamAndProviderStatus(
 ): SteamDownloadStatus {
   if (!provider) return steam;
 
-  if (steam.installed || steam.state === "installed") {
+  if (hasInstallation(steam)) {
     return reconcileDownloadStatus(provider, steam) ?? steam;
   }
 
@@ -83,26 +106,18 @@ export function reconcileSteamAndProviderStatus(
       state: "prepared",
       installed: false,
       progress: 100,
-      bytes_downloaded: provider.bytes_downloaded ?? steam.bytes_downloaded,
-      bytes_total: provider.bytes_total ?? steam.bytes_total,
+      ...transferMetrics(steam, provider),
       speed_bps: null,
       eta_seconds: 0,
     };
   }
 
-  if ((provider.installed || provider.state === "installed") && provider.prepared_target) {
+  if (hasInstallation(provider) && provider.prepared_target) {
     return reconcileDownloadStatus(steam, provider) ?? steam;
   }
 
   if (steam.state === "not-installed") {
-    return {
-      ...steam,
-      provider_id: provider.provider_id ?? steam.provider_id,
-      prepared_target: provider.prepared_target ?? steam.prepared_target,
-      job_id: provider.job_id ?? steam.job_id,
-      worker_pid: provider.worker_pid ?? steam.worker_pid,
-      error: provider.error ?? steam.error,
-    };
+    return providerMetadata(steam, provider);
   }
 
   return reconcileDownloadStatus(provider, steam) ?? steam;

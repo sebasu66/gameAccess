@@ -18,7 +18,6 @@ function detailCacheKey(gameId: number): string {
   return `${getCatalogMode()}|${gameId}`;
 }
 
-
 async function loadLocalCatalog(): Promise<CatalogGame[]> {
   await narrate(
     "Scanning local Steam data for remembered personal accounts and locally visible games. Visibility and ownership-candidate lists will be kept separate.",
@@ -89,7 +88,6 @@ async function loadLocalDetails(gameId: number): Promise<GameDetails> {
   return localDetails(game);
 }
 
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const api = await getApiBaseUrl();
   if (!api) {
@@ -117,7 +115,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await narrate(`Backend request ${method} ${path} succeeded with HTTP ${response.status}.`, { area: "BACKEND" });
   return response.json() as Promise<T>;
 }
-
 
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
   const mode = getCatalogMode();
@@ -268,27 +265,8 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   let backendGameId = gameId;
 
   if (game) {
-    const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
-    if (configured) {
-      try {
-        await narrate(`${game.name}: trying verified local runnable account '${configured}'.`, { area: "ACCOUNT" });
-        await switchSteamAccount(configured);
-        const now = Date.now();
-        return {
-          lease_id: now,
-          game: { id: game.id, name: game.name, app_id: game.app_id },
-          account: { id: 0, label: configured, provider: "steam" },
-          credits_spent: 0,
-          credits_remaining: 0,
-          starts_at: new Date(now).toISOString(),
-          expires_at: new Date(now + minutes * 60_000).toISOString(),
-          session_action: "launch_ready",
-        };
-      } catch (error) {
-        if (!game.backend_game_id) throw error;
-        await narrate(`${game.name}: local route failed; trying the backend route.`, { area: "AVAILABILITY", level: "WARN" });
-      }
-    }
+    const localLease = await tryLocalLease(game, minutes);
+    if (localLease) return localLease;
     if (!game.backend_game_id) {
       await narrate(`${game.name}: no local runnable account and no backend route.`, { area: "AVAILABILITY", level: "WARN" });
       throw new Error("No hay ninguna cuenta local ni remota que pueda ejecutar este juego.");
@@ -338,3 +316,28 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   }
   return lease;
 };
+
+async function tryLocalLease(game: CatalogGame, minutes: number) {
+    const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
+    if (configured) {
+      try {
+        await narrate(`${game.name}: trying verified local runnable account '${configured}'.`, { area: "ACCOUNT" });
+        await switchSteamAccount(configured);
+        const now = Date.now();
+        return {
+          lease_id: now,
+          game: { id: game.id, name: game.name, app_id: game.app_id },
+          account: { id: 0, label: configured, provider: "steam" },
+          credits_spent: 0,
+          credits_remaining: 0,
+          starts_at: new Date(now).toISOString(),
+          expires_at: new Date(now + minutes * 60_000).toISOString(),
+          session_action: "launch_ready",
+        };
+      } catch (error) {
+        if (!game.backend_game_id) throw error;
+        await narrate(`${game.name}: local route failed; trying the backend route.`, { area: "AVAILABILITY", level: "WARN" });
+      }
+    }
+  return null;
+}
