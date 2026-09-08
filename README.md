@@ -2,10 +2,40 @@
 
 ## Build and run the Windows app
 
-Run `powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1` from the repository root (Node/npm, Rust and Tauri Windows build prerequisites must be installed).
-The script closes only this project's app, builds a production Tauri executable, replaces `GameAccess-latest.exe` in the root and opens it. Steam, games, backend and download workers are not stopped. Use `-NoRun` to build/copy without opening the app. Build failure preserves the previous root executable and returns a nonzero exit code.
+Run `powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1` from the repository root (Node/npm, Rust, Python 3 and Tauri Windows build prerequisites must be installed).
+The script now validates **both halves of the product**: it prepares the FastAPI virtual environment when necessary, installs server requirements when they change, compiles/import-checks `apps/api`, then builds the production Tauri executable, replaces `GameAccess-latest.exe` in the root and opens it. Steam, games and download workers are not stopped.
+
+Use `-Server` to additionally start/restart the local FastAPI server on `http://127.0.0.1:38147` and build the desktop with that local endpoint pinned for the run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1 -Server
+```
+
+`-ServerPort 38147` changes the local development port. `-NoRun` builds/validates both server and client without starting either process. Build failure preserves the previous root executable and returns a nonzero exit code.
 
 The title bar shows **Build: [UTC timestamp]**, embedded during compilation, not the launch time. The executable name and product version stay unchanged. The script prints the final SHA256 hash. No installer is built.
+
+### Frontend backend settings
+
+The packaged frontend reads `apps/desktop/public/gameaccess.settings.json`. It supports either a direct backend or a stable resolver/pointer:
+
+```json
+{
+  "api_url": "https://current-backend.onrender.com",
+  "api_url_resolver": ""
+}
+```
+
+For a backend whose Render/host URL may change, leave `api_url` empty and point `api_url_resolver` at a stable HTTPS file/page, for example a JSON file served from GitHub/Pages or `raw.githubusercontent.com`:
+
+```json
+{
+  "api_url": "",
+  "api_url_resolver": "https://example.github.io/gameaccess/backend.json"
+}
+```
+
+The stable file can contain `{ "api_url": "https://new-service.onrender.com" }`, a plain-text HTTPS URL, or an HTML meta-refresh target. The desktop resolves it once at startup, so changing only that small hosted pointer can move clients to a new backend without rebuilding the Windows application. A real HTTP 3xx redirect is also followed. Remote API and resolver URLs must use HTTPS; loopback `http://127.0.0.1`/`localhost` remains allowed for local development. `VITE_GAMEACCESS_API` remains the highest-priority build-time override and is what `build-and-run.ps1 -Server` uses.
 
 > **Project status / handoff document**  
 > Last reviewed: 2026-08-28
