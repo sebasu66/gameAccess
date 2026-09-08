@@ -1,0 +1,83 @@
+name: Complete desktop detail handoff
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/dev/complete_desktop_detail_handoff.py
+      - .github/workflows/complete-desktop-detail-handoff.yml
+
+permissions:
+  contents: write
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/launcher/requirements.txt
+      - name: Apply completed handoff
+        run: python tools/dev/complete_desktop_detail_handoff.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+      - name: Lint touched frontend
+        working-directory: apps/desktop
+        run: npx --yes @biomejs/biome@2.2.4 lint src/LibraryDetailPanel.tsx src/LibraryRoomParts.tsx src/DownloadCatalogPanel.tsx src/stage2DetailVisualContract.test.ts src/libraryLayoutContract.test.ts
+      - name: Enforce architecture limits
+        working-directory: apps/desktop
+        run: node scripts/quality-gate.mjs
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Install launcher test dependencies
+        run: pip install -r apps/launcher/requirements.txt pytest ruff
+      - name: Lint launcher change
+        run: ruff check --select E,F,I,C90 --config 'lint.mccabe.max-complexity=10' apps/launcher/steam_switch.py
+      - name: Run launcher tests
+        env:
+          PYTHONPATH: apps/launcher
+        run: pytest -q apps/launcher/tests
+      - name: Check patch
+        run: git diff --check
+      - name: Commit completed implementation to main
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            apps/desktop/src/LibraryRoom.tsx \
+            apps/desktop/src/LibraryRoomParts.tsx \
+            apps/desktop/src/LibraryDetailPanel.tsx \
+            apps/desktop/src/DownloadCatalogPanel.tsx \
+            apps/desktop/src/library-room.css \
+            apps/desktop/public/library-room-layout.css \
+            apps/desktop/src/stage2DetailVisualContract.test.ts \
+            apps/desktop/src/libraryLayoutContract.test.ts \
+            apps/launcher/steam_switch.py \
+            docs/UI_THREAD_CONTRACT.md \
+            docs/STAGE2_FIXES_2026-09-08.md \
+            README.md
+          if git diff --cached --quiet; then
+            echo "No completion changes required."
+            exit 0
+          fi
+          git commit -m "fix(stage2): complete bounded desktop game detail"
+          git push origin HEAD:main
