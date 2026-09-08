@@ -1,0 +1,75 @@
+name: Apply human-readable activity logging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/dev/add_human_narration_log.py"
+      - "tools/dev/add_human_narration_log_test.py"
+      - ".github/workflows/apply-human-narration-log.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Apply human narration logging patch
+        run: python tools/dev/add_human_narration_log.py
+
+      - name: Format modified native entry point
+        run: rustfmt --edition 2021 apps/desktop/src-tauri/src/main.rs
+
+      - name: Verify expected narration coverage
+        run: python tools/dev/add_human_narration_log_test.py
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Run catalog and desktop unit tests
+        working-directory: apps/desktop
+        run: npm test
+
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Commit implementation directly to main
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            README.md \
+            build-and-run.ps1 \
+            apps/desktop/src/narrationLog.ts \
+            apps/desktop/src/main.tsx \
+            apps/desktop/src/catalog.ts \
+            apps/desktop/src/api.ts \
+            apps/desktop/src/native.ts \
+            apps/desktop/src-tauri/src/main.rs \
+            tools/windows/tail.ps1 \
+            tools/windows/tail.cmd
+          if git diff --cached --quiet; then
+            echo "Narration logging is already applied."
+            exit 0
+          fi
+          git commit -m "feat(logging): add human-readable GameAccess activity log"
+          git push origin HEAD:main
