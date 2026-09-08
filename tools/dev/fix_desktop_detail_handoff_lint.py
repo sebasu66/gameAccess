@@ -95,11 +95,19 @@ panel = panel.replace(
 )
 panel = panel.replace(
     '<div className="library-room-active-download" aria-label="Descarga activa">',
-    '<div className="library-room-active-download" role="group" aria-label="Descarga activa">',
+    '<section className="library-room-active-download" aria-label="Descarga activa">',
+)
+panel = panel.replace(
+    '    </div>\n  );\n}\n\nexport function FeaturePanel',
+    '    </section>\n  );\n}\n\nexport function FeaturePanel',
 )
 panel = panel.replace(
     '<div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>',
-    '<div className="library-room-preferences" role="group" aria-label={`Preferencia para ${props.game.name}`}>',
+    '<section className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>',
+)
+panel = panel.replace(
+    '              <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>\n            </div>\n          </div>',
+    '              <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>\n            </section>\n          </div>',
 )
 panel = panel.replace(
     '<div className="library-detail-extended" tabIndex={0} aria-label="Detalles extendidos del juego">',
