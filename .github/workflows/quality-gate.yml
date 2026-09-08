@@ -62,6 +62,8 @@ jobs:
         working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -76,8 +78,22 @@ jobs:
         run: npm run build
       - name: Prepare Tauri icon
         run: node scripts/prepare-icons.mjs
-      - name: Rust format
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - name: Format-check changed Rust files
+        shell: bash
+        working-directory: .
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          BASE="$PR_BASE"
+          if [ -z "$BASE" ]; then BASE="$PUSH_BASE"; fi
+          if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$(git rev-parse HEAD^)"; fi
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "$BASE" "$GITHUB_SHA" -- 'apps/desktop/src-tauri/**/*.rs')
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No changed Rust source files to format-check."
+            exit 0
+          fi
+          rustfmt --edition 2021 --check "${FILES[@]}"
       - name: Rust linter
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Native unit tests
@@ -96,9 +112,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: apps/api/requirements.txt
-      - name: Install API and quality dependencies
-        run: pip install -r apps/api/requirements.txt pytest ruff
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/launcher/requirements.txt
+      - name: Install API, launcher and quality dependencies
+        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest ruff
       - name: Lint changed Python files
         shell: bash
         env:

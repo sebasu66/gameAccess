@@ -36,8 +36,9 @@ function Get-SystemPythonCommand {
 function Ensure-ServerBuild {
     if (-not (Test-Path -LiteralPath $apiPython -PathType Leaf)) {
         $hostPython = Get-SystemPythonCommand
+        $venvArgs = @($hostPython.Prefix) + @('-m', 'venv', $apiVenv)
         Write-Host "Creating API virtual environment: $apiVenv"
-        & $hostPython.File @($hostPython.Prefix) -m venv $apiVenv
+        & $hostPython.File @venvArgs
         if ($LASTEXITCODE -ne 0) { throw "Could not create API virtual environment (exit $LASTEXITCODE)." }
     }
 

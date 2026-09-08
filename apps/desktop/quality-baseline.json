@@ -1,13 +1,16 @@
 {
-    "maxFileLines":  600,
-    "maxClassLines":  600,
-    "maxFunctionComplexity":  15,
-    "legacyBlobShas":  {
-                           "src/App.tsx":  "9fa34a373406b7fd17fbf6346f17615a39b8299a",
-                           "src/LibraryRoom.tsx":  "21f2c0a7c85b5d941bcd401fa017d1b772296df8",
-                           "src/RuntimeGate.tsx":  "f1f09eed1d90e28d9e9860f24e624135c0d7afba",
-                           "src/SteamStoreDetail.tsx":  "241562b27d184837e7b97f9b47fab425148cfcfd",
-                           "src/api.ts":  "30cf98bcece8e6631caa331c4826f2e551bddd86",
-                           "src/native.ts":  "53404d1d6291942ed501c2144b7fbe178587ca56"
-                       }
+  "maxFileLines": 600,
+  "maxClassLines": 600,
+  "maxFunctionComplexity": 15,
+  "legacyBlobShas": {
+    "src/App.tsx": "2e1d5bef87324e0d9c34d154d82da3a3ff365ba3",
+    "src/LibraryInputController.tsx": "15f56f4dd779f38784f572d2033ae5a7d9cc9f72",
+    "src/LibraryRoom.tsx": "118da5e3787718b05fd9e6c58b17a1e0f87d9851",
+    "src/LibraryRoomParts.tsx": "ceebf2a74c0d224f0a555bc194ab68bf18b99fff",
+    "src/RuntimeGate.tsx": "f1f09eed1d90e28d9e9860f24e624135c0d7afba",
+    "src/SteamStoreDetail.tsx": "241562b27d184837e7b97f9b47fab425148cfcfd",
+    "src/api.ts": "30cf98bcece8e6631caa331c4826f2e551bddd86",
+    "src/downloadState.ts": "70a881f46578bc08352c68fa5ceaaba937f64c19",
+    "src/native.ts": "53404d1d6291942ed501c2144b7fbe178587ca56"
+  }
 }
