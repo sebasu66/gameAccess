@@ -18,7 +18,9 @@ from steam_appinfo import read_local_app_catalog
 from steam_pool import local_library_apps, steam_root
 
 
-def build_provider_catalog() -> dict[str, Any]:
+def build_provider_catalog(
+    additional_candidate_ids: set[int] | None = None,
+) -> dict[str, Any]:
     mapping = match_provider_identities()
     accounts: list[dict[str, Any]] = []
     candidate_ids: set[int] = set()
@@ -46,6 +48,15 @@ def build_provider_catalog() -> dict[str, Any]:
                 "accessible_app_ids": accessible_ids,
             }
         )
+
+    # SteamKit-verified ownership is allowed to broaden the metadata lookup.
+    # Local library visibility is only current-access evidence and must never
+    # erase a real license merely because Steam hid/omitted it from localconfig.
+    candidate_ids.update(
+        app_id
+        for app_id in (additional_candidate_ids or set())
+        if isinstance(app_id, int) and app_id > 0
+    )
 
     root = steam_root()
     appinfo_path = root / "appcache" / "appinfo.vdf" if root else Path("__missing__")
