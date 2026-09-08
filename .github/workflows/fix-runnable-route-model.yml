@@ -1,0 +1,56 @@
+name: Fix runnable route model
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fix-runnable-route-model.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Apply runnable route patch
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/sebasu66/AI_Local_Access/main/payloads/gameaccess_fix_runnable_routes_20260908.py" -OutFile "$env:RUNNER_TEMP/fix.py"
+          python "$env:RUNNER_TEMP/fix.py"
+      - name: Install launcher test dependencies
+        shell: pwsh
+        run: python -m pip install pytest requests
+      - name: Run launcher regression tests
+        working-directory: apps/launcher
+        run: python -m pytest -q tests/test_steam_pool_verified_ownership.py tests/test_provider_account_onboard.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check native compile
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Validate diff
+        run: git diff --check
+      - name: Commit corrected route model directly to main
+        shell: pwsh
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/launcher/steam_verified_inventory.py apps/launcher/steam_pool.py apps/launcher/tests/test_steam_pool_verified_ownership.py apps/desktop/src-tauri/src/native_core.rs apps/desktop/src/native.ts apps/desktop/src/catalog.ts apps/desktop/src/catalog.test.ts apps/desktop/src/types.ts apps/desktop/src/api.ts
+          if (git diff --cached --quiet) { Write-Host "No implementation changes"; exit 0 }
+          git commit -m "fix(stage1): route games by runnable account access"
+          git push origin HEAD:main
