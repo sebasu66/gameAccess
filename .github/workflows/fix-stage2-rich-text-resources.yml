@@ -1,0 +1,49 @@
+name: Preserve Stage 2 Steam rich content
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/dev/fix_stage2_rich_text_resources.py
+      - .github/workflows/fix-stage2-rich-text-resources.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Apply resource preservation
+        run: python tools/dev/fix_stage2_rich_text_resources.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check patch
+        run: git diff --check
+      - name: Commit source fix
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/desktop/src/LibraryRoomParts.tsx
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(stage2): preserve Steam detail formatting resources"
+          git push origin HEAD:main
