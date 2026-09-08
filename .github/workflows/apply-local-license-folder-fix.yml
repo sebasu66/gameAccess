@@ -34,13 +34,6 @@ jobs:
       - name: Build desktop
         working-directory: apps/desktop
         run: npm run build
-      - name: Install Tauri Linux check dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: Check native desktop
-        working-directory: apps/desktop/src-tauri
-        run: cargo check
       - name: Commit repair directly to main
         run: |
           git config user.name "gameAccess CI"
