@@ -64,8 +64,12 @@ export function isActiveDownload(status?: ManagedDownloadStatus) {
   return isTrackedDownload(status);
 }
 
-function InstallStateBadge({ status }: { status?: ManagedDownloadStatus }) {
+function InstallStateBadge({ game, status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
   if (!isInstalled(status)) return null;
+  const availability = playAvailability(game);
+  if (!availability.licensed) {
+    return <span className="library-install-state no-license" title="Instalado · sin licencia disponible"><XCircle size={13} /></span>;
+  }
   return <span className="library-install-state ready" title="Listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
@@ -452,7 +456,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
           >
             <span className="library-room-card-art">
               <SteamCover game={game} />
-              <InstallStateBadge status={game.app_id ? props.downloads[game.app_id] : undefined} />
+              <InstallStateBadge game={game} status={game.app_id ? props.downloads[game.app_id] : undefined} />
             </span>
           </button>
         ))}

@@ -24,9 +24,10 @@ describe("buildLocalCatalog", () => {
   it("keeps ownership and Family accessibility separate", () => {
     const game = buildLocalCatalog(pool).find((item) => item.app_id === 20);
     expect(game).toBeDefined();
-    expect(game).toMatchObject({ copies_total: 0, copies_available: 0, local_primary_account_label: "owner" });
+    expect(game).toMatchObject({ copies_total: 0, copies_available: 0, availability_state: "unavailable" });
     expect(game?.local_account_labels).toEqual([]);
     expect(game?.local_access_labels).toEqual(["owner", "second"]);
+    expect(game?.local_primary_account_label).toBeUndefined();
   });
 
   it("counts duplicate owners as copies but never Family access", () => {

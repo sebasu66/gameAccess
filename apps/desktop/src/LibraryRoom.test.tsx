@@ -57,9 +57,12 @@ describe("LibraryRoom grid presentation", () => {
     expect(markup).not.toContain("<strong>Test Game</strong>");
   });
 
-  it("shows the green installation marker whenever the game is installed", () => {
+  it("distinguishes installed games with and without a playable license", () => {
     expect(render({ 10: installed })).toContain("library-install-state ready");
-    expect(render({ 10: installed }, 0)).toContain("library-install-state ready");
+    const withoutLicense = render({ 10: installed }, 0);
+    expect(withoutLicense).toContain("library-install-state no-license");
+    expect(withoutLicense).toContain("sin licencia disponible");
+    expect(withoutLicense).not.toContain("library-install-state ready");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {

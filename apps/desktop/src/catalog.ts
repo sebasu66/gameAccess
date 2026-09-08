@@ -23,8 +23,7 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
     // licenses_print has verified the original owner. Ownership counts stay at
     // zero until that verification exists, so Family-visible seats are never
     // misreported as independent copies.
-    const launchAccounts = owners.length ? owners : accessible;
-    if (!launchAccounts.length) return [];
+    if (!owners.length && !accessible.length) return [];
 
     return [{
       id: item.app_id,
@@ -34,10 +33,10 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       credit_cost_per_hour: 0,
       copies_total: owners.length,
       copies_available: owners.length,
-      availability_state: "ready",
+      availability_state: owners.length ? "ready" : "unavailable",
       local_account_labels: owners.map((account) => account.account_name || account.label),
       local_access_labels: accessible.map((account) => account.account_name || account.label),
-      local_primary_account_label: launchAccounts[0].account_name || launchAccounts[0].label,
+      local_primary_account_label: owners[0]?.account_name || owners[0]?.label,
       local_owner_steam_ids: owners.map((account) => account.steam_id64).filter((value): value is string => Boolean(value)),
       local_inventory_verified: pool.verification_complete,
       local_inventory_verified_at: pool.verified_at,

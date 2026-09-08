@@ -28,6 +28,23 @@ describe("DownloadCatalogPanel grid contract", () => {
     expect(markup).not.toContain("aria-label=\"Jugar Installed\"");
   });
 
+  it("marks an installed game without a license as unavailable instead of ready", () => {
+    const markup = renderToStaticMarkup(
+      <DownloadCatalogPanel
+        games={[{ ...game, copies_total: 0, copies_available: 0 }]}
+        downloads={{ 42: installed }}
+        accountCount={1}
+        selectedIndex={0}
+        gridRef={createRef<HTMLDivElement>()}
+        pinnedAppIds={new Set()}
+        onSelect={() => undefined}
+      />,
+    );
+    expect(markup).toContain("library-install-state no-license");
+    expect(markup).toContain("sin licencia disponible");
+    expect(markup).not.toContain("library-install-state ready");
+  });
+
   it("keeps the card as a selection target so Enter can transfer focus to the existing detail panel", () => {
     const markup = renderToStaticMarkup(
       <DownloadCatalogPanel

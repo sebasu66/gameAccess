@@ -229,7 +229,22 @@ fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
     Ok(roots)
 }
 
+fn provider_prepared_game_folder(app_id: u32) -> Option<PathBuf> {
+    let status = provider_download::provider_download_status(app_id).ok().flatten()?;
+    if !(status.installed || matches!(status.state.as_str(), "installed" | "prepared")) {
+        return None;
+    }
+    let target = PathBuf::from(status.prepared_target?);
+    if !target.is_dir() {
+        return None;
+    }
+    Some(fs::canonicalize(&target).unwrap_or(target))
+}
+
 fn installed_game_folder(app_id: u32) -> Result<PathBuf, String> {
+    if let Some(folder) = provider_prepared_game_folder(app_id) {
+        return Ok(folder);
+    }
     for root in steam_library_roots_for_folder_open()? {
         let manifest = root
             .join("steamapps")
@@ -248,11 +263,11 @@ fn installed_game_folder(app_id: u32) -> Result<PathBuf, String> {
         };
         let folder = root.join("steamapps").join("common").join(install_dir);
         if folder.is_dir() {
-            return Ok(folder);
+            return Ok(fs::canonicalize(&folder).unwrap_or(folder));
         }
     }
     Err(format!(
-        "Steam no informa una carpeta de instalación lista para AppID {app_id}."
+        "GameAccess y Steam no informan una carpeta de instalación lista para AppID {app_id}."
     ))
 }
 

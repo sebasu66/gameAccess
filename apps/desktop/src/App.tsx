@@ -890,6 +890,12 @@ export default function App() {
 
     if ((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id) {
       const trace = [`Requested AppID = ${game.app_id}`, `Searching verified license-owner mapping for AppID ${game.app_id}`];
+      if (!game.local_account_labels?.length || !game.local_primary_account_label) {
+        trace.push(`No verified owner is available for AppID ${game.app_id}`);
+        setSession({ game, phase: "error", title: "Sin licencia disponible", detail: "El juego está instalado o visible en Steam, pero ninguna cuenta local verificada posee una licencia utilizable.", log: trace });
+        setLeaseBusy(false);
+        return;
+      }
       try {
         setSession({ game, phase: "preparing", title: "Resolviendo propietario de la licencia", detail: "gameAccess está buscando la cuenta que realmente posee esta licencia.", log: trace });
         const localAccount = game.local_primary_account_label ?? game.local_account_labels?.[0];

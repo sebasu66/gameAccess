@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2 } from "lucide-react";
+import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2, XCircle } from "lucide-react";
 
 import { downloadProgress, isTrackedDownload } from "./downloadManager";
+import { playAvailability } from "./gameAvailability";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { libraryArtworkCandidates } from "./libraryArtwork";
 import type { DownloadMap } from "./LibraryRoomParts";
@@ -17,8 +18,11 @@ function SteamCover({ game }: { game: CatalogGame }) {
   return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
 }
 
-function ReadyBadge() {
-  return <span className="library-install-state ready" title="Instalado"><Play size={12} fill="currentColor" /></span>;
+function ReadyBadge({ licensed }: { licensed: boolean }) {
+  if (!licensed) {
+    return <span className="library-install-state no-license" title="Instalado · sin licencia disponible"><XCircle size={13} /></span>;
+  }
+  return <span className="library-install-state ready" title="Listo para jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 function statusLabel(status: ManagedDownloadStatus | undefined, progress: number) {
@@ -60,6 +64,7 @@ interface DownloadGameCardProps {
 function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onContextMenu }: DownloadGameCardProps) {
   const active = isTrackedDownload(status);
   const ready = Boolean(status?.installed || status?.state === "installed");
+  const licensed = playAvailability(game).licensed;
   const progress = downloadProgress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
@@ -88,7 +93,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
         <span className="library-room-card-art">
           <span className="library-room-card-cover-base"><SteamCover game={game} /></span>
           {active ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
-          {ready ? <ReadyBadge /> : null}
+          {ready ? <ReadyBadge licensed={licensed} /> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
         </span>
       </button>
