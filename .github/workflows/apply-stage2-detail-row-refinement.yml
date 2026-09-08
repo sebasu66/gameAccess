@@ -1,0 +1,54 @@
+name: Apply Stage 2 detail row refinement
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/dev/refine_stage2_detail_rows.py
+      - .github/workflows/apply-stage2-detail-row-refinement.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Apply refinement
+        run: python tools/dev/refine_stage2_detail_rows.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check patch
+        run: git diff --check
+      - name: Commit refinement to main
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            apps/desktop/src/LibraryRoom.tsx \
+            apps/desktop/src/LibraryRoomParts.tsx \
+            apps/desktop/src/library-room.css \
+            docs/STAGE2_FIXES_2026-09-08.md
+          if git diff --cached --quiet; then
+            echo "No source changes required."
+            exit 0
+          fi
+          git commit -m "feat(stage2): refine adaptive game detail rows"
+          git push origin HEAD:main
