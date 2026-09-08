@@ -22,10 +22,7 @@ jobs:
         with:
           node-version: "22"
       - name: Apply runnable route patch
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/sebasu66/AI_Local_Access/main/payloads/gameaccess_fix_runnable_routes_20260908.py" -OutFile "$env:RUNNER_TEMP/fix.py"
-          python "$env:RUNNER_TEMP/fix.py"
+        run: python tools/dev/fix_runnable_routes_stage1.py
       - name: Install launcher test dependencies
         shell: pwsh
         run: python -m pip install pytest requests
