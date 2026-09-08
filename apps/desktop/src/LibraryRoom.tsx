@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { MoreHorizontal, Search, Tv2, X } from "lucide-react";
 
 import { loadDetails } from "./api";
@@ -37,6 +38,8 @@ import {
   libraryRoomClass,
   selectedDownload,
   selectedHero,
+  selectedPortraitHero,
+  selectedWideArtworkSlides,
   selectedMovie,
   selectedSummary,
   selectedVideo,
@@ -116,6 +119,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [searchQuery, setSearchQuery] = useState("");
   const [tabletDetailsOpen, setTabletDetailsOpen] = useState(false);
   const [displayPinned, setDisplayPinned] = useState(false);
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+  const [artworkSlideIndex, setArtworkSlideIndex] = useState(0);
 
   gamesByAppIdRef.current = new Map(games.flatMap((game) => game.app_id ? [[game.app_id, game] as const] : []));
 
@@ -145,7 +150,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activeDownload = isActiveDownload(download);
   const detailDownload = download;
   const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
-  const hero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
+  const fallbackHero = isTabletSurface ? undefined : selectedHero(currentDetails, selectedGame);
+  const portraitHero = isTabletSurface ? undefined : selectedPortraitHero(selectedGame);
+  const wideArtworkSlides = isTabletSurface ? [] : selectedWideArtworkSlides(currentDetails, selectedGame);
+  const wideHero = wideArtworkSlides.length ? wideArtworkSlides[artworkSlideIndex % wideArtworkSlides.length] : undefined;
+  const hero = isTabletSurface ? undefined : (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
   const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
   const videoSrc = isTabletSurface ? undefined : selectedVideo(movie);
   const artwork = useCrossfadeArtwork(hero);
@@ -223,6 +232,49 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     }, holdMs);
     return () => window.clearTimeout(timer);
   }, [isDisplaySurface, displayPinned, displayGames, selectedGameIdResolved, videoSrc]);
+
+  useEffect(() => {
+    if (isTabletSurface || isDisplaySurface) {
+      setIsWindowMaximized(false);
+      return;
+    }
+
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    const apply = (value: boolean) => { if (!cancelled) setIsWindowMaximized(value); };
+
+    if ("__TAURI_INTERNALS__" in window) {
+      const appWindow = getCurrentWindow();
+      const refresh = () => { void appWindow.isMaximized().then(apply).catch(() => undefined); };
+      refresh();
+      void appWindow.onResized(() => refresh()).then((stop) => {
+        if (cancelled) stop();
+        else unlisten = stop;
+      }).catch(() => undefined);
+    } else {
+      const refresh = () => apply(window.innerWidth >= 1500 && window.innerWidth / Math.max(1, window.innerHeight) >= 1.45);
+      refresh();
+      window.addEventListener("resize", refresh);
+      unlisten = () => window.removeEventListener("resize", refresh);
+    }
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isTabletSurface, isDisplaySurface]);
+
+  useEffect(() => {
+    setArtworkSlideIndex(0);
+  }, [selectedGameIdResolved, isWindowMaximized]);
+
+  useEffect(() => {
+    if (!isWindowMaximized || isTabletSurface || isDisplaySurface || wideArtworkSlides.length < 2) return;
+    const timer = window.setInterval(() => {
+      setArtworkSlideIndex((current) => (current + 1) % wideArtworkSlides.length);
+    }, 8_000);
+    return () => window.clearInterval(timer);
+  }, [isWindowMaximized, isTabletSurface, isDisplaySurface, selectedGameIdResolved, wideArtworkSlides.length]);
 
   useEffect(() => {
     const requested = (event: Event) => {
@@ -605,7 +657,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   };
 
   const surfaceClass = isTabletSurface ? "surface-tablet" : isDisplaySurface ? "surface-display" : "";
-  const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${surfaceClass}`.trim();
+  const windowLayoutClass = !isTabletSurface && !isDisplaySurface && isWindowMaximized ? "is-maximized" : "";
+  const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${surfaceClass} ${windowLayoutClass}`.trim();
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
 
   const detailPanel = selectedGame ? (

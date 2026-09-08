@@ -123,6 +123,31 @@ export function selectedHero(details: GameDetails | null, game?: CatalogGame) {
   );
 }
 
+export function selectedPortraitHero(game?: CatalogGame) {
+  const appId = game?.app_id;
+  return firstPresent(
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : undefined,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : undefined,
+    game?.capsule_image,
+    game?.hero_image,
+    game?.header_image,
+  );
+}
+
+export function selectedWideArtworkSlides(details: GameDetails | null, game?: CatalogGame) {
+  const appId = game?.app_id;
+  const screenshots = details?.steam?.screenshots?.flatMap((shot) => shot.full || shot.thumbnail ? [shot.full ?? shot.thumbnail ?? ""] : []) ?? [];
+  const candidates = [
+    details?.steam?.hero_image,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg` : undefined,
+    details?.steam?.background,
+    game?.hero_image,
+    game?.header_image,
+    ...screenshots,
+  ].filter((value): value is string => Boolean(value));
+  return [...new Set(candidates)];
+}
+
 export function selectedMovie(details: GameDetails | null): SteamMovie | undefined {
   const movies = details?.steam?.movies;
   if (!movies?.length) return undefined;
@@ -377,6 +402,9 @@ export function FeaturePanel(props: FeaturePanelProps) {
           <h1>{props.game.name}</h1>
           <p className="library-room-lead">{props.summary}</p>
           {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}
+        </header>
+
+        <div className="library-room-control-row">
           <div className="library-room-actions glass-actions-row">
             {props.actions.map((action, index) => (
               <button type="button" key={`${action.kind}-${action.label}`} ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} data-action={action.kind} title={action.reason ?? undefined} className={`glass-action ${action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={() => props.onAction(index)} disabled={action.disabled}>
@@ -386,10 +414,10 @@ export function FeaturePanel(props: FeaturePanelProps) {
           </div>
           <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>
             <span>¿Te gusta?</span>
-            <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18} /></button>
-            <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18} /></button>
+            <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={15} /></button>
+            <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={15} /></button>
           </div>
-        </header>
+        </div>
 
         <div className="library-room-unified-facts">
           <dl className="library-room-game-facts">
