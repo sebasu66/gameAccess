@@ -1,5 +1,5 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
-import { buildLocalCatalog } from "./catalog";
+import { buildLocalCatalog, mergeLocalWithBackendCatalog } from "./catalog";
 import { getCatalogMode } from "./catalogMode";
 import { narrate, narrateBatch } from "./narrationLog";
 import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
@@ -129,11 +129,21 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
 
   if (mode === "local") {
     await narrate("Using the private/local Steam library. Games may be visible through Steam access even when no local ownership candidate is available.", { area: "CATALOG" });
-    const games = await loadLocalCatalog();
+    let games = await loadLocalCatalog();
     let user: UserSummary = { id: 1, username: "local", credits: 0 };
     if (api) {
-      try { user = await request<UserSummary>("/users/1"); }
-      catch { await narrate("The server user profile could not be loaded, but the private/local library can continue independently.", { area: "BACKEND", level: "WARN" }); }
+      try {
+        const [remoteGames, remoteUser] = await Promise.all([
+          request<CatalogGame[]>("/catalog"),
+          request<UserSummary>("/users/1").catch(() => user),
+        ]);
+        games = mergeLocalWithBackendCatalog(games, remoteGames);
+        localCatalog = games;
+        user = remoteUser;
+        await narrate("Availability uses a verified local runnable route first, then a matching backend provider route.", { area: "AVAILABILITY" });
+      } catch {
+        await narrate("Backend catalog unavailable; keeping local routes only.", { area: "BACKEND", level: "WARN" });
+      }
     }
     return { games, user, offlineDemo: false };
   }
@@ -255,30 +265,35 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   const game = getCatalogMode() === "local"
     ? localCatalog.find((item) => item.id === gameId)
     : undefined;
+  let backendGameId = gameId;
 
   if (game) {
     const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
-    if (!configured) {
-      await narrate(
-        `${game.name}: local play was refused because no local owner candidate is configured. Being visible through Steam access is not enough.`,
-        { area: "AVAILABILITY", level: "WARN" },
-      );
-      throw new Error("No hay una cuenta Steam local verificada que pueda abrir este juego.");
+    if (configured) {
+      try {
+        await narrate(`${game.name}: trying verified local runnable account '${configured}'.`, { area: "ACCOUNT" });
+        await switchSteamAccount(configured);
+        const now = Date.now();
+        return {
+          lease_id: now,
+          game: { id: game.id, name: game.name, app_id: game.app_id },
+          account: { id: 0, label: configured, provider: "steam" },
+          credits_spent: 0,
+          credits_remaining: 0,
+          starts_at: new Date(now).toISOString(),
+          expires_at: new Date(now + minutes * 60_000).toISOString(),
+          session_action: "launch_ready",
+        };
+      } catch (error) {
+        if (!game.backend_game_id) throw error;
+        await narrate(`${game.name}: local route failed; trying the backend route.`, { area: "AVAILABILITY", level: "WARN" });
+      }
     }
-    await narrate(`${game.name}: local rule selected remembered Steam account '${configured}'. Switching to that account before launch.`, { area: "ACCOUNT" });
-    await switchSteamAccount(configured);
-    const now = Date.now();
-    await narrate(`${game.name}: local account switch completed. The local launch route is ready.`, { area: "LAUNCH" });
-    return {
-      lease_id: now,
-      game: { id: game.id, name: game.name, app_id: game.app_id },
-      account: { id: 0, label: "local", provider: "steam" },
-      credits_spent: 0,
-      credits_remaining: 0,
-      starts_at: new Date(now).toISOString(),
-      expires_at: new Date(now + minutes * 60_000).toISOString(),
-      session_action: "launch_ready",
-    };
+    if (!game.backend_game_id) {
+      await narrate(`${game.name}: no local runnable account and no backend route.`, { area: "AVAILABILITY", level: "WARN" });
+      throw new Error("No hay ninguna cuenta local ni remota que pueda ejecutar este juego.");
+    }
+    backendGameId = game.backend_game_id;
   }
 
   if (!(await getApiBaseUrl())) {
@@ -296,7 +311,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Stale inactive leases may be replaced.`, { area: "BACKEND" });
   const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
-    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
+    body: JSON.stringify({ user_id: 1, game_id: backendGameId, minutes, replace_existing: true }),
   });
   await narrate(
     `Backend lease ${lease.lease_id} assigned account '${lease.account?.label ?? "unknown"}' with session_action='${lease.session_action}'.`,

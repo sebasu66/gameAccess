@@ -46,6 +46,9 @@ class SteamPoolAccount:
     # Backwards-compatible field consumed by the desktop/backend. It contains
     # only licenses verified from licenses_print / Original Owner attribution.
     app_ids: list[int]
+    runnable_app_ids: list[int]
+    runnable_verified: bool
+    runnable_verified_at: str | None
     accessible_app_ids: list[int]
     # Ticket count is diagnostic only and must never grant ownership/playability.
     ticketed_app_count: int
@@ -242,6 +245,8 @@ def load_verified_owner_cache(path: Path = VERIFIED_LICENSES_PATH) -> dict[str, 
         "source": "none",
         "owner_apps": {},
         "scanned_user_ids": set(),
+        "runnable_apps": {},
+        "runnable_user_ids": set(),
         "error": None,
     }
     if not path.is_file():
@@ -258,16 +263,25 @@ def load_verified_owner_cache(path: Path = VERIFIED_LICENSES_PATH) -> dict[str, 
 
     owner_apps: dict[int, set[int]] = {}
     scanned_user_ids: set[int] = set()
+    runnable_apps: dict[int, set[int]] = {}
+    runnable_user_ids: set[int] = set()
     for seat in data.get("scanned_seats") or []:
         if not isinstance(seat, dict) or not seat.get("ok"):
             continue
-        raw_user = seat.get("seat_user_id32")
         try:
-            user_id = int(raw_user)
+            user_id = int(seat.get("seat_user_id32"))
         except (TypeError, ValueError):
             continue
-        if user_id > 0:
-            scanned_user_ids.add(user_id)
+        if user_id <= 0:
+            continue
+        scanned_user_ids.add(user_id)
+        if "runnable_app_ids" in seat:
+            runnable_apps[user_id] = {
+                int(app_id)
+                for app_id in seat.get("runnable_app_ids") or []
+                if str(app_id).isdigit() and int(app_id) > 0
+            }
+            runnable_user_ids.add(user_id)
 
     for owner in data.get("owners") or []:
         if not isinstance(owner, dict):
@@ -295,6 +309,8 @@ def load_verified_owner_cache(path: Path = VERIFIED_LICENSES_PATH) -> dict[str, 
             "source": "steam-console-licenses-print-cache",
             "owner_apps": owner_apps,
             "scanned_user_ids": scanned_user_ids,
+            "runnable_apps": runnable_apps,
+            "runnable_user_ids": runnable_user_ids,
         }
     )
     if not result["complete"]:
@@ -308,6 +324,8 @@ def scan_pool() -> dict[str, Any]:
     verified = load_verified_owner_cache()
     owner_apps: dict[int, set[int]] = verified["owner_apps"]
     verified_users: set[int] = verified["scanned_user_ids"]
+    runnable_apps: dict[int, set[int]] = verified.get("runnable_apps") or {}
+    runnable_users: set[int] = verified.get("runnable_user_ids") or set()
     scanned: list[SteamPoolAccount] = []
 
     for identity in identities:
@@ -317,7 +335,14 @@ def scan_pool() -> dict[str, Any]:
         accessible_ids = sorted(accessible)
         ownership_verified = isinstance(user_id, int) and user_id in verified_users
         owned_ids = sorted(owner_apps.get(user_id, set())) if ownership_verified else []
-        ok = bool(user_id) and bool(accessible_ids or owned_ids)
+        runnable_verified = isinstance(user_id, int) and user_id in runnable_users
+        runnable_set = set(runnable_apps.get(user_id, set())) if runnable_verified else set()
+        # Backward-compatible safe fallback: a verified original owner can run its own license.
+        if ownership_verified:
+            runnable_set.update(owned_ids)
+        runnable_ids = sorted(runnable_set)
+        runnable_verified = runnable_verified or bool(ownership_verified and owned_ids)
+        ok = bool(user_id) and bool(accessible_ids or owned_ids or runnable_ids)
         ownership_message = (
             f"{len(owned_ids)} licenses verified by licenses_print"
             if ownership_verified
@@ -330,6 +355,9 @@ def scan_pool() -> dict[str, Any]:
                 steam_id64=identity.get("steam_id64") or "",
                 user_id32=user_id if isinstance(user_id, int) else None,
                 app_ids=owned_ids,
+                runnable_app_ids=runnable_ids,
+                runnable_verified=runnable_verified,
+                runnable_verified_at=verified["verified_at"] if runnable_verified else None,
                 accessible_app_ids=accessible_ids,
                 ticketed_app_count=len(ticketed),
                 ownership_source=verified["source"] if ownership_verified else "unverified",
@@ -355,6 +383,7 @@ def scan_pool() -> dict[str, Any]:
             licenses.setdefault(app_id, []).append(label)
 
     verified_account_count = sum(1 for item in scanned if item.ownership_verified)
+    runnable_account_count = sum(1 for item in scanned if item.runnable_verified)
     return {
         "ok": any(item.ok for item in scanned),
         "message": (
@@ -373,6 +402,7 @@ def scan_pool() -> dict[str, Any]:
         "ownership_verified_at": verified["verified_at"],
         "ownership_complete": verified["complete"],
         "verified_account_count": verified_account_count,
+        "runnable_account_count": runnable_account_count,
     }
 
 
@@ -389,6 +419,8 @@ def main() -> int:
                 "account_name": item.get("account_name"),
                 "user_id32": item.get("user_id32"),
                 "owned_app_count": len(item.get("app_ids") or []),
+                "runnable_app_count": len(item.get("runnable_app_ids") or []),
+                "runnable_verified": item.get("runnable_verified", False),
                 "accessible_app_count": len(item.get("accessible_app_ids") or []),
                 "ticketed_app_count": item.get("ticketed_app_count", 0),
                 "ownership_source": item.get("ownership_source"),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLocalCatalog, mergeCatalog } from "./catalog";
+import { buildLocalCatalog, mergeCatalog, mergeLocalWithBackendCatalog } from "./catalog";
 import type { LocalSteamPool } from "./native";
 import type { CatalogGame } from "./types";
 
@@ -72,6 +72,30 @@ describe("buildLocalCatalog", () => {
     expect(game.local_account_labels).toEqual([]);
     expect(game.local_primary_account_label).toBeUndefined();
   });
+
+  it("uses a verified Family runnable seat without requiring original ownership", () => {
+    const familyPool: LocalSteamPool = {
+      source: "steam-console-licenses-print",
+      verification_complete: true,
+      verified_at: "now",
+      games: [{ app_id: 244210, name: "Assetto Corsa" }],
+      accounts: [{
+        label: "family",
+        account_name: "family",
+        app_ids: [],
+        runnable_app_ids: [244210],
+        runnable_verified: true,
+        accessible_app_ids: [244210],
+        active: false,
+      }],
+    };
+    expect(buildLocalCatalog(familyPool)[0]).toMatchObject({
+      copies_available: 1,
+      availability_state: "ready",
+      local_primary_account_label: "family",
+    });
+  });
+
 });
 
 describe("mergeCatalog", () => {
@@ -91,5 +115,15 @@ describe("mergeCatalog", () => {
   it("retains local-only and remote-only games", () => {
     const remote: CatalogGame[] = [{ id: 99, slug: "remote-only", name: "Remote Only", app_id: 30, credit_cost_per_hour: 50, copies_total: 1, copies_available: 1 }];
     expect(mergeCatalog(remote, buildLocalCatalog(pool)).map((item) => item.app_id).sort()).toEqual([10, 20, 30]);
+  });
+});
+
+
+
+describe("mergeLocalWithBackendCatalog", () => {
+  it("uses backend availability when local has no runnable route", () => {
+    const remote: CatalogGame[] = [{ id: 77, slug: "remote", name: "Family Game", app_id: 20, credit_cost_per_hour: 1, copies_total: 2, copies_available: 1, availability_state: "ready" }];
+    const game = mergeLocalWithBackendCatalog(buildLocalCatalog(pool), remote).find((item) => item.app_id === 20);
+    expect(game).toMatchObject({ id: 77, backend_game_id: 77, copies_available: 1, availability_state: "ready" });
   });
 });

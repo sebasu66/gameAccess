@@ -94,3 +94,32 @@ def test_unverified_account_fails_closed_even_when_ticket_exists(monkeypatch) ->
     assert account["ownership_source"] == "unverified"
     assert account["app_ids"] == []
     assert result["licenses"] == {}
+
+
+
+def test_verified_family_runnable_access_is_not_counted_as_owned(monkeypatch) -> None:
+    app_id = 244210
+    monkeypatch.setattr(pool, "active_user_id32", lambda: 202)
+    monkeypatch.setattr(pool, "remembered_account_identities", lambda: [_identity(202, "family")])
+    monkeypatch.setattr(pool, "local_library_apps", lambda user_id: {app_id: {}})
+    monkeypatch.setattr(pool, "local_ticketed_apps", lambda user_id: set())
+    monkeypatch.setattr(
+        pool,
+        "load_verified_owner_cache",
+        lambda: {
+            "available": True,
+            "complete": True,
+            "verified_at": "2026-09-08T00:00:00Z",
+            "source": "steam-console-licenses-print-cache",
+            "owner_apps": {},
+            "scanned_user_ids": {202},
+            "runnable_apps": {202: {app_id}},
+            "runnable_user_ids": {202},
+            "error": None,
+        },
+    )
+
+    account = pool.scan_pool()["accounts"][0]
+    assert account["app_ids"] == []
+    assert account["runnable_app_ids"] == [app_id]
+    assert account["runnable_verified"] is True

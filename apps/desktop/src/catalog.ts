@@ -14,45 +14,45 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
   const accounts = pool.accounts ?? [];
   const decisions: string[] = [];
   const catalog = (pool.games ?? []).flatMap((item): CatalogGame[] => {
-    // Defense in depth: app_ids alone is never enough. The native scanner must
-    // also explicitly say that this account was verified from licenses_print.
     const owners = accounts
       .filter((account) => account.ownership_verified === true && account.app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
-    const accessible = accounts
+    const runnable = accounts
+      .filter((account) =>
+        (account.runnable_verified === true && (account.runnable_app_ids ?? []).includes(item.app_id))
+        || (account.ownership_verified === true && account.app_ids.includes(item.app_id)))
+      .sort((left, right) => Number(right.active) - Number(left.active));
+    const visible = accounts
       .filter((account) => account.accessible_app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
 
-    if (!owners.length && !accessible.length) return [];
+    if (!owners.length && !runnable.length && !visible.length) return [];
 
     const ownerLabels = owners.map((account) => account.account_name || account.label);
-    const accessLabels = accessible.map((account) => account.account_name || account.label);
-    const ownerText = ownerLabels.length ? ownerLabels.join(", ") : "none";
-    const accessText = accessLabels.length ? accessLabels.join(", ") : "none";
-    const decision = owners.length
-      ? `AVAILABLE locally because licenses_print verification confirms at least one owner (${ownerText}).`
-      : "NOT AVAILABLE to play locally because no remembered account has verified ownership for this AppID.";
+    const runnableLabels = runnable.map((account) => account.account_name || account.label);
+    const visibleLabels = visible.map((account) => account.account_name || account.label);
     decisions.push(
-      `${item.name} (Steam AppID ${item.app_id}). Steam-visible/access accounts from accessible_app_ids: ${accessText}. Verified owners from licenses_print-backed app_ids: ${ownerText}. Rule applied: visibility and local ticket history never grant play; an account must have ownership_verified=true and contain the AppID in app_ids. Decision: ${decision}`,
+      `${item.name} (Steam AppID ${item.app_id}). Visible accounts: ${visibleLabels.join(", ") || "none"}. Original owners: ${ownerLabels.join(", ") || "none"}. Verified runnable accounts (owned or Family-borrowed): ${runnableLabels.join(", ") || "none"}. Decision: ${runnable.length ? "AVAILABLE locally." : "NOT AVAILABLE locally; visibility alone is not enough."}`,
     );
 
-    const relevantAccounts = owners.length ? owners : accessible;
-    const gameOwnershipVerified = relevantAccounts.length > 0 && relevantAccounts.every((account) => account.ownership_verified === true);
-
+    // Runnable seats can share one physical Family license, so local availability
+    // is binary unless we also know multiple original-owner copies.
+    const copiesTotal = Math.max(owners.length, runnable.length ? 1 : 0);
+    const copiesAvailable = runnable.length ? Math.max(owners.length, 1) : 0;
     return [{
       id: item.app_id,
       slug: `steam-${item.app_id}`,
       name: item.name,
       app_id: item.app_id,
       credit_cost_per_hour: 0,
-      copies_total: owners.length,
-      copies_available: owners.length,
-      availability_state: owners.length ? "ready" : "unavailable",
-      local_account_labels: ownerLabels,
-      local_access_labels: accessLabels,
-      local_primary_account_label: owners[0]?.account_name || owners[0]?.label,
+      copies_total: copiesTotal,
+      copies_available: copiesAvailable,
+      availability_state: runnable.length ? "ready" : "unavailable",
+      local_account_labels: runnableLabels,
+      local_access_labels: visibleLabels,
+      local_primary_account_label: runnable[0]?.account_name || runnable[0]?.label,
       local_owner_steam_ids: owners.map((account) => account.steam_id64).filter((value): value is string => Boolean(value)),
-      local_inventory_verified: gameOwnershipVerified,
+      local_inventory_verified: runnable.length > 0,
       local_inventory_verified_at: pool.verified_at,
       ...steamAssets(item.app_id),
     }];
@@ -60,6 +60,29 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
 
   void narrateBatch(decisions, { area: "AVAILABILITY" });
   return catalog;
+}
+
+export function mergeLocalWithBackendCatalog(local: CatalogGame[], remote: CatalogGame[]): CatalogGame[] {
+  const byApp = new Map<number, CatalogGame>();
+  for (const game of remote) if (game.app_id) byApp.set(game.app_id, game);
+  return local.map((localGame) => {
+    const server = localGame.app_id ? byApp.get(localGame.app_id) : undefined;
+    if (!server) return localGame;
+    const localRunnable = Boolean(localGame.local_primary_account_label) && localGame.copies_available > 0;
+    return {
+      ...localGame,
+      id: server.id,
+      backend_game_id: server.id,
+      remote_copies_total: server.copies_total,
+      remote_copies_available: server.copies_available,
+      credit_cost_per_hour: localRunnable ? localGame.credit_cost_per_hour : server.credit_cost_per_hour,
+      copies_total: localRunnable ? localGame.copies_total : server.copies_total,
+      copies_available: localRunnable ? localGame.copies_available : server.copies_available,
+      availability_state: localRunnable
+        ? "ready"
+        : (server.availability_state ?? (server.copies_available > 0 ? "ready" : server.copies_total > 0 ? "owned-busy" : "unavailable")),
+    };
+  });
 }
 
 export function mergeCatalog(remote: CatalogGame[], local: CatalogGame[]): CatalogGame[] {

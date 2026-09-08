@@ -95,6 +95,7 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
     ordered = sorted(identities, key=lambda item: 0 if item.get("user_id32") == original_user else 1)
 
     owner_apps_raw: dict[int, set[int]] = {}
+    seat_apps_raw: dict[int, set[int]] = {}
     scanned_seats: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
@@ -111,8 +112,12 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
                 errors.append({"user_id32": user_id, "label": identity.get("display_name"), "error": str(exc)})
                 continue
 
+            records = scan.pop("records")
+            seat_apps_raw.setdefault(user_id, set()).update(
+                app_id for record in records for app_id in record.apps
+            )
             owner_ids_seen: set[int] = set()
-            for record in scan.pop("records"):
+            for record in records:
                 owner = record.original_owner_user_id32 if record.borrowed else user_id
                 if owner is None:
                     continue
@@ -135,13 +140,25 @@ def verify_all_remembered_accounts(*, save: bool = True) -> dict[str, Any]:
                         }
                     )
 
-    all_app_ids = {app_id for apps in owner_apps_raw.values() for app_id in apps}
+    all_app_ids = (
+        {app_id for apps in owner_apps_raw.values() for app_id in apps}
+        | {app_id for apps in seat_apps_raw.values() for app_id in apps}
+    )
     catalog = _windows_game_catalog(all_app_ids)
     windows_ids = set(catalog)
     owner_apps = {
         owner: {app_id for app_id in apps if app_id in windows_ids}
         for owner, apps in owner_apps_raw.items()
     }
+    seat_apps = {
+        seat: {app_id for app_id in apps if app_id in windows_ids}
+        for seat, apps in seat_apps_raw.items()
+    }
+    for scan in scanned_seats:
+        user_id = int(scan["seat_user_id32"])
+        runnable = sorted(seat_apps.get(user_id, set()))
+        scan["runnable_app_ids"] = runnable
+        scan["runnable_game_count"] = len(runnable)
 
     owners: list[dict[str, Any]] = []
     mappings: list[dict[str, Any]] = []
