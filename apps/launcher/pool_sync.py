@@ -177,15 +177,25 @@ def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str,
 
 
 def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
-    catalog = build_provider_catalog()
-    if not catalog.get("accounts"):
-        return {**catalog, "ok": False, "games": [], "accounts": []}
-
     if refresh_licenses:
         refreshed = scan_provider_licenses(provider_ids=None)
         persist_scan_result(refreshed)
 
     ownership_state, ownership_meta = _ownership_state_by_provider()
+    verified_owned_app_ids = {
+        int(app_id)
+        for state in ownership_state.values()
+        if state.get("inventory_complete")
+        for app_id in state.get("owned_app_ids") or set()
+        if str(app_id).isdigit() and int(app_id) > 0
+    }
+
+    # Verified SteamKit ownership broadens the metadata candidate set. Local
+    # visibility remains accessibility evidence only and cannot erase a license.
+    catalog = build_provider_catalog(additional_candidate_ids=verified_owned_app_ids)
+    if not catalog.get("accounts"):
+        return {**catalog, "ok": False, "games": [], "accounts": []}
+
     candidate_games = list(catalog.get("games") or [])
     candidate_game_ids = {int(game["app_id"]) for game in candidate_games}
 
