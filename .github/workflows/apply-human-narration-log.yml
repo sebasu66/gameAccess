@@ -34,6 +34,19 @@ jobs:
       - name: Apply human narration logging patch
         run: python tools/dev/add_human_narration_log.py
 
+      - name: Preserve catalog isolation source contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("apps/desktop/src/api.ts")
+          text = path.read_text(encoding="utf-8")
+          old = '  const game = mode === "local"\n'
+          new = '  const game = getCatalogMode() === "local"\n'
+          if old not in text and new not in text:
+              raise SystemExit("leaseGame catalog-mode anchor was not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+          PY
+
       - name: Format modified native entry point
         run: rustfmt --edition 2021 apps/desktop/src-tauri/src/main.rs
 
