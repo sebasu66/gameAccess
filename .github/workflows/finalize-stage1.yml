@@ -1,0 +1,68 @@
+name: Finalize Stage 1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/dev/finalize_stage1.py"
+      - ".github/workflows/finalize-stage1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - name: Apply Stage 1 finalization patch
+        run: python tools/dev/finalize_stage1.py
+
+      - name: Install launcher test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r apps/launcher/requirements.txt pytest
+
+      - name: Verify ownership and incremental onboarding rules
+        working-directory: apps/launcher
+        run: python -m pytest -q tests/test_steam_pool_verified_ownership.py tests/test_provider_account_onboard.py
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+
+      - name: Commit implementation directly to main
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            apps/desktop/src-tauri/src/native_core.rs \
+            apps/desktop/src/native.ts \
+            apps/desktop/src/api.ts \
+            apps/desktop/src/App.tsx
+          if git diff --cached --quiet; then
+            echo "Stage 1 finalization is already applied."
+            exit 0
+          fi
+          git commit -m "fix(stage1): enforce verified local ownership end to end"
+          git push origin HEAD:main
