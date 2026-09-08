@@ -395,14 +395,19 @@ function sanitizeSteamRichHtml(value?: string | null) {
       }
       continue;
     }
+    const href = node.getAttribute("href");
+    const src = node.getAttribute("src");
+    const alt = node.getAttribute("alt");
     for (const attribute of Array.from(node.attributes)) node.removeAttribute(attribute.name);
-    if (node.tagName === "A") {
-      const original = value.match(/https?:\/\/[^\s"'<>]+/i)?.[0];
-      if (original) {
-        node.setAttribute("href", original);
-        node.setAttribute("target", "_blank");
-        node.setAttribute("rel", "noreferrer");
-      }
+    if (node.tagName === "A" && href && /^https?:\/\//i.test(href)) {
+      node.setAttribute("href", href);
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noreferrer");
+    }
+    if (node.tagName === "IMG" && src && /^https?:\/\//i.test(src)) {
+      node.setAttribute("src", src);
+      if (alt) node.setAttribute("alt", alt);
+      node.setAttribute("loading", "lazy");
     }
   }
   return document.body.innerHTML;
@@ -485,7 +490,7 @@ export function FeaturePanel(props: FeaturePanelProps) {
         {steam?.screenshots?.length ? (
           <section className="library-room-gallery-block">
             <h3>Capturas</h3>
-            <div className="library-room-screenshots">{steam.screenshots.slice(0, 8).map((shot, index) => shot.thumbnail || shot.full ? <img key={shot.id ?? index} src={shot.thumbnail ?? shot.full} alt="" loading="lazy" /> : null)}</div>
+            <div className="library-room-screenshots">{steam.screenshots.slice(0, 8).map((shot, index) => shot.thumbnail || shot.full ? <img key={shot.id ?? index} src={shot.full ?? shot.thumbnail} alt="" loading="lazy" /> : null)}</div>
           </section>
         ) : null}
       </div>
