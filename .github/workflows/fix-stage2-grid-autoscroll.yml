@@ -1,0 +1,50 @@
+name: Apply Stage 2 grid autoscroll fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/dev/fix_stage2_grid_autoscroll.py
+      - .github/workflows/fix-stage2-grid-autoscroll.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Apply source migration
+        run: python tools/dev/fix_stage2_grid_autoscroll.py
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Run desktop tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Build desktop frontend
+        working-directory: apps/desktop
+        run: npm run build
+      - name: Check diff
+        run: git diff --check
+      - name: Commit Stage 2 fix to main
+        shell: bash
+        run: |
+          git config user.name "gameAccess CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/desktop/src/LibraryRoom.tsx apps/desktop/src/libraryGridScrollContract.test.ts
+          if git diff --cached --quiet; then
+            echo "No source changes required."
+            exit 0
+          fi
+          git commit -m "fix(stage2): keep keyboard selection visible in game grid"
+          git push origin HEAD:main
