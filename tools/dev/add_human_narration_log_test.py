@@ -16,7 +16,7 @@ checks = {
         "Starting GameAccess desktop front end",
     ],
     "apps/desktop/src-tauri/src/main.rs": [
-        "GameAccess\").join(\"logs\")",
+        "gameaccess.log",
         "fn narration_log_path()",
         "append_narration_log_batch",
     ],
