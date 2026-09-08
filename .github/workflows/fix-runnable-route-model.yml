@@ -25,7 +25,7 @@ jobs:
         run: python tools/dev/fix_runnable_routes_stage1.py
       - name: Install launcher test dependencies
         shell: pwsh
-        run: python -m pip install pytest requests
+        run: python -m pip install pytest -r apps/launcher/requirements.txt
       - name: Run launcher regression tests
         working-directory: apps/launcher
         run: python -m pytest -q tests/test_steam_pool_verified_ownership.py tests/test_provider_account_onboard.py
