@@ -140,10 +140,12 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     setSelectedGameId(displayGames[0].id);
   }, [displayGames, selectedGameId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Selection/layout changes reset the slideshow to its first image.
   useEffect(() => {
     setArtworkSlideIndex(0);
   }, [selectedGameIdResolved, isWindowMaximized]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Restart the image dwell timer when selecting another game.
   useEffect(() => {
     if (!isWindowMaximized || wideArtworkSlides.length < 2) return;
     const timer = window.setInterval(() => {
@@ -398,6 +400,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     return () => { cancelled = true; };
   }, [selectedGameIdResolved, detailRequestedGameId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A changed selection or primary action resets keyboard action focus.
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
 
   const moveGrid = (delta: number) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
@@ -44,7 +44,7 @@ export default function App() {
   });
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const home = await loadHome();
@@ -52,7 +52,7 @@ export default function App() {
     } catch (error) {
       setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
     } finally { setLoading(false); }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -72,7 +72,75 @@ export default function App() {
         setDownloads((current) => ({ ...installedMap, ...current }));
       }
     }).catch(() => undefined);
-  }, []);
+  }, [refresh]);
+
+  useEffect(() => {
+    const activeIds = Object.entries(downloads)
+      .filter(([, status]) => ["requested", "preparing", "downloading"].includes(status.state))
+      .map(([id]) => Number(id));
+    if (!activeIds.length) return;
+    const timer = window.setInterval(() => {
+      void Promise.all(activeIds.map(async (appId) => {
+        try {
+          const status = await steamDownloadStatus(appId);
+          setDownloads((current) => ({ ...current, [appId]: status }));
+        } catch { /* keep last known state */ }
+      }));
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [downloads]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase("es");
+    if (!needle) return games;
+    return games.filter((game) => game.name.toLocaleLowerCase("es").includes(needle));
+  }, [games, query]);
+
+  const heroPool = useMemo(() => {
+    const base = filtered.length ? filtered : games;
+    return [...base].sort((a, b) => {
+      const ra = detailsById[a.id]?.steam?.recommendation_count ?? 0;
+      const rb = detailsById[b.id]?.steam?.recommendation_count ?? 0;
+      return rb - ra || b.copies_available - a.copies_available;
+    }).slice(0, 6);
+  }, [filtered, games, detailsById]);
+
+  useEffect(() => {
+    if (heroIndex >= heroPool.length) setHeroIndex(0);
+  }, [heroIndex, heroPool.length]);
+
+  useEffect(() => {
+    if (heroPaused || heroPool.length < 2) return;
+    const timer = window.setInterval(() => setHeroIndex((current) => (current + 1) % heroPool.length), 18000);
+    return () => window.clearInterval(timer);
+  }, [heroPaused, heroPool.length]);
+
+  const continueGames = useMemo(() => {
+    const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
+    return recent.length ? recent.slice(0, 8) : filtered.filter((game) => game.copies_available > 0).slice(0, 4);
+  }, [recentIds, filtered]);
+
+  const orderedLibrary = useMemo(() => {
+    const order = new Map(recentIds.map((id, index) => [id, index]));
+    const rank = (game: CatalogGame) => {
+      if (preferences[game.id] === -1) return 2;
+      const status = game.app_id ? downloads[game.app_id] : undefined;
+      if (preferences[game.id] === 1 || status?.installed || status?.state === "installed") return 0;
+      return 1;
+    };
+    return [...games].sort((left, right) => {
+      const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
+      const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
+      if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
+      return left.name.localeCompare(right.name, "es");
+    });
+  }, [games, recentIds, preferences, downloads]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -153,75 +221,7 @@ export default function App() {
       setToast(`Visual debug completo: ${manifest}`);
     };
     void run().catch((error) => setToast(`Visual debug falló: ${error instanceof Error ? error.message : String(error)}`));
-  }, [loading, games.length]);
-
-  useEffect(() => {
-    const activeIds = Object.entries(downloads)
-      .filter(([, status]) => ["requested", "preparing", "downloading"].includes(status.state))
-      .map(([id]) => Number(id));
-    if (!activeIds.length) return;
-    const timer = window.setInterval(() => {
-      void Promise.all(activeIds.map(async (appId) => {
-        try {
-          const status = await steamDownloadStatus(appId);
-          setDownloads((current) => ({ ...current, [appId]: status }));
-        } catch { /* keep last known state */ }
-      }));
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [downloads]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 4200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("es");
-    if (!needle) return games;
-    return games.filter((game) => game.name.toLocaleLowerCase("es").includes(needle));
-  }, [games, query]);
-
-  const heroPool = useMemo(() => {
-    const base = filtered.length ? filtered : games;
-    return [...base].sort((a, b) => {
-      const ra = detailsById[a.id]?.steam?.recommendation_count ?? 0;
-      const rb = detailsById[b.id]?.steam?.recommendation_count ?? 0;
-      return rb - ra || b.copies_available - a.copies_available;
-    }).slice(0, 6);
-  }, [filtered, games, detailsById]);
-
-  useEffect(() => {
-    if (heroIndex >= heroPool.length) setHeroIndex(0);
-  }, [heroIndex, heroPool.length]);
-
-  useEffect(() => {
-    if (heroPaused || heroPool.length < 2) return;
-    const timer = window.setInterval(() => setHeroIndex((current) => (current + 1) % heroPool.length), 18000);
-    return () => window.clearInterval(timer);
-  }, [heroPaused, heroPool.length]);
-
-  const continueGames = useMemo(() => {
-    const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
-    return recent.length ? recent.slice(0, 8) : filtered.filter((game) => game.copies_available > 0).slice(0, 4);
-  }, [recentIds, filtered]);
-
-  const orderedLibrary = useMemo(() => {
-    const order = new Map(recentIds.map((id, index) => [id, index]));
-    const rank = (game: CatalogGame) => {
-      if (preferences[game.id] === -1) return 2;
-      const status = game.app_id ? downloads[game.app_id] : undefined;
-      if (preferences[game.id] === 1 || status?.installed || status?.state === "installed") return 0;
-      return 1;
-    };
-    return [...games].sort((left, right) => {
-      const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
-      const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
-      if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
-      return left.name.localeCompare(right.name, "es");
-    });
-  }, [games, recentIds, preferences, downloads]);
+  }, [loading, games, orderedLibrary]);
 
   const magazineGames = orderedLibrary;
   useEffect(() => {
@@ -417,7 +417,7 @@ export default function App() {
     if (heroVideoRef.current) heroVideoRef.current.muted = next;
   };
 
-  const moveMagazineFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const moveMagazineFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     const columns = magazineShape.columns;
     const moves: Record<string, number> = { ArrowLeft: -1, a: -1, A: -1, ArrowRight: 1, d: 1, D: 1, ArrowUp: -columns, w: -columns, W: -columns, ArrowDown: columns, s: columns, S: columns };
     const movement = moves[event.key];
@@ -425,7 +425,7 @@ export default function App() {
     event.preventDefault();
     const next = Math.max(0, Math.min(magazineGames.length - 1, magazineFocus + movement));
     setMagazineFocus(next);
-    window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-magazine-index="${next}"] .game-card-main`)?.focus());
+    window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-magazine-index="${next}"]`)?.focus());
   };
 
   const renderMagazine = () => (<>{featured ? (
@@ -442,17 +442,17 @@ export default function App() {
                 <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
-            <div role="group" className="hero-media-controls" aria-label="Controles del banner">
+            <section  className="hero-media-controls" aria-label="Controles del banner">
               <button type="button" onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
               <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
               <button type="button" onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
               <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
-            </div>
+            </section>
           </div>
           <section ref={magazineCatalogRef} className="magazine-catalog" aria-label="Juegos recientes y favoritos">
             <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
-            <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties} onKeyDown={moveMagazineFocus}>
-              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"} onFocus={() => setMagazineFocus(index)}><button type="button" className="magazine-card" data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
+            <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties}>
+              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
             </div>
           </section>
           <div className="screen-controls-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span></div>

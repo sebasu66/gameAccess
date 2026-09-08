@@ -67,6 +67,8 @@ export function DetailPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeWithAnimation, optionsOpen]);
 
+  // Refocus the primary action when game selection or download state changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: These keys intentionally retrigger focus after the action changes.
   useEffect(() => {
     if (!optionsOpen) window.setTimeout(() => document.querySelector<HTMLButtonElement>(".detail-primary-actions button:not(:disabled)")?.focus(), 40);
   }, [optionsOpen, game.id, download?.state]);
@@ -158,8 +160,8 @@ export function DetailPanel({
             </>);
 
   return (
-    <div role="presentation" className={`modal-backdrop ${closing ? "is-closing" : ""} ${overLibrary ? "over-library" : ""}`} onMouseDown={closeWithAnimation}>
-      <article className="detail-panel detail-panel-rich" onMouseDown={(event) => event.stopPropagation()}>
+    <div role="presentation" className={`modal-backdrop ${closing ? "is-closing" : ""} ${overLibrary ? "over-library" : ""}`} onPointerDown={closeWithAnimation}>
+      <article className="detail-panel detail-panel-rich" onPointerDown={(event) => event.stopPropagation()}>
         <div className="detail-corner-actions detail-keyboard-actions">
           <button type="button" className="detail-gear" onClick={() => setOptionsOpen(true)} aria-label="Opciones del juego"><Settings size={20} /></button>
           <button type="button" className="close-detail" onClick={closeWithAnimation} aria-label="Volver"><X size={22} /></button>
@@ -206,7 +208,7 @@ export function DetailPanel({
 
           {renderRequirements()}
         </div>
-        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onMouseDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button type="button" className="secondary-button" disabled>Desinstalar · próximamente</button><button type="button" className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
+        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onPointerDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onPointerDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button type="button" className="secondary-button" disabled>Desinstalar · próximamente</button><button type="button" className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
       </article>
     </div>
   );

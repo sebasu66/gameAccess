@@ -18,11 +18,11 @@ export function SessionOverlay({ session, onClose }: { session: SessionView; onC
           <h3>{session.title}</h3>
           <p>{session.detail}</p>
           {session.log?.length ? <div className="session-log">{session.log.map((line, index) => <div key={`${index}-${line}`}><span>{String(index + 1).padStart(2, "0")}</span>{line}</div>)}</div> : null}
-          <div role="group" className="session-steps" aria-label="Progreso de inicio">
+          <section  className="session-steps" aria-label="Progreso de inicio">
             <span className={session.phase !== "reserving" ? "done" : "current"}>Reserva</span><i />
             <span className={["launching", "playing", "demo-ready", "waiting-adapter"].includes(session.phase) ? "done" : session.phase === "preparing" ? "current" : ""}>Preparación</span><i />
             <span className={success ? "done" : session.phase === "launching" ? "current" : ""}>Juego</span>
-          </div>
+          </section>
           {!active ? <button type="button" className="secondary-button session-close" onClick={onClose}>{success ? "Listo" : "Volver al catálogo"}</button> : null}
         </div>
       </section>

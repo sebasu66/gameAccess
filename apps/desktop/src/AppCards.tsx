@@ -63,10 +63,10 @@ function GameCard({
         </div>
       </button>
       {showPreference ? (
-        <div role="group" className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
+        <section  className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
           <button type="button" className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label="Me gusta"><ThumbsUp size={16} /></button>
           <button type="button" className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>
-        </div>
+        </section>
       ) : null}
     </article>
   );

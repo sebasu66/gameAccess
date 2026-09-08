@@ -31,7 +31,7 @@ export function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailO
 
   useEffect(() => {
     setSelectedIndex((current) => Math.min(current, Math.max(0, visible.length - 1)));
-  }, [query, visible.length]);
+  }, [visible.length]);
 
   useEffect(() => {
     if (!detailOpen) rootRef.current?.focus({ preventScroll: true });
@@ -87,7 +87,7 @@ export function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailO
         {!visible.length ? <div className="library-empty">No encontramos juegos con “{query}”.</div> : null}
       </div>
       {selectedGame ? <div className="dome-selection-readout"><span>{selectedIndex + 1} / {visible.length}</span><strong>{selectedGame.name}</strong><small>ENTER · ABRIR FICHA</small></div> : null}
-      <div role="group" className="dome-controls-hint" aria-label="Controles de navegación">{detailOpen ? <><span>NAVEGAR ACCIONES · WASD / FLECHAS</span><span>ACTIVAR · ENTER</span><span>VOLVER · ESC</span></> : <><span>NAVEGAR · WASD / FLECHAS</span><span>VER DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span><span>VOLVER · ESC</span></>}</div>
+      <section  className="dome-controls-hint" aria-label="Controles de navegación">{detailOpen ? <><span>NAVEGAR ACCIONES · WASD / FLECHAS</span><span>ACTIVAR · ENTER</span><span>VOLVER · ESC</span></> : <><span>NAVEGAR · WASD / FLECHAS</span><span>VER DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span><span>VOLVER · ESC</span></>}</section>
     </div>
   );
 }
