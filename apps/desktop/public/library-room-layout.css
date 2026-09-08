@@ -18,6 +18,8 @@
   }
 
   .library-room:not(.surface-tablet):not(.surface-display) .library-detail-essential {
-    min-height: 80%;
+    flex: 0 0 80% !important;
+    min-height: 80% !important;
+    max-height: none !important;
   }
 }
