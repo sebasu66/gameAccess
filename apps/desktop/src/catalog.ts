@@ -1,4 +1,5 @@
 import type { LocalSteamPool } from "./native";
+import { narrateBatch } from "./narrationLog";
 import type { CatalogGame } from "./types";
 
 const steamAssets = (appId: number) => ({
@@ -8,9 +9,11 @@ const steamAssets = (appId: number) => ({
   steam_url: `https://store.steampowered.com/app/${appId}/`,
 });
 
+
 export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
   const accounts = pool.accounts ?? [];
-  return (pool.games ?? []).flatMap((item) => {
+  const decisions: string[] = [];
+  const catalog = (pool.games ?? []).flatMap((item): CatalogGame[] => {
     const owners = accounts
       .filter((account) => account.app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
@@ -18,12 +21,18 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       .filter((account) => account.accessible_app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
 
-    // The local library is discovery/access, not the leasing inventory. A game
-    // remains visible when Steam exposes it to a remembered account even before
-    // licenses_print has verified the original owner. Ownership counts stay at
-    // zero until that verification exists, so Family-visible seats are never
-    // misreported as independent copies.
     if (!owners.length && !accessible.length) return [];
+
+    const ownerLabels = owners.map((account) => account.account_name || account.label);
+    const accessLabels = accessible.map((account) => account.account_name || account.label);
+    const ownerText = ownerLabels.length ? ownerLabels.join(", ") : "none";
+    const accessText = accessLabels.length ? accessLabels.join(", ") : "none";
+    const decision = owners.length
+      ? `AVAILABLE locally because the local scanner supplied at least one ownership candidate in app_ids (${ownerText}).`
+      : "NOT AVAILABLE to play locally because no remembered account supplied this AppID in app_ids.";
+    decisions.push(
+      `${item.name} (Steam AppID ${item.app_id}). Steam-visible/access accounts from accessible_app_ids: ${accessText}. Ownership candidates currently supplied by the local scanner in app_ids: ${ownerText}. Rule applied: accessible_app_ids by itself never grants play; at least one app_ids owner candidate is required. Decision: ${decision}`,
+    );
 
     return [{
       id: item.app_id,
@@ -34,8 +43,8 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       copies_total: owners.length,
       copies_available: owners.length,
       availability_state: owners.length ? "ready" : "unavailable",
-      local_account_labels: owners.map((account) => account.account_name || account.label),
-      local_access_labels: accessible.map((account) => account.account_name || account.label),
+      local_account_labels: ownerLabels,
+      local_access_labels: accessLabels,
       local_primary_account_label: owners[0]?.account_name || owners[0]?.label,
       local_owner_steam_ids: owners.map((account) => account.steam_id64).filter((value): value is string => Boolean(value)),
       local_inventory_verified: pool.verification_complete,
@@ -43,6 +52,9 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       ...steamAssets(item.app_id),
     }];
   });
+
+  void narrateBatch(decisions, { area: "AVAILABILITY" });
+  return catalog;
 }
 
 export function mergeCatalog(remote: CatalogGame[], local: CatalogGame[]): CatalogGame[] {

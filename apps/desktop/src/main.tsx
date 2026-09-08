@@ -7,6 +7,7 @@ import RuntimeGate from "./RuntimeGate";
 import SteamSessionSettings from "./SteamSessionSettings";
 import WindowChrome from "./WindowChrome";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
+import { narrate, startNarrationSession } from "./narrationLog";
 import "./styles.css";
 import "./session.css";
 import "./experience.css";
@@ -22,7 +23,10 @@ import "./catalog-refresh.css";
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error, info: React.ErrorInfo) { console.error("gameAccess UI crash", error, info); }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("gameAccess UI crash", error, info);
+    void narrate(`The front end crashed: ${error.message || "unknown UI error"}. React component stack: ${info.componentStack || "unavailable"}`, { area: "ERROR", level: "ERROR" });
+  }
   render() {
     if (this.state.error) return <main className="runtime-gate"><section className="runtime-gate-card crash-card"><span className="eyebrow">RECUPERACIÓN DE INTERFAZ</span><h1>GameAccess encontró un error, pero el runtime sigue funcionando.</h1><p>{this.state.error.message || "Error inesperado de interfaz."}</p><button type="button" className="primary" onClick={() => window.location.reload()}>Reintentar</button></section></main>;
     return this.props.children;
@@ -37,12 +41,14 @@ function CatalogShell() {
   const changeMode = React.useCallback((next: CatalogMode) => {
     if (next === mode) return;
     if (!auxiliarySurface) captureLibraryUiState(mode);
+    void narrate(`Switching catalog view from ${mode} to ${next}. This changes which availability rules are used.`, { area: "CATALOG" });
     setCatalogMode(next);
     setMode(next);
   }, [auxiliarySurface, mode]);
   const refreshCatalog = React.useCallback(() => {
+    void narrate(`Manual catalog refresh requested while viewing ${mode}. The catalog will be loaded again from its source.`, { area: "CATALOG" });
     setRefreshNonce((value) => value + 1);
-  }, []);
+  }, [mode]);
   return <>
     <CatalogTabs mode={mode} onChange={changeMode} />
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
@@ -50,6 +56,8 @@ function CatalogShell() {
     <App key={`${mode}:${refreshNonce}`} />
   </>;
 }
+
+void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");

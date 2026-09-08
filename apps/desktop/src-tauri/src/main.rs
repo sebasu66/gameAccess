@@ -10,13 +10,84 @@ use native_core::{
 };
 
 use serde::Serialize;
-use std::{env, fs, path::PathBuf, process::Command, sync::Mutex};
+use std::{env, fs, io::Write, path::PathBuf, process::Command, sync::Mutex};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn narration_log_file() -> Result<PathBuf, String> {
+    let base = env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(env::temp_dir);
+    let directory = base.join("GameAccess").join("logs");
+    fs::create_dir_all(&directory)
+        .map_err(|err| format!("Could not create GameAccess log directory: {err}"))?;
+    Ok(directory.join("gameaccess.log"))
+}
+
+fn clean_narration_field(value: &str, fallback: &str) -> String {
+    let cleaned = value
+        .replace('\r', " ")
+        .replace('\n', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if cleaned.is_empty() {
+        fallback.to_string()
+    } else {
+        cleaned
+    }
+}
+
+fn append_narration_lines(
+    messages: Vec<String>,
+    area: String,
+    level: String,
+) -> Result<String, String> {
+    let path = narration_log_file()?;
+    let safe_area = clean_narration_field(&area, "APP");
+    let safe_level = clean_narration_field(&level, "INFO");
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
+
+    for message in messages {
+        let clean = clean_narration_field(&message, "");
+        if clean.is_empty() {
+            continue;
+        }
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        writeln!(file, "{timestamp} [{safe_level}] [{safe_area}] {clean}")
+            .map_err(|err| format!("Could not append GameAccess narration log: {err}"))?;
+    }
+    file.flush()
+        .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn narration_log_path() -> Result<String, String> {
+    Ok(narration_log_file()?.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn append_narration_log(message: String, area: String, level: String) -> Result<String, String> {
+    append_narration_lines(vec![message], area, level)
+}
+
+#[tauri::command]
+fn append_narration_log_batch(
+    messages: Vec<String>,
+    area: String,
+    level: String,
+) -> Result<String, String> {
+    append_narration_lines(messages, area, level)
+}
 
 #[derive(Default)]
 struct VisualDebugState {
@@ -230,7 +301,9 @@ fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
 }
 
 fn provider_prepared_game_folder(app_id: u32) -> Option<PathBuf> {
-    let status = provider_download::provider_download_status(app_id).ok().flatten()?;
+    let status = provider_download::provider_download_status(app_id)
+        .ok()
+        .flatten()?;
     if !(status.installed || matches!(status.state.as_str(), "installed" | "prepared")) {
         return None;
     }
@@ -360,35 +433,49 @@ async fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> 
 }
 
 #[tauri::command]
-async fn register_download_job(app_id: u32, job_id: String) -> Result<download_lifecycle::DownloadJobRecord, String> {
-    tauri::async_runtime::spawn_blocking(move || download_lifecycle::register_download_job(app_id, job_id))
-        .await
-        .map_err(|err| format!("Download lifecycle registration failed: {err}"))?
+async fn register_download_job(
+    app_id: u32,
+    job_id: String,
+) -> Result<download_lifecycle::DownloadJobRecord, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        download_lifecycle::register_download_job(app_id, job_id)
+    })
+    .await
+    .map_err(|err| format!("Download lifecycle registration failed: {err}"))?
 }
 
 #[tauri::command]
-async fn record_download_completion(app_id: u32) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
-    tauri::async_runtime::spawn_blocking(move || download_lifecycle::complete_latest_for_app(app_id))
-        .await
-        .map_err(|err| format!("Download completion persistence failed: {err}"))?
+async fn record_download_completion(
+    app_id: u32,
+) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        download_lifecycle::complete_latest_for_app(app_id)
+    })
+    .await
+    .map_err(|err| format!("Download completion persistence failed: {err}"))?
 }
 
 #[tauri::command]
-async fn acknowledge_download_completion(job_id: String) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+async fn acknowledge_download_completion(
+    job_id: String,
+) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
     tauri::async_runtime::spawn_blocking(move || download_lifecycle::acknowledge(&job_id))
         .await
         .map_err(|err| format!("Download completion acknowledgement failed: {err}"))?
 }
 
 #[tauri::command]
-async fn cancel_download_lifecycle(app_id: u32) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
+async fn cancel_download_lifecycle(
+    app_id: u32,
+) -> Result<Option<download_lifecycle::DownloadJobRecord>, String> {
     tauri::async_runtime::spawn_blocking(move || download_lifecycle::cancel_latest_for_app(app_id))
         .await
         .map_err(|err| format!("Download lifecycle cancellation failed: {err}"))?
 }
 
 #[tauri::command]
-async fn pending_download_completions() -> Result<Vec<download_lifecycle::DownloadJobRecord>, String> {
+async fn pending_download_completions() -> Result<Vec<download_lifecycle::DownloadJobRecord>, String>
+{
     tauri::async_runtime::spawn_blocking(|| {
         download_lifecycle::pending_with(|app_id| {
             let steam = native_core::steam_download_status(app_id);
@@ -400,7 +487,10 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
                 .flatten()
                 .is_some_and(|status| {
                     (status.installed || matches!(status.state.as_str(), "installed" | "prepared"))
-                        && status.prepared_target.as_ref().is_some_and(|target| std::path::Path::new(target).exists())
+                        && status
+                            .prepared_target
+                            .as_ref()
+                            .is_some_and(|target| std::path::Path::new(target).exists())
                 })
         })
     })
@@ -416,6 +506,9 @@ fn main() {
         })
         .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
+            narration_log_path,
+            append_narration_log,
+            append_narration_log_batch,
             steam_installed,
             runtime_prerequisites,
             open_steam_client,

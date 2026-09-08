@@ -24,6 +24,34 @@ $previousStamp = $env:VITE_BUILD_TIMESTAMP
 $previousApi = $env:VITE_GAMEACCESS_API
 $buildTimestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 $localApiUrl = "http://127.0.0.1:$ServerPort"
+$logBase = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'GameAccess\logs' } else { Join-Path $env:TEMP 'GameAccess\logs' }
+$activityLog = Join-Path $logBase 'gameaccess.log'
+$tailHelperPs1 = Join-Path $projectRoot 'tools\windows\tail.ps1'
+$tailHelperCmd = Join-Path $projectRoot 'tools\windows\tail.cmd'
+$sebaToolsRoot = 'C:\SebaSU_Tools' 
+
+function Write-GameAccessNarration {
+    param(
+        [Parameter(Mandatory = $true)][string]$Message,
+        [string]$Area = 'BUILD',
+        [ValidateSet('INFO', 'WARN', 'ERROR')][string]$Level = 'INFO'
+    )
+    New-Item -ItemType Directory -Force -Path $logBase | Out-Null
+    $stamp = [DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss.fff')
+    Add-Content -LiteralPath $activityLog -Value "$stamp [$Level] [$Area] $Message" -Encoding UTF8
+}
+
+function Install-SebaSUTailHelper {
+    try {
+        New-Item -ItemType Directory -Force -Path $sebaToolsRoot | Out-Null
+        Copy-Item -LiteralPath $tailHelperPs1 -Destination (Join-Path $sebaToolsRoot 'tail.ps1') -Force
+        Copy-Item -LiteralPath $tailHelperCmd -Destination (Join-Path $sebaToolsRoot 'tail.cmd') -Force
+        Write-GameAccessNarration "Installed generic live-tail helper at C:\SebaSU_Tools\tail.ps1 and tail.cmd." 'TOOLS'
+    } catch {
+        Write-Warning "Could not install C:\SebaSU_Tools tail helper: $($_.Exception.Message)"
+        Write-GameAccessNarration "Could not install the C:\SebaSU_Tools tail helper: $($_.Exception.Message)" 'TOOLS' 'WARN'
+    }
+}
 
 function Get-SystemPythonCommand {
     $py = Get-Command py.exe -ErrorAction SilentlyContinue
@@ -66,8 +94,10 @@ try {
     Get-Command npm.cmd -ErrorAction Stop | Out-Null
     Get-Command cargo -ErrorAction Stop | Out-Null
 
+    Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
     Write-Host "Preparing GameAccess server build: $buildTimestamp"
     $serverRequirementsHash = Ensure-ServerBuild
+    Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"
 
     Write-Host 'Closing this project app (Steam, games and download workers are not stopped)...'
     $appPaths = @($outputExe, $sourceExe)
@@ -94,6 +124,7 @@ try {
         $env:VITE_GAMEACCESS_API = $localApiUrl
     }
 
+    Write-GameAccessNarration "Starting production build of the GameAccess desktop front end." "FRONTEND"
     Write-Host "Building Tauri release: $buildTimestamp"
     Push-Location $desktopRoot
     try {
@@ -113,6 +144,8 @@ try {
     }
 
     Write-Host "Built client: $outputExe"
+    Write-GameAccessNarration "Desktop client build completed successfully: $outputExe." "FRONTEND"
+    Install-SebaSUTailHelper
     Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
     Write-Host "Build UTC: $buildTimestamp | client SHA256: $expectedHash"
     @{
@@ -129,10 +162,15 @@ try {
 
     if (-not $NoRun -and $Server) {
         Write-Host "Starting local GameAccess server at $localApiUrl"
+        Write-GameAccessNarration "Starting local GameAccess backend server at $localApiUrl." "SERVER"
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort
         if ($LASTEXITCODE -ne 0) { throw "Local server failed to start (exit $LASTEXITCODE)." }
+        Write-GameAccessNarration "Local GameAccess backend server is ready at $localApiUrl." "SERVER"
     }
-    if (-not $NoRun) { Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Normal }
+    if (-not $NoRun) {
+        Write-GameAccessNarration "Starting the GameAccess desktop front end executable." "FRONTEND"
+        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Normal
+    }
 } catch {
     Write-Error $_ -ErrorAction Continue
     exit 1

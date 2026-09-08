@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { getCatalogMode } from "./catalogMode";
+import { narrate } from "./narrationLog";
 import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
 import { reconcileSteamAndProviderStatus } from "./downloadState";
 import { resolveSteamInstallOwner } from "./steamOwnership";
@@ -115,10 +116,23 @@ export interface LocalSteamPool {
   library_folders?: SteamLibraryFolder[];
 }
 
+
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
-  if (hasTauriRuntime()) return invoke<LocalSteamPool>("local_steam_pool");
-  try { return await bridgeRequest<LocalSteamPool>("/local-steam-pool"); }
-  catch { return null; }
+  await narrate("Native layer: reading Steam remembered accounts and their local library/access data.", { area: "LOCAL STEAM" });
+  try {
+    const pool = hasTauriRuntime()
+      ? await invoke<LocalSteamPool>("local_steam_pool")
+      : await bridgeRequest<LocalSteamPool>("/local-steam-pool");
+    await narrate(
+      `Native Steam scan completed: ${pool.accounts.length} remembered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
+      { area: "LOCAL STEAM" },
+    );
+    return pool;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await narrate(`Native Steam scan failed: ${message}.`, { area: "LOCAL STEAM", level: "ERROR" });
+    return null;
+  }
 }
 
 export async function verifyLocalSteamInventory(): Promise<void> {
@@ -182,14 +196,34 @@ function dispatchDownloadEvent(name: string, appId: number, error?: string) {
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+
 async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
   const deadline = Date.now() + 90_000;
+  let lastState = "";
   while (Date.now() < deadline) {
     const status = await steamDownloadStatus(appId);
-    if (status.error) throw new Error(status.error);
-    if (status.installed || ["preparing", "downloading", "paused"].includes(status.state)) return;
+    if (status.state !== lastState) {
+      lastState = status.state;
+      await narrate(
+        `Download for Steam AppID ${appId}: state changed to '${status.state}'${status.progress != null ? ` at ${Math.round(status.progress)}%` : ""}.`,
+        { area: "DOWNLOAD" },
+      );
+    }
+    if (status.error) {
+      await narrate(`Download for Steam AppID ${appId} reported an error: ${status.error}.`, { area: "DOWNLOAD", level: "ERROR" });
+      throw new Error(status.error);
+    }
+    if (status.installed) {
+      await narrate(`Download for Steam AppID ${appId}: installation is complete and the game is ready on disk.`, { area: "DOWNLOAD" });
+      return;
+    }
+    if (["preparing", "downloading", "paused"].includes(status.state)) {
+      await narrate(`Steam confirmed that download work for AppID ${appId} has started.`, { area: "DOWNLOAD" });
+      return;
+    }
     await delay(900);
   }
+  await narrate(`Steam did not confirm download start for AppID ${appId} within 90 seconds.`, { area: "DOWNLOAD", level: "ERROR" });
   throw new Error("Steam no confirmó el inicio de la descarga. La solicitud se quitó de pendientes.");
 }
 
@@ -215,43 +249,56 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   return invoke<SteamSessionStatus>("steam_session_status");
 }
 
+
 export async function openSteamInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  const mode = getCatalogMode();
+  await narrate(`Download requested for Steam AppID ${appId}. Current catalog mode is '${mode}'.`, { area: "DOWNLOAD" });
   const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
     try {
+      await narrate(`Browser/local-bridge mode: asking the local bridge to start Steam install for AppID ${appId}.`, { area: "DOWNLOAD" });
       await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
       await waitForSteamInstallConfirmation(appId);
     } catch {
+      await narrate(`Local bridge could not start AppID ${appId}; falling back to the Steam install URI.`, { area: "DOWNLOAD", level: "WARN" });
       window.location.href = `steam://install/${appId}`;
     }
     return;
   }
 
   try {
-    if (getCatalogMode() === "gameaccess") {
-      await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
+    if (mode === "gameaccess") {
+      await narrate(`GameAccess mode: asking the provider download manager to resolve a usable provider license and start AppID ${appId}.`, { area: "DOWNLOAD" });
+      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
+      await narrate(`Provider download manager accepted AppID ${appId}${status.provider_id ? ` using provider '${status.provider_id}'` : ""}; state='${status.state}'.`, { area: "DOWNLOAD" });
       await waitForSteamInstallConfirmation(appId);
       return;
     }
 
+    await narrate(`Private/local mode: resolving which remembered Steam account is considered the owner candidate for AppID ${appId}.`, { area: "DOWNLOAD" });
     const pool = await getLocalSteamPool();
     if (!pool) throw new Error("No se pudo leer el inventario local de licencias Steam.");
     const accountLabel = resolveSteamInstallOwner(pool.accounts, appId);
+    await narrate(`Private/local download rule selected Steam account '${accountLabel}' for AppID ${appId}. Switching account before sending Steam the install request.`, { area: "ACCOUNT" });
     await switchSteamAccount(accountLabel);
     await invoke("open_steam_install", { appId });
+    await narrate(`Steam install request sent for AppID ${appId}. Waiting for Steam to confirm work started.`, { area: "DOWNLOAD" });
     await waitForSteamInstallConfirmation(appId);
   } catch (error) {
     if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
+    await narrate(`Download request for AppID ${appId} failed: ${message}.`, { area: "DOWNLOAD", level: "ERROR" });
     dispatchDownloadEvent("gameaccess:steam-download-request-failed", appId, message);
     throw error;
   }
 }
 
+
 export async function openSteamClientInstall(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  await narrate(`Direct Steam-client download requested for AppID ${appId}. This bypasses GameAccess provider download selection.`, { area: "DOWNLOAD" });
   const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
   dispatchDownloadEvent("gameaccess:steam-download-requested", appId);
   if (!hasTauriRuntime()) {
@@ -265,19 +312,26 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
   }
   try {
     await invoke("open_steam_install", { appId });
+    await narrate(`Steam client install URI sent for AppID ${appId}.`, { area: "DOWNLOAD" });
     await waitForSteamInstallConfirmation(appId);
   } catch (error) {
     if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
+    const message = error instanceof Error ? error.message : String(error);
+    await narrate(`Direct Steam-client download failed for AppID ${appId}: ${message}.`, { area: "DOWNLOAD", level: "ERROR" });
     throw error;
   }
 }
 
+
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
+  await narrate(`Launch requested for Steam AppID ${appId}. Resolving the Steam account and launch route.`, { area: "LAUNCH" });
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });
+      await narrate(`Local bridge accepted the launch request for AppID ${appId}.`, { area: "LAUNCH" });
     } catch {
+      await narrate(`Local bridge failed for AppID ${appId}; falling back to steam://run/${appId}.`, { area: "LAUNCH", level: "WARN" });
       window.location.href = `steam://run/${appId}`;
     }
     return;
@@ -285,6 +339,7 @@ export async function openSteamRun(appId: number): Promise<void> {
 
   const pool = await getLocalSteamPool();
   if (!pool) {
+    await narrate(`No local Steam pool was available for AppID ${appId}. Sending the run request directly to Steam without an account switch.`, { area: "LAUNCH", level: "WARN" });
     await invoke("open_steam_run", { appId });
     return;
   }
@@ -292,15 +347,22 @@ export async function openSteamRun(appId: number): Promise<void> {
   let ownerLabel: string;
   try {
     ownerLabel = resolveSteamInstallOwner(pool.accounts, appId);
-  } catch {
+    await narrate(`Local launch rule resolved Steam account '${ownerLabel}' for AppID ${appId}.`, { area: "ACCOUNT" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await narrate(`No local owner candidate could be resolved for AppID ${appId}: ${message}. Current code is falling back to a direct Steam run request.`, { area: "LAUNCH", level: "WARN" });
     await invoke("open_steam_run", { appId });
     return;
   }
 
+  await narrate(`Switching Steam to '${ownerLabel}' before launching AppID ${appId}.`, { area: "ACCOUNT" });
   await switchSteamAccount(ownerLabel);
   const refreshed = await getLocalSteamPool() ?? pool;
   const owner = findSteamAccount(refreshed.accounts, ownerLabel) ?? findSteamAccount(pool.accounts, ownerLabel);
-  if (!owner) throw new Error(`No se pudo resolver la cuenta Steam propietaria de AppID ${appId}.`);
+  if (!owner) {
+    await narrate(`After switching, account '${ownerLabel}' could not be found in the refreshed remembered-account pool. Launch is aborted.`, { area: "ACCOUNT", level: "ERROR" });
+    throw new Error(`No se pudo resolver la cuenta Steam propietaria de AppID ${appId}.`);
+  }
 
   const preferences = loadSteamSessionPreferences();
   const previous = consumePreviousSteamAccount();
@@ -314,6 +376,7 @@ export async function openSteamRun(appId: number): Promise<void> {
     previous?.accountName,
   );
 
+  await narrate(`Starting tracked Steam game session for AppID ${appId} under '${accountName(owner)}'. Restore policy after play: '${restoreMode}'.`, { area: "LAUNCH" });
   await invoke<SteamSessionStatus>("start_steam_game_session", {
     request: {
       appId,
@@ -328,9 +391,12 @@ export async function openSteamRun(appId: number): Promise<void> {
   });
 }
 
+
 export async function loginProviderSteam(credentials: { accountName: string; password: string; expectedUserId32: number }): Promise<void> {
   if (!hasTauriRuntime()) throw new Error("El login de proveedores requiere la aplicación de escritorio.");
+  await narrate(`Starting provider Steam login for account '${credentials.accountName}'. Password and authentication material are intentionally omitted from the log.`, { area: "ACCOUNT" });
   await invoke("login_provider_steam", credentials);
+  await narrate(`Provider Steam login completed for account '${credentials.accountName}'.`, { area: "ACCOUNT" });
 }
 
 function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {

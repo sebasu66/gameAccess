@@ -1,5 +1,21 @@
 # gameAccess
 
+## Human-readable activity log
+
+The desktop app writes a narration-style log intended for people, not just developers. On Windows it is stored at:
+
+```text
+%LOCALAPPDATA%\GameAccess\logs\gameaccess.log
+```
+
+It narrates front-end startup, resolved backend URL, catalog mode, remembered personal Steam accounts, local visibility vs. ownership-candidate counts, the exact rule used for each game's availability decision, GameAccess server license counts, account switching, game launch routing, and download state changes. Passwords and Steam authentication material are never written.
+
+`build-and-run.ps1` also copies the generic live-tail helper to `C:\SebaSU_Tools\tail.ps1` and `tail.cmd` when that folder is writable. Example:
+
+```powershell
+C:\SebaSU_Tools\tail.ps1 "$env:LOCALAPPDATA\GameAccess\logs\gameaccess.log"
+```
+
 ## Build and run the Windows app
 
 Run `powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1` from the repository root (Node/npm, Rust, Python 3 and Tauri Windows build prerequisites must be installed).
