@@ -57,6 +57,7 @@ def test_verified_owned_app_is_metadata_candidate_when_local_library_hides_it(
     assert observed_candidates == {app_id}
     assert [game["app_id"] for game in catalog["games"]] == [app_id]
     assert catalog["accounts"][0]["accessible_app_ids"] == []
+    assert catalog["accessible_unique_app_count"] == 0
 
 
 def test_pool_seeds_catalog_from_verified_steamkit_ownership(monkeypatch) -> None:
