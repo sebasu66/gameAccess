@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from pywinauto import Desktop
 
 
 @dataclass(frozen=True)
@@ -107,6 +106,8 @@ def restart_to_account_chooser() -> SteamSwitchResult:
 
 def _steam_windows() -> Iterable:
     """Return visible top-level windows that plausibly belong to Steam."""
+    from pywinauto import Desktop
+
     desktop = Desktop(backend="uia")
     for win in desktop.windows():
         try:

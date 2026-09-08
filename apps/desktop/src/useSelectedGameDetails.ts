@@ -35,6 +35,7 @@ export interface SelectedGameDetailsState {
 }
 
 export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): SelectedGameDetailsState {
+  const { surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen } = input;
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,8 +44,12 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
 
   useEffect(() => {
     const token = ++requestTokenRef.current;
-    const selectedGameId = input.selectedGameId;
-    const shouldLoad = shouldLoadSelectedDetails(input);
+    const shouldLoad = shouldLoadSelectedDetails({
+      surface,
+      selectedGameId,
+      detailRequestedGameId,
+      tabletDetailsOpen,
+    });
 
     setDetails(null);
     setDetailsGameId(null);
@@ -58,7 +63,7 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
     const requestedGameId = selectedGameId;
     void loadDetails(requestedGameId)
       .then((value) => {
-        if (requestTokenRef.current !== token || !isCurrentSelectedDetail(requestedGameId, input.selectedGameId)) return;
+        if (requestTokenRef.current !== token || !isCurrentSelectedDetail(requestedGameId, selectedGameId)) return;
         setDetails(value);
         setDetailsGameId(requestedGameId);
       })
@@ -69,10 +74,10 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
       .finally(() => {
         if (requestTokenRef.current === token) setLoading(false);
       });
-  }, [input.surface, input.selectedGameId, input.detailRequestedGameId, input.tabletDetailsOpen]);
+  }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen]);
 
   return {
-    details: detailsGameId === input.selectedGameId ? details : null,
+    details: detailsGameId === selectedGameId ? details : null,
     loading,
     error,
   };

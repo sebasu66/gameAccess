@@ -1,22 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import roomSource from "./LibraryRoom.tsx?raw";
-import partsSource from "./LibraryRoomParts.tsx?raw";
+import { afterDetailImage, afterDetailVideo, createDetailMediaSequence } from "./detailMediaSequence";
+import { shouldLoadSelectedDetails } from "./useSelectedGameDetails";
 
-describe("Stage 2 adaptive detail visual experiment", () => {
-  it("uses exact maximized-window state and a wide Steam artwork slideshow", () => {
-    expect(roomSource).toContain("appWindow.isMaximized()");
-    expect(roomSource).toContain("selectedWideArtworkSlides");
-    expect(roomSource).toContain("setInterval");
-    expect(roomSource).toContain('"is-maximized"');
+describe("Stage 2 desktop detail handoff", () => {
+  it("loads the game already displayed on desktop startup", () => {
+    expect(shouldLoadSelectedDetails({ surface: "desktop", selectedGameId: 7, detailRequestedGameId: null, tabletDetailsOpen: false })).toBe(true);
   });
 
-  it("uses portrait Steam artwork in the normal desktop layout", () => {
-    expect(roomSource).toContain("selectedPortraitHero");
-    expect(partsSource).toContain("library_600x900_2x.jpg");
-  });
-
-  it("keeps the title over the hero and separates the primary and preference controls", () => {
-    expect(partsSource).toContain("library-room-control-row");
+  it("cycles trailer to screenshots and back without a maximize condition", () => {
+    let state = createDetailMediaSequence({ videoSrc: "movie.mp4", images: ["a.jpg", "b.jpg"] });
+    state = afterDetailVideo(state);
+    expect(state).toMatchObject({ phase: "image", imageIndex: 0 });
+    state = afterDetailImage(afterDetailImage(state));
+    expect(state.phase).toBe("video");
   });
 });

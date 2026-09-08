@@ -290,3 +290,12 @@ Update `skill.md` when technical Steam/session facts change. Update this README 
 **What is the next milestone?** A live-development environment where a packaged Windows client discovers local Steam access, communicates with the hosted allocator, shows Owned/Steam/gameAccess choices, can queue for scarce capacity, and completes one reliable real-game session lifecycle.
 
 **What should not happen next?** Do not prematurely add production payments, buy broad inventory, assume Steam Families can be used as a generic fulfillment mechanism, or attempt automated Steam-region changes.
+
+
+## Desktop detail layout contract (2026-09-08)
+
+The normal desktop library detail has three named regions. **First row** is the essential summary (title, real Steam short description, existing Play/Download state action, and like/dislike). **Second row** is a compact factual Steam summary plus separately labelled GameAccess availability and active-download measurements when they actually exist. First and Second rows remain visible together inside the supported desktop viewport. **Third row** and later About/requirements/gallery content form the scrollable extended-detail region.
+
+Selected-game Steam details load lazily and asynchronously, including for the game already displayed at desktop startup, and use the existing AppID/game detail cache. Rapid selection changes must never paint stale details under a newer game. Desktop background media follows a deterministic trailer -> screenshots -> repeat sequence, starts muted, falls back safely on media errors, and does not change its contract merely because the window is maximized. Tablet and presentation/display surfaces keep their separate behavior.
+
+See `docs/DESKTOP_DETAIL_LAYOUT_CONTRACT.md` for the acceptance contract and viewport matrix.

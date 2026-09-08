@@ -1,22 +1,19 @@
-/* Desktop library layout contract: normal windows stay 50/50. A maximized desktop window gives the detail panel roughly 70% and the game grid 30%. Tablet and display surfaces keep their dedicated layouts. */
+/* Desktop library layout contract: bounded detail panel + flexible catalog. */
 @media (min-width: 761px) {
   .library-room:not(.surface-tablet):not(.surface-display) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-columns: clamp(420px, 48vw, 980px) minmax(0, 1fr) !important;
     gap: clamp(14px, 1.4vw, 22px) !important;
   }
 
   .library-room:not(.surface-tablet):not(.surface-display) > * {
     min-width: 0;
-  }
-
-
-  .library-room.is-maximized:not(.surface-tablet):not(.surface-display) {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr) !important;
+    min-height: 0;
   }
 
   .library-room:not(.surface-tablet):not(.surface-display) .library-room-feature,
   .library-room:not(.surface-tablet):not(.surface-display) .library-room-catalog {
     min-width: 0;
+    min-height: 0;
     overflow: hidden;
   }
 

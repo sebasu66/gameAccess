@@ -1,4 +1,96 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "apps" / "desktop" / "src"
+
+
+def git_blob(sha: str) -> str:
+    return subprocess.check_output(["git", "cat-file", "blob", sha], cwd=ROOT, text=True)
+
+
+def baseline_sha(path: str) -> str:
+    data = json.loads((ROOT / "apps" / "desktop" / "quality-baseline.json").read_text(encoding="utf-8"))
+    return data["legacyBlobShas"][path]
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if old not in text:
+        raise SystemExit(f"{label}: expected source not found")
+    return text.replace(old, new, 1)
+
+
+# Start from the repository's handoff implementation so CSS/docs/tests stay aligned
+# with the approved contract, then replace the two grandfathered controllers with a
+# compatibility-oriented composition that does not enlarge legacy architecture debt.
+subprocess.run([sys.executable, str(ROOT / "tools" / "dev" / "apply_desktop_detail_handoff.py")], cwd=ROOT, check=True)
+subprocess.run([sys.executable, str(ROOT / "tools" / "dev" / "fix_desktop_detail_handoff_lint.py")], cwd=ROOT, check=True)
+
+# LibraryRoom accumulated unrelated legacy orchestration. Restore the exact accepted
+# baseline and make the bounded detail panel own desktop rich-detail/media loading.
+room_path = SRC / "LibraryRoom.tsx"
+room_path.write_text(git_blob(baseline_sha("src/LibraryRoom.tsx")).replace("\r\n", "\n"), encoding="utf-8")
+
+# Keep all established selection/action helpers from the accepted baseline, but remove
+# the superseded in-file detail renderer and re-export the focused implementation.
+parts_path = SRC / "LibraryRoomParts.tsx"
+parts = git_blob(baseline_sha("src/LibraryRoomParts.tsx")).replace("\r\n", "\n")
+parts = parts.replace(
+    'import { Download, Gamepad2, Loader2, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX, XCircle } from "lucide-react";',
+    'import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";',
+)
+parts = parts.replace(
+    'import { downloadProgress, formatDownloadBytes, formatDownloadEta, formatDownloadSpeed, isTrackedDownload } from "./downloadManager";',
+    'import { isTrackedDownload } from "./downloadManager";',
+)
+pattern = r'\ninterface MediaPanelProps \{.*?\ninterface CatalogPanelProps'
+replacement = '\nexport { FeaturePanel } from "./LibraryDetailPanel";\n\ninterface CatalogPanelProps'
+parts, count = re.subn(pattern, replacement, parts, count=1, flags=re.S)
+if count != 1:
+    raise SystemExit(f"LibraryRoomParts detail extraction: expected one match, got {count}")
+parts_path.write_text(parts, encoding="utf-8")
+
+# Preserve desktop keyboard auto-follow after restoring LibraryRoom to its accepted
+# baseline. The catalog component already owns both selectedIndex and the scroll ref,
+# so this behavior belongs here and works for desktop/tablet without offsetParent bugs.
+catalog_path = SRC / "DownloadCatalogPanel.tsx"
+catalog = catalog_path.read_text(encoding="utf-8")
+if 'selectionItemTopInScrollContainer' not in catalog:
+    catalog = replace_once(
+        catalog,
+        'import { libraryArtworkCandidates } from "./libraryArtwork";\n',
+        'import { libraryArtworkCandidates } from "./libraryArtwork";\nimport { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";\n',
+        "catalog navigation import",
+    )
+    marker = '  const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);\n\n'
+    effect = '''  useEffect(() => {\n    const grid = props.gridRef.current;\n    const card = grid?.querySelector<HTMLElement>(".library-room-card.is-selected");\n    if (!grid || !card || props.selectedIndex < 0) return;\n    const gridRect = grid.getBoundingClientRect();\n    const cardRect = card.getBoundingClientRect();\n    const itemTop = selectionItemTopInScrollContainer({\n      scrollTop: grid.scrollTop,\n      viewportTop: gridRect.top,\n      itemTop: cardRect.top,\n    });\n    const nextTop = calculateSelectionScrollTop({\n      scrollTop: grid.scrollTop,\n      viewportHeight: grid.clientHeight,\n      itemTop,\n      itemHeight: cardRect.height,\n      padding: 8,\n    });\n    if (Math.abs(nextTop - grid.scrollTop) > 1) grid.scrollTo({ top: nextTop, behavior: "auto" });\n  }, [props.games.length, props.gridRef, props.selectedIndex]);\n\n'''
+    catalog = replace_once(catalog, marker, marker + effect, "catalog selection follow")
+    catalog_path.write_text(catalog, encoding="utf-8")
+
+# Linux quality runners need to import ownership/provider modules without instantiating
+# Windows UI Automation. The actual Windows switch path still imports pywinauto lazily.
+steam_switch_path = ROOT / "apps" / "launcher" / "steam_switch.py"
+steam_switch = steam_switch_path.read_text(encoding="utf-8")
+steam_switch = steam_switch.replace("\nfrom pywinauto import Desktop\n", "\n")
+if 'from pywinauto import Desktop\n\n    desktop = Desktop' not in steam_switch:
+    steam_switch = replace_once(
+        steam_switch,
+        'def _steam_windows() -> Iterable:\n    """Return visible top-level windows that plausibly belong to Steam."""\n    desktop = Desktop(backend="uia")',
+        'def _steam_windows() -> Iterable:\n    """Return visible top-level windows that plausibly belong to Steam."""\n    from pywinauto import Desktop\n\n    desktop = Desktop(backend="uia")',
+        "lazy Windows UI import",
+    )
+steam_switch_path.write_text(steam_switch, encoding="utf-8")
+
+# Focused desktop detail renderer. It accepts the legacy prop shape used by the accepted
+# LibraryRoom baseline, but owns desktop selected-game detail loading and deterministic
+# trailer -> screenshots sequencing. Display continues to use the legacy media contract.
+detail_path = SRC / "LibraryDetailPanel.tsx"
+detail_path.write_text(r'''import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Loader2, Pause, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
 
@@ -90,7 +182,6 @@ function sanitizeSteamRichHtml(value?: string | null): string {
 }
 
 function SteamRichText({ html }: { html: string }) {
-  // biome-ignore lint/security/noDangerouslySetInnerHtml: content is reduced to an allowlist and safe HTTPS attributes above.
   return <div className="steam-rich-text" dangerouslySetInnerHTML={{ __html: sanitizeSteamRichHtml(html) }} />;
 }
 
@@ -200,7 +291,7 @@ function ActionButtons(props: FeaturePanelProps) {
 
 function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
   return (
-    <div className="library-room-preferences">
+    <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>
       <span>¿Te gusta?</span>
       <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18} /></button>
       <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18} /></button>
@@ -273,17 +364,19 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   const [state, setState] = useState<DetailMediaSequenceState>(() => createDetailMediaSequence({ videoSrc, images, reducedMotion }));
   const currentImage = state.phase === "image" ? (state.images[state.imageIndex] ?? fallback) : fallback;
   const artwork = useCrossfadeArtwork(currentImage);
+  const imagesKey = images.join("|");
+
   useEffect(() => {
     setReadyVideo(false);
     setPaused(reducedMotion);
     setState(createDetailMediaSequence({ videoSrc, images, reducedMotion }));
-  }, [videoSrc, images, reducedMotion]);
+  }, [game.id, videoSrc, imagesKey, reducedMotion]);
 
   useEffect(() => {
     if (paused || state.phase !== "image" || reducedMotion || state.images.length === 0) return;
-    const timer = window.setInterval(() => setState((current) => afterDetailImage(current)), SCREENSHOT_HOLD_MS);
-    return () => window.clearInterval(timer);
-  }, [paused, reducedMotion, state.phase, state.images.length]);
+    const timer = window.setTimeout(() => setState((current) => afterDetailImage(current)), SCREENSHOT_HOLD_MS);
+    return () => window.clearTimeout(timer);
+  }, [paused, reducedMotion, state.phase, state.imageIndex, state.images.length]);
 
   useEffect(() => {
     if (state.phase !== "image" || state.images.length < 2) return;
@@ -378,7 +471,7 @@ function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus })
     download?.eta_seconds != null ? ["Tiempo restante", formatDownloadEta(download.eta_seconds)] : null,
   ].filter((row): row is string[] => Boolean(row));
   const progress = downloadProgress(download);
-  return <div className="library-room-active-download">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
+  return <div className="library-room-active-download" aria-label="Descarga activa">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
 }
 
 function ExtendedDetails({ details }: { details: GameDetails | null }) {
@@ -387,7 +480,7 @@ function ExtendedDetails({ details }: { details: GameDetails | null }) {
   const minimum = steam?.minimum_requirements ?? "";
   const recommended = steam?.recommended_requirements ?? "";
   return (
-    <div className="library-detail-extended">
+    <div className="library-detail-extended" tabIndex={0} aria-label="Detalles extendidos del juego">
       {about ? <section className="library-room-copy-block"><h3>Acerca del juego</h3><SteamRichText html={about} /></section> : null}
       {steam?.categories?.length ? <section className="library-room-copy-block"><h3>Funciones de Steam</h3><p>{steam.categories.join(" · ")}</p></section> : null}
       {minimum || recommended ? <section className="library-room-requirements-block">{minimum ? <div><h3>Requisitos mínimos</h3><SteamRichText html={minimum} /></div> : null}{recommended ? <div><h3>Requisitos recomendados</h3><SteamRichText html={recommended} /></div> : null}</section> : null}
@@ -421,3 +514,6 @@ function isDisplaySurface(): boolean {
 export function FeaturePanel(props: FeaturePanelProps) {
   return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature {...props} />;
 }
+''', encoding="utf-8")
+
+print("Desktop detail completion pass applied.")

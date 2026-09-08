@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - tools/dev/apply_desktop_detail_handoff.py
+      - tools/dev/fix_desktop_detail_handoff_lint.py
       - .github/workflows/apply-desktop-detail-handoff.yml
 
 permissions:
@@ -25,6 +26,8 @@ jobs:
           cache-dependency-path: apps/desktop/package-lock.json
       - name: Apply implementation
         run: python tools/dev/apply_desktop_detail_handoff.py
+      - name: Normalize implementation
+        run: python tools/dev/fix_desktop_detail_handoff_lint.py
       - name: Install desktop dependencies
         working-directory: apps/desktop
         run: npm ci --no-audit --no-fund
