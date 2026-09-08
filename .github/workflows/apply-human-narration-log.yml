@@ -34,17 +34,26 @@ jobs:
       - name: Apply human narration logging patch
         run: python tools/dev/add_human_narration_log.py
 
-      - name: Preserve catalog isolation source contract
+      - name: Preserve catalog source contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path("apps/desktop/src/api.ts")
-          text = path.read_text(encoding="utf-8")
+
+          api = Path("apps/desktop/src/api.ts")
+          text = api.read_text(encoding="utf-8")
           old = '  const game = mode === "local"\n'
           new = '  const game = getCatalogMode() === "local"\n'
           if old not in text and new not in text:
               raise SystemExit("leaseGame catalog-mode anchor was not found")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+          api.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+          catalog = Path("apps/desktop/src/catalog.ts")
+          text = catalog.read_text(encoding="utf-8")
+          old = '  const catalog = (pool.games ?? []).flatMap((item) => {\n'
+          new = '  const catalog = (pool.games ?? []).flatMap((item): CatalogGame[] => {\n'
+          if old not in text and new not in text:
+              raise SystemExit("local catalog typing anchor was not found")
+          catalog.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
           PY
 
       - name: Format modified native entry point
