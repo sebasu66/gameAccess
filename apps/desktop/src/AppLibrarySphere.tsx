@@ -64,8 +64,8 @@ export function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailO
       <div className="library-vault-head">
         <div><span className="eyebrow">BIBLIOTECA INMERSIVA</span><h2>{selectedGame?.name ?? "Tus juegos"}</h2><p>{visible.length} juegos en esta vista</p></div>
         <div className="library-vault-actions">
-          <label className="library-search"><Search size={18} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />{query ? <button onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}</label>
-          <button className="library-close" onClick={onClose} aria-label="Cerrar biblioteca"><X size={20} /></button>
+          <label className="library-search"><Search size={18} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />{query ? <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}</label>
+          <button type="button" className="library-close" onClick={onClose} aria-label="Cerrar biblioteca"><X size={20} /></button>
         </div>
       </div>
       <div className="dome-viewport">
@@ -78,7 +78,7 @@ export function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailO
             const offsetX = column - selectedColumn;
             const offsetY = row - selectedRow;
             const selected = index === selectedIndex;
-            return <button className={`dome-cell ${selected ? "is-selected" : ""}`} key={game.id} style={{ "--dome-x": offsetX, "--dome-y": offsetY } as React.CSSProperties} onClick={() => setSelectedIndex(index)} onDoubleClick={() => onOpen(game)} aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}`} aria-current={selected ? "true" : undefined}>
+            return <button type="button" className={`dome-cell ${selected ? "is-selected" : ""}`} key={game.id} style={{ "--dome-x": offsetX, "--dome-y": offsetY } as React.CSSProperties} onClick={() => setSelectedIndex(index)} onDoubleClick={() => onOpen(game)} aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}`} aria-current={selected ? "true" : undefined}>
               {game.capsule_image || game.header_image ? <img src={game.capsule_image ?? game.header_image ?? ""} alt="" draggable={false} /> : <span className="dome-cell-fallback"><Gamepad2 size={32} /></span>}<span>{game.name}</span>
             </button>;
           })}
@@ -87,7 +87,7 @@ export function LibrarySphere({ games, query, setQuery, onOpen, onClose, detailO
         {!visible.length ? <div className="library-empty">No encontramos juegos con “{query}”.</div> : null}
       </div>
       {selectedGame ? <div className="dome-selection-readout"><span>{selectedIndex + 1} / {visible.length}</span><strong>{selectedGame.name}</strong><small>ENTER · ABRIR FICHA</small></div> : null}
-      <div className="dome-controls-hint" aria-label="Controles de navegación">{detailOpen ? <><span>NAVEGAR ACCIONES · WASD / FLECHAS</span><span>ACTIVAR · ENTER</span><span>VOLVER · ESC</span></> : <><span>NAVEGAR · WASD / FLECHAS</span><span>VER DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span><span>VOLVER · ESC</span></>}</div>
+      <div role="group" className="dome-controls-hint" aria-label="Controles de navegación">{detailOpen ? <><span>NAVEGAR ACCIONES · WASD / FLECHAS</span><span>ACTIVAR · ENTER</span><span>VOLVER · ESC</span></> : <><span>NAVEGAR · WASD / FLECHAS</span><span>VER DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span><span>VOLVER · ESC</span></>}</div>
     </div>
   );
 }

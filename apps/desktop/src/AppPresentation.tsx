@@ -94,7 +94,7 @@ export function GlassActionButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <button type="button"
       className={`glass-action ${tone} ${pulse ? "pulse" : ""}`}
       disabled={disabled}
       onClick={onClick}

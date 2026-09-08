@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
 import { loadDetails } from "./api";
@@ -33,11 +33,11 @@ export function DetailPanel({
   const [closing, setClosing] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
 
-  const closeWithAnimation = () => {
+  const closeWithAnimation = useCallback(() => {
     if (closing) return;
     setClosing(true);
     window.setTimeout(onClose, 220);
-  };
+  }, [closing, onClose]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -65,7 +65,7 @@ export function DetailPanel({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closing, optionsOpen]);
+  }, [closeWithAnimation, optionsOpen]);
 
   useEffect(() => {
     if (!optionsOpen) window.setTimeout(() => document.querySelector<HTMLButtonElement>(".detail-primary-actions button:not(:disabled)")?.focus(), 40);
@@ -122,7 +122,7 @@ export function DetailPanel({
               {currentShot ? <img className="gallery-main" src={currentShot.full || currentShot.thumbnail} alt={`${game.name} captura ${activeShot + 1}`} /> : null}
               <div className="screenshots-row gallery-thumbs">
                 {steam.screenshots.slice(0, 12).map((shot, index) => (
-                  <button key={`${shot.id ?? index}`} className={index === activeShot ? "active" : ""} onClick={() => setActiveShot(index)}>
+                  <button type="button" key={`${shot.id ?? index}`} className={index === activeShot ? "active" : ""} onClick={() => setActiveShot(index)}>
                     <img src={shot.thumbnail || shot.full} alt={`Ver captura ${index + 1}`} loading="lazy" />
                   </button>
                 ))}
@@ -158,11 +158,11 @@ export function DetailPanel({
             </>);
 
   return (
-    <div className={`modal-backdrop ${closing ? "is-closing" : ""} ${overLibrary ? "over-library" : ""}`} onMouseDown={closeWithAnimation}>
+    <div role="presentation" className={`modal-backdrop ${closing ? "is-closing" : ""} ${overLibrary ? "over-library" : ""}`} onMouseDown={closeWithAnimation}>
       <article className="detail-panel detail-panel-rich" onMouseDown={(event) => event.stopPropagation()}>
         <div className="detail-corner-actions detail-keyboard-actions">
-          <button className="detail-gear" onClick={() => setOptionsOpen(true)} aria-label="Opciones del juego"><Settings size={20} /></button>
-          <button className="close-detail" onClick={closeWithAnimation} aria-label="Volver"><X size={22} /></button>
+          <button type="button" className="detail-gear" onClick={() => setOptionsOpen(true)} aria-label="Opciones del juego"><Settings size={20} /></button>
+          <button type="button" className="close-detail" onClick={closeWithAnimation} aria-label="Volver"><X size={22} /></button>
         </div>
         <div className="detail-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           {trailer?.mp4 ? (
@@ -186,6 +186,7 @@ export function DetailPanel({
           {trailer?.mp4 ? (
             <section className="media-block">
               <div className="section-title"><h3>Tráiler</h3><span>{trailer.name || "Video oficial"}</span></div>
+              {/* biome-ignore lint/a11y/useMediaCaption: Steam trailer metadata provides no caption track. Native player controls remain available. */}
               <video className="detail-trailer" controls playsInline poster={trailer.thumbnail}>
                 <source src={trailer.mp4} type="video/mp4" />
                 {trailer.webm ? <source src={trailer.webm} type="video/webm" /> : null}
@@ -205,7 +206,7 @@ export function DetailPanel({
 
           {renderRequirements()}
         </div>
-        {optionsOpen ? <div className="game-options-backdrop" onMouseDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button className="secondary-button" disabled>Desinstalar · próximamente</button><button className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
+        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onMouseDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button type="button" className="secondary-button" disabled>Desinstalar · próximamente</button><button type="button" className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
       </article>
     </div>
   );

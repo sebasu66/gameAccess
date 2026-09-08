@@ -46,7 +46,7 @@ jobs:
           RELATIVE=()
           for FILE in "${FILES[@]}"; do RELATIVE+=("${FILE#apps/desktop/}"); done
           cd apps/desktop
-          npx --yes @biomejs/biome@2.2.4 lint "${RELATIVE[@]}"
+          npx --yes @biomejs/biome@2.2.4 lint --max-diagnostics=none --diagnostic-level=error "${RELATIVE[@]}"
       - name: Enforce architecture limits
         run: node scripts/quality-gate.mjs
       - name: Unit tests

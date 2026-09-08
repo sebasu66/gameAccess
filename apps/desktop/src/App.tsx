@@ -439,20 +439,20 @@ export default function App() {
               <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
                 <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => void doLease(featured)} />
-                <button className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
+                <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
-            <div className="hero-media-controls" aria-label="Controles del banner">
-              <button onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
-              <button onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
-              <button onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
-              <button onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+            <div role="group" className="hero-media-controls" aria-label="Controles del banner">
+              <button type="button" onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
+              <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
+              <button type="button" onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
+              <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
             </div>
           </div>
           <section ref={magazineCatalogRef} className="magazine-catalog" aria-label="Juegos recientes y favoritos">
-            <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
+            <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
             <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties} onKeyDown={moveMagazineFocus}>
-              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"} onFocus={() => setMagazineFocus(index)}><button className="magazine-card" data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
+              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"} onFocus={() => setMagazineFocus(index)}><button type="button" className="magazine-card" data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
             </div>
           </section>
           <div className="screen-controls-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span></div>
@@ -464,11 +464,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar topbar-glass">
-        <button className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
+        <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
         <nav className="glass-nav">
-          <button className="glass-static-nav active"><span>Inicio</span></button>
-          <button className="glass-static-nav"><span>Explorar</span></button>
-          <button className="glass-static-nav"><span>Mi lista</span></button>
+          <button type="button" className="glass-static-nav active"><span>Inicio</span></button>
+          <button type="button" className="glass-static-nav"><span>Explorar</span></button>
+          <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
           <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />

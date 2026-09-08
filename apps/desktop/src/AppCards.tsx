@@ -30,7 +30,7 @@ function GameCard({
 
   return (
     <article className={`game-card ${activeDownload ? "is-downloading" : ""}`} style={{ "--download-progress": `${progress}%` } as React.CSSProperties}>
-      <button className="game-card-main" onClick={() => onOpen(game)} aria-label={`Abrir ${game.name}`}>
+      <button type="button" className="game-card-main" onClick={() => onOpen(game)} aria-label={`Abrir ${game.name}`}>
         <div className="game-card-art">
           {game.capsule_image ? (
             <>
@@ -63,9 +63,9 @@ function GameCard({
         </div>
       </button>
       {showPreference ? (
-        <div className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
-          <button className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label="Me gusta"><ThumbsUp size={16} /></button>
-          <button className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>
+        <div role="group" className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
+          <button type="button" className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label="Me gusta"><ThumbsUp size={16} /></button>
+          <button type="button" className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>
         </div>
       ) : null}
     </article>
@@ -105,7 +105,7 @@ export function Shelf({
           <h2>{title}</h2>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
-        {onViewAll ? <button className="text-action" onClick={onViewAll}>Ver más <ChevronRight size={16} /></button> : null}
+        {onViewAll ? <button type="button" className="text-action" onClick={onViewAll}>Ver más <ChevronRight size={16} /></button> : null}
       </div>
       <div className="cards-row">
         {games.map((game) => (
