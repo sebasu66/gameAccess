@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - tools/dev/complete_desktop_detail_handoff.py
+      - tools/dev/fix_completed_detail_lint.py
       - .github/workflows/complete-desktop-detail-handoff.yml
 
 permissions:
@@ -31,7 +32,9 @@ jobs:
             apps/api/requirements.txt
             apps/launcher/requirements.txt
       - name: Apply completed handoff
-        run: python tools/dev/complete_desktop_detail_handoff.py
+        run: |
+          python tools/dev/complete_desktop_detail_handoff.py
+          python tools/dev/fix_completed_detail_lint.py
       - name: Install desktop dependencies
         working-directory: apps/desktop
         run: npm ci --no-audit --no-fund
