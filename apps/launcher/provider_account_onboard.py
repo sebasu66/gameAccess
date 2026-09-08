@@ -6,6 +6,7 @@ process arguments or task logs. The account is written to the configured
 then only that provider's verified games are imported/synchronized to the API.
 Existing accounts are never Steam-rescanned by this workflow.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,15 +17,19 @@ from pathlib import Path
 from typing import Any
 
 import requests
-
 from family_refresh import build_family_graph
+from provider_family_evidence import merge_family_evidence
 from provider_license_scan import (
     DEFAULT_OUTPUT,
     load_provider_license_inventory,
     persist_scan_result,
     scan_provider_licenses,
 )
-from provider_roster import ProviderCredential, configured_accounts_path, load_provider_credentials
+from provider_roster import (
+    ProviderCredential,
+    configured_accounts_path,
+    load_provider_credentials,
+)
 
 USER_ENV = "GAMEACCESS_PROVIDER_ACCOUNT_USER"
 PASSWORD_ENV = "GAMEACCESS_PROVIDER_ACCOUNT_PASSWORD"
@@ -58,7 +63,12 @@ def upsert_provider_credentials(
             continue
         current_login = str(row[0]).strip()
         current_password = str(row[1]).strip()
-        if current_login.casefold() in {"usr", "user", "username", "login"} and current_password.casefold() in {"pass", "password"}:
+        if current_login.casefold() in {
+            "usr",
+            "user",
+            "username",
+            "login",
+        } and current_password.casefold() in {"pass", "password"}:
             continue
         if current_login.casefold() == login.casefold():
             row[0] = login
@@ -85,7 +95,9 @@ def upsert_provider_credentials(
         None,
     )
     if credential is None:
-        raise RuntimeError("The provider credential was written but could not be reloaded")
+        raise RuntimeError(
+            "The provider credential was written but could not be reloaded"
+        )
     return credential, created
 
 
@@ -103,7 +115,9 @@ def _api_json(
     return response.json()
 
 
-def _selected_scan(inventory: dict[str, Any], provider_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def _selected_scan(
+    inventory: dict[str, Any], provider_id: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
     scan = next(
         (
             item
@@ -139,10 +153,14 @@ def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], lis
         if not isinstance(metadata, dict):
             unresolved_app_ids.append(app_id)
             continue
-        if str(metadata.get("type") or "").casefold() != "game" or not bool(metadata.get("windows")):
+        if str(metadata.get("type") or "").casefold() != "game" or not bool(
+            metadata.get("windows")
+        ):
             continue
         try:
-            imported = _api_json("POST", f"{base}/admin/games/import-steam/{app_id}", timeout=20.0)
+            imported = _api_json(
+                "POST", f"{base}/admin/games/import-steam/{app_id}", timeout=20.0
+            )
         except Exception:
             unresolved_app_ids.append(app_id)
             continue
@@ -155,28 +173,18 @@ def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], lis
     return imported_game_ids, unresolved_app_ids
 
 
-def _merge_family_inventory(partial: dict[str, Any], provider_id: str) -> dict[str, Any]:
-    """Overlay one fresh provider on the last full inventory without rescanning it."""
-    authoritative = load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True)
-    if not authoritative:
-        return partial
-
-    rows: dict[str, dict[str, Any]] = {
-        str(row.get("provider_id")): dict(row)
-        for row in authoritative.get("accounts") or []
-        if isinstance(row, dict) and str(row.get("provider_id") or "")
-    }
-    fresh = next(
-        (
-            row
-            for row in partial.get("accounts") or []
-            if isinstance(row, dict) and str(row.get("provider_id") or "") == provider_id
-        ),
-        None,
+def _merge_family_inventory(
+    partial: dict[str, Any], provider_id: str
+) -> dict[str, Any]:
+    authoritative = load_provider_license_inventory(
+        DEFAULT_OUTPUT, require_complete=True
     )
-    if fresh:
-        rows[provider_id] = dict(fresh)
-    return {"accounts": list(rows.values())}
+    return merge_family_evidence(
+        authoritative or {},
+        partial,
+        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+        selected={provider_id},
+    )
 
 
 def onboard_provider_account(
@@ -218,7 +226,9 @@ def onboard_provider_account(
             "label": credential.label,
             "scan_status": scan.get("status"),
             "scan_complete": bool(scan.get("complete")),
-            "error": str(error.get("error") or scan.get("status") or "scan failed")[:500],
+            "error": str(error.get("error") or scan.get("status") or "scan failed")[
+                :500
+            ],
             "guard_method": error.get("guard_method"),
         }
 
@@ -232,7 +242,7 @@ def onboard_provider_account(
     accessible_app_ids = sorted(
         {
             int(app_id)
-            for app_id in account.get("accessible_app_ids") or owned_app_ids
+            for app_id in account.get("accessible_app_ids", [])
             if str(app_id).isdigit() and int(app_id) > 0
         }
     )
@@ -269,9 +279,8 @@ def onboard_provider_account(
         timeout=30.0,
     )
 
-    # Family capacity is rebuilt from the last verified full inventory plus only
-    # this fresh provider. This recalculates DB relations but performs no Steam
-    # login or scan for any existing account.
+    # Preserve earlier partial successes when rebuilding family capacity.
+    # This performs no Steam login or scan for existing accounts.
     merged_inventory = _merge_family_inventory(inventory, credential.provider_id)
     families = build_family_graph(merged_inventory)
     family_sync = _api_json(
@@ -299,7 +308,9 @@ def onboard_provider_account(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Add/update one GameAccess Steam provider and scan only that account")
+    parser = argparse.ArgumentParser(
+        description="Add/update and scan one GameAccess Steam provider"
+    )
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--accounts-file")
     parser.add_argument("--timeout-seconds", type=int, default=70)
@@ -309,7 +320,11 @@ def main() -> int:
     login = os.environ.get(USER_ENV, "").strip()
     password = os.environ.get(PASSWORD_ENV, "")
     if not login or not password:
-        print(json.dumps({"ok": False, "error": f"{USER_ENV} and {PASSWORD_ENV} are required"}))
+        print(
+            json.dumps(
+                {"ok": False, "error": f"{USER_ENV} and {PASSWORD_ENV} are required"}
+            )
+        )
         return 2
 
     try:
@@ -325,7 +340,11 @@ def main() -> int:
         print(json.dumps({"ok": False, "error": str(exc)[:1000]}, ensure_ascii=False))
         return 1
 
-    print(json.dumps(result, ensure_ascii=False) if args.compact else json.dumps(result, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(result, ensure_ascii=False)
+        if args.compact
+        else json.dumps(result, ensure_ascii=False, indent=2)
+    )
     return 0 if result.get("ok") else 3
 
 

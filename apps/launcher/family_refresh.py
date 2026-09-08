@@ -1,4 +1,5 @@
 """Full GameAccess provider refresh: SteamKit licenses + family graph + backend sync."""
+
 from __future__ import annotations
 
 import argparse
@@ -7,10 +8,37 @@ from collections import defaultdict
 from typing import Any
 
 import requests
-
 from pool_sync import build_game_pool, compact_pool, sync_backend
-from provider_license_scan import compact_inventory, persist_scan_result, scan_provider_licenses
+from provider_family_evidence import merge_family_evidence
+from provider_license_scan import (
+    DEFAULT_OUTPUT,
+    compact_inventory,
+    persist_scan_result,
+    scan_provider_licenses,
+)
 from provider_roster import load_provider_credentials
+
+
+def _family_licenses(account_by_provider, family_by_provider, label_by_provider):
+    licenses_by_family: dict[str, dict[int, list[str]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for provider_id, row in account_by_provider.items():
+        family_key = family_by_provider.get(provider_id)
+        if not family_key or str(row.get("scan_status") or "") != "ok":
+            continue
+        owner_label = label_by_provider.get(provider_id)
+        if not owner_label:
+            continue
+        for raw_app_id in set(row.get("owned_app_ids") or []):
+            try:
+                app_id = int(raw_app_id)
+            except (TypeError, ValueError):
+                continue
+            if app_id > 0:
+                licenses_by_family[family_key][app_id].append(owner_label)
+
+    return licenses_by_family
 
 
 def build_family_graph(inventory: dict[str, Any]) -> list[dict[str, Any]]:
@@ -31,7 +59,8 @@ def build_family_graph(inventory: dict[str, Any]) -> list[dict[str, Any]]:
         family_by_provider[provider_id] = family_key
         discovered_members[family_key].add(provider_id)
         discovered_members[family_key].update(
-            str(member) for member in row.get("family_member_provider_ids") or []
+            str(member)
+            for member in row.get("family_member_provider_ids") or []
             if str(member) in label_by_provider
         )
 
@@ -42,21 +71,11 @@ def build_family_graph(inventory: dict[str, Any]) -> list[dict[str, Any]]:
         for provider_id in members:
             family_by_provider.setdefault(provider_id, family_key)
 
-    licenses_by_family: dict[str, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
-    for provider_id, row in account_by_provider.items():
-        family_key = family_by_provider.get(provider_id)
-        if not family_key or str(row.get("scan_status") or "") != "ok":
-            continue
-        owner_label = label_by_provider.get(provider_id)
-        if not owner_label:
-            continue
-        for raw_app_id in set(row.get("owned_app_ids") or []):
-            try:
-                app_id = int(raw_app_id)
-            except (TypeError, ValueError):
-                continue
-            if app_id > 0:
-                licenses_by_family[family_key][app_id].append(owner_label)
+    licenses_by_family = _family_licenses(
+        account_by_provider,
+        family_by_provider,
+        label_by_provider,
+    )
 
     result: list[dict[str, Any]] = []
     for family_key in sorted(discovered_members):
@@ -66,15 +85,25 @@ def build_family_graph(inventory: dict[str, Any]) -> list[dict[str, Any]]:
             if provider_id in label_by_provider
         )
         licenses = [
-            {"app_id": app_id, "quantity": len(owner_labels), "owner_labels": sorted(owner_labels)}
-            for app_id, owner_labels in sorted(licenses_by_family.get(family_key, {}).items())
+            {
+                "app_id": app_id,
+                "quantity": len(owner_labels),
+                "owner_labels": sorted(owner_labels),
+            }
+            for app_id, owner_labels in sorted(
+                licenses_by_family.get(family_key, {}).items()
+            )
         ]
-        result.append({"family_key": family_key, "members": members, "licenses": licenses})
+        result.append(
+            {"family_key": family_key, "members": members, "licenses": licenses}
+        )
     return result
 
 
 def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
-    inventory = scan_provider_licenses(provider_ids=None, timeout_seconds=timeout_seconds)
+    inventory = scan_provider_licenses(
+        provider_ids=None, timeout_seconds=timeout_seconds
+    )
     persistence = persist_scan_result(inventory)
 
     # Per-account sync still updates every successful provider and disables failed
@@ -82,7 +111,12 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     pool = build_game_pool(refresh_licenses=False)
     backend = sync_backend(pool, api)
 
-    families = build_family_graph(inventory)
+    cumulative = merge_family_evidence(
+        {},
+        inventory,
+        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+    )
+    families = build_family_graph(cumulative)
     family_response = requests.post(
         f"{api.rstrip('/')}/admin/pool/families/sync",
         json={"families": families},
@@ -110,7 +144,9 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Refresh GameAccess Steam provider family/license graph")
+    parser = argparse.ArgumentParser(
+        description="Refresh GameAccess Steam provider family/license graph"
+    )
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--timeout-seconds", type=int, default=70)
     parser.add_argument("--compact", action="store_true")
