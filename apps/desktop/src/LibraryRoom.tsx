@@ -156,7 +156,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const wideHero = wideArtworkSlides.length ? wideArtworkSlides[artworkSlideIndex % wideArtworkSlides.length] : undefined;
   const hero = isTabletSurface ? undefined : (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
   const movie = isTabletSurface ? undefined : selectedMovie(currentDetails);
-  const videoSrc = isTabletSurface ? undefined : selectedVideo(movie);
+  const videoSrc = isDisplaySurface ? selectedVideo(movie) : undefined;
   const artwork = useCrossfadeArtwork(hero);
   const summary = selectedSummary(currentDetails);
   const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);

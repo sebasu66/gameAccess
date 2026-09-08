@@ -130,3 +130,13 @@ Normal library operation has three valid focus zones: **game grid**, **game deta
 - Preserve local-first runnable routing with GameAccess/provider fallback.
 - Keep rich detail loading asynchronous and selected-game-only.
 - Do not change tablet/display behavior as collateral damage from the normal desktop redesign.
+
+## Detail panel row terminology
+
+For Stage 2 visual discussions, the desktop game detail panel uses these stable names:
+
+- **First row**: Steam artwork/slideshow plus the game title, short description, primary Play/Download/Cancel action, and like/dislike controls. The artwork is the visual background of the entire row, including the controls.
+- **Second row**: factual game metadata (genre, multiplayer, developer, publisher, release, copies and download facts). Steam-derived fields remain factual and are not marketing copy.
+- **Third row**: Steam “About the game” content, preserving readable paragraph/list emphasis instead of flattening the HTML into one line.
+- Additional sections (requirements, screenshots, etc.) follow below and remain reachable by scrolling.
+- Normal/restored desktop keeps the 50/50 detail/grid split and makes the First row tall enough for the portrait Steam Library Capsule without cropping. Maximized desktop uses the detail-heavy 70/30 split and wide high-resolution Steam hero/screenshots.

@@ -379,6 +379,38 @@ interface FeaturePanelProps extends MediaPanelProps {
 }
 
 function plainText(value?: string | null) { return (value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
+
+
+function sanitizeSteamRichHtml(value?: string | null) {
+  if (!value) return "";
+  if (typeof DOMParser === "undefined") return plainText(value);
+  const document = new DOMParser().parseFromString(value, "text/html");
+  const allowed = new Set(["P", "DIV", "BR", "UL", "OL", "LI", "STRONG", "B", "EM", "I", "H1", "H2", "H3", "H4", "A", "IMG"]);
+  for (const node of Array.from(document.body.querySelectorAll("*"))) {
+    if (!allowed.has(node.tagName)) {
+      const parent = node.parentNode;
+      if (parent) {
+        while (node.firstChild) parent.insertBefore(node.firstChild, node);
+        parent.removeChild(node);
+      }
+      continue;
+    }
+    for (const attribute of Array.from(node.attributes)) node.removeAttribute(attribute.name);
+    if (node.tagName === "A") {
+      const original = value.match(/https?:\/\/[^\s"'<>]+/i)?.[0];
+      if (original) {
+        node.setAttribute("href", original);
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noreferrer");
+      }
+    }
+  }
+  return document.body.innerHTML;
+}
+
+function SteamRichText({ html }: { html: string }) {
+  return <div className="steam-rich-text" dangerouslySetInnerHTML={{ __html: sanitizeSteamRichHtml(html) }} />;
+}
 function multiplayerModes(details: GameDetails | null): string[] {
   const categories = details?.steam?.categories ?? [];
   const signals = [["Multi-player","Multijugador"],["Online PvP","PvP online"],["Online Co-op","Co-op online"],["Shared/Split Screen PvP","PvP local / pantalla dividida"],["Shared/Split Screen Co-op","Co-op local / pantalla dividida"],["LAN PvP","PvP LAN"],["LAN Co-op","Co-op LAN"],["Cross-Platform Multiplayer","Cross-platform"],["Remote Play Together","Remote Play Together"]] as const;
@@ -389,55 +421,61 @@ export function FeaturePanel(props: FeaturePanelProps) {
   const activeDownload = isActiveDownload(props.download);
   const modes = multiplayerModes(props.details);
   const steam = props.details?.steam;
-  const about = plainText(steam?.about_the_game);
+  const about = steam?.about_the_game ?? "";
   const minimum = plainText(steam?.minimum_requirements);
   const recommended = plainText(steam?.recommended_requirements);
 
   return (
     <aside className="library-room-feature">
-      <MediaPanel {...props} />
+      <section className="library-room-first-row" aria-label="First row">
+        <MediaPanel {...props} />
+        <div className="library-room-first-row-overlay">
+          <header className="library-room-overview">
+            <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
+            <h1>{props.game.name}</h1>
+            <p className="library-room-lead">{props.summary}</p>
+            {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}
+          </header>
+
+          <div className="library-room-control-row">
+            <div className="library-room-actions glass-actions-row">
+              {props.actions.map((action, index) => (
+                <button type="button" key={`${action.kind}-${action.label}`} ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} data-action={action.kind} title={action.reason ?? undefined} className={`glass-action ${action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={() => props.onAction(index)} disabled={action.disabled}>
+                  <span className="glass-action-icon">{action.icon}</span><span className="glass-action-label">{action.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>
+              <span>¿Te gusta?</span>
+              <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={15} /></button>
+              <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={15} /></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="library-room-feature-copy">
-        <header className="library-room-overview">
-          <span className="eyebrow">{props.showcaseMode ? "MODO VITRINA" : "TU BIBLIOTECA"}</span>
-          <h1>{props.game.name}</h1>
-          <p className="library-room-lead">{props.summary}</p>
-          {props.loadingDetails ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}
-        </header>
-
-        <div className="library-room-control-row">
-          <div className="library-room-actions glass-actions-row">
-            {props.actions.map((action, index) => (
-              <button type="button" key={`${action.kind}-${action.label}`} ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} data-action={action.kind} title={action.reason ?? undefined} className={`glass-action ${action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download"} ${props.focusZone === "actions" && props.actionIndex === index ? "is-selected" : ""}`} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={() => props.onAction(index)} disabled={action.disabled}>
-                <span className="glass-action-icon">{action.icon}</span><span className="glass-action-label">{action.label}</span>
-              </button>
-            ))}
+        <section className="library-room-second-row" aria-label="Second row">
+          <div className="library-room-unified-facts">
+            <dl className="library-room-game-facts">
+              <div><dt>Género</dt><dd>{steam?.genres?.length ? steam.genres.join(" · ") : "—"}</dd></div>
+              <div><dt>Multijugador</dt><dd>{modes.length ? modes.join(" · ") : "Un jugador / no informado"}</dd></div>
+              <div><dt>Desarrollador</dt><dd>{steam?.developers?.join(", ") || "—"}</dd></div>
+              <div><dt>Publisher</dt><dd>{steam?.publishers?.join(", ") || "—"}</dd></div>
+              <div><dt>Lanzamiento</dt><dd>{steam?.release_date || "—"}</dd></div>
+              <div><dt>Copias</dt><dd>{props.game.copies_available} / {props.game.copies_total} disponibles</dd></div>
+            </dl>
+            <div className="library-room-download-summary" aria-label="Descarga">
+              <div><span>Tamaño</span><strong>{formatDownloadBytes(props.download?.bytes_total)}</strong></div>
+              <div><span>Descargado</span><strong>{formatDownloadBytes(props.download?.bytes_downloaded)}</strong></div>
+              <div><span>Velocidad</span><strong>{formatDownloadSpeed(props.download?.speed_bps)}</strong></div>
+              <div><span>Tiempo restante</span><strong>{activeDownload ? formatDownloadEta(props.download?.eta_seconds) : "—"}</strong></div>
+              {activeDownload ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}
+            </div>
           </div>
-          <div className="library-room-preferences" aria-label={`Preferencia para ${props.game.name}`}>
-            <span>¿Te gusta?</span>
-            <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={15} /></button>
-            <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={15} /></button>
-          </div>
-        </div>
+        </section>
 
-        <div className="library-room-unified-facts">
-          <dl className="library-room-game-facts">
-            <div><dt>Género</dt><dd>{steam?.genres?.length ? steam.genres.join(" · ") : "—"}</dd></div>
-            <div><dt>Multijugador</dt><dd>{modes.length ? modes.join(" · ") : "Un jugador / no informado"}</dd></div>
-            <div><dt>Desarrollador</dt><dd>{steam?.developers?.join(", ") || "—"}</dd></div>
-            <div><dt>Publisher</dt><dd>{steam?.publishers?.join(", ") || "—"}</dd></div>
-            <div><dt>Lanzamiento</dt><dd>{steam?.release_date || "—"}</dd></div>
-            <div><dt>Copias</dt><dd>{props.game.copies_available} / {props.game.copies_total} disponibles</dd></div>
-          </dl>
-          <div className="library-room-download-summary" aria-label="Descarga">
-            <div><span>Tamaño</span><strong>{formatDownloadBytes(props.download?.bytes_total)}</strong></div>
-            <div><span>Descargado</span><strong>{formatDownloadBytes(props.download?.bytes_downloaded)}</strong></div>
-            <div><span>Velocidad</span><strong>{formatDownloadSpeed(props.download?.speed_bps)}</strong></div>
-            <div><span>Tiempo restante</span><strong>{activeDownload ? formatDownloadEta(props.download?.eta_seconds) : "—"}</strong></div>
-            {activeDownload ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}
-          </div>
-        </div>
-
-        {about ? <section className="library-room-copy-block"><h3>Acerca del juego</h3><p>{about}</p></section> : null}
+        {about ? <section className="library-room-copy-block library-room-third-row" aria-label="Third row"><h3>Acerca del juego</h3><SteamRichText html={about} /></section> : null}
         {minimum || recommended ? (
           <section className="library-room-requirements-block">
             {minimum ? <div><h3>Requisitos mínimos</h3><p>{minimum}</p></div> : null}
