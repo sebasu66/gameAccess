@@ -5,9 +5,17 @@ export interface GameAccessFrontendSettings {
   apiUrlResolver?: string;
 }
 
+export type BackendConnectionKind = "local" | "remote" | "offline";
+export interface BackendConnection {
+  kind: BackendConnectionKind;
+  url: string;
+}
+
 const SETTINGS_PATH = "/gameaccess.settings.json";
-const DEFAULT_LOCAL_API = "http://127.0.0.1:38147";
+export const DEFAULT_LOCAL_API = "http://127.0.0.1:38147";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const BACKEND_CACHE_MS = 5000;
+const HEALTH_TIMEOUT_MS = 750;
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -109,17 +117,74 @@ async function loadSettings(fetcher: Fetcher): Promise<GameAccessFrontendSetting
   }
 }
 
-async function resolveRuntimeApi(fetcher: Fetcher): Promise<string> {
-  const buildOverride = import.meta.env.VITE_GAMEACCESS_API;
-  if (buildOverride !== undefined) return normalizeApiBaseUrl(buildOverride) ?? "";
-  const settings = await loadSettings(fetcher);
-  if (!settings) return DEFAULT_LOCAL_API;
-  return resolveApiFromSettings(settings, fetcher);
+export async function backendIsHealthy(baseUrl: string, fetcher: Fetcher = fetch): Promise<boolean> {
+  const normalized = normalizeApiBaseUrl(baseUrl);
+  if (!normalized) return false;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = controller ? globalThis.setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS) : null;
+  try {
+    const response = await fetcher(`${normalized}/health`, {
+      cache: "no-store",
+      signal: controller?.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    if (timeout != null) globalThis.clearTimeout(timeout);
+  }
 }
 
-let apiBaseUrlPromise: Promise<string> | null = null;
+export async function resolveBackendConnectionFromSettings(
+  settings: GameAccessFrontendSettings,
+  fetcher: Fetcher = fetch,
+): Promise<BackendConnection> {
+  // Development always wins: if a local backend is alive, never send this
+  // desktop session to a hosted GameAccess backend.
+  if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher)) {
+    return { kind: "local", url: DEFAULT_LOCAL_API };
+  }
 
-export function getApiBaseUrl(): Promise<string> {
-  apiBaseUrlPromise ??= resolveRuntimeApi(fetch);
-  return apiBaseUrlPromise;
+  const configured = await resolveApiFromSettings(settings, fetcher);
+  if (configured && configured !== DEFAULT_LOCAL_API && await backendIsHealthy(configured, fetcher)) {
+    return { kind: "remote", url: configured };
+  }
+  return { kind: "offline", url: "" };
+}
+
+async function resolveRuntimeBackend(fetcher: Fetcher): Promise<BackendConnection> {
+  const buildOverride = import.meta.env.VITE_GAMEACCESS_API;
+  const settings = buildOverride !== undefined
+    ? { api_url: buildOverride }
+    : (await loadSettings(fetcher) ?? {});
+  return resolveBackendConnectionFromSettings(settings, fetcher);
+}
+
+let cachedConnection: BackendConnection | null = null;
+let cachedAt = 0;
+let connectionPromise: Promise<BackendConnection> | null = null;
+
+export function resetBackendConnectionCache(): void {
+  cachedConnection = null;
+  cachedAt = 0;
+  connectionPromise = null;
+}
+
+export async function getBackendConnection(forceRefresh = false): Promise<BackendConnection> {
+  const now = Date.now();
+  if (!forceRefresh && cachedConnection && now - cachedAt < BACKEND_CACHE_MS) return cachedConnection;
+  if (!forceRefresh && connectionPromise) return connectionPromise;
+
+  connectionPromise = resolveRuntimeBackend(fetch).then((connection) => {
+    cachedConnection = connection;
+    cachedAt = Date.now();
+    return connection;
+  }).finally(() => {
+    connectionPromise = null;
+  });
+  return connectionPromise;
+}
+
+export async function getApiBaseUrl(): Promise<string> {
+  return (await getBackendConnection()).url;
 }
