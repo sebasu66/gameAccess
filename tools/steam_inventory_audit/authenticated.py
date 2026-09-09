@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -97,11 +98,9 @@ def close_steam() -> None:
 
 
 def login_id(provider_id: str) -> int:
-    try:
-        slot = int(provider_id.rsplit("-", 1)[-1])
-    except (TypeError, ValueError):
-        slot = 1
-    return 0x4741F000 + max(1, min(slot, 0xFFF))
+    digest = hashlib.sha256(provider_id.strip().casefold().encode("utf-8")).digest()
+    slot = int.from_bytes(digest[:2], "big") & 0x0FFF
+    return 0x4741F000 + max(1, slot)
 
 
 def scan(
