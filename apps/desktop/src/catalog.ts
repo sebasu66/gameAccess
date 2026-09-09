@@ -26,7 +26,11 @@ export function buildLocalCatalog(pool: LocalSteamPool): CatalogGame[] {
       .filter((account) => account.accessible_app_ids.includes(item.app_id))
       .sort((left, right) => Number(right.active) - Number(left.active));
 
-    if (!owners.length && !runnable.length && !visible.length) return [];
+    // Propios is a license/runnable catalog, not a history of everything Steam
+    // has ever left visible in localconfig.vdf. Visibility-only entries can be
+    // stale, borrowed, private-family remnants, or otherwise non-runnable and
+    // must never be promoted into this catalog by a matching GameAccess route.
+    if (!owners.length && !runnable.length) return [];
 
     const ownerLabels = owners.map((account) => account.account_name || account.label);
     const runnableLabels = runnable.map((account) => account.account_name || account.label);
