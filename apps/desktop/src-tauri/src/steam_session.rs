@@ -447,7 +447,8 @@ fn reconcile_runtime_status(status: &mut SteamSessionStatus) {
     let app_is_running = status.app_id.and_then(steam_app_running);
     if should_clear_stale_session(status, steam_running(), app_is_running) {
         status.phase = "aborted".into();
-        status.message = "Tracked Steam session ended because Steam and the game are no longer running".into();
+        status.message =
+            "Tracked Steam session ended because Steam and the game are no longer running".into();
         status.done = true;
         status.error = None;
     }
@@ -615,17 +616,33 @@ mod tests {
 
     #[test]
     fn clears_launching_session_when_steam_and_game_are_gone() {
-        assert!(should_clear_stale_session(&active("launching"), false, None));
+        assert!(should_clear_stale_session(
+            &active("launching"),
+            false,
+            None
+        ));
     }
 
     #[test]
     fn clears_running_session_when_steam_and_game_are_gone() {
-        assert!(should_clear_stale_session(&active("running"), false, Some(false)));
+        assert!(should_clear_stale_session(
+            &active("running"),
+            false,
+            Some(false)
+        ));
     }
 
     #[test]
     fn preserves_real_launch_and_restore_transition() {
-        assert!(!should_clear_stale_session(&active("launching"), true, Some(false)));
-        assert!(!should_clear_stale_session(&active("game-exited"), false, Some(false)));
+        assert!(!should_clear_stale_session(
+            &active("launching"),
+            true,
+            Some(false)
+        ));
+        assert!(!should_clear_stale_session(
+            &active("game-exited"),
+            false,
+            Some(false)
+        ));
     }
 }
