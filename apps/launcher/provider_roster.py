@@ -69,7 +69,7 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
             label = login if occurrence == 1 else f"{login}#{occurrence}"
             records.append(
                 ProviderCredential(
-                    provider_id=f"provider-{len(records) + 1:03d}",
+                    provider_id=login,
                     label=label,
                     login=login,
                     password=password,
