@@ -181,3 +181,100 @@ def test_family_merge_overlays_only_fresh_provider(monkeypatch) -> None:
     assert by_provider["provider-001"]["scan_status"] == "ok"
     assert by_provider["provider-002"]["owned_app_ids"] == [2, 3]
 
+
+def test_batch_scan_runs_only_explicit_provider_ids(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "accFull.csv"
+    path.write_text(
+        "first,pass-1\nsecond,pass-2\nthird,pass-3\n",
+        encoding="utf-8",
+    )
+    scan_calls: list[set[str]] = []
+    synced: list[str] = []
+    family_selected: list[set[str]] = []
+
+    def fake_scan(*, provider_ids, timeout_seconds):
+        scan_calls.append(set(provider_ids))
+        assert timeout_seconds == 55
+        return {
+            "source": "steamkit-license-list-pics",
+            "verified_at": "2026-09-09T10:00:00+00:00",
+            "accounts": [
+                {
+                    "provider_id": "provider-001",
+                    "owned_app_ids": [],
+                    "scan_status": "not_scanned",
+                },
+                {
+                    "provider_id": "provider-002",
+                    "owned_app_ids": [10],
+                    "accessible_app_ids": [10],
+                    "scan_status": "ok",
+                },
+                {
+                    "provider_id": "provider-003",
+                    "owned_app_ids": [20],
+                    "accessible_app_ids": [20],
+                    "scan_status": "ok",
+                },
+            ],
+            "scans": [
+                {"provider_id": "provider-002", "status": "ok", "complete": True},
+                {"provider_id": "provider-003", "status": "ok", "complete": True},
+            ],
+            "errors": [],
+        }
+
+    def fake_api(method: str, url: str, *, payload=None, timeout=30.0):
+        if url.endswith("/admin/pool/roster-status"):
+            return {"ok": True}
+        if url.endswith("/admin/pool/families/sync"):
+            return {"ok": True}
+        raise AssertionError(f"unexpected API call: {method} {url}")
+
+    def fake_sync_verified_provider(*, credential, **kwargs):
+        synced.append(credential.provider_id)
+        return {
+            "provider_id": credential.provider_id,
+            "label": credential.label,
+            "owned_app_count": 1,
+            "accessible_app_count": 1,
+            "catalog_game_count": 1,
+            "unresolved_app_count": 0,
+            "unresolved_app_ids": [],
+            "account": None,
+        }
+
+    def fake_merge(inventory, provider_ids):
+        family_selected.append(set(provider_ids))
+        return {"accounts": []}
+
+    monkeypatch.setattr(onboard, "scan_provider_licenses", fake_scan)
+    monkeypatch.setattr(
+        onboard,
+        "persist_scan_result",
+        lambda value: {"saved": True, "authoritative_updated": False},
+    )
+    monkeypatch.setattr(onboard, "_api_json", fake_api)
+    monkeypatch.setattr(onboard, "_sync_verified_provider", fake_sync_verified_provider)
+    monkeypatch.setattr(onboard, "_merge_family_inventory", fake_merge)
+    monkeypatch.setattr(
+        onboard,
+        "build_family_graph",
+        lambda value: [{"family_key": "batch-family"}],
+    )
+
+    result = onboard.scan_provider_accounts(
+        api="http://127.0.0.1:38147",
+        provider_ids=["provider-002", "provider-003", "provider-002"],
+        accounts_path=path,
+        timeout_seconds=55,
+    )
+
+    assert result["ok"] is True
+    assert result["requested_provider_count"] == 2
+    assert result["successful_provider_count"] == 2
+    assert result["failed_provider_count"] == 0
+    assert scan_calls == [{"provider-002", "provider-003"}]
+    assert synced == ["provider-002", "provider-003"]
+    assert family_selected == [{"provider-002", "provider-003"}]
+    assert "provider-001" not in synced
