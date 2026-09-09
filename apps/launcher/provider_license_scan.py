@@ -177,6 +177,9 @@ def scan_provider_licenses(
         credential.provider_id: set() for credential in credentials
     }
     unmapped_owner_ids: set[int] = set()
+    package_observations: list[
+        tuple[str, int | None, int | None, bool, set[int]]
+    ] = []
     family_key_by_provider: dict[str, str] = {}
     family_members_by_provider: dict[str, list[str]] = {}
     scanned_steam64_by_provider: dict[str, str] = {}
@@ -276,18 +279,38 @@ def scan_provider_licenses(
             # different member of the Steam Family.
             accessible_by_provider.setdefault(credential.provider_id, set()).update(app_ids)
             owner_id = package.get("owner_account_id")
-            owner_provider = _resolve_original_owner_provider(
-                current_provider_id=credential.provider_id,
-                current_user_id32=scanner_user_id32,
-                owner_account_id=owner_id if isinstance(owner_id, int) else None,
-                borrowed=bool(package.get("borrowed")),
-                owner_provider_by_user32=owner_provider_by_user32,
+            package_observations.append(
+                (
+                    credential.provider_id,
+                    scanner_user_id32,
+                    owner_id if isinstance(owner_id, int) else None,
+                    bool(package.get("borrowed")),
+                    app_ids,
+                )
             )
-            if owner_provider is None:
-                if isinstance(owner_id, int) and owner_id > 0:
-                    unmapped_owner_ids.add(owner_id)
-                continue
-            owned_by_provider.setdefault(owner_provider, set()).update(app_ids)
+
+    # Resolve original ownership only after every successful scan has populated
+    # owner_provider_by_user32. Resolving inline makes results depend on CSV scan
+    # order when an early family member references an owner scanned later.
+    for (
+        current_provider_id,
+        current_user_id32,
+        owner_account_id,
+        borrowed,
+        app_ids,
+    ) in package_observations:
+        owner_provider = _resolve_original_owner_provider(
+            current_provider_id=current_provider_id,
+            current_user_id32=current_user_id32,
+            owner_account_id=owner_account_id,
+            borrowed=borrowed,
+            owner_provider_by_user32=owner_provider_by_user32,
+        )
+        if owner_provider is None:
+            if isinstance(owner_account_id, int) and owner_account_id > 0:
+                unmapped_owner_ids.add(owner_account_id)
+            continue
+        owned_by_provider.setdefault(owner_provider, set()).update(app_ids)
 
     final_provider_by_steam64 = dict(provider_by_steam64)
     final_provider_by_steam64.update(

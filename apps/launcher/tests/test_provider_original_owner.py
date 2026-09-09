@@ -32,3 +32,58 @@ def test_matching_owner_account_is_direct_owner() -> None:
         owner_provider_by_user32={111: "provider-001"},
     )
     assert owner == "provider-001"
+
+
+def test_scan_resolves_owner_scanned_later(monkeypatch) -> None:
+    import provider_license_scan as scan
+    from provider_roster import ProviderCredential
+
+    credentials = [
+        ProviderCredential("borrower", "borrower", "borrower", "pw1"),
+        ProviderCredential("owner", "owner", "owner", "pw2"),
+    ]
+    monkeypatch.setattr(scan, "ensure_scanner_built", lambda: None)
+    monkeypatch.setattr(scan, "load_provider_credentials", lambda: credentials)
+    monkeypatch.setattr(
+        scan,
+        "match_provider_identities",
+        lambda: {"accounts": []},
+    )
+
+    payloads = {
+        "borrower": {
+            "status": "ok",
+            "complete": True,
+            "steam_id64": str(scan.STEAM_ID64_ACCOUNT_BASE + 222),
+            "packages": [
+                {
+                    "app_ids": [1234],
+                    "owner_account_id": 111,
+                    "borrowed": True,
+                    "non_permanent": False,
+                }
+            ],
+            "is_not_member_of_any_group": True,
+        },
+        "owner": {
+            "status": "ok",
+            "complete": True,
+            "steam_id64": str(scan.STEAM_ID64_ACCOUNT_BASE + 111),
+            "packages": [],
+            "is_not_member_of_any_group": True,
+        },
+    }
+
+    def fake_run_provider(login, _password, *, login_id, timeout_seconds):
+        return {**payloads[login], "login_id": login_id}
+
+    monkeypatch.setattr(scan, "_run_provider", fake_run_provider)
+
+    inventory = scan.scan_provider_licenses()
+    accounts = {
+        row["provider_id"]: row for row in inventory["accounts"]
+    }
+
+    assert inventory["unmapped_owner_count"] == 0
+    assert accounts["owner"]["owned_app_ids"] == [1234]
+    assert accounts["borrower"]["accessible_app_ids"] == [1234]
