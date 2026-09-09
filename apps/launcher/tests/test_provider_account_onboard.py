@@ -181,3 +181,36 @@ def test_family_merge_overlays_only_fresh_provider(monkeypatch) -> None:
     assert by_provider["provider-001"]["scan_status"] == "ok"
     assert by_provider["provider-002"]["owned_app_ids"] == [2, 3]
 
+
+def test_batch_onboarding_runs_only_explicit_provider_ids(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "accFull.csv"
+    path.write_text(
+        "first,pass-1\nsecond,pass-2\nthird,pass-3\n",
+        encoding="utf-8",
+    )
+    calls: list[tuple[str, str, Path, int]] = []
+
+    def fake_onboard(*, api, login, password, accounts_path, timeout_seconds):
+        calls.append((login, password, accounts_path, timeout_seconds))
+        provider_id = "provider-002" if login == "second" else "provider-003"
+        return {"ok": True, "provider_id": provider_id, "label": login}
+
+    monkeypatch.setattr(onboard, "onboard_provider_account", fake_onboard)
+
+    result = onboard.onboard_provider_accounts(
+        api="http://127.0.0.1:38147",
+        provider_ids=["provider-002", "provider-003", "provider-002"],
+        accounts_path=path,
+        timeout_seconds=55,
+    )
+
+    assert result["ok"] is True
+    assert result["requested_provider_count"] == 2
+    assert result["successful_provider_count"] == 2
+    assert result["failed_provider_count"] == 0
+    assert calls == [
+        ("second", "pass-2", path, 55),
+        ("third", "pass-3", path, 55),
+    ]

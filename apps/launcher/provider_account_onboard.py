@@ -1,10 +1,10 @@
-"""Add or update one Steam provider and synchronize only that account.
+"""Add or update Steam providers and synchronize only selected accounts.
 
 Credentials are passed through environment variables so they never appear in
-process arguments or task logs. The account is written to the configured
-``accFull.csv`` roster, scanned with the existing SteamKit license scanner, and
-then only that provider's verified games are imported/synchronized to the API.
-Existing accounts are never Steam-rescanned by this workflow.
+process arguments or task logs. The existing single-account onboarding flow is
+unchanged. For accounts already present in ``accFull.csv``, the CLI can also
+repeat ``--provider-id`` to run that same individual flow for an explicit list.
+Accounts not listed are never scanned by that batch mode.
 """
 
 from __future__ import annotations
@@ -307,34 +307,114 @@ def onboard_provider_account(
     }
 
 
+def onboard_provider_accounts(
+    *,
+    api: str,
+    provider_ids: list[str],
+    accounts_path: Path | None = None,
+    timeout_seconds: int = 70,
+) -> dict[str, Any]:
+    """Run the existing one-account onboarding flow for an explicit provider list."""
+    requested = list(
+        dict.fromkeys(
+            provider_id.strip() for provider_id in provider_ids if provider_id.strip()
+        )
+    )
+    if not requested:
+        raise ValueError("At least one --provider-id is required")
+
+    source = Path(accounts_path) if accounts_path else configured_accounts_path()
+    credentials = {
+        credential.provider_id: credential
+        for credential in load_provider_credentials(source)
+    }
+    missing = [provider_id for provider_id in requested if provider_id not in credentials]
+    if missing:
+        raise RuntimeError(
+            "Provider account(s) not found in accFull.csv: " + ", ".join(missing)
+        )
+
+    results: list[dict[str, Any]] = []
+    for index, provider_id in enumerate(requested, start=1):
+        credential = credentials[provider_id]
+        print(f"STATE=batch:{index}/{len(requested)}:{provider_id}", flush=True)
+        try:
+            result = onboard_provider_account(
+                api=api,
+                login=credential.login,
+                password=credential.password,
+                accounts_path=source,
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "provider_id": provider_id,
+                "label": credential.label,
+                "error": f"{type(exc).__name__}: {exc}"[:500],
+            }
+        results.append(result)
+
+    succeeded = sum(1 for result in results if result.get("ok"))
+    return {
+        "ok": succeeded == len(results),
+        "requested_provider_count": len(requested),
+        "successful_provider_count": succeeded,
+        "failed_provider_count": len(results) - succeeded,
+        "results": results,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Add/update and scan one GameAccess Steam provider"
+        description="Add/update and scan one or more GameAccess Steam providers"
     )
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--accounts-file")
     parser.add_argument("--timeout-seconds", type=int, default=70)
     parser.add_argument("--compact", action="store_true")
+    parser.add_argument(
+        "--provider-id",
+        action="append",
+        default=[],
+        help=(
+            "scan an existing provider from accFull.csv using the normal individual "
+            "onboarding flow; repeat to scan an explicit list"
+        ),
+    )
     args = parser.parse_args()
 
-    login = os.environ.get(USER_ENV, "").strip()
-    password = os.environ.get(PASSWORD_ENV, "")
-    if not login or not password:
-        print(
-            json.dumps(
-                {"ok": False, "error": f"{USER_ENV} and {PASSWORD_ENV} are required"}
-            )
-        )
-        return 2
-
     try:
-        result = onboard_provider_account(
-            api=args.api,
-            login=login,
-            password=password,
-            accounts_path=Path(args.accounts_file) if args.accounts_file else None,
-            timeout_seconds=max(15, min(args.timeout_seconds, 180)),
-        )
+        if args.provider_id:
+            result = onboard_provider_accounts(
+                api=args.api,
+                provider_ids=args.provider_id,
+                accounts_path=Path(args.accounts_file) if args.accounts_file else None,
+                timeout_seconds=max(15, min(args.timeout_seconds, 180)),
+            )
+        else:
+            login = os.environ.get(USER_ENV, "").strip()
+            password = os.environ.get(PASSWORD_ENV, "")
+            if not login or not password:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "error": (
+                                f"{USER_ENV} and {PASSWORD_ENV} are required unless "
+                                "--provider-id is supplied"
+                            ),
+                        }
+                    )
+                )
+                return 2
+            result = onboard_provider_account(
+                api=args.api,
+                login=login,
+                password=password,
+                accounts_path=Path(args.accounts_file) if args.accounts_file else None,
+                timeout_seconds=max(15, min(args.timeout_seconds, 180)),
+            )
     except Exception as exc:
         print("STATE=error", flush=True)
         print(json.dumps({"ok": False, "error": str(exc)[:1000]}, ensure_ascii=False))
