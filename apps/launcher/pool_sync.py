@@ -77,7 +77,7 @@ def _steam_library_folders(root: Path | None) -> list[dict[str, Any]]:
         folder_path = str(_ci_get(fields, "path") or "").strip()
         if not folder_path:
             continue
-        dedupe_key = folder_path.rstrip("\/").casefold()
+        dedupe_key = folder_path.rstrip("\\/").casefold()
         if dedupe_key in seen_paths:
             continue
         seen_paths.add(dedupe_key)
