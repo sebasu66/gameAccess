@@ -131,7 +131,7 @@ def test_verified_account_updates_even_when_global_scan_is_partial(tmp_path) -> 
         assert notes["ownership_scan_status"] == "ok"
 
 
-def test_failed_scan_disables_seat_without_erasing_ownership_and_success_recovers(tmp_path) -> None:
+def test_busy_scan_preserves_valid_account_and_ownership(tmp_path) -> None:
     engine = _make_session(tmp_path)
     with Session(engine) as session:
         game = core.Game(slug="test-game", name="Test Game", app_id=730, active=True)
@@ -165,13 +165,13 @@ def test_failed_scan_disables_seat_without_erasing_ownership_and_success_recover
         _sync_account(req, failed, {730: game}, session)
 
         refreshed = session.get(core.ProviderAccount, account.id)
-        assert refreshed.status == core.AccountStatus.disabled
+        assert refreshed.status == core.AccountStatus.free
         mappings = session.exec(
             select(core.AccountGame).where(core.AccountGame.account_id == account.id)
         ).all()
         assert len(mappings) == 1
         notes = json.loads(refreshed.notes)
-        assert notes["disabled_by_inventory_scan"] is True
+        assert notes["disabled_by_inventory_scan"] is False
         assert notes["ownership_scan_error"] == "AlreadyLoggedInElsewhere"
 
         recovered = PoolAccountInput(

@@ -193,6 +193,10 @@ def scan_provider_licenses(
             login_id=login_id,
             timeout_seconds=timeout_seconds,
         )
+        result = _recover_login(
+            credential.login, credential.password, result,
+            login_id=login_id, timeout_seconds=timeout_seconds,
+        )
         status = str(result.get("status") or "error")
         packages = result.get("packages") if isinstance(result.get("packages"), list) else []
         family_key = ""
@@ -250,6 +254,7 @@ def scan_provider_licenses(
             "family_grouped": bool(family_key and family_key.startswith("steam-family:")),
             "family_member_count": len(family_member_provider_ids),
             "family_error": str(result.get("family_error") or "")[:500] or None,
+            "login_recovery": result.get("login_recovery"),
         }
         scans.append(scan_summary)
         if status != "ok":
@@ -376,6 +381,34 @@ def scan_provider_licenses(
         "scans": scans,
         "errors": errors,
     }
+
+
+def _recover_login(
+    login: str, password: str, result: dict[str, Any], *,
+    login_id: int, timeout_seconds: int,
+) -> dict[str, Any]:
+    """Recover authentication only; a desktop login never proves ownership."""
+    if result.get("result") in {"AlreadyLoggedInElsewhere", "LoggedInElsewhere", "PasswordRequiredToKickSession"}:
+        return {**result, "status": "temporarily_unavailable"}
+    if result.get("status") not in {"authentication_error", "logon_error", "guard_required"}:
+        return result
+    from provider_steam_login import login_credentials
+
+    try:
+        recovery = login_credentials(login, password, timeout_seconds=min(timeout_seconds, 45))
+    except (OSError, RuntimeError):
+        recovery = {"ok": False, "status": "client_unavailable"}
+    if not recovery.get("ok"):
+        return {**result, "login_recovery": recovery}
+    # Retry the authoritative scanner with its existing non-persistent auth.
+    # Do not extract a client token or promote cached/local app visibility.
+    try:
+        retried = _run_provider(
+            login, password, login_id=login_id, timeout_seconds=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        retried = {"status": "timeout", "complete": False, "login_id": login_id}
+    return {**retried, "login_recovery": recovery}
 
 
 def load_provider_license_inventory(

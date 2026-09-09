@@ -394,7 +394,31 @@ def sync_account(
         session.refresh(account)
     else:
         account.provider = req.provider
-        account.notes = req.notes
+        import json
+
+        def parsed_notes(value: str) -> dict:
+            try:
+                parsed = json.loads(value or "{}")
+                return parsed if isinstance(parsed, dict) else {}
+            except (ValueError, TypeError):
+                return {}
+
+        previous = parsed_notes(account.notes)
+        incoming = parsed_notes(req.notes)
+        if (
+            incoming.get("inventory_complete") is True
+            and incoming.get("ownership_scan_status") == "ok"
+        ):
+            if (
+                account.status == AccountStatus.disabled
+                and previous.get("disabled_by_inventory_scan")
+            ):
+                account.status = AccountStatus.free
+            incoming["disabled_by_inventory_scan"] = False
+            incoming["ownership_scan_error"] = None
+        elif previous.get("disabled_by_inventory_scan"):
+            incoming["disabled_by_inventory_scan"] = True
+        account.notes = json.dumps({**previous, **incoming}) if incoming else req.notes
         session.add(account)
 
     mappings = session.exec(

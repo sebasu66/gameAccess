@@ -217,7 +217,14 @@ def _sync_account(
     scan_status = (incoming.scan_status or "unknown").strip()
     scan_failed = scan_status not in {"", "unknown", "not_scanned", "ok"}
     disabled_by_scan = bool(notes.get("disabled_by_inventory_scan"))
-    if scan_failed:
+    temporary_busy = scan_status == "temporarily_unavailable" or incoming.scan_error in {
+        "AlreadyLoggedInElsewhere", "LoggedInElsewhere", "PasswordRequiredToKickSession",
+    }
+    if temporary_busy:
+        if account.status == core.AccountStatus.disabled and disabled_by_scan:
+            account.status = core.AccountStatus.free
+        disabled_by_scan = False
+    elif scan_failed:
         if account.status == core.AccountStatus.free:
             account.status = core.AccountStatus.disabled
             disabled_by_scan = True

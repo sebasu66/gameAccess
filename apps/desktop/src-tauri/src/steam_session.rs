@@ -11,6 +11,80 @@ use std::{
 };
 use tauri::Manager;
 
+const PROVIDER_BUSY: &str = "No disponible en este momento: la cuenta está en uso en Steam. Inténtalo más tarde.";
+
+#[cfg(test)]
+mod provider_login_tests {
+    use super::{provider_login_event, PROVIDER_BUSY};
+
+    #[test]
+    fn rejects_occupied_session_and_ignores_other_accounts() {
+        for code in [6, 49, 50] {
+            let line = format!("Login: OnLoginStateChange example 1 {code} 0 0");
+            assert_eq!(provider_login_event(&line, "example"), Some(Err(PROVIDER_BUSY)));
+            assert_eq!(provider_login_event(&line, "other"), None);
+        }
+    }
+
+    #[test]
+    fn requires_completed_login_not_just_started_login() {
+        assert_eq!(provider_login_event("Login: OnLoginStateChange example 3 1 0 0", "example"), None);
+        assert_eq!(provider_login_event("Login: OnLoginStateChange example 5 1 0 0", "example"), Some(Ok(())));
+    }
+}
+
+fn provider_login_event(line: &str, account: &str) -> Option<Result<(), &'static str>> {
+    let (_, event) = line.split_once("Login: OnLoginStateChange ")?;
+    let mut fields = event.split_whitespace();
+    if !fields.next()?.eq_ignore_ascii_case(account) {
+        return None;
+    }
+    let state: u32 = fields.next()?.parse().ok()?;
+    let result: u32 = fields.next()?.parse().ok()?;
+    match (state, result) {
+        (_, 6 | 49 | 50) => Some(Err(PROVIDER_BUSY)),
+        (5, 1) => Some(Ok(())),
+        (1, code) if code != 1 => Some(Err("Steam no pudo confirmar el inicio de sesión.")),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_provider_login(log: &Path, mut offset: u64, account: &str, expected: u32) -> Result<(), String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let deadline = Instant::now() + Duration::from_secs(55);
+    let mut pending = Vec::new();
+    let mut confirmed = false;
+    while Instant::now() < deadline {
+        if let Ok(mut file) = fs::File::open(log) {
+            if file.metadata().map(|m| m.len() < offset).unwrap_or(false) {
+                offset = 0;
+                pending.clear();
+                confirmed = false;
+            }
+            if file.seek(SeekFrom::Start(offset)).is_ok() {
+                let mut fresh = Vec::new();
+                if let Ok(count) = file.read_to_end(&mut fresh) {
+                    offset += count as u64;
+                    pending.extend(fresh);
+                    while let Some(end) = pending.iter().position(|b| *b == b'\n') {
+                        let line: Vec<_> = pending.drain(..=end).collect();
+                        if let Some(result) = provider_login_event(&String::from_utf8_lossy(&line), account) {
+                            result.map_err(str::to_string)?;
+                            confirmed = true;
+                        }
+                    }
+                }
+            }
+        }
+        if confirmed && active_user_id32() == Some(expected) && steam_running() {
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    Err("Steam no confirmó la sesión. Inténtalo más tarde.".into())
+}
+
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
@@ -300,17 +374,25 @@ pub async fn login_provider_steam(
             let steam = find_steam_exe().ok_or("Steam executable was not found")?;
             // Provider sessions must never inherit the previously active Steam session.
             // Always shut Steam down completely before starting the requested provider.
-            stop_steam(&steam);
-            if steam_running() {
-                return Err("Previous Steam session did not close before provider login".into());
+            let log = steam.parent().ok_or("Steam directory unavailable")?.join("logs/webhelper_js.txt");
+            for silent in [true, false] {
+                stop_steam(&steam);
+                if steam_running() {
+                    return Err("Previous Steam session did not close before provider login".into());
+                }
+                let offset = fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
+                let mut command = Command::new(&steam);
+                if silent { command.arg("-silent"); }
+                command.args(["-login", &account_name, &password])
+                    .creation_flags(CREATE_NO_WINDOW).spawn()
+                    .map_err(|_| "Could not start Steam provider login".to_string())?;
+                match wait_for_provider_login(&log, offset, &account_name, expected_user_id32) {
+                    Ok(()) => return Ok(()),
+                    Err(error) if error == PROVIDER_BUSY || !silent => return Err(error),
+                    Err(_) => continue,
+                }
             }
-            Command::new(&steam)
-                .args(["-silent", "-login", &account_name, &password])
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-                .map_err(|_| "Could not start Steam provider login".to_string())?;
-            wait_for_account(Some(expected_user_id32))?;
-            Ok(())
+            Err("Steam no confirmó la sesión.".into())
         }
         #[cfg(not(target_os = "windows"))]
         {
