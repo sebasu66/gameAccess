@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -25,28 +26,65 @@ from provider_license_scan import (
 from steam_pool import _ci_get, _read_vdf, steam_root
 
 
+def _library_space(path: Path) -> tuple[int | None, int | None]:
+    try:
+        usage = shutil.disk_usage(path)
+    except OSError:
+        return None, None
+    return int(usage.free), int(usage.total)
+
+
+def _library_row(index: int, folder_path: str) -> dict[str, Any]:
+    free_bytes, total_bytes = _library_space(Path(folder_path))
+    return {
+        "index": index,
+        "path": folder_path,
+        "label": folder_path,
+        "free_bytes": free_bytes,
+        "total_bytes": total_bytes,
+    }
+
+
 def _steam_library_folders(root: Path | None) -> list[dict[str, Any]]:
     if not root:
         return []
-    path = root / "steamapps" / "libraryfolders.vdf"
-    try:
-        parsed = _read_vdf(path)
-    except (OSError, ValueError):
-        return [{"index": 0, "path": str(root), "label": str(root)}]
 
-    folders = _ci_get(parsed, "libraryfolders")
-    if not isinstance(folders, dict):
-        return [{"index": 0, "path": str(root), "label": str(root)}]
+    # Current Steam clients keep libraryfolders.vdf under config/. Older
+    # installations/tools may still expose the steamapps/ copy, so keep it as
+    # an explicit fallback without renumbering Steam's volume indices.
+    folders: dict[str, Any] | None = None
+    for path in (
+        root / "config" / "libraryfolders.vdf",
+        root / "steamapps" / "libraryfolders.vdf",
+    ):
+        try:
+            parsed = _read_vdf(path)
+        except (OSError, ValueError):
+            continue
+        candidate = _ci_get(parsed, "libraryfolders")
+        if isinstance(candidate, dict):
+            folders = candidate
+            break
+
+    if folders is None:
+        return [_library_row(0, str(root))]
 
     result: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
     for raw_index, fields in folders.items():
         if not str(raw_index).isdigit() or not isinstance(fields, dict):
             continue
         folder_path = str(_ci_get(fields, "path") or "").strip()
-        if folder_path:
-            result.append({"index": int(raw_index), "path": folder_path, "label": folder_path})
+        if not folder_path:
+            continue
+        dedupe_key = folder_path.rstrip("\/").casefold()
+        if dedupe_key in seen_paths:
+            continue
+        seen_paths.add(dedupe_key)
+        result.append(_library_row(int(raw_index), folder_path))
+
     if not result:
-        result.append({"index": 0, "path": str(root), "label": str(root)})
+        result.append(_library_row(0, str(root)))
     return sorted(result, key=lambda item: item["index"])
 
 

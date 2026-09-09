@@ -44,6 +44,7 @@ export interface SteamDownloadStatus {
   installed: boolean;
   provider_id?: string | null;
   prepared_target?: string | null;
+  library_index?: number | null;
   error?: string | null;
   job_id?: string | null;
   worker_pid?: number | null;
@@ -53,6 +54,8 @@ export interface SteamLibraryFolder {
   index: number;
   path: string;
   label: string;
+  free_bytes?: number | null;
+  total_bytes?: number | null;
 }
 
 export interface MachineProfile {
@@ -121,6 +124,7 @@ export interface LocalSteamPool {
   accounts: LocalSteamAccount[];
   games: Array<{ app_id: number; name: string; developer?: string; publisher?: string }>;
   library_folders?: SteamLibraryFolder[];
+  library_folder_count?: number;
 }
 
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
@@ -139,6 +143,12 @@ export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
     await narrate(`Native Steam scan failed: ${message}.`, { area: "LOCAL STEAM", level: "ERROR" });
     return null;
   }
+}
+
+export async function getSteamLibraryFolders(): Promise<SteamLibraryFolder[]> {
+  if (getCatalogMode() !== "gameaccess") return [];
+  const pool = await getLocalSteamPool();
+  return [...(pool?.library_folders ?? [])].sort((left, right) => left.index - right.index);
 }
 
 export async function verifyLocalSteamInventory(): Promise<void> {
@@ -258,7 +268,7 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   return invoke<SteamSessionStatus>("steam_session_status");
 }
 
-export async function openSteamInstall(appId: number): Promise<void> {
+export async function openSteamInstall(appId: number, libraryIndex: number | null = null): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   const mode = getCatalogMode();
   await narrate(`Download requested for Steam AppID ${appId}. Current catalog mode is '${mode}'.`, { area: "DOWNLOAD" });
@@ -267,7 +277,7 @@ export async function openSteamInstall(appId: number): Promise<void> {
   if (!hasTauriRuntime()) {
     try {
       await narrate(`Browser/local-bridge mode: asking the local bridge to start Steam install for AppID ${appId}.`, { area: "DOWNLOAD" });
-      await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
+      await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId, libraryIndex }) });
       await waitForSteamInstallConfirmation(appId);
     } catch {
       await narrate(`Local bridge could not start AppID ${appId}; falling back to the Steam install URI.`, { area: "DOWNLOAD", level: "WARN" });
@@ -279,7 +289,11 @@ export async function openSteamInstall(appId: number): Promise<void> {
   try {
     if (mode === "gameaccess") {
       await narrate(`GameAccess mode: asking the provider download manager to resolve a usable provider license and start AppID ${appId}.`, { area: "DOWNLOAD" });
-      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
+      const status = await invoke<SteamDownloadStatus>("start_provider_download", {
+        appId,
+        jobId: lifecycle?.job_id ?? null,
+        libraryIndex,
+      });
       await narrate(`Provider download manager accepted AppID ${appId}${status.provider_id ? ` using provider '${status.provider_id}'` : ""}; state='${status.state}'.`, { area: "DOWNLOAD" });
       await waitForSteamInstallConfirmation(appId);
       return;
