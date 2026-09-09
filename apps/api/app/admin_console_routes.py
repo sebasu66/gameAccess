@@ -48,6 +48,10 @@ class ProviderAccountOnboardRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class ProviderSteamLoginRequest(BaseModel):
+    provider_id: str = Field(min_length=1, max_length=64)
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -472,6 +476,23 @@ def start_provider_account_onboard(req: ProviderAccountOnboardRequest) -> dict:
         "scan_scope": "single-provider",
         "catalog_update": "single-account-only",
     }
+
+
+@router.post("/tools/provider-login/start")
+def start_provider_steam_login(req: ProviderSteamLoginRequest) -> dict:
+    script = LAUNCHER_ROOT / "provider_steam_login.py"
+    if not script.is_file():
+        raise HTTPException(500, "provider_steam_login.py not found")
+    provider_id = req.provider_id.strip()
+    try:
+        task = start_task(
+            "provider_steam_login",
+            f"Login Steam {provider_id}",
+            [str(launcher_python()), str(script), provider_id],
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo iniciar Steam login: {exc}") from exc
+    return {"ok": True, "task": task, "provider_id": provider_id}
 
 
 @router.post("/tools/pool-sync/start")
