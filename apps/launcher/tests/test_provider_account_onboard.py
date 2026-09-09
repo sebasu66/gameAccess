@@ -15,11 +15,11 @@ def test_upsert_provider_credentials_appends_then_updates_without_duplicate(tmp_
     path.write_text("username,password\nexisting,old-pass\n", encoding="utf-8")
     credential, created = onboard.upsert_provider_credentials(path, "new-user", "first-pass")
     assert created is True
-    assert credential.provider_id == "provider-002"
+    assert credential.provider_id == "new-user"
     assert credential.label == "new-user"
     credential, created = onboard.upsert_provider_credentials(path, "new-user", "changed-pass")
     assert created is False
-    assert credential.provider_id == "provider-002"
+    assert credential.provider_id == "new-user"
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle))
     assert [row for row in rows if row and row[0] == "new-user"] == [["new-user", "changed-pass"]]
@@ -34,16 +34,16 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
     ownership_inputs = []
 
     def fake_scan(*, provider_ids, timeout_seconds):
-        assert provider_ids == {"provider-002"}
+        assert provider_ids == {"new-user"}
         assert timeout_seconds == 42
         return {
             "source": "steamkit-license-list-pics",
             "verified_at": "2026-09-07T20:00:00+00:00",
             "accounts": [
-                {"provider_id": "provider-001", "owned_app_ids": [], "scan_status": "not_scanned"},
-                {"provider_id": "provider-002", "owned_app_ids": [10, 20, 30], "accessible_app_ids": [10, 20, 30, 40], "scan_status": "ok", "family_key": "standalone:provider-002", "family_member_provider_ids": ["provider-002"]},
+                {"provider_id": "existing", "owned_app_ids": [], "scan_status": "not_scanned"},
+                {"provider_id": "new-user", "owned_app_ids": [10, 20, 30], "accessible_app_ids": [10, 20, 30, 40], "scan_status": "ok", "family_key": "standalone:new-user", "family_member_provider_ids": ["new-user"]},
             ],
-            "scans": [{"provider_id": "provider-002", "status": "ok", "complete": True}],
+            "scans": [{"provider_id": "new-user", "status": "ok", "complete": True}],
             "errors": [],
         }
 
@@ -70,19 +70,19 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
             assert '"accessible_app_ids":[10,20,30,40]' in payload["notes"]
             return {"ok": True, "account": {"id": 9, "label": "new-user", "game_ids": [501]}}
         if url.endswith("/admin/pool/families/sync"):
-            assert payload == {"families": [{"family_key": "standalone:provider-002"}]}
+            assert payload == {"families": [{"family_key": "standalone:new-user"}]}
             return {"ok": True, "families": 1, "license_copies": 1}
         raise AssertionError(f"unexpected API call: {method} {url}")
 
     monkeypatch.setattr(onboard, "scan_provider_licenses", fake_scan)
     monkeypatch.setattr(onboard, "ProviderOwnershipStore", FakeOwnershipStore)
     monkeypatch.setattr(onboard, "persist_scan_result", lambda value: persisted.append(value))
-    monkeypatch.setattr(onboard, "build_family_graph", lambda value: family_inputs.append(value) or [{"family_key": "standalone:provider-002"}])
+    monkeypatch.setattr(onboard, "build_family_graph", lambda value: family_inputs.append(value) or [{"family_key": "standalone:new-user"}])
     monkeypatch.setattr(onboard, "_api_json", fake_api)
 
     result = onboard.onboard_provider_account(api="http://127.0.0.1:38147", login="new-user", password="secret-value", accounts_path=path, timeout_seconds=42)
     assert result["ok"] is True
-    assert result["provider_id"] == "provider-002"
+    assert result["provider_id"] == "new-user"
     assert result["owned_app_count"] == 3
     assert result["accessible_app_count"] == 4
     assert result["catalog_game_count"] == 1
@@ -125,14 +125,13 @@ def test_batch_onboarding_runs_only_explicit_provider_ids(
 
     def fake_onboard(*, api, login, password, accounts_path, timeout_seconds):
         calls.append((login, password, accounts_path, timeout_seconds))
-        provider_id = "provider-002" if login == "second" else "provider-003"
-        return {"ok": True, "provider_id": provider_id, "label": login}
+        return {"ok": True, "provider_id": login, "label": login}
 
     monkeypatch.setattr(onboard, "onboard_provider_account", fake_onboard)
 
     result = onboard.onboard_provider_accounts(
         api="http://127.0.0.1:38147",
-        provider_ids=["provider-002", "provider-003", "provider-002"],
+        provider_ids=["second", "third", "second"],
         accounts_path=path,
         timeout_seconds=55,
     )
