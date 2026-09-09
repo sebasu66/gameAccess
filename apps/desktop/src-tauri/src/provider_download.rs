@@ -3,6 +3,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::{Mutex, OnceLock},
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -12,6 +13,12 @@ use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+static START_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn start_mutex() -> &'static Mutex<()> {
+    START_MUTEX.get_or_init(|| Mutex::new(()))
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderDownloadStatus {
@@ -29,6 +36,8 @@ pub struct ProviderDownloadStatus {
     pub provider_id: Option<String>,
     #[serde(default)]
     pub prepared_target: Option<String>,
+    #[serde(default)]
+    pub library_index: Option<u32>,
     #[serde(default)]
     pub error: Option<String>,
     #[serde(default)]
@@ -257,6 +266,7 @@ fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadSt
         installed: false,
         provider_id: Some(provider_id),
         prepared_target: None,
+        library_index: None,
         error: None,
         job_id: None,
         worker_pid: None,
@@ -287,10 +297,18 @@ fn is_active_state(state: &str) -> bool {
 fn start_provider_download_blocking(
     app_id: u32,
     requested_job_id: Option<String>,
+    requested_library_index: Option<u32>,
 ) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
     }
+
+    // Only the short check/spawn/publication section is serialized. Worker
+    // processes themselves remain fully parallel after this function returns.
+    let _start_guard = start_mutex()
+        .lock()
+        .map_err(|_| "Provider download start lock is poisoned".to_string())?;
+
     let launcher = launcher_dir()?;
     if let Some(mut status) = provider_download_status(app_id)? {
         if is_active_state(&status.state) {
@@ -305,6 +323,11 @@ fn start_provider_download_blocking(
             let worker_valid = status.worker_pid.is_some() && status.job_id.as_deref().is_some();
 
             if worker_valid {
+                if requested_library_index.is_some()
+                    && requested_library_index != status.library_index
+                {
+                    return Err("This AppID is already downloading to a different Steam library".into());
+                }
                 return Ok(status);
             }
 
@@ -340,6 +363,7 @@ fn start_provider_download_blocking(
         installed: false,
         provider_id: None,
         prepared_target: None,
+        library_index: requested_library_index,
         error: None,
         job_id: Some(job_id.clone()),
         worker_pid: None,
@@ -358,7 +382,12 @@ fn start_provider_download_blocking(
             "--run",
             "--job-id",
             &job_id,
-        ])
+        ]);
+    let library_index_arg = requested_library_index.map(|value| value.to_string());
+    if let Some(ref value) = library_index_arg {
+        command.args(["--library-index", value]);
+    }
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -382,10 +411,13 @@ fn start_provider_download_blocking(
 pub async fn start_provider_download(
     app_id: u32,
     job_id: Option<String>,
+    library_index: Option<u32>,
 ) -> Result<ProviderDownloadStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || start_provider_download_blocking(app_id, job_id))
-        .await
-        .map_err(|err| format!("Provider download start task failed: {err}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        start_provider_download_blocking(app_id, job_id, library_index)
+    })
+    .await
+    .map_err(|err| format!("Provider download start task failed: {err}"))?
 }
 
 #[cfg(target_os = "windows")]
@@ -532,12 +564,13 @@ mod tests {
     #[test]
     fn parses_provider_download_status_shape_with_optional_job_identity() {
         let status: ProviderDownloadStatus = serde_json::from_str(
-            r#"{"app_id":1091500,"state":"preparing","progress":null,"bytes_downloaded":null,"bytes_total":null,"installed":false,"provider_id":"provider-001","job_id":"job-1","worker_pid":42}"#,
+            r#"{"app_id":1091500,"state":"preparing","progress":null,"bytes_downloaded":null,"bytes_total":null,"installed":false,"provider_id":"provider-001","job_id":"job-1","worker_pid":42,"library_index":2}"#,
         ).expect("status should deserialize");
         assert_eq!(status.app_id, 1_091_500);
         assert_eq!(status.provider_id.as_deref(), Some("provider-001"));
         assert_eq!(status.job_id.as_deref(), Some("job-1"));
         assert_eq!(status.worker_pid, Some(42));
+        assert_eq!(status.library_index, Some(2));
         assert!(is_active_state("cancelling"));
         assert!(!is_active_state("cancelled"));
     }
@@ -559,5 +592,6 @@ mod tests {
         ).expect("legacy status should deserialize");
         assert_eq!(status.job_id, None);
         assert_eq!(status.worker_pid, None);
+        assert_eq!(status.library_index, None);
     }
 }
