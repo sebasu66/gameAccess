@@ -120,3 +120,15 @@ Before inventing infrastructure, clones, adapters, replacement workflows, or com
 If the repository is already present at `C:\DEV\gameAccess`, do not clone it again just to build it. If GitHub can edit the remote source directly, do not manufacture a temporary source tree merely to make the same edit.
 
 Do not solve a local implementation problem by creating a larger workflow problem.
+
+## 11. Git is the legacy archive; runtime code contains only the current implementation
+
+This is a mandatory project policy.
+
+- Do not keep obsolete implementations, compatibility fallbacks, dead classes, old algorithms, abandoned scripts, or alternate execution paths in the active source tree merely "in case" they are needed later. Git history is the archive.
+- There must be one current executable implementation for each product responsibility. If a responsibility becomes large, split it into short functions or subordinate classes with explicit ownership, but do not keep two competing implementations of the same responsibility.
+- During a replacement, old and new code may coexist only for the shortest migration window needed to run regression tests and local verification. Once the replacement is active and verified, delete the superseded code in the same workstream.
+- Never add a legacy fallback unless an external compatibility requirement that is still part of the current product explicitly needs it. Document that requirement next to the fallback.
+- Do not infer license ownership from installation, local visibility, metadata, cache presence, or another catalog. Ownership/access and installed state are independent domains.
+- Catalog boundaries are strict: **Propios** is built only from the user's personal Steam accounts and their verified owned/Family-runnable rights; **GameAccess** is built only from the GameAccess backend/provider pool; **Store** grants no license. A Steam AppID may exist independently in more than one catalog without those licenses being merged.
+- Installation status is a shared read-only utility. It may annotate a game in any catalog as installed/ready-on-disk, but it must never create catalog membership or transfer license availability between catalogs.
