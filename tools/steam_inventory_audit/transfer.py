@@ -32,7 +32,13 @@ def ensure_node_dependencies() -> None:
         raise RuntimeError((completed.stderr or completed.stdout or "npm install failed").strip()[-3000:])
 
 
-def send(account: str, target_steam_id64: str, *, execute: bool = False) -> dict:
+def send(
+    account: str,
+    target_steam_id64: str,
+    *,
+    execute: bool = False,
+    trade_url: str | None = None,
+) -> dict:
     plan = build_plan(account)
     plan["target_steam_id64"] = target_steam_id64
     if plan.get("status") != "ok" or not execute:
@@ -45,7 +51,9 @@ def send(account: str, target_steam_id64: str, *, execute: bool = False) -> dict
     ensure_node_dependencies()
     close_steam()
 
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False, dir=PROJECT_ROOT / "debug") as handle:
+    debug_dir = PROJECT_ROOT / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False, dir=debug_dir) as handle:
         json.dump(plan, handle, ensure_ascii=False, indent=2)
         plan_path = Path(handle.name)
 
@@ -53,6 +61,8 @@ def send(account: str, target_steam_id64: str, *, execute: bool = False) -> dict
     env["GA_STEAM_USER"] = credential.login
     env["GA_STEAM_PASS"] = credential.password
     env["GA_TRADE_TARGET_STEAMID64"] = str(target_steam_id64)
+    if trade_url:
+        env["GA_TRADE_URL"] = trade_url
     try:
         completed = subprocess.run(
             ["node", str(NODE_SENDER), str(plan_path)],
@@ -107,7 +117,12 @@ def main() -> int:
     parser.add_argument("--execute", action="store_true", help="Actually create the trade offer; default is dry-run")
     args = parser.parse_args()
 
-    result = send(args.account, args.target_steam_id64, execute=args.execute)
+    result = send(
+        args.account,
+        args.target_steam_id64,
+        execute=args.execute,
+        trade_url=os.environ.get("GA_TRADE_URL") or None,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("status") in {"ok", "sent", "nothing_to_send"} else 1
 
