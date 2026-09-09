@@ -29,7 +29,7 @@ SCANNER_SOURCE = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "Program.
 SCANNER_DLL = PROJECT_ROOT / "tools" / "steamkit-license-scanner" / "bin" / "Debug" / "net10.0" / "SteamKitLicenseScanner.dll"
 DEFAULT_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.json"
 DEFAULT_DIAGNOSTIC_OUTPUT = Path(__file__).resolve().parent / ".gameaccess" / "provider_licenses.last_scan.json"
-LOGIN_ID_BASE = 0x47410000  # "GA" namespace; low bits are provider slot.
+LOGIN_ID_BASE = 0x47410000  # "GA" namespace; low bits are stable provider hash.
 
 
 def ensure_scanner_built() -> None:
@@ -53,12 +53,9 @@ def ensure_scanner_built() -> None:
 
 
 def _login_id_for_provider(provider_id: str) -> int:
-    try:
-        slot = int(provider_id.rsplit("-", 1)[-1])
-    except (TypeError, ValueError):
-        slot = 1
-    slot = max(1, min(slot, 0xFFFF))
-    return LOGIN_ID_BASE + slot
+    digest = hashlib.sha256(provider_id.strip().casefold().encode("utf-8")).digest()
+    slot = int.from_bytes(digest[:2], "big")
+    return LOGIN_ID_BASE + max(1, slot)
 
 
 STEAM_ID64_ACCOUNT_BASE = 76561197960265728
