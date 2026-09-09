@@ -294,6 +294,11 @@ fn is_active_state(state: &str) -> bool {
     )
 }
 
+fn worker_has_published(status: &ProviderDownloadStatus, job_id: &str) -> bool {
+    status.job_id.as_deref() == Some(job_id)
+        && (status.worker_pid.is_some() || !is_active_state(&status.state))
+}
+
 fn start_provider_download_blocking(
     app_id: u32,
     requested_job_id: Option<String>,
@@ -326,7 +331,9 @@ fn start_provider_download_blocking(
                 if requested_library_index.is_some()
                     && requested_library_index != status.library_index
                 {
-                    return Err("This AppID is already downloading to a different Steam library".into());
+                    return Err(
+                        "This AppID is already downloading to a different Steam library".into(),
+                    );
                 }
                 return Ok(status);
             }
@@ -397,11 +404,13 @@ fn start_provider_download_blocking(
         .map_err(|err| format!("Could not start provider download: {err}"))?;
     let mut started = initial;
     started.worker_pid = Some(child.id());
-    let current = provider_download_status(app_id)?;
-    if current.as_ref().is_some_and(|value| {
-        value.job_id.as_deref() == Some(job_id.as_str()) && !is_active_state(&value.state)
-    }) {
-        return Ok(current.expect("checked Some"));
+    if let Some(current) = provider_download_status(app_id)? {
+        // The child writes its own PID as soon as it enters the manager. If it
+        // already published anything for this job, preserve that newer state;
+        // the parent must never overwrite progress/errors with its initial copy.
+        if worker_has_published(&current, &job_id) {
+            return Ok(current);
+        }
     }
     write_provider_download_status(&launcher, &started)?;
     Ok(started)
@@ -593,5 +602,14 @@ mod tests {
         assert_eq!(status.job_id, None);
         assert_eq!(status.worker_pid, None);
         assert_eq!(status.library_index, None);
+    }
+
+    #[test]
+    fn worker_published_status_wins_parent_start_copy() {
+        let status: ProviderDownloadStatus = serde_json::from_str(
+            r#"{"app_id":7,"state":"downloading","progress":1,"bytes_downloaded":10,"bytes_total":100,"installed":false,"job_id":"job-7","worker_pid":99}"#,
+        ).expect("worker status should deserialize");
+        assert!(worker_has_published(&status, "job-7"));
+        assert!(!worker_has_published(&status, "other-job"));
     }
 }
