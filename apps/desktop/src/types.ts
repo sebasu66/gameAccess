@@ -19,9 +19,6 @@ export interface CatalogGame {
   local_owner_steam_ids?: string[];
   local_inventory_verified?: boolean;
   local_inventory_verified_at?: string | null;
-  backend_game_id?: number;
-  remote_copies_total?: number;
-  remote_copies_available?: number;
 }
 
 export interface SteamSearchPrice {
