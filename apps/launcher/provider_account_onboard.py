@@ -1,10 +1,10 @@
-"""Add/update Steam providers and synchronize only explicitly selected accounts.
+"""Add or update Steam providers and synchronize only selected accounts.
 
-Credentials are passed through environment variables for the existing single-account
-onboarding mode so they never appear in process arguments or task logs. Existing
-provider accounts already present in ``accFull.csv`` can also be scanned in an
-explicit batch by repeating ``--provider-id``. The batch mode never auto-detects or
-rescans accounts that were not selected.
+Credentials are passed through environment variables so they never appear in
+process arguments or task logs. The existing single-account onboarding flow is
+unchanged. For accounts already present in ``accFull.csv``, the CLI can also
+repeat ``--provider-id`` to run that same individual flow for an explicit list.
+Accounts not listed are never scanned by that batch mode.
 """
 
 from __future__ import annotations
@@ -174,83 +174,17 @@ def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], lis
 
 
 def _merge_family_inventory(
-    partial: dict[str, Any], provider_ids: str | set[str]
+    partial: dict[str, Any], provider_id: str
 ) -> dict[str, Any]:
     authoritative = load_provider_license_inventory(
         DEFAULT_OUTPUT, require_complete=True
     )
-    selected = {provider_ids} if isinstance(provider_ids, str) else set(provider_ids)
     return merge_family_evidence(
         authoritative or {},
         partial,
         DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
-        selected=selected,
+        selected={provider_id},
     )
-
-
-def _verified_app_ids(account: dict[str, Any], key: str) -> list[int]:
-    return sorted(
-        {
-            int(app_id)
-            for app_id in account.get(key) or []
-            if str(app_id).isdigit() and int(app_id) > 0
-        }
-    )
-
-
-def _sync_verified_provider(
-    *,
-    api: str,
-    credential: ProviderCredential,
-    inventory: dict[str, Any],
-    account: dict[str, Any],
-    source: str,
-) -> dict[str, Any]:
-    owned_app_ids = _verified_app_ids(account, "owned_app_ids")
-    accessible_app_ids = _verified_app_ids(account, "accessible_app_ids")
-    game_ids, unresolved_app_ids = _import_verified_games(api, owned_app_ids)
-
-    notes = json.dumps(
-        {
-            "source": source,
-            "account_name": credential.login,
-            "provider_id": credential.provider_id,
-            "ownership_source": inventory.get("source")
-            or "steamkit-license-list-pics",
-            "ownership_verified_at": inventory.get("verified_at"),
-            "inventory_complete": True,
-            "ownership_scan_status": "ok",
-            "owned_app_count": len(owned_app_ids),
-            "accessible_app_ids": accessible_app_ids,
-            "accessible_app_count": len(accessible_app_ids),
-            "imported_game_count": len(game_ids),
-            "unresolved_app_count": len(unresolved_app_ids),
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    synced = _api_json(
-        "POST",
-        f"{api.rstrip('/')}/admin/accounts/sync",
-        payload={
-            "label": credential.label,
-            "provider": "steam",
-            "game_ids": game_ids,
-            "notes": notes,
-        },
-        timeout=30.0,
-    )
-
-    return {
-        "provider_id": credential.provider_id,
-        "label": credential.label,
-        "owned_app_count": len(owned_app_ids),
-        "accessible_app_count": len(accessible_app_ids),
-        "catalog_game_count": len(game_ids),
-        "unresolved_app_count": len(unresolved_app_ids),
-        "unresolved_app_ids": unresolved_app_ids[:25],
-        "account": synced.get("account") if isinstance(synced, dict) else None,
-    }
 
 
 def onboard_provider_account(
@@ -298,16 +232,51 @@ def onboard_provider_account(
             "guard_method": error.get("guard_method"),
         }
 
-    print(
-        f"STATE=metadata:{len(_verified_app_ids(account, 'owned_app_ids'))}",
-        flush=True,
+    owned_app_ids = sorted(
+        {
+            int(app_id)
+            for app_id in account.get("owned_app_ids") or []
+            if str(app_id).isdigit() and int(app_id) > 0
+        }
     )
-    provider = _sync_verified_provider(
-        api=base,
-        credential=credential,
-        inventory=inventory,
-        account=account,
-        source="provider-account-onboard",
+    accessible_app_ids = sorted(
+        {
+            int(app_id)
+            for app_id in account.get("accessible_app_ids", [])
+            if str(app_id).isdigit() and int(app_id) > 0
+        }
+    )
+    print(f"STATE=metadata:{len(owned_app_ids)}", flush=True)
+    game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
+
+    notes = json.dumps(
+        {
+            "source": "provider-account-onboard",
+            "account_name": credential.login,
+            "provider_id": credential.provider_id,
+            "ownership_source": inventory.get("source") or "steamkit-license-list-pics",
+            "ownership_verified_at": inventory.get("verified_at"),
+            "inventory_complete": True,
+            "ownership_scan_status": "ok",
+            "owned_app_count": len(owned_app_ids),
+            "accessible_app_ids": accessible_app_ids,
+            "accessible_app_count": len(accessible_app_ids),
+            "imported_game_count": len(game_ids),
+            "unresolved_app_count": len(unresolved_app_ids),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    synced = _api_json(
+        "POST",
+        f"{base}/admin/accounts/sync",
+        payload={
+            "label": credential.label,
+            "provider": "steam",
+            "game_ids": game_ids,
+            "notes": notes,
+        },
+        timeout=30.0,
     )
 
     # Preserve earlier partial successes when rebuilding family capacity.
@@ -325,20 +294,27 @@ def onboard_provider_account(
     return {
         "ok": True,
         "created": created,
-        **provider,
+        "provider_id": credential.provider_id,
+        "label": credential.label,
+        "owned_app_count": len(owned_app_ids),
+        "accessible_app_count": len(accessible_app_ids),
+        "catalog_game_count": len(game_ids),
+        "unresolved_app_count": len(unresolved_app_ids),
+        "unresolved_app_ids": unresolved_app_ids[:25],
+        "account": synced.get("account") if isinstance(synced, dict) else None,
         "family_count": len(families),
         "family_sync": family_sync,
     }
 
 
-def scan_provider_accounts(
+def onboard_provider_accounts(
     *,
     api: str,
     provider_ids: list[str],
     accounts_path: Path | None = None,
     timeout_seconds: int = 70,
 ) -> dict[str, Any]:
-    """Scan and synchronize exactly the listed providers already in accFull.csv."""
+    """Run the existing one-account onboarding flow for an explicit provider list."""
     requested = list(
         dict.fromkeys(
             provider_id.strip() for provider_id in provider_ids if provider_id.strip()
@@ -358,96 +334,40 @@ def scan_provider_accounts(
             "Provider account(s) not found in accFull.csv: " + ", ".join(missing)
         )
 
-    base = api.rstrip("/")
-    _api_json("GET", f"{base}/admin/pool/roster-status", timeout=20.0)
-
-    print(f"STATE=scanning-batch:{len(requested)}", flush=True)
-    previous_accounts_file = os.environ.get("GAMEACCESS_ACCOUNTS_FILE")
-    if accounts_path is not None:
-        os.environ["GAMEACCESS_ACCOUNTS_FILE"] = str(source)
-    try:
-        inventory = scan_provider_licenses(
-            provider_ids=set(requested),
-            timeout_seconds=timeout_seconds,
-        )
-    finally:
-        if accounts_path is not None:
-            if previous_accounts_file is None:
-                os.environ.pop("GAMEACCESS_ACCOUNTS_FILE", None)
-            else:
-                os.environ["GAMEACCESS_ACCOUNTS_FILE"] = previous_accounts_file
-    persistence = persist_scan_result(inventory)
-
-    providers: list[dict[str, Any]] = []
-    failures: list[dict[str, Any]] = []
-    successful_ids: set[str] = set()
-    error_by_provider = {
-        str(row.get("provider_id") or ""): row
-        for row in inventory.get("errors", [])
-        if isinstance(row, dict)
-    }
-
+    results: list[dict[str, Any]] = []
     for index, provider_id in enumerate(requested, start=1):
-        print(f"STATE=syncing:{index}/{len(requested)}:{provider_id}", flush=True)
-        scan, account = _selected_scan(inventory, provider_id)
-        scan_ok = str(scan.get("status") or "") == "ok" and bool(scan.get("complete"))
-        if not scan_ok:
-            error = error_by_provider.get(provider_id) or {}
-            failures.append(
-                {
-                    "provider_id": provider_id,
-                    "label": credentials[provider_id].label,
-                    "scan_status": scan.get("status"),
-                    "scan_complete": bool(scan.get("complete")),
-                    "error": str(
-                        error.get("error") or scan.get("status") or "scan failed"
-                    )[:500],
-                    "guard_method": error.get("guard_method"),
-                }
+        credential = credentials[provider_id]
+        print(f"STATE=batch:{index}/{len(requested)}:{provider_id}", flush=True)
+        try:
+            result = onboard_provider_account(
+                api=api,
+                login=credential.login,
+                password=credential.password,
+                accounts_path=source,
+                timeout_seconds=timeout_seconds,
             )
-            continue
+        except Exception as exc:
+            result = {
+                "ok": False,
+                "provider_id": provider_id,
+                "label": credential.label,
+                "error": f"{type(exc).__name__}: {exc}"[:500],
+            }
+        results.append(result)
 
-        providers.append(
-            _sync_verified_provider(
-                api=base,
-                credential=credentials[provider_id],
-                inventory=inventory,
-                account=account,
-                source="provider-account-batch",
-            )
-        )
-        successful_ids.add(provider_id)
-
-    family_sync = None
-    family_count = 0
-    if successful_ids:
-        merged_inventory = _merge_family_inventory(inventory, successful_ids)
-        families = build_family_graph(merged_inventory)
-        family_count = len(families)
-        family_sync = _api_json(
-            "POST",
-            f"{base}/admin/pool/families/sync",
-            payload={"families": families},
-            timeout=30.0,
-        )
-
-    print("STATE=done", flush=True)
+    succeeded = sum(1 for result in results if result.get("ok"))
     return {
-        "ok": not failures,
+        "ok": succeeded == len(results),
         "requested_provider_count": len(requested),
-        "successful_provider_count": len(providers),
-        "failed_provider_count": len(failures),
-        "providers": providers,
-        "failures": failures,
-        "family_count": family_count,
-        "family_sync": family_sync,
-        "persistence": persistence,
+        "successful_provider_count": succeeded,
+        "failed_provider_count": len(results) - succeeded,
+        "results": results,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Add/update one provider or scan selected existing providers"
+        description="Add/update and scan one or more GameAccess Steam providers"
     )
     parser.add_argument("--api", default="http://127.0.0.1:38147")
     parser.add_argument("--accounts-file")
@@ -458,15 +378,15 @@ def main() -> int:
         action="append",
         default=[],
         help=(
-            "scan/sync this existing provider from accFull.csv; repeat for a batch; "
-            "only explicitly listed providers are scanned"
+            "scan an existing provider from accFull.csv using the normal individual "
+            "onboarding flow; repeat to scan an explicit list"
         ),
     )
     args = parser.parse_args()
 
     try:
         if args.provider_id:
-            result = scan_provider_accounts(
+            result = onboard_provider_accounts(
                 api=args.api,
                 provider_ids=args.provider_id,
                 accounts_path=Path(args.accounts_file) if args.accounts_file else None,
@@ -482,7 +402,7 @@ def main() -> int:
                             "ok": False,
                             "error": (
                                 f"{USER_ENV} and {PASSWORD_ENV} are required unless "
-                                "one or more --provider-id values are supplied"
+                                "--provider-id is supplied"
                             ),
                         }
                     )
