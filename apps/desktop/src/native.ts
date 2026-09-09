@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
 import { getCatalogMode } from "./catalogMode";
 import { narrate } from "./narrationLog";
 import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
@@ -433,10 +434,16 @@ export async function steamInstalled(): Promise<boolean> {
   catch { return true; }
 }
 
-export async function steamInstalledAppIds(): Promise<number[]> {
+async function loadInstalledAppIdsRaw(): Promise<number[]> {
   if (!hasTauriRuntime()) return [];
   try { return await invoke<number[]>("installed_app_ids"); }
   catch { return []; }
+}
+
+const installedGameStatus = new InstalledGameStatus(loadInstalledAppIdsRaw);
+
+export async function steamInstalledAppIds(): Promise<number[]> {
+  return installedGameStatus.load();
 }
 
 export async function getRuntimePrerequisites(): Promise<RuntimePrerequisites> {
