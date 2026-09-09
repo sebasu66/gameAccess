@@ -64,8 +64,8 @@ interface DownloadGameCardProps {
 
 function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onContextMenu }: DownloadGameCardProps) {
   const active = isTrackedDownload(status);
-  const ready = Boolean(status?.installed || status?.state === "installed");
-  const licensed = playAvailability(game).licensed;
+  const ready = Boolean(status?.installed || status?.state === "installed" || status?.state === "prepared");
+  const licensed = ready || playAvailability(game).licensed;
   const progress = downloadProgress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;

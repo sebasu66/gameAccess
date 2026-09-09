@@ -530,6 +530,7 @@ fn main() {
             provider_download::start_provider_download,
             provider_download::cancel_provider_download,
             provider_download::provider_download_status,
+            provider_download::provider_download_statuses,
             provider_download::provider_download_estimate,
             steam_session::save_steam_credential,
             steam_session::remove_steam_credential,

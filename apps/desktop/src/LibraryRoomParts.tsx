@@ -4,7 +4,6 @@ import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";
 
 import { isTrackedDownload } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import { playAvailability } from "./gameAvailability";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 
@@ -64,13 +63,9 @@ export function isActiveDownload(status?: ManagedDownloadStatus) {
   return isTrackedDownload(status);
 }
 
-function InstallStateBadge({ game, status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
+function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
   if (!isInstalled(status)) return null;
-  const availability = playAvailability(game);
-  if (!availability.licensed) {
-    return <span className="library-install-state no-license" title="Instalado · sin licencia disponible"><XCircle size={13} /></span>;
-  }
-  return <span className="library-install-state ready" title="Listo para jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -171,12 +166,11 @@ export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, ha
 export function buildActions(game: CatalogGame | undefined, status: ManagedDownloadStatus | undefined, busy: boolean): LibraryAction[] {
   if (!game) return [];
   if (isInstalled(status)) {
-    const availability = playAvailability(game, busy);
     return [{
       label: "Jugar",
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,
-      disabled: !availability.allowed,
-      reason: availability.reason,
+      disabled: busy,
+      reason: busy ? "GameAccess está preparando otra sesión." : null,
       kind: "play",
     }];
   }

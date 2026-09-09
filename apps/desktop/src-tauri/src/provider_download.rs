@@ -126,6 +126,27 @@ pub fn provider_download_status(app_id: u32) -> Result<Option<ProviderDownloadSt
     Ok(Some(status))
 }
 
+#[tauri::command]
+pub fn provider_download_statuses() -> Result<Vec<ProviderDownloadStatus>, String> {
+    let launcher = launcher_dir()?;
+    let Some(root) = status_path(&launcher, 0).parent().map(Path::to_path_buf) else {
+        return Ok(Vec::new());
+    };
+    let Ok(entries) = fs::read_dir(root) else {
+        return Ok(Vec::new());
+    };
+    let mut statuses = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() { continue; }
+        let Ok(body) = fs::read_to_string(path) else { continue; };
+        let Ok(status) = serde_json::from_str::<ProviderDownloadStatus>(&body) else { continue; };
+        statuses.push(status);
+    }
+    statuses.sort_by_key(|status| status.app_id);
+    Ok(statuses)
+}
+
 fn write_provider_download_status(
     launcher: &Path,
     status: &ProviderDownloadStatus,

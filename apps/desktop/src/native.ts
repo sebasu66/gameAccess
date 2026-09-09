@@ -494,6 +494,24 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
   };
 }
 
+export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatus[]> {
+  if (!hasTauriRuntime() || getCatalogMode() !== "gameaccess") return [];
+  let providerStatuses: SteamDownloadStatus[];
+  try {
+    providerStatuses = await invoke<SteamDownloadStatus[]>("provider_download_statuses");
+  } catch {
+    return [];
+  }
+  return Promise.all(providerStatuses.map(async (providerStatus) => {
+    try {
+      const steamStatus = await invoke<SteamDownloadStatus>("steam_download_status", { appId: providerStatus.app_id });
+      return reconcileSteamAndProviderStatus(steamStatus, providerStatus);
+    } catch {
+      return providerStatus;
+    }
+  }));
+}
+
 export async function providerDownloadEstimate(appId: number): Promise<SteamDownloadStatus | null> {
   if (!appId || !hasTauriRuntime() || getCatalogMode() !== "gameaccess") return null;
   try { return await invoke<SteamDownloadStatus>("provider_download_estimate", { appId }); }

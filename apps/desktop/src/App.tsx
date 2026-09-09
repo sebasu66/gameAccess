@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, switchSteamAccount, setVisualDebugViewport, type MachineProfile } from "./native";
+import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
@@ -72,11 +72,23 @@ export default function App() {
         setDownloads((current) => ({ ...installedMap, ...current }));
       }
     }).catch(() => undefined);
+    // Provider download state is durable on disk. Rehydrate it after F5/WebView
+    // reload so active downloads and prepared games survive React state loss.
+    steamManagedDownloadStatuses().then((statuses) => {
+      const durableMap: DownloadMap = {};
+      for (const status of statuses) {
+        if (!["requested", "preparing", "downloading", "paused", "cancelling", "prepared", "installed"].includes(status.state)) continue;
+        durableMap[status.app_id] = status;
+      }
+      if (Object.keys(durableMap).length) {
+        setDownloads((current) => ({ ...current, ...durableMap }));
+      }
+    }).catch(() => undefined);
   }, [refresh]);
 
   useEffect(() => {
     const activeIds = Object.entries(downloads)
-      .filter(([, status]) => ["requested", "preparing", "downloading"].includes(status.state))
+      .filter(([, status]) => ["requested", "preparing", "downloading", "paused", "cancelling"].includes(status.state))
       .map(([id]) => Number(id));
     if (!activeIds.length) return;
     const timer = window.setInterval(() => {
