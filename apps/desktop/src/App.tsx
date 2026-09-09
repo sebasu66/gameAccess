@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, switchSteamAccount, setVisualDebugViewport, type MachineProfile } from "./native";
+import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, getSteamLibraryFolders, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamLibraryFolder } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
@@ -12,6 +12,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { DetailPanel } from "./AppDetailPanel";
+import { InstallLocationDialog } from "./InstallLocationDialog";
 let visualDebugStarted = false;
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
+  const [installLocationRequest, setInstallLocationRequest] = useState<{ game: CatalogGame; libraries: SteamLibraryFolder[] } | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
@@ -285,19 +287,28 @@ export default function App() {
     setToast(value === 1 ? "Lo tendremos en cuenta para recomendarte juegos." : "Perfecto, veremos menos juegos de este estilo.");
   };
 
-  const startDownload = async (game: CatalogGame) => {
+  const startDownloadToLibrary = async (
+    game: CatalogGame,
+    libraryIndex: number | null,
+    requireSelectedLibrary = false,
+  ) => {
     if (!game.app_id) return;
     const markRequested = () => {
-      setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));
+      setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, library_index: libraryIndex } }));
       rememberRecent(game);
     };
     try {
-      await openSteamInstall(game.app_id);
+      await openSteamInstall(game.app_id, libraryIndex);
       rememberRecent(game);
       const status = await steamDownloadStatus(game.app_id);
       setDownloads((current) => ({ ...current, [game.app_id!]: status }));
       setToast(status.error ?? "Solicitud aceptada. gameAccess mostrará la preparación y el progreso real.");
     } catch (directError) {
+      const directMessage = directError instanceof Error ? directError.message : String(directError);
+      if (requireSelectedLibrary) {
+        setToast(`No se pudo iniciar la descarga en la biblioteca elegida: ${directMessage}`);
+        return;
+      }
       try {
         const fallbackLease = await leaseGame(game.id, 5);
         try {
@@ -308,10 +319,23 @@ export default function App() {
         markRequested();
         setToast("No se pudo usar la descarga directa. gameAccess inició una cuenta proveedora y dejó la descarga a cargo de Steam.");
       } catch (fallbackError) {
-        const directMessage = directError instanceof Error ? directError.message : String(directError);
         const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         setToast(`Descarga directa: ${directMessage} · Fallback Steam: ${fallbackMessage}`);
       }
+    }
+  };
+
+  const startDownload = async (game: CatalogGame) => {
+    if (!game.app_id) return;
+    try {
+      const libraries = await getSteamLibraryFolders();
+      if (libraries.length > 1) {
+        setInstallLocationRequest({ game, libraries });
+        return;
+      }
+      await startDownloadToLibrary(game, libraries[0]?.index ?? null);
+    } catch {
+      await startDownloadToLibrary(game, null);
     }
   };
 
@@ -498,6 +522,18 @@ export default function App() {
       {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
+      {installLocationRequest ? (
+        <InstallLocationDialog
+          game={installLocationRequest.game}
+          libraries={installLocationRequest.libraries}
+          onCancel={() => setInstallLocationRequest(null)}
+          onConfirm={(libraryIndex) => {
+            const request = installLocationRequest;
+            setInstallLocationRequest(null);
+            void startDownloadToLibrary(request.game, libraryIndex, true);
+          }}
+        />
+      ) : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
