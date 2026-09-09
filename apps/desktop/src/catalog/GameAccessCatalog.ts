@@ -25,8 +25,6 @@ export class GameAccessCatalog {
         local_owner_steam_ids: _localOwnerSteamIds,
         local_inventory_verified: _localInventoryVerified,
         local_inventory_verified_at: _localInventoryVerifiedAt,
-        remote_copies_total: _remoteCopiesTotal,
-        remote_copies_available: _remoteCopiesAvailable,
         ...backendGame
       } = game;
       return backendGame;
