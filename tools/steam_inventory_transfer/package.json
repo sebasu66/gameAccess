@@ -1,0 +1,12 @@
+{
+  "name": "gameaccess-steam-inventory-transfer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Isolated Steam trade-offer sender for inventory consolidation",
+  "main": "send_offer.js",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "steam-tradeoffer-manager": "2.13.0",
+    "steam-user": "5.3.0"
+  }
+}
