@@ -2,7 +2,7 @@
 
 This file is the living knowledge base for the `gameAccess` project. Future work on this repository should read this file before changing architecture or implementing provider-specific behavior, and should append/update it when new technical, commercial, policy, or operational facts are discovered.
 
-Last updated: 2026-09-04.
+Last updated: 2026-09-09.
 
 ## Product thesis
 
@@ -97,7 +97,7 @@ customer logs into gameAccess
 -> account returns to pool
 ```
 
-Do not pass Steam passwords in command-line arguments. `steam.exe -login user password` exists but exposing secrets via command line/process inspection is inappropriate for a customer-controlled endpoint.
+GameAccess provider accounts from `accFull.csv` use the existing headless Steam client login flow: close the previous Steam session, then run `steam.exe -silent -login user password`. This provider-account flow is separate from the remembered-account chooser used for the user's own local Steam accounts.
 
 Steam supports QR-code login through the Steam Mobile app / Steam Guard. This allows a new device to be authorized without typing the account password on that PC. Steam Mobile shows details about the login attempt and can approve/deny it.
 
@@ -150,7 +150,7 @@ Relevant official/public sources:
 
 - Steam Subscriber Agreement: https://store.steampowered.com/subscriber_agreement/
 - Steam account creation / residence field: https://store.steampowered.com/join
-- Steamworks transaction/fraud documentation: https://partner.steamgames.com/doc/features/microtransactions
+- Steamworks transaction/fraud documentation: https://partner.steampowered.com/doc/features/microtransactions
 - Steam Mobile / QR sign-in announcement and Authorized Devices behavior: https://store.steampowered.com/news/posts/?enddate=1668646446&feed=steam_blog
 
 ## Customer-local launcher security model
