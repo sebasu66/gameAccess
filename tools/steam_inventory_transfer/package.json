@@ -6,7 +6,7 @@
   "main": "send_offer.js",
   "license": "UNLICENSED",
   "dependencies": {
-    "steam-tradeoffer-manager": "2.13.0",
-    "steam-user": "5.3.0"
+    "steam-tradeoffer-manager": "^2.13.0",
+    "steam-user": "^5.3.0"
   }
 }
