@@ -18,11 +18,8 @@ from typing import Any
 from family_refresh import build_family_graph
 from provider_account_onboard import _api_json, _import_verified_games
 from provider_family_evidence import merge_family_evidence
-from provider_license_scan import (
-    DEFAULT_DIAGNOSTIC_OUTPUT,
-    DEFAULT_OUTPUT,
-    load_provider_license_inventory,
-)
+from provider_license_scan import DEFAULT_DIAGNOSTIC_OUTPUT, load_provider_license_inventory
+from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
 from provider_roster import load_provider_credentials
 
 
@@ -59,6 +56,7 @@ def sync_recent_scan(
     if not fresh:
         raise RuntimeError("No recent partial provider scan is available")
 
+    ownership_update = ProviderOwnershipStore().record_scan(fresh)
     fresh_accounts = _rows(fresh)
     credentials = {item.provider_id: item for item in load_provider_credentials()}
     successful = successful_provider_ids(fresh)
@@ -129,13 +127,10 @@ def sync_recent_scan(
             }
         )
 
-    authoritative = (
-        load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True) or {}
-    )
     cumulative = merge_family_evidence(
-        authoritative,
+        {},
         fresh,
-        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+        DEFAULT_STORE.with_name("provider_family_evidence.db"),
         selected={row["provider_id"] for row in providers},
     )
     families = build_family_graph(cumulative)
@@ -149,6 +144,7 @@ def sync_recent_scan(
 
     return {
         "ok": True,
+        "ownership_promoted": ownership_update["promoted"],
         "synced_provider_count": len(providers),
         "providers": providers,
         "family_count": len(families),

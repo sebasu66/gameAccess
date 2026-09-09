@@ -10,13 +10,8 @@ from typing import Any
 import requests
 from pool_sync import build_game_pool, compact_pool, sync_backend
 from provider_family_evidence import merge_family_evidence
-from provider_license_scan import (
-    DEFAULT_OUTPUT,
-    compact_inventory,
-    load_provider_license_inventory,
-    persist_scan_result,
-    scan_provider_licenses,
-)
+from provider_license_scan import compact_inventory, persist_scan_result, scan_provider_licenses
+from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
 from provider_roster import load_provider_credentials
 
 
@@ -105,6 +100,7 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     inventory = scan_provider_licenses(
         provider_ids=None, timeout_seconds=timeout_seconds
     )
+    ownership = ProviderOwnershipStore().record_scan(inventory)
     persistence = persist_scan_result(inventory)
 
     # Per-account sync still updates every successful provider and disables failed
@@ -112,11 +108,10 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     pool = build_game_pool(refresh_licenses=False)
     backend = sync_backend(pool, api)
 
-    baseline = load_provider_license_inventory(DEFAULT_OUTPUT, require_complete=True)
     cumulative = merge_family_evidence(
-        baseline or {},
+        {},
         inventory,
-        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+        DEFAULT_STORE.with_name("provider_family_evidence.db"),
     )
     families = build_family_graph(cumulative)
     family_response = requests.post(
@@ -129,6 +124,7 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     return {
         "ok": bool(inventory.get("successful_scan_count")),
         "inventory": compact_inventory(inventory),
+        "ownership": ownership,
         "persistence": persistence,
         "pool": compact_pool(pool),
         "backend": backend,

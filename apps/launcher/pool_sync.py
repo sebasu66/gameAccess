@@ -15,13 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from provider_inventory import build_provider_catalog
-from provider_license_scan import (
-    DEFAULT_DIAGNOSTIC_OUTPUT,
-    DEFAULT_OUTPUT as LICENSE_OUTPUT,
-    load_provider_license_inventory,
-    persist_scan_result,
-    scan_provider_licenses,
-)
+from provider_license_scan import persist_scan_result, scan_provider_licenses
+from provider_ownership_store import ProviderOwnershipStore
 from steam_pool import _ci_get, _read_vdf, steam_root
 
 
@@ -50,135 +45,39 @@ def _steam_library_folders(root: Path | None) -> list[dict[str, Any]]:
     return sorted(result, key=lambda item: item["index"])
 
 
-def _account_rows(inventory: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    if not inventory:
-        return result
-    for account in inventory.get("accounts", []):
-        if not isinstance(account, dict):
-            continue
-        provider_id = str(account.get("provider_id") or "").strip()
-        if provider_id:
-            result[provider_id] = account
-    return result
-
-
-def _scan_rows(inventory: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    if not inventory:
-        return result
-    for scan in inventory.get("scans", []):
-        if not isinstance(scan, dict):
-            continue
-        provider_id = str(scan.get("provider_id") or "").strip()
-        if provider_id:
-            result[provider_id] = scan
-    return result
-
-
-def _error_rows(inventory: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any]] = {}
-    if not inventory:
-        return result
-    for error in inventory.get("errors", []):
-        if not isinstance(error, dict):
-            continue
-        provider_id = str(error.get("provider_id") or "").strip()
-        if provider_id:
-            result[provider_id] = error
-    return result
-
-
-def _owned_ids(account: dict[str, Any] | None) -> set[int]:
-    if not account:
-        return set()
-    return {
-        int(app_id)
-        for app_id in account.get("owned_app_ids") or []
-        if str(app_id).isdigit() and int(app_id) > 0
-    }
-
-
-def _inventory_time(inventory: dict[str, Any] | None) -> datetime:
-    raw = str((inventory or {}).get("verified_at") or "").strip()
-    if not raw:
-        return datetime.min.replace(tzinfo=timezone.utc)
-    try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-    except ValueError:
-        return datetime.min.replace(tzinfo=timezone.utc)
-
-
 def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    """Return best known per-provider ownership plus latest scan diagnostics.
-
-    A complete authoritative snapshot is the fallback. A newer diagnostic scan
-    can independently verify providers that succeeded while leaving failed
-    providers on the fallback (if one exists) or unverified.
-    """
-    authoritative = load_provider_license_inventory(LICENSE_OUTPUT, require_complete=True)
-    diagnostic = load_provider_license_inventory(DEFAULT_DIAGNOSTIC_OUTPUT)
-
-    state: dict[str, dict[str, Any]] = {}
-    if authoritative:
-        for provider_id, account in _account_rows(authoritative).items():
-            state[provider_id] = {
-                "owned_app_ids": _owned_ids(account),
-                "inventory_complete": True,
-                "ownership_source": authoritative.get("source") or "steamkit-license-list-pics",
-                "ownership_verified_at": authoritative.get("verified_at"),
-                "scan_status": "ok",
-                "scan_error": None,
-            }
-
-    diagnostic_is_newer = bool(
-        diagnostic
-        and (not authoritative or _inventory_time(diagnostic) > _inventory_time(authoritative))
-    )
-    latest = diagnostic if diagnostic_is_newer else authoritative
-    if diagnostic_is_newer and diagnostic:
-        accounts = _account_rows(diagnostic)
-        scans = _scan_rows(diagnostic)
-        errors = _error_rows(diagnostic)
-        for provider_id, scan in scans.items():
-            status = str(scan.get("status") or "unknown")
-            scan_complete = bool(status == "ok" and scan.get("complete"))
-            error = errors.get(provider_id) or {}
-            if scan_complete:
-                state[provider_id] = {
-                    "owned_app_ids": _owned_ids(accounts.get(provider_id)),
-                    "inventory_complete": True,
-                    "ownership_source": diagnostic.get("source") or "steamkit-license-list-pics",
-                    "ownership_verified_at": diagnostic.get("verified_at"),
-                    "scan_status": "ok",
-                    "scan_error": None,
-                }
-            else:
-                previous = state.get(provider_id, {})
-                state[provider_id] = {
-                    "owned_app_ids": set(previous.get("owned_app_ids") or []),
-                    "inventory_complete": bool(previous.get("inventory_complete")),
-                    "ownership_source": previous.get("ownership_source") or "unverified",
-                    "ownership_verified_at": previous.get("ownership_verified_at"),
-                    "scan_status": status,
-                    "scan_error": str(error.get("error") or status)[:500],
-                }
-
-    metadata = {
-        "source": (latest or {}).get("source") or "unverified",
-        "verified_at": (latest or {}).get("verified_at"),
-        "verification_errors": list((latest or {}).get("errors") or []),
-        "latest_inventory_complete": bool(latest and latest.get("complete")),
+    # Read durable per-provider ownership and latest scan health.
+    state = ProviderOwnershipStore().states()
+    verified_at = max(
+        (
+            str(row.get("ownership_verified_at") or "")
+            for row in state.values()
+            if row.get("ownership_verified_at")
+        ),
+        default="",
+    ) or None
+    errors = [
+        {
+            "provider_id": provider_id,
+            "status": row.get("scan_status"),
+            "error": row.get("scan_error") or row.get("scan_status"),
+        }
+        for provider_id, row in state.items()
+        if str(row.get("scan_status") or "") not in {"", "ok", "not_scanned", "unknown"}
+    ]
+    return state, {
+        "source": "per-provider-steamkit-ownership",
+        "verified_at": verified_at,
+        "verification_errors": errors,
+        "latest_inventory_complete": bool(state)
+        and all(bool(row.get("inventory_complete")) for row in state.values()),
     }
-    return state, metadata
 
 
 def build_game_pool(*, refresh_licenses: bool = False) -> dict[str, Any]:
     if refresh_licenses:
         refreshed = scan_provider_licenses(provider_ids=None)
+        ProviderOwnershipStore().record_scan(refreshed)
         persist_scan_result(refreshed)
 
     ownership_state, ownership_meta = _ownership_state_by_provider()

@@ -19,12 +19,8 @@ from typing import Any
 import requests
 from family_refresh import build_family_graph
 from provider_family_evidence import merge_family_evidence
-from provider_license_scan import (
-    DEFAULT_OUTPUT,
-    load_provider_license_inventory,
-    persist_scan_result,
-    scan_provider_licenses,
-)
+from provider_license_scan import persist_scan_result, scan_provider_licenses
+from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
 from provider_roster import (
     ProviderCredential,
     configured_accounts_path,
@@ -176,13 +172,10 @@ def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], lis
 def _merge_family_inventory(
     partial: dict[str, Any], provider_id: str
 ) -> dict[str, Any]:
-    authoritative = load_provider_license_inventory(
-        DEFAULT_OUTPUT, require_complete=True
-    )
     return merge_family_evidence(
-        authoritative or {},
+        {},
         partial,
-        DEFAULT_OUTPUT.with_name("provider_family_evidence.db"),
+        DEFAULT_STORE.with_name("provider_family_evidence.db"),
         selected={provider_id},
     )
 
@@ -207,6 +200,7 @@ def onboard_provider_account(
         provider_ids={credential.provider_id},
         timeout_seconds=timeout_seconds,
     )
+    ownership_update = ProviderOwnershipStore().record_scan(inventory)
     persist_scan_result(inventory)
     scan, account = _selected_scan(inventory, credential.provider_id)
     scan_ok = str(scan.get("status") or "") == "ok" and bool(scan.get("complete"))
@@ -299,6 +293,7 @@ def onboard_provider_account(
         "owned_app_count": len(owned_app_ids),
         "accessible_app_count": len(accessible_app_ids),
         "catalog_game_count": len(game_ids),
+        "ownership_promoted": ownership_update["promoted"],
         "unresolved_app_count": len(unresolved_app_ids),
         "unresolved_app_ids": unresolved_app_ids[:25],
         "account": synced.get("account") if isinstance(synced, dict) else None,
