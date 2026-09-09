@@ -1,5 +1,6 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
-import { buildLocalCatalog, mergeLocalWithBackendCatalog } from "./catalog";
+import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
+import { PersonalCatalog } from "./catalog/PersonalCatalog";
 import { getCatalogMode } from "./catalogMode";
 import { narrate, narrateBatch } from "./narrationLog";
 import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
@@ -11,6 +12,7 @@ const DETAIL_TTL_MS = 10 * 60 * 1000;
 
 let localCatalog: CatalogGame[] = [];
 
+const personalCatalogBuilder = new PersonalCatalog();
 const steamMetadataCache = new Map<number, SteamMetadata>();
 const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ ttlMs: DETAIL_TTL_MS });
 
@@ -20,7 +22,7 @@ function detailCacheKey(gameId: number): string {
 
 async function loadLocalCatalog(): Promise<CatalogGame[]> {
   await narrate(
-    "Scanning local Steam data for remembered personal accounts and locally visible games. Visibility and ownership-candidate lists will be kept separate.",
+    "Scanning remembered personal Steam accounts. Propios accepts only verified owned or verified Family-runnable games; local visibility/cache is diagnostic only.",
     { area: "LOCAL STEAM" },
   );
   const pool = await getLocalSteamPool();
@@ -35,7 +37,7 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
   );
   if (pool.ownership_error) {
     await narrate(
-      `Ownership verification note: ${pool.ownership_error}. The scanner fails closed: unverified accounts can contribute visible games but cannot make them playable.`,
+      `Ownership verification note: ${pool.ownership_error}. Unverified or visibility-only games cannot enter Propios.`,
       { area: "LOCAL STEAM", level: "WARN" },
     );
   }
@@ -44,26 +46,27 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
       const label = account.account_name || account.label || "unnamed Steam account";
       const verified = account.ownership_verified
         ? `VERIFIED ownership from ${account.ownership_source ?? pool.source}: ${account.app_ids.length} owned game(s)`
-        : "ownership NOT verified: 0 playable owned games";
-      return `${label}: ${account.active ? "currently active" : "remembered but not active"}; ${verified}; accessible_app_ids visibility/access entries=${account.accessible_app_ids.length}; local ticket entries=${account.ticketed_app_count ?? 0} (diagnostic only, never a license).`;
+        : "ownership NOT verified";
+      const runnable = account.runnable_verified
+        ? `${account.runnable_app_ids?.length ?? 0} verified runnable game(s)`
+        : "runnable access not verified";
+      return `${label}: ${account.active ? "currently active" : "remembered but not active"}; ${verified}; ${runnable}; visible/cache entries=${account.accessible_app_ids.length}.`;
     }),
     { area: "LOCAL STEAM" },
   );
 
-  localCatalog = buildLocalCatalog(pool);
-  const available = localCatalog.filter((game) => game.copies_available > 0).length;
-  const unavailable = localCatalog.length - available;
+  localCatalog = personalCatalogBuilder.build(pool);
   await narrate(
-    `Finished building the private/local library: ${localCatalog.length} visible game(s), ${available} currently marked playable, ${unavailable} visible but not playable by the current local-license rule.`,
+    `Finished Propios catalog: ${localCatalog.length} game(s), all backed by a verified personal owned or Family-runnable route.`,
     { area: "CATALOG" },
   );
-  if (!localCatalog.length) throw new Error("Steam fue detectado pero el inventario local no devolvió juegos.");
+  if (!localCatalog.length) throw new Error("Steam fue detectado pero no hay juegos con una ruta personal verificada para ejecutar.");
   return localCatalog;
 }
 
 const localDetails = (game: CatalogGame): GameDetails => ({
   ...game,
-  steam: { app_id: game.app_id ?? 0, name: game.name, short_description: "Catálogo local de gameAccess.", background: game.hero_image ?? undefined },
+  steam: { app_id: game.app_id ?? 0, name: game.name, short_description: "Catálogo personal de GameAccess.", background: game.hero_image ?? undefined },
   metadata_state: "local",
 });
 
@@ -125,21 +128,14 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   );
 
   if (mode === "local") {
-    await narrate("Using the private/local Steam library. Games may be visible through Steam access even when no local ownership candidate is available.", { area: "CATALOG" });
-    let games = await loadLocalCatalog();
+    await narrate("Using Propios. This tab never reads or merges GameAccess provider licenses.", { area: "CATALOG" });
+    const games = await loadLocalCatalog();
     let user: UserSummary = { id: 1, username: "local", credits: 0 };
     if (api) {
       try {
-        const [remoteGames, remoteUser] = await Promise.all([
-          request<CatalogGame[]>("/catalog"),
-          request<UserSummary>("/users/1").catch(() => user),
-        ]);
-        games = mergeLocalWithBackendCatalog(games, remoteGames);
-        localCatalog = games;
-        user = remoteUser;
-        await narrate("Availability uses a verified local runnable route first, then a matching backend provider route.", { area: "AVAILABILITY" });
+        user = await request<UserSummary>("/users/1");
       } catch {
-        await narrate("Backend catalog unavailable; keeping local routes only.", { area: "BACKEND", level: "WARN" });
+        await narrate("Backend user profile unavailable; Propios remains fully local.", { area: "BACKEND", level: "WARN" });
       }
     }
     return { games, user, offlineDemo: false };
@@ -160,9 +156,10 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
     return { games: [], user: { id: 1, username: "offline", credits: 0 }, offlineDemo: true };
   }
 
-  await narrate("Requesting the shared GameAccess game catalog and current user profile from the backend.", { area: "BACKEND" });
+  await narrate("Requesting the GameAccess-only catalog and current user profile from the backend.", { area: "BACKEND" });
+  const gameAccessCatalog = new GameAccessCatalog(() => request<CatalogGame[]>("/catalog"));
   const [games, user] = await Promise.all([
-    request<CatalogGame[]>("/catalog"),
+    gameAccessCatalog.load(),
     request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
   ]);
   if (!games.length) throw new Error(`GameAccess backend ${api}/catalog returned an empty catalog.`);
@@ -170,11 +167,11 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   void narrateBatch(
     games.map((game) => {
       const decision = game.copies_available > 0
-        ? `PLAYABLE NOW because the server reports ${game.copies_available} available license copy/copies.`
+        ? `PLAYABLE NOW because GameAccess reports ${game.copies_available} available license copy/copies.`
         : game.copies_total > 0
-          ? `NOT PLAYABLE NOW because all ${game.copies_total} known license copy/copies are currently unavailable.`
-          : "NOT PLAYABLE NOW because the server reports zero license copies for this game.";
-      return `${game.name}${game.app_id ? ` (Steam AppID ${game.app_id})` : ""}. Server license state: copies_total=${game.copies_total}, copies_available=${game.copies_available}, availability_state=${game.availability_state}. Decision: ${decision}`;
+          ? `NOT PLAYABLE NOW because all ${game.copies_total} GameAccess license copy/copies are currently unavailable.`
+          : "NOT PLAYABLE NOW because GameAccess reports zero license copies for this game.";
+      return `${game.name}${game.app_id ? ` (Steam AppID ${game.app_id})` : ""}. GameAccess license state: copies_total=${game.copies_total}, copies_available=${game.copies_available}, availability_state=${game.availability_state}. Decision: ${decision}`;
     }),
     { area: "AVAILABILITY" },
   );
@@ -193,8 +190,6 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
     try {
       return await request<GameDetails>(`/games/${gameId}/details`);
     } catch {
-      // Never fall through to localCatalog outside Local mode. A Steam AppID
-      // may intentionally exist in both catalogs with different license routes.
       throw new Error("No se pudo obtener la ficha del juego");
     }
   });
@@ -207,7 +202,7 @@ export function invalidateDetails(gameId: number): void {
 const localSearch = async (query: string, limit = 20): Promise<SteamSearchResponse> => ({
   query,
   count: localCatalog.length,
-  results: localCatalog.filter((game) => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, limit).map((game) => ({ app_id: game.app_id ?? 0, name: game.name, image_url: game.header_image, catalog_game: game, access_state: game.local_primary_account_label || game.copies_available > 0 ? "available" : game.copies_total > 0 ? "busy" : "not-in-pool", steam_url: game.steam_url ?? undefined })),
+  results: localCatalog.filter((game) => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, limit).map((game) => ({ app_id: game.app_id ?? 0, name: game.name, image_url: game.header_image, catalog_game: game, access_state: "available", steam_url: game.steam_url ?? undefined })),
 });
 
 export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
@@ -257,21 +252,18 @@ export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promis
 
 export const leaseGame = async (gameId: number, minutes = 60) => {
   const mode = getCatalogMode();
-  await narrate(`Play requested for catalog game id ${gameId} while viewing ${mode}. Evaluating which account/license route is allowed.`, { area: "LAUNCH" });
+  await narrate(`Play requested for catalog game id ${gameId} while viewing ${mode}. Evaluating only that tab's license source.`, { area: "LAUNCH" });
 
-  const game = getCatalogMode() === "local"
-    ? localCatalog.find((item) => item.id === gameId)
-    : undefined;
-  let backendGameId = gameId;
-
-  if (game) {
+  if (mode === "local") {
+    const game = localCatalog.find((item) => item.id === gameId);
+    if (!game) throw new Error("El juego no pertenece al catálogo Propios actual.");
     const localLease = await tryLocalLease(game, minutes);
     if (localLease) return localLease;
-    if (!game.backend_game_id) {
-      await narrate(`${game.name}: no local runnable account and no backend route.`, { area: "AVAILABILITY", level: "WARN" });
-      throw new Error("No hay ninguna cuenta local ni remota que pueda ejecutar este juego.");
-    }
-    backendGameId = game.backend_game_id;
+    throw new Error("No hay una cuenta personal verificada que pueda ejecutar este juego.");
+  }
+
+  if (mode !== "gameaccess") {
+    throw new Error("Esta sección no dispone de una ruta de licencia para ejecutar juegos.");
   }
 
   if (!(await getApiBaseUrl())) {
@@ -289,7 +281,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Stale inactive leases may be replaced.`, { area: "BACKEND" });
   const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
-    body: JSON.stringify({ user_id: 1, game_id: backendGameId, minutes, replace_existing: true }),
+    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
   });
   await narrate(
     `Backend lease ${lease.lease_id} assigned account '${lease.account?.label ?? "unknown"}' with session_action='${lease.session_action}'.`,
@@ -318,26 +310,20 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
 };
 
 async function tryLocalLease(game: CatalogGame, minutes: number) {
-    const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
-    if (configured) {
-      try {
-        await narrate(`${game.name}: trying verified local runnable account '${configured}'.`, { area: "ACCOUNT" });
-        await switchSteamAccount(configured);
-        const now = Date.now();
-        return {
-          lease_id: now,
-          game: { id: game.id, name: game.name, app_id: game.app_id },
-          account: { id: 0, label: configured, provider: "steam" },
-          credits_spent: 0,
-          credits_remaining: 0,
-          starts_at: new Date(now).toISOString(),
-          expires_at: new Date(now + minutes * 60_000).toISOString(),
-          session_action: "launch_ready",
-        };
-      } catch (error) {
-        if (!game.backend_game_id) throw error;
-        await narrate(`${game.name}: local route failed; trying the backend route.`, { area: "AVAILABILITY", level: "WARN" });
-      }
-    }
-  return null;
+  const configured = game.local_primary_account_label ?? game.local_account_labels?.[0];
+  if (!configured) return null;
+
+  await narrate(`${game.name}: using verified personal runnable account '${configured}'.`, { area: "ACCOUNT" });
+  await switchSteamAccount(configured);
+  const now = Date.now();
+  return {
+    lease_id: now,
+    game: { id: game.id, name: game.name, app_id: game.app_id },
+    account: { id: 0, label: configured, provider: "steam" },
+    credits_spent: 0,
+    credits_remaining: 0,
+    starts_at: new Date(now).toISOString(),
+    expires_at: new Date(now + minutes * 60_000).toISOString(),
+    session_action: "launch_ready",
+  };
 }
