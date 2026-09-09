@@ -7,7 +7,7 @@ const pool: LocalSteamPool = {
   source: "steam-console-licenses-print-cache",
   verification_complete: true,
   verified_at: "2026-08-30T00:00:00Z",
-  games: [{ app_id: 10, name: "Local Game" }, { app_id: 20, name: "Family Game" }],
+  games: [{ app_id: 10, name: "Local Game" }, { app_id: 20, name: "Visible Only Game" }],
   accounts: [
     { label: "Owner", account_name: "owner", steam_id64: "1", app_ids: [10], accessible_app_ids: [10, 20], ownership_verified: true, ownership_source: "steam-console-licenses-print-cache", active: true },
     { label: "Second", account_name: "second", steam_id64: "2", app_ids: [], accessible_app_ids: [20], ownership_verified: true, ownership_source: "steam-console-licenses-print-cache", active: false },
@@ -15,19 +15,15 @@ const pool: LocalSteamPool = {
 };
 
 describe("buildLocalCatalog", () => {
-  it("creates catalog entries from verified pool games", () => {
+  it("creates catalog entries only from verified owned/runnable pool games", () => {
     const games = buildLocalCatalog(pool);
-    expect(games).toHaveLength(2);
+    expect(games).toHaveLength(1);
     expect(games[0]).toMatchObject({ app_id: 10, name: "Local Game", copies_total: 1, copies_available: 1 });
   });
 
-  it("keeps ownership and Family accessibility separate", () => {
+  it("excludes games that are only visible in Steam localconfig", () => {
     const game = buildLocalCatalog(pool).find((item) => item.app_id === 20);
-    expect(game).toBeDefined();
-    expect(game).toMatchObject({ copies_total: 0, copies_available: 0, availability_state: "unavailable" });
-    expect(game?.local_account_labels).toEqual([]);
-    expect(game?.local_access_labels).toEqual(["owner", "second"]);
-    expect(game?.local_primary_account_label).toBeUndefined();
+    expect(game).toBeUndefined();
   });
 
   it("counts duplicate verified owners as copies but never Family access", () => {
@@ -65,12 +61,7 @@ describe("buildLocalCatalog", () => {
         },
       ],
     };
-    const game = buildLocalCatalog(cyberpunkPool)[0];
-    expect(game.copies_total).toBe(0);
-    expect(game.copies_available).toBe(0);
-    expect(game.availability_state).toBe("unavailable");
-    expect(game.local_account_labels).toEqual([]);
-    expect(game.local_primary_account_label).toBeUndefined();
+    expect(buildLocalCatalog(cyberpunkPool)).toEqual([]);
   });
 
   it("uses a verified Family runnable seat without requiring original ownership", () => {
@@ -114,16 +105,15 @@ describe("mergeCatalog", () => {
 
   it("retains local-only and remote-only games", () => {
     const remote: CatalogGame[] = [{ id: 99, slug: "remote-only", name: "Remote Only", app_id: 30, credit_cost_per_hour: 50, copies_total: 1, copies_available: 1 }];
-    expect(mergeCatalog(remote, buildLocalCatalog(pool)).map((item) => item.app_id).sort()).toEqual([10, 20, 30]);
+    expect(mergeCatalog(remote, buildLocalCatalog(pool)).map((item) => item.app_id).sort()).toEqual([10, 30]);
   });
 });
 
 
-
 describe("mergeLocalWithBackendCatalog", () => {
-  it("uses backend availability when local has no runnable route", () => {
-    const remote: CatalogGame[] = [{ id: 77, slug: "remote", name: "Family Game", app_id: 20, credit_cost_per_hour: 1, copies_total: 2, copies_available: 1, availability_state: "ready" }];
-    const game = mergeLocalWithBackendCatalog(buildLocalCatalog(pool), remote).find((item) => item.app_id === 20);
-    expect(game).toMatchObject({ id: 77, backend_game_id: 77, copies_available: 1, availability_state: "ready" });
+  it("never resurrects a visibility-only game from the GameAccess backend", () => {
+    const remote: CatalogGame[] = [{ id: 77, slug: "remote", name: "Cyberpunk 2077", app_id: 20, credit_cost_per_hour: 1, copies_total: 2, copies_available: 1, availability_state: "ready" }];
+    const merged = mergeLocalWithBackendCatalog(buildLocalCatalog(pool), remote);
+    expect(merged.find((item) => item.app_id === 20)).toBeUndefined();
   });
 });
