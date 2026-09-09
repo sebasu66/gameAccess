@@ -15,7 +15,9 @@ def test_same_provider_parallel_workers_reserve_distinct_login_ids(
         "LOGIN_ID_ROOT",
         tmp_path / "loginids",
     )
-    barrier = threading.Barrier(2)
+    # Two worker threads plus the test thread rendezvous only after both
+    # reservations are live at the same time.
+    barrier = threading.Barrier(3)
     release = threading.Event()
     allocated: list[int] = []
     errors: list[BaseException] = []
