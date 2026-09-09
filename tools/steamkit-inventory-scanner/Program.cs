@@ -23,6 +23,19 @@ internal sealed class NonInteractiveAuthenticator : IAuthenticator
 }
 
 internal sealed record InventoryContext(uint appid, ulong contextid, string label);
+internal sealed record InventoryItemResult(
+    uint appid,
+    ulong contextid,
+    ulong assetid,
+    ulong classid,
+    ulong instanceid,
+    uint amount,
+    string name,
+    string market_hash_name,
+    bool marketable,
+    bool tradable,
+    string type
+);
 
 internal static class Program
 {
@@ -43,6 +56,11 @@ internal static class Program
         }
 
         var contexts = ParseContexts(Environment.GetEnvironmentVariable("GA_INVENTORY_CONTEXTS"));
+        var includeItems = string.Equals(
+            Environment.GetEnvironmentVariable("GA_INVENTORY_INCLUDE_ITEMS"),
+            "1",
+            StringComparison.Ordinal
+        );
         var timeoutSeconds = 90;
         if (int.TryParse(Environment.GetEnvironmentVariable("GA_STEAM_TIMEOUT_SECONDS"), out var configuredTimeout))
         {
@@ -144,31 +162,90 @@ internal static class Program
                 operationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    var response = await econ.GetInventoryItemsWithDescriptions(
-                        new CEcon_GetInventoryItemsWithDescriptions_Request
-                        {
-                            appid = context.appid,
-                            contextid = context.contextid,
-                            steamid = steamId64,
-                            count = 5000,
-                            get_descriptions = true,
-                            get_asset_properties = false,
-                            language = "english",
-                        }
-                    );
+                    var items = new List<InventoryItemResult>();
+                    var descriptionKeys = new HashSet<(ulong classid, ulong instanceid)>();
+                    uint totalInventoryCount = 0;
+                    ulong startAssetId = 0;
+                    ulong previousStartAssetId = ulong.MaxValue;
+                    var pageCount = 0;
+                    var lastResult = EResult.OK;
+                    bool moreItems;
 
-                    var body = response.Body;
-                    var sample = body.descriptions
-                        .Take(25)
-                        .Select(description => new
+                    do
+                    {
+                        operationToken.ThrowIfCancellationRequested();
+                        var response = await econ.GetInventoryItemsWithDescriptions(
+                            new CEcon_GetInventoryItemsWithDescriptions_Request
+                            {
+                                appid = context.appid,
+                                contextid = context.contextid,
+                                steamid = steamId64,
+                                count = 5000,
+                                start_assetid = startAssetId,
+                                get_descriptions = true,
+                                get_asset_properties = false,
+                                language = "english",
+                            }
+                        );
+
+                        lastResult = response.Result;
+                        var body = response.Body;
+                        totalInventoryCount = body.total_inventory_count;
+                        pageCount += 1;
+
+                        var descriptions = new Dictionary<(ulong classid, ulong instanceid), object>();
+                        foreach (var description in body.descriptions)
                         {
-                            name = Property(description, "name"),
-                            market_hash_name = Property(description, "market_hash_name"),
-                            marketable = Property(description, "marketable"),
-                            tradable = Property(description, "tradable"),
-                            type = Property(description, "type"),
-                            classid = Property(description, "classid"),
-                            instanceid = Property(description, "instanceid"),
+                            var classid = UInt64Property(description, "classid");
+                            var instanceid = UInt64Property(description, "instanceid");
+                            descriptions[(classid, instanceid)] = description;
+                            descriptionKeys.Add((classid, instanceid));
+                        }
+
+                        foreach (var asset in body.assets)
+                        {
+                            var classid = UInt64Property(asset, "classid");
+                            var instanceid = UInt64Property(asset, "instanceid");
+                            descriptions.TryGetValue((classid, instanceid), out var description);
+                            items.Add(new InventoryItemResult(
+                                appid: context.appid,
+                                contextid: context.contextid,
+                                assetid: UInt64Property(asset, "assetid"),
+                                classid: classid,
+                                instanceid: instanceid,
+                                amount: Math.Max(1, UInt32Property(asset, "amount")),
+                                name: StringProperty(description, "name"),
+                                market_hash_name: StringProperty(description, "market_hash_name"),
+                                marketable: BoolProperty(description, "marketable"),
+                                tradable: BoolProperty(description, "tradable"),
+                                type: StringProperty(description, "type")
+                            ));
+                        }
+
+                        moreItems = body.more_items;
+                        if (moreItems)
+                        {
+                            previousStartAssetId = startAssetId;
+                            startAssetId = body.last_assetid;
+                            if (startAssetId == 0 || startAssetId == previousStartAssetId)
+                            {
+                                throw new InvalidOperationException("Steam inventory pagination stalled");
+                            }
+                        }
+                    }
+                    while (moreItems);
+
+                    var sample = items
+                        .Take(25)
+                        .Select(item => new
+                        {
+                            item.name,
+                            item.market_hash_name,
+                            item.marketable,
+                            item.tradable,
+                            item.type,
+                            item.classid,
+                            item.instanceid,
                         })
                         .ToArray();
 
@@ -177,13 +254,15 @@ internal static class Program
                         appid = context.appid,
                         contextid = context.contextid,
                         label = context.label,
-                        result = response.Result.ToString(),
-                        total_inventory_count = body.total_inventory_count,
-                        asset_count = body.assets.Count,
-                        description_count = body.descriptions.Count,
-                        more_items = body.more_items,
-                        last_assetid = body.last_assetid,
+                        result = lastResult.ToString(),
+                        total_inventory_count = totalInventoryCount,
+                        asset_count = items.Count,
+                        description_count = descriptionKeys.Count,
+                        page_count = pageCount,
+                        more_items = false,
+                        last_assetid = 0,
                         sample,
+                        items = includeItems ? items : null,
                     });
                 }
                 catch (Exception error) when (!operationToken.IsCancellationRequested)
@@ -254,8 +333,33 @@ internal static class Program
         return result.Count > 0 ? result : throw new InvalidOperationException("GA_INVENTORY_CONTEXTS did not contain any valid contexts");
     }
 
-    private static object? Property(object value, string name) =>
-        value.GetType().GetProperty(name)?.GetValue(value);
+    private static object? Property(object? value, string name) =>
+        value?.GetType().GetProperty(name)?.GetValue(value);
+
+    private static string StringProperty(object? value, string name) =>
+        Convert.ToString(Property(value, name))?.Trim() ?? "";
+
+    private static ulong UInt64Property(object? value, string name)
+    {
+        try { return Convert.ToUInt64(Property(value, name) ?? 0UL); }
+        catch { return 0UL; }
+    }
+
+    private static uint UInt32Property(object? value, string name)
+    {
+        try { return Convert.ToUInt32(Property(value, name) ?? 0U); }
+        catch { return 0U; }
+    }
+
+    private static bool BoolProperty(object? value, string name)
+    {
+        var raw = Property(value, name);
+        if (raw is bool flag) return flag;
+        if (raw is null) return false;
+        if (bool.TryParse(Convert.ToString(raw), out var parsed)) return parsed;
+        try { return Convert.ToInt64(raw) != 0; }
+        catch { return false; }
+    }
 
     private static TaskCompletionSource<T> NewTcs<T>() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
