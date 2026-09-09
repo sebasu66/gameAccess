@@ -104,7 +104,13 @@ def login_id(provider_id: str) -> int:
     return 0x4741F000 + max(1, min(slot, 0xFFF))
 
 
-def scan(account: str, *, contexts: str | None = None, stop_steam: bool = True) -> dict:
+def scan(
+    account: str,
+    *,
+    contexts: str | None = None,
+    stop_steam: bool = True,
+    include_items: bool = False,
+) -> dict:
     credential = find_credential(account)
     ensure_scanner_built()
     if stop_steam:
@@ -115,6 +121,7 @@ def scan(account: str, *, contexts: str | None = None, stop_steam: bool = True) 
     env["GA_STEAM_PASS"] = credential.password
     env["GA_STEAM_LOGIN_ID"] = str(login_id(credential.provider_id))
     env["GA_STEAM_TIMEOUT_SECONDS"] = "90"
+    env["GA_INVENTORY_INCLUDE_ITEMS"] = "1" if include_items else "0"
     if contexts:
         env["GA_INVENTORY_CONTEXTS"] = contexts
 
@@ -142,14 +149,31 @@ def scan(account: str, *, contexts: str | None = None, stop_steam: bool = True) 
     return payload
 
 
+def inventory_items(payload: dict) -> list[dict]:
+    result: list[dict] = []
+    for context in payload.get("contexts") or []:
+        if not isinstance(context, dict):
+            continue
+        for item in context.get("items") or []:
+            if isinstance(item, dict):
+                result.append(item)
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Authenticated read-only Steam inventory probe for one GameAccess provider account")
     parser.add_argument("account", help="provider ID, label, or Steam login")
     parser.add_argument("--contexts", help="Comma-separated APPID:CONTEXTID[:LABEL] entries")
+    parser.add_argument("--include-items", action="store_true", help="Include every paginated inventory asset in the JSON output")
     parser.add_argument("--keep-steam-open", action="store_true", help="Do not close steam.exe before authentication")
     args = parser.parse_args()
 
-    payload = scan(args.account, contexts=args.contexts, stop_steam=not args.keep_steam_open)
+    payload = scan(
+        args.account,
+        contexts=args.contexts,
+        stop_steam=not args.keep_steam_open,
+        include_items=args.include_items,
+    )
     print(json.dumps(payload, ensure_ascii=False))
     return 0 if payload.get("status") == "ok" else int(payload.get("exit_code") or 1)
 
