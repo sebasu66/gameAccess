@@ -6,8 +6,15 @@ import provider_download_manager
 import provider_download_probe
 
 
-def test_same_provider_parallel_workers_reserve_distinct_login_ids(monkeypatch, tmp_path):
-    monkeypatch.setattr(provider_download_probe, "LOGIN_ID_ROOT", tmp_path / "loginids")
+def test_same_provider_parallel_workers_reserve_distinct_login_ids(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        provider_download_probe,
+        "LOGIN_ID_ROOT",
+        tmp_path / "loginids",
+    )
     barrier = threading.Barrier(2)
     release = threading.Event()
     allocated: list[int] = []
@@ -15,7 +22,10 @@ def test_same_provider_parallel_workers_reserve_distinct_login_ids(monkeypatch, 
 
     def worker(app_id: int) -> None:
         try:
-            with provider_download_probe.reserve_download_login_id("provider-007", app_id) as login_id:
+            with provider_download_probe.reserve_download_login_id(
+                "provider-007",
+                app_id,
+            ) as login_id:
                 allocated.append(login_id)
                 barrier.wait(timeout=3)
                 release.wait(timeout=3)
@@ -31,7 +41,10 @@ def test_same_provider_parallel_workers_reserve_distinct_login_ids(monkeypatch, 
         assert not errors
         assert len(allocated) == 2
         assert allocated[0] != allocated[1]
-        assert all(value > provider_download_probe.DOWNLOAD_LOGIN_ID_BASE for value in allocated)
+        assert all(
+            value > provider_download_probe.DOWNLOAD_LOGIN_ID_BASE
+            for value in allocated
+        )
     finally:
         release.set()
         first.join(timeout=3)

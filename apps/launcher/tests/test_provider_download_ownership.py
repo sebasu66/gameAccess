@@ -66,8 +66,14 @@ def test_provider_candidates_use_shared_verified_ownership(monkeypatch):
     ]
 
 
-def test_provider_candidates_request_metadata_for_hidden_verified_game(monkeypatch):
-    monkeypatch.setattr(provider_download_probe, "verified_owned_ids", lambda _: {222, 444})
+def test_provider_candidates_request_metadata_for_hidden_verified_game(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        provider_download_probe,
+        "verified_owned_ids",
+        lambda _: {222, 444},
+    )
     requested: dict[str, object] = {}
 
     def build_provider_catalog(**kwargs):
@@ -79,7 +85,11 @@ def test_provider_candidates_request_metadata_for_hidden_verified_game(monkeypat
             ]
         }
 
-    monkeypatch.setattr(provider_download_probe, "build_provider_catalog", build_provider_catalog)
+    monkeypatch.setattr(
+        provider_download_probe,
+        "build_provider_catalog",
+        build_provider_catalog,
+    )
 
     candidates = provider_download_probe.provider_candidates("provider-002")
     assert requested["additional_candidate_ids"] == {222, 444}
@@ -105,15 +115,31 @@ def test_download_manager_selects_provider_reported_by_shared_state(monkeypatch)
     assert provider_download_manager.verified_provider_for_app(222) == "provider-002"
 
 
-def test_download_validation_reuses_existing_verified_owner_before_scanning(monkeypatch):
+def test_download_validation_reuses_existing_verified_owner_before_scanning(
+    monkeypatch,
+):
+    def verified_provider(app_id: int) -> str:
+        if app_id == 999:
+            return "provider-009"
+        raise RuntimeError
+
     monkeypatch.setattr(
         provider_download_manager,
         "verified_provider_for_app",
-        lambda app_id: "provider-009" if app_id == 999 else (_ for _ in ()).throw(RuntimeError()),
+        verified_provider,
     )
 
     def fail_scan(*args, **kwargs):
-        raise AssertionError("license scan should not run when verified ownership already exists")
+        raise AssertionError(
+            "license scan should not run when verified ownership already exists"
+        )
 
-    monkeypatch.setattr(provider_download_manager, "scan_provider_licenses", fail_scan)
-    assert provider_download_manager.refresh_original_owner_for_app(999) == "provider-009"
+    monkeypatch.setattr(
+        provider_download_manager,
+        "scan_provider_licenses",
+        fail_scan,
+    )
+    assert (
+        provider_download_manager.refresh_original_owner_for_app(999)
+        == "provider-009"
+    )

@@ -12,7 +12,10 @@ describe("UI thread isolation contract", () => {
     expect(providerDownloadSource).toContain("pub async fn provider_download_estimate");
     expect(providerDownloadSource).toContain("spawn_blocking(move || provider_download_estimate_blocking(app_id))");
     expect(providerDownloadSource).toContain("pub async fn start_provider_download");
-    expect(providerDownloadSource).toContain("spawn_blocking(move || start_provider_download_blocking(app_id, job_id))");
+    expect(providerDownloadSource).toContain("spawn_blocking(move || {");
+    expect(providerDownloadSource).toContain(
+      "start_provider_download_blocking(app_id, job_id, library_index)",
+    );
   });
 
   it("keeps selected-game detail loading asynchronous and cancellable", () => {
