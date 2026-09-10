@@ -170,6 +170,20 @@ For Windows, a future provider/session helper may run as a separate Windows Serv
 
 However, on a customer-owned PC with administrator access, no local secret can be guaranteed permanently unextractable. Design around revocation, limited leases, monitoring, replacement cost, and minimal stored secrets rather than pretending local encryption makes the client trustworthy.
 
+## Local game storage / Freeze
+
+GameAccess owns a local-only **Frozen** storage state that Steam does not need to understand. This state belongs in the Windows/Tauri native layer, not in the central backend. The desktop discovers it from disk each time it loads the user's local library.
+
+Implementation rules:
+
+- **Uninstall remains Steam-owned.** GameAccess requests `steam://uninstall/<appid>` and observes Steam's resulting install state; it does not manually delete Steam game files or fabricate/remove manifests as an uninstall substitute.
+- **Freeze is GameAccess-owned.** For a complete Steam installation, GameAccess briefly stops Steam, atomically moves both `steamapps/common/<installdir>` and `steamapps/appmanifest_<appid>.acf` outside `steamapps`, then restarts Steam before the longer compression work. Steam therefore sees a coherent not-installed state instead of a damaged partial installation.
+- Frozen data lives on the **same Steam Library volume** under `<library>/.gameaccess/frozen/<appid>/`, allowing the initial/final moves to remain same-volume renames. The payload is stored as `game.tar.zst`, alongside the original appmanifest and a versioned `freeze.json`.
+- Zstandard is used for fast restore. The archive receives a SHA-256 digest and thaw verifies that digest before restoring files. GameAccess refuses to overwrite an already-existing Steam game directory or appmanifest.
+- Freeze/thaw refuses to alter storage while a Steam game is running. Failed compression attempts attempt a transactional rollback to the original Steam installation. If cleanup metadata survives after a successful restore, a real Steam installation remains authoritative so stale GameAccess metadata cannot hide a playable game.
+- The UI treats `frozen` as playable storage: a blue Frozen badge replaces the green Ready badge, and pressing **Play** first thaws the game to its original Steam Library and then continues through the normal Steam launch/account/session path. `freezing` and `thawing` are transitional non-playable states.
+- Do not create central per-user frozen-game inventory. The customer endpoint is authoritative for this local disk state and reports/discovers it locally as needed.
+
 ## Save/profile portability
 
 Do not rely on Steam Cloud as the sole customer-save model when rotating provider accounts. gameAccess should own the customer-level save abstraction.

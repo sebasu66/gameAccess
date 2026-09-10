@@ -1,11 +1,12 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2, XCircle } from "lucide-react";
+import { Gamepad2, Loader2, Play, Snowflake } from "lucide-react";
 
-import { downloadProgress, isTrackedDownload } from "./downloadManager";
-import { playAvailability } from "./gameAvailability";
+import { downloadManager } from "./downloadManager";
+import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
+import GameStorageContextMenu from "./GameStorageContextMenu";
+import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import { libraryArtworkCandidates } from "./libraryArtwork";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { DownloadMap } from "./LibraryRoomParts";
@@ -19,11 +20,11 @@ function SteamCover({ game }: { game: CatalogGame }) {
   return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
 }
 
-function ReadyBadge({ licensed }: { licensed: boolean }) {
-  if (!licensed) {
-    return <span className="library-install-state no-license" title="Instalado · sin licencia disponible"><XCircle size={13} /></span>;
+function StorageBadge({ frozen }: { frozen: boolean }) {
+  if (frozen) {
+    return <span className="library-install-state frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
   }
-  return <span className="library-install-state ready" title="Listo para jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
 }
 
 function statusLabel(status: ManagedDownloadStatus | undefined, progress: number) {
@@ -45,12 +46,7 @@ function cardClass(selected: boolean, active: boolean, pinned: boolean) {
   ].filter(Boolean).join(" ");
 }
 
-type ContextMenuRequest = {
-  game: CatalogGame;
-  x: number;
-  y: number;
-  installed: boolean;
-};
+type ContextMenuRequest = GameStorageContextMenuRequest;
 
 interface DownloadGameCardProps {
   game: CatalogGame;
@@ -63,18 +59,23 @@ interface DownloadGameCardProps {
 }
 
 function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onContextMenu }: DownloadGameCardProps) {
-  const active = isTrackedDownload(status);
-  const ready = Boolean(status?.installed || status?.state === "installed" || status?.state === "prepared");
-  const licensed = ready || playAvailability(game).licensed;
-  const progress = downloadProgress(status);
+  const state = gameStateManager.resolve(status);
+  const active = state.transferActive;
+  const progress = downloadManager.progress(status);
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
-  const accessibilityState = active ? ` · descarga ${label}` : ready ? " · instalado" : "";
+  const accessibilityState = active
+    ? ` · descarga ${label}`
+    : state.frozen
+      ? " · juego congelado"
+      : state.playButtonReady
+        ? " · listo para Jugar"
+        : "";
 
   const showContextMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     onSelect(index);
-    onContextMenu({ game, x: event.clientX, y: event.clientY, installed: ready });
+    onContextMenu({ game, x: event.clientX, y: event.clientY, status });
   };
 
   return (
@@ -84,7 +85,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
         className={cardClass(selected, active, pinned)}
         style={style}
         data-library-game-id={game.id}
-        data-install-folder-available={ready ? "true" : "false"}
+        data-install-folder-available={state.canOpenInstallFolder ? "true" : "false"}
         onClick={() => onSelect(index)}
         onContextMenu={showContextMenu}
         aria-current={selected ? "true" : undefined}
@@ -94,7 +95,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
         <span className="library-room-card-art">
           <span className="library-room-card-cover-base"><SteamCover game={game} /></span>
           {active ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
-          {ready ? <ReadyBadge licensed={licensed} /> : null}
+          {state.playButtonReady ? <StorageBadge frozen={state.frozen} /> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
         </span>
       </button>
@@ -114,33 +115,6 @@ interface DownloadCatalogPanelProps {
 }
 
 type OpenContextMenu = ContextMenuRequest | null;
-
-const contextMenuStyle = (x: number, y: number): CSSProperties => ({
-  position: "fixed",
-  left: Math.min(x, Math.max(8, window.innerWidth - 250)),
-  top: Math.min(y, Math.max(8, window.innerHeight - 150)),
-  zIndex: 10000,
-  minWidth: 230,
-  padding: 6,
-  borderRadius: 8,
-  border: "1px solid rgba(255,255,255,.15)",
-  background: "rgba(16,18,24,.98)",
-  boxShadow: "0 14px 40px rgba(0,0,0,.45)",
-});
-
-const contextItemStyle: CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: 9,
-  padding: "9px 10px",
-  border: 0,
-  borderRadius: 6,
-  background: "transparent",
-  color: "inherit",
-  textAlign: "left",
-  font: "inherit",
-};
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
@@ -186,17 +160,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     };
   }, [contextMenu]);
 
-  const openInstallFolder = async () => {
-    const request = contextMenu;
-    setContextMenu(null);
-    if (!request?.installed || !request.game.app_id) return;
-    try {
-      await invoke<string>("open_game_install_folder", { appId: request.game.app_id });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      window.alert(`No pudimos abrir la carpeta de instalación.\n\n${message}`);
-    }
-  };
 
   return (
     <section className="library-room-catalog">
@@ -215,30 +178,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
           />
         ))}
       </div>
-      {contextMenu ? (
-        <div
-          role="menu"
-          aria-label={`Opciones de ${contextMenu.game.name}`}
-          style={contextMenuStyle(contextMenu.x, contextMenu.y)}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            style={{ ...contextItemStyle, opacity: contextMenu.installed ? 1 : 0.5 }}
-            disabled={!contextMenu.installed || !contextMenu.game.app_id}
-            onClick={() => void openInstallFolder()}
-          >
-            <FolderOpen size={16} /> Abrir carpeta de instalación
-          </button>
-          <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: 0.42 }} disabled>
-            <Trash2 size={16} /> Desinstalar · próximamente
-          </button>
-          <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: 0.42 }} disabled>
-            <Archive size={16} /> Comprimir · próximamente
-          </button>
-        </div>
-      ) : null}
+      {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} /> : null}
     </section>
   );
 }

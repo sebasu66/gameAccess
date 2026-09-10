@@ -8,6 +8,7 @@ leases and UI behavior live elsewhere.
 The public module-level functions remain as compatibility adapters for the
 existing Tauri bridge and tests.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,7 +88,9 @@ def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         "prepared_target",
         "library_index",
     )
-    if not previous or any(previous.get(key) != body.get(key) for key in transition_keys):
+    if not previous or any(
+        previous.get(key) != body.get(key) for key in transition_keys
+    ):
         _append_status_log(body)
     return body
 
@@ -172,12 +175,15 @@ def verified_provider_for_app(app_id: int) -> str:
     owners = verified_provider_ids_for_app(app_id)
     if not owners:
         raise RuntimeError(
-            f"GameAccess no encontró una licencia SteamKit verificada para AppID {app_id}."
+            "GameAccess no encontró una licencia SteamKit verificada para "
+            f"AppID {app_id}."
         )
     errors: list[str] = []
     for provider_id in owners:
         try:
-            if any(item["app_id"] == app_id for item in provider_candidates(provider_id)):
+            if any(
+                item["app_id"] == app_id for item in provider_candidates(provider_id)
+            ):
                 return provider_id
         except Exception as exc:
             errors.append(f"{provider_id}: {exc}")
@@ -198,7 +204,8 @@ def refresh_original_owner_for_app(app_id: int) -> str:
     candidates = _cached_access_provider_ids(app_id)
     if not candidates:
         raise RuntimeError(
-            f"GameAccess no encontró ninguna cuenta proveedora con AppID {app_id} en el catálogo local."
+            "GameAccess no encontró ninguna cuenta proveedora con "
+            f"AppID {app_id} en el catálogo local."
         )
     errors: list[str] = []
     for candidate in candidates:
@@ -210,7 +217,9 @@ def refresh_original_owner_for_app(app_id: int) -> str:
                 continue
             for owner in owners:
                 owner_scan = (
-                    scan if owner == candidate else scan_provider_licenses(provider_ids={owner})
+                    scan
+                    if owner == candidate
+                    else scan_provider_licenses(provider_ids={owner})
                 )
                 confirmed = _scan_owned_provider_ids(owner_scan, app_id)
                 if owner not in confirmed:
@@ -222,8 +231,8 @@ def refresh_original_owner_for_app(app_id: int) -> str:
             errors.append(f"{candidate}: {exc}")
     detail = "; ".join(errors[:4])
     raise RuntimeError(
-        f"GameAccess no pudo verificar la cuenta propietaria original de AppID {app_id}."
-        + (f" ({detail})" if detail else "")
+        "GameAccess no pudo verificar la cuenta propietaria original de "
+        f"AppID {app_id}." + (f" ({detail})" if detail else "")
     )
 
 
@@ -243,7 +252,8 @@ def _prepared_library(
         )
         if selected is None:
             raise RuntimeError(
-                f"La biblioteca Steam seleccionada ya no existe (índice {requested_library_index})."
+                "La biblioteca Steam seleccionada ya no existe "
+                f"(índice {requested_library_index})."
             )
         if selected.get("manifest_exists"):
             raise RuntimeError(
@@ -260,10 +270,7 @@ def _prepared_library(
         item
         for item in libraries
         if not item.get("manifest_exists")
-        and (
-            item.get("free_bytes") is None
-            or int(item["free_bytes"]) >= source_bytes
-        )
+        and (item.get("free_bytes") is None or int(item["free_bytes"]) >= source_bytes)
     ]
     return (
         min(candidates, key=lambda item: int(item.get("index") or 0))
@@ -281,7 +288,9 @@ def estimate_download(app_id: int, provider_id: str) -> dict[str, Any]:
         timeout_seconds=10 * 60,
     )
     if not result.get("ok"):
-        detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[-1000:]
+        detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
+            -1000:
+        ]
         raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
     total = int(result.get("total_bytes") or 0)
     return {
@@ -294,7 +303,7 @@ def estimate_download(app_id: int, provider_id: str) -> dict[str, Any]:
 
 
 class SteamDownloadManager:
-    """Single-purpose orchestration boundary for one GameAccess download job."""
+    """Single-purpose orchestration boundary for GameAccess download jobs."""
 
     def validate(self, app_id: int) -> dict[str, Any]:
         provider_id = refresh_original_owner_for_app(app_id)
@@ -302,6 +311,294 @@ class SteamDownloadManager:
 
     def estimate(self, app_id: int, provider_id: str) -> dict[str, Any]:
         return estimate_download(app_id, provider_id)
+
+    def _write_preparing(
+        self,
+        app_id: int,
+        provider_id: str | None,
+        job_id: str,
+        worker_pid: int,
+        library_index: int | None,
+        total: int | None = None,
+    ) -> dict[str, Any]:
+        return write_status(
+            app_id,
+            {
+                "state": "preparing",
+                "progress": 0.0,
+                "bytes_downloaded": 0,
+                "bytes_total": total or None,
+                "speed_bps": None,
+                "eta_seconds": None,
+                "installed": False,
+                "provider_id": provider_id,
+                "library_index": library_index,
+                "job_id": job_id,
+                "worker_pid": worker_pid,
+            },
+        )
+
+    def _resolve_provider(
+        self,
+        app_id: int,
+        provider_id: str | None,
+        job_id: str,
+        worker_pid: int,
+        library_index: int | None,
+    ) -> str:
+        if provider_id:
+            return provider_id
+        resolved = refresh_original_owner_for_app(app_id)
+        self._write_preparing(
+            app_id,
+            resolved,
+            job_id,
+            worker_pid,
+            library_index,
+        )
+        return resolved
+
+    def _estimate_plan(
+        self,
+        app_id: int,
+        provider_id: str,
+        job_id: str,
+        worker_pid: int,
+        library_index: int | None,
+    ) -> tuple[int, dict[str, int]]:
+        estimate = self.estimate(app_id, provider_id)
+        depot_totals = {
+            str(key): int(value)
+            for key, value in (estimate.get("depot_totals") or {}).items()
+            if str(value).isdigit() and int(value) > 0
+        }
+        total = int(estimate.get("bytes_total") or 0)
+        self._write_preparing(
+            app_id,
+            provider_id,
+            job_id,
+            worker_pid,
+            library_index,
+            total,
+        )
+        return total, depot_totals
+
+    @staticmethod
+    def _progress_totals(
+        pct: float,
+        total: int,
+        depot_totals: dict[str, int],
+        depot_progress: dict[str, float],
+    ) -> tuple[int, float]:
+        if total <= 0 or not depot_totals:
+            return 0, pct
+        downloaded = int(
+            sum(
+                depot_totals[key] * depot_progress.get(key, 0.0) / 100.0
+                for key in depot_totals
+            )
+        )
+        return downloaded, downloaded / total * 100.0
+
+    def _progress_callback(
+        self,
+        app_id: int,
+        provider_id: str,
+        job_id: str,
+        worker_pid: int,
+        library_index: int | None,
+        total: int,
+        depot_totals: dict[str, int],
+    ):
+        progress_state: dict[str, Any] = {
+            "current_depot": None,
+            "last_write": 0.0,
+            "started_at": time.monotonic(),
+            "depot_progress": {key: 0.0 for key in depot_totals},
+        }
+
+        def on_output(line: str) -> None:
+            if cancellation_requested(app_id, job_id):
+                return
+            depot = re.search(r"Downloading depot\s+(\d+)", line)
+            if depot:
+                progress_state["current_depot"] = depot.group(1)
+                return
+            match = re.match(r"\s*(\d+(?:\.\d+)?)%\s+", line)
+            if not match:
+                return
+
+            pct = max(0.0, min(100.0, float(match.group(1))))
+            current_depot = progress_state["current_depot"]
+            depot_progress = progress_state["depot_progress"]
+            if current_depot and current_depot in depot_progress:
+                depot_progress[current_depot] = max(
+                    depot_progress[current_depot],
+                    pct,
+                )
+            downloaded, overall = self._progress_totals(
+                pct,
+                total,
+                depot_totals,
+                depot_progress,
+            )
+            elapsed = max(
+                0.001,
+                time.monotonic() - progress_state["started_at"],
+            )
+            speed = downloaded / elapsed if downloaded > 0 else None
+            eta = (total - downloaded) / speed if speed and total > downloaded else None
+            now = time.monotonic()
+            if now - progress_state["last_write"] < 0.35 and overall < 100:
+                return
+            progress_state["last_write"] = now
+            write_status(
+                app_id,
+                {
+                    "state": "downloading",
+                    "progress": overall,
+                    "bytes_downloaded": downloaded or None,
+                    "bytes_total": total or None,
+                    "speed_bps": int(speed) if speed else None,
+                    "eta_seconds": int(eta) if eta else None,
+                    "installed": False,
+                    "provider_id": provider_id,
+                    "library_index": library_index,
+                    "job_id": job_id,
+                    "worker_pid": worker_pid,
+                },
+            )
+
+        return on_output
+
+    def _transfer(
+        self,
+        app_id: int,
+        provider_id: str,
+        job_id: str,
+        worker_pid: int,
+        library_index: int | None,
+        total: int,
+        depot_totals: dict[str, int],
+    ) -> dict[str, Any]:
+        result = run_probe(
+            provider_id,
+            app_id,
+            manifest_only=False,
+            download=True,
+            timeout_seconds=6 * 60 * 60,
+            progress_callback=self._progress_callback(
+                app_id,
+                provider_id,
+                job_id,
+                worker_pid,
+                library_index,
+                total,
+                depot_totals,
+            ),
+        )
+        if not result.get("ok"):
+            detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
+                -1000:
+            ]
+            raise RuntimeError(
+                detail or "DepotDownloader no pudo completar la descarga"
+            )
+        return result
+
+    def _prepare_target(
+        self,
+        app_id: int,
+        provider_id: str,
+        job_id: str,
+        state: dict[str, Any],
+        library_index: int | None,
+    ) -> tuple[str, int]:
+        existing = next(
+            (
+                item
+                for item in state.get("libraries", [])
+                if item.get("manifest_exists")
+            ),
+            None,
+        )
+        if existing:
+            return (
+                str(existing.get("target") or ""),
+                int(existing.get("index") or 0),
+            )
+        if cancellation_requested(app_id, job_id):
+            raise InterruptedError("download cancelled before Steam preparation")
+
+        library = _prepared_library(state, library_index)
+        if library is None:
+            raise RuntimeError(
+                "No hay una biblioteca Steam con espacio suficiente para "
+                "preparar la descarga."
+            )
+        selected_index = int(library["index"])
+        prepared = prepare(app_id, provider_id, selected_index)
+        if not prepared.get("ok") or not prepared.get("prepared"):
+            raise RuntimeError(
+                str(
+                    prepared.get("reason")
+                    or "No se pudieron preparar los archivos para Steam"
+                )
+            )
+        return str(prepared.get("target") or ""), selected_index
+
+    @staticmethod
+    def _completed_status(
+        app_id: int,
+        provider_id: str,
+        job_id: str,
+        target: str,
+        library_index: int,
+        final_total: int,
+    ) -> dict[str, Any]:
+        return write_status(
+            app_id,
+            {
+                "state": "prepared",
+                "progress": 100.0,
+                "bytes_downloaded": final_total or None,
+                "bytes_total": final_total or None,
+                "speed_bps": None,
+                "eta_seconds": 0,
+                "installed": False,
+                "provider_id": provider_id,
+                "prepared_target": target,
+                "library_index": library_index,
+                "job_id": job_id,
+                "worker_pid": None,
+            },
+        )
+
+    @staticmethod
+    def _failed_status(
+        app_id: int,
+        provider_id: str | None,
+        job_id: str,
+        library_index: int | None,
+        exc: Exception,
+    ) -> dict[str, Any]:
+        return write_status(
+            app_id,
+            {
+                "state": "not-installed",
+                "progress": None,
+                "bytes_downloaded": None,
+                "bytes_total": None,
+                "speed_bps": None,
+                "eta_seconds": None,
+                "installed": False,
+                "provider_id": provider_id,
+                "library_index": library_index,
+                "error": str(exc)[:1200],
+                "job_id": job_id,
+                "worker_pid": None,
+            },
+        )
 
     def run(
         self,
@@ -319,226 +616,78 @@ class SteamDownloadManager:
             return current
 
         worker_pid = os.getpid()
-        selected_library_index = library_index
-        write_status(
+        self._write_preparing(
             app_id,
-            {
-                "state": "preparing",
-                "progress": 0.0,
-                "bytes_downloaded": 0,
-                "bytes_total": None,
-                "speed_bps": None,
-                "eta_seconds": None,
-                "installed": False,
-                "provider_id": provider_id,
-                "library_index": selected_library_index,
-                "job_id": job_id,
-                "worker_pid": worker_pid,
-            },
+            provider_id,
+            job_id,
+            worker_pid,
+            library_index,
         )
         try:
             if cancellation_requested(app_id, job_id):
                 return cancelled_status(app_id, job_id, provider_id)
-            if not provider_id:
-                provider_id = refresh_original_owner_for_app(app_id)
-                write_status(
-                    app_id,
-                    {
-                        "state": "preparing",
-                        "progress": 0.0,
-                        "bytes_downloaded": 0,
-                        "bytes_total": None,
-                        "speed_bps": None,
-                        "eta_seconds": None,
-                        "installed": False,
-                        "provider_id": provider_id,
-                        "library_index": selected_library_index,
-                        "job_id": job_id,
-                        "worker_pid": worker_pid,
-                    },
-                )
-            if cancellation_requested(app_id, job_id):
-                return cancelled_status(app_id, job_id, provider_id)
-
-            estimate = self.estimate(app_id, provider_id)
-            if cancellation_requested(app_id, job_id):
-                return cancelled_status(app_id, job_id, provider_id)
-            depot_totals = {
-                str(key): int(value)
-                for key, value in (estimate.get("depot_totals") or {}).items()
-                if str(value).isdigit() and int(value) > 0
-            }
-            total = int(estimate.get("bytes_total") or 0)
-            write_status(
+            provider_id = self._resolve_provider(
                 app_id,
-                {
-                    "state": "preparing",
-                    "progress": 0.0,
-                    "bytes_downloaded": 0,
-                    "bytes_total": total or None,
-                    "speed_bps": None,
-                    "eta_seconds": None,
-                    "installed": False,
-                    "provider_id": provider_id,
-                    "library_index": selected_library_index,
-                    "job_id": job_id,
-                    "worker_pid": worker_pid,
-                },
-            )
-
-            current_depot: str | None = None
-            depot_progress = {key: 0.0 for key in depot_totals}
-            started_at = time.monotonic()
-            last_write = 0.0
-
-            def on_output(line: str) -> None:
-                nonlocal current_depot, last_write
-                if cancellation_requested(app_id, job_id):
-                    return
-                depot = re.search(r"Downloading depot\s+(\d+)", line)
-                if depot:
-                    current_depot = depot.group(1)
-                    return
-                match = re.match(r"\s*(\d+(?:\.\d+)?)%\s+", line)
-                if not match:
-                    return
-                pct = max(0.0, min(100.0, float(match.group(1))))
-                if current_depot and current_depot in depot_progress:
-                    depot_progress[current_depot] = max(
-                        depot_progress[current_depot], pct
-                    )
-                if total > 0 and depot_totals:
-                    downloaded = int(
-                        sum(
-                            depot_totals[key]
-                            * depot_progress.get(key, 0.0)
-                            / 100.0
-                            for key in depot_totals
-                        )
-                    )
-                    overall = downloaded / total * 100.0
-                else:
-                    downloaded = 0
-                    overall = pct
-                elapsed = max(0.001, time.monotonic() - started_at)
-                speed = downloaded / elapsed if downloaded > 0 else None
-                eta = (
-                    (total - downloaded) / speed
-                    if speed and total > downloaded
-                    else None
-                )
-                now = time.monotonic()
-                if now - last_write < 0.35 and overall < 100:
-                    return
-                last_write = now
-                write_status(
-                    app_id,
-                    {
-                        "state": "downloading",
-                        "progress": overall,
-                        "bytes_downloaded": downloaded or None,
-                        "bytes_total": total or None,
-                        "speed_bps": int(speed) if speed else None,
-                        "eta_seconds": int(eta) if eta else None,
-                        "installed": False,
-                        "provider_id": provider_id,
-                        "library_index": selected_library_index,
-                        "job_id": job_id,
-                        "worker_pid": worker_pid,
-                    },
-                )
-
-            result = run_probe(
                 provider_id,
-                app_id,
-                manifest_only=False,
-                download=True,
-                timeout_seconds=6 * 60 * 60,
-                progress_callback=on_output,
+                job_id,
+                worker_pid,
+                library_index,
             )
             if cancellation_requested(app_id, job_id):
                 return cancelled_status(app_id, job_id, provider_id)
-            if not result.get("ok"):
-                detail = str(
-                    result.get("stderr_tail") or result.get("stdout_tail") or ""
-                )[-1000:]
-                raise RuntimeError(
-                    detail or "DepotDownloader no pudo completar la descarga"
-                )
+
+            total, depot_totals = self._estimate_plan(
+                app_id,
+                provider_id,
+                job_id,
+                worker_pid,
+                library_index,
+            )
+            if cancellation_requested(app_id, job_id):
+                return cancelled_status(app_id, job_id, provider_id)
+
+            result = self._transfer(
+                app_id,
+                provider_id,
+                job_id,
+                worker_pid,
+                library_index,
+                total,
+                depot_totals,
+            )
+            if cancellation_requested(app_id, job_id):
+                return cancelled_status(app_id, job_id, provider_id)
 
             state = inspect(app_id, provider_id)
-            existing = next(
-                (
-                    item
-                    for item in state.get("libraries", [])
-                    if item.get("manifest_exists")
-                ),
-                None,
-            )
-            if existing:
-                target = str(existing.get("target") or "")
-                selected_library_index = int(existing.get("index") or 0)
-            else:
-                if cancellation_requested(app_id, job_id):
-                    return cancelled_status(app_id, job_id, provider_id)
-                library = _prepared_library(state, selected_library_index)
-                if library is None:
-                    raise RuntimeError(
-                        "No hay una biblioteca Steam con espacio suficiente para preparar la descarga."
-                    )
-                selected_library_index = int(library["index"])
-                prepared = prepare(app_id, provider_id, selected_library_index)
-                if not prepared.get("ok") or not prepared.get("prepared"):
-                    raise RuntimeError(
-                        str(
-                            prepared.get("reason")
-                            or "No se pudieron preparar los archivos para Steam"
-                        )
-                    )
-                target = str(prepared.get("target") or "")
-
-            final_total = int(
-                state.get("source_bytes")
-                or result.get("total_bytes")
-                or total
-                or 0
-            )
-            return write_status(
+            target, selected_index = self._prepare_target(
                 app_id,
-                {
-                    "state": "prepared",
-                    "progress": 100.0,
-                    "bytes_downloaded": final_total or None,
-                    "bytes_total": final_total or None,
-                    "speed_bps": None,
-                    "eta_seconds": 0,
-                    "installed": False,
-                    "provider_id": provider_id,
-                    "prepared_target": target,
-                    "library_index": selected_library_index,
-                    "job_id": job_id,
-                    "worker_pid": None,
-                },
+                provider_id,
+                job_id,
+                state,
+                library_index,
             )
+            final_total = int(
+                state.get("source_bytes") or result.get("total_bytes") or total or 0
+            )
+            return self._completed_status(
+                app_id,
+                provider_id,
+                job_id,
+                target,
+                selected_index,
+                final_total,
+            )
+        except InterruptedError:
+            return cancelled_status(app_id, job_id, provider_id)
         except Exception as exc:
             if cancellation_requested(app_id, job_id):
                 return cancelled_status(app_id, job_id, provider_id)
-            return write_status(
+            return self._failed_status(
                 app_id,
-                {
-                    "state": "not-installed",
-                    "progress": None,
-                    "bytes_downloaded": None,
-                    "bytes_total": None,
-                    "speed_bps": None,
-                    "eta_seconds": None,
-                    "installed": False,
-                    "provider_id": provider_id,
-                    "library_index": selected_library_index,
-                    "error": str(exc)[:1200],
-                    "job_id": job_id,
-                    "worker_pid": None,
-                },
+                provider_id,
+                job_id,
+                library_index,
+                exc,
             )
 
 
@@ -601,8 +750,12 @@ def main() -> int:
         job_id,
         library_index=args.library_index,
     )
-    _print({"ok": result.get("state") not in {"not-installed"}, **result})
-    return 0 if result.get("state") not in {"not-installed"} else 2
+    state = str(result.get("state") or "")
+    ok = bool(result.get("installed")) or state == "prepared"
+    _print({"ok": ok, **result})
+    if state == "cancelled":
+        return 3
+    return 0 if ok else 2
 
 
 if __name__ == "__main__":

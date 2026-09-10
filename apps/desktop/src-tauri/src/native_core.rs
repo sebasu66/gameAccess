@@ -217,7 +217,7 @@ fn quoted_value(text: &str, key: &str) -> Option<String> {
     None
 }
 
-fn steam_library_roots() -> Vec<PathBuf> {
+pub fn steam_library_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Some(steam_exe) = find_steam_exe() {
         if let Some(root) = steam_exe.parent() {

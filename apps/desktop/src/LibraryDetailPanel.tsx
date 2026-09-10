@@ -11,13 +11,7 @@ import {
   removeFailedDetailImage,
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
-import {
-  downloadProgress,
-  formatDownloadBytes,
-  formatDownloadEta,
-  formatDownloadSpeed,
-  isTrackedDownload,
-} from "./downloadManager";
+import { downloadManager } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
@@ -370,14 +364,14 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
 }
 
 function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus }) {
-  if (!isTrackedDownload(download)) return null;
+  if (!downloadManager.isTracked(download)) return null;
   const rows = [
-    download?.bytes_total != null ? ["Tamaño", formatDownloadBytes(download.bytes_total)] : null,
-    download?.bytes_downloaded != null ? ["Descargado", formatDownloadBytes(download.bytes_downloaded)] : null,
-    download?.speed_bps != null ? ["Velocidad", formatDownloadSpeed(download.speed_bps)] : null,
-    download?.eta_seconds != null ? ["Tiempo restante", formatDownloadEta(download.eta_seconds)] : null,
+    download?.bytes_total != null ? ["Tamaño", downloadManager.formatBytes(download.bytes_total)] : null,
+    download?.bytes_downloaded != null ? ["Descargado", downloadManager.formatBytes(download.bytes_downloaded)] : null,
+    download?.speed_bps != null ? ["Velocidad", downloadManager.formatSpeed(download.speed_bps)] : null,
+    download?.eta_seconds != null ? ["Tiempo restante", downloadManager.formatEta(download.eta_seconds)] : null,
   ].filter((row): row is string[] => Boolean(row));
-  const progress = downloadProgress(download);
+  const progress = downloadManager.progress(download);
   return <div className="library-room-active-download">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
 }
 

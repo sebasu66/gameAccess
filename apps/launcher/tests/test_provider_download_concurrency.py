@@ -205,3 +205,28 @@ def test_download_manager_is_the_orchestration_boundary():
     assert callable(manager.validate)
     assert callable(manager.estimate)
     assert callable(manager.run)
+
+
+def test_cancelled_cli_run_preserves_exit_code_three(monkeypatch):
+    monkeypatch.setattr(
+        provider_download_manager,
+        "run_download",
+        lambda *args, **kwargs: {
+            "app_id": 42,
+            "state": "cancelled",
+            "installed": False,
+        },
+    )
+    monkeypatch.setattr(provider_download_manager, "_print", lambda payload: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "provider_download_manager.py",
+            "--app-id",
+            "42",
+            "--run",
+            "--job-id",
+            "job-42",
+        ],
+    )
+    assert provider_download_manager.main() == 3

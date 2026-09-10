@@ -4,7 +4,10 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile } from "./native";
+import { downloadManager } from "./downloadManager";
+import { gameStateManager } from "./GameStateManager";
+import { GAME_STORAGE_STATE_CHANGED_EVENT, steamFrozenStatuses } from "./gameStorage";
+import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
@@ -73,22 +76,38 @@ export default function App() {
       }
     }).catch(() => undefined);
     // Provider download state is durable on disk. Rehydrate it after F5/WebView
-    // reload so active downloads and prepared games survive React state loss.
+    // reload so active downloads and Play-ready prepared games survive React state loss.
     steamManagedDownloadStatuses().then((statuses) => {
       const durableMap: DownloadMap = {};
       for (const status of statuses) {
-        if (!["requested", "preparing", "downloading", "paused", "cancelling", "prepared", "installed"].includes(status.state)) continue;
+        if (!downloadManager.isTracked(status) && !gameStateManager.isDownloadComplete(status)) continue;
         durableMap[status.app_id] = status;
       }
       if (Object.keys(durableMap).length) {
         setDownloads((current) => ({ ...current, ...durableMap }));
       }
     }).catch(() => undefined);
+    steamFrozenStatuses().then((statuses) => {
+      if (!statuses.length) return;
+      const frozenMap: DownloadMap = {};
+      for (const status of statuses) frozenMap[status.app_id] = status;
+      setDownloads((current) => ({ ...current, ...frozenMap }));
+    }).catch(() => undefined);
   }, [refresh]);
 
   useEffect(() => {
+    const storageStateChanged = (event: Event) => {
+      const status = (event as CustomEvent<{ status?: SteamDownloadStatus }>).detail?.status;
+      if (!status?.app_id) return;
+      setDownloads((current) => ({ ...current, [status.app_id]: status }));
+    };
+    window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+    return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+  }, []);
+
+  useEffect(() => {
     const activeIds = Object.entries(downloads)
-      .filter(([, status]) => ["requested", "preparing", "downloading", "paused", "cancelling"].includes(status.state))
+      .filter(([, status]) => downloadManager.isTracked(status))
       .map(([id]) => Number(id));
     if (!activeIds.length) return;
     const timer = window.setInterval(() => {
@@ -143,7 +162,7 @@ export default function App() {
     const rank = (game: CatalogGame) => {
       if (preferences[game.id] === -1) return 2;
       const status = game.app_id ? downloads[game.app_id] : undefined;
-      if (preferences[game.id] === 1 || status?.installed || status?.state === "installed") return 0;
+      if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
       return 1;
     };
     return [...games].sort((left, right) => {

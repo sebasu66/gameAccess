@@ -36,6 +36,15 @@ const downloading: SteamDownloadStatus = {
   installed: false,
 };
 
+const frozen: SteamDownloadStatus = {
+  app_id: 10,
+  state: "frozen",
+  progress: 100,
+  bytes_downloaded: null,
+  bytes_total: null,
+  installed: false,
+};
+
 function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable = 1) {
   return renderToStaticMarkup(
     <LibraryRoom
@@ -63,6 +72,13 @@ describe("LibraryRoom grid presentation", () => {
     expect(withoutLicense).toContain("library-install-state no-license");
     expect(withoutLicense).toContain("sin licencia disponible");
     expect(withoutLicense).not.toContain("library-install-state ready");
+  });
+
+  it("treats a frozen game as playable while keeping its blue storage marker", () => {
+    const markup = render({ 10: frozen });
+    expect(markup).toContain("library-install-state frozen");
+    expect(markup).toContain("Jugar");
+    expect(markup).not.toContain("library-install-state ready");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {
