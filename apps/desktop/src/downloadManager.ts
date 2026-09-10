@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
@@ -5,14 +7,52 @@ import type { CatalogGame } from "./types";
 export const DOWNLOAD_REQUESTED_EVENT = "gameaccess:steam-download-requested";
 export const DOWNLOAD_REQUEST_FAILED_EVENT = "gameaccess:steam-download-request-failed";
 export const DOWNLOAD_CONFIRMATION_GRACE_MS = 90_000;
+export const MAX_PARALLEL_DOWNLOADS = 2;
+
+const CONTROL_STORAGE_KEY = "gameaccess:download-controls:v1";
+const STALLED_PREPARING_MS = 10 * 60_000;
+const STALLED_DOWNLOADING_MS = 5 * 60_000;
+const STALLED_AT_100_MS = 2 * 60_000;
+
+type ControlState = "queued" | "paused";
+
+type RuntimeObservation = {
+  signature: string;
+  changedAt: number;
+};
+
+type PersistedControls = Record<number, ManagedDownloadStatus>;
+
+function storageAvailable() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function statusSignature(status: ManagedDownloadStatus) {
+  return [
+    status.state,
+    status.progress ?? "",
+    status.bytes_downloaded ?? "",
+    status.bytes_total ?? "",
+    status.worker_pid ?? "",
+  ].join("|");
+}
+
+function controlState(status: ManagedDownloadStatus | undefined): status is ManagedDownloadStatus & { state: ControlState } {
+  return status?.state === "queued" || status?.state === "paused";
+}
 
 /**
  * Frontend authority for the managed-download lifecycle.
  *
- * This class owns download tracking/progress/completion helpers. It intentionally
- * does NOT duplicate technical state semantics; those live in GameStateManager.
+ * Technical state semantics live in GameStateManager. This class owns runtime
+ * lifecycle behavior: durable queue/pause overrides, progress, concurrency and
+ * recovery of a provider worker whose persisted status stops advancing.
  */
 export class DownloadManager {
+  private observations = new Map<number, RuntimeObservation>();
+  private recovering = new Set<number>();
+  private startingQueued = new Set<number>();
+
   isTracked(status?: ManagedDownloadStatus): boolean {
     return gameStateManager.isTrackedDownload(status);
   }
@@ -26,6 +66,186 @@ export class DownloadManager {
       bytes_total: null,
       installed: false,
     };
+  }
+
+  queuedStatus(appId: number, previous?: ManagedDownloadStatus): ManagedDownloadStatus {
+    const status: ManagedDownloadStatus = {
+      ...this.requestedStatus(appId),
+      ...previous,
+      app_id: appId,
+      state: "queued",
+      installed: false,
+      worker_pid: null,
+      speed_bps: null,
+      eta_seconds: null,
+      error: null,
+      queued_at_ms: previous?.queued_at_ms ?? Date.now(),
+    };
+    this.setControl(status);
+    return status;
+  }
+
+  runningCount(downloads: Record<number, ManagedDownloadStatus>): number {
+    return Object.values(downloads).filter((status) => gameStateManager.resolve(status).downloadRunning).length;
+  }
+
+  shouldQueue(downloads: Record<number, ManagedDownloadStatus>): boolean {
+    return this.runningCount(downloads) >= MAX_PARALLEL_DOWNLOADS;
+  }
+
+  nextQueued(downloads: Record<number, ManagedDownloadStatus>, slots: number): ManagedDownloadStatus[] {
+    if (slots <= 0) return [];
+    return Object.values(downloads)
+      .filter((status) => gameStateManager.resolve(status).queued && !this.startingQueued.has(status.app_id))
+      .sort((left, right) => (left.queued_at_ms ?? 0) - (right.queued_at_ms ?? 0))
+      .slice(0, slots);
+  }
+
+  claimQueued(appId: number): boolean {
+    if (this.startingQueued.has(appId)) return false;
+    this.startingQueued.add(appId);
+    return true;
+  }
+
+  releaseQueuedClaim(appId: number) {
+    this.startingQueued.delete(appId);
+  }
+
+  cancelQueued(appId: number): ManagedDownloadStatus {
+    this.clearControl(appId);
+    this.observations.delete(appId);
+    return {
+      ...this.requestedStatus(appId),
+      state: "cancelled",
+      progress: null,
+    };
+  }
+
+  async pause(status: ManagedDownloadStatus): Promise<ManagedDownloadStatus> {
+    if (!status.job_id) throw new Error("La descarga administrada no tiene un jobId verificable.");
+    const cancelled = await invoke<ManagedDownloadStatus>("cancel_provider_download", {
+      appId: status.app_id,
+      jobId: status.job_id,
+    });
+    const paused: ManagedDownloadStatus = {
+      ...cancelled,
+      ...status,
+      state: "paused",
+      installed: false,
+      worker_pid: null,
+      speed_bps: null,
+      eta_seconds: null,
+      error: null,
+    };
+    this.setControl(paused);
+    this.observations.delete(status.app_id);
+    return paused;
+  }
+
+  async resume(status: ManagedDownloadStatus): Promise<ManagedDownloadStatus> {
+    const previousControl = this.controlFor(status.app_id);
+    try {
+      const started = await invoke<ManagedDownloadStatus>("start_provider_download", {
+        appId: status.app_id,
+        jobId: status.job_id ?? null,
+        libraryIndex: status.library_index ?? null,
+      });
+      this.clearControl(status.app_id);
+      this.observations.delete(status.app_id);
+      return started;
+    } catch (error) {
+      if (previousControl) this.setControl(previousControl);
+      throw error;
+    }
+  }
+
+  /**
+   * Returns true only after a provider status has stopped changing for long
+   * enough to be considered stalled. A 100% transfer gets a shorter timeout:
+   * the worker should leave `downloading` after the CDN phase completes.
+   */
+  shouldRecover(status: ManagedDownloadStatus, now = Date.now()): boolean {
+    if (!status.job_id || !["preparing", "downloading", "recovering"].includes(status.state)) {
+      this.observations.delete(status.app_id);
+      return false;
+    }
+    if (status.worker_pid == null && status.state !== "preparing") return true;
+
+    const signature = statusSignature(status);
+    const previous = this.observations.get(status.app_id);
+    if (!previous || previous.signature !== signature) {
+      this.observations.set(status.app_id, { signature, changedAt: now });
+      return false;
+    }
+
+    const progress = this.progress(status);
+    const threshold = status.state === "preparing"
+      ? STALLED_PREPARING_MS
+      : progress >= 99.9
+        ? STALLED_AT_100_MS
+        : STALLED_DOWNLOADING_MS;
+    return now - previous.changedAt >= threshold;
+  }
+
+  async recover(status: ManagedDownloadStatus): Promise<ManagedDownloadStatus> {
+    if (!status.job_id || this.recovering.has(status.app_id)) return status;
+    this.recovering.add(status.app_id);
+    try {
+      try {
+        await invoke<ManagedDownloadStatus>("cancel_provider_download", {
+          appId: status.app_id,
+          jobId: status.job_id,
+        });
+      } catch {
+        // A dead worker may already be gone. start_provider_download performs
+        // its own worker identity check before publishing a replacement job.
+      }
+      const restarted = await invoke<ManagedDownloadStatus>("start_provider_download", {
+        appId: status.app_id,
+        jobId: status.job_id,
+        libraryIndex: status.library_index ?? null,
+      });
+      this.clearControl(status.app_id);
+      this.observations.delete(status.app_id);
+      return restarted;
+    } finally {
+      this.recovering.delete(status.app_id);
+    }
+  }
+
+  recoveringStatus(status: ManagedDownloadStatus): ManagedDownloadStatus {
+    return {
+      ...status,
+      state: "recovering",
+      speed_bps: null,
+      eta_seconds: null,
+      error: null,
+    };
+  }
+
+  restoreStatuses(statuses: ManagedDownloadStatus[]): ManagedDownloadStatus[] {
+    const byApp = new Map(statuses.map((status) => [status.app_id, status]));
+    const controls = this.readControls();
+    for (const [rawAppId, control] of Object.entries(controls)) {
+      const appId = Number(rawAppId);
+      const provider = byApp.get(appId);
+      if (provider && gameStateManager.isDownloadComplete(provider)) {
+        this.clearControl(appId);
+        continue;
+      }
+      byApp.set(appId, provider ? { ...provider, ...control } : control);
+    }
+    return [...byApp.values()];
+  }
+
+  applyControlOverride(status: ManagedDownloadStatus): ManagedDownloadStatus {
+    const control = this.controlFor(status.app_id);
+    if (!control) return status;
+    if (gameStateManager.isDownloadComplete(status)) {
+      this.clearControl(status.app_id);
+      return status;
+    }
+    return { ...status, ...control };
   }
 
   pinGames(
@@ -111,6 +331,48 @@ export class DownloadManager {
     if (value == null || !Number.isFinite(value) || value < 0) return "—";
     if (value === 0) return "0 B/s";
     return `${this.formatBytes(value)}/s`;
+  }
+
+  private readControls(): PersistedControls {
+    if (!storageAvailable()) return {};
+    try {
+      const value = JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || "{}");
+      if (!value || typeof value !== "object") return {};
+      const controls: PersistedControls = {};
+      for (const [rawAppId, candidate] of Object.entries(value as Record<string, unknown>)) {
+        const appId = Number(rawAppId);
+        if (!Number.isFinite(appId) || !candidate || typeof candidate !== "object") continue;
+        const status = candidate as ManagedDownloadStatus;
+        if (!controlState(status)) continue;
+        controls[appId] = status;
+      }
+      return controls;
+    } catch {
+      return {};
+    }
+  }
+
+  private writeControls(controls: PersistedControls) {
+    if (!storageAvailable()) return;
+    localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(controls));
+  }
+
+  private controlFor(appId: number): ManagedDownloadStatus | undefined {
+    return this.readControls()[appId];
+  }
+
+  private setControl(status: ManagedDownloadStatus) {
+    if (!controlState(status)) return;
+    const controls = this.readControls();
+    controls[status.app_id] = status;
+    this.writeControls(controls);
+  }
+
+  private clearControl(appId: number) {
+    const controls = this.readControls();
+    if (!(appId in controls)) return;
+    delete controls[appId];
+    this.writeControls(controls);
   }
 }
 
