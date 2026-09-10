@@ -1,23 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { Archive, FolderOpen, Gamepad2, Loader2, Play, Trash2, XCircle } from "lucide-react";
+import { Archive, FolderOpen, Loader2, Play, Trash2, XCircle } from "lucide-react";
 
 import { downloadProgress, isTrackedDownload } from "./downloadManager";
 import { playAvailability } from "./gameAvailability";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import { libraryArtworkCandidates } from "./libraryArtwork";
+import SteamCover from "./SteamCover";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
-
-function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = libraryArtworkCandidates(game);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const source = sources[sourceIndex];
-  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
-}
 
 function ReadyBadge({ licensed }: { licensed: boolean }) {
   if (!licensed) {
@@ -143,8 +135,6 @@ const contextItemStyle: CSSProperties = {
 };
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
-  const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
 
   useEffect(() => {
@@ -200,7 +190,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
+      <header className="library-room-heading"><small>{props.games.length} juegos</small></header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <DownloadGameCard
