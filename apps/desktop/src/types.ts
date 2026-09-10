@@ -57,6 +57,7 @@ export interface SteamMovie {
   thumbnail?: string;
   mp4?: string;
   webm?: string;
+  hls_h264?: string;
   highlight?: boolean;
 }
 

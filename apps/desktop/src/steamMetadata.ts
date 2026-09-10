@@ -39,6 +39,7 @@ function movies(value: unknown): SteamMovie[] {
       thumbnail: optionalString(movie.thumbnail),
       mp4: optionalString(mp4.max || mp4["480"]),
       webm: optionalString(webm.max || webm["480"]),
+      hls_h264: optionalString(movie.hls_h264),
       highlight: Boolean(movie.highlight),
     };
   });
