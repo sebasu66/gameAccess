@@ -6,7 +6,8 @@ import type { CatalogGame } from "./types";
 
 function CoverImage({ game }: { game: CatalogGame }) {
   const [resolved, setResolved] = useState<string | null>(() => cachedLibraryCover(game.app_id));
-  const sources = [...(resolved ? [resolved] : []), ...libraryArtworkCandidates(game)];
+  const [candidates] = useState(() => libraryArtworkCandidates(game));
+  const sources = [...(resolved ? [resolved] : []), ...candidates];
   const [sourceIndex, setSourceIndex] = useState(0);
   const [loadedSource, setLoadedSource] = useState<string | null>(null);
   const source = sources[sourceIndex];
@@ -28,5 +29,5 @@ function CoverImage({ game }: { game: CatalogGame }) {
 }
 
 export default function SteamCover({ game }: { game: CatalogGame }) {
-  return <CoverImage key={`${game.id}:${game.app_id}:${game.capsule_image}`} game={game} />;
+  return <CoverImage key={game.app_id ?? game.id} game={game} />;
 }

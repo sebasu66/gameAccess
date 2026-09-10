@@ -1,3 +1,4 @@
+import { findLibraryLetter } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -464,10 +465,17 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activateAction = () => onAction(actionIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable=true]"))) return;
     markActivity();
+    const letterIndex = findLibraryLetter(displayGames, event.key, selectedIndex);
+    if (letterIndex >= 0) {
+      event.preventDefault();
+      onSelectGame(letterIndex);
+      return;
+    }
     if (!selectedGame) {
       const key = event.key.toLowerCase();
-      if (displayGames.length && ["enter", "a", "d", "w", "s", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
+      if (displayGames.length && ["enter", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
         const gameId = displayGames[0]?.id ?? null;
         setSelectedGameId(gameId);
         setDetailRequestedGameId(gameId);

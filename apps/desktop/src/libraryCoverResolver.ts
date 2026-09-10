@@ -30,5 +30,6 @@ export function resolveLibraryCover(appId: number): Promise<string | null> {
   });
   queue = request;
   requests.set(appId, request);
+  void request.finally(() => requests.delete(appId));
   return request;
 }
