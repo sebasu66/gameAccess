@@ -219,7 +219,7 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
       await narrate(`Download for Steam AppID ${appId} reported an error: ${status.error}.`, { area: "DOWNLOAD", level: "ERROR" });
       throw new Error(status.error);
     }
-    if (status.installed) {
+    if (gameStateManager.isDownloadComplete(status)) {
       await narrate(`Download for Steam AppID ${appId}: installation is complete and the game is ready on disk.`, { area: "DOWNLOAD" });
       return;
     }
