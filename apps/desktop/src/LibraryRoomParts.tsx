@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Loader2, Play, Snowflake, XCircle } from "lucide-react";
+import { Download, Gamepad2, Loader2, Pause, Play, RotateCcw, Snowflake, XCircle } from "lucide-react";
 
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -14,7 +14,7 @@ export type LibraryAction = {
   label: string;
   icon: ReactNode;
   disabled: boolean;
-  kind: "play" | "download" | "cancel" | "verify";
+  kind: "play" | "download" | "pause" | "resume" | "cancel" | "verify";
   reason?: string | null;
 };
 
@@ -168,7 +168,9 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
       ? "Congelando…"
       : state.technicalState === "thawing"
         ? "Restaurando…"
-        : "Procesando…";
+        : state.technicalState === "pausing"
+          ? "Pausando…"
+          : "Procesando…";
     return [{ label, icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
@@ -182,10 +184,18 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
     }];
   }
 
+  if (state.primaryAction === "pause") {
+    return [{ label: state.recovering ? "Recuperando…" : "Pausar descarga", icon: <Pause size={23} fill="currentColor" />, disabled: false, kind: "pause" }];
+  }
+
+  if (state.primaryAction === "resume") {
+    return [{ label: "Reanudar descarga", icon: <RotateCcw size={23} />, disabled: false, kind: "resume" }];
+  }
+
   if (state.primaryAction === "cancel") {
     const cancelling = state.technicalState === "cancelling";
     return [{
-      label: cancelling ? "Cancelando…" : "Cancelar descarga",
+      label: state.queued ? "Quitar de la cola" : cancelling ? "Cancelando…" : "Cancelar descarga",
       icon: cancelling ? <Loader2 className="spin" size={23} /> : <XCircle size={23} />,
       disabled: cancelling,
       kind: "cancel",
