@@ -4,6 +4,7 @@ mod download_lifecycle;
 mod game_freeze;
 mod game_uninstall;
 mod provider_download;
+mod steam_artwork;
 mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
@@ -530,6 +531,7 @@ fn main() {
             steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
+            steam_artwork::steam_library_cover,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,
