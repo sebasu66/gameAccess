@@ -1,6 +1,6 @@
 import type { ManagedDownloadStatus } from "./downloadTypes";
 
-export type GamePrimaryAction = "play" | "download" | "cancel" | "wait" | "verify";
+export type GamePrimaryAction = "play" | "download" | "pause" | "resume" | "cancel" | "wait" | "verify";
 
 export interface ResolvedGameState {
   technicalState: ManagedDownloadStatus["state"];
@@ -10,6 +10,12 @@ export interface ResolvedGameState {
   prepared: boolean;
   frozen: boolean;
   transferActive: boolean;
+  downloadRunning: boolean;
+  queued: boolean;
+  paused: boolean;
+  recovering: boolean;
+  canPause: boolean;
+  canResume: boolean;
   storageBusy: boolean;
   downloadComplete: boolean;
   canOpenInstallFolder: boolean;
@@ -18,11 +24,23 @@ export interface ResolvedGameState {
   canThaw: boolean;
 }
 
-const DOWNLOAD_ACTIVE_STATES = new Set<ManagedDownloadStatus["state"]>([
+const DOWNLOAD_TRACKED_STATES = new Set<ManagedDownloadStatus["state"]>([
+  "queued",
   "requested",
   "preparing",
+  "recovering",
   "downloading",
+  "pausing",
   "paused",
+  "cancelling",
+]);
+
+const DOWNLOAD_RUNNING_STATES = new Set<ManagedDownloadStatus["state"]>([
+  "requested",
+  "preparing",
+  "recovering",
+  "downloading",
+  "pausing",
   "cancelling",
 ]);
 
@@ -45,6 +63,8 @@ function providerMetadata(steam: ManagedDownloadStatus, provider: ManagedDownloa
     prepared_target: provider.prepared_target ?? steam.prepared_target,
     job_id: provider.job_id ?? steam.job_id,
     worker_pid: provider.worker_pid ?? steam.worker_pid,
+    library_index: provider.library_index ?? steam.library_index,
+    queued_at_ms: provider.queued_at_ms ?? steam.queued_at_ms,
     error: provider.error ?? steam.error,
   };
 }
@@ -57,6 +77,8 @@ function providerMetadata(steam: ManagedDownloadStatus, provider: ManagedDownloa
  *   completes Steam discovery/validation before launch.
  * - `frozen` is NOT installed on disk, but Play is enabled because pressing Play
  *   transparently thaws the game before the normal launch pipeline.
+ * - `queued` and `paused` remain tracked across reloads but do not consume a
+ *   parallel-download slot.
  *
  * UI components must consume this class instead of re-deriving state flags from
  * raw `status.state`/`status.installed` combinations.
@@ -69,17 +91,22 @@ export class GameStateManager {
     const prepared = technicalState === "prepared";
     const frozen = technicalState === "frozen";
 
-    // `playButtonReady` means the user can press Play now. It deliberately does
-    // not mean "Steam has fully installed the game". Play may still perform a
-    // prepared-file validation or a frozen-game thaw before launching.
     const playButtonReady = installed || prepared || frozen;
-    const transferActive = DOWNLOAD_ACTIVE_STATES.has(technicalState);
+    const transferActive = DOWNLOAD_TRACKED_STATES.has(technicalState);
+    const downloadRunning = DOWNLOAD_RUNNING_STATES.has(technicalState);
+    const queued = technicalState === "queued";
+    const paused = technicalState === "paused";
+    const recovering = technicalState === "recovering";
+    const canPause = technicalState === "downloading" || technicalState === "recovering";
+    const canResume = paused;
     const storageBusy = STORAGE_BUSY_STATES.has(technicalState);
     const downloadComplete = installed || prepared;
 
     let primaryAction: GamePrimaryAction;
-    if (storageBusy) primaryAction = "wait";
+    if (storageBusy || technicalState === "pausing") primaryAction = "wait";
     else if (playButtonReady) primaryAction = "play";
+    else if (paused) primaryAction = "resume";
+    else if (canPause) primaryAction = "pause";
     else if (transferActive) primaryAction = "cancel";
     else if (technicalState === "unknown") primaryAction = "verify";
     else primaryAction = "download";
@@ -92,6 +119,12 @@ export class GameStateManager {
       prepared,
       frozen,
       transferActive,
+      downloadRunning,
+      queued,
+      paused,
+      recovering,
+      canPause,
+      canResume,
       storageBusy,
       downloadComplete,
       canOpenInstallFolder: installed,
@@ -120,8 +153,6 @@ export class GameStateManager {
     if (!base) return overlay ?? undefined;
     if (!overlay) return base;
 
-    // Local freeze/thaw state represents the actual on-disk storage condition and
-    // must beat stale provider/Steam observations until that transition finishes.
     if (STORAGE_AUTHORITATIVE_STATES.has(base.state)) return base;
     if (STORAGE_AUTHORITATIVE_STATES.has(overlay.state)) return overlay;
 
@@ -151,7 +182,6 @@ export class GameStateManager {
 
     if (overlay.state === "cancelled") return { ...base, ...overlay, installed: false };
 
-    // A terminal worker error must stop a stale requested/preparing overlay.
     if (overlay.error && overlay.state === "not-installed") return { ...base, ...overlay, installed: false };
 
     if (overlay.state === "unknown" || overlay.error) {
