@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod download_lifecycle;
+mod game_freeze;
+mod game_uninstall;
 mod provider_download;
-mod steam_artwork;
 mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
@@ -372,9 +373,14 @@ fn open_game_install_folder(app_id: u32) -> Result<String, String> {
 
 #[tauri::command]
 async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || native_core::steam_download_status(app_id))
-        .await
-        .map_err(|err| format!("Steam download-status task failed: {err}"))
+    tauri::async_runtime::spawn_blocking(move || -> Result<SteamDownloadStatus, String> {
+        if let Some(status) = game_freeze::GameFreezeManager.download_status(app_id)? {
+            return Ok(status);
+        }
+        Ok(native_core::steam_download_status(app_id))
+    })
+    .await
+    .map_err(|err| format!("Steam download-status task failed: {err}"))?
 }
 
 #[tauri::command]
@@ -515,11 +521,15 @@ fn main() {
             open_steam_install,
             open_steam_run,
             open_game_install_folder,
+            game_uninstall::uninstall_game,
+            game_freeze::freeze_game,
+            game_freeze::thaw_game,
+            game_freeze::game_storage_state,
+            game_freeze::frozen_game_statuses,
             steam_download_status,
             steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
-            steam_artwork::steam_library_cover,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,
@@ -532,6 +542,7 @@ fn main() {
             provider_download::start_provider_download,
             provider_download::cancel_provider_download,
             provider_download::provider_download_status,
+            provider_download::provider_download_statuses,
             provider_download::provider_download_estimate,
             steam_session::save_steam_credential,
             steam_session::remove_steam_credential,

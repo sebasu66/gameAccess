@@ -1,4 +1,3 @@
-import { findLibraryLetter } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -10,9 +9,10 @@ import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import DownloadCompleteDialog from "./DownloadCompleteDialog";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle, pendingDownloadCompletions, recordDownloadCompletion, type DownloadJobRecord } from "./downloadLifecycle";
-import { DOWNLOAD_REQUESTED_EVENT, DOWNLOAD_REQUEST_FAILED_EVENT, didDownloadJustComplete, isTrackedDownload, pinDownloadingGames, requestedDownloadStatus, shouldReleaseMissingDownload } from "./downloadManager";
+import { DOWNLOAD_REQUESTED_EVENT, DOWNLOAD_REQUEST_FAILED_EVENT, downloadManager } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import { buildActions, EmptyLibraryContent, FeaturePanel, handleActionKey, handleGridKey, isActiveDownload, isInstalled, LibraryHint, libraryRoomClass, selectedDownload, selectedHero, selectedPortraitHero, selectedWideArtworkSlides, selectedMovie, selectedSummary, selectedVideo, useCrossfadeArtwork } from "./LibraryRoomParts";
+import { buildActions, EmptyLibraryContent, FeaturePanel, handleActionKey, handleGridKey, LibraryHint, libraryRoomClass, selectedDownload, selectedHero, selectedPortraitHero, selectedWideArtworkSlides, selectedMovie, selectedSummary, selectedVideo, useCrossfadeArtwork } from "./LibraryRoomParts";
+import { gameStateManager } from "./GameStateManager";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
@@ -80,13 +80,13 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const rank = (game: CatalogGame) => {
       if (preferences[game.id] === -1) return 2;
       const status = game.app_id ? effectiveDownloads[game.app_id] : undefined;
-      if (preferences[game.id] === 1 || isInstalled(status)) return 0;
+      if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
       return 1;
     };
     return [...filtered].sort((left, right) => rank(left) - rank(right));
   }, [games, searchQuery, preferences, effectiveDownloads]);
   const displayGames = useMemo(
-    () => pinDownloadingGames(searchedGames, effectiveDownloads, trackedAppIds),
+    () => downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds),
     [searchedGames, effectiveDownloads, trackedAppIds],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
@@ -96,8 +96,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const selectedAppId = selectedGame?.app_id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
   const download = selectedDownload(selectedAppId, effectiveDownloads);
-  const installed = isInstalled(download);
-  const activeDownload = isActiveDownload(download);
+  const installed = gameStateManager.resolve(download).installed;
+  const activeDownload = downloadManager.isTracked(download);
   const detailDownload = download;
   const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
   const fallbackHero = selectedHero(currentDetails, selectedGame);
@@ -162,7 +162,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       requestStartedAtRef.current.set(appId, Date.now());
       missingPollsRef.current.set(appId, 0);
       activeSeenRef.current.delete(appId);
-      setManagedDownloads((current) => ({ ...current, [appId]: requestedDownloadStatus(appId) }));
+      setManagedDownloads((current) => ({ ...current, [appId]: downloadManager.requestedStatus(appId) }));
       setTrackedAppIds((current) => current.includes(appId) ? current : [...current, appId]);
     };
     const failed = (event: Event) => {
@@ -188,7 +188,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, []);
 
   useEffect(() => {
-    const discovered = Object.values(downloads).filter((status) => isTrackedDownload(status)).map((status) => status.app_id);
+    const discovered = Object.values(downloads).filter((status) => downloadManager.isTracked(status)).map((status) => status.app_id);
     if (!discovered.length) return;
     const now = Date.now();
     for (const appId of discovered) {
@@ -213,7 +213,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     const probeOne = async (appId: number) => {
       const status = await steamDownloadStatus(appId) as ManagedDownloadStatus;
       if (cancelled) return;
-      if (status.installed || status.state === "installed" || status.state === "prepared") {
+      if (gameStateManager.isDownloadComplete(status)) {
         setManagedDownloads((current) => ({ ...current, [appId]: status }));
         release(appId);
         await persistCompletion(appId);
@@ -225,7 +225,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
         await cancelDownloadLifecycle(appId).catch(() => undefined);
         return;
       }
-      if (isTrackedDownload(status) && status.state !== "requested") {
+      if (downloadManager.isTracked(status) && status.state !== "requested") {
         activeSeenRef.current.add(appId);
         missingPollsRef.current.set(appId, 0);
         setManagedDownloads((current) => ({ ...current, [appId]: status }));
@@ -241,7 +241,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       const missingPolls = (missingPollsRef.current.get(appId) ?? 0) + 1;
       missingPollsRef.current.set(appId, missingPolls);
       const elapsed = Date.now() - (requestStartedAtRef.current.get(appId) ?? Date.now());
-      if (!shouldReleaseMissingDownload(status, activeSeenRef.current.has(appId), missingPolls, elapsed)) return;
+      if (!downloadManager.shouldReleaseMissing(status, activeSeenRef.current.has(appId), missingPolls, elapsed)) return;
       setManagedDownloads((current) => ({ ...current, [appId]: status }));
       release(appId);
     };
@@ -261,7 +261,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     for (const [rawAppId, status] of Object.entries(effectiveDownloads)) {
       const appId = Number(rawAppId);
       const previousState = previousDownloadStatesRef.current.get(appId);
-      if (didDownloadJustComplete(previousState, status)) void persistCompletion(appId);
+      if (downloadManager.didJustComplete(previousState, status)) void persistCompletion(appId);
       previousDownloadStatesRef.current.set(appId, status.state);
     }
   }, [effectiveDownloads, persistCompletion]);
@@ -464,17 +464,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const activateAction = () => onAction(actionIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable=true]"))) return;
     markActivity();
-    const letterIndex = findLibraryLetter(displayGames, event.key, selectedIndex);
-    if (letterIndex >= 0) {
-      event.preventDefault();
-      onSelectGame(letterIndex);
-      return;
-    }
     if (!selectedGame) {
       const key = event.key.toLowerCase();
-      if (displayGames.length && ["enter", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
+      if (displayGames.length && ["enter", "a", "d", "w", "s", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
         const gameId = displayGames[0]?.id ?? null;
         setSelectedGameId(gameId);
         setDetailRequestedGameId(gameId);
