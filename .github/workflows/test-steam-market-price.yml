@@ -1,54 +1,37 @@
-name: Test Steam Market price from GitHub runner
+name: Value Steam Market inventory from GitHub runner
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - codex/inventory-batch-valuation
     paths:
       - .github/workflows/test-steam-market-price.yml
-  workflow_dispatch:
+      - tools/steam_inventory_audit/value_sanitized_market.py
+      - tools/steam_inventory_audit/pricing-input-*.tsv
 
 permissions:
   contents: read
 
 jobs:
-  price-test:
+  valuation:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 120
     steps:
-      - name: Query one Steam Community Market price
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Value sanitized inventory
+        id: valuation
         shell: bash
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import urllib.parse
-          import urllib.request
-          import urllib.error
+          python tools/steam_inventory_audit/value_sanitized_market.py
 
-          params = urllib.parse.urlencode({
-              "appid": 730,
-              "currency": 1,
-              "market_hash_name": "Operation Breakout Weapon Case",
-          })
-          url = "https://steamcommunity.com/market/priceoverview/?" + params
-          req = urllib.request.Request(
-              url,
-              headers={
-                  "User-Agent": "GameAccess-Inventory-Valuation/1.0",
-                  "Accept": "application/json,text/plain,*/*",
-              },
-          )
-          try:
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  body = response.read().decode("utf-8", errors="replace")
-                  print("HTTP", response.status)
-                  print(body)
-                  data = json.loads(body)
-                  print("RESULT", json.dumps(data, ensure_ascii=False))
-          except urllib.error.HTTPError as exc:
-              body = exc.read().decode("utf-8", errors="replace")
-              print("HTTP", exc.code)
-              print(body)
-              raise
-          PY
+      - name: Upload valuation files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steam-inventory-valuation
+          path: artifacts/inventory-pricing/
+          if-no-files-found: error
+          retention-days: 7
