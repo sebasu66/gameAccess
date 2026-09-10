@@ -379,7 +379,7 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
 }
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-overview {
   margin: 0;
-  padding: 0 0 22px;
+  padding: 0;
 }
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-overview h1 {
   max-width: none;
@@ -390,7 +390,7 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
 }
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-lead {
   max-width: none !important;
-  margin: 0 0 16px !important;
+  margin: 0 !important;
   color: #c8d0da !important;
   text-shadow: none !important;
 }
@@ -767,7 +767,7 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
   .library-room:not(.surface-display):not(.surface-tablet) .library-room-requirements-block,
   .library-room:not(.surface-display):not(.surface-tablet) .library-room-gallery-block {
     margin: 0;
-    padding: 0 0 22px;
+    padding: 0;
     border: 0;
     background: transparent;
   }
