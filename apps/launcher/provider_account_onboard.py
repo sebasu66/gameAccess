@@ -242,6 +242,13 @@ def onboard_provider_account(
     )
     print(f"STATE=metadata:{len(owned_app_ids)}", flush=True)
     game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
+    # AccountGame records which provider can access a game. Steam Family copy
+    # counts continue to come from the separate license inventory.
+    shared_game_ids, shared_unresolved = _import_verified_games(
+        base, sorted(set(accessible_app_ids) - set(owned_app_ids))
+    )
+    unresolved_app_ids = sorted(set(unresolved_app_ids + shared_unresolved))
+    game_ids = sorted(set(game_ids + shared_game_ids))
 
     notes = json.dumps(
         {
@@ -256,6 +263,7 @@ def onboard_provider_account(
             "accessible_app_ids": accessible_app_ids,
             "accessible_app_count": len(accessible_app_ids),
             "imported_game_count": len(game_ids),
+            "imported_accessible_game_count": len(set(game_ids + shared_game_ids)),
             "unresolved_app_count": len(unresolved_app_ids),
         },
         ensure_ascii=False,
@@ -293,6 +301,7 @@ def onboard_provider_account(
         "owned_app_count": len(owned_app_ids),
         "accessible_app_count": len(accessible_app_ids),
         "catalog_game_count": len(game_ids),
+        "accessible_catalog_game_count": len(set(game_ids + shared_game_ids)),
         "ownership_promoted": ownership_update["promoted"],
         "unresolved_app_count": len(unresolved_app_ids),
         "unresolved_app_ids": unresolved_app_ids[:25],

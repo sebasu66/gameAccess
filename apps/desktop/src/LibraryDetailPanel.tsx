@@ -1,3 +1,5 @@
+import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
+import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Loader2, Pause, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
@@ -29,11 +31,11 @@ function plainText(value?: string | null): string {
 
 function selectedMovie(details: GameDetails | null): SteamMovie | undefined {
   const movies = details?.steam?.movies;
-  return movies?.find((item) => item.highlight) ?? movies?.[0];
+  return selectSteamTrailer(movies);
 }
 
 function selectedVideo(movie?: SteamMovie): string | undefined {
-  return firstPresent(movie?.mp4, movie?.webm);
+  return steamTrailerSource(movie);
 }
 
 function fallbackArtwork(game: CatalogGame, details: GameDetails | null): string | undefined {
@@ -265,6 +267,7 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   const [readyVideo, setReadyVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<DetailMediaSequenceState>(() => createDetailMediaSequence({ videoSrc, images, reducedMotion }));
+  useSteamTrailer(videoRef, videoSrc, state.phase === "video" && state.videoAvailable, game.app_id, () => setState((current) => disableDetailVideo(current)));
   const currentImage = state.phase === "image" ? (state.images[state.imageIndex] ?? fallback) : fallback;
   const artwork = useCrossfadeArtwork(currentImage);
   useEffect(() => {
@@ -294,8 +297,8 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
     video.volume = volume;
     video.muted = muted;
     if (paused || state.phase !== "video") video.pause();
-    else void video.play().catch(() => setState((current) => disableDetailVideo(current)));
-  }, [paused, state.phase, volume, muted]);
+    else if (readyVideo) void video.play().catch(() => setPaused(true));
+  }, [paused, state.phase, volume, muted, readyVideo]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -331,7 +334,7 @@ function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: Gam
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
       <div className="library-room-feature-media">
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
-        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} src={model.videoSrc} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
+        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
         <MediaControls model={model} />
       </div>
@@ -399,7 +402,6 @@ function DesktopFeature(props: FeaturePanelProps) {
     <aside className="library-room-feature">
       <section className="library-detail-essential" aria-label="Resumen esencial del juego">
         <DesktopDetailMedia game={props.game} details={details} />
-        <div className="library-detail-essential-overlay" />
         <section className="library-room-first-row" aria-label="First row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
         <section className="library-room-second-row" aria-label="Second row"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
       </section>
@@ -413,5 +415,5 @@ function isDisplaySurface(): boolean {
 }
 
 export function FeaturePanel(props: FeaturePanelProps) {
-  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature {...props} />;
+  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
 }

@@ -4,6 +4,7 @@ mod download_lifecycle;
 mod game_freeze;
 mod game_uninstall;
 mod provider_download;
+mod steam_artwork;
 mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
@@ -394,7 +395,6 @@ async fn steam_download_metrics(app_id: u32) -> Result<download_metrics::Downloa
 async fn installed_app_ids() -> Result<Vec<u32>, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let mut ids = native_core::steam_installed_app_ids();
-        ids.extend(provider_download::provider_installed_app_ids());
         ids.sort_unstable();
         ids.dedup();
         ids
@@ -530,6 +530,7 @@ fn main() {
             steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
+            steam_artwork::steam_library_cover,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,

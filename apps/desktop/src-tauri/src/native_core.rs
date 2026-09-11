@@ -458,10 +458,14 @@ pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
     } else {
         PathBuf::from("python")
     };
-    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set();
+    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root,local_library_apps; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set(); recent={};
+for account in p.get('accounts',[]):
+ for aid,info in local_library_apps(int(account.get('user_id32') or 0)).items():
+  value=str(next((v for k,v in info.items() if k.lower()=='lastplayed'),0));
+  if value.isdigit(): recent[aid]=max(recent.get(aid,0),int(value)*1000)
 for app_id,item in cat.items():
  t=str(item.get('type') or '').casefold(); n=str(item.get('name') or '').strip(); oslist=str(item.get('oslist') or '').casefold();
- if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or ''})
+ if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or '', 'last_played_at':recent.get(int(app_id),0)})
 accounts=[]
 for a in p.get('accounts',[]):
  accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'runnable_app_ids':[x for x in (a.get('runnable_app_ids') or []) if x in valid],'runnable_verified':bool(a.get('runnable_verified')),'runnable_verified_at':a.get('runnable_verified_at'),'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'ticketed_app_count':int(a.get('ticketed_app_count') or 0),'ownership_source':a.get('ownership_source') or 'unverified','ownership_verified':bool(a.get('ownership_verified')),'ownership_verified_at':a.get('ownership_verified_at'),'active':bool(a.get('active'))})

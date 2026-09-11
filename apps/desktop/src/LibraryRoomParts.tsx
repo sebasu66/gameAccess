@@ -1,3 +1,4 @@
+import SteamCover from "./SteamCover";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Download, Gamepad2, Loader2, Pause, Play, RotateCcw, Snowflake, XCircle } from "lucide-react";
@@ -23,36 +24,14 @@ export interface ArtworkState {
   activeLayer: number;
 }
 
-const ACTION_PREVIOUS_KEYS = new Set(["a", "arrowleft", "w", "arrowup"]);
-const ACTION_NEXT_KEYS = new Set(["d", "arrowright", "s", "arrowdown"]);
+const ACTION_PREVIOUS_KEYS = new Set(["arrowleft", "arrowup"]);
+const ACTION_NEXT_KEYS = new Set(["arrowright", "arrowdown"]);
 
 export function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
   for (const value of values) {
     if (value != null) return value;
   }
   return undefined;
-}
-
-function artworkCandidates(game: CatalogGame) {
-  const appId = game.app_id;
-  const candidates = [
-    game.capsule_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    game.header_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null,
-  ].filter((value): value is string => Boolean(value));
-  return [...new Set(candidates)];
-}
-
-function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = artworkCandidates(game);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const source = sources[sourceIndex];
-  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
 }
 
 function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
@@ -265,19 +244,19 @@ export function handleGridKey(key: string, context: GridKeyContext) {
     return true;
   }
   if (key === "escape") return true;
-  if (key === "a" || key === "arrowleft") {
+  if (key === "arrowleft") {
     if (context.selectedIndex % context.columns !== 0) context.moveGrid(-1);
     return true;
   }
-  if (key === "d" || key === "arrowright") {
+  if (key === "arrowright") {
     if (context.selectedIndex % context.columns !== context.columns - 1) context.moveGrid(1);
     return true;
   }
-  if (key === "w" || key === "arrowup") {
+  if (key === "arrowup") {
     context.moveGrid(-context.columns);
     return true;
   }
-  if (key === "s" || key === "arrowdown") {
+  if (key === "arrowdown") {
     context.moveGrid(context.columns);
     return true;
   }
@@ -287,7 +266,8 @@ export function handleGridKey(key: string, context: GridKeyContext) {
 export function LibraryHint() {
   return (
     <div className="library-room-hint">
-      <span>NAVEGAR · WASD / FLECHAS</span>
+      <span>NAVEGAR · FLECHAS</span>
+      <span>IR A TÍTULO · LETRAS</span>
       <span>ENTRAR / ACTIVAR · ENTER</span>
       <span>VOLVER · ESC</span>
     </div>
@@ -307,7 +287,7 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         </div>
       </aside>
       <section className="library-room-catalog">
-        <header className="library-room-heading"><small>0 juegos · WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><small>0 juegos</small></header>
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />
@@ -332,11 +312,9 @@ interface CatalogPanelProps {
 }
 
 export function CatalogPanel(props: CatalogPanelProps) {
-  const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
+      <header className="library-room-heading"><small>{props.games.length} juegos</small></header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <button

@@ -1,28 +1,22 @@
-import { useEffect, useState } from "react";
+import LibrarySectionShelf from "./LibrarySectionShelf";
+import { buildLibrarySections } from "./librarySections";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { Gamepad2, Loader2, Play, Snowflake } from "lucide-react";
+import { ArrowUpToLine, Loader2, Play, Snowflake } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
-import { libraryArtworkCandidates } from "./libraryArtwork";
+import SteamCover from "./SteamCover";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 
-function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = libraryArtworkCandidates(game);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const source = sources[sourceIndex];
-  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
-}
-
 function StorageBadge({ frozen }: { frozen: boolean }) {
   if (frozen) {
-    return <span className="library-install-state frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
+    return <span className="library-install-state ready frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
   }
   return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
 }
@@ -111,14 +105,17 @@ interface DownloadCatalogPanelProps {
   gridRef: RefObject<HTMLDivElement>;
   pinnedAppIds: Set<number>;
   onSelect: (index: number) => void;
+  preferences?: Record<number, 1 | -1>;
+  history?: Record<number, number>;
   onPlay?: (game: CatalogGame) => void | Promise<void>;
 }
 
 type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
-  const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
+  const [sectionReset, setSectionReset] = useState(0);
+  const sections = useMemo(() => buildLibrarySections(props.games, props.downloads, props.preferences, props.history), [props.games, props.downloads, props.preferences, props.history]);
+  const indexes = new Map(props.games.map((game, index) => [game.id, index]));
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
 
   useEffect(() => {
@@ -163,20 +160,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
-      <div ref={props.gridRef} className="library-room-grid">
-        {props.games.map((game, index) => (
-          <DownloadGameCard
-            key={game.id}
-            game={game}
-            index={index}
-            selected={index === props.selectedIndex}
-            status={game.app_id ? props.downloads[game.app_id] : undefined}
-            pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))}
-            onSelect={props.onSelect}
-            onContextMenu={setContextMenu}
-          />
-        ))}
+      <header className="library-room-heading library-catalog-toolbar"><small>{props.games.length} juegos</small><button type="button" onClick={() => { setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button></header>
+      <div ref={props.gridRef} className="library-room-grid library-section-scroll">
+        {sections.map(section => <LibrarySectionShelf key={section.id} section={section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />)}
       </div>
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} /> : null}
     </section>

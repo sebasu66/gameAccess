@@ -1,3 +1,4 @@
+import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
@@ -80,7 +81,6 @@ export default function App() {
     steamManagedDownloadStatuses().then((statuses) => {
       const durableMap: DownloadMap = {};
       for (const status of statuses) {
-        if (!downloadManager.isTracked(status) && !gameStateManager.isDownloadComplete(status)) continue;
         durableMap[status.app_id] = status;
       }
       if (Object.keys(durableMap).length) {
@@ -368,6 +368,7 @@ export default function App() {
         trace.push(`Opening steam://run/${game.app_id}`);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Steam confirmó la cuenta propietaria. Ahora gameAccess abre el juego automáticamente.", log: [...trace] });
         await openSteamRun(game.app_id);
+        recordPlayed(game.app_id);
         trace.push("Launch command accepted");
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
       } catch (err) {
@@ -409,6 +410,7 @@ export default function App() {
         await wait(450);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
         await openSteamRun(lease.game.app_id);
+        recordPlayed(lease.game.app_id);
         // The launch command was accepted; from here this is a live session, not rollback work.
         leaseForRollback = null;
         await wait(450);

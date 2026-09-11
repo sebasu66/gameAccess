@@ -223,12 +223,18 @@ export class GameStateManager {
       };
     }
 
-    if (this.resolve(provider).installed && provider.prepared_target) {
-      return this.reconcileDownloadStatus(steam, provider) ?? steam;
-    }
-
+    // Steam's current installation evidence is authoritative. A provider
+    // "installed" record is only historical cache once Steam reports the app as
+    // not installed (for example after Steam removed the appmanifest but left a
+    // residual common/<game> directory). Only explicit Game Access transitional
+    // states such as prepared/frozen are allowed to survive without a Steam
+    // installation manifest.
     if (steam.state === "not-installed") {
       return providerMetadata(steam, provider);
+    }
+
+    if (this.resolve(provider).installed && provider.prepared_target) {
+      return this.reconcileDownloadStatus(steam, provider) ?? steam;
     }
 
     return this.reconcileDownloadStatus(provider, steam) ?? steam;
