@@ -35,6 +35,6 @@ describe("detail Play state", () => {
     expect(source).toContain("function downloadActionLabel");
     expect(source).toContain("if (state.prepared) return \"Preparado\";");
     expect(source).toContain("if (state.frozen) return \"Congelado\";");
-    expect(source).toContain("const downloadBlocked = playReady || activeDownload || localState.storageBusy;");
+    expect(source).toContain("downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy");
   });
 });
