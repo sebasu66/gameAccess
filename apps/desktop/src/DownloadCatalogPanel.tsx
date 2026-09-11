@@ -160,7 +160,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading library-catalog-toolbar"><small>{props.games.length} juegos</small><button type="button" onClick={() => { setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button></header>
+      <header className="library-room-heading library-catalog-toolbar"><small>{props.games.length} juegos</small><button type="button" onClick={() => { setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button></header>
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
         {sections.map(section => <LibrarySectionShelf key={section.id} section={section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />)}
       </div>

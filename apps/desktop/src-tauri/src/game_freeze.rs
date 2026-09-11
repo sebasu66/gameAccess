@@ -488,7 +488,7 @@ fn freeze_root(library_root: &Path, app_id: u32) -> PathBuf {
 fn storage_state_from_manifest(metadata: &FreezeManifest, archive: &Path) -> GameStorageState {
     GameStorageState {
         app_id: metadata.app_id,
-        state: metadata.state.clone(),
+        state: if metadata.state == "frozen" && !archive.is_file() { "not-installed".into() } else { metadata.state.clone() },
         original_size_bytes: Some(metadata.original_size_bytes),
         stored_size_bytes: metadata.stored_size_bytes,
         archive_path: archive
