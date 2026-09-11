@@ -9,14 +9,16 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The toolbar reset token intentionally restores this shelf preview.
   useEffect(() => { setExpanded(false); setPage(0); }, [reset]);
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
   useEffect(() => {
     const index = selectedPosition;
     if (index >= SECTION_PREVIEW_SIZE) { setExpanded(true); setPage(Math.floor(index / SECTION_PAGE_SIZE)); }
     else if (index >= 0) setPage(0);
-  }, [selectedId, selectedPosition]);
+  }, [selectedPosition]);
   const visible = sectionPage(section.games, expanded, page);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Scroll only when navigation or the rendered page changes.
   useEffect(() => {
     const selected = rootRef.current?.querySelector<HTMLElement>(".is-selected");
     selected?.scrollIntoView({ block: "nearest" });

@@ -268,7 +268,8 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   const images = useMemo(() => mediaReady ? screenshotImages(details) : [], [details, mediaReady]);
   const cachedPoster = useMediaPoster(game.app_id);
   const fallback = cachedPoster ?? (mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined);
-  useEffect(() => mediaReady ? cacheMediaImage(game.app_id, images[0] ?? fallbackArtwork(game, details)) : undefined, [game.app_id, details, images, mediaReady]);
+  const posterSource = images[0] ?? fallbackArtwork(game, details);
+  useEffect(() => mediaReady ? cacheMediaImage(game.app_id, posterSource) : undefined, [game.app_id, posterSource, mediaReady]);
   const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
