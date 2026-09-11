@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { gameStateManager } from "./GameStateManager";
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
@@ -89,8 +90,10 @@ export function DetailPanel({
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
   const weight = heavinessLabel(steam, machine);
-  const activeDownload = download && ["requested", "preparing", "downloading"].includes(download.state);
-  const installed = download?.state === "installed";
+  const localState = gameStateManager.resolve(download);
+  const activeDownload = localState.transferActive;
+  const playReady = localState.playButtonReady;
+  const downloadBlocked = playReady || activeDownload || localState.storageBusy;
   const currentShot = steam?.screenshots?.[activeShot];
 
   const renderFacts = () => (<><aside className="facts-card">
@@ -137,15 +140,15 @@ export function DetailPanel({
   const renderActions = () => (<><div className="detail-actions detail-primary-actions detail-keyboard-actions glass-actions-row">
               <GlassActionButton
                 icon={busy ? <Loader2 size={23} className="spin" /> : <Play size={24} fill="currentColor" />}
-                label={game.copies_available > 0 ? "Jugar ahora" : "Sin copia"}
-                tone="play" pulse={game.copies_available > 0}
-                disabled={!installed || busy || game.copies_available <= 0}
+                label={localState.frozen ? "Descongelar y jugar" : playReady ? "Jugar ahora" : activeDownload ? "Preparando" : "No listo"}
+                tone="play" pulse={playReady && !busy}
+                disabled={!playReady || busy}
                 onClick={() => void onLease(game)}
               />
               <GlassActionButton
                 icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
-                label={installed ? "Instalado" : activeDownload ? (download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando") : "Descargar"}
-                tone="download" disabled={!game.app_id || installed || Boolean(activeDownload)}
+                label={localState.installed ? "Instalado" : localState.prepared ? "Preparado" : localState.frozen ? "Congelado" : activeDownload ? (download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando") : "Descargar"}
+                tone="download" disabled={!game.app_id || downloadBlocked}
                 onClick={() => void onDownload(game)}
               />
             </div>
