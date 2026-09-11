@@ -1,5 +1,4 @@
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
-import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { buildLibrarySections } from "./librarySections";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
@@ -129,9 +128,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       } catch { /* Keep last known state until a successful probe. */ }
       finally { pending = false; }
     };
-    let timer: number | undefined;
-    const cancelDelay = scheduleSelectedMedia(() => { void probe(); timer = window.setInterval(() => void probe(), 3000); });
-    return () => { cancelled = true; cancelDelay(); window.clearInterval(timer); };
+    void probe();
+    const timer = window.setInterval(() => void probe(), 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [selectedAppId]);
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);

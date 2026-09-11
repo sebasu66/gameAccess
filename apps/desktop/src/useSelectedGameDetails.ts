@@ -1,4 +1,3 @@
-import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useEffect, useRef, useState } from "react";
 
 import { loadDetails } from "./api";
@@ -62,7 +61,7 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
 
     setLoading(true);
     const requestedGameId = selectedGameId;
-    const cancel = scheduleSelectedMedia(() => { void loadDetails(requestedGameId)
+    void loadDetails(requestedGameId)
       .then((value) => {
         if (requestTokenRef.current !== token || !isCurrentSelectedDetail(requestedGameId, selectedGameId)) return;
         setDetails(value);
@@ -74,8 +73,8 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
       })
       .finally(() => {
         if (requestTokenRef.current === token) setLoading(false);
-      }); }, surface === "desktop" ? 2000 : 0);
-    return () => { cancel(); ++requestTokenRef.current; };
+      });
+    return () => { ++requestTokenRef.current; };
   }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen]);
 
   return {

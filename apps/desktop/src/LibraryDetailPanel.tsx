@@ -1,3 +1,4 @@
+import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
 import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
@@ -259,10 +260,12 @@ interface MediaController {
 
 function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaController {
   const reducedMotion = useReducedMotion();
-  const movie = selectedMovie(details);
+  const [mediaReady, setMediaReady] = useState(false);
+  useEffect(() => scheduleSelectedMedia(() => setMediaReady(true)), []);
+  const movie = mediaReady ? selectedMovie(details) : undefined;
   const videoSrc = selectedVideo(movie);
-  const images = useMemo(() => screenshotImages(details), [details]);
-  const fallback = details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined;
+  const images = useMemo(() => mediaReady ? screenshotImages(details) : [], [details, mediaReady]);
+  const fallback = mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined;
   const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
