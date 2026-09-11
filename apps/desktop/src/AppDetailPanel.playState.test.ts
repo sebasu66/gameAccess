@@ -31,9 +31,10 @@ describe("detail Play state", () => {
     expect(source).not.toContain("const installed = download?.state === \"installed\"");
   });
 
-  it("does not offer another download for prepared, installed, or frozen Play-ready states", () => {
+  it("labels terminal storage states without offering another download", () => {
+    expect(source).toContain("function downloadActionLabel");
+    expect(source).toContain("if (state.prepared) return \"Preparado\";");
+    expect(source).toContain("if (state.frozen) return \"Congelado\";");
     expect(source).toContain("const downloadBlocked = playReady || activeDownload || localState.storageBusy;");
-    expect(source).toContain("localState.prepared ? \"Preparado\"");
-    expect(source).toContain("localState.frozen ? \"Congelado\"");
   });
 });
