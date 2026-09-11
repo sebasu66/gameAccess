@@ -1,3 +1,5 @@
+import { buildLibrarySections } from "./librarySections";
+import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { findLibraryLetter } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
@@ -76,6 +78,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   gamesByAppIdRef.current = new Map(games.flatMap((game) => game.app_id ? [[game.app_id, game] as const] : []));
 
+  const history = usePlayHistory();
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
   const searchedGames = useMemo(() => {
     const filtered = filterLibraryGames(games, searchQuery);
@@ -88,8 +91,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
     return [...filtered].sort((left, right) => rank(left) - rank(right));
   }, [games, searchQuery, preferences, effectiveDownloads]);
   const displayGames = useMemo(
-    () => downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds),
-    [searchedGames, effectiveDownloads, trackedAppIds],
+    () => buildLibrarySections(downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds), effectiveDownloads, preferences, history).flatMap(section => section.games),
+    [searchedGames, effectiveDownloads, trackedAppIds, preferences, history],
   );
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -376,8 +379,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       const first = grid.querySelector<HTMLElement>(".library-room-card");
       if (!first) return;
       const width = first.getBoundingClientRect().width;
-      const gap = Number.parseFloat(getComputedStyle(grid).columnGap || "16") || 16;
-      setColumns(Math.max(1, Math.round((grid.clientWidth + gap) / (width + gap))));
+      const shelf = first.closest<HTMLElement>(".library-section-grid") ?? grid;
+      const gap = Number.parseFloat(getComputedStyle(shelf).columnGap || "16") || 16;
+      setColumns(Math.max(1, Math.round((shelf.clientWidth + gap) / (width + gap))));
     };
     const observer = new ResizeObserver(measure);
     observer.observe(grid);
@@ -434,7 +438,11 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
 
   const moveGrid = (delta: number) => {
-    const next = Math.max(0, Math.min(displayGames.length - 1, selectedIndex + delta));
+    const visibleIds = Array.from(gridRef.current?.querySelectorAll<HTMLElement>(".library-room-card") ?? []).map(card => Number(card.dataset.libraryGameId));
+    const position = visibleIds.indexOf(selectedGameIdResolved ?? -1);
+    const nextId = visibleIds[Math.max(0, Math.min(visibleIds.length - 1, position + delta))];
+    const next = displayGames.findIndex(game => game.id === nextId);
+    if (next < 0) return;
     if (next === selectedIndex) return;
     playUiSound("move");
     const gameId = displayGames[next]?.id ?? null;
@@ -494,6 +502,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable=true]"))) return;
+    if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button")) return;
     markActivity();
     const letterIndex = findLibraryLetter(displayGames, event.key, selectedIndex);
     if (letterIndex >= 0) {
@@ -608,7 +617,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       {selectedGame ? (
         <>
           {detailPanel}
-          <DownloadCatalogPanel games={displayGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} onSelect={onSelectGame} onPlay={onPlay} />
+          <DownloadCatalogPanel games={displayGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onPlay={onPlay} />
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

@@ -115,6 +115,7 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!libraryRoot() || modal()) return;
+      if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button")) return;
       const key = event.key.toLowerCase();
 
       if (key === "tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {

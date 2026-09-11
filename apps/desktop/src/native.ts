@@ -1,3 +1,4 @@
+import { mergePlayHistory } from "./recentGames";
 import { invoke } from "@tauri-apps/api/core";
 
 import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
@@ -120,7 +121,7 @@ export interface LocalSteamPool {
   verified_account_count?: number;
   runnable_account_count?: number;
   accounts: LocalSteamAccount[];
-  games: Array<{ app_id: number; name: string; developer?: string; publisher?: string }>;
+  games: Array<{ app_id: number; name: string; developer?: string; publisher?: string; last_played_at?: number }>;
   library_folders?: SteamLibraryFolder[];
 }
 
@@ -134,6 +135,7 @@ export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
       `Native Steam scan completed: ${pool.accounts.length} remembered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
       { area: "LOCAL STEAM" },
     );
+    mergePlayHistory(Object.fromEntries(pool.games.map(game => [game.app_id, game.last_played_at ?? 0])));
     return pool;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
