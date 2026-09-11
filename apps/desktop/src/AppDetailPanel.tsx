@@ -26,6 +26,16 @@ function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadS
   return "Descargar";
 }
 
+function detailActionState(download?: SteamDownloadStatus) {
+  const localState = gameStateManager.resolve(download);
+  return {
+    localState,
+    activeDownload: localState.transferActive,
+    playReady: localState.playButtonReady,
+    downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy,
+  };
+}
+
 export function DetailPanel({
   game,
   machine,
@@ -108,10 +118,7 @@ export function DetailPanel({
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
   const weight = heavinessLabel(steam, machine);
-  const localState = gameStateManager.resolve(download);
-  const activeDownload = localState.transferActive;
-  const playReady = localState.playButtonReady;
-  const downloadBlocked = playReady || activeDownload || localState.storageBusy;
+  const {localState, activeDownload, playReady, downloadBlocked} = detailActionState(download);
   const currentShot = steam?.screenshots?.[activeShot];
 
   const renderFacts = () => (<><aside className="facts-card">
