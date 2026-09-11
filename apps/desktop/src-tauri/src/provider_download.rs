@@ -164,8 +164,24 @@ fn write_provider_download_status(
     fs::rename(temp, path).map_err(|err| format!("Could not publish provider status cache: {err}"))
 }
 
+// Download-tool bookkeeping can remain after Steam removes the game itself.
+fn has_game_payload(root: &Path) -> bool {
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(directory) else { continue; };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with('.') { continue; }
+            let Ok(kind) = entry.file_type() else { continue; };
+            if kind.is_symlink() { continue; }
+            if kind.is_dir() { pending.push(entry.path()); }
+            else if kind.is_file() && entry.metadata().is_ok_and(|metadata| metadata.len() > 0) { return true; }
+        }
+    }
+    false
+}
+
 fn validate_ready_status(mut status: ProviderDownloadStatus) -> ProviderDownloadStatus {
-    if status.state == "prepared" && !status.prepared_target.as_ref().is_some_and(|target| Path::new(target).is_dir()) {
+    if status.state == "prepared" && !status.prepared_target.as_ref().is_some_and(|target| has_game_payload(Path::new(target))) {
         status.state = "not-installed".into();
         status.installed = false;
         status.progress = None;

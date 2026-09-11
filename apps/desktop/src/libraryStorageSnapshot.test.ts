@@ -12,3 +12,8 @@ it("removes MK10's stale ready state without touching prepared or compressed gam
 it("does not enable Play during an update even if the old installation flag remains", () => {
  expect(gameStateManager.resolve({app_id:1,state:"downloading",installed:true} as ManagedDownloadStatus).playButtonReady).toBe(false);
 });
+
+it("uses the same resolved state for the ready badge and file actions after uninstall", () => {
+ const state=gameStateManager.resolve({app_id:1519310,state:"not-installed",installed:false} as ManagedDownloadStatus);
+ expect(state.playButtonReady).toBe(false);expect(state.canOpenInstallFolder).toBe(false);expect(state.canUninstall).toBe(false);
+});

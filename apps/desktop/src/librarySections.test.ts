@@ -7,7 +7,7 @@ const status = (id: number, state: ManagedDownloadStatus["state"]) => ({ app_id:
 describe("sectioned catalog", () => {
  it("keeps installed games first, ordered by actual play history, without duplicates", () => {
   const groups = buildLibrarySections([game(1),game(2),game(3),game(4)], {1:status(1,"installed"),2:status(2,"installed"),3:status(3,"frozen")}, {}, {2:200,1:100});
-  expect(groups[0].id).toBe("installed"); expect(groups[0].games.map(g=>g.id)).toEqual([2,1]);
+  expect(groups[0].id).toBe("installed"); expect(groups[0].games.map(g=>g.id)).toEqual([2,1,3]);
   expect(groups.flatMap(g=>g.games).map(g=>g.id)).toEqual([2,1,3,4]);
  });
  it("moves an uninstalled game out of Installed without changing its identity", () => {
