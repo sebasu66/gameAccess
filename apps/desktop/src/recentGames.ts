@@ -4,7 +4,7 @@ const key = "gameaccess:last-played";
 export function readPlayHistory(): Record<number, number> {
   try {
     const value = JSON.parse(localStorage.getItem(key) || "{}");
-    return Object.fromEntries(Object.entries(value).filter(([id, time]) => Number(id) > 0 && typeof time === "number" && Number.isFinite(time) && time > 0));
+    return Object.fromEntries(Object.entries(value).filter(([id, time]) => Number(id) > 0 && typeof time === "number" && Number.isFinite(time) && time > 0).map(([id, time]) => [id, Number(time)]));
   } catch { return {}; }
 }
 export function mergePlayHistory(entries: Record<number, number>) {

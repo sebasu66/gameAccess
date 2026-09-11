@@ -29,7 +29,7 @@ describe("DownloadCatalogPanel grid contract", () => {
     expect(markup).not.toContain("aria-label=\"Jugar Installed\"");
   });
 
-  it("shows a blue frozen marker and its restore-on-play tooltip", () => {
+  it("shows a ready frozen marker and its restore-on-play tooltip", () => {
     const markup = renderToStaticMarkup(
       <DownloadCatalogPanel
         games={[game]}
@@ -41,10 +41,9 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).toContain("library-install-state frozen");
+    expect(markup).toContain("library-install-state ready frozen");
     expect(markup).toContain("Juego congelado · compactado para ahorrar espacio");
     expect(markup).toContain("juego congelado");
-    expect(markup).not.toContain("library-install-state ready");
   });
 
   it("marks an installed game without a license as unavailable instead of ready", () => {
@@ -61,7 +60,6 @@ describe("DownloadCatalogPanel grid contract", () => {
     );
     expect(markup).toContain("library-install-state no-license");
     expect(markup).toContain("sin licencia disponible");
-    expect(markup).not.toContain("library-install-state ready");
   });
 
   it("keeps the card as a selection target so Enter can transfer focus to the existing detail panel", () => {

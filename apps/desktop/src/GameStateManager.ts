@@ -72,9 +72,9 @@ export class GameStateManager {
     // `playButtonReady` means the user can press Play now. It deliberately does
     // not mean "Steam has fully installed the game". Play may still perform a
     // prepared-file validation or a frozen-game thaw before launching.
-    const playButtonReady = installed || prepared || frozen;
     const transferActive = DOWNLOAD_ACTIVE_STATES.has(technicalState);
     const storageBusy = STORAGE_BUSY_STATES.has(technicalState);
+    const playButtonReady = !transferActive && !storageBusy && (installed || prepared || frozen);
     const downloadComplete = installed || prepared;
 
     let primaryAction: GamePrimaryAction;

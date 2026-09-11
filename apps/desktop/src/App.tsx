@@ -1,3 +1,4 @@
+import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
@@ -103,6 +104,26 @@ export default function App() {
     };
     window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
     return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pending = false;
+    const refreshInstalled = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const ids = await steamInstalledAppIds();
+        if (!cancelled) {
+          setDownloads(current => applyInstalledSnapshot(current, ids));
+          window.dispatchEvent(new CustomEvent(STORAGE_SNAPSHOT_EVENT, { detail: ids }));
+        }
+      } catch { /* A failed probe is not evidence of uninstall. */ }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(() => void refreshInstalled(), 15000);
+    window.addEventListener("focus", refreshInstalled);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshInstalled); };
   }, []);
 
   useEffect(() => {

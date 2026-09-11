@@ -1,3 +1,5 @@
+import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
+import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { buildLibrarySections } from "./librarySections";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
@@ -41,6 +43,7 @@ type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 
 export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false }: LibraryRoomProps) {
+  const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -108,8 +111,10 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       if (!status?.app_id) return;
       setManagedDownloads((current) => ({ ...current, [status.app_id]: status }));
     };
+    const snapshot = (event: Event) => setManagedDownloads(current => applyInstalledSnapshot(current, (event as CustomEvent<number[]>).detail));
     window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, changed);
-    return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, changed);
+    window.addEventListener(STORAGE_SNAPSHOT_EVENT, snapshot);
+    return () => { window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, changed); window.removeEventListener(STORAGE_SNAPSHOT_EVENT, snapshot); };
   }, []);
   useEffect(() => {
     if (!selectedAppId) return;
@@ -124,9 +129,9 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       } catch { /* Keep last known state until a successful probe. */ }
       finally { pending = false; }
     };
-    void probe();
-    const timer = window.setInterval(() => void probe(), 3000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    let timer: number | undefined;
+    const cancelDelay = scheduleSelectedMedia(() => { void probe(); timer = window.setInterval(() => void probe(), 3000); });
+    return () => { cancelled = true; cancelDelay(); window.clearInterval(timer); };
   }, [selectedAppId]);
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);
@@ -139,7 +144,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const hero = (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
   const movie = selectedMovie(currentDetails);
   const videoSrc = selectedVideo(movie);
-  const artwork = useCrossfadeArtwork(hero);
+  const artwork = useCrossfadeArtwork(auxiliarySurface ? hero : undefined);
   const summary = selectedSummary(currentDetails);
   const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
   const currentCompletion = completionQueue[0];
@@ -415,7 +420,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   }, [selectedIndex]);
 
   useEffect(() => {
-    const shouldLoadDetails = detailRequestedGameId === selectedGameIdResolved;
+    const shouldLoadDetails = auxiliarySurface && detailRequestedGameId === selectedGameIdResolved;
     if (!shouldLoadDetails || selectedGameIdResolved == null) {
       setDetails(null);
       setDetailsGameId(null);
@@ -432,7 +437,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGameIdResolved, detailRequestedGameId]);
+  }, [selectedGameIdResolved, detailRequestedGameId, auxiliarySurface]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: A changed selection or primary action resets keyboard action focus.
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);

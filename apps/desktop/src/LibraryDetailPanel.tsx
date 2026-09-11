@@ -1,3 +1,5 @@
+import { useSharedMediaAudio } from "./sharedMediaAudio";
+import { cachedLibraryCover } from "./libraryCoverResolver";
 import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -260,9 +262,8 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   const movie = selectedMovie(details);
   const videoSrc = selectedVideo(movie);
   const images = useMemo(() => screenshotImages(details), [details]);
-  const fallback = fallbackArtwork(game, details);
-  const [muted, setMuted] = useState(true);
-  const [volume, setVolume] = useState(0.68);
+  const fallback = details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined;
+  const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
