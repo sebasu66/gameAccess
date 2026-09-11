@@ -395,7 +395,6 @@ async fn steam_download_metrics(app_id: u32) -> Result<download_metrics::Downloa
 async fn installed_app_ids() -> Result<Vec<u32>, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let mut ids = native_core::steam_installed_app_ids();
-        ids.extend(provider_download::provider_installed_app_ids());
         ids.sort_unstable();
         ids.dedup();
         ids

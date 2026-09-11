@@ -1,3 +1,4 @@
+import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { findLibraryLetter } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -97,6 +98,33 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const selectedAppId = selectedGame?.app_id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
   const download = selectedDownload(selectedAppId, effectiveDownloads);
+  // Selected-game probes and storage events replace stale local completion overlays.
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const status = (event as CustomEvent<{ status?: ManagedDownloadStatus }>).detail?.status;
+      if (!status?.app_id) return;
+      setManagedDownloads((current) => ({ ...current, [status.app_id]: status }));
+    };
+    window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, changed);
+  }, []);
+  useEffect(() => {
+    if (!selectedAppId) return;
+    let cancelled = false;
+    let pending = false;
+    const probe = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const status = await steamDownloadStatus(selectedAppId);
+        if (!cancelled && status.state !== "unknown") setManagedDownloads((current) => ({ ...current, [selectedAppId]: status }));
+      } catch { /* Keep last known state until a successful probe. */ }
+      finally { pending = false; }
+    };
+    void probe();
+    const timer = window.setInterval(() => void probe(), 3000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [selectedAppId]);
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);
   const detailDownload = download;

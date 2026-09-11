@@ -80,7 +80,6 @@ export default function App() {
     steamManagedDownloadStatuses().then((statuses) => {
       const durableMap: DownloadMap = {};
       for (const status of statuses) {
-        if (!downloadManager.isTracked(status) && !gameStateManager.isDownloadComplete(status)) continue;
         durableMap[status.app_id] = status;
       }
       if (Object.keys(durableMap).length) {

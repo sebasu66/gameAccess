@@ -14,7 +14,7 @@ import type { CatalogGame } from "./types";
 
 function StorageBadge({ frozen }: { frozen: boolean }) {
   if (frozen) {
-    return <span className="library-install-state frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
+    return <span className="library-install-state ready frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
   }
   return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
 }
