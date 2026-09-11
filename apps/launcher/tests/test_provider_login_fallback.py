@@ -13,7 +13,7 @@ def test_visible_retry_uses_same_credentials_without_remember(monkeypatch, tmp_p
     result = client.login_credentials("example", "p)&word")
     assert result["ok"] and result["mode"] == "visible"
     assert commands == [
-        [str(tmp_path / "steam.exe"), "-silent", "-login", "example", "p)&word"],
+        [str(tmp_path / "steam.exe"), "-login", "example", "p)&word"],
         [str(tmp_path / "steam.exe"), "-login", "example", "p)&word"],
     ]
 

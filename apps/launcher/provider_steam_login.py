@@ -108,7 +108,7 @@ def login_credentials(account: str, password: str, *, timeout_seconds: float = 4
             raise RuntimeError("Steam did not close before login retry")
         offset = log.stat().st_size if log.exists() else 0
         subprocess.Popen(
-            [str(steam), *(["-silent"] if silent else []), "-login", account, password],
+            [str(steam), *"-login", account, password],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
