@@ -1,3 +1,4 @@
+import { cacheMediaPoster } from "./mediaPosterCache";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type Hls from "hls.js";
@@ -16,6 +17,7 @@ export function useSteamTrailer(videoRef: RefObject<HTMLVideoElement>, source: s
     const progress = () => {
       if (reported || video.currentTime < 1 || !video.videoWidth) return;
       reported = true;
+      cacheMediaPoster(appId, video, video.videoWidth, video.videoHeight, 1);
       void narrate(`Steam trailer playing for AppID ${appId}: ${video.videoWidth}x${video.videoHeight}, time=${video.currentTime.toFixed(1)}s.`, { area: "MEDIA" });
     };
     const fail = () => { if (!disposed) failureRef.current(); };

@@ -46,7 +46,7 @@ describe("DownloadCatalogPanel grid contract", () => {
     expect(markup).toContain("juego congelado");
   });
 
-  it("marks an installed game without a license as unavailable instead of ready", () => {
+  it("uses local file readiness even when no shared copy is available", () => {
     const markup = renderToStaticMarkup(
       <DownloadCatalogPanel
         games={[{ ...game, copies_total: 0, copies_available: 0 }]}
@@ -58,8 +58,8 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).toContain("library-install-state no-license");
-    expect(markup).toContain("sin licencia disponible");
+    expect(markup).toContain("library-install-state ready");
+    expect(markup).not.toContain("library-install-state no-license");
   });
 
   it("keeps the card as a selection target so Enter can transfer focus to the existing detail panel", () => {

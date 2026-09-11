@@ -1,3 +1,4 @@
+import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
@@ -131,7 +132,7 @@ function useCrossfadeArtwork(source?: string) {
     };
     if (image.complete && image.naturalWidth) void reveal();
     else image.onload = () => { void reveal(); };
-    return () => { cancelled = true; image.onload = null; };
+    return () => { cancelled = true; image.onload = null; image.src = ""; };
   }, [source]);
 
   return { layers, activeLayer };
@@ -265,7 +266,9 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   const movie = mediaReady ? selectedMovie(details) : undefined;
   const videoSrc = selectedVideo(movie);
   const images = useMemo(() => mediaReady ? screenshotImages(details) : [], [details, mediaReady]);
-  const fallback = mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined;
+  const cachedPoster = useMediaPoster(game.app_id);
+  const fallback = cachedPoster ?? (mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined);
+  useEffect(() => mediaReady ? cacheMediaImage(game.app_id, images[0] ?? fallbackArtwork(game, details)) : undefined, [game.app_id, details, images, mediaReady]);
   const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
