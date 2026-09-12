@@ -99,8 +99,15 @@ function Invoke-Step {
         try {
             $global:LASTEXITCODE = 0
             Write-LabLog ("COMMAND [{0}] {1} {2}" -f $Name, $File, ($Arguments -join ' '))
-            & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
-            $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
+                $nativeExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            $exitCode = if ($null -eq $nativeExitCode) { 0 } else { [int]$nativeExitCode }
         } finally {
             Pop-Location
         }
@@ -295,19 +302,28 @@ function Invoke-ValidationRun([string]$Commit) {
         Stop-ExactProcess $appProcess
         Remove-Item -LiteralPath $activeAppPidFile -Force -ErrorAction SilentlyContinue
         Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')
-        $summary = [ordered]@{
-            schema_version = 1
-            commit = $Commit
-            branch = $branch
-            status = $status
-            error = $errorText
-            started_at = $startedAt.ToString('o')
-            finished_at = [DateTime]::UtcNow.ToString('o')
-            automation_case = [string]$config.automation_case
-            steps = @($steps)
+        try {
+            $stepArray = @($steps | ForEach-Object { $_ })
+            $summary = [ordered]@{
+                schema_version = 1
+                commit = $Commit
+                branch = $branch
+                status = $status
+                error = $errorText
+                started_at = $startedAt.ToString('o')
+                finished_at = [DateTime]::UtcNow.ToString('o')
+                automation_case = [string]$config.automation_case
+                steps = $stepArray
+            }
+            $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDir 'summary.json') -Encoding UTF8
+            try {
+                Publish-Run $runDir $Commit $runStamp
+            } catch {
+                Write-LabLog "Evidence publication failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
+            }
+        } catch {
+            Write-LabLog "Evidence finalization failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
         }
-        $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDir 'summary.json') -Encoding UTF8
-        Publish-Run $runDir $Commit $runStamp
     }
 
     return $status
@@ -340,11 +356,18 @@ try {
 
             if ($shouldRun) {
                 Write-LabLog "Detected new origin/$branch commit $remote. Starting validation."
-                $result = Invoke-ValidationRun $remote
+
+                # Claim this SHA before running it. A broken commit is reported once;
+                # it is not retried forever on every polling cycle.
                 $state.last_processed_sha = $remote
-                if ($result -eq 'ok') { $state.last_passed_sha = $remote }
                 $state.last_run = [DateTime]::UtcNow.ToString('o')
                 Save-State $state
+
+                $result = Invoke-ValidationRun $remote
+                if ($result -eq 'ok') {
+                    $state.last_passed_sha = $remote
+                    Save-State $state
+                }
             }
         } catch {
             $currentPollingError = $_.Exception.Message
