@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod automation;
 mod download_lifecycle;
 mod game_freeze;
 mod game_uninstall;
@@ -506,12 +507,17 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
 
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
+    let automation_state = automation::AutomationState::from_process();
     tauri::Builder::default()
+        .manage(automation_state)
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
         })
         .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
+            automation::automation_config,
+            automation::capture_automation_screenshot,
+            automation::finish_automation,
             narration_log_path,
             append_narration_log,
             append_narration_log_batch,

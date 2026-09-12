@@ -15,6 +15,7 @@ $stateFile = Join-Path $stateRoot 'state.json'
 $stopFile = Join-Path $stateRoot 'stop.flag'
 $watcherLog = Join-Path $stateRoot 'watcher.log'
 $pidFile = Join-Path $stateRoot 'watcher.pid'
+$activeAppPidFile = Join-Path $stateRoot 'active-app.pid'
 $gameAccessLog = Join-Path $env:LOCALAPPDATA 'GameAccess\logs\gameaccess.log'
 
 New-Item -ItemType Directory -Force -Path $stateRoot, $runsRoot, $bundlesRoot | Out-Null
@@ -36,7 +37,7 @@ function Load-State {
     if (-not (Test-Path -LiteralPath $stateFile)) {
         return [ordered]@{ last_processed_sha = ''; last_passed_sha = ''; last_run = $null }
     }
-    try { return Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json -AsHashtable }
+    try { return Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json }
     catch { return [ordered]@{ last_processed_sha = ''; last_passed_sha = ''; last_run = $null } }
 }
 
@@ -222,6 +223,7 @@ function Invoke-ValidationRun([string]$Commit) {
         $stderr = Join-Path $runDir 'app.stderr.log'
         $argumentLine = "--automation-script `"$casePath`" --automation-output `"$automationDir`""
         $appProcess = Start-Process -FilePath $exe -WorkingDirectory $repoRoot -ArgumentList $argumentLine -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        Set-Content -LiteralPath $activeAppPidFile -Value $appProcess.Id -Encoding ASCII
         Write-LabLog "Launched GameAccess automation case '$($config.automation_case)' as PID $($appProcess.Id)."
 
         $resultPath = Join-Path $automationDir 'result.json'
@@ -243,6 +245,7 @@ function Invoke-ValidationRun([string]$Commit) {
         Write-LabLog "Validation failed for $Commit: $errorText" 'ERROR'
     } finally {
         Stop-ExactProcess $appProcess
+        Remove-Item -LiteralPath $activeAppPidFile -Force -ErrorAction SilentlyContinue
         Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')
         $summary = [ordered]@{
             schema_version = 1
