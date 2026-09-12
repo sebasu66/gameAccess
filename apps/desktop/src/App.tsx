@@ -299,7 +299,7 @@ export default function App() {
   const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
   const heroDetails = featured ? detailsById[featured.id] : undefined;
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
-  const featuredPlayReady = Boolean(featured?.app_id && gameStateManager.isPlayButtonReady(downloads[featured.app_id]));
+  const featuredPlayReady = gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)]);
 
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
