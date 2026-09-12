@@ -8,6 +8,14 @@ WATCHER = Path(__file__).resolve().parent / "watch.ps1"
 def main() -> int:
     text = WATCHER.read_text(encoding="utf-8")
 
+    # PowerShell command lookup is case-insensitive. Because this script also
+    # defines a function named Git, invoking "git" from inside that function
+    # recursively calls the function instead of git.exe. Force the executable.
+    text = text.replace(
+        "$output = & git -C $repoRoot @Arguments 2>&1",
+        "$output = & git.exe -C $repoRoot @Arguments 2>&1",
+    )
+
     # Windows PowerShell parses "$Commit:" as a drive-qualified variable.
     text = text.replace(
         'Write-LabLog "Validation failed for $Commit: $errorText" \'ERROR\'',
@@ -18,7 +26,7 @@ def main() -> int:
     if "function GitQuiet(" not in text:
         marker = "function Load-State {"
         insert = '''function GitQuiet([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
-    $output = & git -C $repoRoot @Arguments 2>&1
+    $output = & git.exe -C $repoRoot @Arguments 2>&1
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
     return @($output)
 }
@@ -101,7 +109,7 @@ def main() -> int:
 
     text = text[:loop_start] + replacement + text[loop_end:]
     WATCHER.write_text(text, encoding="utf-8")
-    print("Patched Dev Lab watcher: silent polling, hard interval, throttled repeated errors.")
+    print("Patched Dev Lab watcher: git.exe recursion fix, silent polling, hard interval, throttled repeated errors.")
     return 0
 
 
