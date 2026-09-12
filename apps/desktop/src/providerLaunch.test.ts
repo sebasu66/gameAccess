@@ -18,7 +18,7 @@ const driftersTalesPrepared: ManagedDownloadStatus = {
 describe("GameAccess provider launch route", () => {
   it("keeps prepared Drifter's Tales Play-ready even when catalog availability is stale", () => {
     expect(gameStateManager.isPlayButtonReady(driftersTalesPrepared)).toBe(true);
-    expect(appSource).toContain("gameStateManager.isPlayButtonReady(downloads[featured.app_id])");
+    expect(appSource).toContain("gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)])");
     expect(appSource).toContain("disabled={!featuredPlayReady || leaseBusy}");
     expect(appSource).not.toContain("disabled={featured.copies_available <= 0 || leaseBusy}");
   });
