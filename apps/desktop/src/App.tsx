@@ -17,6 +17,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { DetailPanel } from "./AppDetailPanel";
+import { openProviderSteamRun } from "./providerLaunch";
 let visualDebugStarted = false;
 
 export default function App() {
@@ -298,6 +299,7 @@ export default function App() {
   const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
   const heroDetails = featured ? detailsById[featured.id] : undefined;
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
+  const featuredPlayReady = Boolean(featured?.app_id && gameStateManager.isPlayButtonReady(downloads[featured.app_id]));
 
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
@@ -430,7 +432,7 @@ export default function App() {
       if (lease.session_action === "launch_ready" && lease.game.app_id) {
         await wait(450);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
-        await openSteamRun(lease.game.app_id);
+        await openProviderSteamRun(lease.game.app_id, lease.account.label);
         recordPlayed(lease.game.app_id);
         // The launch command was accepted; from here this is a live session, not rollback work.
         leaseForRollback = null;
@@ -492,7 +494,7 @@ export default function App() {
               <h1>{featured.name}</h1>
               <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
-                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => void doLease(featured)} />
+                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || leaseBusy} onClick={() => void doLease(featured)} />
                 <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
