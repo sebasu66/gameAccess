@@ -308,9 +308,14 @@ try {
     $lastPollingErrorAt = [DateTime]::MinValue
 
     while (-not (Test-Path -LiteralPath $stopFile)) {
+        $cycleStartedAt = [DateTime]::UtcNow
         try {
+            # Polling is intentionally silent. Console output is reserved for
+            # detected commits, validation commands and real errors.
             GitQuiet fetch --prune origin $branch | Out-Null
             $remote = (GitQuiet rev-parse "origin/$branch" | Select-Object -First 1).Trim()
+            $lastPollingError = ''
+
             $shouldRun = $remote -ne [string]$state.last_processed_sha
             if ($first -and -not [bool]$config.run_on_start -and -not [string]$state.last_processed_sha) {
                 $state.last_processed_sha = $remote
@@ -320,6 +325,7 @@ try {
             $first = $false
 
             if ($shouldRun) {
+                Write-LabLog "Detected new origin/$branch commit $remote. Starting validation."
                 $result = Invoke-ValidationRun $remote
                 $state.last_processed_sha = $remote
                 if ($result -eq 'ok') { $state.last_passed_sha = $remote }
@@ -327,9 +333,33 @@ try {
                 Save-State $state
             }
         } catch {
-            Write-LabLog "Polling cycle failed: $($_.Exception.Message)" 'ERROR'
+            $currentPollingError = $_.Exception.Message
+            $now = [DateTime]::UtcNow
+            if ($currentPollingError -ne $lastPollingError -or ($now - $lastPollingErrorAt).TotalMinutes -ge 5) {
+                Write-LabLog "Polling cycle failed: $currentPollingError" 'ERROR'
+                $lastPollingError = $currentPollingError
+                $lastPollingErrorAt = $now
+            }
         }
-        if (-not (Test-Path -LiteralPath $stopFile)) { Start-Sleep -Seconds $pollSeconds }
+
+        # Hard rate limit: even if polling or validation fails instantly, the
+        # next poll cannot run immediately. Long validation runs also get a
+        # full poll interval before another fetch.
+        if (-not (Test-Path -LiteralPath $stopFile)) {
+            $elapsedMs = ([DateTime]::UtcNow - $cycleStartedAt).TotalMilliseconds
+            $intervalMs = [double]$pollSeconds * 1000.0
+            if ($elapsedMs -ge $intervalMs) {
+                $waitMs = $intervalMs
+            } else {
+                $waitMs = $intervalMs - $elapsedMs
+            }
+            $remaining = [int][Math]::Ceiling([Math]::Max(1000.0, $waitMs))
+            while ($remaining -gt 0 -and -not (Test-Path -LiteralPath $stopFile)) {
+                $chunk = [Math]::Min(250, $remaining)
+                Start-Sleep -Milliseconds $chunk
+                $remaining -= $chunk
+            }
+        }
     }
     Write-LabLog 'Watcher stop flag received. Exiting.'
 } finally {
