@@ -1,0 +1,45 @@
+name: Apply Dev Lab Integration
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-dev-lab-integration.yml'
+      - 'tools/dev-lab/apply-automation-integration.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gameaccess-dev-lab-integration
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply deterministic integration
+        run: python tools/dev-lab/apply-automation-integration.py
+
+      - name: Commit generated integration if needed
+        shell: bash
+        run: |
+          if git diff --quiet -- apps/desktop/src-tauri/src/main.rs tools/dev-lab/watch.ps1; then
+            echo 'Integration already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/desktop/src-tauri/src/main.rs tools/dev-lab/watch.ps1
+          git commit -m 'feat: wire local automation into GameAccess Tauri runtime'
+          git push origin HEAD:dev
