@@ -21,8 +21,26 @@ if (Test-Path -LiteralPath $pidFile) {
 }
 
 Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
-$argumentLine = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watcher`" -ConfigPath `"$ConfigPath`""
-$process = Start-Process -FilePath 'powershell.exe' -ArgumentList $argumentLine -WindowStyle Hidden -PassThru
-Set-Content -LiteralPath $pidFile -Value $process.Id -Encoding ASCII
-Write-Host "Game Access Dev Lab started (PID $($process.Id))."
-Write-Host "Watching origin/dev. Log: $stateRoot\watcher.log"
+
+Write-Host ''
+Write-Host '============================================================'
+Write-Host ' GAME ACCESS DEV LAB - LIVE WATCHER'
+Write-Host '============================================================'
+Write-Host "Repository : C:\DEV\Game Access Dev"
+Write-Host "Config     : $ConfigPath"
+Write-Host "Log        : $stateRoot\watcher.log"
+Write-Host 'Mode       : foreground / live output'
+Write-Host 'Stop       : Ctrl+C, close this terminal, or run STOP_GAMEACCESS_DEV_LAB.cmd'
+Write-Host '============================================================'
+Write-Host ''
+
+try {
+    & $watcher -ConfigPath $ConfigPath
+} catch {
+    Write-Host ''
+    Write-Host "DEV LAB TERMINATED WITH ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    throw
+} finally {
+    Write-Host ''
+    Write-Host 'Game Access Dev Lab watcher has stopped.'
+}
