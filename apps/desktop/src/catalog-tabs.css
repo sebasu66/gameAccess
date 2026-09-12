@@ -1,6 +1,6 @@
 .catalog-tabs {
   position: fixed;
-  top: 17px;
+  top: calc(var(--window-chrome-height, 34px) + 17px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 80;
@@ -49,7 +49,7 @@
 
 @media (max-width: 760px) {
   .catalog-tabs {
-    top: 54px;
+    top: calc(var(--window-chrome-height, 34px) + 64px);
     width: calc(100% - 24px);
   }
   .catalog-tabs button {

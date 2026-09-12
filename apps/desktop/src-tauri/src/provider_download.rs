@@ -123,7 +123,7 @@ pub fn provider_download_status(app_id: u32) -> Result<Option<ProviderDownloadSt
         .map_err(|err| format!("Could not read provider download status: {err}"))?;
     let status = serde_json::from_str::<ProviderDownloadStatus>(&body)
         .map_err(|err| format!("Provider download status is invalid: {err}"))?;
-    Ok(Some(status))
+    Ok(Some(validate_ready_status(status)))
 }
 
 #[tauri::command]
@@ -141,7 +141,7 @@ pub fn provider_download_statuses() -> Result<Vec<ProviderDownloadStatus>, Strin
         if !path.is_file() { continue; }
         let Ok(body) = fs::read_to_string(path) else { continue; };
         let Ok(status) = serde_json::from_str::<ProviderDownloadStatus>(&body) else { continue; };
-        statuses.push(status);
+        statuses.push(validate_ready_status(status));
     }
     statuses.sort_by_key(|status| status.app_id);
     Ok(statuses)
@@ -164,35 +164,29 @@ fn write_provider_download_status(
     fs::rename(temp, path).map_err(|err| format!("Could not publish provider status cache: {err}"))
 }
 
-pub fn provider_installed_app_ids() -> Vec<u32> {
-    let Ok(launcher) = launcher_dir() else {
-        return Vec::new();
-    };
-    let Some(root) = status_path(&launcher, 0).parent().map(Path::to_path_buf) else {
-        return Vec::new();
-    };
-    let Ok(entries) = fs::read_dir(root) else {
-        return Vec::new();
-    };
-    let mut ids = Vec::new();
-    for entry in entries.flatten() {
-        let Ok(body) = fs::read_to_string(entry.path()) else {
-            continue;
-        };
-        let Ok(status) = serde_json::from_str::<ProviderDownloadStatus>(&body) else {
-            continue;
-        };
-        let target_exists = status
-            .prepared_target
-            .as_ref()
-            .is_some_and(|value| Path::new(value).exists());
-        if (status.installed || status.state == "installed") && target_exists {
-            ids.push(status.app_id);
+// Download-tool bookkeeping can remain after Steam removes the game itself.
+fn has_game_payload(root: &Path) -> bool {
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(directory) else { continue; };
+        for entry in entries.flatten() {
+            if entry.file_name().to_string_lossy().starts_with('.') { continue; }
+            let Ok(kind) = entry.file_type() else { continue; };
+            if kind.is_symlink() { continue; }
+            if kind.is_dir() { pending.push(entry.path()); }
+            else if kind.is_file() && entry.metadata().is_ok_and(|metadata| metadata.len() > 0) { return true; }
         }
     }
-    ids.sort_unstable();
-    ids.dedup();
-    ids
+    false
+}
+
+fn validate_ready_status(mut status: ProviderDownloadStatus) -> ProviderDownloadStatus {
+    if status.state == "prepared" && !status.prepared_target.as_ref().is_some_and(|target| has_game_payload(Path::new(target))) {
+        status.state = "not-installed".into();
+        status.installed = false;
+        status.progress = None;
+    }
+    status
 }
 
 fn validate_provider(app_id: u32) -> Result<String, String> {
