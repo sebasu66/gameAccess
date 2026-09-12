@@ -29,8 +29,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Apply deterministic automation integration
-        run: python tools/dev-lab/apply-automation-integration.py
+      - name: Apply deterministic automation integration when missing
+        shell: bash
+        run: |
+          if grep -q '^mod automation;' apps/desktop/src-tauri/src/main.rs \
+             && grep -q 'function Show-NewTextLines' tools/dev-lab/watch.ps1; then
+            echo 'Core Dev Lab integration already present; skipping one-time migration.'
+          else
+            python tools/dev-lab/apply-automation-integration.py
+          fi
 
       - name: Apply polling safety patch
         run: python tools/dev-lab/patch-polling.py
