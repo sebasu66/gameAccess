@@ -6,6 +6,7 @@ import LibraryInputController, { captureLibraryUiState } from "./LibraryInputCon
 import RuntimeGate from "./RuntimeGate";
 import SteamSessionSettings from "./SteamSessionSettings";
 import WindowChrome from "./WindowChrome";
+import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startNarrationSession } from "./narrationLog";
 import "./styles.css";
@@ -69,3 +70,5 @@ ReactDOM.createRoot(root).render(
     <AppCrashBoundary><RuntimeGate><CatalogShell /><SteamSessionSettings /></RuntimeGate></AppCrashBoundary>
   </React.StrictMode>,
 );
+
+void startLocalAutomation();
