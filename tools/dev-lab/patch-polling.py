@@ -5,6 +5,14 @@ from pathlib import Path
 WATCHER = Path(__file__).resolve().parent / "watch.ps1"
 
 
+def replace_if_present(text: str, old: str, new: str) -> str:
+    if old in text:
+        return text.replace(old, new, 1)
+    if new in text:
+        return text
+    raise RuntimeError("Expected Dev Lab watcher block was not found")
+
+
 def main() -> int:
     text = WATCHER.read_text(encoding="utf-8")
 
@@ -17,9 +25,8 @@ def main() -> int:
     )
 
     # Windows PowerShell 5.1 can promote ordinary native stderr to a terminating
-    # ErrorRecord when $ErrorActionPreference is Stop. git fetch routinely writes
-    # harmless transport/progress text to stderr, so native git calls must capture
-    # stderr with ErrorActionPreference temporarily relaxed and then trust exit code.
+    # ErrorRecord when $ErrorActionPreference is Stop. Native programs routinely
+    # write harmless diagnostics/progress to stderr, so trust their exit code.
     verbose_git_old = '''function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
     Write-Host ("> git -C `"{0}`" {1}" -f $repoRoot, ($Arguments -join ' ')) -ForegroundColor DarkGray
     $output = & git.exe -C $repoRoot @Arguments 2>&1
@@ -48,7 +55,6 @@ def main() -> int:
     elif verbose_git_new not in text:
         raise RuntimeError("Could not patch verbose Git function for native stderr handling")
 
-    # Windows PowerShell parses "$Commit:" as a drive-qualified variable.
     text = text.replace(
         'Write-LabLog "Validation failed for $Commit: $errorText" \'ERROR\'',
         'Write-LabLog "Validation failed for ${Commit}: $errorText" \'ERROR\'',
@@ -74,7 +80,6 @@ def main() -> int:
 }
 '''
 
-    # Keep validation Git commands verbose, but polling Git commands silent.
     if "function GitQuiet(" not in text:
         marker = "function Load-State {"
         pos = text.find(marker)
@@ -85,6 +90,71 @@ def main() -> int:
         text = text.replace(quiet_git_old, quiet_git_new, 1)
     elif quiet_git_new not in text:
         raise RuntimeError("Could not patch GitQuiet function for native stderr handling")
+
+    # Apply the same native-stderr rule to every validation command (npm, cargo,
+    # pytest, PowerShell build scripts, etc.). Vitest legitimately writes some
+    # test diagnostics to stderr even when the command succeeds.
+    invoke_old = '''            $global:LASTEXITCODE = 0
+            Write-LabLog ("COMMAND [{0}] {1} {2}" -f $Name, $File, ($Arguments -join ' '))
+            & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
+            $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
+'''
+    invoke_new = '''            $global:LASTEXITCODE = 0
+            Write-LabLog ("COMMAND [{0}] {1} {2}" -f $Name, $File, ($Arguments -join ' '))
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
+                $nativeExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            $exitCode = if ($null -eq $nativeExitCode) { 0 } else { [int]$nativeExitCode }
+'''
+    text = replace_if_present(text, invoke_old, invoke_new)
+
+    # A failed validation must still produce evidence and return a status; evidence
+    # serialization/upload errors must not escape into the polling loop. Enumerate
+    # the generic List explicitly because Windows PowerShell 5 can throw a binder
+    # "argument types do not match" error for @($genericList) in this context.
+    finalize_old = '''        $summary = [ordered]@{
+            schema_version = 1
+            commit = $Commit
+            branch = $branch
+            status = $status
+            error = $errorText
+            started_at = $startedAt.ToString('o')
+            finished_at = [DateTime]::UtcNow.ToString('o')
+            automation_case = [string]$config.automation_case
+            steps = @($steps)
+        }
+        $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDir 'summary.json') -Encoding UTF8
+        Publish-Run $runDir $Commit $runStamp
+'''
+    finalize_new = '''        try {
+            $stepArray = @($steps | ForEach-Object { $_ })
+            $summary = [ordered]@{
+                schema_version = 1
+                commit = $Commit
+                branch = $branch
+                status = $status
+                error = $errorText
+                started_at = $startedAt.ToString('o')
+                finished_at = [DateTime]::UtcNow.ToString('o')
+                automation_case = [string]$config.automation_case
+                steps = $stepArray
+            }
+            $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDir 'summary.json') -Encoding UTF8
+            try {
+                Publish-Run $runDir $Commit $runStamp
+            } catch {
+                Write-LabLog "Evidence publication failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
+            }
+        } catch {
+            Write-LabLog "Evidence finalization failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
+        }
+'''
+    text = replace_if_present(text, finalize_old, finalize_new)
 
     if "$lastPollingErrorAt" not in text:
         marker = "    $first = $true\n"
@@ -119,11 +189,18 @@ def main() -> int:
 
             if ($shouldRun) {
                 Write-LabLog "Detected new origin/$branch commit $remote. Starting validation."
-                $result = Invoke-ValidationRun $remote
+
+                # Claim this SHA before running it. A broken commit is reported once;
+                # it is not retried forever on every polling cycle.
                 $state.last_processed_sha = $remote
-                if ($result -eq 'ok') { $state.last_passed_sha = $remote }
                 $state.last_run = [DateTime]::UtcNow.ToString('o')
                 Save-State $state
+
+                $result = Invoke-ValidationRun $remote
+                if ($result -eq 'ok') {
+                    $state.last_passed_sha = $remote
+                    Save-State $state
+                }
             }
         } catch {
             $currentPollingError = $_.Exception.Message
@@ -159,8 +236,8 @@ def main() -> int:
     text = text[:loop_start] + replacement + text[loop_end:]
     WATCHER.write_text(text, encoding="utf-8")
     print(
-        "Patched Dev Lab watcher: git.exe recursion fix, PowerShell 5 native stderr handling, "
-        "silent polling, hard interval, throttled repeated errors."
+        "Patched Dev Lab watcher: safe native stderr, one-shot failed commits, "
+        "safe evidence finalization, silent polling and hard interval."
     )
     return 0
 
