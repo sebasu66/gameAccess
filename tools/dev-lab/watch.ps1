@@ -1,9 +1,11 @@
 [CmdletBinding()]
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot 'config.json')
+    [string]$ConfigPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $ConfigPath) { $ConfigPath = Join-Path $scriptRoot 'config.json' }
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $repoRoot = [IO.Path]::GetFullPath([string]$config.repo_root)
 $branch = [string]$config.branch
