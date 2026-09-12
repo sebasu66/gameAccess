@@ -40,6 +40,12 @@ function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argument
     return @($output)
 }
 
+function GitQuiet([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+    $output = & git -C $repoRoot @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
+    return @($output)
+}
+
 function Load-State {
     if (-not (Test-Path -LiteralPath $stateFile)) {
         return [ordered]@{ last_processed_sha = ''; last_passed_sha = ''; last_run = $null }
@@ -298,11 +304,13 @@ try {
     Write-LabLog "Watcher started for $repoRoot -> origin/$branch (poll ${pollSeconds}s)."
     $state = Load-State
     $first = $true
+    $lastPollingError = ''
+    $lastPollingErrorAt = [DateTime]::MinValue
 
     while (-not (Test-Path -LiteralPath $stopFile)) {
         try {
-            Git fetch --prune origin $branch | Out-Null
-            $remote = (Git rev-parse "origin/$branch" | Select-Object -First 1).Trim()
+            GitQuiet fetch --prune origin $branch | Out-Null
+            $remote = (GitQuiet rev-parse "origin/$branch" | Select-Object -First 1).Trim()
             $shouldRun = $remote -ne [string]$state.last_processed_sha
             if ($first -and -not [bool]$config.run_on_start -and -not [string]$state.last_processed_sha) {
                 $state.last_processed_sha = $remote
