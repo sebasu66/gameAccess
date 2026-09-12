@@ -27,10 +27,15 @@ Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
 function Write-LabLog([string]$Message, [string]$Level = 'INFO') {
     $line = '{0} [{1}] {2}' -f ([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss.fff')), $Level, $Message
     Add-Content -LiteralPath $watcherLog -Value $line -Encoding UTF8
+    if ($Level -eq 'ERROR') { Write-Host $line -ForegroundColor Red }
+    elseif ($Level -eq 'WARN') { Write-Host $line -ForegroundColor Yellow }
+    else { Write-Host $line }
 }
 
 function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+    Write-Host ("> git -C `"{0}`" {1}" -f $repoRoot, ($Arguments -join ' ')) -ForegroundColor DarkGray
     $output = & git -C $repoRoot @Arguments 2>&1
+    if ($output) { @($output) | ForEach-Object { Write-Host $_ } }
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
     return @($output)
 }
@@ -45,6 +50,16 @@ function Load-State {
 
 function Save-State($State) {
     $State | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stateFile -Encoding UTF8
+}
+
+function Show-NewTextLines([string]$Path, [ref]$LineCount, [string]$Prefix = '') {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $lines = @(Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue)
+    $seen = [int]$LineCount.Value
+    for ($i = $seen; $i -lt $lines.Count; $i++) {
+        Write-Host ("{0}{1}" -f $Prefix, $lines[$i])
+    }
+    $LineCount.Value = $lines.Count
 }
 
 function Invoke-Step {
@@ -63,14 +78,16 @@ function Invoke-Step {
         Push-Location $WorkingDirectory
         try {
             $global:LASTEXITCODE = 0
-            $output = & $File @Arguments 2>&1
+            Write-LabLog ("COMMAND [{0}] {1} {2}" -f $Name, $File, ($Arguments -join ' '))
+            & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
             $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
-            @($output) | Out-File -LiteralPath $logPath -Encoding utf8
         } finally {
             Pop-Location
         }
     } catch {
-        $_ | Out-String | Out-File -LiteralPath $logPath -Encoding utf8
+        $errorOutput = $_ | Out-String
+        $errorOutput | Out-File -LiteralPath $logPath -Encoding utf8
+        Write-Host $errorOutput -ForegroundColor Red
         $exitCode = 1
     }
     $entry = [ordered]@{
@@ -229,11 +246,20 @@ function Invoke-ValidationRun([string]$Commit) {
         Write-LabLog "Launched GameAccess automation case '$($config.automation_case)' as PID $($appProcess.Id)."
 
         $resultPath = Join-Path $automationDir 'result.json'
+        $gameAccessLogLines = if (Test-Path -LiteralPath $gameAccessLog -PathType Leaf) { @(Get-Content -LiteralPath $gameAccessLog -ErrorAction SilentlyContinue).Count } else { 0 }
+        $stdoutLines = 0
+        $stderrLines = 0
         $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, [int]$config.automation_timeout_seconds))
         while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
+            Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+            Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
+            Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
             if ($appProcess.HasExited) { break }
             Start-Sleep -Milliseconds 500
         }
+        Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+        Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
+        Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
         if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
             throw "Automation result.json was not produced before timeout/process exit."
         }
