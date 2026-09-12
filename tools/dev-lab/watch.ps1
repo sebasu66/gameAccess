@@ -270,7 +270,7 @@ function Invoke-ValidationRun([string]$Commit) {
         $status = 'ok'
     } catch {
         $errorText = $_.Exception.Message
-        Write-LabLog "Validation failed for $Commit: $errorText" 'ERROR'
+        Write-LabLog "Validation failed for ${Commit}: $errorText" 'ERROR'
     } finally {
         Stop-ExactProcess $appProcess
         Remove-Item -LiteralPath $activeAppPidFile -Force -ErrorAction SilentlyContinue
