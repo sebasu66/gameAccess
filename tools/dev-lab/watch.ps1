@@ -34,14 +34,14 @@ function Write-LabLog([string]$Message, [string]$Level = 'INFO') {
 
 function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
     Write-Host ("> git -C `"{0}`" {1}" -f $repoRoot, ($Arguments -join ' ')) -ForegroundColor DarkGray
-    $output = & git -C $repoRoot @Arguments 2>&1
+    $output = & git.exe -C $repoRoot @Arguments 2>&1
     if ($output) { @($output) | ForEach-Object { Write-Host $_ } }
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
     return @($output)
 }
 
 function GitQuiet([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
-    $output = & git -C $repoRoot @Arguments 2>&1
+    $output = & git.exe -C $repoRoot @Arguments 2>&1
     if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
     return @($output)
 }
