@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "library-search-and-details-smoke",
+  "stop_on_error": true,
+  "close_when_done": true,
+  "tasks": [
+    { "action": "wait", "ms": 1200 },
+    { "action": "search", "term": "Baldur" },
+    { "action": "screenshot", "label": "01-search-baldur" },
+    { "action": "select", "game": "Baldur's Gate 3" },
+    { "action": "screenshot", "label": "02-baldurs-gate-details" },
+    { "action": "assert", "selector": ".detail-panel", "text": "Baldur" }
+  ]
+}
