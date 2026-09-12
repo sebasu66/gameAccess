@@ -31,6 +31,23 @@ jobs:
       - name: Apply deterministic integration
         run: python tools/dev-lab/apply-automation-integration.py
 
+      - name: Apply PowerShell parser compatibility fix
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('tools/dev-lab/watch.ps1')
+          text = path.read_text(encoding='utf-8')
+          old = 'Write-LabLog "Validation failed for $Commit: $errorText" \'ERROR\''
+          new = 'Write-LabLog "Validation failed for ${Commit}: $errorText" \'ERROR\''
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+              print('Applied PowerShell variable-delimiting fix.')
+          elif new in text:
+              print('PowerShell variable-delimiting fix already present.')
+          else:
+              raise SystemExit('Expected watcher validation error line was not found.')
+
       - name: Commit generated integration if needed
         shell: bash
         run: |
