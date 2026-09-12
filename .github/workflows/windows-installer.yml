@@ -3,8 +3,13 @@ name: Windows installer
 on:
   workflow_dispatch:
   push:
+    branches:
+      - dev
     tags:
       - "gameaccess-v*"
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/windows-installer.yml"
 
 permissions:
   contents: write
@@ -66,7 +71,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GameAccess-Windows-v${{ steps.version.outputs.version }}
+          name: GameAccess-Windows-v${{ steps.version.outputs.version }}-${{ github.sha }}
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14
