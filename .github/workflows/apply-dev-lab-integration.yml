@@ -48,6 +48,86 @@ jobs:
           else:
               raise SystemExit('Expected watcher validation error line was not found.')
 
+      - name: Keep polling quiet and deduplicate repeated poll errors
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('tools/dev-lab/watch.ps1')
+          text = path.read_text(encoding='utf-8')
+
+          git_fn = '''function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+              Write-Host ("> git -C `"{0}`" {1}" -f $repoRoot, ($Arguments -join ' ')) -ForegroundColor DarkGray
+              $output = & git -C $repoRoot @Arguments 2>&1
+              if ($output) { @($output) | ForEach-Object { Write-Host $_ } }
+              if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
+              return @($output)
+          }
+          '''
+          quiet_fn = '''
+          function GitQuiet([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+              $output = & git -C $repoRoot @Arguments 2>&1
+              if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
+              return @($output)
+          }
+          '''
+          if 'function GitQuiet(' not in text:
+              if git_fn not in text:
+                  raise SystemExit('Verbose Git function not found for quiet-poll patch.')
+              text = text.replace(git_fn, git_fn + quiet_fn, 1)
+
+          text = text.replace('Git fetch --prune origin $branch | Out-Null', 'GitQuiet fetch --prune origin $branch | Out-Null', 1)
+          text = text.replace('$remote = (Git rev-parse "origin/$branch" | Select-Object -First 1).Trim()', '$remote = (GitQuiet rev-parse "origin/$branch" | Select-Object -First 1).Trim()', 1)
+
+          old = '''    $state = Load-State
+              $first = $true
+
+              while (-not (Test-Path -LiteralPath $stopFile)) {'''
+          new = '''    $state = Load-State
+              $first = $true
+              $lastPollingError = ''
+              $lastPollingErrorAt = [DateTime]::MinValue
+
+              while (-not (Test-Path -LiteralPath $stopFile)) {'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''            $shouldRun = $remote -ne [string]$state.last_processed_sha
+                  if ($first -and -not [bool]$config.run_on_start -and -not [string]$state.last_processed_sha) {'''
+          new = '''            $lastPollingError = ''
+                  $shouldRun = $remote -ne [string]$state.last_processed_sha
+                  if ($first -and -not [bool]$config.run_on_start -and -not [string]$state.last_processed_sha) {'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''            if ($shouldRun) {
+                      $result = Invoke-ValidationRun $remote'''
+          new = '''            if ($shouldRun) {
+                      Write-LabLog "Detected new origin/$branch commit $remote. Starting validation."
+                      $result = Invoke-ValidationRun $remote'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = '''        } catch {
+                  Write-LabLog "Polling cycle failed: $($_.Exception.Message)" 'ERROR'
+              }
+              if (-not (Test-Path -LiteralPath $stopFile)) { Start-Sleep -Seconds $pollSeconds }'''
+          new = '''        } catch {
+                  $currentPollingError = $_.Exception.Message
+                  $now = [DateTime]::UtcNow
+                  if ($currentPollingError -ne $lastPollingError -or ($now - $lastPollingErrorAt).TotalMinutes -ge 5) {
+                      Write-LabLog "Polling cycle failed: $currentPollingError" 'ERROR'
+                      $lastPollingError = $currentPollingError
+                      $lastPollingErrorAt = $now
+                  }
+              }
+              if (-not (Test-Path -LiteralPath $stopFile)) { Start-Sleep -Seconds $pollSeconds }'''
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          print('Polling is quiet; validation remains verbose; duplicate polling errors are throttled.')
+
       - name: Commit generated integration if needed
         shell: bash
         run: |
