@@ -1,11 +1,13 @@
 [CmdletBinding()]
-param([string]$ConfigPath = (Join-Path $PSScriptRoot 'config.json'))
+param([string]$ConfigPath = '')
 
 $ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $ConfigPath) { $ConfigPath = Join-Path $scriptRoot 'config.json' }
 $stateRoot = Join-Path $env:LOCALAPPDATA 'GameAccess\dev-lab'
 $pidFile = Join-Path $stateRoot 'watcher.pid'
 $stopFile = Join-Path $stateRoot 'stop.flag'
-$watcher = Join-Path $PSScriptRoot 'watch.ps1'
+$watcher = Join-Path $scriptRoot 'watch.ps1'
 New-Item -ItemType Directory -Force -Path $stateRoot | Out-Null
 
 if (Test-Path -LiteralPath $pidFile) {
