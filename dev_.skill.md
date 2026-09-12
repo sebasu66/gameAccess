@@ -6,15 +6,23 @@ This file defines mandatory development behavior for GameAccess. Read it before 
 
 The canonical source is the GitHub repository.
 
+GameAccess now has two active product branches:
+
+- `main` is the stable branch. The stable checkout is `C:\DEV\gameAccess`.
+- `dev` is the development branch. The development checkout is `C:\DEV\Game Access Dev`.
+
 For normal development work, use this sequence only:
 
-1. Inspect and edit the project in GitHub.
-2. Commit the source changes to the remote repository.
-3. In the existing working copy at `C:\DEV\gameAccess`, run `git pull --ff-only`.
-4. Run tests and builds from that existing working copy.
-5. Do not create temporary clones, duplicate working trees, sparse clones, or alternate copies of the repository unless the user explicitly requests one.
-6. Do not use the local working copy as an independent source-editing branch when the task is being developed remotely.
-7. Never force-push to reconcile a mistake.
+1. Inspect and edit the project on the remote `dev` branch.
+2. Commit source changes to `dev`.
+3. In `C:\DEV\Game Access Dev`, run `git pull --ff-only` and verify the exact commit being tested.
+4. Run tests and builds from that development checkout.
+5. Fix discovered bugs on remote `dev`, pull again, and retest.
+6. Only after the change is approved, merge `dev` into `main` so `main` remains stable.
+7. Do not create temporary clones, sparse clones, worktrees, or additional product-development branches unless the user explicitly requests one.
+8. Never force-push to reconcile a mistake.
+
+The separate Godot/3D experiment may remain on its own experimental branch and is not part of the current Tauri GameAccess product unless the user explicitly brings it back into scope.
 
 ## 2. Do not remove working behavior without an explicit request
 
@@ -92,12 +100,11 @@ The main library is the primary game-browsing surface.
 
 ## 8. Local working-copy safety
 
-`C:\DEV\gameAccess` is the established build/test checkout.
-
-- Preserve dirty/untracked user work.
+- Preserve dirty/untracked user work in both established checkouts.
 - Never reset, clean, or discard files merely to obtain a clean tree.
 - Generated EXEs, build targets, logs, debug output, scanner binaries, and other generated artifacts are not source changes and must not be committed.
 - Pull with `--ff-only`; if it cannot fast-forward, stop and diagnose instead of improvising another repository copy.
+- Development tests use `C:\DEV\Game Access Dev`; `C:\DEV\gameAccess` remains the stable `main` checkout.
 
 ## 9. Regression discipline
 
@@ -117,7 +124,7 @@ High-priority permanent regression contracts include:
 
 Before inventing infrastructure, clones, adapters, replacement workflows, or compatibility layers, use the simplest existing project path that satisfies the request.
 
-If the repository is already present at `C:\DEV\gameAccess`, do not clone it again just to build it. If GitHub can edit the remote source directly, do not manufacture a temporary source tree merely to make the same edit.
+Use the established `main` and `dev` checkouts. Do not manufacture temporary source trees merely to make the same edit.
 
 Do not solve a local implementation problem by creating a larger workflow problem.
 
