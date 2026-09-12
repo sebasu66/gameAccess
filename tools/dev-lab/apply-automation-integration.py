@@ -42,6 +42,12 @@ def patch_main() -> None:
 
 def patch_watcher() -> None:
     text = WATCHER.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "[CmdletBinding()]\nparam(\n    [string]$ConfigPath = (Join-Path $PSScriptRoot 'config.json')\n)\n\n$ErrorActionPreference = 'Stop'\n$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json\n",
+        "[CmdletBinding()]\nparam(\n    [string]$ConfigPath = ''\n)\n\n$ErrorActionPreference = 'Stop'\n$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path\nif (-not $ConfigPath) { $ConfigPath = Join-Path $scriptRoot 'config.json' }\n$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json\n",
+        "PowerShell config path resolution",
+    )
     text = text.replace("ConvertFrom-Json -AsHashtable", "ConvertFrom-Json")
     text = replace_once(
         text,
