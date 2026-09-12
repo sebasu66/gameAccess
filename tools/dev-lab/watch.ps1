@@ -145,10 +145,30 @@ function Sanitize-TextFile([string]$Source, [string]$Destination) {
 
 function Ensure-DevLabRelease {
     if (-not [bool]$config.upload) { return $false }
-    & gh release view ([string]$config.release_tag) --repo ([string]$config.github_repo) *> $null
-    if ($LASTEXITCODE -eq 0) { return $true }
-    & gh release create ([string]$config.release_tag) --repo ([string]$config.github_repo) --target $branch --prerelease --title 'Game Access Dev Lab' --notes 'Automated local Windows validation evidence. Assets are rotated to the most recent runs.' *> $null
-    if ($LASTEXITCODE -ne 0) {
+
+    # Windows PowerShell 5.1 promotes native stderr to an ErrorRecord when
+    # ErrorActionPreference is Stop. `gh release view` intentionally writes
+    # "release not found" to stderr when the prerelease must be created, so
+    # trust the native exit code instead of treating stderr as an exception.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & gh.exe release view ([string]$config.release_tag) --repo ([string]$config.github_repo) *> $null
+        $viewExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($viewExitCode -eq 0) { return $true }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & gh.exe release create ([string]$config.release_tag) --repo ([string]$config.github_repo) --target $branch --prerelease --title 'Game Access Dev Lab' --notes 'Automated local Windows validation evidence. Assets are rotated to the most recent runs.' *> $null
+        $createExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($createExitCode -ne 0) {
         Write-LabLog 'Could not create dev-lab GitHub release. Evidence remains local.' 'ERROR'
         return $false
     }
