@@ -35,10 +35,18 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
 
 
 def register_app_id(session: Session, app_id: int) -> tuple[core.Game, bool]:
-    """Persist Steam ownership identity without requiring Store metadata."""
+    """Persist verified Steam access immediately, without waiting for Store metadata."""
     app_id = int(app_id)
     game = session.exec(select(core.Game).where(core.Game.app_id == app_id)).first()
     if game is not None:
+        # A verified provider license is enough to expose the game in the
+        # GameAccess catalog. Metadata enrichment may later filter it out if
+        # Steam proves that the AppID is not a Windows game.
+        if is_placeholder_name(app_id, game.name) and not game.active:
+            game.active = True
+            session.add(game)
+            session.commit()
+            session.refresh(game)
         return game, False
 
     name = placeholder_name(app_id)
@@ -47,7 +55,7 @@ def register_app_id(session: Session, app_id: int) -> tuple[core.Game, bool]:
         name=name,
         app_id=app_id,
         credit_cost_per_hour=10,
-        active=False,
+        active=True,
     )
     session.add(game)
     session.commit()
@@ -66,7 +74,7 @@ def _fetch_metadata_throttled(app_id: int) -> dict[str, Any]:
 
 
 def enrich_app_id(app_id: int) -> None:
-    """Best-effort Store enrichment; failure never invalidates ownership."""
+    """Best-effort Store enrichment; failure never invalidates verified access."""
     metadata: dict[str, Any] | None = None
     for attempt in range(4):
         try:
@@ -109,6 +117,35 @@ def queue_metadata_enrichment(app_id: int) -> bool:
         _METADATA_PENDING.add(app_id)
     _METADATA_EXECUTOR.submit(_run_queued_enrichment, app_id)
     return True
+
+
+def resume_pending_metadata() -> int:
+    """Restore catalog visibility and metadata work after an API restart."""
+    queued = 0
+    with Session(core.engine) as session:
+        mapped_game_ids = {
+            row.game_id for row in session.exec(select(core.AccountGame)).all()
+        }
+        games = session.exec(select(core.Game)).all()
+        for game in games:
+            if (
+                game.id not in mapped_game_ids
+                or not game.app_id
+                or not is_placeholder_name(int(game.app_id), game.name)
+            ):
+                continue
+            if not game.active:
+                game.active = True
+                session.add(game)
+            if queue_metadata_enrichment(int(game.app_id)):
+                queued += 1
+        session.commit()
+    return queued
+
+
+@router.on_event("startup")
+def resume_provider_metadata_on_startup() -> None:
+    resume_pending_metadata()
 
 
 @router.get("/metadata-queue/status")
