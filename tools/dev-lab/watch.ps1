@@ -247,9 +247,22 @@ function Invoke-ValidationRun([string]$Commit) {
 
     Write-LabLog "Starting validation for dev commit $Commit."
     try {
-        $trackedChanges = @(Git status --porcelain --untracked-files=no)
-        if ($trackedChanges.Count -gt 0 -and ($trackedChanges -join '').Trim()) {
-            throw "Dedicated dev checkout has tracked local changes; refusing to overwrite them: $($trackedChanges -join '; ')"
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & git.exe -C $repoRoot diff --quiet --ignore-submodules --
+            $worktreeDiffExit = $LASTEXITCODE
+            & git.exe -C $repoRoot diff --cached --quiet --ignore-submodules --
+            $stagedDiffExit = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($worktreeDiffExit -gt 1 -or $stagedDiffExit -gt 1) {
+            throw "Could not inspect tracked local changes (worktree=$worktreeDiffExit, staged=$stagedDiffExit)."
+        }
+        if ($worktreeDiffExit -eq 1 -or $stagedDiffExit -eq 1) {
+            $trackedChanges = @(Git status --porcelain --untracked-files=no)
+            throw "Dedicated dev checkout has real tracked local changes; refusing to overwrite them: $($trackedChanges -join '; ')"
         }
 
         Git checkout $branch | Out-Null
