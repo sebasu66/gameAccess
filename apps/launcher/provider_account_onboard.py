@@ -133,6 +133,49 @@ def _selected_scan(
     return scan, account
 
 
+def _persist_failed_scan_account(
+    api: str, credential: ProviderCredential, inventory: dict[str, Any],
+    scan: dict[str, Any], error_text: str,
+) -> dict[str, Any] | None:
+    """Keep a failed/temporary provider visible without erasing old licenses."""
+    base = api.rstrip("/")
+    existing_accounts = _api_json("GET", f"{base}/admin/accounts", timeout=20.0) or []
+    existing = next(
+        (row for row in existing_accounts if str(row.get("label") or "") == credential.label),
+        None,
+    )
+    game_ids = [
+        int(game["id"])
+        for game in ((existing or {}).get("games") or [])
+        if isinstance(game, dict) and isinstance(game.get("id"), int)
+    ]
+    notes = json.dumps(
+        {
+            "source": "provider-account-onboard",
+            "account_name": credential.login,
+            "provider_id": credential.provider_id,
+            "ownership_source": inventory.get("source") or "steamkit-license-list-pics",
+            "ownership_verified_at": inventory.get("verified_at"),
+            "inventory_complete": False,
+            "ownership_scan_status": str(scan.get("status") or "error"),
+            "ownership_scan_error": error_text[:500],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return _api_json(
+        "POST",
+        f"{base}/admin/accounts/sync",
+        payload={
+            "label": credential.label,
+            "provider": "steam",
+            "game_ids": game_ids,
+            "notes": notes,
+        },
+        timeout=30.0,
+    )
+
+
 def _register_verified_apps(
     api: str, app_ids: list[int]
 ) -> tuple[list[int], list[int], list[int]]:
@@ -211,6 +254,12 @@ def onboard_provider_account(
             ),
             {},
         )
+        error_text = str(error.get("error") or scan.get("status") or "scan failed")[:500]
+        persistence_error = None
+        try:
+            _persist_failed_scan_account(base, credential, inventory, scan, error_text)
+        except Exception as exc:
+            persistence_error = f"{type(exc).__name__}: {exc}"[:500]
         return {
             "ok": False,
             "created": created,
@@ -218,10 +267,9 @@ def onboard_provider_account(
             "label": credential.label,
             "scan_status": scan.get("status"),
             "scan_complete": bool(scan.get("complete")),
-            "error": str(error.get("error") or scan.get("status") or "scan failed")[
-                :500
-            ],
+            "error": error_text,
             "guard_method": error.get("guard_method"),
+            "account_status_persistence_error": persistence_error,
         }
 
     # Phase 1 is now complete before Store enrichment begins. These AppIDs are

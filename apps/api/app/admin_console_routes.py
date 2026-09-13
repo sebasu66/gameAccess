@@ -52,6 +52,10 @@ class ProviderSteamLoginRequest(BaseModel):
     provider_id: str = Field(min_length=1, max_length=64)
 
 
+class ProviderScanRetryRequest(BaseModel):
+    provider_id: str = Field(min_length=1, max_length=64)
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -205,9 +209,12 @@ def dashboard(session: Session) -> dict:
                 "active_lease_id": lease.id if lease else None,
                 "identity": {
                     "account_name": notes.get("account_name"),
+                    "provider_id": notes.get("provider_id"),
                     "steam_id64": notes.get("steam_id64"),
                     "user_id32": notes.get("user_id32"),
                 },
+                "scan_status": notes.get("ownership_scan_status"),
+                "scan_error": notes.get("ownership_scan_error"),
                 "games_preview": [game.name for game in owned_games if game][:8],
             }
         )
@@ -492,6 +499,31 @@ def start_provider_steam_login(req: ProviderSteamLoginRequest) -> dict:
         )
     except Exception as exc:
         raise HTTPException(500, f"No se pudo iniciar Steam login: {exc}") from exc
+    return {"ok": True, "task": task, "provider_id": provider_id}
+
+
+@router.post("/tools/provider-scan/retry")
+def retry_provider_scan(req: ProviderScanRetryRequest) -> dict:
+    script = LAUNCHER_ROOT / "provider_account_onboard.py"
+    if not script.is_file():
+        raise HTTPException(500, "provider_account_onboard.py not found")
+    provider_id = req.provider_id.strip()
+    try:
+        task = start_task(
+            "provider_account_retry",
+            f"Reintentar scan Steam {provider_id}",
+            [
+                str(launcher_python()),
+                str(script),
+                "--api",
+                "http://127.0.0.1:38147",
+                "--provider-id",
+                provider_id,
+                "--compact",
+            ],
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo iniciar el retry de SteamKit: {exc}") from exc
     return {"ok": True, "task": task, "provider_id": provider_id}
 
 
