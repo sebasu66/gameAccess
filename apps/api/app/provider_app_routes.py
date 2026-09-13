@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from . import main as core
@@ -12,9 +13,15 @@ from .provider_app_registration import is_placeholder_name, placeholder_name
 
 router = APIRouter(prefix="/admin/pool", tags=["pool"])
 
-_METADATA_FETCH_LOCK = Lock()
 _METADATA_MIN_INTERVAL_SECONDS = 1.0
 _METADATA_LAST_FETCH_STARTED = 0.0
+_METADATA_FETCH_LOCK = Lock()
+_METADATA_QUEUE_LOCK = Lock()
+_METADATA_PENDING: set[int] = set()
+_METADATA_EXECUTOR = ThreadPoolExecutor(
+    max_workers=1,
+    thread_name_prefix="gameaccess-steam-metadata",
+)
 
 
 def _unique_slug(session: Session, name: str, app_id: int) -> str:
@@ -61,13 +68,13 @@ def _fetch_metadata_throttled(app_id: int) -> dict[str, Any]:
 def enrich_app_id(app_id: int) -> None:
     """Best-effort Store enrichment; failure never invalidates ownership."""
     metadata: dict[str, Any] | None = None
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             metadata = _fetch_metadata_throttled(app_id)
             break
         except core.SteamCatalogError:
-            if attempt < 2:
-                time.sleep(5.0 * (2**attempt))
+            if attempt < 3:
+                time.sleep(min(60.0, 5.0 * (2**attempt)))
 
     if metadata is None:
         return
@@ -85,10 +92,40 @@ def enrich_app_id(app_id: int) -> None:
         session.commit()
 
 
+def _run_queued_enrichment(app_id: int) -> None:
+    try:
+        enrich_app_id(app_id)
+    finally:
+        with _METADATA_QUEUE_LOCK:
+            _METADATA_PENDING.discard(app_id)
+
+
+def queue_metadata_enrichment(app_id: int) -> bool:
+    """Queue one AppID on the server's single metadata worker."""
+    app_id = int(app_id)
+    with _METADATA_QUEUE_LOCK:
+        if app_id in _METADATA_PENDING:
+            return False
+        _METADATA_PENDING.add(app_id)
+    _METADATA_EXECUTOR.submit(_run_queued_enrichment, app_id)
+    return True
+
+
+@router.get("/metadata-queue/status")
+def metadata_queue_status() -> dict:
+    with _METADATA_QUEUE_LOCK:
+        pending = len(_METADATA_PENDING)
+    return {
+        "ok": True,
+        "pending": pending,
+        "workers": 1,
+        "min_interval_seconds": _METADATA_MIN_INTERVAL_SECONDS,
+    }
+
+
 @router.post("/games/register-steam/{app_id}")
 def register_steam_app(
     app_id: int,
-    background_tasks: BackgroundTasks,
     session: Session = Depends(core.get_session),
 ) -> dict:
     if app_id <= 0:
@@ -96,13 +133,13 @@ def register_steam_app(
 
     game, created = register_app_id(session, app_id)
     pending = is_placeholder_name(app_id, game.name)
-    if pending:
-        background_tasks.add_task(enrich_app_id, app_id)
+    queued = queue_metadata_enrichment(app_id) if pending else False
 
     return {
         "ok": True,
         "created": created,
         "metadata_state": "pending" if pending else ("ready" if game.active else "filtered"),
+        "metadata_queued": queued,
         "game": {
             "id": game.id,
             "app_id": game.app_id,
