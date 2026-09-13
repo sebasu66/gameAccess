@@ -18,15 +18,15 @@ def test_register_app_id_does_not_require_store_metadata() -> None:
         assert created is True
         assert game.app_id == 1681430
         assert game.name == "Steam 1681430"
-        assert game.active is False
+        assert game.active is True
 
         same_game, created_again = provider_apps.register_app_id(session, 1681430)
         assert created_again is False
         assert same_game.id == game.id
-        assert same_game.active is False
+        assert same_game.active is True
 
 
-def test_existing_pending_placeholder_stays_hidden_until_classified() -> None:
+def test_existing_pending_placeholder_is_reactivated_by_verified_access() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -40,14 +40,14 @@ def test_existing_pending_placeholder_stays_hidden_until_classified() -> None:
             name="Steam 3008130",
             app_id=3008130,
             credit_cost_per_hour=10,
-            active=True,
+            active=False,
         )
         session.add(game)
         session.commit()
 
         restored, created = provider_apps.register_app_id(session, 3008130)
         assert created is False
-        assert restored.active is False
+        assert restored.active is True
 
 
 def test_metadata_failure_never_removes_registered_ownership(monkeypatch) -> None:
@@ -75,7 +75,7 @@ def test_metadata_failure_never_removes_registered_ownership(monkeypatch) -> Non
         assert game is not None
         assert game.id == game_id
         assert game.name == "Steam 3008130"
-        assert game.active is False
+        assert game.active is True
 
 
 def test_metadata_activates_real_windows_game(monkeypatch) -> None:
