@@ -1,4 +1,5 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
+import { applyBundledCatalogArtwork, applyBundledDetails } from "./bundledArtwork";
 import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
 import { PersonalCatalog } from "./catalog/PersonalCatalog";
 import { getCatalogMode } from "./catalogMode";
@@ -55,7 +56,7 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
     { area: "LOCAL STEAM" },
   );
 
-  localCatalog = personalCatalogBuilder.build(pool);
+  localCatalog = await applyBundledCatalogArtwork(personalCatalogBuilder.build(pool));
   await narrate(
     `Finished Propios catalog: ${localCatalog.length} game(s), all backed by a verified personal owned or Family-runnable route.`,
     { area: "CATALOG" },
@@ -86,7 +87,7 @@ async function loadLocalDetails(gameId: number): Promise<GameDetails> {
         // Keep browsing even if Steam Store metadata is temporarily unavailable.
       }
     }
-    if (steam) return { ...game, steam, metadata_state: "steam-store" };
+    if (steam) return applyBundledDetails({ ...game, steam, metadata_state: "steam-store" });
   }
   return localDetails(game);
 }
@@ -159,10 +160,11 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
 
   await narrate("Requesting the GameAccess-only catalog and current user profile from the backend.", { area: "BACKEND" });
   const gameAccessCatalog = new GameAccessCatalog(() => request<CatalogGame[]>("/catalog"));
-  const [games, user] = await Promise.all([
+  const [backendGames, user] = await Promise.all([
     gameAccessCatalog.load(),
     request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
   ]);
+  const games = await applyBundledCatalogArtwork(backendGames);
   if (!games.length) throw new Error(`GameAccess backend ${api}/catalog returned an empty catalog.`);
 
   void narrateBatch(
@@ -189,7 +191,7 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
   return gameDetailsResources.get(key, async () => {
     if (getCatalogMode() === "local") return loadLocalDetails(gameId);
     try {
-      return await request<GameDetails>(`/games/${gameId}/details`);
+      return await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details`));
     } catch {
       throw new Error("No se pudo obtener la ficha del juego");
     }
