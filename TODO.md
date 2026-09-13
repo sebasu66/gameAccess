@@ -1,7 +1,7 @@
 # gameAccess — Central TODO
 
 > **Authoritative prioritized implementation queue**  
-> Last reviewed: 2026-08-31
+> Last reviewed: 2026-09-13
 >
 > Keep this file ordered by priority. When a task is completed, mark it `[x]` and add a short result/commit note where useful. New work should be inserted according to dependency/priority rather than simply appended.
 
@@ -70,6 +70,27 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Compartir solamente contratos comunes: GameRecord, Room, Presence, SharedMediaState, SteamSessionState y eventos de lanzamiento/retorno.
 - [ ] Integrar primero un vertical slice pequeño: salón público + sección privada mínima + video sincronizado + voz + lanzamiento de un juego representativo mediante Steam.
 - [ ] Validar dos monitores dentro de ese vertical slice: Game Access en primera pantalla, juego/Steam preferentemente en segunda pantalla y retorno al entorno después del cierre.
+
+## P0 — Authoritative catalog build + packaged artwork
+
+**Objetivo:** generar el catálogo de Game Access como un artefacto autoritativo y reproducible del backend, con sólo juegos reales y con todo el artwork estático necesario listo antes de construir el instalador. Este proceso debe ser atómico: un scan incompleto nunca reemplaza el último catálogo bueno.
+
+- [ ] Ejecutar nuevamente un **full SteamKit scan de todas las cuentas proveedoras** usando el scanner corregido actual; no reutilizar como catálogo final snapshots generados antes de los últimos fixes de ownership/Family/licencias.
+- [ ] Mantener el scan como operación atómica: si cualquier cuenta termina `temporarily_unavailable`, falla Steam Guard/login, quedan packages sin resolver o el scan no es completo, guardar diagnóstico/retry pero **no promover ni reemplazar** el catálogo autoritativo anterior.
+- [ ] Extender el resultado SteamKit/PICS para clasificar cada AppID antes de publicar: `game`, `dlc`, `tool`, `demo`, `soundtrack`, `software`, etc. Publicar sólo juegos reales utilizables por Game Access; DLC/tools/software/soundtracks y otros tipos no-juego deben quedar fuera del catálogo.
+- [ ] Tratar AppIDs todavía no clasificados como **pendientes**, no como descartados: durante desarrollo pueden seguir visibles como `Steam <appid>` y resolverse en background, pero un build de catálogo final no debe declararse completo mientras queden tipos desconocidos.
+- [ ] Consolidar ownership + Family access + clasificación PICS en un único catálogo de juegos deduplicado y registrar el conteo canónico esperado para poder detectar regresiones entre scans.
+- [ ] Completar en el backend la metadata de todos los juegos del catálogo: nombre, tipo, plataformas y los campos que usa la UI. Los fallos/rate limits de Steam Store deben reintentarse sin perder ownership ni convertir un juego válido en inexistente.
+- [ ] Descargar **todas las imágenes estáticas que usa Game Access** para cada juego del catálogo: carátula/capsule vertical, header, hero/background, screenshots oficiales y thumbnails estáticos necesarios para la ficha/tráiler. Validar archivo, dimensiones/tipo y evitar duplicados cuando sea posible.
+- [ ] Mantener los **videos/tráilers fuera del paquete**. Los videos continúan obteniéndose on-demand con el mecanismo/caché actual de la ficha; empaquetar sólo imágenes estáticas y posters/thumbnails.
+- [ ] Generar un manifest versionado del catálogo/artwork con AppID, nombre, tipo, rutas relativas de assets, hashes/checksums, metadata version y estado de completitud.
+- [ ] Empaquetar catálogo + artwork en un bundle comprimido de release y hacer que el build del instalador de Game Access lo incluya como recurso instalado. Una instalación nueva debe arrancar con las imágenes del catálogo ya disponibles, sin tener que poblar un caché desde Internet juego por juego.
+- [ ] Ajustar el frontend con el mínimo cambio necesario para **preferir siempre el artwork local empaquetado**. Mantener fallback de red sólo para juegos añadidos después de la versión del paquete o assets ausentes; no usar el cache/localStorage del cliente como fuente primaria del catálogo empaquetado.
+- [ ] Mantener la actualización incremental actual para metadata pendiente: placeholders visibles mientras se resuelven; frontend actualiza silenciosamente; sólo cuando el backend confirma que un AppID es DLC/no-juego desaparece del catálogo.
+- [ ] Hacer que abrir **Detalles** de un placeholder pueda priorizar la resolución de metadata de ese AppID, sin bloquear la navegación ni esperar toda la cola general.
+- [ ] Añadir una validación de release que falle antes de construir/publicar el instalador si el catálogo/artwork declarado como completo contiene juegos sin clasificar, metadata imprescindible ausente, assets faltantes/corruptos o referencias a DLC/no-juegos.
+- [ ] Probar el instalador desde cero en **Windows Sandbox o una VM Windows limpia**, sin Node/Rust/Python ni dependencias de desarrollo preinstaladas. Verificar WebView2/prerrequisitos, instalación, primer arranque, catálogo, artwork local y conexión al backend. Si Steam es requisito del producto, instalar/configurar Steam como precondición explícita del test y comprobar también el mensaje/fallback cuando falta.
+- [ ] Convertir esa instalación limpia en un smoke test repetible de release para evitar que futuras builds dependan accidentalmente del entorno de desarrollo de esta PC.
 
 ## P0 — Validate blocking assumptions
 
