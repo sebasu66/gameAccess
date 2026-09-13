@@ -25,8 +25,10 @@ jobs:
       - name: Apply patch
         run: python tools/dev/patch_catalog_metadata_poll.py
       - name: Install frontend dependencies
+        working-directory: apps/desktop
         run: npm ci
       - name: Frontend tests
+        working-directory: apps/desktop
         run: npm test -- --run
       - name: Commit generated integration
         run: |
