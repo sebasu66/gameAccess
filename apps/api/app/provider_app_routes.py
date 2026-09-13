@@ -35,15 +35,18 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
 
 
 def register_app_id(session: Session, app_id: int) -> tuple[core.Game, bool]:
-    """Persist verified Steam access immediately, without waiting for Store metadata."""
+    """Persist verified Steam access immediately, without exposing unknown app types.
+
+    Ownership/access and catalog visibility are intentionally separate. A raw
+    AppID can represent a game, DLC, tool, soundtrack, server package, etc.
+    Until metadata proves that it is a Windows game, keep it inactive so the
+    GameAccess game grid never shows DLC or a temporary ``Steam <appid>`` card.
+    """
     app_id = int(app_id)
     game = session.exec(select(core.Game).where(core.Game.app_id == app_id)).first()
     if game is not None:
-        # A verified provider license is enough to expose the game in the
-        # GameAccess catalog. Metadata enrichment may later filter it out if
-        # Steam proves that the AppID is not a Windows game.
-        if is_placeholder_name(app_id, game.name) and not game.active:
-            game.active = True
+        if is_placeholder_name(app_id, game.name) and game.active:
+            game.active = False
             session.add(game)
             session.commit()
             session.refresh(game)
@@ -55,7 +58,7 @@ def register_app_id(session: Session, app_id: int) -> tuple[core.Game, bool]:
         name=name,
         app_id=app_id,
         credit_cost_per_hour=10,
-        active=True,
+        active=False,
     )
     session.add(game)
     session.commit()
@@ -74,7 +77,7 @@ def _fetch_metadata_throttled(app_id: int) -> dict[str, Any]:
 
 
 def enrich_app_id(app_id: int) -> None:
-    """Best-effort Store enrichment; failure never invalidates verified access."""
+    """Classify and enrich one AppID; only real Windows games become visible."""
     metadata: dict[str, Any] | None = None
     for attempt in range(4):
         try:
@@ -120,7 +123,7 @@ def queue_metadata_enrichment(app_id: int) -> bool:
 
 
 def resume_pending_metadata() -> int:
-    """Restore catalog visibility and metadata work after an API restart."""
+    """Resume classification after restart while keeping unknown AppIDs hidden."""
     queued = 0
     with Session(core.engine) as session:
         mapped_game_ids = {
@@ -134,8 +137,8 @@ def resume_pending_metadata() -> int:
                 or not is_placeholder_name(int(game.app_id), game.name)
             ):
                 continue
-            if not game.active:
-                game.active = True
+            if game.active:
+                game.active = False
                 session.add(game)
             if queue_metadata_enrichment(int(game.app_id)):
                 queued += 1
