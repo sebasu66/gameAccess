@@ -10,6 +10,8 @@ node_modules/
 dist/
 apps/desktop/node_modules/
 apps/desktop/dist/
+apps/desktop/public/game-assets/
+apps/desktop/public/game-assets.staging-*/
 
 # Rust / Tauri
 apps/desktop/src-tauri/target/
@@ -41,7 +43,7 @@ tools/config/
 tools/logs/
 tools/package/
 tools/public/
-tools/siteserverui/
+tools/catalog/.work/
 tools/g2g-crawler/_analysis/
 tools/g2g-crawler/g2g-*-test.json
 
