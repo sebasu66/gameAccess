@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "name": "library-ui-smoke",
+  "name": "library-ui-smoke-v2",
   "stop_on_error": true,
   "close_when_done": true,
   "tasks": [
