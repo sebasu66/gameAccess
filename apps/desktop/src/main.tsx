@@ -37,7 +37,6 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 
 function CatalogShell() {
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
-  const [refreshNonce, setRefreshNonce] = React.useState(0);
   const surface = new URLSearchParams(window.location.search).get("surface");
   const auxiliarySurface = surface === "tablet" || surface === "display";
   const changeMode = React.useCallback((next: CatalogMode) => {
@@ -48,14 +47,15 @@ function CatalogShell() {
     setMode(next);
   }, [auxiliarySurface, mode]);
   const refreshCatalog = React.useCallback(() => {
-    void narrate(`Manual catalog refresh requested while viewing ${mode}. The catalog will be loaded again from its source.`, { area: "CATALOG" });
-    setRefreshNonce((value) => value + 1);
-  }, [mode]);
+    if (!auxiliarySurface) captureLibraryUiState(mode);
+    void narrate(`Manual catalog refresh requested while viewing ${mode}. Reloading GameAccess so the catalog is fetched again from its source.`, { area: "CATALOG" });
+    window.location.reload();
+  }, [auxiliarySurface, mode]);
   return <>
     <CatalogTabs mode={mode} onChange={changeMode} />
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
     {!auxiliarySurface ? <button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label="Actualizar lista de juegos" title="Volver a pedir el catálogo al servidor"><span aria-hidden="true">↻</span><strong>Actualizar juegos</strong></button> : null}
-    <App key={`${mode}:${refreshNonce}`} />
+    <App key={mode} />
   </>;
 }
 
