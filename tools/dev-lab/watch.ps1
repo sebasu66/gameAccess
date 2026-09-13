@@ -189,6 +189,8 @@ function Publish-Run {
     if (Test-Path $automationResult) { Copy-Item $automationResult (Join-Path $stage "$prefix--automation-result.json") -Force }
     $safeLog = Join-Path $RunDirectory 'gameaccess.sanitized.log'
     if (Test-Path $safeLog) { Copy-Item $safeLog (Join-Path $stage "$prefix--gameaccess.log") -Force }
+    $safeServerLog = Join-Path $RunDirectory 'server.sanitized.log'
+    if (Test-Path $safeServerLog) { Copy-Item $safeServerLog (Join-Path $stage "$prefix--server.log") -Force }
 
     $shotIndex = 0
     Get-ChildItem -LiteralPath (Join-Path $RunDirectory 'automation') -Filter '*.png' -File -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object {
@@ -240,6 +242,8 @@ function Invoke-ValidationRun([string]$Commit) {
     $errorText = $null
     $appProcess = $null
     $startedAt = [DateTime]::UtcNow
+    $serverPort = 38147
+    $serverLog = Join-Path $repoRoot ("apps\api\local-api-{0}.log" -f $serverPort)
 
     Write-LabLog "Starting validation for dev commit $Commit."
     try {
@@ -277,8 +281,12 @@ function Invoke-ValidationRun([string]$Commit) {
         }
 
         if ([bool]$config.tests.release_build) {
-            if (-not (Invoke-Step 'release-build' $repoRoot 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'build-and-run.ps1'), '-NoRun') $runDir $steps)) { throw 'release build failed' }
+            if (-not (Invoke-Step 'release-build' $repoRoot 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'build-and-run.ps1'), '-Server', '-NoRun', '-ServerPort', ([string]$serverPort)) $runDir $steps)) { throw 'release build failed' }
         }
+
+        $serverRestartScript = Join-Path $api 'restart_local_api.ps1'
+        if (-not (Invoke-Step 'local-api-start' $api 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serverRestartScript, '-Port', ([string]$serverPort)) $runDir $steps)) { throw 'local API start failed' }
+        Write-LabLog "Local GameAccess backend ready at http://127.0.0.1:$serverPort."
 
         $casePath = Join-Path $repoRoot ([string]$config.automation_case)
         if (-not (Test-Path -LiteralPath $casePath -PathType Leaf)) { throw "Automation case does not exist: $casePath" }
@@ -296,15 +304,18 @@ function Invoke-ValidationRun([string]$Commit) {
         $gameAccessLogLines = if (Test-Path -LiteralPath $gameAccessLog -PathType Leaf) { @(Get-Content -LiteralPath $gameAccessLog -ErrorAction SilentlyContinue).Count } else { 0 }
         $stdoutLines = 0
         $stderrLines = 0
+        $serverLogLines = if (Test-Path -LiteralPath $serverLog -PathType Leaf) { @(Get-Content -LiteralPath $serverLog -ErrorAction SilentlyContinue).Count } else { 0 }
         $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, [int]$config.automation_timeout_seconds))
         while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
             Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+            Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '
             Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
             Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
             if ($appProcess.HasExited) { break }
             Start-Sleep -Milliseconds 500
         }
         Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+        Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '
         Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
         Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
         if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
@@ -322,6 +333,7 @@ function Invoke-ValidationRun([string]$Commit) {
         Stop-ExactProcess $appProcess
         Remove-Item -LiteralPath $activeAppPidFile -Force -ErrorAction SilentlyContinue
         Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')
+        Sanitize-TextFile $serverLog (Join-Path $runDir 'server.sanitized.log')
         try {
             $stepArray = @($steps | ForEach-Object { $_ })
             $summary = [ordered]@{
