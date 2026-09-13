@@ -60,16 +60,33 @@ if anchor in text and "refreshPendingMetadata" not in text:
 
 app.write_text(text, encoding="utf-8")
 
+api = ROOT / "apps/desktop/src/api.ts"
+api_text = api.read_text(encoding="utf-8")
+fetch_anchor = '''  const response = await fetch(`${api}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });'''
+fetch_replacement = '''  const response = await fetch(`${api}${path}`, {
+    ...init,
+    cache: method === "GET" ? "no-store" : init?.cache,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });'''
+if fetch_anchor in api_text and 'cache: method === "GET" ? "no-store"' not in api_text:
+    api_text = api_text.replace(fetch_anchor, fetch_replacement, 1)
+api.write_text(api_text, encoding="utf-8")
+
 test = ROOT / "apps/desktop/src/catalogMetadataRefresh.test.ts"
 test.write_text('''import { describe, expect, it } from "vitest";
-import source from "./App.tsx?raw";
+import appSource from "./App.tsx?raw";
+import apiSource from "./api.ts?raw";
 
 describe("pending Steam metadata refresh", () => {
   it("refreshes unresolved Steam cards in background without blocking navigation", () => {
-    expect(source).toContain("const isPendingSteamMetadata");
-    expect(source).toContain("games.some(isPendingSteamMetadata)");
-    expect(source).toContain("refreshPendingMetadata");
-    expect(source).toContain("window.setInterval(() => void refreshPendingMetadata(), 5000)");
+    expect(appSource).toContain("const isPendingSteamMetadata");
+    expect(appSource).toContain("games.some(isPendingSteamMetadata)");
+    expect(appSource).toContain("refreshPendingMetadata");
+    expect(appSource).toContain("window.setInterval(() => void refreshPendingMetadata(), 5000)");
+    expect(apiSource).toContain('cache: method === "GET" ? "no-store"');
   });
 });
 ''', encoding="utf-8")
