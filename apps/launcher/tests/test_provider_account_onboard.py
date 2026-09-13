@@ -25,7 +25,7 @@ def test_upsert_provider_credentials_appends_then_updates_without_duplicate(tmp_
     assert [row for row in rows if row and row[0] == "new-user"] == [["new-user", "changed-pass"]]
 
 
-def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monkeypatch) -> None:
+def test_onboard_registers_every_verified_app_before_metadata(tmp_path: Path, monkeypatch) -> None:
     path = tmp_path / "accFull.csv"
     path.write_text("existing,old-pass\n", encoding="utf-8")
     calls = []
@@ -41,7 +41,14 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
             "verified_at": "2026-09-07T20:00:00+00:00",
             "accounts": [
                 {"provider_id": "existing", "owned_app_ids": [], "scan_status": "not_scanned"},
-                {"provider_id": "new-user", "owned_app_ids": [10, 20, 30], "accessible_app_ids": [10, 20, 30, 40], "scan_status": "ok", "family_key": "standalone:new-user", "family_member_provider_ids": ["new-user"]},
+                {
+                    "provider_id": "new-user",
+                    "owned_app_ids": [10, 20, 30],
+                    "accessible_app_ids": [10, 20, 30, 40],
+                    "scan_status": "ok",
+                    "family_key": "standalone:new-user",
+                    "family_member_provider_ids": ["new-user"],
+                },
             ],
             "scans": [{"provider_id": "new-user", "status": "ok", "complete": True}],
             "errors": [],
@@ -52,27 +59,28 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
             ownership_inputs.append(inventory)
             return {"attempted": 1, "promoted": 1}
 
+    app_to_game = {10: 501, 20: 502, 30: 503, 40: 504}
+
     def fake_api(method, url, *, payload=None, timeout=30.0):
         calls.append((method, url, payload))
         if url.endswith("/admin/pool/roster-status"):
             return {"ok": True}
-        if url.endswith("/steam/apps/10"):
-            return {"app_id": 10, "name": "Windows Game", "type": "game", "windows": True}
-        if url.endswith("/steam/apps/20"):
-            return {"app_id": 20, "name": "DLC", "type": "dlc", "windows": True}
-        if url.endswith("/steam/apps/30"):
-            return {"app_id": 30, "name": "Linux Game", "type": "game", "windows": False}
-        if url.endswith("/steam/apps/40"):
-            return {"app_id": 40, "name": "Shared Game", "type": "game", "windows": True}
-        if url.endswith("/admin/games/import-steam/40"):
-            return {"game": {"id": 502, "app_id": 40}}
-        if url.endswith("/admin/games/import-steam/10"):
-            return {"game": {"id": 501, "app_id": 10}}
+        for app_id, game_id in app_to_game.items():
+            if url.endswith(f"/admin/pool/games/register-steam/{app_id}"):
+                return {
+                    "ok": True,
+                    "metadata_state": "pending",
+                    "game": {"id": game_id, "app_id": app_id, "active": False},
+                }
         if url.endswith("/admin/accounts/sync"):
             assert payload["label"] == "new-user"
-            assert payload["game_ids"] == [501, 502]
+            assert payload["game_ids"] == [501, 502, 503, 504]
             assert '"accessible_app_ids":[10,20,30,40]' in payload["notes"]
-            return {"ok": True, "account": {"id": 9, "label": "new-user", "game_ids": [501]}}
+            assert '"metadata_enrichment":"server-background"' in payload["notes"]
+            return {
+                "ok": True,
+                "account": {"id": 9, "label": "new-user", "game_ids": payload["game_ids"]},
+            }
         if url.endswith("/admin/pool/families/sync"):
             assert payload == {"families": [{"family_key": "standalone:new-user"}]}
             return {"ok": True, "families": 1, "license_copies": 1}
@@ -81,24 +89,100 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
     monkeypatch.setattr(onboard, "scan_provider_licenses", fake_scan)
     monkeypatch.setattr(onboard, "ProviderOwnershipStore", FakeOwnershipStore)
     monkeypatch.setattr(onboard, "persist_scan_result", lambda value: persisted.append(value))
-    monkeypatch.setattr(onboard, "build_family_graph", lambda value: family_inputs.append(value) or [{"family_key": "standalone:new-user"}])
+    monkeypatch.setattr(
+        onboard,
+        "build_family_graph",
+        lambda value: family_inputs.append(value)
+        or [{"family_key": "standalone:new-user"}],
+    )
     monkeypatch.setattr(onboard, "_api_json", fake_api)
 
-    result = onboard.onboard_provider_account(api="http://127.0.0.1:38147", login="new-user", password="secret-value", accounts_path=path, timeout_seconds=42)
+    result = onboard.onboard_provider_account(
+        api="http://127.0.0.1:38147",
+        login="new-user",
+        password="secret-value",
+        accounts_path=path,
+        timeout_seconds=42,
+    )
+
     assert result["ok"] is True
     assert result["provider_id"] == "new-user"
     assert result["owned_app_count"] == 3
     assert result["accessible_app_count"] == 4
-    assert result["catalog_game_count"] == 2
-    assert result["accessible_catalog_game_count"] == 2
-    assert any(url.endswith("/admin/games/import-steam/40") for _, url, _ in calls)
+    assert result["registered_app_count"] == 4
+    assert result["catalog_game_count"] == 4
+    assert result["metadata_pending_count"] == 4
     assert result["ownership_promoted"] == 1
     assert result["unresolved_app_count"] == 0
     assert len(ownership_inputs) == 1
     assert len(persisted) == 1
     assert len(family_inputs) == 1
-    assert not any(url.endswith("/admin/pool/sync") for _, url, _ in calls)
+    assert not any("/steam/apps/" in url for _, url, _ in calls)
+    assert not any("/admin/games/import-steam/" in url for _, url, _ in calls)
+    assert sum("/admin/pool/games/register-steam/" in url for _, url, _ in calls) == 4
     assert sum(url.endswith("/admin/accounts/sync") for _, url, _ in calls) == 1
+
+
+def test_metadata_registration_failure_does_not_hide_other_owned_apps(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "accFull.csv"
+    path.write_text("existing,old-pass\n", encoding="utf-8")
+
+    def fake_scan(*, provider_ids, timeout_seconds):
+        return {
+            "source": "steamkit-license-list-pics",
+            "verified_at": "2026-09-07T20:00:00+00:00",
+            "accounts": [
+                {
+                    "provider_id": "new-user",
+                    "owned_app_ids": [1681430, 3008130],
+                    "accessible_app_ids": [1681430, 3008130],
+                    "scan_status": "ok",
+                    "family_key": "standalone:new-user",
+                    "family_member_provider_ids": ["new-user"],
+                }
+            ],
+            "scans": [{"provider_id": "new-user", "status": "ok", "complete": True}],
+            "errors": [],
+        }
+
+    class FakeOwnershipStore:
+        def record_scan(self, inventory):
+            return {"attempted": 1, "promoted": 1}
+
+    synced_game_ids = []
+
+    def fake_api(method, url, *, payload=None, timeout=30.0):
+        if url.endswith("/admin/pool/roster-status"):
+            return {"ok": True}
+        if url.endswith("/admin/pool/games/register-steam/1681430"):
+            return {"metadata_state": "pending", "game": {"id": 601, "app_id": 1681430}}
+        if url.endswith("/admin/pool/games/register-steam/3008130"):
+            return {"metadata_state": "pending", "game": {"id": 602, "app_id": 3008130}}
+        if url.endswith("/admin/accounts/sync"):
+            synced_game_ids.extend(payload["game_ids"])
+            return {"ok": True, "account": {"id": 9, "game_ids": payload["game_ids"]}}
+        if url.endswith("/admin/pool/families/sync"):
+            return {"ok": True}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(onboard, "scan_provider_licenses", fake_scan)
+    monkeypatch.setattr(onboard, "ProviderOwnershipStore", FakeOwnershipStore)
+    monkeypatch.setattr(onboard, "persist_scan_result", lambda value: None)
+    monkeypatch.setattr(onboard, "build_family_graph", lambda value: [])
+    monkeypatch.setattr(onboard, "_api_json", fake_api)
+
+    result = onboard.onboard_provider_account(
+        api="http://127.0.0.1:38147",
+        login="new-user",
+        password="secret-value",
+        accounts_path=path,
+        timeout_seconds=42,
+    )
+
+    assert result["ok"] is True
+    assert synced_game_ids == [601, 602]
+    assert result["metadata_pending_count"] == 2
+    assert result["unresolved_app_count"] == 0
 
 
 def test_family_evidence_accumulates_independent_provider_successes() -> None:
