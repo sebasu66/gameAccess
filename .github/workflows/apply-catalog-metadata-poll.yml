@@ -1,0 +1,41 @@
+name: Apply Catalog Metadata Poll
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - tools/dev/patch_catalog_metadata_poll.py
+      - .github/workflows/apply-catalog-metadata-poll.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply patch
+        run: python tools/dev/patch_catalog_metadata_poll.py
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Frontend tests
+        run: npm test -- --run
+      - name: Commit generated integration
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/src/App.tsx apps/desktop/src/catalogMetadataRefresh.test.ts
+          git commit -m "fix: refresh pending Steam metadata in background"
+          git push origin HEAD:dev
