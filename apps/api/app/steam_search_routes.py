@@ -89,3 +89,11 @@ def search_steam(
         )
 
     return {"query": q.strip(), "count": len(results), "results": results}
+
+
+# main.py imports this module after the FastAPI app exists. Keep provider app
+# registration isolated while exposing it on that same app without coupling it
+# to Store search behavior.
+from .provider_app_routes import router as provider_app_router  # noqa: E402
+
+core.app.include_router(provider_app_router)
