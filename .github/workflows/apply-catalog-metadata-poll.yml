@@ -36,6 +36,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/desktop/src/App.tsx apps/desktop/src/catalogMetadataRefresh.test.ts
+          git add apps/desktop/src/App.tsx apps/desktop/src/api.ts apps/desktop/src/catalogMetadataRefresh.test.ts
           git commit -m "fix: refresh pending Steam metadata in background"
           git push origin HEAD:dev
