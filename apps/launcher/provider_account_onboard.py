@@ -1,10 +1,8 @@
-"""Add or update Steam providers and synchronize only selected accounts.
+"""Add or update Steam providers and synchronize selected accounts.
 
-Credentials are passed through environment variables so they never appear in
-process arguments or task logs. The existing single-account onboarding flow is
-unchanged. For accounts already present in ``accFull.csv``, the CLI can also
-repeat ``--provider-id`` to run that same individual flow for an explicit list.
-Accounts not listed are never scanned by that batch mode.
+SteamKit ownership is authoritative and is persisted before any Steam Store
+metadata is required. Store enrichment is scheduled independently by the API,
+so metadata failures cannot remove a verified AppID from an account.
 """
 
 from __future__ import annotations
@@ -135,38 +133,38 @@ def _selected_scan(
     return scan, account
 
 
-def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], list[int]]:
-    """Return imported backend game IDs and unresolved AppIDs."""
-    imported_game_ids: list[int] = []
+def _register_verified_apps(
+    api: str, app_ids: list[int]
+) -> tuple[list[int], list[int], list[int]]:
+    """Register verified AppIDs without waiting for Store metadata.
+
+    The API creates a stable inactive placeholder immediately and schedules
+    metadata enrichment after the response. The returned game ID can therefore
+    be mapped to the provider even when Steam Store is rate-limited.
+    """
+    game_ids: list[int] = []
     unresolved_app_ids: list[int] = []
+    metadata_pending_app_ids: list[int] = []
     base = api.rstrip("/")
     for app_id in sorted(set(app_ids)):
         try:
-            metadata = _api_json("GET", f"{base}/steam/apps/{app_id}", timeout=20.0)
-        except Exception:
-            unresolved_app_ids.append(app_id)
-            continue
-        if not isinstance(metadata, dict):
-            unresolved_app_ids.append(app_id)
-            continue
-        if str(metadata.get("type") or "").casefold() != "game" or not bool(
-            metadata.get("windows")
-        ):
-            continue
-        try:
-            imported = _api_json(
-                "POST", f"{base}/admin/games/import-steam/{app_id}", timeout=20.0
+            registered = _api_json(
+                "POST",
+                f"{base}/admin/pool/games/register-steam/{app_id}",
+                timeout=20.0,
             )
         except Exception:
             unresolved_app_ids.append(app_id)
             continue
-        game = imported.get("game") if isinstance(imported, dict) else None
+        game = registered.get("game") if isinstance(registered, dict) else None
         game_id = game.get("id") if isinstance(game, dict) else None
-        if isinstance(game_id, int) and game_id > 0:
-            imported_game_ids.append(game_id)
-        else:
+        if not isinstance(game_id, int) or game_id <= 0:
             unresolved_app_ids.append(app_id)
-    return imported_game_ids, unresolved_app_ids
+            continue
+        game_ids.append(game_id)
+        if str(registered.get("metadata_state") or "pending") == "pending":
+            metadata_pending_app_ids.append(app_id)
+    return game_ids, unresolved_app_ids, metadata_pending_app_ids
 
 
 def _merge_family_inventory(
@@ -226,6 +224,8 @@ def onboard_provider_account(
             "guard_method": error.get("guard_method"),
         }
 
+    # Phase 1 is now complete before Store enrichment begins. These AppIDs are
+    # the authoritative SteamKit ownership/access result for this provider.
     owned_app_ids = sorted(
         {
             int(app_id)
@@ -240,15 +240,19 @@ def onboard_provider_account(
             if str(app_id).isdigit() and int(app_id) > 0
         }
     )
-    print(f"STATE=metadata:{len(owned_app_ids)}", flush=True)
-    game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
-    # AccountGame records which provider can access a game. Steam Family copy
-    # counts continue to come from the separate license inventory.
-    shared_game_ids, shared_unresolved = _import_verified_games(
+
+    # Phase 2 only registers AppID identities in the backend. Each API response
+    # returns before its independent background Store enrichment completes.
+    print(f"STATE=registering:{len(accessible_app_ids)}", flush=True)
+    owned_game_ids, owned_unresolved, owned_pending = _register_verified_apps(
+        base, owned_app_ids
+    )
+    shared_game_ids, shared_unresolved, shared_pending = _register_verified_apps(
         base, sorted(set(accessible_app_ids) - set(owned_app_ids))
     )
-    unresolved_app_ids = sorted(set(unresolved_app_ids + shared_unresolved))
-    game_ids = sorted(set(game_ids + shared_game_ids))
+    game_ids = sorted(set(owned_game_ids + shared_game_ids))
+    unresolved_app_ids = sorted(set(owned_unresolved + shared_unresolved))
+    metadata_pending_app_ids = sorted(set(owned_pending + shared_pending))
 
     notes = json.dumps(
         {
@@ -262,8 +266,9 @@ def onboard_provider_account(
             "owned_app_count": len(owned_app_ids),
             "accessible_app_ids": accessible_app_ids,
             "accessible_app_count": len(accessible_app_ids),
-            "imported_game_count": len(game_ids),
-            "imported_accessible_game_count": len(set(game_ids + shared_game_ids)),
+            "registered_app_count": len(game_ids),
+            "metadata_enrichment": "server-background",
+            "metadata_pending_count": len(metadata_pending_app_ids),
             "unresolved_app_count": len(unresolved_app_ids),
         },
         ensure_ascii=False,
@@ -282,7 +287,7 @@ def onboard_provider_account(
     )
 
     # Preserve earlier partial successes when rebuilding family capacity.
-    # This performs no Steam login or scan for existing accounts.
+    # This performs no Steam login or Store metadata request for other accounts.
     merged_inventory = _merge_family_inventory(inventory, credential.provider_id)
     families = build_family_graph(merged_inventory)
     family_sync = _api_json(
@@ -300,8 +305,12 @@ def onboard_provider_account(
         "label": credential.label,
         "owned_app_count": len(owned_app_ids),
         "accessible_app_count": len(accessible_app_ids),
+        "registered_app_count": len(game_ids),
+        # Keep the older field for callers; it now means AppIDs registered in
+        # the backend, not metadata requests that happened to succeed.
         "catalog_game_count": len(game_ids),
-        "accessible_catalog_game_count": len(set(game_ids + shared_game_ids)),
+        "accessible_catalog_game_count": len(game_ids),
+        "metadata_pending_count": len(metadata_pending_app_ids),
         "ownership_promoted": ownership_update["promoted"],
         "unresolved_app_count": len(unresolved_app_ids),
         "unresolved_app_ids": unresolved_app_ids[:25],
@@ -318,7 +327,7 @@ def onboard_provider_accounts(
     accounts_path: Path | None = None,
     timeout_seconds: int = 70,
 ) -> dict[str, Any]:
-    """Run the existing one-account onboarding flow for an explicit provider list."""
+    """Run the one-account ownership flow for an explicit provider list."""
     requested = list(
         dict.fromkeys(
             provider_id.strip() for provider_id in provider_ids if provider_id.strip()
