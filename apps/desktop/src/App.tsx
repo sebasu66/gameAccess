@@ -20,6 +20,9 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 let visualDebugStarted = false;
 
+const isPendingSteamMetadata = (game: CatalogGame) =>
+  Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
+
 export default function App() {
   const [games, setGames] = useState<CatalogGame[]>([]);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
@@ -96,6 +99,39 @@ export default function App() {
       setDownloads((current) => ({ ...current, ...frozenMap }));
     }).catch(() => undefined);
   }, [refresh]);
+
+  const hasPendingSteamMetadata = useMemo(() => games.some(isPendingSteamMetadata), [games]);
+
+  useEffect(() => {
+    if (!hasPendingSteamMetadata) return;
+    let cancelled = false;
+    let inFlight = false;
+    const refreshPendingMetadata = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const home = await loadHome();
+        if (cancelled) return;
+        setGames(home.games);
+        setUser(home.user);
+        setOfflineDemo(home.offlineDemo);
+        setSelected((current) => {
+          if (!current) return null;
+          return home.games.find((game) => game.id === current.id) ?? null;
+        });
+      } catch {
+        // Metadata enrichment is best-effort. Keep the current library visible.
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refreshPendingMetadata();
+    const timer = window.setInterval(() => void refreshPendingMetadata(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [hasPendingSteamMetadata]);
 
   useEffect(() => {
     const storageStateChanged = (event: Event) => {

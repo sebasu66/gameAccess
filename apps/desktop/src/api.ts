@@ -102,6 +102,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await narrate(`Sending ${method} ${path} to the GameAccess backend at ${api}.`, { area: "BACKEND" });
   const response = await fetch(`${api}${path}`, {
     ...init,
+    cache: method === "GET" ? "no-store" : init?.cache,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
