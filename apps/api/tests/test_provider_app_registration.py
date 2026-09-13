@@ -18,15 +18,15 @@ def test_register_app_id_does_not_require_store_metadata() -> None:
         assert created is True
         assert game.app_id == 1681430
         assert game.name == "Steam 1681430"
-        assert game.active is True
+        assert game.active is False
 
         same_game, created_again = provider_apps.register_app_id(session, 1681430)
         assert created_again is False
         assert same_game.id == game.id
-        assert same_game.active is True
+        assert same_game.active is False
 
 
-def test_existing_pending_placeholder_is_reactivated_by_verified_access() -> None:
+def test_existing_pending_placeholder_stays_hidden_until_classified() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -40,14 +40,14 @@ def test_existing_pending_placeholder_is_reactivated_by_verified_access() -> Non
             name="Steam 3008130",
             app_id=3008130,
             credit_cost_per_hour=10,
-            active=False,
+            active=True,
         )
         session.add(game)
         session.commit()
 
         restored, created = provider_apps.register_app_id(session, 3008130)
         assert created is False
-        assert restored.active is True
+        assert restored.active is False
 
 
 def test_metadata_failure_never_removes_registered_ownership(monkeypatch) -> None:
@@ -75,10 +75,36 @@ def test_metadata_failure_never_removes_registered_ownership(monkeypatch) -> Non
         assert game is not None
         assert game.id == game_id
         assert game.name == "Steam 3008130"
+        assert game.active is False
+
+
+def test_metadata_activates_real_windows_game(monkeypatch) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(core, "engine", engine)
+
+    with Session(engine) as session:
+        provider_apps.register_app_id(session, 1681430)
+
+    monkeypatch.setattr(
+        provider_apps,
+        "_fetch_metadata_throttled",
+        lambda _app_id: {"name": "RoboCop: Rogue City", "type": "game", "windows": True},
+    )
+    provider_apps.enrich_app_id(1681430)
+
+    with Session(engine) as session:
+        game = session.exec(select(core.Game).where(core.Game.app_id == 1681430)).first()
+        assert game is not None
+        assert game.name == "RoboCop: Rogue City"
         assert game.active is True
 
 
-def test_metadata_can_filter_non_windows_app(monkeypatch) -> None:
+def test_metadata_filters_dlc(monkeypatch) -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -93,13 +119,14 @@ def test_metadata_can_filter_non_windows_app(monkeypatch) -> None:
     monkeypatch.setattr(
         provider_apps,
         "_fetch_metadata_throttled",
-        lambda _app_id: {"name": "Not a Windows game", "type": "dlc", "windows": False},
+        lambda _app_id: {"name": "Some DLC", "type": "dlc", "windows": True},
     )
     provider_apps.enrich_app_id(999001)
 
     with Session(engine) as session:
         game = session.exec(select(core.Game).where(core.Game.app_id == 999001)).first()
         assert game is not None
+        assert game.name == "Some DLC"
         assert game.active is False
 
 
