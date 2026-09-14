@@ -13,6 +13,12 @@ from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
+from .catalog_metadata import (
+    ensure_catalog_schema,
+    get_cached_steam_metadata,
+    seed_known_games,
+    upsert_steam_metadata,
+)
 
 DB_PATH = Path(__file__).resolve().parent.parent / "gameaccess.db"
 STEAM_CACHE = DB_PATH.parent / ".steam_cache"
@@ -238,8 +244,10 @@ def slugify(value: str, app_id: int) -> str:
 @app.on_event("startup")
 def startup() -> None:
     SQLModel.metadata.create_all(engine)
+    ensure_catalog_schema(engine)
     with Session(engine) as session:
         seed_defaults(session)
+    seed_known_games(engine)
 
 
 @app.get("/health")
@@ -285,8 +293,12 @@ def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
     summary = game_summary(session, game)
     if not game.app_id:
         return {**summary, "steam": None, "metadata_state": "no-steam-appid"}
+    cached = get_cached_steam_metadata(engine, int(game.id))
+    if cached is not None:
+        return {**summary, "steam": cached, "metadata_state": "ready"}
     try:
         steam = steam_catalog.fetch(game.app_id)
+        upsert_steam_metadata(engine, int(game.id), steam)
         return {**summary, "steam": steam, "metadata_state": "ready"}
     except SteamCatalogError as exc:
         return {
