@@ -394,3 +394,19 @@ Near-term validation order:
 5. observe end-of-session/logout behavior and then design save backup/restore around the confirmed lifecycle.
 
 Store experiment results as structured diagnostics and update this file with confirmed behavior.
+
+## Canonical catalog metadata database (2026-09-14)
+
+The backend SQLite database now contains a normalized canonical catalog metadata layer keyed by the existing `game.id` / Steam AppID. Catalog identity/license mappings remain separate from metadata classification.
+
+Tables:
+- `game_metadata`: Steam detail-page fields, product type, descriptions, developers/publishers, languages, release date, platform support, requirements, ratings/adult evidence, player-feature fields, media URLs, raw normalized Steam JSON, enrichment state and provenance.
+- `game_genre`, `game_category`, `game_tag`: normalized filter/search dimensions.
+- `game_data_path`: save/config paths with platform, source and source URL.
+- `game_search_fts`: FTS5 index across title, genres, categories, tags, developers, publishers and short description.
+
+`catalog_db_sync.py` seeds every known Steam AppID, imports the existing Steam Store cache, and can enrich identity/type/platform/developer/publisher fields from local Steam `appcache/appinfo.vdf`. Missing Store details stay explicitly `pending`; do not invent them.
+
+Game-detail API reads canonical DB metadata first and only falls back to Steam Store when the AppID has not yet been enriched.
+
+PCGamingWiki added a dedicated `GameData` Cargo table in August 2026 for save/config paths. After its August 2026 server migration, Cargo queries require authenticated bot access and are rate limited. `pcgw_catalog_sync.py` is the bulk importer; credentials are supplied through `GAMEACCESS_PCGW_BOT_USER` / `GAMEACCESS_PCGW_BOT_PASSWORD`, never committed.
