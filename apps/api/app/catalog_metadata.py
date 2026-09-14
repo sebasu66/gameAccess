@@ -336,6 +336,11 @@ def import_appinfo_catalog(engine: Engine, appinfo: dict[int, dict[str, Any]]) -
             }
             developer = str(item.get("developer") or "").strip()
             publisher = str(item.get("publisher") or "").strip()
+            adult_flag = bool(
+                item.get("has_adult_content")
+                or item.get("has_adult_content_sex")
+                or item.get("has_adult_content_violence")
+            )
             conn.exec_driver_sql(
                 """
                 UPDATE game_metadata
@@ -351,6 +356,12 @@ def import_appinfo_catalog(engine: Engine, appinfo: dict[int, dict[str, Any]]) -
                     windows=COALESCE(windows, ?),
                     mac=COALESCE(mac, ?),
                     linux=COALESCE(linux, ?),
+                    is_adult=CASE
+                        WHEN ? THEN 1
+                        ELSE is_adult END,
+                    adult_basis=CASE
+                        WHEN ? THEN 'steam-appinfo-adult-flags'
+                        ELSE adult_basis END,
                     source=CASE
                         WHEN metadata_state='pending' THEN 'steam-appinfo'
                         ELSE source END,
@@ -365,6 +376,8 @@ def import_appinfo_catalog(engine: Engine, appinfo: dict[int, dict[str, Any]]) -
                     int("windows" in oslist) if oslist else None,
                     int("macos" in oslist or "mac" in oslist) if oslist else None,
                     int("linux" in oslist) if oslist else None,
+                    int(adult_flag),
+                    int(adult_flag),
                     now,
                     game_id,
                 ),
