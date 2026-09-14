@@ -1,4 +1,4 @@
-param([int]$Port = 8000)
+param([int]$Port = 8000, [switch]$StopOnly, [switch]$RunProviderProbe)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $api = Join-Path $root 'apps/api'
@@ -10,6 +10,10 @@ foreach ($listener in @($listeners)) {
   try { Stop-Process -Id $listener.OwningProcess -Force -ErrorAction Stop } catch {}
 }
 Start-Sleep -Milliseconds 700
+if ($StopOnly) {
+  [pscustomobject]@{ ok = $true; stopped = $true; port = $Port } | ConvertTo-Json -Compress
+  exit 0
+}
 
 $log = Join-Path $api "local-api-$Port.log"
 if (Test-Path $log) { Remove-Item $log -Force }
@@ -32,7 +36,7 @@ if (-not $ready) {
 
 # Temporary Dev Lab regression probe for the known difficult provider account.
 # Uses the existing private dev roster; no credential is placed in argv or logs.
-if ($Port -eq 38147) {
+if ($RunProviderProbe -and $Port -eq 38147) {
   $providerId = 'dimariba51'
   $launcher = Join-Path $root 'apps/launcher'
   $launcherPython = Join-Path $launcher '.venv/Scripts/python.exe'
