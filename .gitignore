@@ -58,3 +58,4 @@ GameAccess-ctrlf-test.exe
 apps/desktop/src-tauri/target-*/
 apps/api/.admin_tasks/
 apps/api/*.log
+accFullOLD.csv
