@@ -307,6 +307,73 @@ def upsert_steam_metadata(engine: Engine, game_id: int, metadata: dict[str, Any]
         _replace_names(conn, "game_category", game_id, categories)
 
 
+def import_appinfo_catalog(engine: Engine, appinfo: dict[int, dict[str, Any]]) -> dict[str, int]:
+    """Fill cheap identity/type/platform fields from Steam's local appinfo cache.
+
+    This source is intentionally not considered full detail metadata: rows stay
+    pending until Steam Store detail enrichment provides descriptions,
+    requirements, categories, ratings, media, etc.
+    """
+    updated = 0
+    missing = 0
+    now = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        game_ids = {
+            int(row[0]): int(row[1])
+            for row in conn.exec_driver_sql(
+                "SELECT app_id, id FROM game WHERE app_id IS NOT NULL"
+            ).all()
+        }
+        for app_id, item in appinfo.items():
+            game_id = game_ids.get(int(app_id))
+            if not game_id:
+                missing += 1
+                continue
+            oslist = {
+                part.strip().casefold()
+                for part in str(item.get("oslist") or "").split(",")
+                if part.strip()
+            }
+            developer = str(item.get("developer") or "").strip()
+            publisher = str(item.get("publisher") or "").strip()
+            conn.exec_driver_sql(
+                """
+                UPDATE game_metadata
+                SET
+                    product_type=COALESCE(NULLIF(product_type,''), ?),
+                    steam_name=COALESCE(NULLIF(steam_name,''), ?),
+                    developers_json=CASE
+                        WHEN developers_json IS NULL OR developers_json='[]' THEN ?
+                        ELSE developers_json END,
+                    publishers_json=CASE
+                        WHEN publishers_json IS NULL OR publishers_json='[]' THEN ?
+                        ELSE publishers_json END,
+                    windows=COALESCE(windows, ?),
+                    mac=COALESCE(mac, ?),
+                    linux=COALESCE(linux, ?),
+                    source=CASE
+                        WHEN metadata_state='pending' THEN 'steam-appinfo'
+                        ELSE source END,
+                    updated_at=?
+                WHERE game_id=?
+                """,
+                (
+                    str(item.get("type") or "").strip() or None,
+                    str(item.get("name") or "").strip() or None,
+                    _json([developer] if developer else [], []),
+                    _json([publisher] if publisher else [], []),
+                    int("windows" in oslist) if oslist else None,
+                    int("macos" in oslist or "mac" in oslist) if oslist else None,
+                    int("linux" in oslist) if oslist else None,
+                    now,
+                    game_id,
+                ),
+            )
+            updated += 1
+    rebuild_search_index(engine)
+    return {"appinfo_rows": len(appinfo), "updated": updated, "not_in_catalog": missing}
+
+
 def get_cached_steam_metadata(engine: Engine, game_id: int) -> dict[str, Any] | None:
     with engine.begin() as conn:
         row = conn.exec_driver_sql(
