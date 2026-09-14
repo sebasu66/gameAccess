@@ -115,7 +115,6 @@ def provider_summary() -> tuple[dict[str, Any], dict[str, Any]]:
         "roster_count": int(compact.get("roster_count") or 0),
         "matched_identity_count": int(compact.get("matched_identity_count") or 0),
         "missing_identity_count": int(compact.get("missing_identity_count") or 0),
-        "all_provider_remember_false": compact.get("all_provider_remember_false"),
         "game_count": int(compact.get("game_count") or 0),
         "accessible_unique_app_count": int(compact.get("accessible_unique_app_count") or 0),
     }
