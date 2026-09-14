@@ -247,10 +247,31 @@ def health() -> dict:
     return {"ok": True, "time": now_utc(), "version": app.version}
 
 
+def licensed_game_ids(session: Session) -> set[int]:
+    return {
+        int(row.game_id)
+        for row in session.exec(select(AccountGame)).all()
+        if row.game_id is not None
+    }
+
+
+def is_game_licensed(session: Session, game_id: int | None) -> bool:
+    if not game_id:
+        return False
+    return session.exec(
+        select(AccountGame).where(AccountGame.game_id == int(game_id))
+    ).first() is not None
+
+
 @app.get("/catalog")
 def catalog(session: Session = Depends(get_session)) -> list[dict]:
     expire_old_leases(session)
-    games = session.exec(select(Game).where(Game.active == True)).all()  # noqa: E712
+    licensed_ids = licensed_game_ids(session)
+    games = [
+        game
+        for game in session.exec(select(Game)).all()
+        if game.id is not None and int(game.id) in licensed_ids
+    ]
     from . import family_capacity
     metrics = family_capacity.catalog_metrics(session)
     return [game_summary(session, game, metrics) for game in games]
@@ -259,7 +280,7 @@ def catalog(session: Session = Depends(get_session)) -> list[dict]:
 @app.get("/games/{game_id}/details")
 def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
     game = session.get(Game, game_id)
-    if not game or not game.active:
+    if not game or not is_game_licensed(session, game.id):
         raise HTTPException(404, "game not found")
     summary = game_summary(session, game)
     if not game.app_id:
@@ -476,7 +497,7 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
     game = session.get(Game, req.game_id)
     if not user:
         raise HTTPException(404, "user not found")
-    if not game or not game.active:
+    if not game or not is_game_licensed(session, game.id):
         raise HTTPException(404, "game not found")
 
     active_for_user = session.exec(
