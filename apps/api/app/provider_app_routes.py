@@ -130,13 +130,17 @@ def resume_pending_metadata() -> int:
         }
         games = session.exec(select(core.Game)).all()
         for game in games:
-            if (
-                game.id not in mapped_game_ids
-                or not game.app_id
-                or not is_placeholder_name(int(game.app_id), game.name)
-            ):
+            if game.id not in mapped_game_ids or not game.app_id:
                 continue
-            if not game.active:
+            pending_placeholder = is_placeholder_name(int(game.app_id), game.name)
+            stale_inactive = not game.active
+            if not pending_placeholder and not stale_inactive:
+                continue
+            # A verified/mapped AppID may have been left inactive by an older
+            # partial sync or stale metadata result. Recheck it asynchronously.
+            # Keep known inactive rows hidden until metadata confirms they are
+            # real Windows games; placeholders stay visible while pending.
+            if pending_placeholder and not game.active:
                 game.active = True
                 session.add(game)
             if queue_metadata_enrichment(int(game.app_id)):
@@ -172,12 +176,13 @@ def register_steam_app(
 
     game, created = register_app_id(session, app_id)
     pending = is_placeholder_name(app_id, game.name)
-    queued = queue_metadata_enrichment(app_id) if pending else False
+    needs_recheck = pending or not game.active
+    queued = queue_metadata_enrichment(app_id) if needs_recheck else False
 
     return {
         "ok": True,
         "created": created,
-        "metadata_state": "pending" if pending else ("ready" if game.active else "filtered"),
+        "metadata_state": "pending" if needs_recheck else "ready",
         "metadata_queued": queued,
         "game": {
             "id": game.id,
