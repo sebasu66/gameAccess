@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -259,10 +260,11 @@ def catalog(
     if page is None:
         games = session.exec(statement).all()
     else:
-        active_games = session.exec(statement).all()
-        total = len(active_games)
+        total = session.exec(
+            select(func.count()).select_from(Game).where(Game.active == True)  # noqa: E712
+        ).one()
         start = (page - 1) * page_size
-        games = active_games[start : start + page_size]
+        games = session.exec(statement.offset(start).limit(page_size)).all()
         response.headers["X-Total-Count"] = str(total)
         response.headers["X-Page"] = str(page)
         response.headers["X-Page-Size"] = str(page_size)
