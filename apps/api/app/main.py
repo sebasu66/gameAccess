@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlmodel import Field as SQLField
@@ -248,9 +248,27 @@ def health() -> dict:
 
 
 @app.get("/catalog")
-def catalog(session: Session = Depends(get_session)) -> list[dict]:
+def catalog(
+    response: Response,
+    page: int | None = Query(default=None, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    session: Session = Depends(get_session),
+) -> list[dict]:
     expire_old_leases(session)
-    games = session.exec(select(Game).where(Game.active == True)).all()  # noqa: E712
+    statement = select(Game).where(Game.active == True).order_by(Game.id)  # noqa: E712
+    if page is None:
+        games = session.exec(statement).all()
+    else:
+        active_games = session.exec(statement).all()
+        total = len(active_games)
+        start = (page - 1) * page_size
+        games = active_games[start : start + page_size]
+        response.headers["X-Total-Count"] = str(total)
+        response.headers["X-Page"] = str(page)
+        response.headers["X-Page-Size"] = str(page_size)
+        response.headers["X-Total-Pages"] = str(
+            (total + page_size - 1) // page_size if total else 0
+        )
     from . import family_capacity
     metrics = family_capacity.catalog_metrics(session)
     return [game_summary(session, game, metrics) for game in games]
