@@ -14,7 +14,7 @@ describe("Spanish desktop UI copy", () => {
     expect(tabsSource).toContain('label: "Tienda"');
     expect(tabsSource).not.toContain('label: "Store"');
     expect(buildSource).toContain("Servidor: Local");
-    expect(buildSource).toContain("CompilaciÃ³n:");
+    expect(buildSource).toContain("Compilaci\u00f3n:");
     expect(buildSource).not.toContain("Server:");
     expect(buildSource).not.toContain("Compilation time");
     expect(detailSource).not.toContain(">Publisher<");
@@ -30,7 +30,7 @@ describe("Spanish desktop UI copy", () => {
     expect(steamSettingsSource).not.toContain("STEAM SESSION MANAGER");
     expect(steamSettingsSource).not.toContain("Configuraci?n");
     expect(steamSettingsSource).not.toContain("contrase?a");
-    expect(completeSource).toContain("EstÃ¡ listo para jugar.");
-    expect(completeSource).not.toContain("Los archivos ya estÃ¡n preparados");
+    expect(completeSource).toContain("Est\u00e1 listo para jugar.");
+    expect(completeSource).not.toContain("Los archivos ya est\u00e1n preparados");
   });
 });
