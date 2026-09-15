@@ -6,9 +6,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -272,14 +273,29 @@ def is_game_licensed(session: Session, game_id: int | None) -> bool:
 
 
 @app.get("/catalog")
-def catalog(session: Session = Depends(get_session)) -> list[dict]:
+def catalog(
+    response: Response,
+    page: int | None = Query(default=None, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    session: Session = Depends(get_session),
+) -> list[dict]:
     expire_old_leases(session)
     licensed_ids = licensed_game_ids(session)
-    games = [
-        game
-        for game in session.exec(select(Game)).all()
-        if game.id is not None and int(game.id) in licensed_ids
-    ]
+    statement = select(Game).where(Game.id.in_(licensed_ids)).order_by(Game.id)
+    if page is None:
+        games = session.exec(statement).all()
+    else:
+        total = session.exec(
+            select(func.count()).select_from(Game).where(Game.id.in_(licensed_ids))
+        ).one()
+        start = (page - 1) * page_size
+        games = session.exec(statement.offset(start).limit(page_size)).all()
+        response.headers["X-Total-Count"] = str(total)
+        response.headers["X-Page"] = str(page)
+        response.headers["X-Page-Size"] = str(page_size)
+        response.headers["X-Total-Pages"] = str(
+            (total + page_size - 1) // page_size if total else 0
+        )
     from . import family_capacity
     metrics = family_capacity.catalog_metrics(session)
     return [game_summary(session, game, metrics) for game in games]
