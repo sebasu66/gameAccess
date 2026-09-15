@@ -2,11 +2,40 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { gameStateManager, type ResolvedGameState } from "./GameStateManager";
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
 
 import { stripHtml, wait, availabilityLabel, heavinessLabel, GlassActionButton } from "./AppPresentation";
+
+function playActionLabel(state: ResolvedGameState) {
+  if (state.frozen) return "Descongelar y jugar";
+  if (state.playButtonReady) return "Jugar ahora";
+  if (state.transferActive) return "Preparando";
+  return "No listo";
+}
+
+function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadStatus) {
+  if (state.installed) return "Instalado";
+  if (state.prepared) return "Preparado";
+  if (state.frozen) return "Congelado";
+  if (state.transferActive) {
+    return download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando";
+  }
+  return "Descargar";
+}
+
+function detailActionState(download?: SteamDownloadStatus) {
+  const localState = gameStateManager.resolve(download);
+  return {
+    localState,
+    activeDownload: localState.transferActive,
+    playReady: localState.playButtonReady,
+    downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy,
+  };
+}
+
 export function DetailPanel({
   game,
   machine,
@@ -89,8 +118,7 @@ export function DetailPanel({
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
   const weight = heavinessLabel(steam, machine);
-  const activeDownload = download && ["requested", "preparing", "downloading"].includes(download.state);
-  const installed = download?.state === "installed";
+  const {localState, activeDownload, playReady, downloadBlocked} = detailActionState(download);
   const currentShot = steam?.screenshots?.[activeShot];
 
   const renderFacts = () => (<><aside className="facts-card">
@@ -137,15 +165,15 @@ export function DetailPanel({
   const renderActions = () => (<><div className="detail-actions detail-primary-actions detail-keyboard-actions glass-actions-row">
               <GlassActionButton
                 icon={busy ? <Loader2 size={23} className="spin" /> : <Play size={24} fill="currentColor" />}
-                label={game.copies_available > 0 ? "Jugar ahora" : "Sin copia"}
-                tone="play" pulse={game.copies_available > 0}
-                disabled={!installed || busy || game.copies_available <= 0}
+                label={playActionLabel(localState)}
+                tone="play" pulse={playReady && !busy}
+                disabled={!playReady || busy}
                 onClick={() => void onLease(game)}
               />
               <GlassActionButton
                 icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
-                label={installed ? "Instalado" : activeDownload ? (download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando") : "Descargar"}
-                tone="download" disabled={!game.app_id || installed || Boolean(activeDownload)}
+                label={downloadActionLabel(localState, download)}
+                tone="download" disabled={!game.app_id || downloadBlocked}
                 onClick={() => void onDownload(game)}
               />
             </div>

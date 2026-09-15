@@ -11,7 +11,7 @@ export function useDesktopWindowMaximized() {
 
     if ("__TAURI_INTERNALS__" in window) {
       const appWindow = getCurrentWindow();
-      const refresh = () => { void appWindow.isMaximized().then(apply).catch(() => undefined); };
+      const refresh = () => { void Promise.all([appWindow.isMaximized(), appWindow.isFullscreen()]).then(([maximized, fullscreen]) => apply(maximized || fullscreen)).catch(() => undefined); };
       refresh();
       void appWindow.onResized(() => refresh()).then((stop) => {
         if (cancelled) stop();

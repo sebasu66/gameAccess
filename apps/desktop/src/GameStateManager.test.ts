@@ -57,12 +57,32 @@ describe("GameStateManager", () => {
     expect(merged.progress).toBe(25);
   });
 
-  it("requires a concrete provider target before provider-only installed cache is trusted", () => {
+  it("treats provider installed cache as stale when Steam reports the game uninstalled", () => {
     const steam = status({ state: "not-installed" });
-    const stale = status({ state: "installed", installed: true, prepared_target: null });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(steam, stale).state).toBe("not-installed");
-    const validated = status({ state: "installed", installed: true, prepared_target: "C:/Games/42" });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(steam, validated).state).toBe("installed");
+    const stale = status({
+      state: "installed",
+      installed: true,
+      progress: 100,
+      prepared_target: "C:/Program Files (x86)/Steam/steamapps/common/MK10",
+    });
+    const result = gameStateManager.reconcileSteamAndProviderStatus(steam, stale);
+    expect(result.state).toBe("not-installed");
+    expect(result.installed).toBe(false);
+    expect(gameStateManager.resolve(result).primaryAction).toBe("download");
+  });
+
+  it("keeps a prepared Game Access download playable until Steam adopts it", () => {
+    const steam = status({ state: "not-installed" });
+    const prepared = status({
+      state: "prepared",
+      installed: false,
+      progress: 100,
+      prepared_target: "C:/Games/42",
+    });
+    const result = gameStateManager.reconcileSteamAndProviderStatus(steam, prepared);
+    expect(result.state).toBe("prepared");
+    expect(result.installed).toBe(false);
+    expect(gameStateManager.resolve(result).primaryAction).toBe("play");
   });
 
   it("releases a stale preparing state when the worker reports terminal failure", () => {

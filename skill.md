@@ -97,7 +97,7 @@ customer logs into gameAccess
 -> account returns to pool
 ```
 
-GameAccess provider accounts from `accFull.csv` use the existing headless Steam client login flow: close the previous Steam session, then run `steam.exe -silent -login user password`. This provider-account flow is separate from the remembered-account chooser used for the user's own local Steam accounts.
+GameAccess provider accounts from `accFull.csv` use the existing headless Steam client login flow: close the previous Steam session, then run `steam.exe -login user password`. This provider-account flow is separate from the remembered-account chooser used for the user's own local Steam accounts.
 
 Steam supports QR-code login through the Steam Mobile app / Steam Guard. This allows a new device to be authorized without typing the account password on that PC. Steam Mobile shows details about the login attempt and can approve/deny it.
 

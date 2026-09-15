@@ -19,6 +19,7 @@ import "./steam-session-settings.css";
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
 import "./catalog-refresh.css";
+import "./library-sections.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };

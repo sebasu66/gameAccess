@@ -72,9 +72,9 @@ export class GameStateManager {
     // `playButtonReady` means the user can press Play now. It deliberately does
     // not mean "Steam has fully installed the game". Play may still perform a
     // prepared-file validation or a frozen-game thaw before launching.
-    const playButtonReady = installed || prepared || frozen;
     const transferActive = DOWNLOAD_ACTIVE_STATES.has(technicalState);
     const storageBusy = STORAGE_BUSY_STATES.has(technicalState);
+    const playButtonReady = !transferActive && !storageBusy && (installed || prepared || frozen);
     const downloadComplete = installed || prepared;
 
     let primaryAction: GamePrimaryAction;
@@ -193,12 +193,18 @@ export class GameStateManager {
       };
     }
 
-    if (this.resolve(provider).installed && provider.prepared_target) {
-      return this.reconcileDownloadStatus(steam, provider) ?? steam;
-    }
-
+    // Steam's current installation evidence is authoritative. A provider
+    // "installed" record is only historical cache once Steam reports the app as
+    // not installed (for example after Steam removed the appmanifest but left a
+    // residual common/<game> directory). Only explicit Game Access transitional
+    // states such as prepared/frozen are allowed to survive without a Steam
+    // installation manifest.
     if (steam.state === "not-installed") {
       return providerMetadata(steam, provider);
+    }
+
+    if (this.resolve(provider).installed && provider.prepared_target) {
+      return this.reconcileDownloadStatus(steam, provider) ?? steam;
     }
 
     return this.reconcileDownloadStatus(provider, steam) ?? steam;

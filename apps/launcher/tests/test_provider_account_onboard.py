@@ -62,11 +62,15 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
             return {"app_id": 20, "name": "DLC", "type": "dlc", "windows": True}
         if url.endswith("/steam/apps/30"):
             return {"app_id": 30, "name": "Linux Game", "type": "game", "windows": False}
+        if url.endswith("/steam/apps/40"):
+            return {"app_id": 40, "name": "Shared Game", "type": "game", "windows": True}
+        if url.endswith("/admin/games/import-steam/40"):
+            return {"game": {"id": 502, "app_id": 40}}
         if url.endswith("/admin/games/import-steam/10"):
             return {"game": {"id": 501, "app_id": 10}}
         if url.endswith("/admin/accounts/sync"):
             assert payload["label"] == "new-user"
-            assert payload["game_ids"] == [501]
+            assert payload["game_ids"] == [501, 502]
             assert '"accessible_app_ids":[10,20,30,40]' in payload["notes"]
             return {"ok": True, "account": {"id": 9, "label": "new-user", "game_ids": [501]}}
         if url.endswith("/admin/pool/families/sync"):
@@ -85,7 +89,9 @@ def test_onboard_scans_and_syncs_only_the_selected_provider(tmp_path: Path, monk
     assert result["provider_id"] == "new-user"
     assert result["owned_app_count"] == 3
     assert result["accessible_app_count"] == 4
-    assert result["catalog_game_count"] == 1
+    assert result["catalog_game_count"] == 2
+    assert result["accessible_catalog_game_count"] == 2
+    assert any(url.endswith("/admin/games/import-steam/40") for _, url, _ in calls)
     assert result["ownership_promoted"] == 1
     assert result["unresolved_app_count"] == 0
     assert len(ownership_inputs) == 1

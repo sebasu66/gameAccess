@@ -10,6 +10,37 @@ The purpose is to prevent guess-driven work, duplicated mechanisms, random exper
 
 A task is not ready for implementation until the relevant repository state, code paths, tool contracts, and external-library behavior have been inspected.
 
+## Mandatory GitHub-first implementation workflow
+
+**GitHub is the source of truth for GameAccess source code and project documentation. Product code must be authored on a GitHub-backed branch/PR first, pushed there, and only then synchronized to a local working copy for build/run/test.**
+
+This is a hard project rule, not a preference.
+
+- Do **not** use `AI_Local_Access` / the monigote to author or patch GameAccess project source directly in `C:\DEV\gameAccess`, another local worktree, or any temporary local checkout.
+- Do **not** send project source patches through monigote job JSON using `python -c`, PowerShell, `sed`, here-documents, encoded scripts, or similar ad-hoc remote-edit mechanisms.
+- Make implementation changes through the GitHub repository/branch/PR workflow. Commit and push them there before asking the local machine to consume them.
+- The monigote is primarily an **executor and synchronizer** for GameAccess. Its normal development duties are: inspect local runtime state when genuinely necessary; `fetch`/`pull`/`checkout` an already-pushed branch or commit; install dependencies; build; run; test; execute committed project scripts; and collect logs/results.
+- If a local runtime investigation reveals that source code must change, make that source change on GitHub first. Then pull the resulting commit locally and test it.
+- If the normal local working copy contains newer human-created or otherwise pre-existing source changes that are not yet on GitHub, preserve them. The monigote may help commit/push those existing changes so GitHub becomes authoritative, but it must not rewrite them while doing so. Do not overwrite or discard them to make a PR fit.
+- Before a local test, verify that the local checkout is at the exact intended remote commit/branch and account for any local modifications. A test result is not evidence for a PR unless the tested source can be tied to the pushed commit.
+- Temporary worktrees are not a substitute for this rule. If a worktree is needed for isolation, it must be based on a GitHub-backed branch and its source changes must still be committed/pushed before the normal working copy consumes them.
+
+Expected implementation loop:
+
+```text
+inspect repository/current remote state
+-> implement on GitHub branch/PR
+-> commit + push
+-> monigote fetch/pull/checkout that commit
+-> build/run/test on C:\DEV\gameAccess
+-> if a bug is found, fix it on GitHub
+-> push
+-> monigote pulls the new commit
+-> test again
+```
+
+Any workflow that starts by remotely editing GameAccess source on the user's PC is wrong unless the user explicitly overrides this project rule for that specific task.
+
 ## Mandatory preflight
 
 Before making a non-trivial change or running an experiment:
@@ -85,7 +116,7 @@ When using `AI_Local_Access`:
 - Wait for and read the prior result before submitting the next dependent job.
 - Do not create duplicate worktrees/branches for routine work when the project policy specifies one active copy.
 - Prefer targeted commits; never use blind `git add -A` in a dirty project tree.
-- Keep project-specific logic in the project repository when practical. The monigote should usually perform `fetch/pull -> execute project script`, rather than embedding large project-specific scripts inside job JSON.
+- Follow the mandatory GitHub-first workflow above. For GameAccess source, the monigote performs synchronization/execution (`fetch/pull/checkout -> build/run/test`) rather than authoring project code locally.
 
 ## Research-first rule for provider and Steam work
 

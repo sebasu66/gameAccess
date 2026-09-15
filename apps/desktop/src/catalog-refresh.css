@@ -1,6 +1,6 @@
 .catalog-refresh-button {
   position: fixed;
-  right: 24px;
+  right: 82px;
   bottom: 24px;
   z-index: 42;
   display: inline-flex;
@@ -41,8 +41,8 @@
 
 @media (max-width: 720px) {
   .catalog-refresh-button {
-    right: 14px;
-    bottom: 14px;
+    right: 82px;
+    bottom: 24px;
     width: 44px;
     height: 44px;
     justify-content: center;

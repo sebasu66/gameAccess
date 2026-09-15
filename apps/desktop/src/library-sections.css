@@ -1,0 +1,19 @@
+.library-room:not(.surface-display):not(.surface-tablet) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.library-room-feature { min-width: 0; }
+.library-catalog-toolbar { justify-content: space-between; min-height: 32px; margin-bottom: 12px; gap: 12px; }
+.library-catalog-toolbar button, .library-section-heading button, .library-section-pages button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 10px; background: #10151c; color: #d8e0e8; font: inherit; font-size: 12px; cursor: pointer; transition: background .15s ease; }
+.library-catalog-toolbar button:hover, .library-section-heading button:hover, .library-section-pages button:hover { background: #202a35; }
+.library-catalog-toolbar button:focus-visible, .library-section-heading button:focus-visible, .library-section-pages button:focus-visible { outline: 2px solid #39ff14; outline-offset: 3px; }
+.library-room-grid.library-section-scroll { display: block; scroll-behavior: auto; padding-top: 0; }
+.library-section { margin: 0 0 28px; scroll-margin-top: 8px; }
+.library-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; padding: 4px 0 12px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.library-section-heading h2 { margin: 0; color: #edf3f7; font-size: 17px; font-weight: 700; }
+.library-section-heading h2 small { margin-left: 8px; color: #91a0af; font-size: 12px; font-weight: 500; }
+.library-section-heading span, .library-section-empty { color: #97a5b4; font-size: 12px; }
+.library-section-heading span { display: block; margin-top: 4px; }
+.library-section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 18px; align-items: start; }
+.library-section-pages { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; color: #a4b1be; font-size: 12px; }
+.library-section-pages button:disabled { opacity: .4; cursor: default; }
+.library-install-state.ready.frozen { background: #39ff14; color: #062300; }
+@media (max-width: 1250px) { .library-section-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px; } }
+@media (prefers-reduced-motion: reduce) { .library-section button { transition: none; } }

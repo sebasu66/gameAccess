@@ -1,3 +1,5 @@
+import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
+import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
@@ -15,6 +17,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { DetailPanel } from "./AppDetailPanel";
+import { openProviderSteamRun } from "./providerLaunch";
 let visualDebugStarted = false;
 
 export default function App() {
@@ -80,7 +83,6 @@ export default function App() {
     steamManagedDownloadStatuses().then((statuses) => {
       const durableMap: DownloadMap = {};
       for (const status of statuses) {
-        if (!downloadManager.isTracked(status) && !gameStateManager.isDownloadComplete(status)) continue;
         durableMap[status.app_id] = status;
       }
       if (Object.keys(durableMap).length) {
@@ -103,6 +105,26 @@ export default function App() {
     };
     window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
     return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pending = false;
+    const refreshInstalled = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const ids = await steamInstalledAppIds();
+        if (!cancelled) {
+          setDownloads(current => applyInstalledSnapshot(current, ids));
+          window.dispatchEvent(new CustomEvent(STORAGE_SNAPSHOT_EVENT, { detail: ids }));
+        }
+      } catch { /* A failed probe is not evidence of uninstall. */ }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(() => void refreshInstalled(), 15000);
+    window.addEventListener("focus", refreshInstalled);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshInstalled); };
   }, []);
 
   useEffect(() => {
@@ -277,6 +299,7 @@ export default function App() {
   const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
   const heroDetails = featured ? detailsById[featured.id] : undefined;
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
+  const featuredPlayReady = gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)]);
 
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
@@ -368,6 +391,7 @@ export default function App() {
         trace.push(`Opening steam://run/${game.app_id}`);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Steam confirmó la cuenta propietaria. Ahora gameAccess abre el juego automáticamente.", log: [...trace] });
         await openSteamRun(game.app_id);
+        recordPlayed(game.app_id);
         trace.push("Launch command accepted");
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
       } catch (err) {
@@ -408,7 +432,8 @@ export default function App() {
       if (lease.session_action === "launch_ready" && lease.game.app_id) {
         await wait(450);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
-        await openSteamRun(lease.game.app_id);
+        await openProviderSteamRun(lease.game.app_id, lease.account.label);
+        recordPlayed(lease.game.app_id);
         // The launch command was accepted; from here this is a live session, not rollback work.
         leaseForRollback = null;
         await wait(450);
@@ -469,7 +494,7 @@ export default function App() {
               <h1>{featured.name}</h1>
               <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
-                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => void doLease(featured)} />
+                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || leaseBusy} onClick={() => void doLease(featured)} />
                 <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>

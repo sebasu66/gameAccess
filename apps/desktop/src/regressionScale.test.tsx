@@ -18,12 +18,13 @@ const games: CatalogGame[] = Array.from({ length: 60 }, (_, index) => ({
 }));
 
 describe("desktop regression scale guard", () => {
-  it("renders a 60-game catalog without an artificial card cutoff", () => {
+  it("previews a large catalog with an expansion control and the full count", () => {
     const markup = renderToStaticMarkup(
       <LibraryRoom games={games} downloads={{}} busy={false} onPlay={() => undefined} onDownload={() => undefined} />,
     );
-    expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(60);
+    expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(8);
     expect(markup).toContain("60 juegos");
+    expect(markup).toContain("Ver todos");
   });
 
   it("does not restore the old startup detail preload or 24-game installation cutoff", () => {

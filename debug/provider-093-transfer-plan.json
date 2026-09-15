@@ -1,0 +1,30 @@
+{
+  "status": "ok",
+  "read_only": true,
+  "provider_id": "provider-093",
+  "label": "alz0n_store_cyberpunk",
+  "steam_id64": 76561199641464085,
+  "scanned_item_count": 43,
+  "transferable_item_count": 2,
+  "selection_rule": "tradable && marketable",
+  "items": [
+    {
+      "appid": 753,
+      "contextid": 6,
+      "assetid": 38219078235,
+      "amount": 1,
+      "name": "6th Street",
+      "market_hash_name": "1091500-6th Street",
+      "type": "Cyberpunk 2077 Trading Card"
+    },
+    {
+      "appid": 753,
+      "contextid": 6,
+      "assetid": 38203813893,
+      "amount": 1,
+      "name": "Voodoo Boys",
+      "market_hash_name": "1091500-Voodoo Boys",
+      "type": "Cyberpunk 2077 Trading Card"
+    }
+  ]
+}

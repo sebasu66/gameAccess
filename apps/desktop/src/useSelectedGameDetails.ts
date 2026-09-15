@@ -74,6 +74,7 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
       .finally(() => {
         if (requestTokenRef.current === token) setLoading(false);
       });
+    return () => { ++requestTokenRef.current; };
   }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen]);
 
   return {

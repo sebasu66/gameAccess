@@ -382,7 +382,6 @@ pub async fn login_provider_steam(
                 }
                 let offset = fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
                 let mut command = Command::new(&steam);
-                if silent { command.arg("-silent"); }
                 command.args(["-login", &account_name, &password])
                     .creation_flags(CREATE_NO_WINDOW).spawn()
                     .map_err(|_| "Could not start Steam provider login".to_string())?;

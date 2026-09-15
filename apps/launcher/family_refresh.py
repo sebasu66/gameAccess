@@ -108,6 +108,22 @@ def refresh(*, api: str, timeout_seconds: int = 70) -> dict[str, Any]:
     pool = build_game_pool(refresh_licenses=False)
     backend = sync_backend(pool, api)
 
+    # Catalog discovery includes successfully scanned shared access, independently
+    # of the original-owner mappings used to count license copies.
+    from provider_account_onboard import _import_verified_games
+
+    successful = {
+        row["provider_id"] for row in inventory.get("scans", [])
+        if row.get("status") == "ok" and row.get("complete")
+    }
+    detected = {
+        int(app_id) for row in inventory.get("accounts", [])
+        if row.get("provider_id") in successful
+        for app_id in row.get("accessible_app_ids", [])
+        if str(app_id).isdigit() and int(app_id) > 0
+    }
+    _import_verified_games(api, sorted(detected))
+
     cumulative = merge_family_evidence(
         {},
         inventory,

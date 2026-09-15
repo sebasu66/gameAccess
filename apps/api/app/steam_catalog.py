@@ -55,6 +55,8 @@ class SteamCatalogAdapter:
             payload = json.loads(path.read_text(encoding="utf-8"))
             if not allow_stale and time.time() - float(payload.get("cached_at", 0)) > self.ttl_seconds:
                 return None
+            if not allow_stale and payload.get("schema_version") != 2:
+                return None
             data = payload.get("data")
             return data if isinstance(data, dict) else None
         except Exception:
@@ -62,7 +64,7 @@ class SteamCatalogAdapter:
 
     def _write_cache(self, app_id: int, language: str, country: str, data: dict[str, Any]) -> None:
         path = self._cache_path(app_id, language, country)
-        payload = {"cached_at": time.time(), "data": data}
+        payload = {"schema_version": 2, "cached_at": time.time(), "data": data}
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         tmp.replace(path)
@@ -121,6 +123,7 @@ class SteamCatalogAdapter:
                     "thumbnail": item.get("thumbnail"),
                     "mp4": mp4.get("max") or mp4.get("480"),
                     "webm": webm.get("max") or webm.get("480"),
+                    "hls_h264": item.get("hls_h264"),
                     "highlight": bool(item.get("highlight")),
                 }
             )

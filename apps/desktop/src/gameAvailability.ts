@@ -6,9 +6,18 @@ export interface PlayAvailability {
   reason: string | null;
 }
 
-export function playAvailability(game: CatalogGame, busy = false): PlayAvailability {
-  const licensed = game.copies_available > 0 || Boolean(game.local_primary_account_label);
-  if (busy) return { licensed, allowed: false, reason: "GameAccess está preparando otra sesión." };
-  if (!licensed) return { licensed: false, allowed: false, reason: "El juego está instalado, pero no hay una licencia disponible en este momento." };
+/**
+ * Storage readiness decides whether the UI offers Play. License availability is
+ * resolved by the real lease/session flow when Play is pressed; the catalog's
+ * copies_available snapshot can be stale after a download completes.
+ */
+export function playAvailability(_game: CatalogGame, busy = false): PlayAvailability {
+  if (busy) {
+    return {
+      licensed: true,
+      allowed: false,
+      reason: "GameAccess está preparando otra sesión.",
+    };
+  }
   return { licensed: true, allowed: true, reason: null };
 }

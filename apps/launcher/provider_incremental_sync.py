@@ -90,6 +90,11 @@ def sync_recent_scan(
             }
         )
         game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
+        shared_game_ids, shared_unresolved = _import_verified_games(
+            base, sorted(set(accessible_app_ids) - set(owned_app_ids))
+        )
+        unresolved_app_ids = sorted(set(unresolved_app_ids + shared_unresolved))
+        game_ids = sorted(set(game_ids + shared_game_ids))
         notes = json.dumps(
             {
                 "source": "incremental-provider-refresh",
@@ -169,4 +174,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
