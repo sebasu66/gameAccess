@@ -9,12 +9,13 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
 from .catalog_metadata import (
+    CATALOG_EXCLUDED_PRODUCT_TYPES,
     ensure_catalog_schema,
     get_cached_steam_metadata,
     seed_known_games,
@@ -27,6 +28,16 @@ engine = create_engine(
     f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
 )
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
+_EXCLUDED_PRODUCT_TYPES_SQL = ", ".join(
+    f"'{product_type}'" for product_type in sorted(CATALOG_EXCLUDED_PRODUCT_TYPES)
+)
+CATALOG_PRODUCT_FILTER = text(
+    "NOT EXISTS ("
+    "SELECT 1 FROM game_metadata AS catalog_metadata "
+    "WHERE catalog_metadata.game_id = game.id "
+    f"AND lower(coalesce(catalog_metadata.product_type, '')) IN ({_EXCLUDED_PRODUCT_TYPES_SQL})"
+    ")"
+)
 
 
 class AccountStatus(str, Enum):
@@ -140,6 +151,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Page", "X-Page-Size", "X-Total-Pages"],
 )
 
 
@@ -275,29 +287,46 @@ def is_game_licensed(session: Session, game_id: int | None) -> bool:
 @app.get("/catalog")
 def catalog(
     response: Response,
-    page: int | None = Query(default=None, ge=1),
+    page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(get_session),
 ) -> list[dict]:
     expire_old_leases(session)
     licensed_ids = licensed_game_ids(session)
-    statement = select(Game).where(Game.id.in_(licensed_ids)).order_by(Game.id)
-    if page is None:
-        games = session.exec(statement).all()
-    else:
-        total = session.exec(
-            select(func.count()).select_from(Game).where(Game.id.in_(licensed_ids))
-        ).one()
-        start = (page - 1) * page_size
-        games = session.exec(statement.offset(start).limit(page_size)).all()
-        response.headers["X-Total-Count"] = str(total)
-        response.headers["X-Page"] = str(page)
-        response.headers["X-Page-Size"] = str(page_size)
-        response.headers["X-Total-Pages"] = str(
-            (total + page_size - 1) // page_size if total else 0
-        )
+    statement = (
+        select(Game)
+        .where(Game.id.in_(licensed_ids), CATALOG_PRODUCT_FILTER)
+        .order_by(Game.id)
+    )
+    total = session.exec(
+        select(func.count())
+        .select_from(Game)
+        .where(Game.id.in_(licensed_ids), CATALOG_PRODUCT_FILTER)
+    ).one()
+    start = (page - 1) * page_size
+    games = session.exec(statement.offset(start).limit(page_size)).all()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["X-Page"] = str(page)
+    response.headers["X-Page-Size"] = str(page_size)
+    response.headers["X-Total-Pages"] = str(
+        (total + page_size - 1) // page_size if total else 0
+    )
     from . import family_capacity
-    metrics = family_capacity.catalog_metrics(session)
+    page_game_ids = {int(game.id) for game in games if game.id is not None}
+    metrics = family_capacity.catalog_metrics(session, page_game_ids)
+    for game_id in page_game_ids:
+        metrics.setdefault(
+            game_id,
+            {
+                "total": 0,
+                "available": 0,
+                "request_count_total": 0,
+                "successful_leases": 0,
+                "demand_value": 1.0,
+                "price_factor": 1.0,
+                "pool_value": 1.0,
+            },
+        )
     return [game_summary(session, game, metrics) for game in games]
 
 

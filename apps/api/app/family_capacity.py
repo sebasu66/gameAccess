@@ -87,23 +87,35 @@ def _account_can_launch_family_game(
     game = state["game_by_id"].get(game_id)
     if not account or not game or not game.app_id:
         return False
-    accessible = _accessible_app_ids(account)
+    accessible = state["accessible_by_account"].get(account_id)
     return accessible is not None and int(game.app_id) in accessible
 
 
-def _state(session: Session) -> dict[str, Any]:
+def _state(session: Session, game_ids: set[int] | None = None) -> dict[str, Any]:
     families = session.exec(select(ProviderFamily)).all()
     members = session.exec(select(FamilyMember)).all()
-    copies = session.exec(select(FamilyGameLicenseCopy)).all()
+    copy_statement = select(FamilyGameLicenseCopy)
+    game_statement = select(core.Game).where(core.Game.active == True)  # noqa: E712
+    if game_ids is not None:
+        copy_statement = copy_statement.where(FamilyGameLicenseCopy.game_id.in_(game_ids))
+        game_statement = game_statement.where(core.Game.id.in_(game_ids))
+    copies = session.exec(copy_statement).all()
     accounts = session.exec(select(core.ProviderAccount)).all()
-    games = session.exec(select(core.Game).where(core.Game.active == True)).all()  # noqa: E712
+    games = session.exec(game_statement).all()
     active_leases = session.exec(
         select(core.Lease).where(core.Lease.status == core.LeaseStatus.active)
     ).all()
     allocations = session.exec(select(LeaseAllocation)).all()
-    demands = session.exec(select(GameDemand)).all()
+    demand_statement = select(GameDemand)
+    if game_ids is not None:
+        demand_statement = demand_statement.where(GameDemand.game_id.in_(game_ids))
+    demands = session.exec(demand_statement).all()
 
     account_by_id = {int(a.id): a for a in accounts if a.id is not None}
+    accessible_by_account = {
+        account_id: _accessible_app_ids(account)
+        for account_id, account in account_by_id.items()
+    }
     family_by_id = {int(f.id): f for f in families if f.id is not None}
     members_by_family: dict[int, list[int]] = defaultdict(list)
     family_by_account: dict[int, int] = {}
@@ -138,6 +150,7 @@ def _state(session: Session) -> dict[str, Any]:
     return {
         "family_by_id": family_by_id,
         "account_by_id": account_by_id,
+        "accessible_by_account": accessible_by_account,
         "game_by_id": game_by_id,
         "members_by_family": members_by_family,
         "family_by_account": family_by_account,
@@ -212,10 +225,12 @@ def _snapshot(
     return totals
 
 
-def catalog_metrics(session: Session) -> dict[int, dict[str, float | int]]:
-    """Build capacity + demand metrics for every game from one database snapshot."""
+def catalog_metrics(
+    session: Session, game_ids: set[int] | None = None
+) -> dict[int, dict[str, float | int]]:
+    """Build capacity + demand metrics, optionally limited to one catalog page."""
     if _family_inventory_present(session):
-        state = _state(session)
+        state = _state(session, game_ids)
         snapshot = _snapshot(state)
         demand_by_game: dict[int, GameDemand] = state["demand_by_game"]
         result: dict[int, dict[str, float | int]] = {}
@@ -237,8 +252,15 @@ def catalog_metrics(session: Session) -> dict[int, dict[str, float | int]]:
         return result
 
     accounts = session.exec(select(core.ProviderAccount)).all()
-    mappings = session.exec(select(core.AccountGame)).all()
-    demands = session.exec(select(GameDemand)).all()
+    mapping_statement = select(core.AccountGame)
+    demand_statement = select(GameDemand)
+    game_statement = select(core.Game).where(core.Game.active == True)  # noqa: E712
+    if game_ids is not None:
+        mapping_statement = mapping_statement.where(core.AccountGame.game_id.in_(game_ids))
+        demand_statement = demand_statement.where(GameDemand.game_id.in_(game_ids))
+        game_statement = game_statement.where(core.Game.id.in_(game_ids))
+    mappings = session.exec(mapping_statement).all()
+    demands = session.exec(demand_statement).all()
     demand_by_game = {int(row.game_id): row for row in demands}
     status_by_account = {int(a.id): a.status for a in accounts if a.id is not None}
     total_by_game: dict[int, int] = defaultdict(int)
@@ -249,7 +271,7 @@ def catalog_metrics(session: Session) -> dict[int, dict[str, float | int]]:
         if status_by_account.get(int(mapping.account_id)) == core.AccountStatus.free:
             available_by_game[game_id] += 1
     result: dict[int, dict[str, float | int]] = {}
-    for game in session.exec(select(core.Game).where(core.Game.active == True)).all():  # noqa: E712
+    for game in session.exec(game_statement).all():
         game_id = int(game.id or 0)
         demand = demand_by_game.get(game_id)
         demand_value = float(demand.demand_value) if demand else DEMAND_START

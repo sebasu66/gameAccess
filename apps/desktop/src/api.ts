@@ -121,6 +121,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
+  const api = await getApiBaseUrl();
+  if (!api) throw new Error("Online backend is not configured");
+
+  const pageSize = 200;
+  const loadPage = async (page: number): Promise<{ games: CatalogGame[]; totalPages: number }> => {
+    const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const games = await response.json() as CatalogGame[];
+    const totalPages = Math.max(1, Number(response.headers.get("X-Total-Pages") ?? "1"));
+    return { games, totalPages };
+  };
+
+  const first = await loadPage(1);
+  if (first.totalPages <= 1) return first.games;
+
+  const games = [...first.games];
+  const concurrency = 6;
+  for (let page = 2; page <= first.totalPages; page += concurrency) {
+    const lastPage = Math.min(first.totalPages, page + concurrency - 1);
+    const batch = await Promise.all(
+      Array.from({ length: lastPage - page + 1 }, (_, index) => loadPage(page + index)),
+    );
+    for (const result of batch) games.push(...result.games);
+  }
+  await narrate(
+    `Loaded ${games.length} GameAccess catalog entries across ${first.totalPages} backend pages.`,
+    { area: "CATALOG" },
+  );
+  return games;
+}
+
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
   const mode = getCatalogMode();
   const api = await getApiBaseUrl();
@@ -159,7 +191,7 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   }
 
   await narrate("Requesting the GameAccess-only catalog and current user profile from the backend.", { area: "BACKEND" });
-  const gameAccessCatalog = new GameAccessCatalog(() => request<CatalogGame[]>("/catalog"));
+  const gameAccessCatalog = new GameAccessCatalog(loadBackendCatalogPages);
   const [backendGames, user] = await Promise.all([
     gameAccessCatalog.load(),
     request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
