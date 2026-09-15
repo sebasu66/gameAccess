@@ -125,7 +125,7 @@ export function DetailPanel({
               {steam?.genres?.length ? <div className="fact"><span>Géneros</span><strong>{steam.genres.slice(0, 6).join(" · ")}</strong></div> : null}
               {steam?.categories?.length ? <div className="fact"><span>Características</span><strong>{steam.categories.slice(0, 6).join(" · ")}</strong></div> : null}
               {steam?.developers?.length ? <div className="fact"><span>Desarrollador</span><strong>{steam.developers.join(", ")}</strong></div> : null}
-              {steam?.publishers?.length ? <div className="fact"><span>Publisher</span><strong>{steam.publishers.join(", ")}</strong></div> : null}
+              {steam?.publishers?.length ? <div className="fact"><span>Editor</span><strong>{steam.publishers.join(", ")}</strong></div> : null}
               {steam?.recommendation_count ? <div className="fact"><span>Recomendaciones</span><strong>{steam.recommendation_count.toLocaleString("es-AR")}</strong></div> : null}
               {steam?.achievement_count ? <div className="fact"><span>Logros</span><strong><Trophy size={14} /> {steam.achievement_count}</strong></div> : null}
               {steam?.price?.final_formatted ? <div className="fact"><span>Precio Steam de referencia</span><strong>{steam.price.final_formatted}</strong></div> : null}
