@@ -52,7 +52,7 @@ export async function steamFrozenStatuses(): Promise<SteamDownloadStatus[]> {
 }
 
 export async function freezeGame(appId: number): Promise<SteamDownloadStatus> {
-  if (!appId || !hasTauriRuntime()) throw new Error("Freeze requiere la aplicación de escritorio.");
+  if (!appId || !hasTauriRuntime()) throw new Error("Congelar requiere la aplicación de escritorio.");
   dispatchStorageState({ app_id: appId, state: "freezing", progress: null, bytes_downloaded: null, bytes_total: null, installed: false });
   await narrate(`Freezing Steam AppID ${appId}: moving it outside steamapps and compressing it with Zstandard.`, { area: "STORAGE" });
   try {
@@ -68,7 +68,7 @@ export async function freezeGame(appId: number): Promise<SteamDownloadStatus> {
 }
 
 export async function thawGame(appId: number): Promise<SteamDownloadStatus> {
-  if (!appId || !hasTauriRuntime()) throw new Error("Restore requiere la aplicación de escritorio.");
+  if (!appId || !hasTauriRuntime()) throw new Error("Restaurar requiere la aplicación de escritorio.");
   dispatchStorageState({ app_id: appId, state: "thawing", progress: null, bytes_downloaded: null, bytes_total: null, installed: false });
   await narrate(`Restoring frozen Steam AppID ${appId} before launch.`, { area: "STORAGE" });
   try {
@@ -97,7 +97,7 @@ async function waitForSteamUninstall(appId: number): Promise<void> {
 }
 
 export async function uninstallGame(appId: number): Promise<void> {
-  if (!appId || !hasTauriRuntime()) throw new Error("Uninstall requiere la aplicación de escritorio.");
+  if (!appId || !hasTauriRuntime()) throw new Error("Desinstalar requiere la aplicación de escritorio.");
   await invoke("uninstall_game", { appId });
   await narrate(`Steam uninstall flow opened for AppID ${appId}; Steam remains authoritative for deletion.`, { area: "STORAGE" });
   void waitForSteamUninstall(appId).catch(() => undefined);
