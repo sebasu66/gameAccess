@@ -96,7 +96,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const api = await getApiBaseUrl();
   if (!api) {
     await narrate(`Backend request ${init?.method ?? "GET"} ${path} was skipped because no GameAccess server URL is configured.`, { area: "BACKEND", level: "WARN" });
-    throw new Error("Online backend is not configured");
+    throw new Error("El servidor de GameAccess no está configurado.");
   }
 
   const method = init?.method ?? "GET";
@@ -123,7 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
   const api = await getApiBaseUrl();
-  if (!api) throw new Error("Online backend is not configured");
+  if (!api) throw new Error("El servidor de GameAccess no está configurado.");
 
   const pageSize = 200;
   const loadPage = async (page: number): Promise<{ games: CatalogGame[]; totalPages: number }> => {
