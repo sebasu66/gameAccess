@@ -31,7 +31,7 @@ def test_catalog_rejects_invalid_pagination_values() -> None:
     assert bad_size.status_code == 422
 
 
-def test_catalog_excludes_dlc_and_tools_from_results_and_totals() -> None:
+def test_catalog_includes_only_games_in_results_and_totals() -> None:
     with engine.begin() as conn:
         expected_total = int(
             conn.exec_driver_sql(
@@ -39,11 +39,11 @@ def test_catalog_excludes_dlc_and_tools_from_results_and_totals() -> None:
                 SELECT COUNT(*)
                 FROM game g
                 WHERE g.id IN (SELECT DISTINCT game_id FROM accountgame)
-                  AND NOT EXISTS (
+                  AND EXISTS (
                     SELECT 1
                     FROM game_metadata m
                     WHERE m.game_id = g.id
-                      AND lower(coalesce(m.product_type, '')) IN ('dlc', 'tool')
+                      AND lower(coalesce(m.product_type, '')) = 'game'
                   )
                 """
             ).scalar_one()
@@ -58,8 +58,8 @@ def test_catalog_excludes_dlc_and_tools_from_results_and_totals() -> None:
     if game_ids:
         placeholders = ",".join("?" for _ in game_ids)
         with engine.begin() as conn:
-            excluded = conn.exec_driver_sql(
-                f"SELECT game_id, product_type FROM game_metadata WHERE game_id IN ({placeholders}) AND lower(coalesce(product_type, '')) IN ('dlc', 'tool')",
+            non_games = conn.exec_driver_sql(
+                f"SELECT game_id, product_type FROM game_metadata WHERE game_id IN ({placeholders}) AND lower(coalesce(product_type, '')) <> 'game'",
                 tuple(game_ids),
             ).all()
-        assert excluded == []
+        assert non_games == []

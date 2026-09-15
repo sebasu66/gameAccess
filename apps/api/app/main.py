@@ -15,7 +15,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
 from .catalog_metadata import (
-    CATALOG_EXCLUDED_PRODUCT_TYPES,
+    CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
     get_cached_steam_metadata,
     seed_known_games,
@@ -28,14 +28,14 @@ engine = create_engine(
     f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
 )
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
-_EXCLUDED_PRODUCT_TYPES_SQL = ", ".join(
-    f"'{product_type}'" for product_type in sorted(CATALOG_EXCLUDED_PRODUCT_TYPES)
+_ALLOWED_PRODUCT_TYPES_SQL = ", ".join(
+    f"'{product_type}'" for product_type in sorted(CATALOG_ALLOWED_PRODUCT_TYPES)
 )
 CATALOG_PRODUCT_FILTER = text(
-    "NOT EXISTS ("
+    "EXISTS ("
     "SELECT 1 FROM game_metadata AS catalog_metadata "
     "WHERE catalog_metadata.game_id = game.id "
-    f"AND lower(coalesce(catalog_metadata.product_type, '')) IN ({_EXCLUDED_PRODUCT_TYPES_SQL})"
+    f"AND lower(coalesce(catalog_metadata.product_type, '')) IN ({_ALLOWED_PRODUCT_TYPES_SQL})"
     ")"
 )
 

@@ -10,7 +10,7 @@ from sqlalchemy import Engine
 
 
 CATALOG_SCHEMA_VERSION = 1
-CATALOG_EXCLUDED_PRODUCT_TYPES = frozenset({"dlc", "tool"})
+CATALOG_ALLOWED_PRODUCT_TYPES = frozenset({"game"})
 
 
 def _json(value: Any, default: Any) -> str:
