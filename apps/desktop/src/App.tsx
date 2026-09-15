@@ -299,7 +299,7 @@ export default function App() {
         ]);
 
         setSelected(null); setLibraryOpen(false);
-        setSession({ game: firstGame, phase: "demo-ready", title: "Visual debug session", detail: "Synthetic state used only to validate the session dialog." });
+        setSession({ game: firstGame, phase: "demo-ready", title: "Sesión de depuración visual", detail: "Estado de prueba usado únicamente para validar el diálogo de sesión." });
         await captureStep(profile, "session-dialog", [
           { selector: ".session-card", label: "Session dialog", minWidth: 360, minHeight: 260 },
           { selector: ".session-card button", label: "Session dialog action", minWidth: 32, minHeight: 32 },
@@ -307,9 +307,9 @@ export default function App() {
       }
       setSession(null); setSelected(null); setLibraryOpen(false);
       const manifest = await finishVisualDebug({ session_dir: config.session_dir, created_at: new Date().toISOString(), results });
-      setToast(`Visual debug completo: ${manifest}`);
+      setToast(`Depuración visual completada: ${manifest}`);
     };
-    void run().catch((error) => setToast(`Visual debug falló: ${error instanceof Error ? error.message : String(error)}`));
+    void run().catch((error) => setToast(`La depuración visual falló: ${error instanceof Error ? error.message : String(error)}`));
   }, [loading, games, orderedLibrary]);
 
   const magazineGames = orderedLibrary;
@@ -400,16 +400,16 @@ export default function App() {
       } catch (fallbackError) {
         const directMessage = directError instanceof Error ? directError.message : String(directError);
         const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        setToast(`Descarga directa: ${directMessage} · Fallback Steam: ${fallbackMessage}`);
+        setToast(`Descarga directa: ${directMessage} · Alternativa Steam: ${fallbackMessage}`);
       }
     }
   };
 
   const launchLocal = async (game: CatalogGame) => {
     if (!game.app_id) return;
-      const trace = [`Requested AppID = ${game.app_id}`, `Searching verified license-owner mapping for AppID ${game.app_id}`];
+      const trace = [`AppID solicitado = ${game.app_id}`, `Buscando el propietario verificado de la licencia para AppID ${game.app_id}`];
       if (!game.local_account_labels?.length || !game.local_primary_account_label) {
-        trace.push(`No verified owner is available for AppID ${game.app_id}`);
+        trace.push(`No hay un propietario verificado disponible para AppID ${game.app_id}`);
         setSession({ game, phase: "error", title: "Sin licencia disponible", detail: "El juego está instalado o visible en Steam, pero ninguna cuenta local verificada posee una licencia utilizable.", log: trace });
         setLeaseBusy(false);
         return;
@@ -417,18 +417,18 @@ export default function App() {
       try {
         setSession({ game, phase: "preparing", title: "Resolviendo propietario de la licencia", detail: "gameAccess está buscando la cuenta que realmente posee esta licencia.", log: trace });
         const localAccount = game.local_primary_account_label ?? game.local_account_labels?.[0];
-        if (!localAccount) throw new Error(`No verified original owner was found for AppID ${game.app_id}. Accessible/Family-visible accounts are not accepted as owners.`);
-        trace.push(`Owner map loaded at startup = ${game.local_account_labels?.join(", ") || localAccount}`);
-        trace.push(`Original owner selected = ${localAccount}`);
-        trace.push(`Selecting remembered Steam account = ${localAccount}`);
+        if (!localAccount) throw new Error(`No se encontró un propietario original verificado para AppID ${game.app_id}. Las cuentas visibles por acceso o Family no se aceptan como propietarias.`);
+        trace.push(`Mapa de propietarios cargado al iniciar = ${game.local_account_labels?.join(", ") || localAccount}`);
+        trace.push(`Propietario original seleccionado = ${localAccount}`);
+        trace.push(`Seleccionando cuenta de Steam recordada = ${localAccount}`);
         setSession({ game, phase: "preparing", title: "Iniciando la cuenta propietaria", detail: "La licencia fue resuelta. Steam iniciará la cuenta propietaria exacta.", log: [...trace] });
         await switchSteamAccount(localAccount);
-        trace.push(`ActiveUser confirmed for account = ${localAccount}`);
-        trace.push(`Opening steam://run/${game.app_id}`);
+        trace.push(`ActiveUser confirmado para la cuenta = ${localAccount}`);
+        trace.push(`Abriendo steam://run/${game.app_id}`);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Steam confirmó la cuenta propietaria. Ahora gameAccess abre el juego automáticamente.", log: [...trace] });
         await openSteamRun(game.app_id);
         recordPlayed(game.app_id);
-        trace.push("Launch command accepted");
+        trace.push("Comando de inicio aceptado");
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
       } catch (err) {
         trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
@@ -569,7 +569,7 @@ export default function App() {
       </header>
 
       {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Store siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
         <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} />
