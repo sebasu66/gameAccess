@@ -20,8 +20,8 @@ describe("download completion dialog", () => {
     expect(markup).toContain("DESCARGA TERMINADA");
     expect(markup).toContain(">Attack of the Labyrinth</h2>");
     expect(markup).not.toContain("Attack of the Labyrinth +</h2>");
-    expect(markup).toContain("EstÃ¡ listo para jugar.");
-    expect(markup).not.toContain("Los archivos ya estÃ¡n preparados");
+    expect(markup).toContain("Est\u00e1 listo para jugar.");
+    expect(markup).not.toContain("Los archivos ya est\u00e1n preparados");
     expect(markup).toContain("library_hero.jpg");
     expect(markup).toContain("Jugar ahora");
     expect(markup).toContain("Ahora no");
