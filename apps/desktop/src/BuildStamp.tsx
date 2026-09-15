@@ -5,14 +5,14 @@ import { getBackendConnection, type BackendConnectionKind } from "./settings";
 declare const __BUILD_TIMESTAMP__: string;
 
 export function backendConnectionLabel(kind: BackendConnectionKind | "checking") {
-  if (kind === "local") return "Server: Local";
-  if (kind === "remote") return "Server: Remote";
-  if (kind === "offline") return "Server: Offline";
-  return "Server: Checking…";
+  if (kind === "local") return "Servidor: Local";
+  if (kind === "remote") return "Servidor: Remoto";
+  if (kind === "offline") return "Servidor: Sin conexión";
+  return "Servidor: Comprobando…";
 }
 
 export default function BuildStamp() {
-  const timestamp = typeof __BUILD_TIMESTAMP__ === "string" ? __BUILD_TIMESTAMP__ : "development";
+  const timestamp = typeof __BUILD_TIMESTAMP__ === "string" ? __BUILD_TIMESTAMP__ : "desarrollo";
   const [backendKind, setBackendKind] = useState<BackendConnectionKind | "checking">("checking");
 
   useEffect(() => {
@@ -34,10 +34,10 @@ export default function BuildStamp() {
 
   return (
     <small
-      title={`Compilation time (UTC) · ${status}`}
+      title={`Hora de compilación (UTC) · ${status}`}
       style={{ alignSelf: "center", color: "#cbd5e1", padding: "0 12px", whiteSpace: "nowrap", fontSize: 11, display: "inline-flex", gap: 9 }}
     >
-      <span>Build: {timestamp}</span>
+      <span>Compilación: {timestamp}</span>
       <span style={{ color: statusColor }}>{status}</span>
     </small>
   );
