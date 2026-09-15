@@ -367,7 +367,7 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
     ["Género", compactValue(steam?.genres)],
     ["Funciones Steam", compactValue(steam?.categories, 4)],
     ["Desarrollador", compactValue(steam?.developers, 2)],
-    ["Publisher", compactValue(steam?.publishers, 2)],
+    ["Editor", compactValue(steam?.publishers, 2)],
     ["Lanzamiento", steam?.release_date || "No informado"],
     ["Plataformas", platforms(details)],
   ];
@@ -410,8 +410,8 @@ function DesktopFeature(props: FeaturePanelProps) {
     <aside className="library-room-feature">
       <section className="library-detail-essential" aria-label="Resumen esencial del juego">
         <DesktopDetailMedia game={props.game} details={details} />
-        <section className="library-room-first-row" aria-label="First row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
-        <section className="library-room-second-row" aria-label="Second row"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
+        <section className="library-room-first-row" aria-label="Fila principal"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
+        <section className="library-room-second-row" aria-label="Fila secundaria"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
       </section>
       <ExtendedDetails details={details} />
     </aside>
