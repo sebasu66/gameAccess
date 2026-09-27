@@ -8,7 +8,7 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
-import { GAME_STORAGE_STATE_CHANGED_EVENT, steamFrozenStatuses } from "./gameStorage";
+import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
@@ -16,8 +16,10 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
+import SteamInstallFallbackDialog from "./SteamInstallFallbackDialog";
 import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
+import { getCatalogMode } from "./catalogMode";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -34,6 +36,8 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [steamOk, setSteamOk] = useState(true);
   const [session, setSession] = useState<SessionView | null>(null);
+  const [steamInstallFallback, setSteamInstallFallback] = useState<{ game: CatalogGame; error?: string | null } | null>(null);
+  const [steamInstallFallbackBusy, setSteamInstallFallbackBusy] = useState(false);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
@@ -51,6 +55,7 @@ export default function App() {
   const [recentIds, setRecentIds] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem("gameaccess:recent") || "[]"); } catch { return []; }
   });
+  const steamFallbackPendingRef = useRef(new Set<number>());
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -91,12 +96,6 @@ export default function App() {
       if (Object.keys(durableMap).length) {
         setDownloads((current) => ({ ...current, ...durableMap }));
       }
-    }).catch(() => undefined);
-    steamFrozenStatuses().then((statuses) => {
-      if (!statuses.length) return;
-      const frozenMap: DownloadMap = {};
-      for (const status of statuses) frozenMap[status.app_id] = status;
-      setDownloads((current) => ({ ...current, ...frozenMap }));
     }).catch(() => undefined);
   }, [refresh]);
 
@@ -178,6 +177,23 @@ export default function App() {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [downloads]);
+
+  useEffect(() => {
+    if (getCatalogMode() !== "gameaccess") return;
+    for (const [rawAppId, status] of Object.entries(downloads)) {
+      const appId = Number(rawAppId);
+      if (!steamFallbackPendingRef.current.has(appId)) continue;
+      if (status.state === "prepared" || status.state === "installed") {
+        steamFallbackPendingRef.current.delete(appId);
+        continue;
+      }
+      if (status.state !== "not-installed" || !status.error) continue;
+      steamFallbackPendingRef.current.delete(appId);
+      const game = games.find((candidate) => candidate.app_id === appId);
+      if (!game) continue;
+      setSteamInstallFallback({ game });
+    }
+  }, [downloads, games]);
 
   useEffect(() => {
     if (!toast) return;
@@ -377,31 +393,48 @@ export default function App() {
 
   const startDownload = async (game: CatalogGame) => {
     if (!game.app_id) return;
+    const gameAccessMode = getCatalogMode() === "gameaccess";
     const markRequested = () => {
       setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));
       rememberRecent(game);
     };
     try {
+      if (gameAccessMode) steamFallbackPendingRef.current.add(game.app_id);
       await openSteamInstall(game.app_id);
       rememberRecent(game);
       const status = await steamDownloadStatus(game.app_id);
       setDownloads((current) => ({ ...current, [game.app_id!]: status }));
       setToast(status.error ?? "Solicitud aceptada. gameAccess mostrará la preparación y el progreso real.");
     } catch (directError) {
+      steamFallbackPendingRef.current.delete(game.app_id);
+      setSteamInstallFallback({ game, error: directError instanceof Error ? directError.message : String(directError) });
+    }
+  };
+
+  const continueSteamInstallFallback = async () => {
+    const pendingFallback = steamInstallFallback;
+    if (!pendingFallback || steamInstallFallbackBusy) return;
+    const { game } = pendingFallback;
+    const appId = game.app_id;
+    if (appId == null) return;
+    setSteamInstallFallbackBusy(true);
+    setSteamInstallFallback((current) => current ? { ...current, error: null } : current);
+    try {
+      const fallbackLease = await leaseGame(game.id, 5);
       try {
-        const fallbackLease = await leaseGame(game.id, 5);
-        try {
-          await openSteamClientInstall(game.app_id);
-        } finally {
-          await releaseDownloadFallbackLease(fallbackLease);
-        }
-        markRequested();
-        setToast("No se pudo usar la descarga directa. gameAccess inició una cuenta proveedora y dejó la descarga a cargo de Steam.");
-      } catch (fallbackError) {
-        const directMessage = directError instanceof Error ? directError.message : String(directError);
-        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        setToast(`Descarga directa: ${directMessage} · Alternativa Steam: ${fallbackMessage}`);
+        await openSteamClientInstall(appId, { waitForConfirmation: false });
+      } finally {
+        await releaseDownloadFallbackLease(fallbackLease);
       }
+      setDownloads((current) => ({ ...current, [appId]: { ...(current[appId] ?? { app_id: appId, progress: null, bytes_downloaded: null, bytes_total: null, installed: false }), state: "requested", error: null } }));
+      rememberRecent(game);
+      setSteamInstallFallback(null);
+      setToast(`Steam se abrió para que descargues ${game.name} desde el cliente.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSteamInstallFallback((current) => current ? { ...current, error: message } : current);
+    } finally {
+      setSteamInstallFallbackBusy(false);
     }
   };
 
@@ -590,6 +623,7 @@ export default function App() {
       {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
+      {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );

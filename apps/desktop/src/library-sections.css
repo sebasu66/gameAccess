@@ -14,6 +14,5 @@
 .library-section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 18px; align-items: start; }
 .library-section-pages { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; color: #a4b1be; font-size: 12px; }
 .library-section-pages button:disabled { opacity: .4; cursor: default; }
-.library-install-state.ready.frozen { background: #39ff14; color: #062300; }
 @media (max-width: 1250px) { .library-section-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px; } }
 @media (prefers-reduced-motion: reduce) { .library-section button { transition: none; } }

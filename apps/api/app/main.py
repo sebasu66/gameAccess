@@ -295,13 +295,21 @@ def catalog(
     licensed_ids = licensed_game_ids(session)
     statement = (
         select(Game)
-        .where(Game.id.in_(licensed_ids), CATALOG_PRODUCT_FILTER)
+        .where(
+            Game.id.in_(licensed_ids),
+            Game.active == True,  # noqa: E712
+            CATALOG_PRODUCT_FILTER,
+        )
         .order_by(Game.id)
     )
     total = session.exec(
         select(func.count())
         .select_from(Game)
-        .where(Game.id.in_(licensed_ids), CATALOG_PRODUCT_FILTER)
+        .where(
+            Game.id.in_(licensed_ids),
+            Game.active == True,  # noqa: E712
+            CATALOG_PRODUCT_FILTER,
+        )
     ).one()
     start = (page - 1) * page_size
     games = session.exec(statement.offset(start).limit(page_size)).all()

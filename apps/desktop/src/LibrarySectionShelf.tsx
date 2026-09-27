@@ -6,11 +6,11 @@ import type { LibrarySection } from "./librarySections";
 import type { CatalogGame } from "./types";
 interface Props { section: LibrarySection; selectedId?: number; renderGame: (game: CatalogGame) => ReactNode; reset: number }
 export default function LibrarySectionShelf({ section, selectedId, renderGame, reset }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [page, setPage] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: The toolbar reset token intentionally restores this shelf preview.
-  useEffect(() => { setExpanded(false); setPage(0); }, [reset]);
+  useEffect(() => { setExpanded(true); setPage(0); }, [reset]);
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
   useEffect(() => {
     const index = selectedPosition;

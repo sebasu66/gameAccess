@@ -83,6 +83,12 @@
   font-size: 14px;
 }
 
+.session-content p.steam-install-fallback-error {
+  margin-top: 12px;
+  color: #ffaaaa;
+  overflow-wrap: anywhere;
+}
+
 .session-log {
   max-height: 180px;
   margin-top: 18px;

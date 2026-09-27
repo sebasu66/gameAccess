@@ -91,14 +91,26 @@ def _account_can_launch_family_game(
     return accessible is not None and int(game.app_id) in accessible
 
 
-def _state(session: Session, game_ids: set[int] | None = None) -> dict[str, Any]:
+def _state(
+    session: Session,
+    game_ids: set[int] | None = None,
+    *,
+    include_inactive_game_ids: set[int] | None = None,
+) -> dict[str, Any]:
     families = session.exec(select(ProviderFamily)).all()
     members = session.exec(select(FamilyMember)).all()
     copy_statement = select(FamilyGameLicenseCopy)
-    game_statement = select(core.Game).where(core.Game.active == True)  # noqa: E712
+    game_statement = select(core.Game)
     if game_ids is not None:
         copy_statement = copy_statement.where(FamilyGameLicenseCopy.game_id.in_(game_ids))
         game_statement = game_statement.where(core.Game.id.in_(game_ids))
+    elif include_inactive_game_ids:
+        game_statement = game_statement.where(
+            (core.Game.active == True)  # noqa: E712
+            | core.Game.id.in_(include_inactive_game_ids)
+        )
+    else:
+        game_statement = game_statement.where(core.Game.active == True)  # noqa: E712
     copies = session.exec(copy_statement).all()
     owner_statement = select(core.AccountGame)
     if game_ids is not None:
@@ -412,8 +424,8 @@ def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | N
     if not _family_inventory_present(session):
         return _legacy_selection(session, game)
 
-    state = _state(session)
     game_id = int(game.id or 0)
+    state = _state(session, include_inactive_game_ids={game_id})
     family_game_ids = {candidate_game_id for _, candidate_game_id in state["copies_by_family_game"]}
     if game_id not in family_game_ids:
         # Family data for other titles must not hide this title's verified owners.

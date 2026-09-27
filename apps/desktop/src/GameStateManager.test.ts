@@ -10,23 +10,22 @@ const status = (overrides: Partial<SteamDownloadStatus>): SteamDownloadStatus =>
 });
 
 describe("GameStateManager", () => {
-  it("keeps technical state separate from Play-button readiness", () => {
+  it("keeps prepared games playable and legacy frozen games unavailable", () => {
     const prepared = gameStateManager.resolve(status({ state: "prepared" }));
     expect(prepared.installed).toBe(false);
     expect(prepared.prepared).toBe(true);
     expect(prepared.playButtonReady).toBe(true);
     expect(prepared.primaryAction).toBe("play");
 
-    const frozen = gameStateManager.resolve(status({ state: "frozen" }));
-    expect(frozen.installed).toBe(false);
-    expect(frozen.frozen).toBe(true);
-    expect(frozen.playButtonReady).toBe(true);
-    expect(frozen.primaryAction).toBe("play");
+    const legacyFrozen = gameStateManager.resolve(status({ state: "frozen" }));
+    expect(legacyFrozen.installed).toBe(false);
+    expect(legacyFrozen.playButtonReady).toBe(false);
+    expect(legacyFrozen.primaryAction).toBe("download");
   });
 
-  it("maps active and transitional states to one primary UI action", () => {
+  it("maps active download states to one primary UI action", () => {
     expect(gameStateManager.resolve(status({ state: "downloading" })).primaryAction).toBe("cancel");
-    expect(gameStateManager.resolve(status({ state: "freezing" })).primaryAction).toBe("wait");
+    expect(gameStateManager.resolve(status({ state: "freezing" })).primaryAction).toBe("download");
     expect(gameStateManager.resolve(status({ state: "not-installed" })).primaryAction).toBe("download");
     expect(gameStateManager.resolve(status({ state: "unknown" })).primaryAction).toBe("verify");
   });
@@ -93,9 +92,10 @@ describe("GameStateManager", () => {
     expect(result?.error).toBe("No verified provider");
   });
 
-  it("keeps Frozen authoritative over stale provider installation state", () => {
+  it("does not treat legacy frozen storage data as installed", () => {
     const frozen = status({ state: "frozen", installed: false });
     const provider = status({ state: "installed", installed: true, provider_id: "provider" });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(frozen, provider).state).toBe("frozen");
+    expect(gameStateManager.resolve(frozen).playButtonReady).toBe(false);
+    expect(gameStateManager.resolve(frozen).primaryAction).toBe("download");
   });
 });

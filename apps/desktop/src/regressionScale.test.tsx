@@ -22,7 +22,7 @@ describe("desktop regression scale guard", () => {
     const markup = renderToStaticMarkup(
       <LibraryRoom games={games} downloads={{}} busy={false} onPlay={() => undefined} onDownload={() => undefined} />,
     );
-    expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(8);
+    expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(16);
     expect(markup).toContain("60 juegos");
     expect(markup).toContain("Ver todos");
   });

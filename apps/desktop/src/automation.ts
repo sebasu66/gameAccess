@@ -200,7 +200,7 @@ async function executeTask(task: AutomationTask, games: CatalogGame[], current: 
     case "play": {
       const game = resolveGame(games, task, current);
       await selectGame(game);
-      const button = detailButton(/Jugar ahora|Descongelar y jugar/i);
+      const button = detailButton(/Jugar ahora/i);
       if (!button) throw new Error(`Play action was not found for ${game.name}.`);
       if (button.disabled) throw new Error(`Play action for ${game.name} is not ready.`);
       button.click();

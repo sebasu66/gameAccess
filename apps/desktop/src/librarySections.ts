@@ -1,7 +1,7 @@
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
-export const SECTION_PREVIEW_SIZE = 8;
+export const SECTION_PREVIEW_SIZE = 16;
 export const SECTION_PAGE_SIZE = 40;
 export type SectionId = "installed" | "downloads" | "favorites" | "catalog";
 export interface LibrarySection { id: SectionId; title: string; games: CatalogGame[] }
@@ -15,7 +15,7 @@ export function buildLibrarySections(games: CatalogGame[], downloads: Record<num
   const groups = Object.fromEntries(sections.map(section => [section.id, section]));
   for (const game of games) {
     const state = gameStateManager.resolve(game.app_id ? downloads[game.app_id] : undefined);
-    const id = state.transferActive ? "downloads" : (state.installed || state.prepared || state.frozen || state.storageBusy) ? "installed" : preferences[game.id] === 1 ? "favorites" : "catalog";
+    const id = state.transferActive ? "downloads" : (state.installed || state.prepared) ? "installed" : preferences[game.id] === 1 ? "favorites" : "catalog";
     groups[id].games.push(game);
   }
   for (const section of sections) {

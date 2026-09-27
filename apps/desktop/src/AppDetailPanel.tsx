@@ -10,7 +10,6 @@ import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
 import { stripHtml, wait, availabilityLabel, heavinessLabel, GlassActionButton } from "./AppPresentation";
 
 function playActionLabel(state: ResolvedGameState) {
-  if (state.frozen) return "Descongelar y jugar";
   if (state.playButtonReady) return "Jugar ahora";
   if (state.transferActive) return "Preparando";
   return "No listo";
@@ -19,7 +18,6 @@ function playActionLabel(state: ResolvedGameState) {
 function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadStatus) {
   if (state.installed) return "Instalado";
   if (state.prepared) return "Preparado";
-  if (state.frozen) return "Congelado";
   if (state.transferActive) {
     return download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando";
   }
@@ -32,7 +30,7 @@ function detailActionState(download?: SteamDownloadStatus) {
     localState,
     activeDownload: localState.transferActive,
     playReady: localState.playButtonReady,
-    downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy,
+    downloadBlocked: localState.playButtonReady || localState.transferActive,
   };
 }
 
