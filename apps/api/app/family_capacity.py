@@ -100,6 +100,12 @@ def _state(session: Session, game_ids: set[int] | None = None) -> dict[str, Any]
         copy_statement = copy_statement.where(FamilyGameLicenseCopy.game_id.in_(game_ids))
         game_statement = game_statement.where(core.Game.id.in_(game_ids))
     copies = session.exec(copy_statement).all()
+    owner_statement = select(core.AccountGame)
+    if game_ids is not None:
+        owner_statement = owner_statement.where(
+            core.AccountGame.game_id.in_(game_ids)
+        )
+    owned_mappings = session.exec(owner_statement).all()
     accounts = session.exec(select(core.ProviderAccount)).all()
     games = session.exec(game_statement).all()
     active_leases = session.exec(
@@ -116,6 +122,9 @@ def _state(session: Session, game_ids: set[int] | None = None) -> dict[str, Any]
         account_id: _accessible_app_ids(account)
         for account_id, account in account_by_id.items()
     }
+    owned_account_ids_by_game: dict[int, set[int]] = defaultdict(set)
+    for mapping in owned_mappings:
+        owned_account_ids_by_game[int(mapping.game_id)].add(int(mapping.account_id))
     family_by_id = {int(f.id): f for f in families if f.id is not None}
     members_by_family: dict[int, list[int]] = defaultdict(list)
     family_by_account: dict[int, int] = {}
@@ -151,6 +160,7 @@ def _state(session: Session, game_ids: set[int] | None = None) -> dict[str, Any]
         "family_by_id": family_by_id,
         "account_by_id": account_by_id,
         "accessible_by_account": accessible_by_account,
+        "owned_account_ids_by_game": owned_account_ids_by_game,
         "game_by_id": game_by_id,
         "members_by_family": members_by_family,
         "family_by_account": family_by_account,
@@ -199,6 +209,17 @@ def _family_counts(
     }
 
 
+def _legacy_account_capacity(state: dict[str, Any], game_id: int) -> dict[str, int]:
+    owner_ids = state["owned_account_ids_by_game"].get(game_id, set())
+    available = sum(
+        1
+        for account_id in owner_ids
+        if account_id in state["account_by_id"]
+        and state["account_by_id"][account_id].status == core.AccountStatus.free
+    )
+    return {"total": len(owner_ids), "available": available}
+
+
 def _snapshot(
     state: dict[str, Any],
     *,
@@ -222,6 +243,14 @@ def _snapshot(
         )
         for key in ("total", "available"):
             totals[game_id][key] += counts[key]
+
+    # Family inventory is synchronized independently from verified ownership.
+    # Use account ownership for this title when the family graph has no copy rows.
+    family_game_ids = {game_id for _, game_id in state["copies_by_family_game"]}
+    for game in state["games"]:
+        game_id = int(game.id or 0)
+        if game_id not in family_game_ids:
+            totals[game_id] = _legacy_account_capacity(state, game_id)
     return totals
 
 
@@ -289,20 +318,12 @@ def catalog_metrics(
 
 
 def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
-    if not _family_inventory_present(session):
-        owned = session.exec(
-            select(core.AccountGame).where(core.AccountGame.game_id == game.id)
-        ).all()
-        account_ids = [row.account_id for row in owned]
-        available = 0
-        for account_id in account_ids:
-            account = session.get(core.ProviderAccount, account_id)
-            if account and account.status == core.AccountStatus.free:
-                available += 1
-        return len(account_ids), available
-
-    state = _state(session)
-    row = _snapshot(state).get(int(game.id or 0), {"total": 0, "available": 0})
+    game_id = int(game.id or 0)
+    state = _state(session, {game_id})
+    if _family_inventory_present(session):
+        row = _snapshot(state).get(game_id, {"total": 0, "available": 0})
+    else:
+        row = _legacy_account_capacity(state, game_id)
     return int(row["total"]), int(row["available"])
 
 
@@ -392,9 +413,14 @@ def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | N
         return _legacy_selection(session, game)
 
     state = _state(session)
+    game_id = int(game.id or 0)
+    family_game_ids = {candidate_game_id for _, candidate_game_id in state["copies_by_family_game"]}
+    if game_id not in family_game_ids:
+        # Family data for other titles must not hide this title's verified owners.
+        return _legacy_selection(session, game)
+
     before = _snapshot(state)
     candidates: list[tuple[tuple[float, int, int, int], dict[str, Any]]] = []
-    game_id = int(game.id or 0)
     for (family_id, candidate_game_id), copies in state[
         "copies_by_family_game"
     ].items():
