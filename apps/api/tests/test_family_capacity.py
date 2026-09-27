@@ -241,3 +241,29 @@ def test_no_currently_accessible_member_makes_family_copy_unavailable(tmp_path) 
         total, available = capacity.game_capacity(session, game)
         assert total >= 1
         assert available == 0
+
+def test_game_without_family_copy_uses_verified_owner_when_other_families_exist(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        _games, accounts = _seed_example(session)
+        game = core.Game(
+            slug="missing-family-copy",
+            name="Game Without Family Copy",
+            app_id=424242,
+            active=True,
+            credit_cost_per_hour=10,
+        )
+        session.add(game)
+        session.commit()
+        session.refresh(game)
+        session.add(core.AccountGame(account_id=accounts["X"].id, game_id=game.id))
+        session.commit()
+
+        selection = capacity.select_best_account(session, game)
+        assert selection is not None
+        assert selection["mode"] == "legacy-account-fallback"
+        assert selection["account"].id == accounts["X"].id
+        assert capacity.game_capacity(session, game) == (1, 1)
+        metrics = capacity.catalog_metrics(session, {int(game.id)})[int(game.id)]
+        assert metrics["total"] == 1
+        assert metrics["available"] == 1
