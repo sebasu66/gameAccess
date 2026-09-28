@@ -5,7 +5,7 @@ export const SECTION_PREVIEW_SIZE = 16;
 export const SECTION_PAGE_SIZE = 40;
 export type SectionId = "installed" | "downloads" | "favorites" | "catalog";
 export type CatalogSort = "steam-popularity" | "gameaccess-demand" | "name";
-export type LibraryView = "catalog" | "popular" | "latest" | "installed" | "favorites";
+export type LibraryView = "catalog" | "popular" | "latest" | "installed" | "favorites" | "categories";
 export interface LibrarySection { id: SectionId; title: string; description?: string; games: CatalogGame[] }
 export function buildLibraryCollection(
   games: CatalogGame[],
@@ -23,6 +23,7 @@ export function buildLibraryCollection(
     latest: "Lanzamientos recientes",
     installed: "Instalados",
     favorites: "Favoritos",
+    categories: "Categorías",
   };
   const descriptions: Record<LibraryView, string> = {
     catalog: "Todos los juegos disponibles, ordenados alfabéticamente.",
@@ -34,6 +35,7 @@ export function buildLibraryCollection(
     latest: "Ordenados por fecha de lanzamiento de Steam, más recientes primero.",
     installed: "Juegos instalados o preparados en este dispositivo.",
     favorites: "Tus juegos favoritos.",
+    categories: "Filtrá por géneros, categorías y funciones de Steam.",
   };
   const collection = games.filter(game => {
     if (view === "installed") {
