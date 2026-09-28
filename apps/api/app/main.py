@@ -37,7 +37,7 @@ CATALOG_PRODUCT_FILTER = text(
     "SELECT 1 FROM game_metadata AS catalog_metadata "
     "WHERE catalog_metadata.game_id = game.id "
     f"AND lower(coalesce(catalog_metadata.product_type, '')) IN ({_ALLOWED_PRODUCT_TYPES_SQL})"
-    ")"
+    ") AND lower(trim(coalesce(game.name, ''))) NOT GLOB 'steam [0-9]*'"
 )
 
 
@@ -283,6 +283,15 @@ def licensed_game_ids(session: Session) -> set[int]:
     }
 
 
+def visible_catalog_game(session: Session, game_id: int | None, *, active_only: bool = True) -> Game | None:
+    if not game_id:
+        return None
+    statement = select(Game).where(Game.id == int(game_id), CATALOG_PRODUCT_FILTER)
+    if active_only:
+        statement = statement.where(Game.active == True)  # noqa: E712
+    return session.exec(statement).first()
+
+
 def is_game_licensed(session: Session, game_id: int | None) -> bool:
     if not game_id:
         return False
@@ -356,7 +365,7 @@ def catalog(
 
 @app.get("/games/{game_id}/details")
 def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
-    game = session.get(Game, game_id)
+    game = visible_catalog_game(session, game_id)
     if not game or not is_game_licensed(session, game.id):
         raise HTTPException(404, "game not found")
     summary = game_summary(session, game)
@@ -468,7 +477,7 @@ def add_account(
     session.commit()
     session.refresh(account)
     for game_id in req.game_ids:
-        if not session.get(Game, game_id):
+        if not visible_catalog_game(session, game_id, active_only=False):
             raise HTTPException(400, f"unknown game_id {game_id}")
         session.add(AccountGame(account_id=account.id, game_id=game_id))
     session.commit()
@@ -482,7 +491,7 @@ def sync_account(
     label = req.label.strip()
     normalized_game_ids = list(dict.fromkeys(req.game_ids))
     for game_id in normalized_game_ids:
-        if not session.get(Game, game_id):
+        if not visible_catalog_game(session, game_id, active_only=False):
             raise HTTPException(400, f"unknown game_id {game_id}")
 
     account = session.exec(
@@ -575,7 +584,7 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
 def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> dict:
     expire_old_leases(session)
     user = session.get(User, req.user_id)
-    game = session.get(Game, req.game_id)
+    game = visible_catalog_game(session, req.game_id)
     if not user:
         raise HTTPException(404, "user not found")
     if not game or not is_game_licensed(session, game.id):
@@ -705,8 +714,10 @@ def get_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
     lease = session.get(Lease, lease_id)
     if not lease:
         raise HTTPException(404, "lease not found")
-    game = session.get(Game, lease.game_id)
+    game = visible_catalog_game(session, lease.game_id, active_only=False)
     account = session.get(ProviderAccount, lease.account_id)
+    if not game:
+        raise HTTPException(404, "lease game not found")
     return {
         "id": lease.id,
         "status": lease.status,
