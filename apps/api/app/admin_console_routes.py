@@ -188,7 +188,13 @@ def dashboard(session: Session) -> dict:
         if visible_game_ids
         else []
     )
-    leases = session.exec(select(core.Lease)).all()
+    leases = (
+        session.exec(
+            select(core.Lease).where(core.Lease.game_id.in_(visible_game_ids))
+        ).all()
+        if visible_game_ids
+        else []
+    )
     metrics_by_game = family_capacity.catalog_metrics(session)
     family_rows_by_game = family_capacity.family_breakdowns_by_game(session)
 
