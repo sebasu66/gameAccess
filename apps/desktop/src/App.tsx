@@ -67,6 +67,7 @@ export default function App() {
       const home = await loadHome();
       setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
     } catch (error) {
+      setOfflineDemo(true);
       setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
     } finally { setLoading(false); }
   }, []);
@@ -608,7 +609,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} />
+        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
