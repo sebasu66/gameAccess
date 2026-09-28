@@ -19,6 +19,7 @@ export interface CatalogGame {
   developers?: string[];
   publishers?: string[];
   short_description?: string;
+  release_date?: string | null;
   recommendation_count?: number | null;
   metacritic_score?: number | null;
   successful_leases?: number;
