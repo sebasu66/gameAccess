@@ -111,7 +111,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [x] Add a compact sort-icon button to the same tool-strip line; clicking it opens the selector with exactly these criteria: release date (`Latest`), Steam popularity, review rating, and A-to-Z. `c2e9af7`
 - [x] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap. `59e55f2`
 - [x] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls. `59e55f2`
-- [ ] After the library controls have been rearranged, review and refine the interface's overall visual styling.
+- [x] After the library controls have been rearranged, review and refine the interface's overall visual styling. Refined the toolbar as a segmented control group with consistent search/filter surfaces, clearer active states, and a compact icon-only sort action. Responsive wrapping now follows the actual library column width instead of the overall window width.
 
 ## P1 — Local Steam integration and unified library
 
