@@ -97,14 +97,14 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
 
 interface DownloadCatalogPanelProps {
   games: CatalogGame[];
-  section: LibrarySection;
-  view: LibraryView;
-  onViewChange: (view: LibraryView) => void;
-  catalogSort: CatalogSort;
-  onCatalogSortChange: (sort: CatalogSort) => void;
-  facets: LibrarySearchFacets;
-  filters: LibrarySearchFilters;
-  onFiltersChange: (filters: LibrarySearchFilters) => void;
+  section: LibrarySection?;
+  view: LibraryView?;
+  onViewChange: (view: LibraryView) => void?;
+  catalogSort: CatalogSort?;
+  onCatalogSortChange: (sort: CatalogSort) => void?;
+  facets: LibrarySearchFacets?;
+  filters: LibrarySearchFilters?;
+  onFiltersChange: (filters: LibrarySearchFilters) => void?;
   downloads: DownloadMap;
   accountCount: number;
   selectedIndex: number;
@@ -120,6 +120,14 @@ interface DownloadCatalogPanelProps {
 type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
+  const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games };
+  const view = props.view ?? "catalog";
+  const onViewChange = props.onViewChange ?? (() => undefined);
+  const catalogSort = props.catalogSort ?? "steam-popularity";
+  const onCatalogSortChange = props.onCatalogSortChange ?? (() => undefined);
+  const facets = props.facets ?? { genres: [], categories: [], features: [] };
+  const filters = props.filters ?? EMPTY_LIBRARY_FILTERS;
+  const onFiltersChange = props.onFiltersChange ?? (() => undefined);
   const [sectionReset, setSectionReset] = useState(0);
   const indexes = new Map(props.games.map((game, index) => [game.id, index]));
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
@@ -130,9 +138,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     { id: "categories", label: "Categorías" },
   ];
   const toggleOption = (group: "genres" | "categories" | "features", value: string) => {
-    const current = props.filters[group] as string[];
+    const current = filters[group] as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
-    props.onFiltersChange({ ...props.filters, [group]: next } as LibrarySearchFilters);
+    onFiltersChange({ ...filters, [group]: next } as LibrarySearchFilters);
   };
 
   useEffect(() => {
@@ -179,25 +187,25 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     <section className="library-room-catalog">
       <header className="library-catalog-toolbar library-catalog-controls">
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
-          {views.map(item => <button key={item.id} type="button" role="tab" aria-selected={props.view === item.id} className={props.view === item.id ? "is-active" : ""} onClick={() => { props.onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.label}</button>)}
+          {views.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} className={view === item.id ? "is-active" : ""} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.label}</button>)}
         </div>
         <div className="library-catalog-actions">
-          {props.view === "popular" || props.view === "categories" ? <label className="library-catalog-sort">Ordenar por <select value={props.catalogSort} onChange={event => props.onCatalogSortChange(event.target.value as CatalogSort)}><option value="steam-popularity">Recomendaciones globales de Steam</option><option value="gameaccess-demand">Solicitudes en GameAccess</option><option value="name">Nombre A–Z</option></select></label> : null}
+          {view === "popular" || view === "categories" ? <label className="library-catalog-sort">Ordenar por <select value={catalogSort} onChange={event => onCatalogSortChange(event.target.value as CatalogSort)}><option value="steam-popularity">Recomendaciones globales de Steam</option><option value="gameaccess-demand">Solicitudes en GameAccess</option><option value="name">Nombre A–Z</option></select></label> : null}
           <small>{props.games.length} juegos</small>
           <button type="button" onClick={() => { setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button>
         </div>
       </header>
-      {props.view === "categories" ? <details className="library-catalog-filters" open>
+      {view === "categories" ? <details className="library-catalog-filters" open>
         <summary>Filtrar por metadatos</summary>
         <div className="library-catalog-filter-groups">
-        <fieldset><legend>Géneros</legend>{props.facets.genres.map(value => <label key={value}><input type="checkbox" checked={props.filters.genres.includes(value)} onChange={() => toggleOption("genres", value)} />{value}</label>)}</fieldset>
-        <fieldset><legend>Categorías de Steam</legend>{props.facets.categories.map(value => <label key={value}><input type="checkbox" checked={props.filters.categories.includes(value)} onChange={() => toggleOption("categories", value)} />{value}</label>)}</fieldset>
-        <fieldset><legend>Funciones</legend>{LIBRARY_FEATURE_OPTIONS.filter(option => props.facets.features.includes(option.key)).map(({ key, label }) => <label key={key}><input type="checkbox" checked={props.filters.features.includes(key)} onChange={() => toggleOption("features", key)} />{label}</label>)}</fieldset>
-        {props.filters.genres.length + props.filters.categories.length + props.filters.features.length > 0 ? <button type="button" onClick={() => props.onFiltersChange(EMPTY_LIBRARY_FILTERS)}>Limpiar filtros</button> : null}
+        <fieldset><legend>Géneros</legend>{facets.genres.map(value => <label key={value}><input type="checkbox" checked={filters.genres.includes(value)} onChange={() => toggleOption("genres", value)} />{value}</label>)}</fieldset>
+        <fieldset><legend>Categorías de Steam</legend>{facets.categories.map(value => <label key={value}><input type="checkbox" checked={filters.categories.includes(value)} onChange={() => toggleOption("categories", value)} />{value}</label>)}</fieldset>
+        <fieldset><legend>Funciones</legend>{LIBRARY_FEATURE_OPTIONS.filter(option => facets.features.includes(option.key)).map(({ key, label }) => <label key={key}><input type="checkbox" checked={filters.features.includes(key)} onChange={() => toggleOption("features", key)} />{label}</label>)}</fieldset>
+        {filters.genres.length + filters.categories.length + filters.features.length > 0 ? <button type="button" onClick={() => onFiltersChange(EMPTY_LIBRARY_FILTERS)}>Limpiar filtros</button> : null}
         </div>
       </details> : null}
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
-        <LibrarySectionShelf section={props.section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+        <LibrarySectionShelf section={section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
