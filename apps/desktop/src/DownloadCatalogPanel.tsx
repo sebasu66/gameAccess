@@ -189,11 +189,11 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="library-catalog-actions">
           {view === "popular" ? <label className="library-catalog-sort">Ordenar por <select value={catalogSort} onChange={event => onCatalogSortChange(event.target.value as CatalogSort)}><option value="steam-popularity">Recomendaciones globales de Steam</option><option value="gameaccess-demand">Solicitudes en GameAccess</option><option value="name">Nombre A–Z</option></select></label> : null}
           <small>{props.games.length} juegos</small>
-          <button type="button" onClick={() => { setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button>
+          <button type="button" onClick={() => props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" })}><ArrowUpToLine size={15} /> Volver al inicio</button>
         </div>
       </header>
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
-        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
