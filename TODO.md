@@ -103,14 +103,14 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Preserve browser/Vite mode only as a development convenience.
 - [ ] Improve desktop logging so startup, catalog loading and pagination, game opening, and errors can be traced end to end; verify or add log rotation and size limits so log files cannot grow indefinitely.
 - [ ] Audit generated files and folders and their cleanup, especially across game installation and uninstallation, to prevent orphaned directories, leftover files, and uncontrolled disk growth.
-- [ ] Replace native/browser alerts, confirmations, and prompts across Game Access with reusable in-app dialogs based on the existing styled Play dialog; support the needed message and action variants while preserving the app's visual style and accessible focus behavior.
+- [x] Replace native/browser alerts, confirmations, and prompts across Game Access with reusable in-app dialogs based on the existing styled Play dialog; support the needed message and action variants while preserving the app's visual style and accessible focus behavior. `5805a51`
 
 ## P1 — Catalog and library navigation
 
-- [ ] Rebuild the library navigation tool strip on one line at the current search field's vertical position, in this order: `Catalog`, `Installed` only when it has games, `Favorites` only when it has games, search input, category selector, and Steam-features selector populated from the database. Replace the `Latest`, `Popular`, and `Top` tabs with the single `Catalog` tab, and restore the category and Steam-features filters if they are missing.
-- [ ] Add a compact sort-icon button to the same tool-strip line; clicking it opens the selector with exactly these criteria: release date (`Latest`), Steam popularity, review rating, and A-to-Z.
-- [ ] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap.
-- [ ] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls.
+- [x] Rebuild the library navigation tool strip on one line at the current search field's vertical position, in this order: `Catalog`, `Installed` only when it has games, `Favorites` only when it has games, search input, category selector, and Steam-features selector populated from the database. Replace the `Latest`, `Popular`, and `Top` tabs with the single `Catalog` tab, and restore the category and Steam-features filters if they are missing. `c2e9af7`
+- [x] Add a compact sort-icon button to the same tool-strip line; clicking it opens the selector with exactly these criteria: release date (`Latest`), Steam popularity, review rating, and A-to-Z. `c2e9af7`
+- [x] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap. `59e55f2`
+- [x] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls. `59e55f2`
 - [ ] After the library controls have been rearranged, review and refine the interface's overall visual styling.
 
 ## P1 — Local Steam integration and unified library
@@ -118,7 +118,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Detect Steam installation reliably on Windows.
 - [ ] Discover Steam users/accounts already known on the local machine using supported/non-secret local state.
 - [ ] Discover installed games and determine available ownership/library information per local Steam identity as reliably as possible.
-- [ ] After a depot download has been copied successfully into the selected Steam library and the copied payload is verified, remove its temporary Game Access staging files; preserve staging if copying or verification fails.
+- [x] After a depot download has been copied successfully into the selected Steam library and the copied payload is verified, remove its temporary Game Access staging files; preserve staging if copying or verification fails. Steam target paths and matching pre-existing files are checked before cleanup.
 - [ ] On Game Access startup, reconcile the download staging folder: identify junk/obsolete files separately from interrupted downloads, preserve downloads that can resume, and show a modal for each resumable interrupted download asking whether to resume it or discard its files. Discard staging only after the user chooses that option.
 - [ ] Build a unified game-centric local model across multiple local Steam users.
 - [ ] Clearly classify each game/access path: `OWNED_LOCAL`, `BUY_STEAM`, `GAMEACCESS_SHARED`, `GAMEACCESS_PRIVATE` (names may evolve).

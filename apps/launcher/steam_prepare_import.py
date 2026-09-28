@@ -8,6 +8,7 @@ and are never overwritten.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -25,7 +26,7 @@ def _stats(path: Path) -> tuple[int, int]:
     size = 0
     if path.exists():
         for item in path.rglob("*"):
-            if item.is_file():
+            if not item.is_symlink() and item.is_file():
                 files += 1
                 try:
                     size += item.stat().st_size
@@ -94,15 +95,25 @@ def _files_equal(left: Path, right: Path) -> bool:
     try:
         if left.stat().st_size != right.stat().st_size:
             return False
-        # For import preparation we only need a conservative conflict test.
-        # Same-size existing files are preserved; Steam will perform authoritative
-        # verification after the user initiates installation.
-        return True
+        def digest(path: Path) -> bytes:
+            value = hashlib.sha256()
+            with path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    value.update(chunk)
+            return value.digest()
+        return digest(left) == digest(right)
     except OSError:
         return False
 
 
 def prepare(app_id: int, provider_id: str, library_index: int) -> dict[str, Any]:
+    if (
+        app_id <= 0
+        or not provider_id
+        or provider_id in {".", ".."}
+        or any(separator in provider_id for separator in ("/", "\\", "\0"))
+    ):
+        raise ValueError("Invalid app or provider identity for Steam preparation")
     state = inspect(app_id, provider_id)
     library = next((item for item in state["libraries"] if item["index"] == library_index), None)
     if library is None:
@@ -113,14 +124,43 @@ def prepare(app_id: int, provider_id: str, library_index: int) -> dict[str, Any]
         raise RuntimeError("Selected Steam library does not have enough free space")
 
     source = Path(state["source"])
+    if source.is_symlink() or not source.is_dir():
+        raise RuntimeError("GameAccess staging directory is missing or unsafe")
+    try:
+        source.resolve().relative_to(DOWNLOAD_ROOT.resolve())
+    except (OSError, ValueError):
+        raise RuntimeError("GameAccess staging directory is outside the download root") from None
+    source_files = sorted(
+        item
+        for item in source.rglob("*")
+        if not item.is_symlink() and item.is_file()
+    )
+    if not source_files:
+        raise RuntimeError("GameAccess staging contains no files to prepare")
     target = Path(library["target"])
+    common_root = Path(library["path"]) / "steamapps" / "common"
+    try:
+        target.resolve().relative_to(common_root.resolve())
+    except (OSError, ValueError):
+        raise RuntimeError("Steam install target is outside steamapps/common") from None
+    if target.is_symlink():
+        raise RuntimeError("Steam install target is a symbolic link; refusing preparation")
     conflicts: list[str] = []
     copy_plan: list[tuple[Path, Path]] = []
-    for src in source.rglob("*"):
-        if not src.is_file():
-            continue
+    for src in source_files:
         rel = src.relative_to(source)
         dst = target / rel
+        parent = dst.parent
+        while parent != target.parent:
+            if parent.is_symlink():
+                conflicts.append(str(rel))
+                break
+            parent = parent.parent
+        if str(rel) in conflicts:
+            continue
+        if dst.is_symlink():
+            conflicts.append(str(rel))
+            continue
         if dst.exists():
             if not _files_equal(src, dst):
                 conflicts.append(str(rel))
@@ -143,7 +183,25 @@ def prepare(app_id: int, provider_id: str, library_index: int) -> dict[str, Any]
         shutil.copy2(src, dst)
         copied_bytes += src.stat().st_size
 
+    # Verify every staged relative path exists in Steam with the expected size
+    # before removing the only recoverable copy of the downloaded payload.
+    verified_bytes = 0
+    for src in source_files:
+        dst = target / src.relative_to(source)
+        if not dst.is_file() or dst.is_symlink() or dst.stat().st_size != src.stat().st_size:
+            raise RuntimeError(f"Steam copy verification failed for {src.relative_to(source)}")
+        verified_bytes += src.stat().st_size
+    if verified_bytes != state["source_bytes"]:
+        raise RuntimeError("Steam copy verification failed: source payload changed during preparation")
+
     files, total_bytes = _stats(target)
+    staging_removed = False
+    cleanup_error = None
+    try:
+        shutil.rmtree(source)
+        staging_removed = True
+    except OSError as exc:
+        cleanup_error = str(exc)
     return {
         "ok": True,
         "prepared": True,
@@ -155,6 +213,10 @@ def prepare(app_id: int, provider_id: str, library_index: int) -> dict[str, Any]
         "copied_bytes": copied_bytes,
         "target_file_count": files,
         "target_bytes": total_bytes,
+        "verified_source_file_count": len(source_files),
+        "verified_source_bytes": verified_bytes,
+        "staging_removed": staging_removed,
+        "staging_cleanup_error": cleanup_error,
         "next_manual_test": "Log the owning provider into Steam, choose Install for this AppID in the selected library, and verify Steam discovers/validates the existing files before Play.",
     }
 
