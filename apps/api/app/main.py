@@ -566,7 +566,12 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
         rows = session.exec(
             select(AccountGame).where(AccountGame.account_id == account.id)
         ).all()
-        games = [session.get(Game, row.game_id) for row in rows]
+        games = session.exec(
+            select(Game).where(
+                Game.id.in_([row.game_id for row in rows]),
+                CATALOG_PRODUCT_FILTER,
+            )
+        ).all() if rows else []
         result.append(
             {
                 "id": account.id,
