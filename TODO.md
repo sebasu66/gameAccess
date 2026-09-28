@@ -112,6 +112,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [x] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap. `59e55f2`
 - [x] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls. `59e55f2`
 - [x] After the library controls have been rearranged, review and refine the interface's overall visual styling. Refined the toolbar as a segmented control group with consistent search/filter surfaces, clearer active states, and a compact icon-only sort action. Responsive wrapping now follows the actual library column width instead of the overall window width.
+- [ ] Fix toolbar vertical alignment: keep the search field at its original height and move the tabs, category and Steam-feature filters, and sort control up to that row. The current implementation moved the search field down to the former tab row, contrary to the requested layout.
 
 ## P1 — Local Steam integration and unified library
 
