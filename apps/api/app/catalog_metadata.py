@@ -484,6 +484,8 @@ def rebuild_search_index(engine: Engine) -> bool:
             FROM game g
             JOIN game_metadata m ON m.game_id=g.id
             WHERE g.app_id IS NOT NULL
+              AND lower(trim(coalesce(g.name, ''))) NOT GLOB 'steam [0-9]*'
+              AND lower(coalesce(m.product_type, '')) IN ('game')
             """
         )
     return True
