@@ -35,6 +35,7 @@ interface LibraryRoomProps {
   preferences?: Record<number, 1 | -1>;
   onPreference?: (gameId: number, value: 1 | -1) => void;
   loading?: boolean;
+  catalogUnavailable?: boolean;
   searchFilters?: LibrarySearchFilters;
   onSearchFiltersChange?: (filters: LibrarySearchFilters) => void;
 }
@@ -42,7 +43,7 @@ interface LibraryRoomProps {
 type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 
-export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined }: LibraryRoomProps) {
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -627,7 +628,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       {games.length > 0 ? (
         <>
           {selectedGame ? detailPanel : null}
-          <DownloadCatalogPanel games={displayGames} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} />
+          <DownloadCatalogPanel games={displayGames} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} />
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />
