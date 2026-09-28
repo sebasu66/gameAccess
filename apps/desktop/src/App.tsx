@@ -599,7 +599,7 @@ export default function App() {
           <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} />
+          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
