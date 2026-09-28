@@ -113,8 +113,11 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [x] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap. `59e55f2`
 - [x] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls. `59e55f2`
 - [x] After the library controls have been rearranged, review and refine the interface's overall visual styling. Refined the toolbar as a segmented control group with consistent search/filter surfaces, clearer active states, and a compact icon-only sort action. Responsive wrapping now follows the actual library column width instead of the overall window width.
-- [ ] Fix toolbar vertical alignment: keep the search field at its original height and move the tabs, category and Steam-feature filters, and sort control up to that row. The current implementation moved the search field down to the former tab row, contrary to the requested layout.
-- [ ] Keep the catalog tool strip anchored to the library/catalog pane while searching. The reported bug is that entering a search causes the entire tool strip to jump left into the game-detail/play area; search must not change the strip's layout parent or position.
+- [x] Fix toolbar vertical alignment: keep the search field at its original height and move the tabs, category and Steam-feature filters, and sort control up to that row. The current implementation moved the search field down to the former tab row, contrary to the requested layout.
+- [x] Keep the controls in the shared header above both detail and catalog panes, including searches with no results. This supersedes the earlier request to anchor the strip within the catalog pane.
+- [x] Correct filter taxonomy: Categorías lists database genres; Funciones de Steam lists full database Steam categories instead of the limited boolean feature list.
+- [x] Highlight the control strip in fluorescent green, enlarge collection labels, distinguish the three tabs with coordinated colors, and space source/collection/search/filter groups.
+- [x] Group Volver arriba with Actualizar juegos in the same bottom action bar to prevent overlap.
 
 ## P1 — Local Steam integration and unified library
 

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
@@ -7,7 +8,7 @@ import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
-import { getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import { getLibrarySearchFacets } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
@@ -120,6 +121,8 @@ function DownloadGameCard({ game, index, selected, status, pinned, favorite, onS
 }
 
 interface DownloadCatalogPanelProps {
+  toolbarTarget?: HTMLDivElement | null;
+  actionsTarget?: HTMLDivElement | null;
   games: CatalogGame[];
   section?: LibrarySection;
   view?: LibraryView;
@@ -167,7 +170,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const facets = getLibrarySearchFacets(allGames);
-  const toggleFilter = (group: "categories" | "features", value: string) => {
+  const toggleFilter = (group: "genres" | "categories", value: string) => {
     const current = searchFilters[group] as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
     onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
@@ -247,26 +250,33 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, [contextMenu]);
 
 
-  return (
-    <section className="library-room-catalog">
-      <header className="library-catalog-toolbar library-catalog-controls">
+  const toolbar = (
+      <div className="library-catalog-toolbar library-catalog-controls">
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
-          {views.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} className={view === item.id ? "is-active" : ""} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.label}</button>)}
-        </div>
+          {views.map(item => <button key={item.id} type="button" role="tab" aria-selected={view === item.id} className={`tab-${item.id}${view === item.id ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.label}</button>)}
+          </div>
         <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-        <LibraryFacetFilter title="Categorías" options={facets.categories.map(value => ({ id: value, label: value }))} selected={searchFilters.categories} onToggle={value => toggleFilter("categories", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, categories: [] })} />
-        <LibraryFacetFilter title="Funciones de Steam" options={LIBRARY_FEATURE_OPTIONS.filter(option => facets.features.includes(option.key)).map(option => ({ id: option.key, label: option.label }))} selected={searchFilters.features} onToggle={value => toggleFilter("features", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, features: [] })} />
+        <div className="library-catalog-filter-actions">
+        <LibraryFacetFilter title="Categorías" options={facets.genres.map(value => ({ id: value, label: value }))} selected={searchFilters.genres} onToggle={value => toggleFilter("genres", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, genres: [] })} />
+        <LibraryFacetFilter title="Funciones de Steam" options={facets.categories.map(value => ({ id: value, label: value }))} selected={searchFilters.categories} onToggle={value => toggleFilter("categories", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, categories: [] })} />
         {view === "catalog" ? <details className="library-sort-dropdown">
           <summary aria-label={`Ordenar por ${selectedSortLabel}`} title={`Ordenar por: ${selectedSortLabel}`}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
           <div className="library-sort-menu" role="group" aria-label="Criterio de orden">
             {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onCatalogSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
           </div>
         </details> : null}
-      </header>
+        </div>
+      </div>
+  );
+  const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label="Volver arriba" title="Volver arriba"><ArrowUpToLine size={17} /><span>Volver arriba</span></button> : null;
+
+  return (
+    <section className="library-room-catalog">
+      {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
         <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
-      {showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label="Volver arriba" title="Volver arriba"><ArrowUpToLine size={17} /><span>Volver arriba</span></button> : null}
+      {props.actionsTarget ? createPortal(backToTop, props.actionsTarget) : null}
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
   );

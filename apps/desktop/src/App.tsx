@@ -28,7 +28,18 @@ let visualDebugStarted = false;
 const isPendingSteamMetadata = (game: CatalogGame) =>
   Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
 
-export default function App() {
+export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const update = () => document.documentElement.style.setProperty("--catalog-header-height", `${header.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    update();
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty("--catalog-header-height"); };
+  }, []);
   const [games, setGames] = useState<CatalogGame[]>([]);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
@@ -668,13 +679,10 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar topbar-glass">
+      <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
-        <nav className="glass-nav">
-          <button type="button" className="glass-static-nav active"><span>Inicio</span></button>
-          <button type="button" className="glass-static-nav"><span>Explorar</span></button>
-          <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
-        </nav>
+        {catalogNavigation}
+        <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions">
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
@@ -684,7 +692,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
+        <LibraryRoom toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}

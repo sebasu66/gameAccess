@@ -36,6 +36,7 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 }
 
 function CatalogShell() {
+  const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
   const surface = new URLSearchParams(window.location.search).get("surface");
   const auxiliarySurface = surface === "tablet" || surface === "display";
@@ -52,10 +53,9 @@ function CatalogShell() {
     window.location.reload();
   }, [auxiliarySurface, mode]);
   return <>
-    <CatalogTabs mode={mode} onChange={changeMode} />
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label="Actualizar lista de juegos" title="Volver a pedir el catálogo al servidor"><span aria-hidden="true">↻</span><strong>Actualizar juegos</strong></button> : null}
-    <App key={mode} />
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label="Acciones del catálogo"><div className="catalog-scroll-action" ref={setActionsTarget} /><button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label="Actualizar lista de juegos" title="Volver a pedir el catálogo al servidor"><span aria-hidden="true">↻</span><strong>Actualizar juegos</strong></button></div> : null}
+    <App key={mode} actionsTarget={actionsTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} />
   </>;
 }
 
