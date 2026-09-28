@@ -100,7 +100,7 @@ def _state(
     families = session.exec(select(ProviderFamily)).all()
     members = session.exec(select(FamilyMember)).all()
     copy_statement = select(FamilyGameLicenseCopy)
-    game_statement = select(core.Game)
+    game_statement = select(core.Game).where(core.CATALOG_PRODUCT_FILTER)
     if game_ids is not None:
         copy_statement = copy_statement.where(FamilyGameLicenseCopy.game_id.in_(game_ids))
         game_statement = game_statement.where(core.Game.id.in_(game_ids))
@@ -295,7 +295,10 @@ def catalog_metrics(
     accounts = session.exec(select(core.ProviderAccount)).all()
     mapping_statement = select(core.AccountGame)
     demand_statement = select(GameDemand)
-    game_statement = select(core.Game).where(core.Game.active == True)  # noqa: E712
+    game_statement = select(core.Game).where(
+        core.Game.active == True,  # noqa: E712
+        core.CATALOG_PRODUCT_FILTER,
+    )
     if game_ids is not None:
         mapping_statement = mapping_statement.where(core.AccountGame.game_id.in_(game_ids))
         demand_statement = demand_statement.where(GameDemand.game_id.in_(game_ids))
