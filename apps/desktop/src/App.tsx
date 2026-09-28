@@ -624,7 +624,7 @@ export default function App() {
       </main>
 
       {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
-      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
+      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
