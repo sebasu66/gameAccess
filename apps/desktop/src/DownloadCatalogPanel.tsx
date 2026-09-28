@@ -105,6 +105,7 @@ interface DownloadCatalogPanelProps {
   onCatalogSortChange?: (sort: CatalogSort) => void;
   hasInstalled?: boolean;
   hasFavorites?: boolean;
+  catalogUnavailable?: boolean;
   downloads: DownloadMap;
   accountCount: number;
   selectedIndex: number;
@@ -121,6 +122,9 @@ type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games };
+  const displaySection = props.catalogUnavailable && ["latest", "popular", "top"].includes(view)
+    ? { ...section, emptyMessage: "En este momento no pudimos conectarnos con el servicio de GameAccess para recuperar la lista de juegos." }
+    : section;
   const view = props.view ?? "popular";
   const onViewChange = props.onViewChange ?? (() => undefined);
   const catalogSort = props.catalogSort ?? "steam-popularity";
@@ -189,7 +193,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         </div>
       </header>
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
-        <LibrarySectionShelf section={section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
