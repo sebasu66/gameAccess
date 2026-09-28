@@ -178,19 +178,20 @@ def ensure_depotdownloader() -> dict[str, Any]:
             TOOL_URL,
             headers={"User-Agent": "GameAccess-DepotDownloader-Probe/1.0"},
         )
-        with tempfile.NamedTemporaryFile(
-            prefix="depotdownloader-", suffix=".zip", delete=False
-        ) as temp:
-            temp_path = Path(temp.name)
-            digest = hashlib.sha256()
-            with urllib.request.urlopen(request, timeout=60) as response:
-                while True:
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    temp.write(chunk)
-                    digest.update(chunk)
+        temp_path: Path | None = None
+        digest = hashlib.sha256()
         try:
+            with tempfile.NamedTemporaryFile(
+                prefix="depotdownloader-", suffix=".zip", delete=False
+            ) as temp:
+                temp_path = Path(temp.name)
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        temp.write(chunk)
+                        digest.update(chunk)
             with zipfile.ZipFile(temp_path) as archive:
                 bad_member = archive.testzip()
                 if bad_member:
@@ -199,7 +200,8 @@ def ensure_depotdownloader() -> dict[str, Any]:
                     )
                 archive.extractall(TOOL_ROOT)
         finally:
-            temp_path.unlink(missing_ok=True)
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
         executable = _find_executable(TOOL_ROOT)
         if executable is None:

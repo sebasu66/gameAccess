@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from download_log import append_download_log
 from steam_prepare_import import app_metadata
 from pool_sync import _steam_library_folders
 from steam_pool import steam_root
@@ -43,15 +44,13 @@ def _regular_files(path: Path) -> list[Path]:
 
 
 def _log(app_id: int, event: str, **details: Any) -> None:
-    LOG_ROOT.mkdir(parents=True, exist_ok=True)
     body = {
         "at": datetime.now(timezone.utc).isoformat(),
         "app_id": app_id,
         "event": event,
         **details,
     }
-    with (LOG_ROOT / f"app-{app_id}.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(body, ensure_ascii=True) + "\n")
+    append_download_log(LOG_ROOT, app_id, body)
 
 
 def _status_path(app_id: int) -> Path:
@@ -168,7 +167,8 @@ def clear_status(app_id: int) -> None:
 def reconcile() -> list[dict[str, Any]]:
     """Find recoverable staging; remove only payloads proven duplicated in Steam."""
     interrupted: list[dict[str, Any]] = []
-    for app_id, provider_id, staging in _staging_candidates():
+    staging_candidates = _staging_candidates()
+    for app_id, provider_id, staging in staging_candidates:
         status = _read_status(app_id) or {}
         if status.get("state") in {"requested", "preparing", "downloading", "paused", "cancelling"}:
             # The Tauri caller marks dead workers interrupted before invoking this scan.
@@ -205,6 +205,36 @@ def reconcile() -> list[dict[str, Any]]:
         else:
             interrupted.append(_interrupted_status(app_id, provider_id, status, bytes_present))
             _log(app_id, "reconcile-interrupted", provider_id=provider_id, bytes_present=bytes_present)
+
+    # Steam owns uninstalling game payloads. Once Steam has removed both its
+    # manifest and install directory, discard only stale GameAccess status JSON;
+    # never infer that a resumable staging folder is obsolete from this check.
+    staged_app_ids = {app_id for app_id, _provider_id, _path in staging_candidates}
+    if STATUS_ROOT.is_dir() and not STATUS_ROOT.is_symlink():
+        for status_path in STATUS_ROOT.iterdir():
+            if status_path.is_symlink() or not status_path.is_file():
+                continue
+            prefix, suffix = status_path.stem, status_path.suffix
+            if suffix != ".json" or not prefix.startswith("app-"):
+                continue
+            raw_app_id = prefix.removeprefix("app-")
+            if not raw_app_id.isdigit() or int(raw_app_id) <= 0:
+                continue
+            app_id = int(raw_app_id)
+            if app_id in staged_app_ids:
+                continue
+            status = _read_status(app_id)
+            if not status or status.get("app_id") != app_id or status.get("state") not in {"prepared", "installed"}:
+                continue
+            try:
+                observation = steam_install_observation(app_id)
+            except Exception as exc:
+                _log(app_id, "stale-status-check-failed", error=str(exc)[:500])
+                continue
+            libraries = observation.get("libraries", [])
+            if libraries and all(not item.get("manifest_exists") and not item.get("target_exists") for item in libraries):
+                clear_status(app_id)
+                _log(app_id, "uninstalled-game-status-pruned")
     return interrupted
 
 
