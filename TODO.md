@@ -34,9 +34,6 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Registrar evidencias de cada prueba: versión de Steam, sistema operativo, cuentas de prueba, juego, pasos, resultado y limitaciones.
 - [ ] Convertir cada caso validado en un perfil de compatibilidad por juego, sin prometer compatibilidad universal.
 - [ ] Priorizar una prueba end-to-end: seleccionar cuenta autorizada -> detectar juego -> instalar si falta -> iniciar -> ejecutar -> detectar cierre -> restaurar Game Access.
-- [ ] Añadir soporte previsto para dos monitores: preferir ejecutar Steam/juego en la segunda pantalla y mantener Game Access activo en la primera.
-- [ ] Probar posiciones de ventana, pantalla completa, launchers secundarios y juegos que ignoran la posición solicitada.
-- [ ] Crear un panel de acompañamiento en la primera pantalla con juego actual, cuenta, estado, amigos, chat, voz, notas y referencias sin inyectarse en el proceso del juego.
 
 ### Frente B — Recursos open source para prototipo 3D/social
 
@@ -69,7 +66,6 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Mantener ambos frentes desacoplados: el prototipo 3D no debe bloquear la estabilización de Steam y la integración Steam no debe obligar a terminar el mundo completo.
 - [ ] Compartir solamente contratos comunes: GameRecord, Room, Presence, SharedMediaState, SteamSessionState y eventos de lanzamiento/retorno.
 - [ ] Integrar primero un vertical slice pequeño: salón público + sección privada mínima + video sincronizado + voz + lanzamiento de un juego representativo mediante Steam.
-- [ ] Validar dos monitores dentro de ese vertical slice: Game Access en primera pantalla, juego/Steam preferentemente en segunda pantalla y retorno al entorno después del cierre.
 
 ## P0 — Authoritative catalog build + packaged artwork
 
@@ -105,12 +101,25 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Classify existing API calls: machine-local operations move behind Tauri/native adapters; shared/global operations remain central backend calls.
 - [ ] Add environment/config handling for development backend URL vs later production backend URL.
 - [ ] Preserve browser/Vite mode only as a development convenience.
+- [ ] Improve desktop logging so startup, catalog loading and pagination, game opening, and errors can be traced end to end; verify or add log rotation and size limits so log files cannot grow indefinitely.
+- [ ] Audit generated files and folders and their cleanup, especially across game installation and uninstallation, to prevent orphaned directories, leftover files, and uncontrolled disk growth.
+- [ ] Replace native/browser alerts, confirmations, and prompts across Game Access with reusable in-app dialogs based on the existing styled Play dialog; support the needed message and action variants while preserving the app's visual style and accessible focus behavior.
+
+## P1 — Catalog and library navigation
+
+- [ ] Rebuild the library navigation tool strip on one line at the current search field's vertical position, in this order: `Catalog`, `Installed` only when it has games, `Favorites` only when it has games, search input, category selector, and Steam-features selector populated from the database. Replace the `Latest`, `Popular`, and `Top` tabs with the single `Catalog` tab, and restore the category and Steam-features filters if they are missing.
+- [ ] Add a compact sort-icon button to the same tool-strip line; clicking it opens the selector with exactly these criteria: release date (`Latest`), Steam popularity, review rating, and A-to-Z.
+- [ ] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap.
+- [ ] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls.
+- [ ] After the library controls have been rearranged, review and refine the interface's overall visual styling.
 
 ## P1 — Local Steam integration and unified library
 
 - [ ] Detect Steam installation reliably on Windows.
 - [ ] Discover Steam users/accounts already known on the local machine using supported/non-secret local state.
 - [ ] Discover installed games and determine available ownership/library information per local Steam identity as reliably as possible.
+- [ ] After a depot download has been copied successfully into the selected Steam library and the copied payload is verified, remove its temporary Game Access staging files; preserve staging if copying or verification fails.
+- [ ] On Game Access startup, reconcile the download staging folder: identify junk/obsolete files separately from interrupted downloads, preserve downloads that can resume, and show a modal for each resumable interrupted download asking whether to resume it or discard its files. Discard staging only after the user chooses that option.
 - [ ] Build a unified game-centric local model across multiple local Steam users.
 - [ ] Clearly classify each game/access path: `OWNED_LOCAL`, `BUY_STEAM`, `GAMEACCESS_SHARED`, `GAMEACCESS_PRIVATE` (names may evolve).
 - [ ] For owned games, select/use the appropriate local Steam identity without involving paid gameAccess allocation.
