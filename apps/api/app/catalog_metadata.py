@@ -403,6 +403,63 @@ def get_cached_steam_metadata(engine: Engine, game_id: int) -> dict[str, Any] | 
         return None
 
 
+def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Load search and discovery metadata for one catalog page in a few queries."""
+    ids = sorted({int(game_id) for game_id in game_ids if int(game_id) > 0})
+    if not ids:
+        return {}
+    placeholders = ", ".join("?" for _ in ids)
+    result: dict[int, dict[str, Any]] = {}
+
+    def load_names(conn: Any, table: str, field: str) -> None:
+        rows = conn.exec_driver_sql(
+            f"SELECT game_id, name FROM {table} WHERE game_id IN ({placeholders}) ORDER BY name COLLATE NOCASE",
+            tuple(ids),
+        ).all()
+        for game_id, name in rows:
+            result.setdefault(int(game_id), {}).setdefault(field, []).append(str(name))
+
+    with engine.connect() as conn:
+        rows = conn.exec_driver_sql(
+            f"""
+            SELECT game_id, short_description, developers_json, publishers_json,
+                   recommendation_count, metacritic_score, single_player, multiplayer,
+                   coop, online_coop, local_coop, shared_split_screen, mmo, pvp
+            FROM game_metadata WHERE game_id IN ({placeholders})
+            """,
+            tuple(ids),
+        ).all()
+        for row in rows:
+            game_id = int(row[0])
+            try:
+                developers = json.loads(row[2] or "[]")
+            except (TypeError, ValueError):
+                developers = []
+            try:
+                publishers = json.loads(row[3] or "[]")
+            except (TypeError, ValueError):
+                publishers = []
+            result[game_id] = {
+                "short_description": row[1] or "",
+                "developers": developers if isinstance(developers, list) else [],
+                "publishers": publishers if isinstance(publishers, list) else [],
+                "recommendation_count": row[4],
+                "metacritic_score": row[5],
+                "single_player": bool(row[6]) if row[6] is not None else None,
+                "multiplayer": bool(row[7]) if row[7] is not None else None,
+                "coop": bool(row[8]) if row[8] is not None else None,
+                "online_coop": bool(row[9]) if row[9] is not None else None,
+                "local_coop": bool(row[10]) if row[10] is not None else None,
+                "shared_split_screen": bool(row[11]) if row[11] is not None else None,
+                "mmo": bool(row[12]) if row[12] is not None else None,
+                "pvp": bool(row[13]) if row[13] is not None else None,
+            }
+        load_names(conn, "game_genre", "genres")
+        load_names(conn, "game_category", "categories")
+        load_names(conn, "game_tag", "tags")
+    return result
+
+
 def rebuild_search_index(engine: Engine) -> bool:
     with engine.begin() as conn:
         try:
@@ -427,6 +484,8 @@ def rebuild_search_index(engine: Engine) -> bool:
             FROM game g
             JOIN game_metadata m ON m.game_id=g.id
             WHERE g.app_id IS NOT NULL
+              AND lower(trim(coalesce(g.name, ''))) NOT GLOB 'steam [0-9]*'
+              AND lower(coalesce(m.product_type, '')) IN ('game')
             """
         )
     return True

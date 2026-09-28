@@ -73,10 +73,10 @@ describe("LibraryRoom grid presentation", () => {
     expect(withoutLicense).not.toContain("library-install-state no-license");
   });
 
-  it("treats a frozen game as playable with a green ready marker and a frozen icon", () => {
+  it("does not mark a legacy frozen game as ready or playable", () => {
     const markup = render({ 10: frozen });
-    expect(markup).toContain("library-install-state ready frozen");
-    expect(markup).toContain("Jugar");
+    expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("Jugar");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {

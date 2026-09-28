@@ -6,7 +6,6 @@ import { getCatalogMode } from "./catalogMode";
 import { narrate } from "./narrationLog";
 import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
 import { gameStateManager } from "./GameStateManager";
-import { prepareFrozenGameForPlay } from "./gameStorage";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import { consumePreviousSteamAccount, loadSteamSessionPreferences, rememberPreviousSteamAccount } from "./steamSessionPreferences";
@@ -306,7 +305,10 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 }
 
-export async function openSteamClientInstall(appId: number): Promise<void> {
+export async function openSteamClientInstall(
+  appId: number,
+  options: { waitForConfirmation?: boolean } = {},
+): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   await narrate(`Direct Steam-client download requested for AppID ${appId}. This bypasses GameAccess provider download selection.`, { area: "DOWNLOAD" });
   const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
@@ -314,7 +316,7 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
-      await waitForSteamInstallConfirmation(appId);
+      if (options.waitForConfirmation !== false) await waitForSteamInstallConfirmation(appId);
     } catch {
       window.location.href = `steam://install/${appId}`;
     }
@@ -323,7 +325,7 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
   try {
     await invoke("open_steam_install", { appId });
     await narrate(`Steam client install URI sent for AppID ${appId}.`, { area: "DOWNLOAD" });
-    await waitForSteamInstallConfirmation(appId);
+    if (options.waitForConfirmation !== false) await waitForSteamInstallConfirmation(appId);
   } catch (error) {
     if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
@@ -335,7 +337,6 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   await narrate(`Launch requested for Steam AppID ${appId}. Resolving the Steam account and launch route.`, { area: "LAUNCH" });
-  await prepareFrozenGameForPlay(appId);
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });

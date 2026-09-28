@@ -174,10 +174,27 @@ def start_task(kind: str, label: str, argv: list[str], *, env: dict[str, str] | 
 def dashboard(session: Session) -> dict:
     core.expire_old_leases(session)
     accounts = session.exec(select(core.ProviderAccount)).all()
-    games = session.exec(select(core.Game)).all()
+    games = session.exec(
+        select(core.Game).where(core.CATALOG_PRODUCT_FILTER)
+    ).all()
+    visible_game_ids = [int(game.id) for game in games if game.id is not None]
     users = session.exec(select(core.User)).all()
-    mappings = session.exec(select(core.AccountGame)).all()
-    leases = session.exec(select(core.Lease)).all()
+    mappings = (
+        session.exec(
+            select(core.AccountGame).where(
+                core.AccountGame.game_id.in_(visible_game_ids)
+            )
+        ).all()
+        if visible_game_ids
+        else []
+    )
+    leases = (
+        session.exec(
+            select(core.Lease).where(core.Lease.game_id.in_(visible_game_ids))
+        ).all()
+        if visible_game_ids
+        else []
+    )
     metrics_by_game = family_capacity.catalog_metrics(session)
     family_rows_by_game = family_capacity.family_breakdowns_by_game(session)
 

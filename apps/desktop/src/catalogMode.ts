@@ -4,7 +4,7 @@ const STORAGE_KEY = "gameaccess:catalog-mode";
 
 export function getCatalogMode(): CatalogMode {
   const value = localStorage.getItem(STORAGE_KEY);
-  if (value === "gameaccess" || value === "store") return value;
+  if (value === "gameaccess") return value;
   return "local";
 }
 

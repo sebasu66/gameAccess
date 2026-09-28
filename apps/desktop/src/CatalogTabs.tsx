@@ -3,7 +3,6 @@ import type { CatalogMode } from "./catalogMode";
 export const CATALOG_TABS: Array<{ id: CatalogMode; label: string }> = [
   { id: "local", label: "Propios" },
   { id: "gameaccess", label: "GameAccess" },
-  { id: "store", label: "Tienda" },
 ];
 
 export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onChange: (mode: CatalogMode) => void }) {

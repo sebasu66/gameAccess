@@ -54,7 +54,13 @@ def search_steam(
     app_ids = [int(item.get("id")) for item in raw_items[:limit] if isinstance(item, dict) and str(item.get("id", "")).isdigit()]
     catalog_by_app: dict[int, core.Game] = {}
     if app_ids:
-        games = session.exec(select(core.Game).where(core.Game.app_id.in_(app_ids))).all()
+        games = session.exec(
+            select(core.Game).where(
+                core.Game.app_id.in_(app_ids),
+                core.Game.active == True,  # noqa: E712
+                core.CATALOG_PRODUCT_FILTER,
+            )
+        ).all()
         catalog_by_app = {int(game.app_id): game for game in games if game.app_id is not None and game.active}
 
     results: list[dict[str, Any]] = []

@@ -11,7 +11,7 @@ import steamSettingsSource from "./SteamSessionSettings.tsx?raw";
 
 describe("Spanish desktop UI copy", () => {
   it("keeps primary labels and user-facing messages in Spanish", () => {
-    expect(tabsSource).toContain('label: "Tienda"');
+    expect(tabsSource).not.toContain('label: "Tienda"');
     expect(tabsSource).not.toContain('label: "Store"');
     expect(buildSource).toContain("Servidor: Local");
     expect(buildSource).toContain("Compilaci\u00f3n:");
