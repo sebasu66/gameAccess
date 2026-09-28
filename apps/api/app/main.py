@@ -18,6 +18,7 @@ from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
     get_cached_steam_metadata,
+    catalog_metadata_for_games,
     seed_known_games,
     upsert_steam_metadata,
 )
@@ -214,7 +215,12 @@ def game_capacity(session: Session, game: Game) -> tuple[int, int]:
     return family_capacity.game_capacity(session, game)
 
 
-def game_summary(session: Session, game: Game, metrics: dict[int, dict] | None = None) -> dict:
+def game_summary(
+    session: Session,
+    game: Game,
+    metrics: dict[int, dict] | None = None,
+    catalog_metadata: dict | None = None,
+) -> dict:
     from . import family_capacity
 
     game_id = int(game.id or 0)
@@ -246,6 +252,7 @@ def game_summary(session: Session, game: Game, metrics: dict[int, dict] | None =
         else ("owned-busy" if total > 0 else "unavailable"),
         **demand,
         **assets,
+        **(catalog_metadata or {}),
     }
 
 
@@ -335,7 +342,16 @@ def catalog(
                 "pool_value": 1.0,
             },
         )
-    return [game_summary(session, game, metrics) for game in games]
+    catalog_metadata = catalog_metadata_for_games(engine, list(page_game_ids))
+    return [
+        game_summary(
+            session,
+            game,
+            metrics,
+            catalog_metadata.get(int(game.id or 0)),
+        )
+        for game in games
+    ]
 
 
 @app.get("/games/{game_id}/details")

@@ -1,6 +1,21 @@
 .library-room:not(.surface-display):not(.surface-tablet) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .library-room-feature { min-width: 0; }
 .library-catalog-toolbar { justify-content: space-between; min-height: 32px; margin-bottom: 12px; gap: 12px; }
+.library-catalog-controls { align-items: flex-start; flex-wrap: wrap; }
+.library-catalog-tabs, .library-catalog-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.library-catalog-tabs button[aria-selected="true"] { border-color: rgba(57,255,20,.65); color: #e5ffe0; background: rgba(57,255,20,.1); }
+.library-catalog-actions small { color: #91a0af; font-size: 11px; }
+.library-catalog-sort { display: inline-flex; align-items: center; gap: 7px; color: #91a0af; font-size: 11px; }
+.library-catalog-sort select { max-width: 215px; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 9px; background: #10151c; color: #d8e0e8; font: inherit; }
+.library-catalog-filters { margin: 0 0 12px; color: #d8e0e8; font-size: 12px; }
+.library-catalog-filters summary { width: fit-content; cursor: pointer; color: #c8d3df; }
+.library-catalog-filter-groups { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px; max-height: 150px; overflow: auto; margin-top: 8px; padding: 2px 2px 8px; }
+.library-catalog-filter-groups fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; max-width: 100%; min-width: 150px; margin: 0; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 6px 9px 8px; }
+.library-catalog-filter-groups legend { padding: 0 4px; color: #91a0af; font-size: 10px; }
+.library-catalog-filter-groups label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: #c3ccd7; }
+.library-catalog-filter-groups input { accent-color: #39ff14; }
+.library-catalog-filter-groups > button { align-self: center; }
+.library-room-card-genre { position: absolute; left: 7px; bottom: 7px; max-width: calc(100% - 14px); overflow: hidden; padding: 4px 7px; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; background: rgba(5,9,13,.82); color: #ecf4fa; font-size: 9px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .library-catalog-toolbar button, .library-section-heading button, .library-section-pages button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 10px; background: #10151c; color: #d8e0e8; font: inherit; font-size: 12px; cursor: pointer; transition: background .15s ease; }
 .library-catalog-toolbar button:hover, .library-section-heading button:hover, .library-section-pages button:hover { background: #202a35; }
 .library-catalog-toolbar button:focus-visible, .library-section-heading button:focus-visible, .library-section-pages button:focus-visible { outline: 2px solid #39ff14; outline-offset: 3px; }

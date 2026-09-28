@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
+import { EMPTY_LIBRARY_FILTERS, getLibrarySearchFacets } from "./librarySearch";
+import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -31,6 +33,7 @@ export default function App() {
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(EMPTY_LIBRARY_FILTERS);
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [leaseBusy, setLeaseBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -246,6 +249,7 @@ export default function App() {
       return left.name.localeCompare(right.name, "es");
     });
   }, [games, recentIds, preferences, downloads]);
+  const librarySearchFacets = useMemo(() => getLibrarySearchFacets(games), [games]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -596,7 +600,7 @@ export default function App() {
           <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
+          <SteamGlobalSearch query={query} setQuery={setQuery} facets={librarySearchFacets} filters={searchFilters} onFiltersChange={setSearchFilters} />
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
@@ -605,7 +609,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} />
+        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}

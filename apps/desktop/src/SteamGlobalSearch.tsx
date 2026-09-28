@@ -39,9 +39,9 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar en tu biblioteca"
+          placeholder="Buscar juegos, géneros, funciones o estudios"
           autoComplete="off"
-          aria-label="Buscar en tu biblioteca"
+          aria-label="Buscar juegos por título o metadatos"
         />
         {query ? (
           <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda">

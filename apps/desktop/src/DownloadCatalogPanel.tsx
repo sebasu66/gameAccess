@@ -1,12 +1,14 @@
 import LibrarySectionShelf from "./LibrarySectionShelf";
-import { buildLibrarySections } from "./librarySections";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import { ArrowUpToLine, Loader2, Play } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
+import { EMPTY_LIBRARY_FILTERS, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import type { LibraryFeatureKey, LibrarySearchFacets, LibrarySearchFilters } from "./librarySearch";
+import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
@@ -78,7 +80,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
         onClick={() => onSelect(index)}
         onContextMenu={showContextMenu}
         aria-current={selected ? "true" : undefined}
-        aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${accessibilityState}`}
+        aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${game.genres?.[0] ? ` · género ${game.genres[0]}` : ""}${accessibilityState}`}
         tabIndex={-1}
       >
         <span className="library-room-card-art">
@@ -86,6 +88,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
           {active ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
           {state.playButtonReady ? <StorageBadge /> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
+          {game.genres?.[0] ? <span className="library-room-card-genre" aria-hidden="true">{game.genres[0]}</span> : null}
         </span>
       </button>
     </div>
@@ -94,6 +97,14 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
 
 interface DownloadCatalogPanelProps {
   games: CatalogGame[];
+  section: LibrarySection;
+  view: LibraryView;
+  onViewChange: (view: LibraryView) => void;
+  catalogSort: CatalogSort;
+  onCatalogSortChange: (sort: CatalogSort) => void;
+  facets: LibrarySearchFacets;
+  filters: LibrarySearchFilters;
+  onFiltersChange: (filters: LibrarySearchFilters) => void;
   downloads: DownloadMap;
   accountCount: number;
   selectedIndex: number;
@@ -110,9 +121,19 @@ type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [sectionReset, setSectionReset] = useState(0);
-  const sections = useMemo(() => buildLibrarySections(props.games, props.downloads, props.preferences, props.history), [props.games, props.downloads, props.preferences, props.history]);
   const indexes = new Map(props.games.map((game, index) => [game.id, index]));
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
+  const views: { id: LibraryView; label: string }[] = [
+    { id: "popular", label: "Populares" },
+    { id: "installed", label: "Instalados" },
+    { id: "favorites", label: "Favoritos" },
+    { id: "categories", label: "Categorías" },
+  ];
+  const toggleOption = (group: "genres" | "categories" | "features", value: string) => {
+    const current = props.filters[group] as string[];
+    const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
+    props.onFiltersChange({ ...props.filters, [group]: next } as LibrarySearchFilters);
+  };
 
   useEffect(() => {
     const grid = props.gridRef.current;
@@ -156,9 +177,27 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading library-catalog-toolbar"><small>{props.games.length} juegos</small><button type="button" onClick={() => { setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button></header>
+      <header className="library-catalog-toolbar library-catalog-controls">
+        <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
+          {views.map(item => <button key={item.id} type="button" role="tab" aria-selected={props.view === item.id} className={props.view === item.id ? "is-active" : ""} onClick={() => { props.onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.label}</button>)}
+        </div>
+        <div className="library-catalog-actions">
+          {props.view === "popular" || props.view === "categories" ? <label className="library-catalog-sort">Ordenar por <select value={props.catalogSort} onChange={event => props.onCatalogSortChange(event.target.value as CatalogSort)}><option value="steam-popularity">Recomendaciones globales de Steam</option><option value="gameaccess-demand">Solicitudes en GameAccess</option><option value="name">Nombre A–Z</option></select></label> : null}
+          <small>{props.games.length} juegos</small>
+          <button type="button" onClick={() => { setSectionReset(value => value + 1); props.onSelect(0); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}><ArrowUpToLine size={15} /> Volver al inicio</button>
+        </div>
+      </header>
+      {props.view === "categories" ? <details className="library-catalog-filters" open>
+        <summary>Filtrar por metadatos</summary>
+        <div className="library-catalog-filter-groups">
+        <fieldset><legend>Géneros</legend>{props.facets.genres.map(value => <label key={value}><input type="checkbox" checked={props.filters.genres.includes(value)} onChange={() => toggleOption("genres", value)} />{value}</label>)}</fieldset>
+        <fieldset><legend>Categorías de Steam</legend>{props.facets.categories.map(value => <label key={value}><input type="checkbox" checked={props.filters.categories.includes(value)} onChange={() => toggleOption("categories", value)} />{value}</label>)}</fieldset>
+        <fieldset><legend>Funciones</legend>{LIBRARY_FEATURE_OPTIONS.filter(option => props.facets.features.includes(option.key)).map(({ key, label }) => <label key={key}><input type="checkbox" checked={props.filters.features.includes(key)} onChange={() => toggleOption("features", key)} />{label}</label>)}</fieldset>
+        {props.filters.genres.length + props.filters.categories.length + props.filters.features.length > 0 ? <button type="button" onClick={() => props.onFiltersChange(EMPTY_LIBRARY_FILTERS)}>Limpiar filtros</button> : null}
+        </div>
+      </details> : null}
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
-        {sections.map(section => <LibrarySectionShelf key={section.id} section={section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />)}
+        <LibrarySectionShelf section={props.section} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
