@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
 import SteamGlobalSearch from "./SteamGlobalSearch";
-import { EMPTY_LIBRARY_FILTERS, getLibrarySearchFacets } from "./librarySearch";
+import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
@@ -249,7 +249,6 @@ export default function App() {
       return left.name.localeCompare(right.name, "es");
     });
   }, [games, recentIds, preferences, downloads]);
-  const librarySearchFacets = useMemo(() => getLibrarySearchFacets(games), [games]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -600,7 +599,7 @@ export default function App() {
           <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} facets={librarySearchFacets} filters={searchFilters} onFiltersChange={setSearchFilters} />
+          <SteamGlobalSearch query={query} setQuery={setQuery} />
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
