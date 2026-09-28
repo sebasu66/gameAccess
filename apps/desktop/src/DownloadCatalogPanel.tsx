@@ -97,14 +97,14 @@ function DownloadGameCard({ game, index, selected, status, pinned, onSelect, onC
 
 interface DownloadCatalogPanelProps {
   games: CatalogGame[];
-  section: LibrarySection?;
-  view: LibraryView?;
-  onViewChange: (view: LibraryView) => void?;
-  catalogSort: CatalogSort?;
-  onCatalogSortChange: (sort: CatalogSort) => void?;
-  facets: LibrarySearchFacets?;
-  filters: LibrarySearchFilters?;
-  onFiltersChange: (filters: LibrarySearchFilters) => void?;
+  section?: LibrarySection;
+  view?: LibraryView;
+  onViewChange?: (view: LibraryView) => void;
+  catalogSort?: CatalogSort;
+  onCatalogSortChange?: (sort: CatalogSort) => void;
+  facets?: LibrarySearchFacets;
+  filters?: LibrarySearchFilters;
+  onFiltersChange?: (filters: LibrarySearchFilters) => void;
   downloads: DownloadMap;
   accountCount: number;
   selectedIndex: number;
