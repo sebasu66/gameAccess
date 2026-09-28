@@ -30,7 +30,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
       {section.games.length > SECTION_PREVIEW_SIZE ? <button type="button" aria-expanded={expanded} aria-controls={`section-${section.id}`} onClick={() => { setExpanded(!expanded); setPage(0); }}>{expanded ? "Mostrar menos" : "Ver todos"}{expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</button> : null}
     </header>
     <div id={`section-${section.id}`} className="library-section-grid">{visible.games.map(renderGame)}</div>
-    {!section.games.length ? <p className="library-section-empty">No hay juegos en esta vista.</p> : null}
+    {!section.games.length ? <p className="library-section-empty">{section.emptyMessage ?? "No hay juegos en esta vista."}</p> : null}
     {expanded && visible.lastPage > 0 ? <nav className="library-section-pages" aria-label={`Páginas de ${section.title}`}><button type="button" disabled={visible.page === 0} onClick={() => changePage(visible.page - 1)}>Anterior</button><span>{visible.start + 1}–{visible.start + visible.games.length} de {section.games.length}</span><button type="button" disabled={visible.page === visible.lastPage} onClick={() => changePage(visible.page + 1)}>Siguiente</button></nav> : null}
   </section>;
 }
