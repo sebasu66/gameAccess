@@ -114,7 +114,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the HTTP status when the backend did not return JSON.
     }
-    await narrate(`Backend request ${method} ${path} failed: ${detail}.`, { area: "BACKEND", level: "ERROR" });
+    await narrate(`Backend request ${method} ${path} failed with HTTP ${response.status}; response detail is omitted from the log.`, { area: "BACKEND", level: "ERROR" });
     throw new Error(detail);
   }
   await narrate(`Backend request ${method} ${path} succeeded with HTTP ${response.status}.`, { area: "BACKEND" });
@@ -127,13 +127,24 @@ async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
 
   const pageSize = 200;
   const loadPage = async (page: number): Promise<{ games: CatalogGame[]; totalPages: number }> => {
-    const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    const games = await response.json() as CatalogGame[];
-    const totalPages = Math.max(1, Number(response.headers.get("X-Total-Pages") ?? "1"));
-    return { games, totalPages };
+    const startedAt = performance.now();
+    await narrate(`Catalog page ${page} request started (page size ${pageSize}).`, { area: "CATALOG" });
+    try {
+      const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      const games = await response.json() as CatalogGame[];
+      const totalPages = Math.max(1, Number(response.headers.get("X-Total-Pages") ?? "1"));
+      await narrate(`Catalog page ${page}/${totalPages} loaded ${games.length} entries in ${Math.round(performance.now() - startedAt)} ms.`, { area: "CATALOG" });
+      return { games, totalPages };
+    } catch (error) {
+      await narrate(`Catalog page ${page} request failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
+      throw error;
+    }
   };
 
+  const startedAt = performance.now();
   const first = await loadPage(1);
   if (first.totalPages <= 1) return first.games;
 
@@ -141,13 +152,14 @@ async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
   const concurrency = 6;
   for (let page = 2; page <= first.totalPages; page += concurrency) {
     const lastPage = Math.min(first.totalPages, page + concurrency - 1);
+    await narrate(`Loading catalog page batch ${page}-${lastPage} of ${first.totalPages} (concurrency ${concurrency}).`, { area: "CATALOG" });
     const batch = await Promise.all(
       Array.from({ length: lastPage - page + 1 }, (_, index) => loadPage(page + index)),
     );
     for (const result of batch) games.push(...result.games);
   }
   await narrate(
-    `Loaded ${games.length} GameAccess catalog entries across ${first.totalPages} backend pages.`,
+    `Loaded ${games.length} GameAccess catalog entries across ${first.totalPages} backend pages in ${Math.round(performance.now() - startedAt)} ms.`,
     { area: "CATALOG" },
   );
   return games;
@@ -221,10 +233,16 @@ export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] =
 export const loadDetails = async (gameId: number): Promise<GameDetails> => {
   const key = detailCacheKey(gameId);
   return gameDetailsResources.get(key, async () => {
-    if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+    const startedAt = performance.now();
+    await narrate(`Loading game details for catalog game ${gameId} in ${getCatalogMode()} mode.`, { area: "GAME" });
     try {
-      return await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details`));
-    } catch {
+      const details = getCatalogMode() === "local"
+        ? await loadLocalDetails(gameId)
+        : await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details`));
+      await narrate(`Game details loaded for catalog game ${gameId} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "GAME" });
+      return details;
+    } catch (error) {
+      await narrate(`Game details failed for catalog game ${gameId} after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "GAME", level: "ERROR" });
       throw new Error("No se pudo obtener la ficha del juego");
     }
   });

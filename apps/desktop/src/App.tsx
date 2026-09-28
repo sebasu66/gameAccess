@@ -22,6 +22,7 @@ import SteamInstallFallbackDialog from "./SteamInstallFallbackDialog";
 import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
+import { narrate } from "./narrationLog";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -67,12 +68,16 @@ export default function App() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refresh = useCallback(async () => {
+    const startedAt = performance.now();
+    void narrate("Library catalog refresh started.", { area: "CATALOG" });
     setLoading(true);
     try {
       const home = await loadHome();
       setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
+      void narrate(`Library catalog refresh completed with ${home.games.length} game(s) in ${Math.round(performance.now() - startedAt)} ms.`, { area: "CATALOG" });
     } catch (error) {
       setOfflineDemo(true);
+      void narrate(`Library catalog refresh failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
       setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
     } finally { setLoading(false); }
   }, []);
@@ -103,7 +108,9 @@ export default function App() {
         try {
           const interrupted = await reconcileDownloadStaging();
           setRecoveryQueue(interrupted);
+          void narrate(`Startup download reconciliation found ${interrupted.length} interrupted download(s) requiring a choice.`, { area: "DOWNLOAD" });
         } catch (error) {
+          void narrate(`Startup download reconciliation failed: ${error instanceof Error ? error.message : String(error)}.`, { area: "DOWNLOAD", level: "ERROR" });
           setToast(`No pudimos revisar las descargas interrumpidas: ${error instanceof Error ? error.message : String(error)}`);
         }
         try {
@@ -111,7 +118,9 @@ export default function App() {
           const durableMap: DownloadMap = {};
           for (const status of statuses) durableMap[status.app_id] = status;
           if (Object.keys(durableMap).length) setDownloads((current) => ({ ...current, ...durableMap }));
-        } catch { /* Keep the library usable when local status cannot be read. */ }
+        } catch (error) {
+          void narrate(`Startup could not restore durable download statuses: ${error instanceof Error ? error.message : String(error)}.`, { area: "DOWNLOAD", level: "WARN" });
+        }
         setRecoveryReady(true);
       })();
     }
@@ -393,7 +402,10 @@ export default function App() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [selected?.app_id]);
 
-  const openGame = (game: CatalogGame) => setSelected(game);
+  const openGame = (game: CatalogGame) => {
+    void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });
+    setSelected(game);
+  };
 
   const rememberRecent = (game: CatalogGame) => {
     const next = [game.id, ...recentIds.filter((id) => id !== game.id)].slice(0, 10);
@@ -502,6 +514,7 @@ export default function App() {
 
   const launchLocal = async (game: CatalogGame) => {
     if (!game.app_id) return;
+      void narrate(`Local game launch flow started for Steam AppID ${game.app_id}.`, { area: "LAUNCH" });
       const trace = [`AppID solicitado = ${game.app_id}`, `Buscando el propietario verificado de la licencia para AppID ${game.app_id}`];
       if (!game.local_account_labels?.length || !game.local_primary_account_label) {
         trace.push(`No hay un propietario verificado disponible para AppID ${game.app_id}`);
@@ -527,6 +540,7 @@ export default function App() {
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
       } catch (err) {
         trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+        void narrate(`Local game launch failed for Steam AppID ${game.app_id}: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
         setSession({ game, phase: "error", title: "No pudimos iniciar la sesión local", detail: err instanceof Error ? err.message : String(err), log: [...trace] });
       } finally {
         setLeaseBusy(false);
@@ -535,6 +549,8 @@ export default function App() {
   };
 
   const doLease = async (game: CatalogGame) => {
+    const startedAt = performance.now();
+    void narrate(`Play flow started for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "LAUNCH" });
     setSelected(null);
     rememberRecent(game);
     setLeaseBusy(true);
@@ -569,6 +585,7 @@ export default function App() {
         leaseForRollback = null;
         await wait(450);
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
+        void narrate(`Provider game launch flow completed for Steam AppID ${lease.game.app_id} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "LAUNCH" });
       } else {
         // A waiting adapter intentionally owns the reservation.
         leaseForRollback = null;
@@ -576,6 +593,7 @@ export default function App() {
       }
       await refresh();
     } catch (err) {
+      void narrate(`Play flow failed for catalog game ${game.id} after ${Math.round(performance.now() - startedAt)} ms: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
       if (leaseForRollback) {
         await releaseFailedLease(leaseForRollback);
         leaseForRollback = null;

@@ -101,7 +101,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Classify existing API calls: machine-local operations move behind Tauri/native adapters; shared/global operations remain central backend calls.
 - [ ] Add environment/config handling for development backend URL vs later production backend URL.
 - [ ] Preserve browser/Vite mode only as a development convenience.
-- [ ] Improve desktop logging so startup, catalog loading and pagination, game opening, and errors can be traced end to end; verify or add log rotation and size limits so log files cannot grow indefinitely.
+- [x] Improve desktop logging so startup, catalog loading and pagination, game opening, and errors can be traced end to end; verify or add log rotation and size limits so log files cannot grow indefinitely. Logs now record catalog page timings, infinite-scroll batches, game detail and launch outcomes, startup recovery, and errors. The dedicated log rotates at 2 MiB with one 2 MiB archive; oversized entries are truncated. `LOGGING`
 - [ ] Audit generated files and folders and their cleanup, especially across game installation and uninstallation, to prevent orphaned directories, leftover files, and uncontrolled disk growth.
 - [x] Replace native/browser alerts, confirmations, and prompts across Game Access with reusable in-app dialogs based on the existing styled Play dialog; support the needed message and action variants while preserving the app's visual style and accessible focus behavior. `5805a51`
 

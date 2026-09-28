@@ -13,13 +13,23 @@ use native_core::{
 };
 
 use serde::Serialize;
-use std::{env, fs, io::Write, path::PathBuf, process::Command, sync::Mutex};
+use std::{
+    env, fs,
+    io::Write,
+    path::PathBuf,
+    process::Command,
+    sync::{Mutex, OnceLock},
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+const NARRATION_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
+const NARRATION_LOG_MAX_LINE_BYTES: usize = 16 * 1024;
+static NARRATION_LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn narration_log_file() -> Result<PathBuf, String> {
     let base = env::var_os("LOCALAPPDATA")
@@ -49,26 +59,58 @@ fn append_narration_lines(
     area: String,
     level: String,
 ) -> Result<String, String> {
+    let _guard = NARRATION_LOG_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "GameAccess narration log lock was poisoned".to_string())?;
     let path = narration_log_file()?;
     let safe_area = clean_narration_field(&area, "APP");
     let safe_level = clean_narration_field(&level, "INFO");
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
-
     for message in messages {
-        let clean = clean_narration_field(&message, "");
+        let mut clean = clean_narration_field(&message, "");
         if clean.is_empty() {
             continue;
         }
+        if clean.len() > NARRATION_LOG_MAX_LINE_BYTES {
+            let mut end = NARRATION_LOG_MAX_LINE_BYTES;
+            while !clean.is_char_boundary(end) {
+                end -= 1;
+            }
+            clean.truncate(end);
+            clean.push_str("… [truncated]");
+        }
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        writeln!(file, "{timestamp} [{safe_level}] [{safe_area}] {clean}")
+        let line = format!("{timestamp} [{safe_level}] [{safe_area}] {clean}\n");
+        let current_size = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        if current_size.saturating_add(line.len() as u64) > NARRATION_LOG_MAX_BYTES {
+            let archive = path.with_extension("log.1");
+            if archive.exists() {
+                fs::remove_file(&archive)
+                    .map_err(|err| format!("Could not rotate old GameAccess log: {err}"))?;
+            }
+            if path.exists() {
+                fs::rename(&path, &archive)
+                    .map_err(|err| format!("Could not rotate GameAccess narration log: {err}"))?;
+                if fs::metadata(&archive)
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0)
+                    > NARRATION_LOG_MAX_BYTES
+                {
+                    fs::remove_file(&archive)
+                        .map_err(|err| format!("Could not cap oversized archived GameAccess log: {err}"))?;
+                }
+            }
+        }
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
+        file.write_all(line.as_bytes())
             .map_err(|err| format!("Could not append GameAccess narration log: {err}"))?;
+        file.flush()
+            .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     }
-    file.flush()
-        .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     Ok(path.to_string_lossy().to_string())
 }
 

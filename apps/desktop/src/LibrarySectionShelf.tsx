@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { SECTION_PREVIEW_SIZE } from "./librarySections";
+import { narrate } from "./narrationLog";
 import type { LibrarySection } from "./librarySections";
 import type { CatalogGame } from "./types";
 
@@ -15,6 +16,7 @@ interface Props {
 export default function LibrarySectionShelf({ section, selectedId, renderGame, reset, scrollRoot }: Props) {
   const [visibleCount, setVisibleCount] = useState(SECTION_PREVIEW_SIZE);
   const [batchSize, setBatchSize] = useState(SECTION_PREVIEW_SIZE);
+  const previousVisibleCountRef = useRef(SECTION_PREVIEW_SIZE);
   const rootRef = useRef<HTMLElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +82,14 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
     const selected = rootRef.current?.querySelector<HTMLElement>(".is-selected");
     selected?.scrollIntoView({ block: "nearest" });
   }, [selectedId, visibleCount]);
+
+  useEffect(() => {
+    const previous = previousVisibleCountRef.current;
+    previousVisibleCountRef.current = visibleCount;
+    if (visibleCount > previous) {
+      void narrate(`Infinite scroll loaded ${visibleCount - previous} more ${section.id} game card(s); ${visibleCount}/${section.games.length} are visible.`, { area: "CATALOG" });
+    }
+  }, [section.games.length, section.id, visibleCount]);
 
   return <section ref={rootRef} className="library-section" aria-label={section.title}>
     <header className="library-section-heading">
