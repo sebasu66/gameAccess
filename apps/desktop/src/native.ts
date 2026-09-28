@@ -36,7 +36,7 @@ async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface SteamDownloadStatus {
   app_id: number;
-  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "prepared" | "installed" | "freezing" | "frozen" | "thawing" | "unknown";
+  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "interrupted" | "prepared" | "installed" | "freezing" | "frozen" | "thawing" | "unknown";
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;
@@ -45,6 +45,7 @@ export interface SteamDownloadStatus {
   installed: boolean;
   provider_id?: string | null;
   prepared_target?: string | null;
+  library_index?: number | null;
   error?: string | null;
   job_id?: string | null;
   worker_pid?: number | null;
@@ -260,7 +261,7 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   return invoke<SteamSessionStatus>("steam_session_status");
 }
 
-export async function openSteamInstall(appId: number): Promise<void> {
+export async function openSteamInstall(appId: number, recovery: { providerId?: string | null; libraryIndex?: number | null } = {}): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   const mode = getCatalogMode();
   await narrate(`Download requested for Steam AppID ${appId}. Current catalog mode is '${mode}'.`, { area: "DOWNLOAD" });
@@ -281,7 +282,10 @@ export async function openSteamInstall(appId: number): Promise<void> {
   try {
     if (mode === "gameaccess") {
       await narrate(`GameAccess mode: asking the provider download manager to resolve a usable provider license and start AppID ${appId}.`, { area: "DOWNLOAD" });
-      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
+      const recoveryArgs = recovery.providerId || recovery.libraryIndex != null
+        ? { providerId: recovery.providerId ?? null, libraryIndex: recovery.libraryIndex ?? null }
+        : {};
+      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null, ...recoveryArgs });
       await narrate(`Provider download manager accepted AppID ${appId}${status.provider_id ? ` using provider '${status.provider_id}'` : ""}; state='${status.state}'.`, { area: "DOWNLOAD" });
       await waitForSteamInstallConfirmation(appId);
       return;
@@ -515,6 +519,20 @@ export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatu
       return providerStatus;
     }
   }));
+}
+
+export async function reconcileDownloadStaging(): Promise<SteamDownloadStatus[]> {
+  if (!hasTauriRuntime() || getCatalogMode() !== "gameaccess") return [];
+  return invoke<SteamDownloadStatus[]>("reconcile_download_staging");
+}
+
+export async function discardInterruptedDownload(status: SteamDownloadStatus): Promise<void> {
+  if (!hasTauriRuntime() || !status.provider_id || !status.job_id) throw new Error("No se puede descartar esta descarga sin una identidad válida.");
+  await invoke("discard_interrupted_download", {
+    appId: status.app_id,
+    providerId: status.provider_id,
+    jobId: status.job_id,
+  });
 }
 
 export async function providerDownloadEstimate(appId: number): Promise<SteamDownloadStatus | null> {

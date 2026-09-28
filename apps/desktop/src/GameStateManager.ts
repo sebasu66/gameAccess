@@ -154,6 +154,10 @@ export class GameStateManager {
       return this.reconcileDownloadStatus(provider, steam) ?? steam;
     }
 
+    if (provider.state === "interrupted") {
+      return { ...steam, ...provider, state: "interrupted", installed: false };
+    }
+
     if (this.isTrackedDownload(provider) || provider.state === "cancelled") {
       return this.reconcileDownloadStatus(steam, provider) ?? steam;
     }

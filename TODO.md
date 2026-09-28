@@ -119,7 +119,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Discover Steam users/accounts already known on the local machine using supported/non-secret local state.
 - [ ] Discover installed games and determine available ownership/library information per local Steam identity as reliably as possible.
 - [x] After a depot download has been copied successfully into the selected Steam library and the copied payload is verified, remove its temporary Game Access staging files; preserve staging if copying or verification fails. Steam target paths and matching pre-existing files are checked before cleanup.
-- [ ] On Game Access startup, reconcile the download staging folder: identify junk/obsolete files separately from interrupted downloads, preserve downloads that can resume, and show a modal for each resumable interrupted download asking whether to resume it or discard its files. Discard staging only after the user chooses that option.
+- [x] On Game Access startup, reconcile the download staging folder: identify junk/obsolete files separately from interrupted downloads, preserve downloads that can resume, and show a modal for each resumable interrupted download asking whether to resume it or discard its files. Discard staging only after the user chooses that option. Active workers are checked before reconciliation; discard revalidates status and path identity.
 - [ ] Build a unified game-centric local model across multiple local Steam users.
 - [ ] Clearly classify each game/access path: `OWNED_LOCAL`, `BUY_STEAM`, `GAMEACCESS_SHARED`, `GAMEACCESS_PRIVATE` (names may evolve).
 - [ ] For owned games, select/use the appropriate local Steam identity without involving paid gameAccess allocation.

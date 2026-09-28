@@ -9,8 +9,9 @@ import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
+import AppDialog from "./AppDialog";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
+import { discardInterruptedDownload, getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, reconcileDownloadStaging, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
@@ -43,6 +44,10 @@ export default function App() {
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
+  const [recoveryQueue, setRecoveryQueue] = useState<SteamDownloadStatus[]>([]);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
@@ -58,6 +63,7 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("gameaccess:recent") || "[]"); } catch { return []; }
   });
   const steamFallbackPendingRef = useRef(new Set<number>());
+  const stagingReconciliationStartedRef = useRef(false);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -91,15 +97,24 @@ export default function App() {
     }).catch(() => undefined);
     // Provider download state is durable on disk. Rehydrate it after F5/WebView
     // reload so active downloads and Play-ready prepared games survive React state loss.
-    steamManagedDownloadStatuses().then((statuses) => {
-      const durableMap: DownloadMap = {};
-      for (const status of statuses) {
-        durableMap[status.app_id] = status;
-      }
-      if (Object.keys(durableMap).length) {
-        setDownloads((current) => ({ ...current, ...durableMap }));
-      }
-    }).catch(() => undefined);
+    if (!stagingReconciliationStartedRef.current) {
+      stagingReconciliationStartedRef.current = true;
+      void (async () => {
+        try {
+          const interrupted = await reconcileDownloadStaging();
+          setRecoveryQueue(interrupted);
+        } catch (error) {
+          setToast(`No pudimos revisar las descargas interrumpidas: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        try {
+          const statuses = await steamManagedDownloadStatuses();
+          const durableMap: DownloadMap = {};
+          for (const status of statuses) durableMap[status.app_id] = status;
+          if (Object.keys(durableMap).length) setDownloads((current) => ({ ...current, ...durableMap }));
+        } catch { /* Keep the library usable when local status cannot be read. */ }
+        setRecoveryReady(true);
+      })();
+    }
   }, [refresh]);
 
   const hasPendingSteamMetadata = useMemo(() => games.some(isPendingSteamMetadata), [games]);
@@ -394,7 +409,7 @@ export default function App() {
     setToast(value === 1 ? "Lo tendremos en cuenta para recomendarte juegos." : "Perfecto, veremos menos juegos de este estilo.");
   };
 
-  const startDownload = async (game: CatalogGame) => {
+  const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
     if (!game.app_id) return;
     const gameAccessMode = getCatalogMode() === "gameaccess";
     const markRequested = () => {
@@ -403,14 +418,58 @@ export default function App() {
     };
     try {
       if (gameAccessMode) steamFallbackPendingRef.current.add(game.app_id);
-      await openSteamInstall(game.app_id);
+      await openSteamInstall(game.app_id, recovery);
       rememberRecent(game);
       const status = await steamDownloadStatus(game.app_id);
       setDownloads((current) => ({ ...current, [game.app_id!]: status }));
       setToast(status.error ?? "Solicitud aceptada. gameAccess mostrará la preparación y el progreso real.");
     } catch (directError) {
       steamFallbackPendingRef.current.delete(game.app_id);
+      if (recovery) throw directError;
       setSteamInstallFallback({ game, error: directError instanceof Error ? directError.message : String(directError) });
+    }
+  };
+
+  const pendingRecovery = recoveryQueue[0];
+  const pendingRecoveryGame = pendingRecovery ? games.find((game) => game.app_id === pendingRecovery.app_id) : undefined;
+  const finishRecovery = () => {
+    setRecoveryError(null);
+    setRecoveryBusy(false);
+    setRecoveryQueue((current) => current.slice(1));
+  };
+  const resumeInterruptedDownload = async () => {
+    if (!pendingRecovery || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      if (pendingRecoveryGame) {
+        await startDownload(pendingRecoveryGame, { providerId: pendingRecovery.provider_id, libraryIndex: pendingRecovery.library_index });
+      } else {
+        await openSteamInstall(pendingRecovery.app_id, { providerId: pendingRecovery.provider_id, libraryIndex: pendingRecovery.library_index });
+      }
+      finishRecovery();
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+  const discardInterruptedStaging = async () => {
+    if (!pendingRecovery || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      await discardInterruptedDownload(pendingRecovery);
+      setDownloads((current) => {
+        const next = { ...current };
+        if (next[pendingRecovery.app_id]?.state === "interrupted") delete next[pendingRecovery.app_id];
+        return next;
+      });
+      finishRecovery();
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRecoveryBusy(false);
     }
   };
 
@@ -626,6 +685,19 @@ export default function App() {
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}
+      {pendingRecovery && recoveryReady && !loading ? <AppDialog
+        title={`Descarga interrumpida · ${pendingRecoveryGame?.name ?? `Steam ${pendingRecovery.app_id}`}`}
+        message={`Encontré archivos temporales de una descarga que no terminó${pendingRecovery.progress != null ? ` (aprox. ${Math.round(pendingRecovery.progress)}% registrado)` : ""}. Podés reanudarla usando esos archivos o descartarlos.${recoveryError ? `\n\nNo se pudo completar la acción: ${recoveryError}` : ""}`}
+        tone="warning"
+        confirmLabel={recoveryBusy ? "Preparando…" : "Reanudar descarga"}
+        cancelLabel="Descartar archivos"
+        initialAction="confirm"
+        confirmDisabled={recoveryBusy}
+        cancelDisabled={recoveryBusy}
+        onConfirm={() => void resumeInterruptedDownload()}
+        onCancelAction={() => void discardInterruptedStaging()}
+        onClose={() => undefined}
+      /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );

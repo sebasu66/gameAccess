@@ -27,6 +27,7 @@ function statusLabel(status: ManagedDownloadStatus | undefined, progress: number
     case "preparing": return "Preparando";
     case "paused": return "Pausado";
     case "cancelling": return "Cancelando";
+    case "interrupted": return "Interrumpida";
     default: return `${Math.round(progress)}%`;
   }
 }

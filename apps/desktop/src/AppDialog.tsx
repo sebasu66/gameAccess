@@ -8,12 +8,15 @@ interface AppDialogProps {
   tone?: "info" | "warning" | "error";
   confirmLabel?: string;
   cancelLabel?: string;
+  onCancelAction?: () => void;
+  cancelDisabled?: boolean;
   confirmDisabled?: boolean;
+  initialAction?: "confirm" | "cancel";
   onConfirm?: () => void;
   onClose: () => void;
 }
 
-export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, confirmDisabled = false, onConfirm, onClose }: AppDialogProps) {
+export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, onCancelAction, cancelDisabled = false, confirmDisabled = false, initialAction = "cancel", onConfirm, onClose }: AppDialogProps) {
   const dialogRef = useDialogFocus(onClose);
   const isAlert = tone === "warning" || tone === "error";
   const actionsLabel = onConfirm ? "Confirmar o cancelar" : "Cerrar";
@@ -28,8 +31,8 @@ export default function AppDialog({ title, message, tone = "info", confirmLabel,
           <p id="app-dialog-message">{message}</p>
           <div className="download-complete-actions app-dialog-actions" role="group" aria-label={actionsLabel}>
             {onConfirm ? <>
-              <button type="button" className="secondary-button" data-dialog-initial onClick={onClose}>{cancelLabel ?? "Volver"}</button>
-              <button type="button" className="primary-button" disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel ?? "Confirmar"}</button>
+              <button type="button" className="secondary-button" data-dialog-initial={initialAction === "cancel" ? "" : undefined} disabled={cancelDisabled} onClick={onCancelAction ?? onClose}>{cancelLabel ?? "Volver"}</button>
+              <button type="button" className="primary-button" data-dialog-initial={initialAction === "confirm" ? "" : undefined} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel ?? "Confirmar"}</button>
             </> : <button type="button" className="primary-button" data-dialog-initial onClick={onClose}>Entendido</button>}
           </div>
         </div>
