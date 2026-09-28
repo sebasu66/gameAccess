@@ -164,6 +164,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [sectionReset, setSectionReset] = useState(0);
   const indexes = new Map(props.games.map((game, index) => [game.id, index]));
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const facets = getLibrarySearchFacets(allGames);
   const toggleFilter = (group: "categories" | "features", value: string) => {
     const current = searchFilters[group] as string[];
@@ -182,6 +183,28 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     { id: "name", label: "Nombre A–Z" },
   ];
   const selectedSortLabel = sortOptions.find(option => option.id === catalogSort)?.label ?? "Ordenar";
+
+  useEffect(() => {
+    const grid = props.gridRef.current;
+    const room = grid?.closest<HTMLElement>(".library-room");
+    if (!grid) return;
+    const updateVisibility = () => setShowBackToTop(grid.scrollTop > 320 || (room?.scrollTop ?? 0) > 320 || window.scrollY > 320);
+    grid.addEventListener("scroll", updateVisibility, { passive: true });
+    room?.addEventListener("scroll", updateVisibility, { passive: true });
+    window.addEventListener("scroll", updateVisibility, { passive: true, capture: true });
+    updateVisibility();
+    return () => {
+      grid.removeEventListener("scroll", updateVisibility);
+      room?.removeEventListener("scroll", updateVisibility);
+      window.removeEventListener("scroll", updateVisibility, true);
+    };
+  }, [props.gridRef]);
+
+  const returnToTop = () => {
+    props.gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    props.gridRef.current?.closest<HTMLElement>(".library-room")?.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     const grid = props.gridRef.current;
@@ -242,6 +265,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <div ref={props.gridRef} className="library-room-grid library-section-scroll">
         <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
+      {showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label="Volver arriba" title="Volver arriba"><ArrowUpToLine size={17} /><span>Volver arriba</span></button> : null}
       {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
     </section>
   );
