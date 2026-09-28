@@ -122,10 +122,10 @@ type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games };
+  const view = props.view ?? "popular";
   const displaySection = props.catalogUnavailable && ["latest", "popular", "top"].includes(view)
     ? { ...section, emptyMessage: "En este momento no pudimos conectarnos con el servicio de GameAccess para recuperar la lista de juegos." }
     : section;
-  const view = props.view ?? "popular";
   const onViewChange = props.onViewChange ?? (() => undefined);
   const catalogSort = props.catalogSort ?? "steam-popularity";
   const onCatalogSortChange = props.onCatalogSortChange ?? (() => undefined);
