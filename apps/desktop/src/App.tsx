@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
-import SteamGlobalSearch from "./SteamGlobalSearch";
 import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
@@ -283,7 +282,7 @@ export default function App() {
         setSelected(null); setLibraryOpen(false); setSession(null);
         await captureStep(profile, "home", [
           { selector: ".brand", label: "Brand", minWidth: 120, minHeight: 32 },
-          { selector: ".topbar-actions .global-search", label: "Global search", minWidth: 180, minHeight: 36 },
+          { selector: ".library-catalog-toolbar .global-search", label: "Library search", minWidth: 220, minHeight: 36 },
           { selector: ".hero", label: "Featured game", minWidth: 600, minHeight: 260 },
           { selector: ".game-card", label: "Library game card", minWidth: 100, minHeight: 160 },
         ]);
@@ -600,7 +599,6 @@ export default function App() {
           <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
         </nav>
         <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
@@ -609,7 +607,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} />
+        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}

@@ -2,12 +2,10 @@ import { useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
-import type { CatalogGame } from "./types";
 
 type Props = {
   query: string;
   setQuery: (value: string) => void;
-  onOpenCatalogGame: (game: CatalogGame) => void;
 };
 
 export default function SteamGlobalSearch({ query, setQuery }: Props) {
