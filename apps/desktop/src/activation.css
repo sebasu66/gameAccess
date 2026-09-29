@@ -1,0 +1,9 @@
+.activation-card{width:min(640px,100%);border-color:rgba(103,239,172,.3);background:radial-gradient(circle at 15% 0%,rgba(62,225,126,.11),transparent 46%),rgba(15,18,25,.96)}
+.activation-gate .runtime-gate-brand svg{color:#68eea3}
+.activation-form{display:grid;gap:12px;margin-top:28px}
+.activation-form label{font-weight:750;color:#e9f7ee}
+.activation-form input{width:100%;min-height:52px;padding:0 16px;border:1px solid rgba(109,236,161,.34);border-radius:13px;background:#0b1212;color:#fff;font:inherit;letter-spacing:.03em}
+.activation-form input:focus{outline:2px solid #67eaa0;outline-offset:2px}
+.activation-form .runtime-gate-actions{margin-top:14px}
+.activation-error{margin:0!important;color:#ffb2a7!important}
+

@@ -16,7 +16,9 @@ chrono = "0.4"
 tar = "0.4"
 zstd = "0.13"
 sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+

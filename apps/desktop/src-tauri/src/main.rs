@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod automation;
+mod access_activation;
 mod download_lifecycle;
 mod game_uninstall;
 mod provider_download;
@@ -541,6 +542,26 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
     .map_err(|err| format!("Pending download completion scan failed: {err}"))?
 }
 
+#[tauri::command]
+fn activation_installation_id() -> Result<String, String> {
+    access_activation::installation_id()
+}
+
+#[tauri::command]
+fn activation_read_session() -> Result<Option<String>, String> {
+    access_activation::read_session()
+}
+
+#[tauri::command]
+fn activation_save_session(session_token: String) -> Result<(), String> {
+    access_activation::save_session(&session_token)
+}
+
+#[tauri::command]
+fn activation_clear_session() -> Result<(), String> {
+    access_activation::clear_session()
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
@@ -551,6 +572,10 @@ fn main() {
         })
         .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
+            activation_installation_id,
+            activation_read_session,
+            activation_save_session,
+            activation_clear_session,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,
@@ -601,3 +626,4 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
 }
+

@@ -1,4 +1,5 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
+import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "./bundledArtwork";
 import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
 import { PersonalCatalog } from "./catalog/PersonalCatalog";
@@ -104,9 +105,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${api}${path}`, {
     ...init,
     cache: method === "GET" ? "no-store" : init?.cache,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...activationHeaders(), ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
+    if (response.status === 401) invalidateActivation();
     let detail = `${response.status} ${response.statusText}`;
     try {
       const body = await response.json() as { detail?: unknown };
@@ -130,8 +132,9 @@ async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
     const startedAt = performance.now();
     await narrate(`Catalog page ${page} request started (page size ${pageSize}).`, { area: "CATALOG" });
     try {
-      const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store" });
+      const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store", headers: activationHeaders() });
       if (!response.ok) {
+        if (response.status === 401) invalidateActivation();
         throw new Error(`${response.status} ${response.statusText}`);
       }
       const games = await response.json() as CatalogGame[];
@@ -380,3 +383,4 @@ async function tryLocalLease(game: CatalogGame, minutes: number) {
     session_action: "launch_ready",
   };
 }
+

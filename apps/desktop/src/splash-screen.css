@@ -1,0 +1,46 @@
+.gameaccess-splash{position:fixed;inset:0;z-index:10000;overflow:hidden;background:#02040a;pointer-events:auto;transition:background-color .65s ease}
+.gameaccess-splash.is-settled{background:transparent}
+.gameaccess-splash-stage{position:absolute;left:50%;top:50%;width:min(76vmin,920px);aspect-ratio:1;transform:translate(-50%,-50%);transform-origin:top left;transition:left 1.5s cubic-bezier(.65,0,.35,1),top 1.5s cubic-bezier(.65,0,.35,1),transform 1.5s cubic-bezier(.65,0,.35,1)}
+.gameaccess-splash-stage.phase-compact{left:24px;top:18px;transform:scale(.22)}
+.splash-layer{position:absolute;display:block;height:auto;max-width:none;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.splash-background{inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.5s ease-in;mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);mask-composite:intersect;-webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);-webkit-mask-composite:source-in}
+.phase-reveal .splash-background,.phase-idle .splash-background,.phase-compact .splash-background{opacity:1}
+.splash-portal{left:37.4%;top:20.7%;width:44%;opacity:0;transition:opacity 1.5s ease-in}
+.phase-reveal .splash-portal,.phase-idle .splash-portal,.phase-compact .splash-portal{opacity:1}
+.splash-g{left:11.8%;top:16.1%;width:47.7%;transform:translateX(-110vw);transition:transform 1.5s cubic-bezier(.22,1,.36,1)}
+.splash-a{left:39.4%;top:19.6%;width:47.6%;transform:translateX(110vw);transition:transform 1.5s cubic-bezier(.22,1,.36,1)}
+.phase-slide .splash-g,.phase-reveal .splash-g,.phase-idle .splash-g,.phase-compact .splash-g,.phase-slide .splash-a,.phase-reveal .splash-a,.phase-idle .splash-a,.phase-compact .splash-a{transform:translateX(0)}
+.gameaccess-splash-caption{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);color:rgba(191,211,255,.63);font:700 10px/1 system-ui,sans-serif;letter-spacing:.3em;white-space:nowrap}
+.gameaccess-splash-start{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);padding:13px 19px;border:1px solid rgba(79,193,255,.35);border-radius:999px;background:rgba(10,22,48,.76);color:#dff8ff;font:750 11px/1 system-ui,sans-serif;letter-spacing:.2em;cursor:pointer;box-shadow:0 0 30px rgba(0,153,255,.13);transition:opacity .18s,transform .18s,border-color .18s}
+.gameaccess-splash-start:hover:not(:disabled){transform:translateX(-50%) translateY(-2px);border-color:rgba(93,222,255,.75)}
+.gameaccess-splash-start:disabled{opacity:.45;cursor:wait}
+.gameaccess-splash-start:focus-visible{outline:2px solid #6ae5ff;outline-offset:4px}
+.gameaccess-splash.is-settled{pointer-events:none}
+.gameaccess-splash-announcer{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.activation-gate{position:relative;isolation:isolate;min-height:100vh;box-sizing:border-box;padding:112px 32px 40px;background:radial-gradient(ellipse at 50% 20%,rgba(0,96,255,.2),transparent 44%),radial-gradient(ellipse at 50% 90%,rgba(16,203,255,.11),transparent 45%),#030712}
+.activation-gate::before{position:absolute;z-index:-1;inset:0;content:"";background:linear-gradient(135deg,rgba(7,19,44,.2),transparent 55%),radial-gradient(circle at center,transparent 22%,rgba(0,2,8,.46) 100%);pointer-events:none}
+.activation-card{width:min(510px,100%);box-sizing:border-box;padding:38px 40px 28px;border-color:rgba(79,184,255,.25);border-radius:24px;background:linear-gradient(145deg,rgba(12,24,47,.97),rgba(7,12,25,.97));box-shadow:0 28px 100px rgba(0,0,0,.58),0 0 55px rgba(0,91,255,.1)}
+.activation-card-heading{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.activation-key-mark{display:grid;width:46px;height:46px;place-items:center;border:1px solid rgba(81,204,255,.35);border-radius:15px;background:linear-gradient(145deg,rgba(0,187,255,.2),rgba(29,74,255,.12));color:#55ddff;box-shadow:inset 0 1px rgba(255,255,255,.1)}
+.activation-card .eyebrow{color:#5ee4ff!important}
+.activation-card h1{font-size:clamp(29px,4vw,38px);letter-spacing:-.035em}
+.activation-card>p{margin:0;color:rgba(225,235,255,.68)}
+.activation-form{display:grid;gap:12px;margin-top:28px}
+.activation-form label{font-size:13px;font-weight:750;letter-spacing:.025em;color:#e6f4ff}
+.activation-form input{width:100%;min-height:52px;box-sizing:border-box;padding:0 16px;border:1px solid rgba(104,172,255,.28);border-radius:12px;background:rgba(2,8,20,.82);color:#fff;font:500 15px/1.2 system-ui,sans-serif;letter-spacing:.02em;transition:border-color .18s,box-shadow .18s}
+.activation-form input::placeholder{color:rgba(203,216,244,.38)}
+.activation-form input:focus{outline:0;border-color:#47d8ff;box-shadow:0 0 0 3px rgba(71,216,255,.15),0 0 22px rgba(0,155,255,.12)}
+.activation-form .runtime-gate-actions{margin-top:10px}
+.activation-form .runtime-gate-actions button{min-height:46px;border-radius:12px}
+.activation-form .runtime-gate-actions button.primary{border-color:transparent;background:linear-gradient(105deg,#30d6f6,#3979ff);color:#061020;box-shadow:0 8px 24px rgba(0,137,255,.2)}
+.activation-form .runtime-gate-actions button.primary:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+.activation-form .runtime-gate-actions button:focus-visible{outline:2px solid #64e4ff;outline-offset:3px}
+.activation-form .runtime-gate-actions button{transition:transform .16s ease,filter .16s ease}
+.activation-error{margin:2px 0 0!important;color:#ffb2a7!important}
+.activation-card-footer{display:flex;align-items:center;gap:9px;margin-top:24px;padding-top:17px;border-top:1px solid rgba(255,255,255,.07);color:rgba(207,224,255,.52);font-size:11px;letter-spacing:.02em}
+.activation-status-dot{width:7px;height:7px;border-radius:50%;background:#46deff;box-shadow:0 0 12px rgba(70,222,255,.75)}
+
+@media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}}
+@media(prefers-reduced-motion:reduce){.gameaccess-splash,.gameaccess-splash-stage,.splash-layer{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
+

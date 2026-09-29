@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import ActivationGate from "./ActivationGate";
 import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
@@ -20,6 +21,8 @@ import "./steam-session-settings.css";
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
 import "./catalog-refresh.css";
+import "./activation.css";
+import "./splash-screen.css";
 import "./library-sections.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
@@ -67,8 +70,9 @@ if (!root) throw new Error("gameAccess root element is missing");
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <WindowChrome />
-    <AppCrashBoundary><RuntimeGate><CatalogShell /><SteamSessionSettings /></RuntimeGate></AppCrashBoundary>
+    <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /><SteamSessionSettings /></RuntimeGate></ActivationGate></AppCrashBoundary>
   </React.StrictMode>,
 );
 
 void startLocalAutomation();
+
