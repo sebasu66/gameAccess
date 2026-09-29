@@ -128,4 +128,3 @@ def valid_session(session: Session, token: str, installation_id: str) -> AccessK
     if row is None or row.expires_at is None or utc(row.expires_at) <= datetime.now(timezone.utc):
         return None
     return row
-

@@ -88,4 +88,3 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   await saveActivationSession(result.session_token);
   return checkActivation(result.session_token);
 }
-

@@ -75,4 +75,3 @@ ReactDOM.createRoot(root).render(
 );
 
 void startLocalAutomation();
-

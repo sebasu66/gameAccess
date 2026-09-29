@@ -43,4 +43,3 @@
 
 @media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.gameaccess-splash,.gameaccess-splash-stage,.splash-layer{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
-

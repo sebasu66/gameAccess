@@ -89,4 +89,3 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     {(!status?.active || !splashComplete) ? <SplashScreen onComplete={completeSplash} /> : null}
   </>;
 }
-

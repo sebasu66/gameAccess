@@ -127,4 +127,3 @@ pub fn clear_session() -> Result<(), String> {
         Err(err) => Err(format!("Cannot clear activation session: {err}")),
     }
 }
-

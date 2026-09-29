@@ -383,4 +383,3 @@ async function tryLocalLease(game: CatalogGame, minutes: number) {
     session_action: "launch_ready",
   };
 }
-

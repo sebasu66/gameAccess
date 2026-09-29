@@ -919,4 +919,3 @@ from .admin_console_routes import (  # noqa: E402 - routes import initialized ap
 )
 
 app.include_router(admin_console_router)
-

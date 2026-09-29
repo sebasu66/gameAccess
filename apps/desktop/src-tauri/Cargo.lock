@@ -951,7 +951,6 @@ dependencies = [
  "tar",
  "tauri",
  "tauri-build",
- "uuid",
  "zstd",
 ]
 
@@ -4623,4 +4622,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
