@@ -1,7 +1,7 @@
 .gameaccess-splash{position:fixed;inset:0;z-index:10000;overflow:hidden;background:#02040a;pointer-events:auto;transition:background-color .65s ease}
 .gameaccess-splash.is-settled{background:transparent}
 .gameaccess-splash-stage{position:absolute;left:50%;top:50%;width:min(76vmin,920px);aspect-ratio:1;transform:translate(-50%,-50%);transform-origin:top left;transition:left 1.5s cubic-bezier(.65,0,.35,1),top 1.5s cubic-bezier(.65,0,.35,1),transform 1.5s cubic-bezier(.65,0,.35,1)}
-.gameaccess-splash-stage.phase-compact{left:24px;top:18px;transform:scale(.22);filter:drop-shadow(0 0 50px rgba(24,170,255,.65)) drop-shadow(0 14px 34px rgba(0,0,0,.9))}
+.gameaccess-splash-stage.phase-compact{left:24px;top:18px;transform:scale(.22)}
 .splash-layer{position:absolute;display:block;height:auto;max-width:none;object-fit:contain;user-select:none;-webkit-user-drag:none}
 .splash-background{inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.5s ease-in;mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);mask-composite:intersect;-webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);-webkit-mask-composite:source-in}
 .phase-reveal .splash-background,.phase-idle .splash-background,.phase-compact .splash-background{opacity:1}
@@ -41,8 +41,8 @@
 .activation-card-footer{display:flex;align-items:center;gap:9px;margin-top:24px;padding-top:17px;border-top:1px solid rgba(255,255,255,.07);color:rgba(207,224,255,.52);font-size:11px;letter-spacing:.02em}
 .activation-status-dot{width:7px;height:7px;border-radius:50%;background:#46deff;box-shadow:0 0 12px rgba(70,222,255,.75)}
 
-.activation-showcase{position:absolute;z-index:0;inset:-9%;overflow:hidden;pointer-events:none;filter:saturate(.75) blur(1.2px);opacity:.64;transform:perspective(1300px) rotateX(5deg) scale(1.12);animation:activation-covers-in .8s ease-out both}
-.activation-showcase-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:calc(100vw / 7 * 1.5);gap:12px;min-height:115%;align-content:center}
+.activation-showcase{position:absolute;z-index:0;inset:0;overflow:hidden;pointer-events:none;filter:saturate(.75) blur(1.2px);opacity:.64;animation:activation-covers-in .8s ease-out both}
+.activation-showcase-grid{display:grid;height:100%;grid-template-columns:repeat(auto-fill,minmax(14svh,1fr));grid-auto-rows:calc((100% - 36px)/4);gap:12px;align-content:start}
 .activation-showcase-cover{position:relative;overflow:hidden;border-radius:12px;background:linear-gradient(145deg,#17233b,#0a1225);box-shadow:0 10px 28px rgba(0,0,0,.55)}
 .activation-showcase-cover img{display:block;width:100%;height:100%;object-fit:cover}
 .activation-showcase-cover strong{position:absolute;inset:auto 0 0;padding:45px 12px 16px;background:linear-gradient(transparent,rgba(1,5,14,.92));color:#fff;font-size:clamp(12px,1.3vw,20px);line-height:1.1;text-align:center;text-shadow:0 2px 8px #000}
@@ -64,6 +64,6 @@
 .activation-provider-link:hover{filter:brightness(1.09)}
 .activation-provider-pending{margin:0!important;color:#ffcb83!important;font-size:13px}
 .activation-gate a:focus-visible{outline:2px solid #ffbc6e;outline-offset:4px;border-radius:4px}
-@keyframes activation-covers-in{from{opacity:0;transform:perspective(1300px) rotateX(5deg) scale(1.17)}to{opacity:.64;transform:perspective(1300px) rotateX(5deg) scale(1.12)}}
-@media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}.activation-showcase{inset:-10% -65%;opacity:.46}.activation-showcase-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:34vw;gap:7px}.activation-help{margin-top:20px}}
+@keyframes activation-covers-in{from{opacity:0}to{opacity:.64}}
+@media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}.activation-showcase{opacity:.46}.activation-showcase-grid{grid-auto-rows:calc((100% - 21px)/4);gap:7px}.activation-help{margin-top:20px}}
 @media(prefers-reduced-motion:reduce){.gameaccess-splash,.gameaccess-splash-stage,.splash-layer{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}.activation-showcase{animation:none!important}}
