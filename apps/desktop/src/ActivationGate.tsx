@@ -134,7 +134,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             <button type="submit" className="primary" disabled={busy || !key.trim()}>{busy ? <Loader2 className="spin" size={18} /> : <KeyRound size={18} />} Acceder a los juegos</button>
           </div>
         </form>
-        <div className="activation-card-footer"><span className="activation-status-dot" /> La clave se valida con el servidor</div>
         <a className="activation-free-link" href="#obtener-clave">Obtener clave de acceso gratis <ArrowUpRight size={18} /></a>
       </section>}
     </main>}
