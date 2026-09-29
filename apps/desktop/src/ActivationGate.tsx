@@ -29,6 +29,8 @@ const featuredGames = [
   { appId: 814380, name: "Sekiro" },
 ];
 
+const showcaseGames = Array.from({ length: 6 }, () => featuredGames).flat();
+
 const linkvertiseUrl = import.meta.env.VITE_LINKVERTISE_URL?.trim() || "";
 const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim() || "";
 
@@ -103,7 +105,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     {status?.active ? children : <main className="runtime-gate activation-gate">
       <div className="activation-showcase" aria-hidden="true">
         <div className="activation-showcase-grid">
-          {featuredGames.map(game => <div className="activation-showcase-cover" key={game.appId}>
+          {showcaseGames.map((game, index) => <div className="activation-showcase-cover" key={index}>
             <img src={"imageUrl" in game ? game.imageUrl : `https://cdn.akamai.steamstatic.com/steam/apps/${game.appId}/library_600x900.jpg`} alt="" draggable={false} />
             {"imageUrl" in game ? <strong>{game.name}</strong> : null}
           </div>)}
