@@ -1,7 +1,7 @@
 """Server-owned activation keys and installation sessions.
 
-The printable key and session token are returned once. Only their SHA-256
-digests are kept in the database; both values contain 256 bits of randomness.
+Printable keys and session tokens are returned once. Only SHA-256 digests are
+stored. Activation keys use pronounceable syllables with cryptographic randomness.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import or_, update
+from sqlalchemy import inspect, or_, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
@@ -24,6 +25,7 @@ class AccessKey(SQLModel, table=True):
     duration_hours: Optional[int] = None
     duration_months: Optional[int] = None
     created_at: datetime
+    key_expires_at: datetime
     activated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     installation_id: Optional[str] = SQLField(default=None, index=True)
@@ -57,28 +59,90 @@ def expiration(start: datetime, hours: int | None, months: int | None) -> dateti
     return start.replace(year=year, month=month, day=day)
 
 
-def issue_keys(session: Session, *, hours: int | None, months: int | None, count: int) -> list[tuple[int, str]]:
+_KEY_CONSONANTS = "bcdfghjkmnpqrstvwxz"
+_KEY_VOWELS = "aeiou"
+_KEY_SYMBOLS = "!@#$%&*"
+
+
+def _new_printable_key() -> str:
+    # Six random consonant-vowel syllables are easy to say; the suffix adds
+    # additional entropy while keeping the key around twenty characters long.
+    word = "".join(
+        secrets.choice(_KEY_CONSONANTS) + secrets.choice(_KEY_VOWELS)
+        for _ in range(6)
+    )
+    word = word[0].upper() + word[1:]
+    return f"GA-{word}{secrets.choice(_KEY_SYMBOLS)}{secrets.randbelow(10_000):04d}"
+
+
+def issue_keys(
+    session: Session,
+    *,
+    hours: int | None,
+    months: int | None,
+    count: int,
+    key_ttl_hours: int = 24,
+) -> list[tuple[int, str]]:
     issued: list[tuple[AccessKey, str]] = []
     for _ in range(count):
-        printable = f"GA-{secrets.token_urlsafe(32)}"
-        row = AccessKey(
-            key_hash=digest(printable),
-            duration_hours=hours,
-            duration_months=months,
-            created_at=datetime.now(timezone.utc),
-        )
-        session.add(row)
-        issued.append((row, printable))
+        for _attempt in range(10):
+            printable = _new_printable_key()
+            created_at = datetime.now(timezone.utc)
+            row = AccessKey(
+                key_hash=digest(printable.upper()),
+                duration_hours=hours,
+                duration_months=months,
+                created_at=created_at,
+                key_expires_at=created_at + timedelta(hours=key_ttl_hours),
+            )
+            try:
+                # The database unique index is authoritative. Retry collisions
+                # inside a savepoint and never return a duplicate key.
+                with session.begin_nested():
+                    session.add(row)
+                    session.flush()
+            except IntegrityError:
+                continue
+            issued.append((row, printable))
+            break
+        else:
+            session.rollback()
+            raise RuntimeError("Could not generate a unique activation key")
     session.commit()
     return [(int(row.id), printable) for row, printable in issued if row.id is not None]
 
 
+def ensure_access_key_schema(engine) -> None:
+    """Add pending-key expiry to existing databases without resetting them."""
+    columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
+    if "key_expires_at" in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE accesskey ADD COLUMN key_expires_at TIMESTAMP"))
+        if engine.dialect.name == "sqlite":
+            connection.execute(text(
+                "UPDATE accesskey SET key_expires_at = datetime('now', '+1 day') "
+                "WHERE key_expires_at IS NULL"
+            ))
+        elif engine.dialect.name == "postgresql":
+            connection.execute(text(
+                "UPDATE accesskey SET key_expires_at = CURRENT_TIMESTAMP + INTERVAL '24 hours' "
+                "WHERE key_expires_at IS NULL"
+            ))
+
+
 def redeem_key(session: Session, printable: str, installation_id: str) -> tuple[str, datetime]:
     installation_id = canonical_installation_id(installation_id)
-    row = session.exec(select(AccessKey).where(AccessKey.key_hash == digest(printable.strip()))).first()
+    normalized = printable.strip()
+    row = session.exec(select(AccessKey).where(AccessKey.key_hash == digest(normalized.upper()))).first()
+    if row is None:
+        # Preserve compatibility with older case-sensitive random keys.
+        row = session.exec(select(AccessKey).where(AccessKey.key_hash == digest(normalized))).first()
     now = datetime.now(timezone.utc)
     if row is None or row.revoked_at is not None:
         raise ValueError("Invalid or unavailable activation key")
+    if row.activated_at is None and row.key_expires_at is not None and utc(row.key_expires_at) <= now:
+        raise ValueError("This activation key has expired")
     if row.installation_id is not None and row.installation_id != installation_id:
         raise ValueError("This key is already active on another installation")
     if row.expires_at is not None and utc(row.expires_at) <= now:

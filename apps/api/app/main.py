@@ -20,7 +20,7 @@ from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
-from .access_keys import AccessKey, canonical_installation_id, issue_keys, redeem_key, utc, valid_session
+from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -148,6 +148,7 @@ class SeedGameRequest(BaseModel):
 class AccessKeyIssueRequest(BaseModel):
     duration_hours: Optional[int] = Field(default=None, ge=1, le=24 * 365 * 5)
     duration_months: Optional[int] = Field(default=None, ge=1, le=60)
+    key_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
     count: int = Field(default=1, ge=1, le=100)
 
 
@@ -222,7 +223,13 @@ def create_access_keys(req: AccessKeyIssueRequest, request: Request, session: Se
     _admin_activation_access(request)
     if (req.duration_hours is None) == (req.duration_months is None):
         raise HTTPException(422, "Specify either duration_hours or duration_months")
-    keys = issue_keys(session, hours=req.duration_hours, months=req.duration_months, count=req.count)
+    keys = issue_keys(
+        session,
+        hours=req.duration_hours,
+        months=req.duration_months,
+        count=req.count,
+        key_ttl_hours=req.key_ttl_hours,
+    )
     return {"keys": [{"id": key_id, "key": key} for key_id, key in keys]}
 
 
@@ -235,6 +242,7 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "duration_hours": row.duration_hours,
         "duration_months": row.duration_months,
         "created_at": row.created_at,
+        "key_expires_at": row.key_expires_at,
         "activated_at": row.activated_at,
         "expires_at": row.expires_at,
         "revoked_at": row.revoked_at,
@@ -413,6 +421,7 @@ def slugify(value: str, app_id: int) -> str:
 @app.on_event("startup")
 def startup() -> None:
     SQLModel.metadata.create_all(engine)
+    ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
     with Session(engine) as session:
         seed_defaults(session)
