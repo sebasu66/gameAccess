@@ -175,25 +175,6 @@ def redeem_key(session: Session, printable: str, installation_id: str) -> tuple[
     return token, expires_at
 
 
-def redeem_developer_key(session: Session, installation_id: str) -> tuple[str, datetime]:
-    """Issue a per-installation session without storing the developer key."""
-    installation_id = canonical_installation_id(installation_id)
-    now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(days=30)
-    token = secrets.token_urlsafe(32)
-    session.add(AccessKey(
-        key_hash=digest(secrets.token_urlsafe(32)),
-        duration_hours=24 * 30,
-        created_at=now,
-        key_expires_at=now + timedelta(days=1),
-        activated_at=now,
-        expires_at=expires_at,
-        installation_id=installation_id,
-        session_hash=digest(token),
-    ))
-    session.commit()
-    return token, expires_at
-
 def valid_session(session: Session, token: str, installation_id: str) -> AccessKey | None:
     try:
         installation_id = canonical_installation_id(installation_id)
