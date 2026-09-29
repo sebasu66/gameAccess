@@ -12,6 +12,7 @@
 
 ### Activación y arranque
 
+- [x] Pantalla de clave con portadas reales del catálogo, mensaje de acceso temporal y enlace a una página interna para obtener la clave. Se verificó el canje de una clave de 12 horas desde el frontend contra una base de prueba aislada.
 - [ ] Terminar la pantalla inicial de Tauri: bloquear catálogo, descargas y juego hasta verificar una activación vigente; incluir campo de clave manual, vencimiento, errores y reintento, usando los diálogos propios de Game Access.
 - [ ] Generar un identificador persistente por instalación. El servidor emite claves aleatorias de un solo uso con duración configurable (primera oferta: 12 horas), registra activación y vencimiento en UTC desde el primer canje, vincula el canje a una instalación y permite revocar. Preparar emisión administrativa segura. No confiar en el reloj ni en un contador continuo del cliente.
 - [ ] Aplicar la activación en cada endpoint protegido del servidor, incluidos catálogo, asignación y lanzamiento. Definir contenido previo a la activación, renovación, comportamiento sin conexión, reintento y tratamiento de sesiones en curso al vencer.
@@ -20,6 +21,7 @@
 
 ### Linkvertise
 
+- [ ] Grabar e incorporar el video real del recorrido de Linkvertise en la página de instrucciones. Conectar el botón de salida al enlace emitido por el servidor una vez configurada la cuenta y la verificación oficial; no mostrar una clave sin esa comprobación.
 - [ ] Mantener un enlace corto reutilizable y destino propio. Verificar en el servidor la prueba oficial de finalización de Linkvertise antes de emitir cada clave; rechazar pruebas ausentes, vencidas o repetidas. Guardar credenciales solo en el servidor, registrar emisión/canje y limitar abusos. Las 12 horas corresponden al acceso, no al enlace.
 - [ ] Crear página de retorno con la clave y flujo de copia/pegado; automatizarlo solo si el recorrido verificado lo permite. Probar extremo a extremo con la cuenta real de Linkvertise antes de abrirlo. Otros acortadores quedan para después.
 

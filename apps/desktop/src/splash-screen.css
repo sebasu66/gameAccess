@@ -1,7 +1,7 @@
 .gameaccess-splash{position:fixed;inset:0;z-index:10000;overflow:hidden;background:#02040a;pointer-events:auto;transition:background-color .65s ease}
 .gameaccess-splash.is-settled{background:transparent}
 .gameaccess-splash-stage{position:absolute;left:50%;top:50%;width:min(76vmin,920px);aspect-ratio:1;transform:translate(-50%,-50%);transform-origin:top left;transition:left 1.5s cubic-bezier(.65,0,.35,1),top 1.5s cubic-bezier(.65,0,.35,1),transform 1.5s cubic-bezier(.65,0,.35,1)}
-.gameaccess-splash-stage.phase-compact{left:24px;top:18px;transform:scale(.22)}
+.gameaccess-splash-stage.phase-compact{left:24px;top:18px;transform:scale(.22);filter:drop-shadow(0 0 50px rgba(24,170,255,.65)) drop-shadow(0 14px 34px rgba(0,0,0,.9))}
 .splash-layer{position:absolute;display:block;height:auto;max-width:none;object-fit:contain;user-select:none;-webkit-user-drag:none}
 .splash-background{inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.5s ease-in;mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);mask-composite:intersect;-webkit-mask-image:linear-gradient(to right,transparent,#000 6%,#000 94%,transparent),linear-gradient(to bottom,transparent,#000 6%,#000 94%,transparent);-webkit-mask-composite:source-in}
 .phase-reveal .splash-background,.phase-idle .splash-background,.phase-compact .splash-background{opacity:1}
@@ -18,9 +18,9 @@
 .gameaccess-splash.is-settled{pointer-events:none}
 .gameaccess-splash-announcer{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-.activation-gate{position:relative;isolation:isolate;min-height:100vh;box-sizing:border-box;padding:112px 32px 40px;background:radial-gradient(ellipse at 50% 20%,rgba(0,96,255,.2),transparent 44%),radial-gradient(ellipse at 50% 90%,rgba(16,203,255,.11),transparent 45%),#030712}
+.activation-gate{position:relative;isolation:isolate;min-height:100vh;box-sizing:border-box;padding:112px 32px 40px;overflow:hidden;background:#030712}
 .activation-gate::before{position:absolute;z-index:-1;inset:0;content:"";background:linear-gradient(135deg,rgba(7,19,44,.2),transparent 55%),radial-gradient(circle at center,transparent 22%,rgba(0,2,8,.46) 100%);pointer-events:none}
-.activation-card{width:min(510px,100%);box-sizing:border-box;padding:38px 40px 28px;border-color:rgba(79,184,255,.25);border-radius:24px;background:linear-gradient(145deg,rgba(12,24,47,.97),rgba(7,12,25,.97));box-shadow:0 28px 100px rgba(0,0,0,.58),0 0 55px rgba(0,91,255,.1)}
+.activation-card{position:relative;z-index:2;width:min(510px,100%);box-sizing:border-box;padding:38px 40px 28px;border-color:rgba(79,184,255,.34);border-radius:24px;background:linear-gradient(145deg,rgba(12,24,47,.96),rgba(7,12,25,.97));box-shadow:0 32px 130px 35px rgba(0,0,0,.8),0 0 75px rgba(0,115,255,.2);backdrop-filter:blur(18px)}
 .activation-card-heading{display:flex;align-items:center;gap:12px;margin-bottom:20px}
 .activation-key-mark{display:grid;width:46px;height:46px;place-items:center;border:1px solid rgba(81,204,255,.35);border-radius:15px;background:linear-gradient(145deg,rgba(0,187,255,.2),rgba(29,74,255,.12));color:#55ddff;box-shadow:inset 0 1px rgba(255,255,255,.1)}
 .activation-card .eyebrow{color:#5ee4ff!important}
@@ -41,5 +41,29 @@
 .activation-card-footer{display:flex;align-items:center;gap:9px;margin-top:24px;padding-top:17px;border-top:1px solid rgba(255,255,255,.07);color:rgba(207,224,255,.52);font-size:11px;letter-spacing:.02em}
 .activation-status-dot{width:7px;height:7px;border-radius:50%;background:#46deff;box-shadow:0 0 12px rgba(70,222,255,.75)}
 
-@media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}}
-@media(prefers-reduced-motion:reduce){.gameaccess-splash,.gameaccess-splash-stage,.splash-layer{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
+.activation-showcase{position:absolute;z-index:0;inset:-9%;overflow:hidden;pointer-events:none;filter:saturate(.75) blur(1.2px);opacity:.64;transform:perspective(1300px) rotateX(5deg) scale(1.12);animation:activation-covers-in .8s ease-out both}
+.activation-showcase-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:calc(100vw / 7 * 1.5);gap:12px;min-height:115%;align-content:center}
+.activation-showcase-cover{position:relative;overflow:hidden;border-radius:12px;background:linear-gradient(145deg,#17233b,#0a1225);box-shadow:0 10px 28px rgba(0,0,0,.55)}
+.activation-showcase-cover img{display:block;width:100%;height:100%;object-fit:cover}
+.activation-showcase-cover strong{position:absolute;inset:auto 0 0;padding:45px 12px 16px;background:linear-gradient(transparent,rgba(1,5,14,.92));color:#fff;font-size:clamp(12px,1.3vw,20px);line-height:1.1;text-align:center;text-shadow:0 2px 8px #000}
+.activation-gate::after{position:absolute;z-index:1;inset:0;content:"";pointer-events:none;background:radial-gradient(ellipse at 50% 48%,rgba(2,8,20,.2) 0%,rgba(2,8,20,.47) 48%,rgba(2,6,15,.84) 100%),linear-gradient(to bottom,rgba(3,7,18,.35),transparent 23%,transparent 72%,rgba(3,7,18,.6))}
+.activation-form .runtime-gate-actions button.primary{min-width:205px}
+.activation-form button.activation-retry{justify-self:start;padding:5px 0;border:0;background:transparent;color:#9cdbff;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.activation-free-link{display:inline-flex;align-items:center;gap:8px;margin-top:22px;color:#ffba64;font-size:15px;font-weight:750;text-decoration:none;text-underline-offset:4px;transition:color .16s,transform .16s}
+.activation-free-link:hover{color:#ffd49b;text-decoration:underline;transform:translateY(-1px)}
+.activation-back{display:inline-flex;align-items:center;gap:7px;margin-bottom:28px;color:#a6dfff;font-size:13px;font-weight:700;text-decoration:none}
+.activation-back:hover{text-decoration:underline}
+.activation-help{width:min(600px,100%)}
+.activation-help-video,.activation-video-pending{display:grid;width:100%;aspect-ratio:16/9;margin-top:24px;place-items:center;border:1px solid rgba(94,185,255,.22);border-radius:14px;background:linear-gradient(145deg,rgba(6,14,29,.94),rgba(11,32,60,.8))}
+.activation-help-video{object-fit:contain;background:#030711}
+.activation-video-pending{gap:8px;align-content:center;color:rgba(212,227,255,.65);font-size:13px;text-align:center}
+.activation-video-pending svg{color:#67c8ff}
+.activation-help-steps{display:grid;gap:10px;margin:23px 0;padding-left:22px;color:#dce9ff;font-size:14px;line-height:1.45}
+.activation-help-steps li::marker{color:#64d3ff;font-weight:800}
+.activation-provider-link{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:0 18px;border-radius:12px;background:linear-gradient(105deg,#30d6f6,#3979ff);color:#061020;font-weight:800;text-decoration:none}
+.activation-provider-link:hover{filter:brightness(1.09)}
+.activation-provider-pending{margin:0!important;color:#ffcb83!important;font-size:13px}
+.activation-gate a:focus-visible{outline:2px solid #ffbc6e;outline-offset:4px;border-radius:4px}
+@keyframes activation-covers-in{from{opacity:0;transform:perspective(1300px) rotateX(5deg) scale(1.17)}to{opacity:.64;transform:perspective(1300px) rotateX(5deg) scale(1.12)}}
+@media(max-width:560px){.gameaccess-splash-stage{width:88vw}.gameaccess-splash-stage.phase-compact{left:14px;top:12px;transform:scale(.2)}.activation-gate{padding:104px 18px 24px}.activation-card{padding:30px 24px 22px}.activation-form .runtime-gate-actions{justify-content:stretch}.activation-form .runtime-gate-actions button{flex:1;justify-content:center}.activation-showcase{inset:-10% -65%;opacity:.46}.activation-showcase-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:34vw;gap:7px}.activation-help{margin-top:20px}}
+@media(prefers-reduced-motion:reduce){.gameaccess-splash,.gameaccess-splash-stage,.splash-layer{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}.activation-showcase{animation:none!important}}

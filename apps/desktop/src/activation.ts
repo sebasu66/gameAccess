@@ -82,7 +82,7 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || "No se pudo activar esta instalación.");
+    throw new Error(body.detail || "No se pudo activar el acceso a los juegos.");
   }
   const result = await response.json() as { session_token: string; expires_at: string };
   await saveActivationSession(result.session_token);
