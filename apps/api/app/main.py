@@ -21,6 +21,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
+from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -153,7 +154,7 @@ class AccessKeyIssueRequest(BaseModel):
 
 
 class AccessKeyRedeemRequest(BaseModel):
-    key: str = Field(min_length=20, max_length=120)
+    key: str = Field(min_length=1, max_length=120)
     installation_id: str = Field(min_length=36, max_length=36)
 
 
@@ -196,14 +197,14 @@ def _admin_activation_access(request: Request) -> None:
         raise HTTPException(403, "Administrator access required")
 
 
-def _activation_for_request(request: Request, session: Session) -> AccessKey | None:
+def _activation_for_request(request: Request, session: Session) -> AccessKey | CourtesySession | None:
     authorization = request.headers.get("Authorization", "")
     if not authorization.startswith("Bearer "):
         return None
-    return valid_session(
-        session,
-        authorization.removeprefix("Bearer ").strip(),
-        request.headers.get("X-GameAccess-Installation", ""),
+    token = authorization.removeprefix("Bearer ").strip()
+    installation_id = request.headers.get("X-GameAccess-Installation", "")
+    return valid_session(session, token, installation_id) or valid_courtesy_session(
+        session, token, installation_id
     )
 
 
@@ -267,7 +268,8 @@ def revoke_access_key(key_id: int, request: Request, session: Session = Depends(
 def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session)) -> dict:
     try:
         installation_id = canonical_installation_id(req.installation_id)
-        token, expires_at = redeem_key(session, req.key, installation_id)
+        courtesy = redeem_courtesy_key(session, req.key, installation_id)
+        token, expires_at = courtesy if courtesy is not None else redeem_key(session, req.key, installation_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at}
