@@ -20,7 +20,7 @@ from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
-from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
+from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_developer_key, redeem_key, utc, valid_session
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -153,7 +153,7 @@ class AccessKeyIssueRequest(BaseModel):
 
 
 class AccessKeyRedeemRequest(BaseModel):
-    key: str = Field(min_length=20, max_length=120)
+    key: str = Field(min_length=1, max_length=120)
     installation_id: str = Field(min_length=36, max_length=36)
 
 
@@ -267,7 +267,11 @@ def revoke_access_key(key_id: int, request: Request, session: Session = Depends(
 def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session)) -> dict:
     try:
         installation_id = canonical_installation_id(req.installation_id)
-        token, expires_at = redeem_key(session, req.key, installation_id)
+        developer_key = os.environ.get("GAMEACCESS_DEVELOPER_ACCESS_KEY", "")
+        if developer_key and secrets.compare_digest(req.key.strip(), developer_key):
+            token, expires_at = redeem_developer_key(session, installation_id)
+        else:
+            token, expires_at = redeem_key(session, req.key, installation_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at}
