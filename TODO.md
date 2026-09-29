@@ -6,6 +6,42 @@
 > Keep this file ordered by priority. When a task is completed, mark it `[x]` and add a short result/commit note where useful. New work should be inserted according to dependency/priority rather than simply appended.
 
 
+## P0 — Beta de acceso por tiempo (plan vigente)
+
+> Este bloque recoge las decisiones recientes. El acceso plano por tiempo sustituye las fichas, el saldo y el cobro por juego de las secciones históricas de este TODO. Las suscripciones mensuales y el actualizador automático se posponen. Los archivos de activación sin commit en Game Access Dev son un borrador, no una función terminada.
+
+### Activación y arranque
+
+- [ ] Terminar la pantalla inicial de Tauri: bloquear catálogo, descargas y juego hasta verificar una activación vigente; incluir campo de clave manual, vencimiento, errores y reintento, usando los diálogos propios de Game Access.
+- [ ] Generar un identificador persistente por instalación. El servidor emite claves aleatorias de un solo uso con duración configurable (primera oferta: 12 horas), registra activación y vencimiento en UTC desde el primer canje, vincula el canje a una instalación y permite revocar. Preparar emisión administrativa segura. No confiar en el reloj ni en un contador continuo del cliente.
+- [ ] Aplicar la activación en cada endpoint protegido del servidor, incluidos catálogo, asignación y lanzamiento. Definir contenido previo a la activación, renovación, comportamiento sin conexión, reintento y tratamiento de sesiones en curso al vencer.
+- [ ] Añadir splash/tablero con logo, bienvenida beta, explicación expandible, instrucciones y enlace para obtener acceso. Al abrir, consultar estado del servidor, avisos, versión mínima y URL de descarga; mostrar actualización recomendada u obligatoria y bloquear versiones viejas también en la API. Actualización manual por ahora.
+- [ ] Quitar las fichas del flujo activo y contratos de la beta; preservar los datos anteriores hasta definir su migración. El plazo de acceso habilita todas las funciones previstas de forma uniforme.
+
+### Linkvertise
+
+- [ ] Mantener un enlace corto reutilizable y destino propio. Verificar en el servidor la prueba oficial de finalización de Linkvertise antes de emitir cada clave; rechazar pruebas ausentes, vencidas o repetidas. Guardar credenciales solo en el servidor, registrar emisión/canje y limitar abusos. Las 12 horas corresponden al acceso, no al enlace.
+- [ ] Crear página de retorno con la clave y flujo de copia/pegado; automatizarlo solo si el recorrido verificado lo permite. Probar extremo a extremo con la cuenta real de Linkvertise antes de abrirlo. Otros acortadores quedan para después.
+
+### Español e inglés
+
+- [ ] Agregar selector persistente español/inglés y traducir UI, acceso, splash, ayuda, diálogos, mensajes del servidor y errores. Definir idioma inicial y alternativa cuando falta una traducción.
+- [ ] Obtener y almacenar metadatos de Steam por AppID e idioma (descripciones, géneros y funciones). Usar identificadores estables para filtros y búsqueda, sin mezclar etiquetas ni duplicar juegos. Completar antes del catálogo definitivo.
+
+### Continuidad de partidas
+
+- [ ] Medir cobertura y calidad de rutas por juego en `game_data_path` e importación PCGamingWiki; comprobar rutas Windows, Steam userdata, Documentos y AppData antes de alterar archivos del usuario.
+- [ ] Crear perfil local de progreso por usuario de Game Access y juego. En juegos compatibles, respaldar originales, preparar rutas para la cuenta Steam asignada antes de jugar, capturar progreso al salir y permitir restauración. Evaluar enlaces/junctions solo por ruta verificada, con juego y Steam cerrados, sin escrituras simultáneas ni conflictos de Steam Cloud.
+- [ ] Registrar compatibilidad por juego y excluir transferencia automática si el guardado exige SteamID interno u otra condición especial. Avisar en la ficha y en Ayuda, con Dark Souls III y Elden Ring como ejemplos que requieren prueba real; esos casos quedan a cargo del usuario.
+
+### Publicación y operación
+
+- [ ] Migrar el estado central de SQLite a PostgreSQL/Supabase con migración de datos, secretos solo en servidor, respaldos y recuperación. Evaluar la pausa por inactividad del plan elegido.
+- [ ] Publicar API HTTPS en un host independiente del cliente (Replit, no Replicate, es candidato beta). Medir arranque en frío, disponibilidad y capacidad; pasar a instancia siempre activa/VPS cuando sea necesario.
+- [ ] Publicar landing y descarga Windows en URL estable (Cloudflare Pages es candidato). Configurar dirección/resolvedor estable para que el cliente encuentre la API aunque cambie el host real. Versionar el instalador.
+- [ ] Verificar instalación limpia y flujo completo: bloqueo, emisión/canje único, vencimiento/revocación, Linkvertise, versión mínima, ambos idiomas, juego, cambio de cuenta y guardados compatibles. Revisar credenciales Steam, concurrencia real y condiciones de plataforma antes del lanzamiento comercial.
+
+
 ## Current operating model — two parallel fronts
 
 El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Steam es la puerta de entrada del producto y debe alcanzar una interacción confiable antes de agregar demasiadas capas de experiencia. El frente 3D/social debe investigar y validar recursos reutilizables, construir un prototipo independiente y luego integrarlo en Tauri.
