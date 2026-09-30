@@ -1,10 +1,5 @@
 use serde::Serialize;
-use std::{env, fs, path::PathBuf, process::Command};
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+use std::{env, fs, path::PathBuf};
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct DownloadMetrics {
@@ -46,60 +41,8 @@ pub fn metrics_from_manifest(app_id: u32, text: &str) -> DownloadMetrics {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn steam_registry_root() -> Option<PathBuf> {
-    for (key, value) in [
-        ("HKCU\\Software\\Valve\\Steam", "SteamPath"),
-        ("HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),
-        ("HKLM\\SOFTWARE\\Valve\\Steam", "InstallPath"),
-    ] {
-        let output = Command::new("reg.exe")
-            .args(["query", key, "/v", value])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output().ok()?;
-        if !output.status.success() { continue; }
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            if !line.contains(value) { continue; }
-            let candidate = line.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
-            let path = PathBuf::from(candidate.trim());
-            if path.is_dir() { return Some(path); }
-        }
-    }
-    None
-}
-
-#[cfg(not(target_os = "windows"))]
-fn steam_registry_root() -> Option<PathBuf> { None }
-
-fn steam_root() -> Option<PathBuf> {
-    steam_registry_root().or_else(|| {
-        env::var_os("PROGRAMFILES(X86)")
-            .map(PathBuf::from)
-            .map(|path| path.join("Steam"))
-            .filter(|path| path.is_dir())
-    })
-}
-
-fn library_roots() -> Vec<PathBuf> {
-    let Some(root) = steam_root() else { return Vec::new(); };
-    let mut result = vec![root.clone()];
-    let folders = root.join("steamapps").join("libraryfolders.vdf");
-    if let Ok(text) = fs::read_to_string(folders) {
-        for line in text.lines() {
-            let parts: Vec<&str> = line.split('"').collect();
-            if parts.len() >= 4 && parts[1].eq_ignore_ascii_case("path") {
-                let candidate = PathBuf::from(parts[3].replace("\\\\", "\\"));
-                if candidate.is_dir() && !result.contains(&candidate) { result.push(candidate); }
-            }
-        }
-    }
-    result
-}
-
 fn manifest_path(app_id: u32) -> Option<PathBuf> {
-    library_roots().into_iter()
-        .map(|root| root.join("steamapps").join(format!("appmanifest_{app_id}.acf")))
-        .find(|path| path.is_file())
+    crate::native_core::steam_manifest_path(app_id)
 }
 
 fn provider_status_path(app_id: u32) -> Option<PathBuf> {
