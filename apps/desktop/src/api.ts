@@ -453,10 +453,9 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
-      await narrate(`Preparing provider Steam account '${lease.account.label}' for the leased game. Credentials are requested securely and are never written to this log.`, { area: "ACCOUNT" });
-      const credentials = await request<{ accountName: string; password: string; expectedUserId32: number }>(`/leases/${lease.lease_id}/steam-login`, { method: "POST" });
-      await loginProviderSteam(credentials);
-      await narrate(`Provider Steam account '${credentials.accountName}' is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
+      await narrate(`Preparing provider Steam account '${lease.account.label}' for the leased game using the local Steam adapter. Provider credentials never transit the shared backend or webview.`, { area: "ACCOUNT" });
+      await loginProviderSteam(lease.account.label);
+      await narrate(`Provider Steam account '${lease.account.label}' is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
