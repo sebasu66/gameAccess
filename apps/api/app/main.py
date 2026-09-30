@@ -27,9 +27,11 @@ from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
     get_cached_steam_metadata,
+    get_cached_steam_metadata_locale,
     catalog_metadata_for_games,
     seed_known_games,
     upsert_steam_metadata,
+    upsert_steam_metadata_locale,
     next_steam_review_target,
     save_steam_review_summary,
     defer_steam_review_summary,
@@ -527,19 +529,28 @@ def catalog(
 
 
 @app.get("/games/{game_id}/details")
-def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
+def game_details(
+    game_id: int,
+    language: str = Query(default="spanish", min_length=2, max_length=32, pattern=r"^[A-Za-z_-]+$"),
+    country: str = Query(default="ar", min_length=2, max_length=2, pattern=r"^[A-Za-z]{2}$"),
+    session: Session = Depends(get_session),
+) -> dict:
     game = visible_catalog_game(session, game_id)
     if not game or not is_game_licensed(session, game.id):
         raise HTTPException(404, "game not found")
     summary = game_summary(session, game)
     if not game.app_id:
         return {**summary, "steam": None, "metadata_state": "no-steam-appid"}
-    cached = get_cached_steam_metadata(engine, int(game.id))
+    language = language.casefold()
+    country = country.casefold()
+    cached = get_cached_steam_metadata_locale(engine, int(game.id), language, country)
     if cached is not None:
         return {**summary, "steam": cached, "metadata_state": "ready"}
     try:
-        steam = steam_catalog.fetch(game.app_id)
-        upsert_steam_metadata(engine, int(game.id), steam)
+        steam = steam_catalog.fetch(game.app_id, language=language, country=country)
+        upsert_steam_metadata_locale(engine, int(game.id), language, country, steam)
+        if language == "spanish" and country == "ar":
+            upsert_steam_metadata(engine, int(game.id), steam)
         return {**summary, "steam": steam, "metadata_state": "ready"}
     except SteamCatalogError as exc:
         return {
@@ -551,9 +562,19 @@ def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
 
 
 @app.get("/steam/apps/{app_id}")
-def steam_app(app_id: int, force: bool = False) -> dict:
+def steam_app(
+    app_id: int,
+    force: bool = False,
+    language: str = Query(default="spanish", min_length=2, max_length=32, pattern=r"^[A-Za-z_-]+$"),
+    country: str = Query(default="ar", min_length=2, max_length=2, pattern=r"^[A-Za-z]{2}$"),
+) -> dict:
     try:
-        return steam_catalog.fetch(app_id, force=force)
+        return steam_catalog.fetch(
+            app_id,
+            language=language.casefold(),
+            country=country.casefold(),
+            force=force,
+        )
     except SteamCatalogError as exc:
         raise HTTPException(502, str(exc)) from exc
 
