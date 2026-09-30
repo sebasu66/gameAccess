@@ -1,5 +1,5 @@
 {
   "api_url": "",
-  "api_url_resolver": "https://raw.githubusercontent.com/sebasu66/gameAccess/main/apps/desktop/public/backend-pointer.json",
+  "api_url_resolver": "https://raw.githubusercontent.com/sebasu66/gameAccess/dev/apps/desktop/public/backend-pointer.json",
   "_help": "GameAccess always probes the local development backend first. If local is unavailable, this stable HTTPS pointer resolves the current hosted backend. Update backend-pointer.json when Render or another backend URL changes."
 }
