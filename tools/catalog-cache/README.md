@@ -35,10 +35,20 @@ set `GAMEACCESS_DATABASE_URL` or pass `--database-url`; never commit that creden
 
 ## Community tags
 
-`enrich_steamspy_tags.py` imports community tags into `game_tag` with
-`source='steamspy'` and preserves SteamSpy vote counts in `weight`.
+For a fast bootstrap, `import_steamspy_snapshot.py` can import the historical
+`steamspy_tag_data.csv` matrix into `game_tag` with
+`source='steamspy-historical-2019'`. Put the CSV under the ignored
+`apps/api/.admin_tasks/steamspy_tag_data.csv` path, then run:
 
-Example resumable batch:
+```powershell
+.\apps\api\.venv\Scripts\python.exe .\tools\catalog-cache\import_steamspy_snapshot.py --max-tags 20
+```
+
+This gives broad coverage immediately. `enrich_steamspy_tags.py` then refreshes
+and fills gaps from the current SteamSpy app-details endpoint, using
+`source='steamspy'` and preserving SteamSpy vote counts in `weight`.
+
+Example resumable live batch:
 
 ```powershell
 .\apps\api\.venv\Scripts\python.exe .\tools\catalog-cache\enrich_steamspy_tags.py --appdetails-limit 100 --max-tags 20

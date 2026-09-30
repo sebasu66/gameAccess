@@ -71,7 +71,7 @@ def stable_json(value: Any) -> str:
 
 def load_names(conn, table: str) -> dict[int, list[str]]:
     rows = conn.execute(text(f"""
-        SELECT n.game_id, n.name
+        SELECT DISTINCT n.game_id, n.name
         FROM {table} n
         JOIN game g ON g.id=n.game_id
         WHERE g.active = true

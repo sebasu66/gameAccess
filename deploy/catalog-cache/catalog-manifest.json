@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "revision": "d98ff72d63ebc514",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-d98ff72d63ebc514.sqlite.gz",
-  "sha256": "3947a16556aeb17b6343458991699b39ccfbff93ed71e2c16c67e2f4f7356cc2",
+  "revision": "7e4c8f4ceb332b28",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-7e4c8f4ceb332b28.sqlite.gz",
+  "sha256": "3e7ec8dd30e7646a7f910310a84ef2a7a3fccc13a1d3569511a638e7bb0e725c",
   "catalog_count": 10632,
   "detail_count": 677,
-  "compressed_bytes": 2674694,
-  "uncompressed_bytes": 21569536
+  "compressed_bytes": 2776588,
+  "uncompressed_bytes": 21938176
 }
