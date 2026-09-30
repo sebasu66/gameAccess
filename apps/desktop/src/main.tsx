@@ -10,6 +10,7 @@ import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startNarrationSession } from "./narrationLog";
+import { translate, useI18n } from "./i18n";
 import "./styles.css";
 import "./session.css";
 import "./experience.css";
@@ -24,6 +25,7 @@ import "./catalog-refresh.css";
 import "./activation.css";
 import "./splash-screen.css";
 import "./library-sections.css";
+import "./i18n.css";
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -33,12 +35,13 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
     void narrate(`The front end crashed: ${error.message || "unknown UI error"}. React component stack: ${info.componentStack || "unavailable"}`, { area: "ERROR", level: "ERROR" });
   }
   render() {
-    if (this.state.error) return <main className="runtime-gate"><section className="runtime-gate-card crash-card"><span className="eyebrow">RECUPERACIÓN DE INTERFAZ</span><h1>GameAccess encontró un error, pero el runtime sigue funcionando.</h1><p>{this.state.error.message || "Error inesperado de interfaz."}</p><button type="button" className="primary" onClick={() => window.location.reload()}>Reintentar</button></section></main>;
+    if (this.state.error) return <main className="runtime-gate"><section className="runtime-gate-card crash-card"><span className="eyebrow">{translate("crashEyebrow")}</span><h1>{translate("crashTitle")}</h1><p>{this.state.error.message || translate("crashUnexpected")}</p><button type="button" className="primary" onClick={() => window.location.reload()}>{translate("retry")}</button></section></main>;
     return this.props.children;
   }
 }
 
 function CatalogShell() {
+  const { t } = useI18n();
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
   const surface = new URLSearchParams(window.location.search).get("surface");
@@ -57,7 +60,7 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label="Acciones del catálogo"><div className="catalog-scroll-action" ref={setActionsTarget} /><button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label="Actualizar lista de juegos" title="Volver a pedir el catálogo al servidor"><span aria-hidden="true">↻</span><strong>Actualizar juegos</strong></button></div> : null}
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="catalog-scroll-action" ref={setActionsTarget} /><button type="button" className="catalog-refresh-button" onClick={refreshCatalog} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><span aria-hidden="true">↻</span><strong>{t("refreshGames")}</strong></button></div> : null}
     <App key={mode} actionsTarget={actionsTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} />
   </>;
 }
