@@ -3,6 +3,8 @@ export interface GameAccessFrontendSettings {
   apiUrl?: string;
   api_url_resolver?: string;
   apiUrlResolver?: string;
+  catalog_manifest_url?: string;
+  catalogManifestUrl?: string;
 }
 
 export type BackendConnectionKind = "local" | "remote" | "offline";
@@ -187,4 +189,11 @@ export async function getBackendConnection(forceRefresh = false): Promise<Backen
 
 export async function getApiBaseUrl(): Promise<string> {
   return (await getBackendConnection()).url;
+}
+
+export async function getCatalogManifestUrl(fetcher: Fetcher = fetch): Promise<string> {
+  const settings = await loadSettings(fetcher);
+  if (!settings) return "";
+  const raw = settingValue(settings, "catalog_manifest_url", "catalogManifestUrl");
+  return normalizeResolverUrl(raw) ?? "";
 }

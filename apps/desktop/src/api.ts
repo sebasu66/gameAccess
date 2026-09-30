@@ -7,13 +7,35 @@ import { getCatalogMode } from "./catalogMode";
 import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
 import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
-import { getApiBaseUrl } from "./settings";
+import { getApiBaseUrl, getCatalogManifestUrl } from "./settings";
+import {
+  readCatalogCache,
+  readCatalogCachedDetail,
+  storeCatalogCachedDetail,
+  syncCatalogCache,
+  upsertCatalogCacheGame,
+} from "./catalogCache";
 import { normalizeSteamStoreMetadata } from "./steamMetadata";
 import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
 
 const DETAIL_TTL_MS = 10 * 60 * 1000;
 
 let localCatalog: CatalogGame[] = [];
+let gameAccessCatalog: CatalogGame[] = [];
+
+interface CatalogAvailability {
+  id: number;
+  app_id: number | null;
+  credit_cost_per_hour: number;
+  copies_total: number;
+  copies_available: number;
+  availability_state: CatalogGame["availability_state"];
+  request_count_total: number;
+  successful_leases: number;
+  demand_value: number;
+  price_factor: number;
+  pool_value: number;
+}
 
 const personalCatalogBuilder = new PersonalCatalog();
 const steamMetadataCache = new Map<string, SteamMetadata>();
@@ -170,6 +192,61 @@ async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
   return games;
 }
 
+async function loadCachedBackendCatalog(): Promise<CatalogGame[]> {
+  const manifestUrl = await getCatalogManifestUrl();
+  let cachedGames: CatalogGame[] = [];
+
+  if (manifestUrl) {
+    try {
+      const sync = await syncCatalogCache(manifestUrl);
+      if (sync) {
+        await narrate(
+          `Catalog cache ${sync.updated ? "updated" : "already current"} at revision ${sync.revision} with ${sync.catalog_count} static game record(s).`,
+          { area: "CATALOG" },
+        );
+      }
+    } catch (error) {
+      await narrate(
+        `Catalog cache synchronization failed; using the last local snapshot if available: ${error instanceof Error ? error.message : String(error)}.`,
+        { area: "CATALOG", level: "WARN" },
+      );
+    }
+  }
+
+  cachedGames = await readCatalogCache().catch(() => []);
+
+  if (!cachedGames.length) {
+    await narrate("No usable local catalog snapshot is available; loading the full backend catalog as fallback.", { area: "CATALOG", level: "WARN" });
+    return loadBackendCatalogPages();
+  }
+
+  const availability = await request<CatalogAvailability[]>("/catalog/availability");
+  const byId = new Map(cachedGames.map((game) => [game.id, game]));
+  const missing = availability.filter((row) => !byId.has(row.id));
+  for (const row of missing) {
+    try {
+      const staticGame = await request<CatalogGame>(`/catalog/static/${row.id}`);
+      byId.set(row.id, staticGame);
+      await upsertCatalogCacheGame(staticGame);
+      await narrate(`Patched catalog cache with newly licensed game ${row.id}.`, { area: "CATALOG" });
+    } catch (error) {
+      await narrate(
+        `Could not patch static metadata for newly licensed game ${row.id}: ${error instanceof Error ? error.message : String(error)}.`,
+        { area: "CATALOG", level: "WARN" },
+      );
+    }
+  }
+
+  return availability.flatMap((live) => {
+    const staticGame = byId.get(live.id);
+    if (!staticGame) return [];
+    return [{
+      ...staticGame,
+      ...live,
+    } satisfies CatalogGame];
+  });
+}
+
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
   const mode = getCatalogMode();
   const api = await getApiBaseUrl();
@@ -208,12 +285,13 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   }
 
   await narrate("Requesting the GameAccess-only catalog and current user profile from the backend.", { area: "BACKEND" });
-  const gameAccessCatalog = new GameAccessCatalog(loadBackendCatalogPages);
+  const catalogLoader = new GameAccessCatalog(loadCachedBackendCatalog);
   const [backendGames, user] = await Promise.all([
-    gameAccessCatalog.load(),
+    catalogLoader.load(),
     request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
   ]);
   const games = await applyBundledCatalogArtwork(backendGames);
+  gameAccessCatalog = games;
   if (!games.length) throw new Error(`GameAccess backend ${api}/catalog returned an empty catalog.`);
 
   void narrateBatch(
@@ -241,9 +319,21 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
     const startedAt = performance.now();
     await narrate(`Loading game details for catalog game ${gameId} in ${getCatalogMode()} mode.`, { area: "GAME" });
     try {
-      const details = getCatalogMode() === "local"
-        ? await loadLocalDetails(gameId)
-        : await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`));
+      let details: GameDetails;
+      if (getCatalogMode() === "local") {
+        details = await loadLocalDetails(gameId);
+      } else {
+        const language = getSteamStoreLanguage();
+        const current = gameAccessCatalog.find((game) => game.id === gameId);
+        const cached = await readCatalogCachedDetail(gameId, language, "ar").catch(() => null);
+        if (cached && current) {
+          details = await applyBundledDetails({ ...cached, ...current, steam: cached.steam });
+          await narrate(`Loaded cached static details for catalog game ${gameId} (${language}/ar).`, { area: "GAME" });
+        } else {
+          details = await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details?language=${encodeURIComponent(language)}&country=ar`));
+          void storeCatalogCachedDetail(gameId, language, "ar", details).catch(() => undefined);
+        }
+      }
       await narrate(`Game details loaded for catalog game ${gameId} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "GAME" });
       return details;
     } catch (error) {

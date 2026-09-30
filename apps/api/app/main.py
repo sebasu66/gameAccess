@@ -13,6 +13,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, text
@@ -158,6 +159,7 @@ class AccessKeyRedeemRequest(BaseModel):
 
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -530,6 +532,77 @@ def catalog(
         )
         for game in games
     ]
+
+
+@app.get("/catalog/availability")
+def catalog_availability(session: Session = Depends(get_session)) -> list[dict]:
+    """Return only live license/demand state; static game metadata is client-cached."""
+    expire_old_leases(session)
+    licensed_ids = licensed_game_ids(session)
+    if not licensed_ids:
+        return []
+    from . import family_capacity
+
+    metrics = family_capacity.catalog_metrics(session, licensed_ids)
+    games = session.exec(
+        select(Game)
+        .where(
+            Game.id.in_(licensed_ids),
+            Game.active == True,  # noqa: E712
+            CATALOG_PRODUCT_FILTER,
+        )
+        .order_by(Game.id)
+    ).all()
+    result: list[dict] = []
+    for game in games:
+        game_id = int(game.id or 0)
+        metric = metrics.get(game_id, {})
+        total = int(metric.get("total", 0))
+        available = int(metric.get("available", 0))
+        result.append({
+            "id": game_id,
+            "app_id": game.app_id,
+            "credit_cost_per_hour": game.credit_cost_per_hour,
+            "copies_total": total,
+            "copies_available": available,
+            "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
+            "request_count_total": int(metric.get("request_count_total", 0)),
+            "successful_leases": int(metric.get("successful_leases", 0)),
+            "demand_value": float(metric.get("demand_value", 1.0)),
+            "price_factor": float(metric.get("price_factor", 1.0)),
+            "pool_value": float(metric.get("pool_value", 1.0)),
+        })
+    return result
+
+
+@app.get("/catalog/static/{game_id}")
+def catalog_static_game(game_id: int, session: Session = Depends(get_session)) -> dict:
+    """Return one static catalog record for cache repair when a new license appears."""
+    game = visible_catalog_game(session, game_id)
+    if not game or not is_game_licensed(session, game.id):
+        raise HTTPException(404, "game not found")
+    metadata = catalog_metadata_for_games(
+        engine,
+        [int(game.id or 0)],
+        connection=session.connection(),
+    )
+    static_metric = {
+        int(game.id or 0): {
+            "total": 0,
+            "available": 0,
+            "request_count_total": 0,
+            "successful_leases": 0,
+            "demand_value": 1.0,
+            "price_factor": 1.0,
+            "pool_value": 1.0,
+        }
+    }
+    return game_summary(
+        session,
+        game,
+        static_metric,
+        metadata.get(int(game.id or 0)),
+    )
 
 
 @app.get("/games/{game_id}/details")

@@ -91,14 +91,14 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = EMPTY_LI
               </div>
             </details>
             <details className="library-search-filter-dropdown">
-              <summary>Funciones de Steam{searchFilters.features.length ? ` · ${searchFilters.features.length}` : ""}</summary>
+              <summary>Modo de juego{searchFilters.features.length ? ` · ${searchFilters.features.length}` : ""}</summary>
               <div className="library-search-filter-menu">
-                <input type="search" value={featureQuery} onChange={event => setFeatureQuery(event.target.value)} placeholder="Buscar función" aria-label="Buscar función de Steam" />
+                <input type="search" value={featureQuery} onChange={event => setFeatureQuery(event.target.value)} placeholder="Buscar modo" aria-label="Buscar modo de juego" />
                 <div className="library-search-filter-options">
                   {LIBRARY_FEATURE_OPTIONS.filter(option => facets.features.includes(option.key) && option.label.toLocaleLowerCase("es").includes(featureQuery.trim().toLocaleLowerCase("es"))).map(({ key, label }) => <label key={key}><input type="checkbox" checked={searchFilters.features.includes(key)} onChange={() => toggleFilter("features", key)} />{label}</label>)}
-                  {!facets.features.length ? <p>No hay funciones de Steam disponibles.</p> : null}
+                  {!facets.features.length ? <p>No hay modos de juego disponibles.</p> : null}
                 </div>
-                {searchFilters.features.length ? <button type="button" onClick={() => onSearchFiltersChange({ ...searchFilters, features: [] })}>Limpiar funciones</button> : null}
+                {searchFilters.features.length ? <button type="button" onClick={() => onSearchFiltersChange({ ...searchFilters, features: [] })}>Limpiar modos</button> : null}
               </div>
             </details>
           </div>

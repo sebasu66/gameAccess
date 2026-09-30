@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "revision": "d98ff72d63ebc514",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-d98ff72d63ebc514.sqlite.gz",
+  "sha256": "3947a16556aeb17b6343458991699b39ccfbff93ed71e2c16c67e2f4f7356cc2",
+  "catalog_count": 10632,
+  "detail_count": 677,
+  "compressed_bytes": 2674694,
+  "uncompressed_bytes": 21569536
+}

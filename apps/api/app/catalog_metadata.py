@@ -62,14 +62,26 @@ def _feature_flags(categories: list[str]) -> dict[str, int | None]:
     values = {str(item).casefold() for item in categories}
     contains = lambda *needles: int(any(any(needle in value for needle in needles) for value in values))
     return {
-        "single_player": contains("single-player", "single player"),
-        "multiplayer": contains("multi-player", "multiplayer"),
-        "coop": contains("co-op", "coop"),
-        "online_coop": contains("online co-op", "online coop"),
-        "local_coop": contains("local co-op", "local coop"),
-        "shared_split_screen": contains("shared/split screen", "split screen"),
-        "mmo": contains("mmo", "massively multiplayer"),
-        "pvp": contains("pvp"),
+        "single_player": contains("single-player", "single player", "un jugador"),
+        "multiplayer": contains("multi-player", "multiplayer", "multijugador"),
+        "coop": contains("co-op", "coop", "cooperativo"),
+        "online_coop": contains("online co-op", "online coop", "cooperativo en línea", "cooperativo en linea"),
+        "local_coop": contains(
+            "local co-op",
+            "local coop",
+            "cooperativo local",
+            "coop. a pantalla",
+            "cooperativo en lan",
+        ),
+        "shared_split_screen": contains(
+            "shared/split screen",
+            "split screen",
+            "pantalla partida",
+            "pantalla compartida",
+            "pantalla (com)partida",
+        ),
+        "mmo": contains("mmo", "massively multiplayer", "multijugador masivo"),
+        "pvp": contains("pvp", "jcj"),
     }
 
 

@@ -8,7 +8,7 @@ import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
-import { getLibrarySearchFacets } from "./librarySearch";
+import { getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
@@ -170,7 +170,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const facets = getLibrarySearchFacets(allGames);
-  const toggleFilter = (group: "genres" | "categories", value: string) => {
+  const toggleFilter = (group: "genres" | "features", value: string) => {
     const current = searchFilters[group] as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
     onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
@@ -257,8 +257,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
           </div>
         <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
         <div className="library-catalog-filter-actions">
-        <LibraryFacetFilter title="Categorías" options={facets.genres.map(value => ({ id: value, label: value }))} selected={searchFilters.genres} onToggle={value => toggleFilter("genres", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, genres: [] })} />
-        <LibraryFacetFilter title="Funciones de Steam" options={facets.categories.map(value => ({ id: value, label: value }))} selected={searchFilters.categories} onToggle={value => toggleFilter("categories", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, categories: [] })} />
+        <LibraryFacetFilter title="Géneros" options={facets.genres.map(value => ({ id: value, label: value }))} selected={searchFilters.genres} onToggle={value => toggleFilter("genres", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, genres: [] })} />
+        <LibraryFacetFilter title="Modo de juego" options={LIBRARY_FEATURE_OPTIONS.filter(option => facets.features.includes(option.key)).map(option => ({ id: option.key, label: option.label }))} selected={searchFilters.features} onToggle={value => toggleFilter("features", value)} onClear={() => onSearchFiltersChange({ ...searchFilters, features: [] })} />
         {view === "catalog" ? <details className="library-sort-dropdown">
           <summary aria-label={`Ordenar por ${selectedSortLabel}`} title={`Ordenar por: ${selectedSortLabel}`}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
           <div className="library-sort-menu" role="group" aria-label="Criterio de orden">

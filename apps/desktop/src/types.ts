@@ -24,7 +24,11 @@ export interface CatalogGame {
   steam_review_score?: number | null;
   steam_review_count?: number | null;
   metacritic_score?: number | null;
+  request_count_total?: number;
   successful_leases?: number;
+  demand_value?: number;
+  price_factor?: number;
+  pool_value?: number;
   single_player?: boolean | null;
   multiplayer?: boolean | null;
   coop?: boolean | null;

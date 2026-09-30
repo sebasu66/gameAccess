@@ -2,6 +2,7 @@
 
 mod automation;
 mod access_activation;
+mod catalog_cache;
 mod download_lifecycle;
 mod game_uninstall;
 mod provider_download;
@@ -576,6 +577,11 @@ fn main() {
             activation_read_session,
             activation_save_session,
             activation_clear_session,
+            catalog_cache::catalog_cache_sync,
+            catalog_cache::catalog_cache_read,
+            catalog_cache::catalog_cache_upsert_game,
+            catalog_cache::catalog_cache_read_detail,
+            catalog_cache::catalog_cache_store_detail,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,
