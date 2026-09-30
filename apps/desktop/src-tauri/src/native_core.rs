@@ -221,17 +221,23 @@ fn library_paths_from_vdf(text: &str) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     for line in text.lines() {
         let parts: Vec<&str> = line.split('"').collect();
-        if parts.len() >= 4 && parts[1].eq_ignore_ascii_case("path") {
-            paths.push(PathBuf::from(parts[3].replace("\\\\", "\\")));
+        for (index, part) in parts.iter().enumerate() {
+            if part.eq_ignore_ascii_case("path") && index + 2 < parts.len() {
+                paths.push(PathBuf::from(parts[index + 2].replace("\\\\", "\\")));
+                break;
+            }
         }
     }
     paths
 }
 
 fn same_library_path(left: &Path, right: &Path) -> bool {
-    let left = left.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
-    let right = right.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
-    left == right
+    let normalize = |path: &Path| {
+        path.to_string_lossy()
+            .trim_end_matches(|character| character == '\\' || character == '/')
+            .to_ascii_lowercase()
+    };
+    normalize(left) == normalize(right)
 }
 
 fn push_unique_library_root(roots: &mut Vec<PathBuf>, candidate: PathBuf) {
