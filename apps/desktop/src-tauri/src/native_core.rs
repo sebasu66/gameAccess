@@ -217,36 +217,74 @@ fn quoted_value(text: &str, key: &str) -> Option<String> {
     None
 }
 
+fn library_paths_from_vdf(text: &str) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for line in text.lines() {
+        let parts: Vec<&str> = line.split('"').collect();
+        if parts.len() >= 4 && parts[1].eq_ignore_ascii_case("path") {
+            paths.push(PathBuf::from(parts[3].replace("\\\\", "\\")));
+        }
+    }
+    paths
+}
+
+fn same_library_path(left: &Path, right: &Path) -> bool {
+    let left = left.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    let right = right.to_string_lossy().trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    left == right
+}
+
+fn push_unique_library_root(roots: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !roots.iter().any(|existing| same_library_path(existing, &candidate)) {
+        roots.push(candidate);
+    }
+}
+
 pub fn steam_library_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(steam_exe) = find_steam_exe() {
-        if let Some(root) = steam_exe.parent() {
-            roots.push(root.to_path_buf());
-            let libraries = root.join("steamapps").join("libraryfolders.vdf");
-            if let Ok(text) = fs::read_to_string(libraries) {
-                for line in text.lines() {
-                    let parts: Vec<&str> = line.split('"').collect();
-                    if parts.len() >= 4 && parts[1].eq_ignore_ascii_case("path") {
-                        let candidate = PathBuf::from(parts[3].replace("\\\\", "\\"));
-                        if !roots.iter().any(|existing| existing == &candidate) {
-                            roots.push(candidate);
-                        }
-                    }
-                }
-            }
+    let Some(steam_exe) = find_steam_exe() else {
+        return Vec::new();
+    };
+    let Some(root) = steam_exe.parent() else {
+        return Vec::new();
+    };
+
+    let mut roots = vec![root.to_path_buf()];
+    for libraries in [
+        root.join("config").join("libraryfolders.vdf"),
+        root.join("steamapps").join("libraryfolders.vdf"),
+    ] {
+        let Ok(text) = fs::read_to_string(libraries) else {
+            continue;
+        };
+        for candidate in library_paths_from_vdf(&text) {
+            push_unique_library_root(&mut roots, candidate);
         }
     }
     roots
 }
 
-fn manifest_for(app_id: u32) -> Option<PathBuf> {
-    steam_library_roots()
+pub fn steam_manifest_path(app_id: u32) -> Option<PathBuf> {
+    let manifests: Vec<PathBuf> = steam_library_roots()
         .into_iter()
-        .map(|root| {
-            root.join("steamapps")
-                .join(format!("appmanifest_{app_id}.acf"))
+        .map(|root| root.join("steamapps").join(format!("appmanifest_{app_id}.acf")))
+        .filter(|path| path.is_file())
+        .collect();
+
+    manifests
+        .iter()
+        .find(|path| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|text| quoted_value(&text, "StateFlags"))
+                .and_then(|value| value.parse::<u32>().ok())
+                .is_some_and(|flags| flags & 4 == 4)
         })
-        .find(|path| path.is_file())
+        .cloned()
+        .or_else(|| manifests.into_iter().next())
+}
+
+fn manifest_for(app_id: u32) -> Option<PathBuf> {
+    steam_manifest_path(app_id)
 }
 
 pub fn steam_download_status(app_id: u32) -> SteamDownloadStatus {
@@ -458,7 +496,7 @@ pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
     } else {
         PathBuf::from("python")
     };
-    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root,local_library_apps; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set(); recent={};
+    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root,local_library_apps; from steam_appinfo import read_local_app_catalog; from pool_sync import _steam_library_folders; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set(); recent={};
 for account in p.get('accounts',[]):
  for aid,info in local_library_apps(int(account.get('user_id32') or 0)).items():
   value=str(next((v for k,v in info.items() if k.lower()=='lastplayed'),0));
@@ -469,7 +507,7 @@ for app_id,item in cat.items():
 accounts=[]
 for a in p.get('accounts',[]):
  accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'runnable_app_ids':[x for x in (a.get('runnable_app_ids') or []) if x in valid],'runnable_verified':bool(a.get('runnable_verified')),'runnable_verified_at':a.get('runnable_verified_at'),'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'ticketed_app_count':int(a.get('ticketed_app_count') or 0),'ownership_source':a.get('ownership_source') or 'unverified','ownership_verified':bool(a.get('ownership_verified')),'ownership_verified_at':a.get('ownership_verified_at'),'active':bool(a.get('active'))})
-out={'source':p.get('ownership_source') or 'none','verification_complete':bool(p.get('ownership_complete')),'verified_at':p.get('ownership_verified_at'),'ownership_error':p.get('ownership_error'),'verified_account_count':int(p.get('verified_account_count') or 0),'runnable_account_count':int(p.get('runnable_account_count') or 0),'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
+out={'source':p.get('ownership_source') or 'none','verification_complete':bool(p.get('ownership_complete')),'verified_at':p.get('ownership_verified_at'),'ownership_error':p.get('ownership_error'),'verified_account_count':int(p.get('verified_account_count') or 0),'runnable_account_count':int(p.get('runnable_account_count') or 0),'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':_steam_library_folders(root)}; print(json.dumps(out,ensure_ascii=False))"#;
     let output = Command::new(&python)
         .current_dir(&launcher)
         .env("PYTHONUTF8", "1")
@@ -700,7 +738,25 @@ pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::read_local_steam_pool;
+    use super::{library_paths_from_vdf, read_local_steam_pool};
+
+    #[test]
+    fn parses_all_configured_steam_library_paths() {
+        let paths = library_paths_from_vdf(
+            r#"
+            "libraryfolders"
+            {
+                "0" { "path" "C:\\\\Program Files (x86)\\\\Steam" }
+                "1" { "path" "E:\\\\SteamLibrary" }
+                "2" { "path" "F:\\\\SteamLibrary" }
+            }
+            "#,
+        );
+        assert_eq!(paths.len(), 3);
+        assert!(paths[0].to_string_lossy().contains("Program Files"));
+        assert!(paths[1].to_string_lossy().contains("E:"));
+        assert!(paths[2].to_string_lossy().contains("F:"));
+    }
 
     #[test]
     fn local_steam_pool_contains_real_games_and_accounts() {
