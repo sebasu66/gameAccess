@@ -170,6 +170,12 @@ For Windows, a future provider/session helper may run as a separate Windows Serv
 
 However, on a customer-owned PC with administrator access, no local secret can be guaranteed permanently unextractable. Design around revocation, limited leases, monitoring, replacement cost, and minimal stored secrets rather than pretending local encryption makes the client trustworthy.
 
+## Steam library discovery
+
+GameAccess must treat every Steam Library configured by the local Steam client as one installation namespace for disk-state purposes. Library discovery checks the current `config/libraryfolders.vdf` and the legacy/currently mirrored `steamapps/libraryfolders.vdf`, preserves Steam's library indices, and deduplicates paths case-insensitively on Windows. Installed-state checks, appmanifest lookup, download metrics, folder opening, freeze/thaw discovery, and provider import/reconciliation must never assume the primary Steam root is the only library.
+
+When the same AppID has manifests in more than one library, prefer a manifest whose `StateFlags` contains the Fully Installed bit (`4`) before falling back to another manifest.
+
 ## Local game storage / Freeze
 
 GameAccess owns a local-only **Frozen** storage state that Steam does not need to understand. This state belongs in the Windows/Tauri native layer, not in the central backend. The desktop discovers it from disk each time it loads the user's local library.
