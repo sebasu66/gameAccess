@@ -303,15 +303,17 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   gameAccessCatalog = games;
   if (!games.length) throw new Error(`GameAccess backend ${api}/catalog returned an empty catalog.`);
 
-  void narrateBatch(
-    games.map((game) => {
-      const decision = game.copies_available > 0
-        ? `PLAYABLE NOW because GameAccess reports ${game.copies_available} available license copy/copies.`
-        : game.copies_total > 0
-          ? `NOT PLAYABLE NOW because all ${game.copies_total} GameAccess license copy/copies are currently unavailable.`
-          : "NOT PLAYABLE NOW because GameAccess reports zero license copies for this game.";
-      return `${game.name}${game.app_id ? ` (Steam AppID ${game.app_id})` : ""}. GameAccess license state: copies_total=${game.copies_total}, copies_available=${game.copies_available}, availability_state=${game.availability_state}. Decision: ${decision}`;
-    }),
+  const availabilitySummary = games.reduce(
+    (summary, game) => {
+      if (game.copies_available > 0) summary.ready += 1;
+      else if (game.copies_total > 0) summary.busy += 1;
+      else summary.unavailable += 1;
+      return summary;
+    },
+    { ready: 0, busy: 0, unavailable: 0 },
+  );
+  await narrate(
+    `GameAccess availability overlay: ${availabilitySummary.ready} playable now, ${availabilitySummary.busy} owned but busy, ${availabilitySummary.unavailable} unavailable; ${games.length} games total.`,
     { area: "AVAILABILITY" },
   );
   await narrate(`GameAccess backend catalog loaded successfully with ${games.length} game(s).`, { area: "CATALOG" });
