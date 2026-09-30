@@ -241,7 +241,10 @@ fn same_library_path(left: &Path, right: &Path) -> bool {
 }
 
 fn push_unique_library_root(roots: &mut Vec<PathBuf>, candidate: PathBuf) {
-    if !roots.iter().any(|existing| same_library_path(existing, &candidate)) {
+    if !roots
+        .iter()
+        .any(|existing| same_library_path(existing, &candidate))
+    {
         roots.push(candidate);
     }
 }
@@ -272,7 +275,10 @@ pub fn steam_library_roots() -> Vec<PathBuf> {
 pub fn steam_manifest_path(app_id: u32) -> Option<PathBuf> {
     let manifests: Vec<PathBuf> = steam_library_roots()
         .into_iter()
-        .map(|root| root.join("steamapps").join(format!("appmanifest_{app_id}.acf")))
+        .map(|root| {
+            root.join("steamapps")
+                .join(format!("appmanifest_{app_id}.acf"))
+        })
         .filter(|path| path.is_file())
         .collect();
 
