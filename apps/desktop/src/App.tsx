@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
-import SteamGlobalSearch from "./SteamGlobalSearch";
 import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
+import AppDialog from "./AppDialog";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
+import { discardInterruptedDownload, getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, reconcileDownloadStaging, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
@@ -22,12 +22,24 @@ import SteamInstallFallbackDialog from "./SteamInstallFallbackDialog";
 import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
+import { narrate } from "./narrationLog";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
   Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
 
-export default function App() {
+export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const update = () => document.documentElement.style.setProperty("--catalog-header-height", `${header.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    update();
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty("--catalog-header-height"); };
+  }, []);
   const [games, setGames] = useState<CatalogGame[]>([]);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
@@ -44,6 +56,10 @@ export default function App() {
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
+  const [recoveryQueue, setRecoveryQueue] = useState<SteamDownloadStatus[]>([]);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
@@ -59,14 +75,20 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("gameaccess:recent") || "[]"); } catch { return []; }
   });
   const steamFallbackPendingRef = useRef(new Set<number>());
+  const stagingReconciliationStartedRef = useRef(false);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refresh = useCallback(async () => {
+    const startedAt = performance.now();
+    void narrate("Library catalog refresh started.", { area: "CATALOG" });
     setLoading(true);
     try {
       const home = await loadHome();
       setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
+      void narrate(`Library catalog refresh completed with ${home.games.length} game(s) in ${Math.round(performance.now() - startedAt)} ms.`, { area: "CATALOG" });
     } catch (error) {
+      setOfflineDemo(true);
+      void narrate(`Library catalog refresh failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
       setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
     } finally { setLoading(false); }
   }, []);
@@ -91,15 +113,28 @@ export default function App() {
     }).catch(() => undefined);
     // Provider download state is durable on disk. Rehydrate it after F5/WebView
     // reload so active downloads and Play-ready prepared games survive React state loss.
-    steamManagedDownloadStatuses().then((statuses) => {
-      const durableMap: DownloadMap = {};
-      for (const status of statuses) {
-        durableMap[status.app_id] = status;
-      }
-      if (Object.keys(durableMap).length) {
-        setDownloads((current) => ({ ...current, ...durableMap }));
-      }
-    }).catch(() => undefined);
+    if (!stagingReconciliationStartedRef.current) {
+      stagingReconciliationStartedRef.current = true;
+      void (async () => {
+        try {
+          const interrupted = await reconcileDownloadStaging();
+          setRecoveryQueue(interrupted);
+          void narrate(`Startup download reconciliation found ${interrupted.length} interrupted download(s) requiring a choice.`, { area: "DOWNLOAD" });
+        } catch (error) {
+          void narrate(`Startup download reconciliation failed: ${error instanceof Error ? error.message : String(error)}.`, { area: "DOWNLOAD", level: "ERROR" });
+          setToast(`No pudimos revisar las descargas interrumpidas: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        try {
+          const statuses = await steamManagedDownloadStatuses();
+          const durableMap: DownloadMap = {};
+          for (const status of statuses) durableMap[status.app_id] = status;
+          if (Object.keys(durableMap).length) setDownloads((current) => ({ ...current, ...durableMap }));
+        } catch (error) {
+          void narrate(`Startup could not restore durable download statuses: ${error instanceof Error ? error.message : String(error)}.`, { area: "DOWNLOAD", level: "WARN" });
+        }
+        setRecoveryReady(true);
+      })();
+    }
   }, [refresh]);
 
   const hasPendingSteamMetadata = useMemo(() => games.some(isPendingSteamMetadata), [games]);
@@ -282,7 +317,7 @@ export default function App() {
         setSelected(null); setLibraryOpen(false); setSession(null);
         await captureStep(profile, "home", [
           { selector: ".brand", label: "Brand", minWidth: 120, minHeight: 32 },
-          { selector: ".topbar-actions .global-search", label: "Global search", minWidth: 180, minHeight: 36 },
+          { selector: ".library-catalog-toolbar .global-search", label: "Library search", minWidth: 220, minHeight: 36 },
           { selector: ".hero", label: "Featured game", minWidth: 600, minHeight: 260 },
           { selector: ".game-card", label: "Library game card", minWidth: 100, minHeight: 160 },
         ]);
@@ -378,7 +413,10 @@ export default function App() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [selected?.app_id]);
 
-  const openGame = (game: CatalogGame) => setSelected(game);
+  const openGame = (game: CatalogGame) => {
+    void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });
+    setSelected(game);
+  };
 
   const rememberRecent = (game: CatalogGame) => {
     const next = [game.id, ...recentIds.filter((id) => id !== game.id)].slice(0, 10);
@@ -394,7 +432,7 @@ export default function App() {
     setToast(value === 1 ? "Lo tendremos en cuenta para recomendarte juegos." : "Perfecto, veremos menos juegos de este estilo.");
   };
 
-  const startDownload = async (game: CatalogGame) => {
+  const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
     if (!game.app_id) return;
     const gameAccessMode = getCatalogMode() === "gameaccess";
     const markRequested = () => {
@@ -403,14 +441,58 @@ export default function App() {
     };
     try {
       if (gameAccessMode) steamFallbackPendingRef.current.add(game.app_id);
-      await openSteamInstall(game.app_id);
+      await openSteamInstall(game.app_id, recovery);
       rememberRecent(game);
       const status = await steamDownloadStatus(game.app_id);
       setDownloads((current) => ({ ...current, [game.app_id!]: status }));
       setToast(status.error ?? "Solicitud aceptada. gameAccess mostrará la preparación y el progreso real.");
     } catch (directError) {
       steamFallbackPendingRef.current.delete(game.app_id);
+      if (recovery) throw directError;
       setSteamInstallFallback({ game, error: directError instanceof Error ? directError.message : String(directError) });
+    }
+  };
+
+  const pendingRecovery = recoveryQueue[0];
+  const pendingRecoveryGame = pendingRecovery ? games.find((game) => game.app_id === pendingRecovery.app_id) : undefined;
+  const finishRecovery = () => {
+    setRecoveryError(null);
+    setRecoveryBusy(false);
+    setRecoveryQueue((current) => current.slice(1));
+  };
+  const resumeInterruptedDownload = async () => {
+    if (!pendingRecovery || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      if (pendingRecoveryGame) {
+        await startDownload(pendingRecoveryGame, { providerId: pendingRecovery.provider_id, libraryIndex: pendingRecovery.library_index });
+      } else {
+        await openSteamInstall(pendingRecovery.app_id, { providerId: pendingRecovery.provider_id, libraryIndex: pendingRecovery.library_index });
+      }
+      finishRecovery();
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+  const discardInterruptedStaging = async () => {
+    if (!pendingRecovery || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      await discardInterruptedDownload(pendingRecovery);
+      setDownloads((current) => {
+        const next = { ...current };
+        if (next[pendingRecovery.app_id]?.state === "interrupted") delete next[pendingRecovery.app_id];
+        return next;
+      });
+      finishRecovery();
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRecoveryBusy(false);
     }
   };
 
@@ -443,6 +525,7 @@ export default function App() {
 
   const launchLocal = async (game: CatalogGame) => {
     if (!game.app_id) return;
+      void narrate(`Local game launch flow started for Steam AppID ${game.app_id}.`, { area: "LAUNCH" });
       const trace = [`AppID solicitado = ${game.app_id}`, `Buscando el propietario verificado de la licencia para AppID ${game.app_id}`];
       if (!game.local_account_labels?.length || !game.local_primary_account_label) {
         trace.push(`No hay un propietario verificado disponible para AppID ${game.app_id}`);
@@ -468,6 +551,7 @@ export default function App() {
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
       } catch (err) {
         trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+        void narrate(`Local game launch failed for Steam AppID ${game.app_id}: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
         setSession({ game, phase: "error", title: "No pudimos iniciar la sesión local", detail: err instanceof Error ? err.message : String(err), log: [...trace] });
       } finally {
         setLeaseBusy(false);
@@ -476,6 +560,8 @@ export default function App() {
   };
 
   const doLease = async (game: CatalogGame) => {
+    const startedAt = performance.now();
+    void narrate(`Play flow started for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "LAUNCH" });
     setSelected(null);
     rememberRecent(game);
     setLeaseBusy(true);
@@ -510,6 +596,7 @@ export default function App() {
         leaseForRollback = null;
         await wait(450);
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
+        void narrate(`Provider game launch flow completed for Steam AppID ${lease.game.app_id} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "LAUNCH" });
       } else {
         // A waiting adapter intentionally owns the reservation.
         leaseForRollback = null;
@@ -517,6 +604,7 @@ export default function App() {
       }
       await refresh();
     } catch (err) {
+      void narrate(`Play flow failed for catalog game ${game.id} after ${Math.round(performance.now() - startedAt)} ms: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
       if (leaseForRollback) {
         await releaseFailedLease(leaseForRollback);
         leaseForRollback = null;
@@ -591,15 +679,11 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar topbar-glass">
+      <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
-        <nav className="glass-nav">
-          <button type="button" className="glass-static-nav active"><span>Inicio</span></button>
-          <button type="button" className="glass-static-nav"><span>Explorar</span></button>
-          <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
-        </nav>
+        {catalogNavigation}
+        <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
@@ -608,7 +692,7 @@ export default function App() {
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} />
+        <LibraryRoom toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
@@ -624,9 +708,22 @@ export default function App() {
       </main>
 
       {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
-      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
+      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}
+      {pendingRecovery && recoveryReady && !loading ? <AppDialog
+        title={`Descarga interrumpida · ${pendingRecoveryGame?.name ?? `Steam ${pendingRecovery.app_id}`}`}
+        message={`Encontré archivos temporales de una descarga que no terminó${pendingRecovery.progress != null ? ` (aprox. ${Math.round(pendingRecovery.progress)}% registrado)` : ""}. Podés reanudarla usando esos archivos o descartarlos.${recoveryError ? `\n\nNo se pudo completar la acción: ${recoveryError}` : ""}`}
+        tone="warning"
+        confirmLabel={recoveryBusy ? "Preparando…" : "Reanudar descarga"}
+        cancelLabel="Descartar archivos"
+        initialAction="confirm"
+        confirmDisabled={recoveryBusy}
+        cancelDisabled={recoveryBusy}
+        onConfirm={() => void resumeInterruptedDownload()}
+        onCancelAction={() => void discardInterruptedStaging()}
+        onClose={() => undefined}
+      /> : null}
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );

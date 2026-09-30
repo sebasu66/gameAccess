@@ -21,6 +21,8 @@ export interface CatalogGame {
   short_description?: string;
   release_date?: string | null;
   recommendation_count?: number | null;
+  steam_review_score?: number | null;
+  steam_review_count?: number | null;
   metacritic_score?: number | null;
   successful_leases?: number;
   single_player?: boolean | null;

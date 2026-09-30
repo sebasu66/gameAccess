@@ -6,6 +6,45 @@
 > Keep this file ordered by priority. When a task is completed, mark it `[x]` and add a short result/commit note where useful. New work should be inserted according to dependency/priority rather than simply appended.
 
 
+## P0 — Beta de acceso por tiempo (plan vigente)
+
+> Este bloque recoge las decisiones recientes. El acceso plano por tiempo sustituye las fichas, el saldo y el cobro por juego de las secciones históricas de este TODO. Las suscripciones mensuales y el actualizador automático se posponen.
+
+### Activación y arranque
+
+- [x] Pantalla de clave con portadas reales del catálogo, mensaje de acceso temporal y enlace a una página interna para obtener la clave. Se verificó el canje de una clave de 12 horas desde el frontend contra una base de prueba aislada.
+- [x] Claves de cortesía reutilizables para desarrollo y testers desde el archivo privado `apps/api/courtesy-keys.json`. Cada canje crea una sesión distinta por instalación, válida un mes; editar o quitar la clave invalida sus sesiones vigentes. El archivo queda fuera de Git.
+- [ ] Terminar la pantalla inicial de Tauri: bloquear catálogo, descargas y juego hasta verificar una activación vigente; incluir campo de clave manual, vencimiento, errores y reintento, usando los diálogos propios de Game Access.
+- [ ] Generar un identificador persistente por instalación. El servidor emite claves aleatorias de un solo uso con duración configurable (primera oferta: 12 horas), registra activación y vencimiento en UTC desde el primer canje, vincula el canje a una instalación y permite revocar. Preparar emisión administrativa segura. No confiar en el reloj ni en un contador continuo del cliente.
+- [ ] Aplicar la activación en cada endpoint protegido del servidor, incluidos catálogo, asignación y lanzamiento. Definir contenido previo a la activación, renovación, comportamiento sin conexión, reintento y tratamiento de sesiones en curso al vencer.
+- [ ] Añadir splash/tablero con logo, bienvenida beta, explicación expandible, instrucciones y enlace para obtener acceso. Al abrir, consultar estado del servidor, avisos, versión mínima y URL de descarga; mostrar actualización recomendada u obligatoria y bloquear versiones viejas también en la API. Actualización manual por ahora.
+- [ ] Quitar las fichas del flujo activo y contratos de la beta; preservar los datos anteriores hasta definir su migración. El plazo de acceso habilita todas las funciones previstas de forma uniforme.
+
+### Linkvertise
+
+- [ ] Grabar e incorporar el video real del recorrido de Linkvertise en la página de instrucciones. Conectar el botón de salida al enlace emitido por el servidor una vez configurada la cuenta y la verificación oficial; no mostrar una clave sin esa comprobación.
+- [ ] Mantener un enlace corto reutilizable y destino propio. Verificar en el servidor la prueba oficial de finalización de Linkvertise antes de emitir cada clave; rechazar pruebas ausentes, vencidas o repetidas. Guardar credenciales solo en el servidor, registrar emisión/canje y limitar abusos. Las 12 horas corresponden al acceso, no al enlace.
+- [ ] Tras verificar Linkvertise, asociar de forma segura el navegador con un intento de activación de la instalación que abrió el enlace; Tauri consulta ese intento y entra automáticamente al recibir el permiso. Preparar página de retorno que muestre estado, vencimiento y, como respaldo, clave con botón de copia. No incluir claves ni sesiones en URLs; probar extremo a extremo con la cuenta real antes de abrirlo. Otros acortadores quedan para después.
+
+### Español e inglés
+
+- [ ] Agregar selector persistente español/inglés y traducir UI, acceso, splash, ayuda, diálogos, mensajes del servidor y errores. Definir idioma inicial y alternativa cuando falta una traducción.
+- [ ] Obtener y almacenar metadatos de Steam por AppID e idioma (descripciones, géneros y funciones). Usar identificadores estables para filtros y búsqueda, sin mezclar etiquetas ni duplicar juegos. Completar antes del catálogo definitivo.
+
+### Continuidad de partidas
+
+- [ ] Medir cobertura y calidad de rutas por juego en `game_data_path` e importación PCGamingWiki; comprobar rutas Windows, Steam userdata, Documentos y AppData antes de alterar archivos del usuario.
+- [ ] Crear perfil local de progreso por usuario de Game Access y juego. En juegos compatibles, respaldar originales, preparar rutas para la cuenta Steam asignada antes de jugar, capturar progreso al salir y permitir restauración. Evaluar enlaces/junctions solo por ruta verificada, con juego y Steam cerrados, sin escrituras simultáneas ni conflictos de Steam Cloud.
+- [ ] Registrar compatibilidad por juego y excluir transferencia automática si el guardado exige SteamID interno u otra condición especial. Avisar en la ficha y en Ayuda, con Dark Souls III y Elden Ring como ejemplos que requieren prueba real; esos casos quedan a cargo del usuario.
+
+### Publicación y operación
+
+- [ ] Migrar el estado central de SQLite a PostgreSQL/Supabase con migración de datos, secretos solo en servidor, respaldos y recuperación. Evaluar la pausa por inactividad del plan elegido.
+- [ ] Publicar API HTTPS en un host independiente del cliente (Replit, no Replicate, es candidato beta). Medir arranque en frío, disponibilidad y capacidad; pasar a instancia siempre activa/VPS cuando sea necesario.
+- [ ] Publicar landing y descarga Windows en URL estable (Cloudflare Pages es candidato). Configurar dirección/resolvedor estable para que el cliente encuentre la API aunque cambie el host real. Versionar el instalador.
+- [ ] Verificar instalación limpia y flujo completo: bloqueo, emisión/canje único, vencimiento/revocación, Linkvertise, versión mínima, ambos idiomas, juego, cambio de cuenta y guardados compatibles. Revisar credenciales Steam, concurrencia real y condiciones de plataforma antes del lanzamiento comercial.
+
+
 ## Current operating model — two parallel fronts
 
 El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Steam es la puerta de entrada del producto y debe alcanzar una interacción confiable antes de agregar demasiadas capas de experiencia. El frente 3D/social debe investigar y validar recursos reutilizables, construir un prototipo independiente y luego integrarlo en Tauri.
@@ -34,9 +73,6 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Registrar evidencias de cada prueba: versión de Steam, sistema operativo, cuentas de prueba, juego, pasos, resultado y limitaciones.
 - [ ] Convertir cada caso validado en un perfil de compatibilidad por juego, sin prometer compatibilidad universal.
 - [ ] Priorizar una prueba end-to-end: seleccionar cuenta autorizada -> detectar juego -> instalar si falta -> iniciar -> ejecutar -> detectar cierre -> restaurar Game Access.
-- [ ] Añadir soporte previsto para dos monitores: preferir ejecutar Steam/juego en la segunda pantalla y mantener Game Access activo en la primera.
-- [ ] Probar posiciones de ventana, pantalla completa, launchers secundarios y juegos que ignoran la posición solicitada.
-- [ ] Crear un panel de acompañamiento en la primera pantalla con juego actual, cuenta, estado, amigos, chat, voz, notas y referencias sin inyectarse en el proceso del juego.
 
 ### Frente B — Recursos open source para prototipo 3D/social
 
@@ -69,7 +105,6 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Mantener ambos frentes desacoplados: el prototipo 3D no debe bloquear la estabilización de Steam y la integración Steam no debe obligar a terminar el mundo completo.
 - [ ] Compartir solamente contratos comunes: GameRecord, Room, Presence, SharedMediaState, SteamSessionState y eventos de lanzamiento/retorno.
 - [ ] Integrar primero un vertical slice pequeño: salón público + sección privada mínima + video sincronizado + voz + lanzamiento de un juego representativo mediante Steam.
-- [ ] Validar dos monitores dentro de ese vertical slice: Game Access en primera pantalla, juego/Steam preferentemente en segunda pantalla y retorno al entorno después del cierre.
 
 ## P0 — Authoritative catalog build + packaged artwork
 
@@ -105,12 +140,31 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [ ] Classify existing API calls: machine-local operations move behind Tauri/native adapters; shared/global operations remain central backend calls.
 - [ ] Add environment/config handling for development backend URL vs later production backend URL.
 - [ ] Preserve browser/Vite mode only as a development convenience.
+- [x] Improve desktop logging so startup, catalog loading and pagination, game opening, and errors can be traced end to end; verify or add log rotation and size limits so log files cannot grow indefinitely. Logs now record catalog page timings, infinite-scroll batches, game detail and launch outcomes, startup recovery, and errors. The dedicated log rotates at 2 MiB with one 2 MiB archive; provider download JSONL logs rotate at 1 MiB with one 1 MiB archive; oversized entries are truncated.
+- [x] Audit generated files and folders and their cleanup, especially across game installation and uninstallation, to prevent orphaned directories, leftover files, and uncontrolled disk growth. Startup reconciliation now clears only stale prepared/installed status JSON after every known Steam library has neither its manifest nor install directory, and only when no staging folder exists. Active or resumable staging is preserved. Failed DepotDownloader bootstrap transfers now remove their temporary ZIP. Steam owns installed-game removal; credentials and user-requested automation output are retained. Download and log rotation are bounded.
+- [ ] Audit the reported remaining size of more than 5 GB in the Game Access Dev folder. Measure the contributors and distinguish downloaded game data, Rust/Tauri build artifacts, and runtime-required dependencies; identify safe ways to reduce or regenerate excess files without affecting application execution.
+- [x] Replace native/browser alerts, confirmations, and prompts across Game Access with reusable in-app dialogs based on the existing styled Play dialog; support the needed message and action variants while preserving the app's visual style and accessible focus behavior. `5805a51`
+
+## P1 — Catalog and library navigation
+
+- [x] Rebuild the library navigation tool strip on one line at the current search field's vertical position, in this order: `Catalog`, `Installed` only when it has games, `Favorites` only when it has games, search input, category selector, and Steam-features selector populated from the database. Replace the `Latest`, `Popular`, and `Top` tabs with the single `Catalog` tab, and restore the category and Steam-features filters if they are missing. `c2e9af7`
+- [x] Add a compact sort-icon button to the same tool-strip line; clicking it opens the selector with exactly these criteria: release date (`Latest`), Steam popularity, review rating, and A-to-Z. `c2e9af7`
+- [x] Make infinite-scroll batch sizing responsive to the library viewport/container and game-card grid, including window resizes; load enough cards to fill the visible area plus a buffer instead of using a fixed batch of 40 that leaves a blank gap. `59e55f2`
+- [x] Move the `Back to top` control from the top toolbar to near the bottom of the viewport, where it remains easy to reach while the user scrolls. `59e55f2`
+- [x] After the library controls have been rearranged, review and refine the interface's overall visual styling. Refined the toolbar as a segmented control group with consistent search/filter surfaces, clearer active states, and a compact icon-only sort action. Responsive wrapping now follows the actual library column width instead of the overall window width.
+- [x] Fix toolbar vertical alignment: keep the search field at its original height and move the tabs, category and Steam-feature filters, and sort control up to that row. The current implementation moved the search field down to the former tab row, contrary to the requested layout.
+- [x] Keep the controls in the shared header above both detail and catalog panes, including searches with no results. This supersedes the earlier request to anchor the strip within the catalog pane.
+- [x] Correct filter taxonomy: Categorías lists database genres; Funciones de Steam lists full database Steam categories instead of the limited boolean feature list.
+- [x] Highlight the control strip in fluorescent green, enlarge collection labels, distinguish the three tabs with coordinated colors, and space source/collection/search/filter groups.
+- [x] Group Volver arriba with Actualizar juegos in the same bottom action bar to prevent overlap.
 
 ## P1 — Local Steam integration and unified library
 
 - [ ] Detect Steam installation reliably on Windows.
 - [ ] Discover Steam users/accounts already known on the local machine using supported/non-secret local state.
 - [ ] Discover installed games and determine available ownership/library information per local Steam identity as reliably as possible.
+- [x] After a depot download has been copied successfully into the selected Steam library and the copied payload is verified, remove its temporary Game Access staging files; preserve staging if copying or verification fails. Steam target paths and matching pre-existing files are checked before cleanup.
+- [x] On Game Access startup, reconcile the download staging folder: identify junk/obsolete files separately from interrupted downloads, preserve downloads that can resume, and show a modal for each resumable interrupted download asking whether to resume it or discard its files. Discard staging only after the user chooses that option. Active workers are checked before reconciliation; discard revalidates status and path identity.
 - [ ] Build a unified game-centric local model across multiple local Steam users.
 - [ ] Clearly classify each game/access path: `OWNED_LOCAL`, `BUY_STEAM`, `GAMEACCESS_SHARED`, `GAMEACCESS_PRIVATE` (names may evolve).
 - [ ] For owned games, select/use the appropriate local Steam identity without involving paid gameAccess allocation.

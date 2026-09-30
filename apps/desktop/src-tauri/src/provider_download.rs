@@ -81,6 +81,9 @@ fn python_executable(launcher: &Path) -> PathBuf {
 fn manager_script(launcher: &Path) -> PathBuf {
     launcher.join("provider_download_manager.py")
 }
+fn reconciliation_script(launcher: &Path) -> PathBuf {
+    launcher.join("download_reconciliation.py")
+}
 fn status_path(launcher: &Path, app_id: u32) -> PathBuf {
     launcher
         .join(".gameaccess")
@@ -145,6 +148,125 @@ pub fn provider_download_statuses() -> Result<Vec<ProviderDownloadStatus>, Strin
     }
     statuses.sort_by_key(|status| status.app_id);
     Ok(statuses)
+}
+
+fn reconciliation_command(launcher: &Path, args: &[String]) -> Result<serde_json::Value, String> {
+    let python = python_executable(launcher);
+    let script = reconciliation_script(launcher);
+    if !script.is_file() {
+        return Err("GameAccess download reconciliation script is missing".into());
+    }
+    let mut command = Command::new(python);
+    command
+        .current_dir(launcher)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .arg(script)
+        .args(args);
+    hide_window(&mut command);
+    let output = command
+        .output()
+        .map_err(|err| format!("Could not run download reconciliation: {err}"))?;
+    let payload = parse_last_json_line(&output.stdout)?;
+    if !output.status.success() {
+        return Err(payload
+            .get("error")
+            .and_then(|value| value.as_str())
+            .unwrap_or("Download reconciliation failed")
+            .to_string());
+    }
+    Ok(payload)
+}
+
+fn reconcile_download_staging_blocking() -> Result<Vec<ProviderDownloadStatus>, String> {
+    let _guard = start_mutex()
+        .lock()
+        .map_err(|_| "Provider download start lock is poisoned".to_string())?;
+    let launcher = launcher_dir()?;
+
+    for mut status in provider_download_statuses()? {
+        if !is_active_state(&status.state) {
+            continue;
+        }
+        #[cfg(target_os = "windows")]
+        let worker_valid = match (status.worker_pid, status.job_id.as_deref()) {
+            (Some(pid), Some(job_id)) => {
+                verify_worker_process(pid, status.app_id, job_id, &manager_script(&launcher))?
+            }
+            _ => false,
+        };
+        #[cfg(not(target_os = "windows"))]
+        let worker_valid = status.worker_pid.is_some() && status.job_id.is_some();
+        if worker_valid {
+            continue;
+        }
+        status.state = "interrupted".into();
+        status.progress = status.progress.filter(|value| value.is_finite());
+        status.speed_bps = None;
+        status.eta_seconds = None;
+        status.worker_pid = None;
+        status.error = None;
+        write_provider_download_status(&launcher, &status)?;
+    }
+
+    let payload = reconciliation_command(&launcher, &["--reconcile".into()])?;
+    let mut interrupted: Vec<ProviderDownloadStatus> = serde_json::from_value(payload)
+        .map_err(|err| format!("Download reconciliation returned invalid status data: {err}"))?;
+    for status in &interrupted {
+        write_provider_download_status(&launcher, status)?;
+    }
+    interrupted.sort_by_key(|status| status.app_id);
+    Ok(interrupted)
+}
+
+#[tauri::command]
+pub async fn reconcile_download_staging() -> Result<Vec<ProviderDownloadStatus>, String> {
+    tauri::async_runtime::spawn_blocking(reconcile_download_staging_blocking)
+        .await
+        .map_err(|err| format!("Download staging reconciliation task failed: {err}"))?
+}
+
+fn discard_interrupted_download_blocking(
+    app_id: u32,
+    provider_id: String,
+    job_id: String,
+) -> Result<(), String> {
+    let _guard = start_mutex()
+        .lock()
+        .map_err(|_| "Provider download start lock is poisoned".to_string())?;
+    let launcher = launcher_dir()?;
+    let status = provider_download_status(app_id)?
+        .ok_or_else(|| "The interrupted download status no longer exists".to_string())?;
+    if status.state != "interrupted"
+        || status.provider_id.as_deref() != Some(provider_id.as_str())
+        || status.job_id.as_deref() != Some(job_id.as_str())
+    {
+        return Err("The download changed; its staging files were preserved".into());
+    }
+    let args = vec![
+        "--discard".into(),
+        "--app-id".into(),
+        app_id.to_string(),
+        "--provider-id".into(),
+        provider_id,
+        "--job-id".into(),
+        job_id,
+    ];
+    reconciliation_command(&launcher, &args)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn discard_interrupted_download(
+    app_id: u32,
+    provider_id: String,
+    job_id: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        discard_interrupted_download_blocking(app_id, provider_id, job_id)
+    })
+    .await
+    .map_err(|err| format!("Interrupted-download discard task failed: {err}"))?
 }
 
 fn write_provider_download_status(
@@ -318,9 +440,15 @@ fn start_provider_download_blocking(
     app_id: u32,
     requested_job_id: Option<String>,
     requested_library_index: Option<u32>,
+    requested_provider_id: Option<String>,
 ) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
+    }
+    if requested_provider_id.as_ref().is_some_and(|provider_id| {
+        provider_id.contains('/') || provider_id.contains('\\') || provider_id == "." || provider_id == ".."
+    }) {
+        return Err("Invalid provider id for download recovery".into());
     }
 
     // Only the short check/spawn/publication section is serialized. Worker
@@ -383,7 +511,7 @@ fn start_provider_download_blocking(
         speed_bps: None,
         eta_seconds: None,
         installed: false,
-        provider_id: None,
+        provider_id: requested_provider_id.clone(),
         prepared_target: None,
         library_index: requested_library_index,
         error: None,
@@ -405,6 +533,9 @@ fn start_provider_download_blocking(
             "--job-id",
             &job_id,
         ]);
+    if let Some(provider_id) = requested_provider_id.filter(|value| !value.trim().is_empty()) {
+        command.args(["--provider-id", &provider_id]);
+    }
     let library_index_arg = requested_library_index.map(|value| value.to_string());
     if let Some(ref value) = library_index_arg {
         command.args(["--library-index", value]);
@@ -436,9 +567,10 @@ pub async fn start_provider_download(
     app_id: u32,
     job_id: Option<String>,
     library_index: Option<u32>,
+    provider_id: Option<String>,
 ) -> Result<ProviderDownloadStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        start_provider_download_blocking(app_id, job_id, library_index)
+        start_provider_download_blocking(app_id, job_id, library_index, provider_id)
     })
     .await
     .map_err(|err| format!("Provider download start task failed: {err}"))?

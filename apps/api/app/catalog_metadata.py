@@ -108,6 +108,13 @@ def ensure_catalog_schema(engine: Engine) -> None:
             metacritic_score INTEGER,
             metacritic_url TEXT,
             recommendation_count INTEGER,
+            steam_review_score REAL,
+            steam_review_count INTEGER,
+            steam_positive_count INTEGER,
+            steam_negative_count INTEGER,
+            steam_review_state TEXT NOT NULL DEFAULT 'pending',
+            steam_reviewed_at TEXT,
+            steam_review_retry_at TEXT,
             achievement_count INTEGER,
             is_free INTEGER,
             price_currency TEXT,
@@ -177,6 +184,21 @@ def ensure_catalog_schema(engine: Engine) -> None:
     with engine.begin() as conn:
         for statement in ddl:
             conn.exec_driver_sql(statement)
+        existing_columns = {
+            str(row[1]) for row in conn.exec_driver_sql("PRAGMA table_info(game_metadata)").all()
+        }
+        review_columns = {
+            "steam_review_score": "REAL",
+            "steam_review_count": "INTEGER",
+            "steam_positive_count": "INTEGER",
+            "steam_negative_count": "INTEGER",
+            "steam_review_state": "TEXT NOT NULL DEFAULT 'pending'",
+            "steam_reviewed_at": "TEXT",
+            "steam_review_retry_at": "TEXT",
+        }
+        for column, definition in review_columns.items():
+            if column not in existing_columns:
+                conn.exec_driver_sql(f"ALTER TABLE game_metadata ADD COLUMN {column} {definition}")
         try:
             conn.exec_driver_sql(
                 """
@@ -388,6 +410,77 @@ def import_appinfo_catalog(engine: Engine, appinfo: dict[int, dict[str, Any]]) -
     return {"appinfo_rows": len(appinfo), "updated": updated, "not_in_catalog": missing}
 
 
+
+def next_steam_review_target(engine: Engine) -> tuple[int, int] | None:
+    now = datetime.now(timezone.utc).isoformat()
+    refresh_before = datetime.now(timezone.utc).timestamp() - 30 * 24 * 60 * 60
+    refresh_at = datetime.fromtimestamp(refresh_before, tz=timezone.utc).isoformat()
+    with engine.connect() as conn:
+        row = conn.exec_driver_sql(
+            """
+            SELECT g.id, g.app_id
+            FROM game AS g
+            JOIN game_metadata AS m ON m.game_id = g.id
+            WHERE g.active = 1
+              AND g.app_id IS NOT NULL
+              AND lower(coalesce(m.product_type, '')) = 'game'
+              AND lower(trim(coalesce(g.name, ''))) NOT GLOB 'steam [0-9]*'
+              AND EXISTS (SELECT 1 FROM accountgame AS ag WHERE ag.game_id = g.id)
+              AND (
+                  m.steam_review_state = 'pending'
+                  OR (m.steam_review_state = 'failed'
+                      AND (m.steam_review_retry_at IS NULL OR m.steam_review_retry_at <= ?))
+                  OR (m.steam_review_state = 'ready' AND m.steam_reviewed_at <= ?)
+              )
+            ORDER BY CASE WHEN m.steam_review_state = 'pending' THEN 0 ELSE 1 END, g.id
+            LIMIT 1
+            """,
+            (now, refresh_at),
+        ).first()
+    return (int(row[0]), int(row[1])) if row else None
+
+
+def save_steam_review_summary(engine: Engine, game_id: int, summary: dict[str, Any]) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            UPDATE game_metadata
+            SET steam_review_score=?, steam_review_count=?,
+                steam_positive_count=?, steam_negative_count=?,
+                steam_review_state='ready', steam_reviewed_at=?,
+                steam_review_retry_at=NULL, updated_at=?
+            WHERE game_id=?
+            """,
+            (
+                summary.get("steam_review_score"),
+                int(summary.get("steam_review_count") or 0),
+                int(summary.get("steam_positive_count") or 0),
+                int(summary.get("steam_negative_count") or 0),
+                now,
+                now,
+                int(game_id),
+            ),
+        )
+
+
+def defer_steam_review_summary(engine: Engine, game_id: int, retry_seconds: int) -> None:
+    now = datetime.now(timezone.utc)
+    retry_at = datetime.fromtimestamp(
+        now.timestamp() + max(60, int(retry_seconds)), tz=timezone.utc
+    ).isoformat()
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            UPDATE game_metadata
+            SET steam_review_state='failed', steam_review_retry_at=?, updated_at=?
+            WHERE game_id=?
+            """,
+            (retry_at, now.isoformat(), int(game_id)),
+        )
+
+
+
 def get_cached_steam_metadata(engine: Engine, game_id: int) -> dict[str, Any] | None:
     with engine.begin() as conn:
         row = conn.exec_driver_sql(
@@ -424,7 +517,8 @@ def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int,
             f"""
             SELECT game_id, short_description, developers_json, publishers_json,
                    recommendation_count, metacritic_score, single_player, multiplayer,
-                   coop, online_coop, local_coop, shared_split_screen, mmo, pvp
+                   coop, online_coop, local_coop, shared_split_screen, mmo, pvp,
+                   steam_review_score, steam_review_count, steam_review_state
             FROM game_metadata WHERE game_id IN ({placeholders})
             """,
             tuple(ids),
@@ -453,6 +547,9 @@ def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int,
                 "shared_split_screen": bool(row[11]) if row[11] is not None else None,
                 "mmo": bool(row[12]) if row[12] is not None else None,
                 "pvp": bool(row[13]) if row[13] is not None else None,
+                "steam_review_score": row[14],
+                "steam_review_count": row[15],
+                "steam_review_state": row[16],
             }
         load_names(conn, "game_genre", "genres")
         load_names(conn, "game_category", "categories")

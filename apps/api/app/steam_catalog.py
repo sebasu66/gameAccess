@@ -12,6 +12,15 @@ class SteamCatalogError(RuntimeError):
     pass
 
 
+class SteamReviewRateLimited(SteamCatalogError):
+    def __init__(self, retry_after: str | None = None) -> None:
+        super().__init__("Steam review endpoint returned HTTP 429")
+        try:
+            self.retry_after = max(0, int(retry_after or 0))
+        except ValueError:
+            self.retry_after = 0
+
+
 def steam_assets(app_id: int | None) -> dict[str, str | None]:
     if not app_id:
         return {
@@ -97,6 +106,45 @@ class SteamCatalogAdapter:
         normalized = self._normalize(app_id, entry["data"])
         self._write_cache(app_id, language, country, normalized)
         return normalized
+
+
+    def fetch_review_summary(self, app_id: int) -> dict[str, int | float | None]:
+        """Fetch Steam's public review totals without downloading review bodies."""
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                response = client.get(
+                    f"https://store.steampowered.com/appreviews/{app_id}",
+                    params={
+                        "json": 1,
+                        "filter": "all",
+                        "language": "all",
+                        "purchase_type": "all",
+                        "num_per_page": 1,
+                    },
+                    headers={"User-Agent": "gameAccess/0.1 catalog prototype"},
+                )
+                if response.status_code == 429:
+                    raise SteamReviewRateLimited(response.headers.get("Retry-After"))
+                response.raise_for_status()
+                payload = response.json()
+        except SteamReviewRateLimited:
+            raise
+        except Exception as exc:
+            raise SteamCatalogError(f"Steam review request failed for AppID {app_id}: {exc}") from exc
+
+        summary = payload.get("query_summary") if isinstance(payload, dict) else None
+        if payload.get("success") != 1 or not isinstance(summary, dict):
+            raise SteamCatalogError(f"Steam returned no review summary for AppID {app_id}")
+        positive = max(0, int(summary.get("total_positive") or 0))
+        negative = max(0, int(summary.get("total_negative") or 0))
+        total = max(0, int(summary.get("total_reviews") or positive + negative))
+        score = round(positive * 100.0 / total, 2) if total else None
+        return {
+            "steam_review_score": score,
+            "steam_review_count": total,
+            "steam_positive_count": positive,
+            "steam_negative_count": negative,
+        }
 
     def _normalize(self, app_id: int, raw: dict[str, Any]) -> dict[str, Any]:
         assets = steam_assets(app_id)

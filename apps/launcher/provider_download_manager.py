@@ -25,6 +25,7 @@ from provider_download_probe import (
     run_probe,
     verified_provider_ids_for_app,
 )
+from download_log import append_download_log
 from provider_inventory import build_provider_catalog
 from provider_license_scan import persist_scan_result, scan_provider_licenses
 from steam_prepare_import import inspect, prepare
@@ -39,15 +40,9 @@ def status_path(app_id: int) -> Path:
     return STATUS_ROOT / f"app-{app_id}.json"
 
 
-def log_path(app_id: int) -> Path:
-    return LOG_ROOT / f"app-{app_id}.jsonl"
-
-
 def _append_status_log(body: dict[str, Any]) -> None:
-    LOG_ROOT.mkdir(parents=True, exist_ok=True)
     entry = {"at": datetime.now(timezone.utc).isoformat(), **body}
-    with log_path(int(body["app_id"])).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
+    append_download_log(LOG_ROOT, int(body["app_id"]), entry)
 
 
 def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:

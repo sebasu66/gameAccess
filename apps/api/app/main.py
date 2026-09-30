@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import logging
+import os
 import re
+import secrets
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
@@ -8,12 +13,15 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
+from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
+from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
+from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -21,6 +29,9 @@ from .catalog_metadata import (
     catalog_metadata_for_games,
     seed_known_games,
     upsert_steam_metadata,
+    next_steam_review_target,
+    save_steam_review_summary,
+    defer_steam_review_summary,
 )
 
 DB_PATH = Path(__file__).resolve().parent.parent / "gameaccess.db"
@@ -135,6 +146,18 @@ class SeedGameRequest(BaseModel):
     credit_cost_per_hour: int = Field(default=100, ge=0)
 
 
+class AccessKeyIssueRequest(BaseModel):
+    duration_hours: Optional[int] = Field(default=None, ge=1, le=24 * 365 * 5)
+    duration_months: Optional[int] = Field(default=None, ge=1, le=60)
+    key_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
+    count: int = Field(default=1, ge=1, le=100)
+
+
+class AccessKeyRedeemRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=120)
+    installation_id: str = Field(min_length=36, max_length=36)
+
+
 app = FastAPI(title="gameAccess API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
@@ -165,6 +188,101 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _admin_activation_access(request: Request) -> None:
+    configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
+    if len(configured) < 32:
+        raise HTTPException(503, "Activation key issuance is not configured")
+    supplied = request.headers.get("X-GameAccess-Admin-Token", "")
+    if not secrets.compare_digest(supplied, configured):
+        raise HTTPException(403, "Administrator access required")
+
+
+def _activation_for_request(request: Request, session: Session) -> AccessKey | CourtesySession | None:
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        return None
+    token = authorization.removeprefix("Bearer ").strip()
+    installation_id = request.headers.get("X-GameAccess-Installation", "")
+    return valid_session(session, token, installation_id) or valid_courtesy_session(
+        session, token, installation_id
+    )
+
+
+@app.middleware("http")
+async def require_active_installation(request: Request, call_next):
+    path = request.url.path
+    protected = ("/catalog", "/games/", "/steam/apps/", "/steam/search", "/users/", "/leases", "/credits")
+    if request.method != "OPTIONS" and any(path == prefix or path.startswith(prefix) for prefix in protected):
+        with Session(engine) as session:
+            if _activation_for_request(request, session) is None:
+                return JSONResponse({"detail": "GameAccess activation is required or has expired"}, status_code=401)
+    return await call_next(request)
+
+
+@app.post("/admin/access-keys")
+def create_access_keys(req: AccessKeyIssueRequest, request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    if (req.duration_hours is None) == (req.duration_months is None):
+        raise HTTPException(422, "Specify either duration_hours or duration_months")
+    keys = issue_keys(
+        session,
+        hours=req.duration_hours,
+        months=req.duration_months,
+        count=req.count,
+        key_ttl_hours=req.key_ttl_hours,
+    )
+    return {"keys": [{"id": key_id, "key": key} for key_id, key in keys]}
+
+
+@app.get("/admin/access-keys")
+def list_access_keys(request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    rows = session.exec(select(AccessKey).order_by(AccessKey.id.desc())).all()
+    return {"keys": [{
+        "id": row.id,
+        "duration_hours": row.duration_hours,
+        "duration_months": row.duration_months,
+        "created_at": row.created_at,
+        "key_expires_at": row.key_expires_at,
+        "activated_at": row.activated_at,
+        "expires_at": row.expires_at,
+        "revoked_at": row.revoked_at,
+        "installation_id": row.installation_id,
+    } for row in rows]}
+
+
+@app.post("/admin/access-keys/{key_id}/revoke")
+def revoke_access_key(key_id: int, request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    row = session.get(AccessKey, key_id)
+    if row is None:
+        raise HTTPException(404, "Activation key not found")
+    row.revoked_at = now_utc()
+    row.session_hash = None
+    session.add(row)
+    session.commit()
+    return {"ok": True}
+
+
+@app.post("/activation/redeem")
+def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session)) -> dict:
+    try:
+        installation_id = canonical_installation_id(req.installation_id)
+        courtesy = redeem_courtesy_key(session, req.key, installation_id)
+        token, expires_at = courtesy if courtesy is not None else redeem_key(session, req.key, installation_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at}
+
+
+@app.get("/activation/status")
+def activation_status(request: Request, session: Session = Depends(get_session)) -> dict:
+    row = _activation_for_request(request, session)
+    if row is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
+
+
 def expire_old_leases(session: Session) -> None:
     now = now_utc()
     leases = session.exec(select(Lease).where(Lease.status == LeaseStatus.active)).all()
@@ -181,6 +299,47 @@ def expire_old_leases(session: Session) -> None:
             changed = True
     if changed:
         session.commit()
+
+
+
+_review_worker_started = False
+_catalog_logger = logging.getLogger("gameaccess.catalog")
+
+
+def _steam_review_import_loop() -> None:
+    interval = max(2.0, float(os.environ.get("GAMEACCESS_STEAM_REVIEW_INTERVAL_SECONDS", "2.5")))
+    while True:
+        target = next_steam_review_target(engine)
+        if target is None:
+            time.sleep(300)
+            continue
+        game_id, app_id = target
+        try:
+            summary = steam_catalog.fetch_review_summary(app_id)
+            save_steam_review_summary(engine, game_id, summary)
+        except SteamReviewRateLimited as exc:
+            # Save our place and stop on Steam throttling; a later service restart
+            # can resume after the persisted retry time instead of hammering Steam.
+            defer_steam_review_summary(engine, game_id, max(6 * 60 * 60, exc.retry_after))
+            _catalog_logger.warning("Steam review import paused after HTTP 429; progress is saved.")
+            return
+        except Exception as exc:
+            defer_steam_review_summary(engine, game_id, 60 * 60)
+            _catalog_logger.warning("Steam review import deferred one title after an error: %s", exc)
+        time.sleep(interval)
+
+
+def _start_steam_review_importer() -> None:
+    global _review_worker_started
+    if _review_worker_started:
+        return
+    _review_worker_started = True
+    threading.Thread(
+        target=_steam_review_import_loop,
+        name="gameaccess-steam-review-import",
+        daemon=True,
+    ).start()
+
 
 
 def seed_defaults(session: Session) -> None:
@@ -264,10 +423,12 @@ def slugify(value: str, app_id: int) -> str:
 @app.on_event("startup")
 def startup() -> None:
     SQLModel.metadata.create_all(engine)
+    ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
     with Session(engine) as session:
         seed_defaults(session)
     seed_known_games(engine)
+    _start_steam_review_importer()
 
 
 @app.get("/health")

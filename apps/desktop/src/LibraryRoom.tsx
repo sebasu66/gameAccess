@@ -2,7 +2,7 @@ import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorage
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { EMPTY_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, getLibrarySearchFacets, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { EMPTY_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -26,6 +26,8 @@ import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 
 interface LibraryRoomProps {
+  toolbarTarget?: HTMLDivElement | null;
+  actionsTarget?: HTMLDivElement | null;
   games: CatalogGame[];
   downloads: DownloadMap;
   busy: boolean;
@@ -35,14 +37,17 @@ interface LibraryRoomProps {
   preferences?: Record<number, 1 | -1>;
   onPreference?: (gameId: number, value: 1 | -1) => void;
   loading?: boolean;
+  catalogUnavailable?: boolean;
   searchFilters?: LibrarySearchFilters;
   onSearchFiltersChange?: (filters: LibrarySearchFilters) => void;
+  searchValue?: string;
+  onSearchQueryChange?: (query: string) => void;
 }
 
 type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 
-export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -76,7 +81,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [libraryView, setLibraryView] = useState<LibraryView>("popular");
+  const [libraryView, setLibraryView] = useState<LibraryView>("catalog");
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
   const [artworkSlideIndex, setArtworkSlideIndex] = useState(0);
@@ -85,7 +90,8 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
 
   const history = usePlayHistory();
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
-  const librarySearchFacets = useMemo(() => getLibrarySearchFacets(games), [games]);
+  const hasInstalledGames = useMemo(() => games.some(game => { const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : undefined); return state.installed || state.prepared; }), [games, effectiveDownloads]);
+  const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
   const searchedGames = useMemo(() => {
     const filtered = filterLibraryGames(games, searchQuery, searchFilters);
     const rank = (game: CatalogGame) => {
@@ -626,7 +632,7 @@ export default function LibraryRoom({ games, downloads, busy, onPlay, onDownload
       {games.length > 0 ? (
         <>
           {selectedGame ? detailPanel : null}
-          <DownloadCatalogPanel games={displayGames} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} facets={librarySearchFacets} filters={searchFilters} onFiltersChange={onSearchFiltersChange} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} />
+          <DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} downloads={effectiveDownloads} accountCount={accountCount} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} />
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

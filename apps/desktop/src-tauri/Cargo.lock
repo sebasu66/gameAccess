@@ -951,6 +951,7 @@ dependencies = [
  "tar",
  "tauri",
  "tauri-build",
+ "uuid",
  "zstd",
 ]
 

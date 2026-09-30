@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod automation;
+mod access_activation;
 mod download_lifecycle;
 mod game_uninstall;
 mod provider_download;
@@ -13,13 +14,23 @@ use native_core::{
 };
 
 use serde::Serialize;
-use std::{env, fs, io::Write, path::PathBuf, process::Command, sync::Mutex};
+use std::{
+    env, fs,
+    io::Write,
+    path::PathBuf,
+    process::Command,
+    sync::{Mutex, OnceLock},
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+const NARRATION_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
+const NARRATION_LOG_MAX_LINE_BYTES: usize = 16 * 1024;
+static NARRATION_LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn narration_log_file() -> Result<PathBuf, String> {
     let base = env::var_os("LOCALAPPDATA")
@@ -49,26 +60,58 @@ fn append_narration_lines(
     area: String,
     level: String,
 ) -> Result<String, String> {
+    let _guard = NARRATION_LOG_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "GameAccess narration log lock was poisoned".to_string())?;
     let path = narration_log_file()?;
     let safe_area = clean_narration_field(&area, "APP");
     let safe_level = clean_narration_field(&level, "INFO");
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
-
     for message in messages {
-        let clean = clean_narration_field(&message, "");
+        let mut clean = clean_narration_field(&message, "");
         if clean.is_empty() {
             continue;
         }
+        if clean.len() > NARRATION_LOG_MAX_LINE_BYTES {
+            let mut end = NARRATION_LOG_MAX_LINE_BYTES;
+            while !clean.is_char_boundary(end) {
+                end -= 1;
+            }
+            clean.truncate(end);
+            clean.push_str("… [truncated]");
+        }
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        writeln!(file, "{timestamp} [{safe_level}] [{safe_area}] {clean}")
+        let line = format!("{timestamp} [{safe_level}] [{safe_area}] {clean}\n");
+        let current_size = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        if current_size.saturating_add(line.len() as u64) > NARRATION_LOG_MAX_BYTES {
+            let archive = path.with_extension("log.1");
+            if archive.exists() {
+                fs::remove_file(&archive)
+                    .map_err(|err| format!("Could not rotate old GameAccess log: {err}"))?;
+            }
+            if path.exists() {
+                fs::rename(&path, &archive)
+                    .map_err(|err| format!("Could not rotate GameAccess narration log: {err}"))?;
+                if fs::metadata(&archive)
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0)
+                    > NARRATION_LOG_MAX_BYTES
+                {
+                    fs::remove_file(&archive)
+                        .map_err(|err| format!("Could not cap oversized archived GameAccess log: {err}"))?;
+                }
+            }
+        }
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
+        file.write_all(line.as_bytes())
             .map_err(|err| format!("Could not append GameAccess narration log: {err}"))?;
+        file.flush()
+            .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     }
-    file.flush()
-        .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -499,6 +542,26 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
     .map_err(|err| format!("Pending download completion scan failed: {err}"))?
 }
 
+#[tauri::command]
+fn activation_installation_id() -> Result<String, String> {
+    access_activation::installation_id()
+}
+
+#[tauri::command]
+fn activation_read_session() -> Result<Option<String>, String> {
+    access_activation::read_session()
+}
+
+#[tauri::command]
+fn activation_save_session(session_token: String) -> Result<(), String> {
+    access_activation::save_session(&session_token)
+}
+
+#[tauri::command]
+fn activation_clear_session() -> Result<(), String> {
+    access_activation::clear_session()
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
@@ -509,6 +572,10 @@ fn main() {
         })
         .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
+            activation_installation_id,
+            activation_read_session,
+            activation_save_session,
+            activation_clear_session,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,
@@ -541,6 +608,8 @@ fn main() {
             provider_download::cancel_provider_download,
             provider_download::provider_download_status,
             provider_download::provider_download_statuses,
+            provider_download::reconcile_download_staging,
+            provider_download::discard_interrupted_download,
             provider_download::provider_download_estimate,
             steam_session::save_steam_credential,
             steam_session::remove_steam_credential,
