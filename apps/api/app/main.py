@@ -17,8 +17,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, select
 
+from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
 from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
@@ -34,11 +35,7 @@ from .catalog_metadata import (
     defer_steam_review_summary,
 )
 
-DB_PATH = Path(__file__).resolve().parent.parent / "gameaccess.db"
 STEAM_CACHE = DB_PATH.parent / ".steam_cache"
-engine = create_engine(
-    f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
-)
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
 _ALLOWED_PRODUCT_TYPES_SQL = ", ".join(
     f"'{product_type}'" for product_type in sorted(CATALOG_ALLOWED_PRODUCT_TYPES)
@@ -48,7 +45,7 @@ CATALOG_PRODUCT_FILTER = text(
     "SELECT 1 FROM game_metadata AS catalog_metadata "
     "WHERE catalog_metadata.game_id = game.id "
     f"AND lower(coalesce(catalog_metadata.product_type, '')) IN ({_ALLOWED_PRODUCT_TYPES_SQL})"
-    ") AND lower(trim(coalesce(game.name, ''))) NOT GLOB 'steam [0-9]*'"
+    ") AND lower(trim(coalesce(game.name, ''))) <> ('steam ' || CAST(game.app_id AS TEXT))"
 )
 
 
@@ -433,7 +430,12 @@ def startup() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "time": now_utc(), "version": app.version}
+    return {
+        "ok": True,
+        "time": now_utc(),
+        "version": app.version,
+        "database": engine.dialect.name,
+    }
 
 
 def licensed_game_ids(session: Session) -> set[int]:
