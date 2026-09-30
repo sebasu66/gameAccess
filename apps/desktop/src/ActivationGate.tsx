@@ -139,6 +139,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         <a className="activation-free-link" href="#obtener-clave">{t("activationGetFree")} <ArrowUpRight size={18} /></a>
       </section>}
     </main>}
-    {(!status?.active || !splashComplete) ? <SplashScreen onComplete={completeSplash} /> : null}
+    {!splashComplete ? <SplashScreen onComplete={completeSplash} /> : null}
   </>;
 }

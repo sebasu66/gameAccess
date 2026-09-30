@@ -516,7 +516,11 @@ def catalog(
                 "pool_value": 1.0,
             },
         )
-    catalog_metadata = catalog_metadata_for_games(engine, list(page_game_ids))
+    catalog_metadata = catalog_metadata_for_games(
+        engine,
+        list(page_game_ids),
+        connection=session.connection(),
+    )
     return [
         game_summary(
             session,

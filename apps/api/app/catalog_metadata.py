@@ -589,8 +589,14 @@ def upsert_steam_metadata_locale(
         )
 
 
-def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int, dict[str, Any]]:
-    """Load search and discovery metadata for one catalog page in a few queries."""
+def catalog_metadata_for_games(
+    engine: Engine, game_ids: list[int], connection: Any | None = None
+) -> dict[int, dict[str, Any]]:
+    """Load search and discovery metadata for one catalog page in a few queries.
+
+    When called from an endpoint that already owns a SQLAlchemy session, pass
+    that session connection so the request does not consume a second pool slot.
+    """
     ids = sorted({int(game_id) for game_id in game_ids if int(game_id) > 0})
     if not ids:
         return {}
@@ -598,15 +604,17 @@ def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int,
     result: dict[int, dict[str, Any]] = {}
 
     def load_names(conn: Any, table: str, field: str) -> None:
-        rows = _execute(conn, 
+        rows = _execute(
+            conn,
             f"SELECT game_id, name FROM {table} WHERE game_id IN ({placeholders}) ORDER BY lower(name), name",
             tuple(ids),
         ).all()
         for game_id, name in rows:
             result.setdefault(int(game_id), {}).setdefault(field, []).append(str(name))
 
-    with engine.connect() as conn:
-        rows = _execute(conn, 
+    def load(conn: Any) -> None:
+        rows = _execute(
+            conn,
             f"""
             SELECT game_id, short_description, developers_json, publishers_json,
                    recommendation_count, metacritic_score, single_player, multiplayer,
@@ -647,6 +655,12 @@ def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int,
         load_names(conn, "game_genre", "genres")
         load_names(conn, "game_category", "categories")
         load_names(conn, "game_tag", "tags")
+
+    if connection is not None:
+        load(connection)
+    else:
+        with engine.connect() as conn:
+            load(conn)
     return result
 
 
