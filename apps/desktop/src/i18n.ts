@@ -1,0 +1,256 @@
+import { useSyncExternalStore } from "react";
+
+export type AppLocale = "es" | "en";
+export type TranslationParams = Record<string, string | number>;
+
+const STORAGE_KEY = "gameaccess:language";
+const FALLBACK_LOCALE: AppLocale = "en";
+
+const es = {
+  language: "Idioma",
+  windowControls: "Controles de ventana",
+  minimize: "Minimizar",
+  maximize: "Maximizar",
+  restore: "Restaurar",
+  close: "Cerrar",
+  activationVerifyFailed: "No se pudo verificar la activación.",
+  activationExpired: "La activación venció o fue revocada.",
+  activationExpiredHelp: "La activación venció o fue revocada. Volvé a verificar o ingresá otra clave.",
+  activationKeyFailed: "No se pudo validar la clave de acceso.",
+  activationNoServer: "No se pudo conectar con el servidor de Game Access.",
+  activationServerVerifyFailed: "No pudimos verificar la activación con el servidor.",
+  activationGenericFailed: "No se pudo activar el acceso a los juegos.",
+  activationInvalidKey: "La clave no es válida o ya no está disponible.",
+  activationUnusedExpired: "Esta clave de activación venció antes de ser utilizada.",
+  activationOtherInstall: "Esta clave ya está activa en otra instalación.",
+  activationAccessExpired: "Este acceso ya venció.",
+  activationBack: "Volver a ingresar la clave",
+  activationFree: "ACCESO GRATIS",
+  activationHelpTitle: "Cómo obtener tu clave de acceso",
+  activationHelpLead: "Completá el recorrido indicado y volvé a Game Access para ingresar la clave que recibas.",
+  activationHelpVideo: "Video: cómo obtener tu clave de acceso",
+  activationVideoPending: "El video explicativo estará disponible acá.",
+  activationStep1: "Abrí el enlace de Linkvertise.",
+  activationStep2: "Completá los pasos que te indique la página.",
+  activationStep3: "Copiá la clave y pegala en Game Access.",
+  activationGoLinkvertise: "Ir a Linkvertise",
+  activationLinkPending: "El enlace para obtener claves gratis todavía no está disponible.",
+  activationBeta: "ACCESO BETA",
+  activationChecking: "Verificando acceso…",
+  activationEnter: "Entrá a Game Access",
+  activationLead: "Ingresá tu clave de acceso para empezar a jugar.",
+  activationKeyLabel: "Clave de acceso",
+  activationKeyPlaceholder: "Pegá tu clave acá",
+  retryConnection: "Reintentar conexión",
+  activationSubmit: "Acceder a los juegos",
+  activationGetFree: "Obtener clave de acceso gratis",
+  splashStarting: "Iniciando Game Access",
+  splashTap: "TOCÁ PARA ENTRAR",
+  splashLoading: "Cargando identidad visual…",
+  runtimeEyebrow: "COMPROBACIÓN DE ENTORNO",
+  runtimeCheckingTitle: "Verificando GameAccess…",
+  runtimeSteamMissingTitle: "Steam no está disponible",
+  runtimeAccountMissingTitle: "Falta una cuenta recordada en Steam",
+  runtimeErrorTitle: "No pudimos verificar el entorno",
+  runtimePreparingTitle: "Preparando GameAccess…",
+  runtimeCheckingBody: "La interfaz está funcionando. Estamos comprobando el estado local antes de abrir tu biblioteca.",
+  runtimeSteamMissingBody: "Steam es necesario para usar GameAccess. Si lo desinstalaste después de instalar GameAccess, reinstalalo y volvé a comprobar.",
+  runtimeAccountMissingBody: "Abrí Steam, iniciá sesión en al menos una cuenta y dejala recordada en este equipo. Después volvé a comprobar.",
+  runtimeErrorBody: "El entorno respondió con un error: {{error}}",
+  runtimeRequirements: "Comprobando requisitos…",
+  runtimeEnvironment: "Entorno GameAccess",
+  runtimeTauriOk: "Tauri inició correctamente.",
+  detected: "Detectado",
+  notDetected: "No detectado",
+  rememberedAccounts: "Cuentas Steam recordadas",
+  accountsDetected: "{{count}} detectada{{suffix}}",
+  checking: "Comprobando…",
+  openSteam: "Abrir Steam",
+  checkAgain: "Volver a comprobar",
+  confirmOrCancel: "Confirmar o cancelar",
+  back: "Volver",
+  confirm: "Confirmar",
+  understood: "Entendido",
+  downloadCompleteAria: "Descarga completa: {{name}}",
+  downloadComplete: "DESCARGA TERMINADA",
+  readyToPlay: "Está listo para jugar.",
+  playNow: "Jugar ahora",
+  notNow: "Ahora no",
+  cancelDownloadAria: "Cancelar descarga: {{name}}",
+  cancelDownload: "CANCELAR DESCARGA",
+  cancelDownloadTitle: "¿Cancelar la descarga de {{name}}?",
+  cancelDownloadBody: "Los archivos parciales se conservan. GameAccess sólo detendrá el trabajo de esta descarga.",
+  keepDownloading: "Seguir descargando",
+  cancelling: "Cancelando…",
+  steamInstall: "INSTALACIÓN DESDE STEAM",
+  steamInstallTitle: "No se pudo preinstalar {{name}}",
+  steamInstallBody: "Vamos a iniciar sesión en Steam para que puedas instalarlo manualmente desde el cliente.",
+  steamInstallError: "No se pudo continuar: {{error}}",
+  steamPreparing: "Preparando Steam…",
+  steamContinue: "Continuar en Steam",
+  crashEyebrow: "RECUPERACIÓN DE INTERFAZ",
+  crashTitle: "GameAccess encontró un error, pero el runtime sigue funcionando.",
+  crashUnexpected: "Error inesperado de interfaz.",
+  retry: "Reintentar",
+  catalogActions: "Acciones del catálogo",
+  refreshGamesAria: "Actualizar lista de juegos",
+  refreshGamesTitle: "Volver a pedir el catálogo al servidor",
+  refreshGames: "Actualizar juegos",
+} as const;
+
+type TranslationKey = keyof typeof es;
+
+const en: Record<TranslationKey, string> = {
+  language: "Language",
+  windowControls: "Window controls",
+  minimize: "Minimize",
+  maximize: "Maximize",
+  restore: "Restore",
+  close: "Close",
+  activationVerifyFailed: "Could not verify activation.",
+  activationExpired: "Activation has expired or was revoked.",
+  activationExpiredHelp: "Activation has expired or was revoked. Check again or enter another key.",
+  activationKeyFailed: "Could not validate the access key.",
+  activationNoServer: "Could not connect to the Game Access server.",
+  activationServerVerifyFailed: "Could not verify activation with the server.",
+  activationGenericFailed: "Could not activate game access.",
+  activationInvalidKey: "The key is invalid or no longer available.",
+  activationUnusedExpired: "This activation key expired before it was used.",
+  activationOtherInstall: "This key is already active on another installation.",
+  activationAccessExpired: "This access period has expired.",
+  activationBack: "Back to access key",
+  activationFree: "FREE ACCESS",
+  activationHelpTitle: "How to get your access key",
+  activationHelpLead: "Complete the indicated steps, then return to Game Access and enter the key you receive.",
+  activationHelpVideo: "Video: how to get your access key",
+  activationVideoPending: "The tutorial video will be available here.",
+  activationStep1: "Open the Linkvertise link.",
+  activationStep2: "Complete the steps shown on the page.",
+  activationStep3: "Copy the key and paste it into Game Access.",
+  activationGoLinkvertise: "Go to Linkvertise",
+  activationLinkPending: "The link for free access keys is not available yet.",
+  activationBeta: "BETA ACCESS",
+  activationChecking: "Checking access…",
+  activationEnter: "Enter Game Access",
+  activationLead: "Enter your access key to start playing.",
+  activationKeyLabel: "Access key",
+  activationKeyPlaceholder: "Paste your key here",
+  retryConnection: "Retry connection",
+  activationSubmit: "Access the games",
+  activationGetFree: "Get a free access key",
+  splashStarting: "Starting Game Access",
+  splashTap: "TAP TO ENTER",
+  splashLoading: "Loading visual identity…",
+  runtimeEyebrow: "ENVIRONMENT CHECK",
+  runtimeCheckingTitle: "Checking GameAccess…",
+  runtimeSteamMissingTitle: "Steam is not available",
+  runtimeAccountMissingTitle: "No remembered Steam account found",
+  runtimeErrorTitle: "We could not verify the environment",
+  runtimePreparingTitle: "Preparing GameAccess…",
+  runtimeCheckingBody: "The interface is running. We are checking local requirements before opening your library.",
+  runtimeSteamMissingBody: "Steam is required to use GameAccess. If you uninstalled it after installing GameAccess, reinstall it and check again.",
+  runtimeAccountMissingBody: "Open Steam, sign in to at least one account and leave it remembered on this PC. Then check again.",
+  runtimeErrorBody: "The environment returned an error: {{error}}",
+  runtimeRequirements: "Checking requirements…",
+  runtimeEnvironment: "GameAccess environment",
+  runtimeTauriOk: "Tauri started correctly.",
+  detected: "Detected",
+  notDetected: "Not detected",
+  rememberedAccounts: "Remembered Steam accounts",
+  accountsDetected: "{{count}} detected",
+  checking: "Checking…",
+  openSteam: "Open Steam",
+  checkAgain: "Check again",
+  confirmOrCancel: "Confirm or cancel",
+  back: "Back",
+  confirm: "Confirm",
+  understood: "Got it",
+  downloadCompleteAria: "Download complete: {{name}}",
+  downloadComplete: "DOWNLOAD COMPLETE",
+  readyToPlay: "Ready to play.",
+  playNow: "Play now",
+  notNow: "Not now",
+  cancelDownloadAria: "Cancel download: {{name}}",
+  cancelDownload: "CANCEL DOWNLOAD",
+  cancelDownloadTitle: "Cancel the download of {{name}}?",
+  cancelDownloadBody: "Partial files are kept. GameAccess will only stop this download task.",
+  keepDownloading: "Keep downloading",
+  cancelling: "Cancelling…",
+  steamInstall: "INSTALL FROM STEAM",
+  steamInstallTitle: "Could not preinstall {{name}}",
+  steamInstallBody: "We will sign in to Steam so you can install it manually from the Steam client.",
+  steamInstallError: "Could not continue: {{error}}",
+  steamPreparing: "Preparing Steam…",
+  steamContinue: "Continue in Steam",
+  crashEyebrow: "INTERFACE RECOVERY",
+  crashTitle: "GameAccess encountered an error, but the runtime is still working.",
+  crashUnexpected: "Unexpected interface error.",
+  retry: "Retry",
+  catalogActions: "Catalog actions",
+  refreshGamesAria: "Refresh game list",
+  refreshGamesTitle: "Fetch the catalog from the server again",
+  refreshGames: "Refresh games",
+};
+
+const catalogs: Record<AppLocale, Record<TranslationKey, string>> = { es, en };
+const listeners = new Set<() => void>();
+
+function detectLocale(): AppLocale {
+  if (typeof window === "undefined") return FALLBACK_LOCALE;
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  if (stored === "es" || stored === "en") return stored;
+  return window.navigator.language.toLowerCase().startsWith("es") ? "es" : FALLBACK_LOCALE;
+}
+
+let currentLocale: AppLocale = detectLocale();
+
+function interpolate(value: string, params?: TranslationParams): string {
+  if (!params) return value;
+  return value.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => String(params[key] ?? ""));
+}
+
+export function translate(key: TranslationKey, params?: TranslationParams, locale = currentLocale): string {
+  const value = catalogs[locale]?.[key] ?? catalogs[FALLBACK_LOCALE][key] ?? key;
+  return interpolate(value, params);
+}
+
+export function translateServerDetail(detail: string): string {
+  const normalized = detail.trim();
+  const known: Record<string, TranslationKey> = {
+    "Invalid or unavailable activation key": "activationInvalidKey",
+    "This activation key has expired": "activationUnusedExpired",
+    "This key is already active on another installation": "activationOtherInstall",
+    "This activation has expired": "activationAccessExpired",
+    "GameAccess activation is required or has expired": "activationExpired",
+  };
+  return known[normalized] ? translate(known[normalized]) : normalized;
+}
+
+export function setAppLocale(locale: AppLocale): void {
+  if (locale === currentLocale) return;
+  currentLocale = locale;
+  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, locale);
+  if (typeof document !== "undefined") document.documentElement.lang = locale;
+  listeners.forEach(listener => listener());
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function snapshot(): AppLocale {
+  return currentLocale;
+}
+
+export function useI18n() {
+  const locale = useSyncExternalStore(subscribe, snapshot, () => FALLBACK_LOCALE);
+  return {
+    locale,
+    localeTag: locale === "es" ? "es-AR" : "en-US",
+    setLocale: setAppLocale,
+    t: (key: TranslationKey, params?: TranslationParams) => translate(key, params, locale),
+  };
+}
+
+if (typeof document !== "undefined") document.documentElement.lang = currentLocale;
