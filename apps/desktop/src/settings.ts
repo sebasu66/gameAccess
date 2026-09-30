@@ -17,7 +17,10 @@ const SETTINGS_PATH = "/gameaccess.settings.json";
 export const DEFAULT_LOCAL_API = "http://127.0.0.1:38147";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const BACKEND_CACHE_MS = 5000;
-const HEALTH_TIMEOUT_MS = 750;
+const LOCAL_HEALTH_TIMEOUT_MS = 750;
+const REMOTE_HEALTH_TIMEOUT_MS = 8000;
+const COLD_START_WAIT_MS = 75000;
+const COLD_START_RETRY_MS = 2500;
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -119,11 +122,15 @@ async function loadSettings(fetcher: Fetcher): Promise<GameAccessFrontendSetting
   }
 }
 
-export async function backendIsHealthy(baseUrl: string, fetcher: Fetcher = fetch): Promise<boolean> {
+export async function backendIsHealthy(
+  baseUrl: string,
+  fetcher: Fetcher = fetch,
+  timeoutMs = REMOTE_HEALTH_TIMEOUT_MS,
+): Promise<boolean> {
   const normalized = normalizeApiBaseUrl(baseUrl);
   if (!normalized) return false;
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timeout = controller ? globalThis.setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS) : null;
+  const timeout = controller ? globalThis.setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
     const response = await fetcher(`${normalized}/health`, {
       cache: "no-store",
@@ -143,23 +150,52 @@ export async function resolveBackendConnectionFromSettings(
 ): Promise<BackendConnection> {
   // Development always wins: if a local backend is alive, never send this
   // desktop session to a hosted GameAccess backend.
-  if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher)) {
+  if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher, LOCAL_HEALTH_TIMEOUT_MS)) {
     return { kind: "local", url: DEFAULT_LOCAL_API };
   }
 
   const configured = await resolveApiFromSettings(settings, fetcher);
-  if (configured && configured !== DEFAULT_LOCAL_API && await backendIsHealthy(configured, fetcher)) {
+  if (configured && configured !== DEFAULT_LOCAL_API && await backendIsHealthy(configured, fetcher, REMOTE_HEALTH_TIMEOUT_MS)) {
     return { kind: "remote", url: configured };
   }
   return { kind: "offline", url: "" };
 }
 
-async function resolveRuntimeBackend(fetcher: Fetcher): Promise<BackendConnection> {
+async function runtimeSettings(fetcher: Fetcher): Promise<GameAccessFrontendSettings> {
   const buildOverride = import.meta.env.VITE_GAMEACCESS_API;
-  const settings = buildOverride !== undefined
+  return buildOverride !== undefined
     ? { api_url: buildOverride }
     : (await loadSettings(fetcher) ?? {});
-  return resolveBackendConnectionFromSettings(settings, fetcher);
+}
+
+async function resolveRuntimeBackend(fetcher: Fetcher): Promise<BackendConnection> {
+  return resolveBackendConnectionFromSettings(await runtimeSettings(fetcher), fetcher);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => globalThis.setTimeout(resolve, ms));
+}
+
+async function resolveRuntimeBackendWithColdStart(fetcher: Fetcher): Promise<BackendConnection> {
+  const settings = await runtimeSettings(fetcher);
+
+  if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher, LOCAL_HEALTH_TIMEOUT_MS)) {
+    return { kind: "local", url: DEFAULT_LOCAL_API };
+  }
+
+  const configured = await resolveApiFromSettings(settings, fetcher);
+  if (!configured || configured === DEFAULT_LOCAL_API) return { kind: "offline", url: "" };
+
+  const deadline = Date.now() + COLD_START_WAIT_MS;
+  do {
+    if (await backendIsHealthy(configured, fetcher, REMOTE_HEALTH_TIMEOUT_MS)) {
+      return { kind: "remote", url: configured };
+    }
+    if (Date.now() >= deadline) break;
+    await wait(Math.min(COLD_START_RETRY_MS, Math.max(0, deadline - Date.now())));
+  } while (Date.now() < deadline);
+
+  return { kind: "offline", url: "" };
 }
 
 let cachedConnection: BackendConnection | null = null;
@@ -177,7 +213,14 @@ export async function getBackendConnection(forceRefresh = false): Promise<Backen
   if (!forceRefresh && cachedConnection && now - cachedAt < BACKEND_CACHE_MS) return cachedConnection;
   if (!forceRefresh && connectionPromise) return connectionPromise;
 
-  connectionPromise = resolveRuntimeBackend(fetch).then((connection) => {
+  if (forceRefresh) {
+    const connection = await resolveRuntimeBackend(fetch);
+    cachedConnection = connection;
+    cachedAt = Date.now();
+    return connection;
+  }
+
+  connectionPromise = resolveRuntimeBackendWithColdStart(fetch).then((connection) => {
     cachedConnection = connection;
     cachedAt = Date.now();
     return connection;

@@ -7,7 +7,7 @@ describe("build identity", () => {
     const first = renderToStaticMarkup(<BuildStamp />);
     expect(first).toMatch(/Compilación: .*\d{4}-\d{2}-\d{2}T.*Z/);
     expect(first).toContain("Hora de compilación (UTC)");
-    expect(first).toContain("Servidor: Comprobando");
+    expect(first).toContain("Servidor: Iniciando servidor remoto");
     expect(renderToStaticMarkup(<BuildStamp />)).toBe(first);
   });
 
