@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useI18n } from "./i18n";
 
 type SplashScreenProps = { onComplete: () => void };
 type SplashPhase = "waiting" | "slide" | "reveal" | "idle" | "compact";
@@ -7,6 +8,7 @@ const layers = ["/logo/fondo.png", "/logo/portal.png", "/logo/g.png", "/logo/a.p
 
 /** Reassembles the supplied layered logo, then leaves it in the access screen corner. */
 export default function SplashScreen({ onComplete }: SplashScreenProps) {
+  const { t } = useI18n();
   const [phase, setPhase] = useState<SplashPhase>("waiting");
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
@@ -58,16 +60,16 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   }, [loaded, onComplete, start]);
 
   return (
-    <div className={`gameaccess-splash${phase === "compact" ? " is-settled" : ""}`} aria-label="Iniciando Game Access">
+    <div className={`gameaccess-splash${phase === "compact" ? " is-settled" : ""}`} aria-label={t("splashStarting")}>
       <div className={`gameaccess-splash-stage phase-${phase}`} aria-hidden="true">
         <img className="splash-layer splash-background" src="/logo/fondo.png" alt="" />
         <img className="splash-layer splash-portal" src="/logo/portal.png" alt="" />
         <img className="splash-layer splash-g" src="/logo/g.png" alt="" />
         <img className="splash-layer splash-a" src="/logo/a.png" alt="" />
       </div>
-      {phase === "waiting" ? <button type="button" className="gameaccess-splash-start" onClick={start} disabled={!loaded}>TOCÁ PARA ENTRAR</button> : null}
-      {started && phase !== "compact" ? <span className="gameaccess-splash-caption">INICIANDO GAME ACCESS</span> : null}
-      <span className="gameaccess-splash-announcer" role="status">{loaded ? "" : "Cargando identidad visual…"}</span>
+      {phase === "waiting" ? <button type="button" className="gameaccess-splash-start" onClick={start} disabled={!loaded}>{t("splashTap")}</button> : null}
+      {started && phase !== "compact" ? <span className="gameaccess-splash-caption">{t("splashStarting").toUpperCase()}</span> : null}
+      <span className="gameaccess-splash-announcer" role="status">{loaded ? "" : t("splashLoading")}</span>
     </div>
   );
 }
