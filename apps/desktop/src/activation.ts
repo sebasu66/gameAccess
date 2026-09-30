@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getApiBaseUrl } from "./settings";
+import { translate, translateServerDetail } from "./i18n";
 
 export const ACTIVATION_INVALID_EVENT = "gameaccess:activation-invalid";
 
@@ -54,7 +55,7 @@ export interface ActivationStatus {
 
 async function activationUrl(path: string): Promise<string> {
   const base = await getApiBaseUrl();
-  if (!base) throw new Error("No se pudo conectar con el servidor de Game Access.");
+  if (!base) throw new Error(translate("activationNoServer"));
   return `${base}${path}`;
 }
 
@@ -65,8 +66,8 @@ export async function checkActivation(token: string): Promise<ActivationStatus> 
     cache: "no-store",
   });
   if (!response.ok) {
-    if (response.status === 401) throw new Error("La activación venció o fue revocada.");
-    throw new Error("No pudimos verificar la activación con el servidor.");
+    if (response.status === 401) throw new Error(translate("activationExpired"));
+    throw new Error(translate("activationServerVerifyFailed"));
   }
   sessionToken = token;
   return response.json() as Promise<ActivationStatus>;
@@ -82,7 +83,7 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || "No se pudo activar el acceso a los juegos.");
+    throw new Error(body.detail ? translateServerDetail(body.detail) : translate("activationGenericFailed"));
   }
   const result = await response.json() as { session_token: string; expires_at: string };
   await saveActivationSession(result.session_token);
