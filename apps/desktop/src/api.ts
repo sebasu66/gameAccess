@@ -248,7 +248,7 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
       return details;
     } catch (error) {
       await narrate(`Game details failed for catalog game ${gameId} after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "GAME", level: "ERROR" });
-      throw new Error(translate("activationServerVerifyFailed").replace("activación", "ficha del juego").replace("activation", "game details"));
+      throw new Error(translate("gameDetailsFailed"));
     }
   });
 };
