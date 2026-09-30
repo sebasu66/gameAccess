@@ -1,6 +1,7 @@
 import { Check, Play, X } from "lucide-react";
 
 import { useDialogFocus } from "./dialogFocus";
+import { useI18n } from "./i18n";
 import type { CatalogGame } from "./types";
 
 interface DownloadCompleteDialogProps {
@@ -12,6 +13,7 @@ interface DownloadCompleteDialogProps {
 
 export default function DownloadCompleteDialog({ game, busy, onPlay, onClose }: DownloadCompleteDialogProps) {
   const dialogRef = useDialogFocus(onClose);
+  const { t } = useI18n();
   const displayName = game.name.replace(/\s+\+\s*$/, "").trim();
   const artwork = game.hero_image || game.header_image || game.capsule_image;
   const backgroundStyle = artwork ? {
@@ -19,15 +21,15 @@ export default function DownloadCompleteDialog({ game, busy, onPlay, onClose }: 
   } : undefined;
   return (
     <div className="download-complete-backdrop" role="presentation">
-      <section ref={dialogRef} className={`download-complete-dialog ${artwork ? "download-complete-dialog-ready" : ""}`} style={backgroundStyle} role="dialog" aria-modal="true" aria-label={`Descarga completa: ${displayName}`}>
-        <button type="button" className="download-dialog-close" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+      <section ref={dialogRef} className={`download-complete-dialog ${artwork ? "download-complete-dialog-ready" : ""}`} style={backgroundStyle} role="dialog" aria-modal="true" aria-label={t("downloadCompleteAria", { name: displayName })}>
+        <button type="button" className="download-dialog-close" onClick={onClose} aria-label={t("close")}><X size={18} /></button>
         <span className="download-complete-icon"><Check size={26} /></span>
-        <span className="eyebrow">DESCARGA TERMINADA</span>
+        <span className="eyebrow">{t("downloadComplete")}</span>
         <h2>{displayName}</h2>
-        <p>Está listo para jugar.</p>
+        <p>{t("readyToPlay")}</p>
         <div className="download-complete-actions">
-          <button type="button" className="primary-button" data-dialog-initial disabled={busy} onClick={onPlay}><Play size={18} fill="currentColor" /> Jugar ahora</button>
-          <button type="button" className="secondary-button" onClick={onClose}>Ahora no</button>
+          <button type="button" className="primary-button" data-dialog-initial disabled={busy} onClick={onPlay}><Play size={18} fill="currentColor" /> {t("playNow")}</button>
+          <button type="button" className="secondary-button" onClick={onClose}>{t("notNow")}</button>
         </div>
       </section>
     </div>
