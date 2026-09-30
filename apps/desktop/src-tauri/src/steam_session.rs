@@ -428,10 +428,88 @@ pub fn direct_switch_steam_account(
 
 #[cfg(target_os = "windows")]
 fn launcher_dir() -> Option<PathBuf> {
+    if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
+        let candidate = PathBuf::from(value);
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
+                if candidate.is_dir() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|desktop| desktop.parent())
         .map(|apps| apps.join("launcher"))
+        .filter(|path| path.is_dir())
+}
+
+#[cfg(target_os = "windows")]
+fn launcher_python(launcher: &Path) -> PathBuf {
+    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
+    if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    }
+}
+
+#[tauri::command]
+pub async fn login_provider_steam_local(provider_reference: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "windows")]
+        {
+            let provider_reference = provider_reference.trim();
+            if provider_reference.is_empty() {
+                return Err("Provider account reference is empty".into());
+            }
+            let launcher =
+                launcher_dir().ok_or_else(|| "Could not locate the local Steam provider adapter".to_string())?;
+            let script = launcher.join("provider_steam_login.py");
+            if !script.is_file() {
+                return Err("Local Steam provider login adapter is missing".into());
+            }
+            let output = Command::new(launcher_python(&launcher))
+                .current_dir(&launcher)
+                .env("PYTHONUTF8", "1")
+                .env("PYTHONIOENCODING", "utf-8")
+                .arg(script)
+                .arg(provider_reference)
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .map_err(|err| format!("Could not start local Steam provider login: {err}"))?;
+
+            if output.status.success() {
+                return Ok(());
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                return Err(stderr);
+            }
+            if !stdout.is_empty() {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                    if let Some(status) = value.get("status").and_then(|item| item.as_str()) {
+                        return Err(format!("Steam provider login failed: {status}"));
+                    }
+                }
+            }
+            Err("Steam provider login failed".into())
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            Err("Provider login requires Windows".into())
+        }
+    })
+    .await
+    .map_err(|_| "Local provider login task failed".to_string())?
 }
 
 #[cfg(target_os = "windows")]
