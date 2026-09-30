@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { loadDetails } from "./api";
+import { useI18n } from "./i18n";
 import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
@@ -48,6 +49,7 @@ type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 
 export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+  const { locale } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -447,7 +449,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
       .catch(() => { if (!cancelled) setDetails(null); })
       .finally(() => { if (!cancelled) setLoadingDetails(false); });
     return () => { cancelled = true; };
-  }, [selectedGameIdResolved, detailRequestedGameId, auxiliarySurface]);
+  }, [selectedGameIdResolved, detailRequestedGameId, auxiliarySurface, locale]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: A changed selection or primary action resets keyboard action focus.
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);

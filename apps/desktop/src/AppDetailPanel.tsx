@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { useI18n } from "./i18n";
 import { gameStateManager, type ResolvedGameState } from "./GameStateManager";
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
@@ -53,6 +54,7 @@ export function DetailPanel({
   busy: boolean;
   overLibrary?: boolean;
 }) {
+  const { locale } = useI18n();
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export function DetailPanel({
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [game.id]);
+  }, [game.id, locale]);
 
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
