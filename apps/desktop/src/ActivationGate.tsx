@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowUpRight, KeyRound, Loader2, PlayCircle } from "lucide-r
 import SplashScreen from "./SplashScreen";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation } from "./activation";
 import type { ActivationStatus } from "./activation";
+import { useI18n } from "./i18n";
 
 // All of these active titles were checked against the local GameAccess catalog.
 // The access gate cannot fetch the protected catalog before a key is redeemed.
@@ -35,6 +36,7 @@ const linkvertiseUrl = import.meta.env.VITE_LINKVERTISE_URL?.trim() || "";
 const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim() || "";
 
 export default function ActivationGate({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<ActivationStatus | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(true);
@@ -53,9 +55,9 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       setStatus(await checkActivation(token));
     } catch (reason) {
       setStatus(null);
-      setError(reason instanceof Error ? reason.message : "No se pudo verificar la activación.");
+      setError(reason instanceof Error ? reason.message : t("activationVerifyFailed"));
     } finally { setBusy(false); }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void verify(); }, [verify]);
   useEffect(() => {
@@ -66,12 +68,12 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     const invalid = () => {
       setStatus(null);
-      setError("La activación venció o fue revocada. Volvé a verificar o ingresá otra clave.");
+      setError(t("activationExpiredHelp"));
       void clearActivationSession();
     };
     window.addEventListener(ACTIVATION_INVALID_EVENT, invalid);
     return () => window.removeEventListener(ACTIVATION_INVALID_EVENT, invalid);
-  }, []);
+  }, [t]);
   useEffect(() => {
     const visible = () => { if (document.visibilityState === "visible") void verify(); };
     window.addEventListener("focus", visible);
@@ -97,7 +99,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       setStatus(await redeemActivation(key));
       setKey("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "No se pudo validar la clave de acceso.");
+      setError(reason instanceof Error ? reason.message : t("activationKeyFailed"));
     } finally { setBusy(false); }
   };
 
@@ -112,29 +114,29 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         </div>
       </div>
       {helpOpen ? <section className="runtime-gate-card activation-card activation-help" aria-labelledby="activation-help-title">
-        <a className="activation-back" href="#acceso"><ArrowLeft size={18} /> Volver a ingresar la clave</a>
-        <div className="activation-card-heading"><div className="activation-key-mark"><PlayCircle size={24} /></div><span className="eyebrow">ACCESO GRATIS</span></div>
-        <h1 id="activation-help-title">Cómo obtener tu clave de acceso</h1>
-        <p>Completá el recorrido indicado y volvé a Game Access para ingresar la clave que recibas.</p>
-        {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label="Video: cómo obtener tu clave de acceso" />
-          : <div className="activation-video-pending"><PlayCircle size={38} /><span>El video explicativo estará disponible acá.</span></div>}
-        <ol className="activation-help-steps"><li>Abrí el enlace de Linkvertise.</li><li>Completá los pasos que te indique la página.</li><li>Copiá la clave y pegala en Game Access.</li></ol>
-        {linkvertiseUrl ? <a className="activation-provider-link" href={linkvertiseUrl} target="_blank" rel="noopener noreferrer">Ir a Linkvertise <ArrowUpRight size={19} /></a>
-          : <p className="activation-provider-pending">El enlace para obtener claves gratis todavía no está disponible.</p>}
+        <a className="activation-back" href="#acceso"><ArrowLeft size={18} /> {t("activationBack")}</a>
+        <div className="activation-card-heading"><div className="activation-key-mark"><PlayCircle size={24} /></div><span className="eyebrow">{t("activationFree")}</span></div>
+        <h1 id="activation-help-title">{t("activationHelpTitle")}</h1>
+        <p>{t("activationHelpLead")}</p>
+        {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} />
+          : <div className="activation-video-pending"><PlayCircle size={38} /><span>{t("activationVideoPending")}</span></div>}
+        <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
+        {linkvertiseUrl ? <a className="activation-provider-link" href={linkvertiseUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
+          : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
       </section> : <section className="runtime-gate-card activation-card">
-        <div className="activation-card-heading"><div className="activation-key-mark"><KeyRound size={24} /></div><span className="eyebrow">ACCESO BETA</span></div>
-        <h1>{busy ? "Verificando acceso…" : "Entrá a Game Access"}</h1>
-        <p>Ingresá tu clave de acceso para empezar a jugar.</p>
+        <div className="activation-card-heading"><div className="activation-key-mark"><KeyRound size={24} /></div><span className="eyebrow">{t("activationBeta")}</span></div>
+        <h1>{busy ? t("activationChecking") : t("activationEnter")}</h1>
+        <p>{t("activationLead")}</p>
         <form onSubmit={event => void activate(event)} className="activation-form">
-          <label htmlFor="activation-key">Clave de acceso</label>
-          <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} placeholder="Pegá tu clave acá" disabled={busy} />
+          <label htmlFor="activation-key">{t("activationKeyLabel")}</label>
+          <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} placeholder={t("activationKeyPlaceholder")} disabled={busy} />
           {error ? <p role="alert" className="activation-error">{error}</p> : null}
-          {error && !key.trim() ? <button type="button" className="activation-retry" onClick={() => void verify()} disabled={busy}>Reintentar conexión</button> : null}
+          {error && !key.trim() ? <button type="button" className="activation-retry" onClick={() => void verify()} disabled={busy}>{t("retryConnection")}</button> : null}
           <div className="runtime-gate-actions">
-            <button type="submit" className="primary" disabled={busy || !key.trim()}>{busy ? <Loader2 className="spin" size={18} /> : <KeyRound size={18} />} Acceder a los juegos</button>
+            <button type="submit" className="primary" disabled={busy || !key.trim()}>{busy ? <Loader2 className="spin" size={18} /> : <KeyRound size={18} />} {t("activationSubmit")}</button>
           </div>
         </form>
-        <a className="activation-free-link" href="#obtener-clave">Obtener clave de acceso gratis <ArrowUpRight size={18} /></a>
+        <a className="activation-free-link" href="#obtener-clave">{t("activationGetFree")} <ArrowUpRight size={18} /></a>
       </section>}
     </main>}
     {(!status?.active || !splashComplete) ? <SplashScreen onComplete={completeSplash} /> : null}
