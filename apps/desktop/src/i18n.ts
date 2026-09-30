@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type AppLocale = "es" | "en";
 export type TranslationParams = Record<string, string | number>;
@@ -245,11 +245,15 @@ function snapshot(): AppLocale {
 
 export function useI18n() {
   const locale = useSyncExternalStore(subscribe, snapshot, () => FALLBACK_LOCALE);
+  const t = useCallback(
+    (key: TranslationKey, params?: TranslationParams) => translate(key, params, locale),
+    [locale],
+  );
   return {
     locale,
     localeTag: locale === "es" ? "es-AR" : "en-US",
     setLocale: setAppLocale,
-    t: (key: TranslationKey, params?: TranslationParams) => translate(key, params, locale),
+    t,
   };
 }
 
