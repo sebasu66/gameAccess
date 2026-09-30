@@ -560,39 +560,49 @@ def catalog_availability(session: Session = Depends(get_session)) -> list[dict]:
 
         from . import family_capacity
 
-        # IMPORTANT: do not pass thousands of game IDs here. catalog_metrics()
-        # uses IN clauses when game_ids is supplied; that is ideal for one 200-row
-        # catalog page but very expensive for the entire pool over remote Postgres.
-        metrics = family_capacity.catalog_metrics(session)
-        games = session.exec(
-            select(Game)
-            .where(
-                Game.id.in_(select(AccountGame.game_id)),
-                Game.active == True,  # noqa: E712
-                CATALOG_PRODUCT_FILTER,
-            )
-            .order_by(Game.id)
-        ).all()
+        result: list[dict] | None = None
+        try:
+            result = family_capacity.fast_catalog_availability(session)
+        except Exception:
+            # Keep the proven Python implementation as a safety net if hosted
+            # PostgreSQL contains malformed legacy notes or the fast query fails.
+            logger.exception("Fast catalog availability failed; using Python fallback")
+            session.rollback()
 
-        result: list[dict] = []
-        for game in games:
-            game_id = int(game.id or 0)
-            metric = metrics.get(game_id, {})
-            total = int(metric.get("total", 0))
-            available = int(metric.get("available", 0))
-            result.append({
-                "id": game_id,
-                "app_id": game.app_id,
-                "credit_cost_per_hour": game.credit_cost_per_hour,
-                "copies_total": total,
-                "copies_available": available,
-                "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
-                "request_count_total": int(metric.get("request_count_total", 0)),
-                "successful_leases": int(metric.get("successful_leases", 0)),
-                "demand_value": float(metric.get("demand_value", 1.0)),
-                "price_factor": float(metric.get("price_factor", 1.0)),
-                "pool_value": float(metric.get("pool_value", 1.0)),
-            })
+        if result is None:
+            # SQLite/tests and unexpected PostgreSQL data use the existing
+            # implementation. Avoid passing thousands of IDs because that
+            # creates a huge remote IN clause.
+            metrics = family_capacity.catalog_metrics(session)
+            games = session.exec(
+                select(Game)
+                .where(
+                    Game.id.in_(select(AccountGame.game_id)),
+                    Game.active == True,  # noqa: E712
+                    CATALOG_PRODUCT_FILTER,
+                )
+                .order_by(Game.id)
+            ).all()
+
+            result = []
+            for game in games:
+                game_id = int(game.id or 0)
+                metric = metrics.get(game_id, {})
+                total = int(metric.get("total", 0))
+                available = int(metric.get("available", 0))
+                result.append({
+                    "id": game_id,
+                    "app_id": game.app_id,
+                    "credit_cost_per_hour": game.credit_cost_per_hour,
+                    "copies_total": total,
+                    "copies_available": available,
+                    "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
+                    "request_count_total": int(metric.get("request_count_total", 0)),
+                    "successful_leases": int(metric.get("successful_leases", 0)),
+                    "demand_value": float(metric.get("demand_value", 1.0)),
+                    "price_factor": float(metric.get("price_factor", 1.0)),
+                    "pool_value": float(metric.get("pool_value", 1.0)),
+                })
         _availability_cache = (time.monotonic(), result)
         return result
 

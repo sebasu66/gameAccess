@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from typing import Any, Optional
 
+from sqlalchemy import text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
@@ -329,6 +330,132 @@ def catalog_metrics(
             "price_factor": round(price_factor, 4),
             "pool_value": round(demand_value * price_factor, 4),
         }
+    return result
+
+
+def fast_catalog_availability(session: Session) -> list[dict[str, Any]] | None:
+    """Return the complete live catalog overlay in one PostgreSQL query.
+
+    The regular Python implementation remains the source-of-truth fallback for
+    SQLite/tests and for any unexpected PostgreSQL data that cannot be parsed.
+    """
+    connection = session.connection()
+    if connection.dialect.name != "postgresql":
+        return None
+
+    statement = text("""
+    WITH visible_games AS (
+      SELECT g.id, g.app_id, g.credit_cost_per_hour
+      FROM game g
+      JOIN game_metadata m ON m.game_id = g.id
+      WHERE g.active = true
+        AND lower(coalesce(m.product_type,'')) = 'game'
+        AND lower(trim(coalesce(g.name,''))) <> ('steam ' || g.app_id::text)
+        AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id = g.id)
+    ),
+    family_copy_counts AS (
+      SELECT family_id, game_id, count(*)::int AS copies
+      FROM familygamelicensecopy
+      GROUP BY family_id, game_id
+    ),
+    enabled_members AS (
+      SELECT fm.family_id,
+             count(*) FILTER (WHERE pa.status::text <> 'disabled')::int AS enabled
+      FROM familymember fm
+      JOIN provideraccount pa ON pa.id = fm.account_id
+      GROUP BY fm.family_id
+    ),
+    account_accessible AS (
+      SELECT pa.id AS account_id, access.value::int AS app_id
+      FROM provideraccount pa
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        coalesce((nullif(pa.notes,'')::jsonb)->'accessible_app_ids','[]'::jsonb)
+      ) AS access(value)
+      WHERE pa.status::text = 'free'
+        AND access.value ~ '^[0-9]+$'
+    ),
+    eligible_counts AS (
+      SELECT fm.family_id, vg.id AS game_id,
+             count(DISTINCT fm.account_id)::int AS eligible
+      FROM account_accessible aa
+      JOIN familymember fm ON fm.account_id = aa.account_id
+      JOIN visible_games vg ON vg.app_id = aa.app_id
+      GROUP BY fm.family_id, vg.id
+    ),
+    usage_counts AS (
+      SELECT coalesce(la.family_id, fm.family_id) AS family_id,
+             l.game_id,
+             count(*)::int AS used
+      FROM lease l
+      LEFT JOIN leaseallocation la ON la.lease_id = l.id
+      LEFT JOIN familymember fm ON fm.account_id = l.account_id
+      WHERE l.status::text = 'active'
+        AND coalesce(la.family_id, fm.family_id) IS NOT NULL
+      GROUP BY coalesce(la.family_id, fm.family_id), l.game_id
+    ),
+    family_capacity AS (
+      SELECT fcc.game_id,
+             sum(least(fcc.copies, coalesce(em.enabled,0)))::int AS total,
+             sum(least(
+               greatest(fcc.copies - coalesce(uc.used,0), 0),
+               coalesce(ec.eligible,0)
+             ))::int AS available
+      FROM family_copy_counts fcc
+      LEFT JOIN enabled_members em ON em.family_id = fcc.family_id
+      LEFT JOIN eligible_counts ec
+        ON ec.family_id = fcc.family_id AND ec.game_id = fcc.game_id
+      LEFT JOIN usage_counts uc
+        ON uc.family_id = fcc.family_id AND uc.game_id = fcc.game_id
+      GROUP BY fcc.game_id
+    ),
+    legacy_capacity AS (
+      SELECT ag.game_id,
+             count(DISTINCT ag.account_id)::int AS total,
+             count(DISTINCT ag.account_id)
+               FILTER (WHERE pa.status::text='free')::int AS available
+      FROM accountgame ag
+      JOIN provideraccount pa ON pa.id = ag.account_id
+      GROUP BY ag.game_id
+    )
+    SELECT
+      vg.id,
+      vg.app_id,
+      vg.credit_cost_per_hour,
+      coalesce(fc.total, lc.total, 0)::int AS copies_total,
+      coalesce(fc.available, lc.available, 0)::int AS copies_available,
+      coalesce(gd.request_count_total, 0)::int AS request_count_total,
+      coalesce(gd.successful_leases, 0)::int AS successful_leases,
+      coalesce(gd.demand_value, 1.0)::float AS demand_value,
+      coalesce(gd.price_factor, 1.0)::float AS price_factor
+    FROM visible_games vg
+    LEFT JOIN family_capacity fc ON fc.game_id = vg.id
+    LEFT JOIN legacy_capacity lc ON lc.game_id = vg.id
+    LEFT JOIN gamedemand gd ON gd.game_id = vg.id
+    ORDER BY vg.id
+    """)
+
+    rows = connection.execute(statement).mappings().all()
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        total = int(row["copies_total"] or 0)
+        available = int(row["copies_available"] or 0)
+        demand_value = float(row["demand_value"] or 1.0)
+        price_factor = float(row["price_factor"] or 1.0)
+        result.append({
+            "id": int(row["id"]),
+            "app_id": int(row["app_id"]) if row["app_id"] is not None else None,
+            "credit_cost_per_hour": int(row["credit_cost_per_hour"] or 0),
+            "copies_total": total,
+            "copies_available": available,
+            "availability_state": (
+                "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable")
+            ),
+            "request_count_total": int(row["request_count_total"] or 0),
+            "successful_leases": int(row["successful_leases"] or 0),
+            "demand_value": round(demand_value, 4),
+            "price_factor": round(price_factor, 4),
+            "pool_value": round(demand_value * price_factor, 4),
+        })
     return result
 
 
