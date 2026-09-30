@@ -96,6 +96,7 @@ const es = {
   refreshGamesAria: "Actualizar lista de juegos",
   refreshGamesTitle: "Volver a pedir el catálogo al servidor",
   refreshGames: "Actualizar juegos",
+  gameDetailsFailed: "No se pudo obtener la ficha del juego",
 } as const;
 
 type TranslationKey = keyof typeof es;
@@ -190,6 +191,7 @@ const en: Record<TranslationKey, string> = {
   refreshGamesAria: "Refresh game list",
   refreshGamesTitle: "Fetch the catalog from the server again",
   refreshGames: "Refresh games",
+  gameDetailsFailed: "Could not load game details",
 };
 
 const catalogs: Record<AppLocale, Record<TranslationKey, string>> = { es, en };
