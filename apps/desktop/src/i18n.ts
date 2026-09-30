@@ -209,6 +209,14 @@ function interpolate(value: string, params?: TranslationParams): string {
   return value.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => String(params[key] ?? ""));
 }
 
+export function getAppLocale(): AppLocale {
+  return currentLocale;
+}
+
+export function getSteamStoreLanguage(): "spanish" | "english" {
+  return currentLocale === "es" ? "spanish" : "english";
+}
+
 export function translate(key: TranslationKey, params?: TranslationParams, locale = currentLocale): string {
   const value = catalogs[locale]?.[key] ?? catalogs[FALLBACK_LOCALE][key] ?? key;
   return interpolate(value, params);
