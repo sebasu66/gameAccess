@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import Engine, inspect, text
 
 
-CATALOG_SCHEMA_VERSION = 1
+CATALOG_SCHEMA_VERSION = 2
 CATALOG_ALLOWED_PRODUCT_TYPES = frozenset({"game"})
 
 
@@ -152,6 +152,17 @@ def ensure_catalog_schema(engine: Engine) -> None:
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS game_metadata_locale (
+            game_id INTEGER NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+            language TEXT NOT NULL,
+            country TEXT NOT NULL,
+            steam_json TEXT NOT NULL,
+            metadata_fetched_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (game_id, language, country)
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS game_genre (
             game_id INTEGER NOT NULL REFERENCES game(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
@@ -191,6 +202,7 @@ def ensure_catalog_schema(engine: Engine) -> None:
         "CREATE INDEX IF NOT EXISTS ix_game_metadata_is_adult ON game_metadata(is_adult)",
         "CREATE INDEX IF NOT EXISTS ix_game_metadata_state ON game_metadata(metadata_state)",
         "CREATE INDEX IF NOT EXISTS ix_game_metadata_release_date ON game_metadata(release_date)",
+        "CREATE INDEX IF NOT EXISTS ix_game_metadata_locale_lookup ON game_metadata_locale(game_id, language, country)",
         "CREATE INDEX IF NOT EXISTS ix_game_genre_name ON game_genre(name)",
         "CREATE INDEX IF NOT EXISTS ix_game_category_name ON game_category(name)",
         "CREATE INDEX IF NOT EXISTS ix_game_tag_name ON game_tag(name)",
@@ -510,6 +522,71 @@ def get_cached_steam_metadata(engine: Engine, game_id: int) -> dict[str, Any] | 
         return value if isinstance(value, dict) else None
     except Exception:
         return None
+
+
+def get_cached_steam_metadata_locale(
+    engine: Engine,
+    game_id: int,
+    language: str,
+    country: str,
+) -> dict[str, Any] | None:
+    normalized_language = str(language).strip().casefold()
+    normalized_country = str(country).strip().casefold()
+    with engine.begin() as conn:
+        row = _execute(
+            conn,
+            """
+            SELECT steam_json
+            FROM game_metadata_locale
+            WHERE game_id=? AND language=? AND country=?
+            """,
+            (int(game_id), normalized_language, normalized_country),
+        ).first()
+    if not row or not row[0]:
+        if normalized_language == "spanish" and normalized_country == "ar":
+            return get_cached_steam_metadata(engine, game_id)
+        return None
+    try:
+        value = json.loads(row[0])
+        return value if isinstance(value, dict) else None
+    except Exception:
+        return None
+
+
+def upsert_steam_metadata_locale(
+    engine: Engine,
+    game_id: int,
+    language: str,
+    country: str,
+    metadata: dict[str, Any],
+    fetched_at: str | None = None,
+) -> None:
+    normalized_language = str(language).strip().casefold()
+    normalized_country = str(country).strip().casefold()
+    now = datetime.now(timezone.utc).isoformat()
+    fetched = fetched_at or now
+    with engine.begin() as conn:
+        _execute(
+            conn,
+            """
+            INSERT INTO game_metadata_locale(
+                game_id, language, country, steam_json, metadata_fetched_at, updated_at
+            )
+            VALUES (:game_id, :language, :country, :steam_json, :fetched_at, :updated_at)
+            ON CONFLICT (game_id, language, country) DO UPDATE SET
+                steam_json=excluded.steam_json,
+                metadata_fetched_at=excluded.metadata_fetched_at,
+                updated_at=excluded.updated_at
+            """,
+            {
+                "game_id": int(game_id),
+                "language": normalized_language,
+                "country": normalized_country,
+                "steam_json": _json(metadata, {}),
+                "fetched_at": fetched,
+                "updated_at": now,
+            },
+        )
 
 
 def catalog_metadata_for_games(engine: Engine, game_ids: list[int]) -> dict[int, dict[str, Any]]:
