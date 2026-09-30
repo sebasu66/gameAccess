@@ -79,6 +79,7 @@ def _steam_library_folders(root: Path | None) -> list[dict[str, Any]]:
         result.append(_library_row(0, str(root)))
     return sorted(result, key=lambda item: item["index"])
 
+
 def _ownership_state_by_provider() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     # Read durable per-provider ownership and latest scan health.
     state = ProviderOwnershipStore().states()
