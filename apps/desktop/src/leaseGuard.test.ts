@@ -11,4 +11,9 @@ describe("GameAccess lease guard", () => {
   it("explicitly asks the backend to replace a stale active lease", () => {
     expect(source).toContain("replace_existing: true");
   });
+
+  it("keeps Steam provider login local instead of calling the shared backend transport", () => {
+    expect(source).toContain("loginProviderSteam(lease.account.label)");
+    expect(source).not.toContain(`/leases/${lease.lease_id}/steam-login`);
+  });
 });
