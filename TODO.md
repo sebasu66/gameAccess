@@ -43,6 +43,7 @@
 - [ ] Publicar API HTTPS en un host independiente del cliente (Replit, no Replicate, es candidato beta). Medir arranque en frío, disponibilidad y capacidad; pasar a instancia siempre activa/VPS cuando sea necesario.
 - [ ] Publicar landing y descarga Windows en URL estable (Cloudflare Pages es candidato). Configurar dirección/resolvedor estable para que el cliente encuentre la API aunque cambie el host real. Versionar el instalador.
 - [ ] Verificar instalación limpia y flujo completo: bloqueo, emisión/canje único, vencimiento/revocación, Linkvertise, versión mínima, ambos idiomas, juego, cambio de cuenta y guardados compatibles. Revisar credenciales Steam, concurrencia real y condiciones de plataforma antes del lanzamiento comercial.
+- [ ] **Pendiente — prueba local Tauri del nuevo catálogo cacheado.** No ejecutar ahora. Retomar después para validar en Windows dos arranques consecutivos del cliente con los cambios de caché/disponibilidad actuales: primer arranque con snapshot ausente/obsoleto, segundo arranque reutilizando `%LOCALAPPDATA%\\GameAccess\\cache\\catalog.sqlite` sin volver a descargar el snapshot si la revisión no cambió; confirmar que sólo se consulta el overlay liviano `/catalog/availability`, que no reaparece el race de sincronización ni refresh duplicado, y medir tiempo total de arranque/carga. Incluir verificación del manifest vía GitHub API, revisión local, cantidad de juegos y fallback si la caché no está disponible. Cambios relacionados: `fab128d`, `9fc1791`.
 
 
 ## Current operating model — two parallel fronts
