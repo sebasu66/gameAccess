@@ -9,11 +9,13 @@ use std::{
     env, fs,
     io::Read,
     path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
     time::Duration,
 };
 
 const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
+static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -120,6 +122,10 @@ fn current_cache_info(path: &Path) -> Result<Option<(String, usize)>, String> {
 }
 
 fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
+    let _sync_guard = CATALOG_CACHE_SYNC_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "Catalog cache synchronization lock was poisoned".to_string())?;
     validate_github_https_url(&manifest_url)?;
     let client = Client::builder()
         .timeout(Duration::from_secs(45))

@@ -534,45 +534,67 @@ def catalog(
     ]
 
 
+_availability_cache_lock = threading.Lock()
+_availability_cache: tuple[float, list[dict]] | None = None
+_AVAILABILITY_CACHE_SECONDS = 3.0
+
+
 @app.get("/catalog/availability")
 def catalog_availability(session: Session = Depends(get_session)) -> list[dict]:
     """Return only live license/demand state; static game metadata is client-cached."""
-    expire_old_leases(session)
-    licensed_ids = licensed_game_ids(session)
-    if not licensed_ids:
-        return []
-    from . import family_capacity
+    global _availability_cache
 
-    metrics = family_capacity.catalog_metrics(session, licensed_ids)
-    games = session.exec(
-        select(Game)
-        .where(
-            Game.id.in_(licensed_ids),
-            Game.active == True,  # noqa: E712
-            CATALOG_PRODUCT_FILTER,
-        )
-        .order_by(Game.id)
-    ).all()
-    result: list[dict] = []
-    for game in games:
-        game_id = int(game.id or 0)
-        metric = metrics.get(game_id, {})
-        total = int(metric.get("total", 0))
-        available = int(metric.get("available", 0))
-        result.append({
-            "id": game_id,
-            "app_id": game.app_id,
-            "credit_cost_per_hour": game.credit_cost_per_hour,
-            "copies_total": total,
-            "copies_available": available,
-            "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
-            "request_count_total": int(metric.get("request_count_total", 0)),
-            "successful_leases": int(metric.get("successful_leases", 0)),
-            "demand_value": float(metric.get("demand_value", 1.0)),
-            "price_factor": float(metric.get("price_factor", 1.0)),
-            "pool_value": float(metric.get("pool_value", 1.0)),
-        })
-    return result
+    expire_old_leases(session)
+    now = time.monotonic()
+    cached = _availability_cache
+    if cached is not None and now - cached[0] < _AVAILABILITY_CACHE_SECONDS:
+        return cached[1]
+
+    # Multiple desktop starts can arrive together. Only one request computes the
+    # full availability snapshot; followers reuse it as soon as it is ready.
+    with _availability_cache_lock:
+        now = time.monotonic()
+        cached = _availability_cache
+        if cached is not None and now - cached[0] < _AVAILABILITY_CACHE_SECONDS:
+            return cached[1]
+
+        from . import family_capacity
+
+        # IMPORTANT: do not pass thousands of game IDs here. catalog_metrics()
+        # uses IN clauses when game_ids is supplied; that is ideal for one 200-row
+        # catalog page but very expensive for the entire pool over remote Postgres.
+        metrics = family_capacity.catalog_metrics(session)
+        games = session.exec(
+            select(Game)
+            .where(
+                Game.id.in_(select(AccountGame.game_id)),
+                Game.active == True,  # noqa: E712
+                CATALOG_PRODUCT_FILTER,
+            )
+            .order_by(Game.id)
+        ).all()
+
+        result: list[dict] = []
+        for game in games:
+            game_id = int(game.id or 0)
+            metric = metrics.get(game_id, {})
+            total = int(metric.get("total", 0))
+            available = int(metric.get("available", 0))
+            result.append({
+                "id": game_id,
+                "app_id": game.app_id,
+                "credit_cost_per_hour": game.credit_cost_per_hour,
+                "copies_total": total,
+                "copies_available": available,
+                "availability_state": "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable"),
+                "request_count_total": int(metric.get("request_count_total", 0)),
+                "successful_leases": int(metric.get("successful_leases", 0)),
+                "demand_value": float(metric.get("demand_value", 1.0)),
+                "price_factor": float(metric.get("price_factor", 1.0)),
+                "pool_value": float(metric.get("pool_value", 1.0)),
+            })
+        _availability_cache = (time.monotonic(), result)
+        return result
 
 
 @app.get("/catalog/static/{game_id}")

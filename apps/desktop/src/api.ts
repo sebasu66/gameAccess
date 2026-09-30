@@ -22,6 +22,7 @@ const DETAIL_TTL_MS = 10 * 60 * 1000;
 
 let localCatalog: CatalogGame[] = [];
 let gameAccessCatalog: CatalogGame[] = [];
+let backendCatalogLoadPromise: Promise<CatalogGame[]> | null = null;
 
 interface CatalogAvailability {
   id: number;
@@ -192,7 +193,7 @@ async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
   return games;
 }
 
-async function loadCachedBackendCatalog(): Promise<CatalogGame[]> {
+async function computeCachedBackendCatalog(): Promise<CatalogGame[]> {
   const manifestUrl = await getCatalogManifestUrl();
   let cachedGames: CatalogGame[] = [];
 
@@ -245,6 +246,14 @@ async function loadCachedBackendCatalog(): Promise<CatalogGame[]> {
       ...live,
     } satisfies CatalogGame];
   });
+}
+
+function loadCachedBackendCatalog(): Promise<CatalogGame[]> {
+  if (backendCatalogLoadPromise) return backendCatalogLoadPromise;
+  backendCatalogLoadPromise = computeCachedBackendCatalog().finally(() => {
+    backendCatalogLoadPromise = null;
+  });
+  return backendCatalogLoadPromise;
 }
 
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
