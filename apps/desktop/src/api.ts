@@ -4,6 +4,7 @@ import { applyBundledCatalogArtwork, applyBundledDetails } from "./bundledArtwor
 import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
 import { PersonalCatalog } from "./catalog/PersonalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
 import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
 import { getApiBaseUrl } from "./settings";
@@ -15,11 +16,11 @@ const DETAIL_TTL_MS = 10 * 60 * 1000;
 let localCatalog: CatalogGame[] = [];
 
 const personalCatalogBuilder = new PersonalCatalog();
-const steamMetadataCache = new Map<number, SteamMetadata>();
+const steamMetadataCache = new Map<string, SteamMetadata>();
 const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ ttlMs: DETAIL_TTL_MS });
 
 function detailCacheKey(gameId: number): string {
-  return `${getCatalogMode()}|${gameId}`;
+  return `${getCatalogMode()}|${getAppLocale()}|${gameId}`;
 }
 
 async function loadLocalCatalog(): Promise<CatalogGame[]> {
@@ -76,13 +77,14 @@ async function loadLocalDetails(gameId: number): Promise<GameDetails> {
   const game = localCatalog.find((item) => item.id === gameId || item.app_id === gameId);
   if (!game) throw new Error("Juego no encontrado en el catálogo local");
   if (game.app_id) {
-    let steam = steamMetadataCache.get(game.app_id);
+    const metadataKey = `${game.app_id}|${getAppLocale()}`;
+    let steam = steamMetadataCache.get(metadataKey);
     if (!steam) {
       try {
         const raw = await getSteamStoreMetadata(game.app_id);
         if (raw) {
           steam = normalizeSteamStoreMetadata(game, raw);
-          steamMetadataCache.set(game.app_id, steam);
+          steamMetadataCache.set(metadataKey, steam);
         }
       } catch {
         // Keep browsing even if Steam Store metadata is temporarily unavailable.
@@ -241,12 +243,12 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
     try {
       const details = getCatalogMode() === "local"
         ? await loadLocalDetails(gameId)
-        : await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details`));
+        : await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`));
       await narrate(`Game details loaded for catalog game ${gameId} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "GAME" });
       return details;
     } catch (error) {
       await narrate(`Game details failed for catalog game ${gameId} after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "GAME", level: "ERROR" });
-      throw new Error("No se pudo obtener la ficha del juego");
+      throw new Error(translate("activationServerVerifyFailed").replace("activación", "ficha del juego").replace("activation", "game details"));
     }
   });
 };
@@ -275,7 +277,7 @@ export const loadSteamApp = async (appId: number) => {
     if (!details.steam) throw new Error("Steam metadata is unavailable");
     return details.steam;
   }
-  return request<SteamMetadata>(`/steam/apps/${appId}`);
+  return request<SteamMetadata>(`/steam/apps/${appId}?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`);
 };
 
 export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
