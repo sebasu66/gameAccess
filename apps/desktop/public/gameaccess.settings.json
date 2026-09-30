@@ -1,6 +1,6 @@
 {
   "api_url": "",
   "api_url_resolver": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/apps/desktop/public/backend-pointer.json",
-  "catalog_manifest_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-manifest.json",
+  "catalog_manifest_url": "https://api.github.com/repos/sebasu66/gameAccess/contents/deploy/catalog-cache/catalog-manifest.json?ref=dev",
   "_help": "GameAccess probes the local backend first, then resolves the hosted backend. Static catalog metadata is synchronized from the versioned GitHub catalog manifest."
 }

@@ -1,6 +1,6 @@
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
-use reqwest::header::CACHE_CONTROL;
+use reqwest::header::{ACCEPT, CACHE_CONTROL, USER_AGENT};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,6 +52,7 @@ fn validate_github_https_url(raw: &str) -> Result<(), String> {
     }
     let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
     let allowed = host == "raw.githubusercontent.com"
+        || host == "api.github.com"
         || host == "github.com"
         || host.ends_with(".githubusercontent.com");
     if !allowed {
@@ -126,6 +127,8 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
         .map_err(|err| format!("Could not create catalog cache client: {err}"))?;
     let manifest = client
         .get(&manifest_url)
+        .header(USER_AGENT, "GameAccess/0.1")
+        .header(ACCEPT, "application/vnd.github.raw+json")
         .header(CACHE_CONTROL, "no-cache")
         .send()
         .and_then(|response| response.error_for_status())
