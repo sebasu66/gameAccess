@@ -158,6 +158,7 @@ El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Ste
 - [x] Correct filter taxonomy: Categorías lists database genres; Funciones de Steam lists full database Steam categories instead of the limited boolean feature list.
 - [x] Highlight the control strip in fluorescent green, enlarge collection labels, distinguish the three tabs with coordinated colors, and space source/collection/search/filter groups.
 - [x] Group Volver arriba with Actualizar juegos in the same bottom action bar to prevent overlap.
+- [ ] **Pendiente — no probar Tauri local ahora:** revalidar más adelante el flujo del catálogo cacheado en Tauri: primer arranque y segundo arranque, reutilización de `%LOCALAPPDATA%\\GameAccess\\cache\\catalog.sqlite` sin redescarga, sincronización concurrente segura del snapshot, una sola consulta a `/catalog/availability`, tiempos de carga y funcionamiento local de búsqueda/filtros (texto sólo en título + community tags; género y modos de juego mediante filtros).
 
 ## P1 — Local Steam integration and unified library
 
