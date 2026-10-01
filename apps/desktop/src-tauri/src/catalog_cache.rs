@@ -47,6 +47,26 @@ fn cache_db_path() -> Result<PathBuf, String> {
     Ok(cache_dir()?.join("catalog.sqlite"))
 }
 
+fn reconcile_cache_sidecars(target: &Path) -> Result<(), String> {
+    let next = target.with_extension("sqlite.next");
+    let backup = target.with_extension("sqlite.bak");
+
+    if next.exists() {
+        fs::remove_file(&next)
+            .map_err(|err| format!("Could not remove stale catalog cache staging file: {err}"))?;
+    }
+    if target.exists() {
+        if backup.exists() {
+            fs::remove_file(&backup)
+                .map_err(|err| format!("Could not remove stale catalog cache backup: {err}"))?;
+        }
+    } else if backup.exists() {
+        fs::rename(&backup, target)
+            .map_err(|err| format!("Could not restore catalog cache backup: {err}"))?;
+    }
+    Ok(())
+}
+
 fn validate_github_https_url(raw: &str) -> Result<(), String> {
     let parsed = reqwest::Url::parse(raw).map_err(|err| format!("Invalid catalog cache URL: {err}"))?;
     if parsed.scheme() != "https" {
@@ -151,6 +171,7 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     validate_github_https_url(&manifest.artifact_url)?;
 
     let target = cache_db_path()?;
+    reconcile_cache_sidecars(&target)?;
     if let Some((revision, count)) = current_cache_info(&target)? {
         if revision == manifest.revision {
             return Ok(CatalogCacheSyncResult {
