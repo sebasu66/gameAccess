@@ -330,7 +330,8 @@ def onboard_provider_account(
         payload={
             "label": credential.label,
             "provider": "steam",
-            "game_ids": game_ids,
+            # /admin/accounts/sync treats game_ids as authoritative ownership.
+            "game_ids": owned_game_ids,
             "notes": notes,
         },
         timeout=30.0,
