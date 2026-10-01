@@ -278,6 +278,11 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   return invoke<SteamSessionStatus>("steam_session_status");
 }
 
+export async function isSteamAppRunning(appId: number): Promise<boolean> {
+  if (!appId || !hasTauriRuntime()) return false;
+  return invoke<boolean>("steam_app_is_running", { appId });
+}
+
 export async function openSteamInstall(appId: number, recovery: { providerId?: string | null; libraryIndex?: number | null } = {}): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   const mode = getCatalogMode();
