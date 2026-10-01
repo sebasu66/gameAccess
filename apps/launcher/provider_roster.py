@@ -24,6 +24,22 @@ class ProviderCredential:
     password: str
 
 
+_EPHEMERAL_CREDENTIALS: dict[str, ProviderCredential] = {}
+
+
+def set_ephemeral_provider_credential(provider_id: str, login: str, secret: str) -> None:
+    provider_id = provider_id.strip()
+    login = login.strip()
+    if not provider_id or not login or not secret:
+        raise ValueError("Incomplete ephemeral provider credential")
+    _EPHEMERAL_CREDENTIALS[provider_id] = ProviderCredential(
+        provider_id=provider_id,
+        label=provider_id,
+        login=login,
+        password=secret,
+    )
+
+
 def configured_accounts_path() -> Path:
     configured = os.environ.get("GAMEACCESS_ACCOUNTS_FILE", "").strip()
     if configured:
@@ -175,6 +191,9 @@ def match_provider_identities(path: Path | None = None) -> dict[str, Any]:
 
 
 def credential_by_provider_id(provider_id: str, path: Path | None = None) -> ProviderCredential | None:
+    ephemeral = _EPHEMERAL_CREDENTIALS.get(provider_id)
+    if ephemeral is not None:
+        return ephemeral
     for credential in load_provider_credentials(path):
         if credential.provider_id == provider_id:
             return credential
