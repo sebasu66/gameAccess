@@ -68,6 +68,41 @@ jobs:
         working-directory: apps/desktop
         run: npm run tauri build
 
+      - name: Verify installer payload
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "NSIS installer not found." }
+          if ($installer.Length -lt 20MB) { throw "NSIS installer is unexpectedly small: $($installer.Length) bytes." }
+
+          $extract = Join-Path $env:RUNNER_TEMP "gameaccess-installer-check"
+          Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $extract | Out-Null
+          & 7z x $installer.FullName "-o$extract" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Could not inspect NSIS installer." }
+
+          $required = @(
+            "gameaccess-desktop.exe",
+            "runtime/python/python.exe",
+            "runtime/launcher/provider_download_manager.py",
+            "runtime/launcher/steam_pool.py"
+          )
+          foreach ($relative in $required) {
+            $candidate = Join-Path $extract $relative
+            if (-not (Test-Path $candidate -PathType Leaf)) {
+              throw "Installer payload is missing $relative"
+            }
+          }
+
+          $forbidden = Get-ChildItem $extract -Recurse -Force | Where-Object {
+            $_.FullName -match '[\\/]\.venv([\\/]|$)' -or
+            $_.FullName -match '[\\/]\.gameaccess([\\/]|$)' -or
+            $_.FullName -match '[\\/]__pycache__([\\/]|$)'
+          }
+          if ($forbidden) {
+            throw "Installer payload contains forbidden local/runtime cache paths: $($forbidden[0].FullName)"
+          }
+
       - name: Read application version
         id: version
         shell: pwsh
