@@ -183,10 +183,9 @@ fn reconciliation_command(launcher: &Path, args: &[String]) -> Result<serde_json
         return Err("GameAccess download reconciliation script is missing".into());
     }
     let mut command = Command::new(python);
+    apply_runtime_env(&mut command, launcher);
     command
         .current_dir(launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
         .arg(script)
         .args(args);
     hide_window(&mut command);
@@ -345,10 +344,9 @@ fn validate_provider(app_id: u32) -> Result<String, String> {
         return Err("GameAccess provider download manager is missing".into());
     }
     let mut command = Command::new(python);
+    apply_runtime_env(&mut command, &launcher);
     command
         .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
         .args([
             script.to_string_lossy().as_ref(),
             "--app-id",
@@ -389,10 +387,9 @@ fn provider_download_estimate_blocking(app_id: u32) -> Result<ProviderDownloadSt
     let python = python_executable(&launcher);
     let script = manager_script(&launcher);
     let mut command = Command::new(python);
+    apply_runtime_env(&mut command, &launcher);
     command
         .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
         .args([
             script.to_string_lossy().as_ref(),
             "--app-id",
