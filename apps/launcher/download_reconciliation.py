@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from download_log import append_download_log
+from provider_download_probe import TOOL_ROOT as CURRENT_DEPOTDOWNLOADER_ROOT
 from steam_prepare_import import app_metadata
 from pool_sync import _steam_library_folders
 from steam_pool import steam_root
@@ -24,6 +25,7 @@ STATUS_ROOT = DOWNLOAD_ROOT / "status"
 LOG_ROOT = DOWNLOAD_ROOT / "logs"
 LOCK_ROOT = RUNTIME_ROOT / "locks"
 MEDIA_CACHE_ROOT = RUNTIME_ROOT / "media-cache"
+TOOLS_ROOT = RUNTIME_ROOT / "tools"
 
 STALE_TEMP_SECONDS = 24 * 60 * 60
 STALE_LOCK_SECONDS = 6 * 60 * 60
@@ -212,11 +214,46 @@ def _prune_media_cache() -> tuple[int, int]:
     )
 
 
+def _prune_old_download_tools(active_app_ids: set[int]) -> tuple[int, int]:
+    if active_app_ids or not TOOLS_ROOT.is_dir() or TOOLS_ROOT.is_symlink():
+        return 0, 0
+    try:
+        root = TOOLS_ROOT.resolve()
+        current = CURRENT_DEPOTDOWNLOADER_ROOT.resolve()
+    except OSError:
+        return 0, 0
+    removed = 0
+    removed_bytes = 0
+    for path in TOOLS_ROOT.iterdir():
+        if (
+            path.is_symlink()
+            or not path.is_dir()
+            or not path.name.startswith("depotdownloader-")
+        ):
+            continue
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved == current:
+            continue
+        bytes_present = _directory_bytes(path)
+        try:
+            shutil.rmtree(path)
+        except OSError:
+            continue
+        removed += 1
+        removed_bytes += bytes_present
+    return removed, removed_bytes
+
+
 def _run_storage_hygiene() -> dict[str, int]:
     active = _active_status_app_ids()
     probes, probe_bytes = _prune_manifest_probes(active)
     download_logs, download_log_bytes = _prune_download_logs(active)
     media_files, media_bytes = _prune_media_cache()
+    old_tools, old_tool_bytes = _prune_old_download_tools(active)
     return {
         "stale_temp_files_removed": _prune_stale_temp_files(),
         "stale_locks_removed": _prune_stale_locks(),
@@ -226,6 +263,8 @@ def _run_storage_hygiene() -> dict[str, int]:
         "download_log_bytes_removed": download_log_bytes,
         "media_cache_files_removed": media_files,
         "media_cache_bytes_removed": media_bytes,
+        "old_tool_dirs_removed": old_tools,
+        "old_tool_bytes_removed": old_tool_bytes,
     }
 
 
