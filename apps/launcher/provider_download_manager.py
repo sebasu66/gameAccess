@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,14 +24,16 @@ from typing import Any
 from provider_download_probe import (
     provider_candidates,
     run_probe,
+    set_remote_download_grant,
     verified_provider_ids_for_app,
 )
 from download_log import append_download_log
 from provider_inventory import build_provider_catalog
 from provider_license_scan import persist_scan_result, scan_provider_licenses
+from provider_roster import set_ephemeral_provider_credential
 from steam_prepare_import import inspect, prepare
 
-RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 STATUS_ROOT = RUNTIME_ROOT / "downloads" / "status"
 LOG_ROOT = RUNTIME_ROOT / "downloads" / "logs"
 ACTIVE_STATES = {"requested", "preparing", "downloading", "paused", "cancelling"}
@@ -716,7 +719,22 @@ def main() -> int:
     parser.add_argument("--provider-id")
     parser.add_argument("--job-id")
     parser.add_argument("--library-index", type=int)
+    parser.add_argument("--credential-stdin", action="store_true")
     args = parser.parse_args()
+
+    if args.credential_stdin:
+        try:
+            payload = json.loads(sys.stdin.readline())
+            provider_id = str(payload.get("provider_id") or "").strip()
+            login = str(payload.get("account_name") or "").strip()
+            secret = str(payload.get("password") or "")
+            if not provider_id or int(payload.get("app_id") or 0) != args.app_id:
+                raise ValueError("Remote download grant does not match this AppID")
+            set_ephemeral_provider_credential(provider_id, login, secret)
+            set_remote_download_grant(provider_id, args.app_id)
+        except Exception as exc:
+            _print({"ok": False, "app_id": args.app_id, "error": f"Invalid remote download credential grant: {exc}"})
+            return 2
 
     if args.validate:
         try:
