@@ -60,3 +60,4 @@ apps/api/.admin_tasks/
 apps/api/*.log
 accFullOLD.csv
 apps/api/courtesy-keys.json
+apps/desktop/src-tauri/runtime/
