@@ -464,6 +464,7 @@ fn start_provider_download_blocking(
     requested_job_id: Option<String>,
     requested_library_index: Option<u32>,
     requested_provider_id: Option<String>,
+    api_base_url: Option<String>,
 ) -> Result<ProviderDownloadStatus, String> {
     if app_id == 0 {
         return Err("Invalid Steam AppID".into());
@@ -591,9 +592,10 @@ pub async fn start_provider_download(
     job_id: Option<String>,
     library_index: Option<u32>,
     provider_id: Option<String>,
+    api_base_url: Option<String>,
 ) -> Result<ProviderDownloadStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        start_provider_download_blocking(app_id, job_id, library_index, provider_id)
+        start_provider_download_blocking(app_id, job_id, library_index, provider_id, api_base_url)
     })
     .await
     .map_err(|err| format!("Provider download start task failed: {err}"))?
