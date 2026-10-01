@@ -486,11 +486,10 @@ fn start_provider_download_blocking(
         Some(api) => Some(crate::provider_transport::fetch_provider_download_credentials(api, app_id)?),
         None => None,
     };
-    let effective_provider_id = requested_provider_id.clone().or_else(|| {
-        remote_credentials
-            .as_ref()
-            .and_then(|credentials| credentials.provider_id.clone())
-    });
+    let effective_provider_id = remote_credentials
+        .as_ref()
+        .and_then(|credentials| credentials.provider_id.clone())
+        .or_else(|| requested_provider_id.clone());
     if effective_provider_id.as_ref().is_some_and(|provider_id| {
         provider_id.contains('/') || provider_id.contains('\\') || provider_id == "." || provider_id == ".."
     }) {
