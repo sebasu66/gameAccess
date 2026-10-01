@@ -85,13 +85,18 @@ jobs:
             "gameaccess-desktop.exe",
             "runtime/python/python.exe",
             "runtime/launcher/provider_download_manager.py",
-            "runtime/launcher/steam_pool.py"
+            "runtime/launcher/steam_pool.py",
+            "runtime/catalog/catalog-manifest.json"
           )
           foreach ($relative in $required) {
             $candidate = Join-Path $extract $relative
             if (-not (Test-Path $candidate -PathType Leaf)) {
               throw "Installer payload is missing $relative"
             }
+          }
+          $catalogArtifact = Get-ChildItem (Join-Path $extract "runtime/catalog/catalog-cache-*.sqlite.gz") -File | Select-Object -First 1
+          if (-not $catalogArtifact) {
+            throw "Installer payload is missing the bundled catalog SQLite snapshot."
           }
 
           $forbidden = Get-ChildItem $extract -Recurse -Force | Where-Object {
