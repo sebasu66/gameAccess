@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,9 +77,38 @@ def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
                 previous = value
         except (OSError, json.JSONDecodeError):
             pass
-    temp = target.with_suffix(".tmp")
-    temp.write_text(json.dumps(body, ensure_ascii=True), encoding="utf-8")
-    temp.replace(target)
+    serialized = json.dumps(body, ensure_ascii=True)
+    temp: Path | None = None
+    try:
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f"{target.stem}.",
+            suffix=".tmp",
+            dir=str(STATUS_ROOT),
+        )
+        temp = Path(temp_name)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        last_error: OSError | None = None
+        for attempt in range(12):
+            try:
+                temp.replace(target)
+                temp = None
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.025 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
+    finally:
+        if temp is not None:
+            try:
+                temp.unlink()
+            except FileNotFoundError:
+                pass
     transition_keys = (
         "state",
         "error",
