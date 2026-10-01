@@ -28,6 +28,31 @@ let visualDebugStarted = false;
 const isPendingSteamMetadata = (game: CatalogGame) =>
   Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
 
+const PLAY_ERROR_BUSY = "La licencia está ocupada actualmente. Vuelve a intentarlo en unos minutos.";
+const PLAY_ERROR_GENERIC = "Ups, algo ha fallado. Ya estamos trabajando en ello. Vuelve a intentarlo más tarde. Disculpa las molestias.";
+
+function playErrorCopy(error: unknown): { title: string; detail: string } {
+  const technical = error instanceof Error ? error.message : String(error);
+  const normalized = technical.toLocaleLowerCase("es");
+  const busy = [
+    "no account currently available for this game",
+    "alreadyloggedinelsewhere",
+    "loggedinelsewhere",
+    "passwordrequiredtokicksession",
+    "temporarily_unavailable",
+    "temporarily unavailable",
+    "license busy",
+    "account busy",
+    "licencia ocupada",
+    "cuenta ocupada",
+    "ya hay un juego en ejecución",
+  ].some((needle) => normalized.includes(needle));
+
+  return busy
+    ? { title: "Licencia ocupada", detail: PLAY_ERROR_BUSY }
+    : { title: "Ups, algo ha fallado", detail: PLAY_ERROR_GENERIC };
+}
+
 export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -529,7 +554,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       const trace = [`AppID solicitado = ${game.app_id}`, `Buscando el propietario verificado de la licencia para AppID ${game.app_id}`];
       if (!game.local_account_labels?.length || !game.local_primary_account_label) {
         trace.push(`No hay un propietario verificado disponible para AppID ${game.app_id}`);
-        setSession({ game, phase: "error", title: "Sin licencia disponible", detail: "El juego está instalado o visible en Steam, pero ninguna cuenta local verificada posee una licencia utilizable.", log: trace });
+        const copy = playErrorCopy("No hay una cuenta personal verificada que pueda ejecutar este juego.");
+        setSession({ game, phase: "error", title: copy.title, detail: copy.detail });
         setLeaseBusy(false);
         return;
       }
@@ -552,7 +578,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       } catch (err) {
         trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
         void narrate(`Local game launch failed for Steam AppID ${game.app_id}: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
-        setSession({ game, phase: "error", title: "No pudimos iniciar la sesión local", detail: err instanceof Error ? err.message : String(err), log: [...trace] });
+        const copy = playErrorCopy(err);
+        setSession({ game, phase: "error", title: copy.title, detail: copy.detail });
       } finally {
         setLeaseBusy(false);
       }
@@ -610,7 +637,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         leaseForRollback = null;
         await refresh().catch(() => undefined);
       }
-      setSession({ game, phase: "error", title: "No pudimos iniciar la sesión", detail: err instanceof Error ? err.message : String(err) });
+      const copy = playErrorCopy(err);
+      setSession({ game, phase: "error", title: copy.title, detail: copy.detail });
     } finally {
       setLeaseBusy(false);
     }
