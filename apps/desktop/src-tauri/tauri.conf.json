@@ -37,10 +37,12 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
         "silent": true
-      },
-      "nsis": {
-        "installerHooks": "./windows/hooks.nsh"
       }
+    },
+    "resources": {
+      "runtime/launcher": "runtime/launcher",
+      "runtime/python": "runtime/python"
     }
-  }
+  },
+  "mainBinaryName": "gameaccess-desktop"
 }
