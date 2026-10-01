@@ -274,6 +274,12 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
         await cancelDownloadLifecycle(appId).catch(() => undefined);
         return;
       }
+      if (status.error) {
+        setManagedDownloads((current) => ({ ...current, [appId]: status }));
+        release(appId);
+        await cancelDownloadLifecycle(appId).catch(() => undefined);
+        return;
+      }
       if (downloadManager.isTracked(status) && status.state !== "requested") {
         activeSeenRef.current.add(appId);
         missingPollsRef.current.set(appId, 0);
@@ -281,12 +287,6 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
         return;
       }
       if (status.state !== "not-installed") return;
-      if (status.error) {
-        setManagedDownloads((current) => ({ ...current, [appId]: status }));
-        release(appId);
-        await cancelDownloadLifecycle(appId).catch(() => undefined);
-        return;
-      }
       const missingPolls = (missingPollsRef.current.get(appId) ?? 0) + 1;
       missingPollsRef.current.set(appId, missingPolls);
       const elapsed = Date.now() - (requestStartedAtRef.current.get(appId) ?? Date.now());
