@@ -23,6 +23,7 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { narrate } from "./narrationLog";
+import { forgetProviderLease, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -102,6 +103,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const steamFallbackPendingRef = useRef(new Set<number>());
   const stagingReconciliationStartedRef = useRef(false);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => startProviderLeaseMonitor(), []);
 
   const refresh = useCallback(async () => {
     const startedAt = performance.now();
@@ -615,11 +618,12 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       setUser((current) => ({ ...current, credits: lease.credits_remaining }));
       setSession({ game, phase: "preparing", title: "Reserva confirmada", detail: "Ahora gameAccess prepara la sesión de juego asignada a esta reserva." });
       if (lease.session_action === "launch_ready" && lease.game.app_id) {
+        rememberProviderLease(lease);
         await wait(450);
         setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
         await openProviderSteamRun(lease.game.app_id, lease.account.label);
         recordPlayed(lease.game.app_id);
-        // The launch command was accepted; from here this is a live session, not rollback work.
+        // The launch command was accepted; the lease monitor now owns normal release.
         leaseForRollback = null;
         await wait(450);
         setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
@@ -634,6 +638,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       void narrate(`Play flow failed for catalog game ${game.id} after ${Math.round(performance.now() - startedAt)} ms: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
       if (leaseForRollback) {
         await releaseFailedLease(leaseForRollback);
+        forgetProviderLease(leaseForRollback.lease_id);
         leaseForRollback = null;
         await refresh().catch(() => undefined);
       }
