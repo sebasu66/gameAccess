@@ -1,21 +1,37 @@
 from datetime import timedelta
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlmodel import Session, SQLModel, create_engine
 
 from app import main as core
 
 
+def _request() -> Request:
+    return Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"x-gameaccess-installation", b"11111111-1111-4111-8111-111111111111"),
+            ],
+        }
+    )
+
+
 def _seed(session: Session):
     user = core.User(username="lease-replace-user", credits=1000)
-    first_game = core.Game(slug="first", name="First", credit_cost_per_hour=0)
-    second_game = core.Game(slug="second", name="Second", credit_cost_per_hour=0)
+    first_game = core.Game(slug="first", name="First", app_id=101, credit_cost_per_hour=0)
+    second_game = core.Game(slug="second", name="Second", app_id=102, credit_cost_per_hour=0)
     first_account = core.ProviderAccount(label="first-account", status=core.AccountStatus.leased)
     second_account = core.ProviderAccount(label="second-account", status=core.AccountStatus.free)
     session.add_all([user, first_game, second_game, first_account, second_account])
     session.commit()
     for item in [user, first_game, second_game, first_account, second_account]:
         session.refresh(item)
+    for game in [first_game, second_game]:
+        session.connection().exec_driver_sql(
+            "INSERT INTO game_metadata (game_id, product_type, updated_at) VALUES (?, 'game', ?)",
+            (game.id, core.now_utc().isoformat()),
+        )
     session.add(core.AccountGame(account_id=first_account.id, game_id=first_game.id))
     session.add(core.AccountGame(account_id=second_account.id, game_id=second_game.id))
     old = core.Lease(
@@ -35,10 +51,15 @@ def _seed(session: Session):
 def test_active_lease_still_conflicts_without_explicit_replace(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'lease-conflict.db'}")
     SQLModel.metadata.create_all(engine)
+    core.ensure_catalog_schema(engine)
     with Session(engine) as session:
         user, second_game, _, _, _ = _seed(session)
         try:
-            core.create_lease(core.LeaseRequest(user_id=user.id, game_id=second_game.id, minutes=60), session)
+            core.create_lease(
+                core.LeaseRequest(user_id=user.id, game_id=second_game.id, minutes=60),
+                _request(),
+                session,
+            )
         except HTTPException as exc:
             assert exc.status_code == 409
         else:
@@ -48,10 +69,12 @@ def test_active_lease_still_conflicts_without_explicit_replace(tmp_path):
 def test_explicit_replace_releases_stale_lease_and_reuses_pool(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'lease-replace.db'}")
     SQLModel.metadata.create_all(engine)
+    core.ensure_catalog_schema(engine)
     with Session(engine) as session:
         user, second_game, first_account, second_account, old = _seed(session)
         result = core.create_lease(
             core.LeaseRequest(user_id=user.id, game_id=second_game.id, minutes=60, replace_existing=True),
+            _request(),
             session,
         )
         session.refresh(old)

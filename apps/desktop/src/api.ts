@@ -6,7 +6,8 @@ import { PersonalCatalog } from "./catalog/PersonalCatalog";
 import { getCatalogMode } from "./catalogMode";
 import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
-import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
+import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, switchSteamAccount } from "./native";
+import { loginProviderSteam } from "./providerLogin";
 import { getApiBaseUrl, getCatalogManifestUrl } from "./settings";
 import {
   readCatalogCache,
@@ -425,7 +426,8 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     throw new Error("Esta sección no dispone de una ruta de licencia para ejecutar juegos.");
   }
 
-  if (!(await getApiBaseUrl())) {
+  const apiBaseUrl = await getApiBaseUrl();
+  if (!apiBaseUrl) {
     await narrate("GameAccess play was refused because the shared backend is not connected.", { area: "BACKEND", level: "ERROR" });
     throw new Error("El backend GameAccess no está conectado.");
   }
@@ -453,9 +455,9 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
-      await narrate(`Preparing provider Steam account '${lease.account.label}' for the leased game using the local Steam adapter. Provider credentials never transit the shared backend or webview.`, { area: "ACCOUNT" });
-      await loginProviderSteam(lease.account.label);
-      await narrate(`Provider Steam account '${lease.account.label}' is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
+      await narrate(`Preparing the assigned Steam provider session for lease ${lease.lease_id}. The credential envelope is fetched and decrypted only by native Tauri code and is never persisted by GameAccess.`, { area: "ACCOUNT" });
+      await loginProviderSteam(lease.lease_id, apiBaseUrl);
+      await narrate(`Assigned Steam provider session is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

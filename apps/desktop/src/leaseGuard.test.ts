@@ -12,8 +12,9 @@ describe("GameAccess lease guard", () => {
     expect(source).toContain("replace_existing: true");
   });
 
-  it("keeps Steam provider login local instead of calling the shared backend transport", () => {
-    expect(source).toContain("loginProviderSteam(lease.account.label)");
-    expect(source).not.toContain(`/leases/${lease.lease_id}/steam-login`);
+  it("hands only the lease id and backend URL to native provider login", () => {
+    expect(source).toContain("loginProviderSteam(lease.lease_id, apiBaseUrl)");
+    expect(source).not.toContain("const credentials = await request");
+    expect(source).not.toContain("expectedUserId32: number");
   });
 });

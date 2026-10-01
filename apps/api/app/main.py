@@ -24,6 +24,7 @@ from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
 from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
+from .credential_transport import encrypt_provider_credential
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -104,6 +105,12 @@ class Lease(SQLModel, table=True):
     credits_spent: int
 
 
+class LeaseCredentialGrant(SQLModel, table=True):
+    lease_id: int = SQLField(primary_key=True, foreign_key="lease.id")
+    installation_id: str = SQLField(index=True)
+    created_at: datetime
+
+
 class CreditLedger(SQLModel, table=True):
     id: Optional[int] = SQLField(default=None, primary_key=True)
     user_id: int = SQLField(foreign_key="user.id", index=True)
@@ -117,6 +124,10 @@ class LeaseRequest(BaseModel):
     game_id: int
     minutes: int = Field(ge=5, le=24 * 60)
     replace_existing: bool = False
+
+
+class SteamLoginTransportRequest(BaseModel):
+    client_public_key: str = Field(min_length=300, max_length=2048)
 
 
 class CreditRequest(BaseModel):
@@ -879,7 +890,14 @@ def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
 
 
 @app.post("/leases")
-def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> dict:
+def create_lease(
+    req: LeaseRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict:
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
     expire_old_leases(session)
     user = session.get(User, req.user_id)
     game = visible_catalog_game(session, req.game_id)
@@ -941,6 +959,14 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
     )
     session.commit()
     session.refresh(lease)
+    session.add(
+        LeaseCredentialGrant(
+            lease_id=int(lease.id),
+            installation_id=installation_id,
+            created_at=starts,
+        )
+    )
+    session.commit()
     family_capacity.register_lease_allocation(
         session,
         int(lease.id),
@@ -981,13 +1007,23 @@ def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> 
 
 
 @app.post("/leases/{lease_id}/steam-login")
-def lease_steam_login(lease_id: int, request: Request, session: Session = Depends(get_session)) -> dict:
-    # Development transport: never expose provider credentials to remote callers.
-    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
-        raise HTTPException(403, "Steam login transport is local-only")
+def lease_steam_login(
+    lease_id: int,
+    req: SteamLoginTransportRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> Response:
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
     lease = session.get(Lease, lease_id)
     if not lease or lease.status != LeaseStatus.active:
         raise HTTPException(409, "An active reservation is required")
+    grant = session.get(LeaseCredentialGrant, lease_id)
+    if not grant or grant.installation_id != installation_id:
+        raise HTTPException(403, "This reservation belongs to another installation")
     expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
     if expires <= now_utc():
         raise HTTPException(409, "Reservation expired")
@@ -1003,7 +1039,21 @@ def lease_steam_login(lease_id: int, request: Request, session: Session = Depend
         expected = int(notes["steam_id64"]) - 76561197960265728
     if not expected:
         raise HTTPException(409, "Assigned Steam identity is not verified")
-    return {"accountName": credential.login, "password": credential.password, "expectedUserId32": int(expected)}
+    try:
+        envelope = encrypt_provider_credential(
+            req.client_public_key,
+            lease_id=lease_id,
+            installation_id=installation_id,
+            account_name=credential.login,
+            password=credential.password,
+            expected_user_id32=int(expected),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return JSONResponse(
+        envelope,
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
 
 
 @app.get("/leases/{lease_id}")

@@ -179,13 +179,3 @@ def credential_by_provider_id(provider_id: str, path: Path | None = None) -> Pro
         if credential.provider_id == provider_id:
             return credential
     return None
-
-
-def credential_by_reference(reference: str, path: Path | None = None) -> ProviderCredential | None:
-    needle = reference.strip().casefold()
-    if not needle:
-        return None
-    for credential in load_provider_credentials(path):
-        if credential.provider_id.casefold() == needle or credential.label.casefold() == needle:
-            return credential
-    return None

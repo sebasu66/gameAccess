@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from provider_roster import credential_by_reference
+from provider_roster import credential_by_provider_id
 
 
 def _creationflags() -> int:
@@ -123,10 +123,10 @@ def login_credentials(account: str, password: str, *, timeout_seconds: float = 4
     return {"ok": False, "status": status, "attempts": attempts}
 
 
-def login(provider_reference: str) -> dict:
-    credential = credential_by_reference(provider_reference)
+def login(provider_id: str) -> dict:
+    credential = credential_by_provider_id(provider_id)
     if credential is None:
-        raise RuntimeError(f"Provider account not found: {provider_reference}")
+        raise RuntimeError(f"Provider account not found: {provider_id}")
     return login_credentials(credential.login, credential.password)
 
 

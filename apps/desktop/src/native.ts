@@ -382,15 +382,6 @@ export async function openSteamRun(appId: number): Promise<void> {
   await startResolvedSteamSession(appId, owner, refreshed);
 }
 
-export async function loginProviderSteam(providerReference: string): Promise<void> {
-  if (!hasTauriRuntime()) throw new Error("El login de proveedores requiere la aplicación de escritorio.");
-  const reference = providerReference.trim();
-  if (!reference) throw new Error("La reserva no tiene una cuenta proveedora válida.");
-  await narrate(`Starting local provider Steam login for '${reference}'. Credentials stay inside the local launcher adapter.`, { area: "ACCOUNT" });
-  await invoke("login_provider_steam_local", { providerReference: reference });
-  await narrate(`Local provider Steam login completed for '${reference}'.`, { area: "ACCOUNT" });
-}
-
 function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {
   const previous = pool?.accounts.find((account) => account.active);
   if (!previous) return;
