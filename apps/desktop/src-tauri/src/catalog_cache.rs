@@ -346,3 +346,53 @@ pub async fn catalog_cache_store_detail(
     .await
     .map_err(|err| format!("Catalog detail cache write task failed: {err}"))?
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_target() -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = env::temp_dir().join(format!(
+            "gameaccess-catalog-cache-test-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        root.join("catalog.sqlite")
+    }
+
+    #[test]
+    fn stale_next_and_backup_are_removed_when_target_exists() {
+        let target = temp_target();
+        let next = target.with_extension("sqlite.next");
+        let backup = target.with_extension("sqlite.bak");
+        fs::write(&target, b"current").unwrap();
+        fs::write(&next, b"partial").unwrap();
+        fs::write(&backup, b"old").unwrap();
+
+        reconcile_cache_sidecars(&target).unwrap();
+
+        assert!(target.is_file());
+        assert!(!next.exists());
+        assert!(!backup.exists());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn backup_is_restored_when_target_is_missing() {
+        let target = temp_target();
+        let backup = target.with_extension("sqlite.bak");
+        fs::write(&backup, b"recoverable").unwrap();
+
+        reconcile_cache_sidecars(&target).unwrap();
+
+        assert_eq!(fs::read(&target).unwrap(), b"recoverable");
+        assert!(!backup.exists());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+}
