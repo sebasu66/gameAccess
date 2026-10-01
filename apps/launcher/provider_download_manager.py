@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from datetime import datetime, timezone
@@ -278,26 +279,35 @@ def _prepared_library(
 
 
 def estimate_download(app_id: int, provider_id: str) -> dict[str, Any]:
-    result = run_probe(
-        provider_id,
-        app_id,
-        manifest_only=True,
-        download=False,
-        timeout_seconds=10 * 60,
-    )
-    if not result.get("ok"):
-        detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
-            -1000:
-        ]
-        raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
-    total = int(result.get("total_bytes") or 0)
-    return {
-        "ok": True,
-        "app_id": app_id,
-        "provider_id": provider_id,
-        "bytes_total": total or None,
-        "depot_totals": result.get("depot_totals") or {},
-    }
+    probe_root = RUNTIME_ROOT / "downloads" / provider_id / f"{app_id}-manifest-only"
+    try:
+        result = run_probe(
+            provider_id,
+            app_id,
+            manifest_only=True,
+            download=False,
+            timeout_seconds=10 * 60,
+        )
+        if not result.get("ok"):
+            detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
+                -1000:
+            ]
+            raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
+        total = int(result.get("total_bytes") or 0)
+        return {
+            "ok": True,
+            "app_id": app_id,
+            "provider_id": provider_id,
+            "bytes_total": total or None,
+            "depot_totals": result.get("depot_totals") or {},
+        }
+    finally:
+        if probe_root.is_dir() and not probe_root.is_symlink():
+            try:
+                probe_root.resolve().relative_to((RUNTIME_ROOT / "downloads").resolve())
+                shutil.rmtree(probe_root)
+            except (OSError, ValueError):
+                pass
 
 
 class SteamDownloadManager:
