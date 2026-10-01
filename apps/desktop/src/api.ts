@@ -396,6 +396,11 @@ export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
   ]);
 }
 
+export async function releaseActiveLease(leaseId: number): Promise<void> {
+  if (!Number.isInteger(leaseId) || leaseId <= 0) return;
+  await request(`/leases/${leaseId}/release`, { method: "POST" });
+}
+
 export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
     request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
