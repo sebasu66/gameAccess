@@ -468,7 +468,11 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       rememberRecent(game);
     };
     try {
-      if (gameAccessMode) steamFallbackPendingRef.current.add(game.app_id);
+      markRequested();
+      if (gameAccessMode) {
+        steamFallbackPendingRef.current.add(game.app_id);
+        setSteamInstallFallback((current) => current?.game.app_id === game.app_id ? null : current);
+      }
       await openSteamInstall(game.app_id, recovery);
       rememberRecent(game);
       const status = await steamDownloadStatus(game.app_id);
