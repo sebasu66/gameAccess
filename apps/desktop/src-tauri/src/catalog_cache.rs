@@ -47,6 +47,85 @@ fn cache_db_path() -> Result<PathBuf, String> {
     Ok(cache_dir()?.join("catalog.sqlite"))
 }
 
+fn bundled_catalog_dir() -> Option<PathBuf> {
+    if let Some(value) = env::var_os("GAMEACCESS_CATALOG_SEED_DIR") {
+        let path = PathBuf::from(value);
+        if path.is_dir() {
+            return Some(path);
+        }
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join("runtime").join("catalog");
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+        }
+    }
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("runtime")
+        .join("catalog");
+    dev.is_dir().then_some(dev)
+}
+
+fn install_bundled_seed(target: &Path) -> Result<bool, String> {
+    if target.exists() {
+        return Ok(false);
+    }
+    let Some(seed_dir) = bundled_catalog_dir() else {
+        return Ok(false);
+    };
+    let manifest_path = seed_dir.join("manifest.json");
+    let artifact_path = seed_dir.join("catalog.sqlite.gz");
+    if !manifest_path.is_file() || !artifact_path.is_file() {
+        return Ok(false);
+    }
+
+    let manifest: CatalogManifest = serde_json::from_str(
+        &fs::read_to_string(&manifest_path)
+            .map_err(|err| format!("Could not read bundled catalog manifest: {err}"))?,
+    )
+    .map_err(|err| format!("Bundled catalog manifest is invalid: {err}"))?;
+    if manifest.schema_version != CACHE_SCHEMA_VERSION {
+        return Err(format!(
+            "Bundled catalog schema {} is unsupported; expected {}",
+            manifest.schema_version, CACHE_SCHEMA_VERSION
+        ));
+    }
+
+    let compressed = fs::read(&artifact_path)
+        .map_err(|err| format!("Could not read bundled catalog seed: {err}"))?;
+    let actual_sha = format!("{:x}", Sha256::digest(&compressed));
+    if !actual_sha.eq_ignore_ascii_case(manifest.sha256.trim()) {
+        return Err("Bundled catalog seed SHA-256 verification failed".into());
+    }
+
+    let mut decoder = GzDecoder::new(compressed.as_slice());
+    let mut sqlite_bytes = Vec::new();
+    decoder
+        .read_to_end(&mut sqlite_bytes)
+        .map_err(|err| format!("Could not decompress bundled catalog seed: {err}"))?;
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Could not create catalog cache directory: {err}"))?;
+    }
+    let next = target.with_extension("sqlite.next");
+    fs::write(&next, sqlite_bytes)
+        .map_err(|err| format!("Could not stage bundled catalog cache: {err}"))?;
+    validate_database(&next, &manifest)?;
+    fs::rename(&next, target)
+        .map_err(|err| format!("Could not activate bundled catalog cache: {err}"))?;
+    Ok(true)
+}
+
+fn ready_cache_db_path() -> Result<PathBuf, String> {
+    let target = cache_db_path()?;
+    reconcile_cache_sidecars(&target)?;
+    let _ = install_bundled_seed(&target)?;
+    Ok(target)
+}
+
 fn reconcile_cache_sidecars(target: &Path) -> Result<(), String> {
     let next = target.with_extension("sqlite.next");
     let backup = target.with_extension("sqlite.bak");
@@ -170,8 +249,7 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     }
     validate_github_https_url(&manifest.artifact_url)?;
 
-    let target = cache_db_path()?;
-    reconcile_cache_sidecars(&target)?;
+    let target = ready_cache_db_path()?;
     if let Some((revision, count)) = current_cache_info(&target)? {
         if revision == manifest.revision {
             return Ok(CatalogCacheSyncResult {
@@ -244,7 +322,7 @@ pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSync
 #[tauri::command]
 pub async fn catalog_cache_read() -> Result<Vec<Value>, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        let path = cache_db_path()?;
+        let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(Vec::new());
         }
@@ -275,7 +353,7 @@ pub async fn catalog_cache_upsert_game(game: Value) -> Result<(), String> {
             .ok_or_else(|| "Cached catalog game is missing id".to_string())?;
         let app_id = game.get("app_id").and_then(Value::as_i64);
         let payload = serde_json::to_string(&game).map_err(|err| err.to_string())?;
-        let path = cache_db_path()?;
+        let path = ready_cache_db_path()?;
         let conn = Connection::open(path).map_err(|err| err.to_string())?;
         conn.execute(
             "INSERT INTO catalog_game(id, app_id, payload) VALUES (?1, ?2, ?3)
@@ -296,7 +374,7 @@ pub async fn catalog_cache_read_detail(
     country: String,
 ) -> Result<Option<Value>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path = cache_db_path()?;
+        let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(None);
         }
@@ -327,7 +405,7 @@ pub async fn catalog_cache_store_detail(
     detail: Value,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path = cache_db_path()?;
+        let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(());
         }
