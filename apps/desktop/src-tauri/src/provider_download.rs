@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{Mutex, OnceLock},
@@ -90,12 +91,31 @@ fn manager_script(launcher: &Path) -> PathBuf {
 fn reconciliation_script(launcher: &Path) -> PathBuf {
     launcher.join("download_reconciliation.py")
 }
+fn data_root(launcher: &Path) -> PathBuf {
+    if let Some(value) = env::var_os("GAMEACCESS_DATA_DIR") {
+        let candidate = PathBuf::from(value);
+        if !candidate.as_os_str().is_empty() {
+            return candidate;
+        }
+    }
+    if let Some(local) = env::var_os("LOCALAPPDATA") {
+        return PathBuf::from(local).join("GameAccess");
+    }
+    launcher.join(".gameaccess")
+}
+
 fn status_path(launcher: &Path, app_id: u32) -> PathBuf {
-    launcher
-        .join(".gameaccess")
+    data_root(launcher)
         .join("downloads")
         .join("status")
         .join(format!("app-{app_id}.json"))
+}
+
+fn apply_runtime_env(command: &mut Command, launcher: &Path) {
+    command
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("GAMEACCESS_DATA_DIR", data_root(launcher));
 }
 fn clear_provider_download_status(launcher: &Path, app_id: u32) -> Result<(), String> {
     match fs::remove_file(status_path(launcher, app_id)) {
