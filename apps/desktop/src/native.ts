@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
 import { getCatalogMode } from "./catalogMode";
+import { getApiBaseUrl } from "./settings";
 import { narrate } from "./narrationLog";
 import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
 import { gameStateManager } from "./GameStateManager";
@@ -301,7 +302,14 @@ export async function openSteamInstall(appId: number, recovery: { providerId?: s
       const recoveryArgs = recovery.providerId || recovery.libraryIndex != null
         ? { providerId: recovery.providerId ?? null, libraryIndex: recovery.libraryIndex ?? null }
         : {};
-      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null, ...recoveryArgs });
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) throw new Error("El servidor de GameAccess no está configurado.");
+      const status = await invoke<SteamDownloadStatus>("start_provider_download", {
+        appId,
+        jobId: lifecycle?.job_id ?? null,
+        apiBaseUrl,
+        ...recoveryArgs,
+      });
       await narrate(`Provider download manager accepted AppID ${appId}${status.provider_id ? ` using provider '${status.provider_id}'` : ""}; state='${status.state}'.`, { area: "DOWNLOAD" });
       await waitForSteamInstallConfirmation(appId);
       return;
