@@ -16,7 +16,7 @@ import json
 from typing import Any
 
 from family_refresh import build_family_graph
-from provider_account_onboard import _api_json, _import_verified_games
+from provider_account_onboard import _api_json, _register_verified_apps
 from provider_family_evidence import merge_family_evidence
 from provider_license_scan import DEFAULT_DIAGNOSTIC_OUTPUT, load_provider_license_inventory
 from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
@@ -89,11 +89,12 @@ def sync_recent_scan(
                 if str(app_id).isdigit() and int(app_id) > 0
             }
         )
-        owned_game_ids, owned_unresolved = _import_verified_games(base, owned_app_ids)
-        shared_game_ids, shared_unresolved = _import_verified_games(
+        owned_game_ids, owned_unresolved, owned_pending = _register_verified_apps(base, owned_app_ids)
+        shared_game_ids, shared_unresolved, shared_pending = _register_verified_apps(
             base, sorted(set(accessible_app_ids) - set(owned_app_ids))
         )
         unresolved_app_ids = sorted(set(owned_unresolved + shared_unresolved))
+        metadata_pending_app_ids = sorted(set(owned_pending + shared_pending))
         catalog_game_ids = sorted(set(owned_game_ids + shared_game_ids))
         notes = json.dumps(
             {
@@ -109,6 +110,7 @@ def sync_recent_scan(
                 "owned_catalog_game_count": len(owned_game_ids),
                 "shared_catalog_game_count": len(shared_game_ids),
                 "unresolved_app_count": len(unresolved_app_ids),
+                "metadata_pending_app_count": len(metadata_pending_app_ids),
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -133,6 +135,7 @@ def sync_recent_scan(
                 "accessible_app_count": len(accessible_app_ids),
                 "imported_game_count": len(catalog_game_ids),
                 "unresolved_app_count": len(unresolved_app_ids),
+                "metadata_pending_app_count": len(metadata_pending_app_ids),
             }
         )
 
