@@ -450,15 +450,26 @@ fn launcher_dir() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-fn fallback_switch(account_name: &str) -> Result<(), String> {
-    let launcher =
-        launcher_dir().ok_or_else(|| "Could not locate the Steam UI adapter".to_string())?;
+fn launcher_python(launcher: &Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
     let venv = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv.is_file() {
+    if venv.is_file() {
         venv
     } else {
         PathBuf::from("python")
-    };
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn fallback_switch(account_name: &str) -> Result<(), String> {
+    let launcher =
+        launcher_dir().ok_or_else(|| "Could not locate the Steam UI adapter".to_string())?;
+    let python = launcher_python(&launcher);
     let code = "import sys; from steam_pool import remembered_account_identities; from steam_verified_sync_v5 import deterministic_switch; t=sys.argv[1].strip().casefold(); i=next((x for x in remembered_account_identities() if str(x.get('account_name') or '').casefold()==t or str(x.get('display_name') or '').casefold()==t),None); ok,msg=(False,'Steam account is not remembered on this PC') if i is None else deterministic_switch(i); print(msg); raise SystemExit(0 if ok else 2)";
     let output = Command::new(python)
         .current_dir(launcher)

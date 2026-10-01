@@ -71,6 +71,12 @@ fn launcher_dir() -> Result<PathBuf, String> {
 }
 
 fn python_executable(launcher: &Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
     let venv = launcher.join(".venv").join("Scripts").join("python.exe");
     if venv.is_file() {
         venv
