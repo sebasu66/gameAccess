@@ -1190,6 +1190,71 @@ def create_lease(
     }
 
 
+def _account_can_access_game(
+    session: Session,
+    account: ProviderAccount,
+    game: Game,
+) -> bool:
+    if account.id is None or game.id is None:
+        return False
+    if session.exec(
+        select(AccountGame).where(
+            AccountGame.account_id == account.id,
+            AccountGame.game_id == game.id,
+        )
+    ).first():
+        return True
+    if not game.app_id:
+        return False
+    try:
+        import json
+
+        notes = json.loads(account.notes or "{}")
+    except Exception:
+        return False
+    accessible = notes.get("accessible_app_ids")
+    if not isinstance(accessible, list):
+        return False
+    try:
+        return int(game.app_id) in {int(value) for value in accessible}
+    except (TypeError, ValueError):
+        return False
+
+
+def _same_installation_active_account(
+    session: Session,
+    *,
+    installation_id: str,
+    game: Game,
+) -> ProviderAccount | None:
+    grants = session.exec(
+        select(LeaseCredentialGrant).where(
+            LeaseCredentialGrant.installation_id == installation_id
+        )
+    ).all()
+    candidate_leases: list[Lease] = []
+    for grant in grants:
+        lease = session.get(Lease, grant.lease_id)
+        if not lease or lease.status != LeaseStatus.active:
+            continue
+        expires = (
+            lease.expires_at.replace(tzinfo=timezone.utc)
+            if lease.expires_at.tzinfo is None
+            else lease.expires_at
+        )
+        if expires <= now_utc():
+            continue
+        candidate_leases.append(lease)
+    candidate_leases.sort(key=lambda lease: lease.starts_at, reverse=True)
+    for lease in candidate_leases:
+        account = session.get(ProviderAccount, lease.account_id)
+        if not account or account.status == AccountStatus.disabled:
+            continue
+        if _account_can_access_game(session, account, game):
+            return account
+    return None
+
+
 @app.post("/downloads/{app_id}/steam-login")
 def download_steam_login(
     app_id: int,
@@ -1202,6 +1267,7 @@ def download_steam_login(
     installation_id = canonical_installation_id(
         request.headers.get("X-GameAccess-Installation", "")
     )
+    expire_old_leases(session)
     game = session.exec(
         select(Game).where(Game.app_id == app_id, Game.active == True)  # noqa: E712
     ).first()
@@ -1209,10 +1275,17 @@ def download_steam_login(
         raise HTTPException(404, "game not found")
 
     from . import family_capacity
-    selection = family_capacity.select_best_account(session, game)
-    if not selection:
-        raise HTTPException(409, "no account currently available for this game")
-    account = selection["account"]
+
+    account = _same_installation_active_account(
+        session,
+        installation_id=installation_id,
+        game=game,
+    )
+    if account is None:
+        selection = family_capacity.select_best_account(session, game)
+        if not selection:
+            raise HTTPException(409, "no account currently available for this game")
+        account = selection["account"]
 
     from .account_roster import credential_for_label
     import json
