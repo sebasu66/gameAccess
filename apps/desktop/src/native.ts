@@ -57,6 +57,20 @@ export interface SteamLibraryFolder {
   label: string;
 }
 
+const reportedDownloadStatusErrors = new Set<string>();
+
+async function reportDownloadStatusError(status: SteamDownloadStatus): Promise<void> {
+  const error = status.error?.trim();
+  if (!error) return;
+  const fingerprint = `${status.app_id}|${status.state}|${error}`;
+  if (reportedDownloadStatusErrors.has(fingerprint)) return;
+  reportedDownloadStatusErrors.add(fingerprint);
+  await narrate(
+    `Download worker for AppID ${status.app_id} entered state '${status.state}' with error: ${error}.`,
+    { area: "DOWNLOAD", level: "ERROR" },
+  );
+}
+
 export interface MachineProfile {
   memory_gb: number | null;
   cpu: string | null;
@@ -466,12 +480,22 @@ export async function openSteamClient(): Promise<void> {
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
   if (!appId) throw new Error("AppID inválido");
+  let resolved: SteamDownloadStatus;
+
   if (!hasTauriRuntime()) {
-    try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
-    catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
+    try {
+      resolved = await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`);
+    } catch {
+      resolved = { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false };
+    }
+    await reportDownloadStatusError(resolved);
+    return resolved;
   }
+
   if (getCatalogMode() !== "gameaccess") {
-    return invoke<SteamDownloadStatus>("steam_download_status", { appId });
+    resolved = await invoke<SteamDownloadStatus>("steam_download_status", { appId });
+    await reportDownloadStatusError(resolved);
+    return resolved;
   }
 
   const [steamResult, providerResult] = await Promise.allSettled([
@@ -480,22 +504,26 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
   ]);
 
   if (steamResult.status === "fulfilled") {
-    return gameStateManager.reconcileSteamAndProviderStatus(
+    resolved = gameStateManager.reconcileSteamAndProviderStatus(
       steamResult.value,
       providerResult.status === "fulfilled" ? providerResult.value : null,
     );
+  } else if (providerResult.status === "fulfilled" && providerResult.value) {
+    resolved = providerResult.value;
+  } else {
+    resolved = {
+      app_id: appId,
+      state: "unknown",
+      progress: null,
+      bytes_downloaded: null,
+      bytes_total: null,
+      installed: false,
+      error: steamResult.reason instanceof Error ? steamResult.reason.message : String(steamResult.reason ?? "No se pudo verificar la instalación"),
+    };
   }
-  if (providerResult.status === "fulfilled" && providerResult.value) return providerResult.value;
 
-  return {
-    app_id: appId,
-    state: "unknown",
-    progress: null,
-    bytes_downloaded: null,
-    bytes_total: null,
-    installed: false,
-    error: steamResult.reason instanceof Error ? steamResult.reason.message : String(steamResult.reason ?? "No se pudo verificar la instalación"),
-  };
+  await reportDownloadStatusError(resolved);
+  return resolved;
 }
 
 export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatus[]> {
@@ -506,7 +534,7 @@ export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatu
   } catch {
     return [];
   }
-  return Promise.all(providerStatuses.map(async (providerStatus) => {
+  const statuses = await Promise.all(providerStatuses.map(async (providerStatus) => {
     try {
       const steamStatus = await invoke<SteamDownloadStatus>("steam_download_status", { appId: providerStatus.app_id });
       return gameStateManager.reconcileSteamAndProviderStatus(steamStatus, providerStatus);
@@ -514,6 +542,8 @@ export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatu
       return providerStatus;
     }
   }));
+  await Promise.all(statuses.map(reportDownloadStatusError));
+  return statuses;
 }
 
 export async function reconcileDownloadStaging(): Promise<SteamDownloadStatus[]> {
