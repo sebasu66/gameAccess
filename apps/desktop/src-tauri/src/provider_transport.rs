@@ -138,7 +138,16 @@ fn fetch_provider_credentials(
         .header("Cache-Control", "no-store")
         .json(&request)
         .send()
-        .map_err(|err| format!("Provider credential request failed: {err}"))?;
+        .map_err(|err| {
+            let mut detail = err.to_string();
+            let mut source = std::error::Error::source(&err);
+            while let Some(cause) = source {
+                detail.push_str(": ");
+                detail.push_str(&cause.to_string());
+                source = cause.source();
+            }
+            format!("Provider credential request failed: {detail}")
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
