@@ -113,7 +113,10 @@ Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorActio
     requirements_sha256 = $requirementsSha
 } | ConvertTo-Json | Set-Content -Path $marker -Encoding UTF8
 
-& (Join-Path $pythonTarget "python.exe") -c "import requests, pywinauto, selenium; import steam_pool, provider_download_manager; print('embedded-runtime-ok')"
+& (Join-Path $pythonTarget "python.exe") -B -c "import requests, pywinauto, selenium; import steam_pool, provider_download_manager; print('embedded-runtime-ok')"
 if ($LASTEXITCODE -ne 0) {
     throw "Embedded Python runtime self-test failed."
 }
+
+Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
