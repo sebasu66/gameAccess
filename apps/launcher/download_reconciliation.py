@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,7 @@ from steam_prepare_import import app_metadata
 from pool_sync import _steam_library_folders
 from steam_pool import steam_root
 
-RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 DOWNLOAD_ROOT = RUNTIME_ROOT / "downloads"
 STATUS_ROOT = DOWNLOAD_ROOT / "status"
 LOG_ROOT = DOWNLOAD_ROOT / "logs"
