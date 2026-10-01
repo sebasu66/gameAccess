@@ -41,7 +41,8 @@
     },
     "resources": {
       "runtime/launcher": "runtime/launcher",
-      "runtime/python": "runtime/python"
+      "runtime/python": "runtime/python",
+      "runtime/catalog": "runtime/catalog"
     }
   },
   "mainBinaryName": "gameaccess-desktop"
