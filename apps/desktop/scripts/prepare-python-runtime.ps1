@@ -41,6 +41,8 @@ if (Test-Path $marker) {
 }
 
 if ($runtimeReady) {
+    Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "Embedded Python runtime is up to date."
     exit 0
 }
