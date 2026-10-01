@@ -41,6 +41,13 @@ jobs:
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12.9"
+          cache: pip
+          cache-dependency-path: apps/launcher/requirements.txt
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
