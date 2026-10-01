@@ -222,7 +222,7 @@ def _family_counts(
     }
 
 
-def _legacy_account_capacity(state: dict[str, Any], game_id: int) -> dict[str, int]:
+def _direct_account_capacity(state: dict[str, Any], game_id: int) -> dict[str, int]:
     owner_ids = state["owned_account_ids_by_game"].get(game_id, set())
     available = sum(
         1
@@ -263,7 +263,7 @@ def _snapshot(
     for game in state["games"]:
         game_id = int(game.id or 0)
         if game_id not in family_game_ids:
-            totals[game_id] = _legacy_account_capacity(state, game_id)
+            totals[game_id] = _direct_account_capacity(state, game_id)
     return totals
 
 
@@ -408,7 +408,7 @@ def fast_catalog_availability(session: Session) -> list[dict[str, Any]] | None:
         ON uc.family_id = fcc.family_id AND uc.game_id = fcc.game_id
       GROUP BY fcc.game_id
     ),
-    legacy_capacity AS (
+    direct_capacity AS (
       SELECT ag.game_id,
              count(DISTINCT ag.account_id)::int AS total,
              count(DISTINCT ag.account_id)
@@ -421,15 +421,15 @@ def fast_catalog_availability(session: Session) -> list[dict[str, Any]] | None:
       vg.id,
       vg.app_id,
       vg.credit_cost_per_hour,
-      coalesce(fc.total, lc.total, 0)::int AS copies_total,
-      coalesce(fc.available, lc.available, 0)::int AS copies_available,
+      coalesce(fc.total, dc.total, 0)::int AS copies_total,
+      coalesce(fc.available, dc.available, 0)::int AS copies_available,
       coalesce(gd.request_count_total, 0)::int AS request_count_total,
       coalesce(gd.successful_leases, 0)::int AS successful_leases,
       coalesce(gd.demand_value, 1.0)::float AS demand_value,
       coalesce(gd.price_factor, 1.0)::float AS price_factor
     FROM visible_games vg
     LEFT JOIN family_capacity fc ON fc.game_id = vg.id
-    LEFT JOIN legacy_capacity lc ON lc.game_id = vg.id
+    LEFT JOIN direct_capacity dc ON dc.game_id = vg.id
     LEFT JOIN gamedemand gd ON gd.game_id = vg.id
     ORDER BY vg.id
     """)
@@ -465,7 +465,7 @@ def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
     if _family_inventory_present(session):
         row = _snapshot(state).get(game_id, {"total": 0, "available": 0})
     else:
-        row = _legacy_account_capacity(state, game_id)
+        row = _direct_account_capacity(state, game_id)
     return int(row["total"]), int(row["available"])
 
 
@@ -531,13 +531,17 @@ def _weighted_damage(
     return round(damage, 8), newly_unavailable, total_after
 
 
-def _legacy_selection(session, game):
-    mappings = session.exec(
-        select(core.AccountGame).where(core.AccountGame.game_id == game.id)
-    ).all()
-    for mapping in mappings:
-        account = session.get(core.ProviderAccount, mapping.account_id)
-        if account and account.status == core.AccountStatus.free:
+def _verified_access_selection(session: Session, game: core.Game) -> dict[str, Any] | None:
+    if not game.app_id:
+        return None
+    app_id = int(game.app_id)
+    for account in session.exec(
+        select(core.ProviderAccount).order_by(core.ProviderAccount.id)
+    ).all():
+        if account.status != core.AccountStatus.free:
+            continue
+        accessible = _accessible_app_ids(account)
+        if accessible is not None and app_id in accessible:
             return {
                 "account": account,
                 "family_id": None,
@@ -545,21 +549,20 @@ def _legacy_selection(session, game):
                 "pool_damage": None,
                 "newly_unavailable_games": None,
                 "remaining_seats": None,
-                "mode": "legacy-account-fallback",
+                "mode": "verified-access",
             }
     return None
 
 
 def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | None:
     if not _family_inventory_present(session):
-        return _legacy_selection(session, game)
+        return _verified_access_selection(session, game)
 
     game_id = int(game.id or 0)
     state = _state(session, include_inactive_game_ids={game_id})
     family_game_ids = {candidate_game_id for _, candidate_game_id in state["copies_by_family_game"]}
     if game_id not in family_game_ids:
-        # Family data for other titles must not hide this title's verified owners.
-        return _legacy_selection(session, game)
+        return _verified_access_selection(session, game)
 
     before = _snapshot(state)
     candidates: list[tuple[tuple[float, int, int, int], dict[str, Any]]] = []
