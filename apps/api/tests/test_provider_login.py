@@ -14,7 +14,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app import main as core
 from app.access_keys import AccessKey, digest
 from app.account_roster import SteamCredential
-from app.credential_transport import ALGORITHM, transport_aad
+from app.credential_transport import ALGORITHM, download_transport_aad, transport_aad
 
 
 def _transport_request():
@@ -187,3 +187,86 @@ def test_remote_login_requires_valid_activation(tmp_path):
         with pytest.raises(HTTPException) as exc:
             core.lease_steam_login(1, transport, unauthenticated, session)
         assert exc.value.status_code == 401
+
+
+def test_remote_download_credential_is_encrypted_and_server_selected(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'download-login.db'}")
+    SQLModel.metadata.create_all(engine)
+    now = core.now_utc()
+    installation_id = str(uuid4())
+    session_token = "download-provider-transport-session-token"
+    request = _remote_request(session_token, installation_id)
+
+    with Session(engine) as session:
+        session.add(
+            AccessKey(
+                key_hash=digest("unused-download-activation-key"),
+                duration_hours=1,
+                created_at=now,
+                key_expires_at=now + timedelta(hours=1),
+                activated_at=now,
+                expires_at=now + timedelta(hours=1),
+                installation_id=installation_id,
+                session_hash=digest(session_token),
+            )
+        )
+        game = core.Game(slug="portal-test", name="Portal Test", app_id=400)
+        account = core.ProviderAccount(
+            label="download-provider",
+            notes='{"user_id32":456}',
+        )
+        session.add(game)
+        session.add(account)
+        session.commit()
+        session.refresh(game)
+        session.refresh(account)
+        session.add(core.AccountGame(account_id=account.id, game_id=game.id))
+        session.commit()
+
+        private_key, transport = _transport_request()
+        with (
+            patch(
+                "app.family_capacity.select_best_account",
+                return_value={"account": account},
+            ),
+            patch(
+                "app.account_roster.credential_for_label",
+                return_value=SteamCredential(
+                    "download-provider",
+                    "download-login",
+                    "download-password",
+                ),
+            ),
+        ):
+            response = core.download_steam_login(
+                400,
+                transport,
+                request,
+                session,
+            )
+
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert b"download-login" not in response.body
+        assert b"download-password" not in response.body
+
+        envelope = json.loads(response.body)
+        data_key = private_key.decrypt(
+            base64.b64decode(envelope["encryptedKey"]),
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+        plaintext = AESGCM(data_key).decrypt(
+            base64.b64decode(envelope["nonce"]),
+            base64.b64decode(envelope["ciphertext"]),
+            download_transport_aad(400, installation_id),
+        )
+        assert json.loads(plaintext) == {
+            "providerId": "download-provider",
+            "accountName": "download-login",
+            "password": "download-password",
+            "expectedUserId32": 456,
+        }
