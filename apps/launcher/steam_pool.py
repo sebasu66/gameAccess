@@ -1,11 +1,11 @@
-"""Discover remembered Steam accounts, verified owners, and locally visible apps.
+"""Discover registered Steam accounts, verified owners, and locally visible apps.
 
 Steam signals are deliberately kept separate:
 - ``Software/Valve/Steam/apps`` = apps visible/known to that seat. Steam Families
   can make one purchased game appear here for several members. This is access,
   NOT another copy.
 - ``apptickets``/``nettickets`` = historical/local ticket entries. They are useful
-  diagnostics but are NOT proof that the remembered account owns the license.
+  diagnostics but are NOT proof that the registered account owns the license.
 - ``.gameaccess/verified_licenses.json`` = ownership previously verified from
   Steam's own ``licenses_print`` output, including ``Original Owner`` attribution.
   Only this verified source may populate ``app_ids`` and license copies.
@@ -43,6 +43,7 @@ class SteamPoolAccount:
     account_name: str
     steam_id64: str
     user_id32: int | None
+    remembered: bool
     # Backwards-compatible field consumed by the desktop/backend. It contains
     # only licenses verified from licenses_print / Original Owner attribution.
     app_ids: list[int]
@@ -151,8 +152,13 @@ def _largest_named_numeric_block(node: Any, wanted_name: str) -> dict[str, Any] 
     return best
 
 
-def remembered_account_identities() -> list[dict[str, Any]]:
-    """Read identities that Steam explicitly marks as remembered on this PC."""
+def steam_account_identities() -> list[dict[str, Any]]:
+    """Read every Steam account registered in loginusers.vdf.
+
+    RememberPassword is metadata, not an inclusion rule. Keeping the flag lets
+    legacy auto-login/switch paths restrict themselves to accounts Steam can
+    actually select without credentials.
+    """
     root = steam_root()
     if not root:
         return []
@@ -168,8 +174,6 @@ def remembered_account_identities() -> list[dict[str, Any]]:
         for steam_id64, fields in users.items():
             if not str(steam_id64).isdigit() or not isinstance(fields, dict):
                 continue
-            if str(_ci_get(fields, "RememberPassword") or "").strip() != "1":
-                continue
             account_name = str(_ci_get(fields, "AccountName") or "").strip()
             persona_name = str(_ci_get(fields, "PersonaName") or account_name).strip()
             steam64 = int(steam_id64)
@@ -182,11 +186,21 @@ def remembered_account_identities() -> list[dict[str, Any]]:
                     "user_id32": user32,
                     "account_name": account_name,
                     "display_name": persona_name,
+                    "remembered": str(_ci_get(fields, "RememberPassword") or "").strip() == "1",
                 }
             )
         return result
     except Exception:
         return []
+
+
+def remembered_account_identities() -> list[dict[str, Any]]:
+    """Return only registered accounts Steam marks as remembered.
+
+    This compatibility helper is intentionally limited to old unattended
+    account-switch/verification paths. Catalog discovery uses all accounts.
+    """
+    return [item for item in steam_account_identities() if item.get("remembered")]
 
 
 def _localconfig(user_id32: int) -> dict[str, Any]:
@@ -320,7 +334,7 @@ def load_verified_owner_cache(path: Path = VERIFIED_LICENSES_PATH) -> dict[str, 
 
 def scan_pool() -> dict[str, Any]:
     active_user = active_user_id32()
-    identities = remembered_account_identities()
+    identities = steam_account_identities()
     verified = load_verified_owner_cache()
     owner_apps: dict[int, set[int]] = verified["owner_apps"]
     verified_users: set[int] = verified["scanned_user_ids"]
@@ -354,6 +368,7 @@ def scan_pool() -> dict[str, Any]:
                 account_name=identity.get("account_name") or "",
                 steam_id64=identity.get("steam_id64") or "",
                 user_id32=user_id if isinstance(user_id, int) else None,
+                remembered=bool(identity.get("remembered")),
                 app_ids=owned_ids,
                 runnable_app_ids=runnable_ids,
                 runnable_verified=runnable_verified,
@@ -387,7 +402,7 @@ def scan_pool() -> dict[str, Any]:
     return {
         "ok": any(item.ok for item in scanned),
         "message": (
-            f"Scanned {sum(1 for item in scanned if item.ok)}/{len(scanned)} remembered accounts; "
+            f"Scanned {sum(1 for item in scanned if item.ok)}/{len(scanned)} registered accounts; "
             f"ownership verified for {verified_account_count}/{len(scanned)}. "
             "License copies come only from licenses_print verification; Steam ticket keys never grant playability."
         ),
@@ -407,7 +422,7 @@ def scan_pool() -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Scan remembered Steam accounts into a local game/license pool")
+    parser = argparse.ArgumentParser(description="Scan registered Steam accounts into a local game/license pool")
     parser.add_argument("--compact", action="store_true", help="omit per-account app-id lists and license detail")
     args = parser.parse_args()
     result = scan_pool()
