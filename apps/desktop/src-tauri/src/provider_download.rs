@@ -482,19 +482,6 @@ fn start_provider_download_blocking(
         .map_err(|_| "Provider download start lock is poisoned".to_string())?;
 
     let launcher = launcher_dir()?;
-    let remote_credentials = match api_base_url.filter(|value| !value.trim().is_empty()) {
-        Some(api) => Some(crate::provider_transport::fetch_provider_download_credentials(api, app_id)?),
-        None => None,
-    };
-    let effective_provider_id = remote_credentials
-        .as_ref()
-        .and_then(|credentials| credentials.provider_id.clone())
-        .or_else(|| requested_provider_id.clone());
-    if effective_provider_id.as_ref().is_some_and(|provider_id| {
-        provider_id.contains('/') || provider_id.contains('\\') || provider_id == "." || provider_id == ".."
-    }) {
-        return Err("Invalid provider id returned by GameAccess".into());
-    }
 
     if let Some(mut status) = provider_download_status(app_id)? {
         if is_active_state(&status.state) {
@@ -530,26 +517,24 @@ fn start_provider_download_blocking(
     }
 
     clear_provider_download_status(&launcher, app_id)?;
-    let python = python_executable(&launcher);
-    let script = manager_script(&launcher);
-    if !script.is_file() {
-        return Err("GameAccess provider download manager is missing".into());
-    }
     let app_id_arg = app_id.to_string();
     let job_id = requested_job_id
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| new_job_id(app_id));
 
-    let initial = ProviderDownloadStatus {
+    // A new job owns the AppID immediately. Publish that fact before any
+    // backend/network work so a previous job's terminal error can never leak
+    // into the new attempt while credentials are being resolved.
+    let mut initial = ProviderDownloadStatus {
         app_id,
-        state: "preparing".into(),
+        state: "requested".into(),
         progress: Some(0.0),
         bytes_downloaded: Some(0),
         bytes_total: None,
         speed_bps: None,
         eta_seconds: None,
         installed: false,
-        provider_id: effective_provider_id.clone(),
+        provider_id: requested_provider_id.clone(),
         prepared_target: None,
         library_index: requested_library_index,
         error: None,
@@ -557,6 +542,38 @@ fn start_provider_download_blocking(
         worker_pid: None,
     };
     write_provider_download_status(&launcher, &initial)?;
+
+    let remote_credentials = match api_base_url.filter(|value| !value.trim().is_empty()) {
+        Some(api) => match crate::provider_transport::fetch_provider_download_credentials(api, app_id) {
+            Ok(credentials) => Some(credentials),
+            Err(err) => {
+                let _ = clear_provider_download_status(&launcher, app_id);
+                return Err(err);
+            }
+        },
+        None => None,
+    };
+    let effective_provider_id = remote_credentials
+        .as_ref()
+        .and_then(|credentials| credentials.provider_id.clone())
+        .or_else(|| requested_provider_id.clone());
+    if effective_provider_id.as_ref().is_some_and(|provider_id| {
+        provider_id.contains('/') || provider_id.contains('\\') || provider_id == "." || provider_id == ".."
+    }) {
+        let _ = clear_provider_download_status(&launcher, app_id);
+        return Err("Invalid provider id returned by GameAccess".into());
+    }
+
+    initial.state = "preparing".into();
+    initial.provider_id = effective_provider_id.clone();
+    write_provider_download_status(&launcher, &initial)?;
+
+    let python = python_executable(&launcher);
+    let script = manager_script(&launcher);
+    if !script.is_file() {
+        let _ = clear_provider_download_status(&launcher, app_id);
+        return Err("GameAccess provider download manager is missing".into());
+    }
 
     let mut command = Command::new(python);
     apply_runtime_env(&mut command, &launcher);
