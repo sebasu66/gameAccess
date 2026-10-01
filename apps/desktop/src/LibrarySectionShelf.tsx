@@ -17,6 +17,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const [visibleCount, setVisibleCount] = useState(SECTION_PREVIEW_SIZE);
   const [batchSize, setBatchSize] = useState(SECTION_PREVIEW_SIZE);
   const previousVisibleCountRef = useRef(SECTION_PREVIEW_SIZE);
+  const selectionScrollPendingRef = useRef(false);
   const rootRef = useRef<HTMLElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +53,10 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
 
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
   useEffect(() => {
+    selectionScrollPendingRef.current = true;
+  }, [selectedId]);
+
+  useEffect(() => {
     if (selectedPosition >= 0) {
       setVisibleCount(current => Math.max(current, Math.min(section.games.length, selectedPosition + 1)));
     }
@@ -77,10 +82,12 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   }, [scrollRoot, section.games.length, visibleCount, batchSize]);
 
   const visibleGames = section.games.slice(0, visibleCount);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Keep keyboard selection visible after more cards render.
   useEffect(() => {
+    if (!selectionScrollPendingRef.current) return;
     const selected = rootRef.current?.querySelector<HTMLElement>(".is-selected");
-    selected?.scrollIntoView({ block: "nearest" });
+    if (!selected) return;
+    selected.scrollIntoView({ block: "nearest" });
+    selectionScrollPendingRef.current = false;
   }, [selectedId, visibleCount]);
 
   useEffect(() => {
