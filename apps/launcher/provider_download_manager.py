@@ -727,7 +727,7 @@ def main() -> int:
             payload = json.loads(sys.stdin.readline())
             provider_id = str(payload.get("provider_id") or "").strip()
             login = str(payload.get("account_name") or "").strip()
-            secret = str(payload.get("password") or "")
+            secret = str(payload.get("secret") or "")
             if not provider_id or int(payload.get("app_id") or 0) != args.app_id:
                 raise ValueError("Remote download grant does not match this AppID")
             set_ephemeral_provider_credential(provider_id, login, secret)
