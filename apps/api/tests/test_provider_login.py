@@ -213,31 +213,22 @@ def test_remote_download_credential_is_encrypted_and_server_selected(tmp_path):
         game = core.Game(slug="portal-test", name="Portal Test", app_id=400)
         account = core.ProviderAccount(
             label="download-provider",
-            notes='{"user_id32":456}',
+            notes='{"user_id32":456,"accessible_app_ids":[400]}',
         )
         session.add(game)
         session.add(account)
         session.commit()
         session.refresh(game)
         session.refresh(account)
-        session.add(core.AccountGame(account_id=account.id, game_id=game.id))
-        session.commit()
-
         private_key, transport = _transport_request()
-        with (
-            patch(
-                "app.family_capacity.select_best_account",
-                return_value={"account": account},
-            ),
-            patch(
+        with patch(
                 "app.account_roster.credential_for_label",
                 return_value=SteamCredential(
                     "download-provider",
                     "download-login",
                     "download-password",
                 ),
-            ),
-        ):
+            ):
             response = core.download_steam_login(
                 400,
                 transport,
@@ -272,18 +263,19 @@ def test_remote_download_credential_is_encrypted_and_server_selected(tmp_path):
         }
 
 
-def test_download_reuses_same_installation_active_lease_account(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'same-install-download.db'}")
+
+def test_download_selection_ignores_lease_occupancy(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'leased-download.db'}")
     SQLModel.metadata.create_all(engine)
     now = core.now_utc()
     installation_id = str(uuid4())
-    session_token = "same-install-download-session-token"
+    session_token = "leased-download-session-token"
     request = _remote_request(session_token, installation_id)
 
     with Session(engine) as session:
         session.add(
             AccessKey(
-                key_hash=digest("unused-same-install-key"),
+                key_hash=digest("unused-leased-download-key"),
                 duration_hours=1,
                 created_at=now,
                 key_expires_at=now + timedelta(hours=1),
@@ -293,9 +285,9 @@ def test_download_reuses_same_installation_active_lease_account(tmp_path):
                 session_hash=digest(session_token),
             )
         )
-        game = core.Game(slug="same-install-game", name="Same Install Game", app_id=282800)
+        game = core.Game(slug="leased-download-game", name="Leased Download Game", app_id=282800)
         account = core.ProviderAccount(
-            label="same-install-provider",
+            label="leased-provider",
             status=core.AccountStatus.leased,
             notes='{"user_id32":789,"accessible_app_ids":[282800]}',
         )
@@ -306,7 +298,7 @@ def test_download_reuses_same_installation_active_lease_account(tmp_path):
         session.refresh(account)
 
         lease = core.Lease(
-            user_id=1,
+            user_id=999,
             game_id=game.id,
             account_id=account.id,
             starts_at=now,
@@ -319,22 +311,19 @@ def test_download_reuses_same_installation_active_lease_account(tmp_path):
         session.add(
             core.LeaseCredentialGrant(
                 lease_id=lease.id,
-                installation_id=installation_id,
+                installation_id=str(uuid4()),
                 created_at=now,
             )
         )
         session.commit()
 
         private_key, transport = _transport_request()
-        with (
-            patch("app.family_capacity.select_best_account", return_value=None),
-            patch(
-                "app.account_roster.credential_for_label",
-                return_value=SteamCredential(
-                    "same-install-provider",
-                    "same-install-login",
-                    "same-install-password",
-                ),
+        with patch(
+            "app.account_roster.credential_for_label",
+            return_value=SteamCredential(
+                "leased-provider",
+                "leased-login",
+                "leased-password",
             ),
         ):
             response = core.download_steam_login(
@@ -360,22 +349,21 @@ def test_download_reuses_same_installation_active_lease_account(tmp_path):
             download_transport_aad(282800, installation_id),
         )
         payload = json.loads(plaintext)
-        assert payload["providerId"] == "same-install-provider"
+        assert payload["providerId"] == "leased-provider"
 
 
-def test_download_does_not_reuse_other_installations_active_lease(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'other-install-download.db'}")
+def test_download_requires_verified_access_not_free_capacity(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'no-access-download.db'}")
     SQLModel.metadata.create_all(engine)
     now = core.now_utc()
     installation_id = str(uuid4())
-    other_installation_id = str(uuid4())
-    session_token = "requesting-download-session-token"
+    session_token = "no-access-download-session-token"
     request = _remote_request(session_token, installation_id)
 
     with Session(engine) as session:
         session.add(
             AccessKey(
-                key_hash=digest("unused-requesting-install-key"),
+                key_hash=digest("unused-no-access-key"),
                 duration_hours=1,
                 created_at=now,
                 key_expires_at=now + timedelta(hours=1),
@@ -385,45 +373,16 @@ def test_download_does_not_reuse_other_installations_active_lease(tmp_path):
                 session_hash=digest(session_token),
             )
         )
-        game = core.Game(slug="other-install-game", name="Other Install Game", app_id=400)
-        account = core.ProviderAccount(
-            label="other-install-provider",
-            status=core.AccountStatus.leased,
-            notes='{"user_id32":456,"accessible_app_ids":[400]}',
-        )
-        session.add(game)
-        session.add(account)
-        session.commit()
-        session.refresh(game)
-        session.refresh(account)
-
-        lease = core.Lease(
-            user_id=1,
-            game_id=game.id,
-            account_id=account.id,
-            starts_at=now,
-            expires_at=now + timedelta(minutes=10),
-            credits_spent=0,
-        )
-        session.add(lease)
-        session.commit()
-        session.refresh(lease)
+        session.add(core.Game(slug="no-access-game", name="No Access Game", app_id=400))
         session.add(
-            core.LeaseCredentialGrant(
-                lease_id=lease.id,
-                installation_id=other_installation_id,
-                created_at=now,
+            core.ProviderAccount(
+                label="unrelated-provider",
+                status=core.AccountStatus.free,
+                notes='{"user_id32":456,"accessible_app_ids":[10]}',
             )
         )
         session.commit()
-
         _, transport = _transport_request()
-        with patch("app.family_capacity.select_best_account", return_value=None):
-            with pytest.raises(HTTPException) as exc:
-                core.download_steam_login(
-                    400,
-                    transport,
-                    request,
-                    session,
-                )
+        with pytest.raises(HTTPException) as exc:
+            core.download_steam_login(400, transport, request, session)
         assert exc.value.status_code == 409
