@@ -26,7 +26,7 @@ from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
 from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
-from .credential_transport import encrypt_provider_credential
+from .credential_transport import encrypt_provider_credential, encrypt_provider_download_credential
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -277,7 +277,7 @@ def _activation_for_request(request: Request, session: Session) -> AccessKey | C
 @app.middleware("http")
 async def require_active_installation(request: Request, call_next):
     path = request.url.path
-    protected = ("/catalog", "/games/", "/steam/apps/", "/steam/search", "/users/", "/leases", "/credits")
+    protected = ("/catalog", "/games/", "/steam/apps/", "/steam/search", "/users/", "/leases", "/credits", "/downloads")
     if request.method != "OPTIONS" and any(path == prefix or path.startswith(prefix) for prefix in protected):
         with Session(engine) as session:
             if _activation_for_request(request, session) is None:
@@ -1188,6 +1188,57 @@ def create_lease(
         "credits_remaining": user.credits,
         "session_action": "provider_adapter_required",
     }
+
+
+@app.post("/downloads/{app_id}/steam-login")
+def download_steam_login(
+    app_id: int,
+    req: SteamLoginTransportRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> Response:
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
+    game = session.exec(
+        select(Game).where(Game.app_id == app_id, Game.active == True)  # noqa: E712
+    ).first()
+    if not game or not is_game_licensed(session, game.id):
+        raise HTTPException(404, "game not found")
+
+    from . import family_capacity
+    selection = family_capacity.select_best_account(session, game)
+    if not selection:
+        raise HTTPException(409, "no account currently available for this game")
+    account = selection["account"]
+
+    from .account_roster import credential_for_label
+    import json
+    credential = credential_for_label(account.label)
+    if not credential:
+        raise HTTPException(409, "Assigned provider credentials unavailable")
+    notes = json.loads(account.notes or "{}")
+    expected = notes.get("user_id32")
+    if not expected and notes.get("steam_id64"):
+        expected = int(notes["steam_id64"]) - 76561197960265728
+    if not expected:
+        raise HTTPException(409, "Assigned Steam identity is not verified")
+
+    try:
+        envelope = encrypt_provider_download_credential(
+            req.client_public_key,
+            app_id=app_id,
+            installation_id=installation_id,
+            provider_id=account.label,
+            account_name=credential.login,
+            password=credential.password,
+            expected_user_id32=int(expected),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return JSONResponse(envelope, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/leases/{lease_id}/steam-login")
