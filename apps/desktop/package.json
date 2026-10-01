@@ -9,9 +9,10 @@
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 38148",
     "prepare-icons": "node scripts/prepare-icons.mjs",
-    "pretauri": "npm run prepare-icons && npm run prepare-python-runtime",
+    "pretauri": "npm run prepare-icons && npm run prepare-python-runtime && npm run prepare-catalog-seed",
     "tauri": "tauri",
-    "prepare-python-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-python-runtime.ps1"
+    "prepare-python-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-python-runtime.ps1",
+    "prepare-catalog-seed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-catalog-seed.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
