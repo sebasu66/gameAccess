@@ -45,10 +45,34 @@ if ($runtimeReady) {
     exit 0
 }
 
-$builderPython = (Get-Command python -ErrorAction Stop).Source
-$builderVersion = & $builderPython -c "import sys; print('.'.join(map(str, sys.version_info[:2])))"
-if ($LASTEXITCODE -ne 0 -or $builderVersion.Trim() -ne "3.12") {
-    throw "Building the Windows bundle requires Python 3.12; found '$builderVersion'."
+$builderPython = $null
+$builderCandidates = @()
+
+$pyLauncher = Get-Command py.exe -ErrorAction SilentlyContinue
+if ($pyLauncher) {
+    try {
+        $pyResolved = & $pyLauncher.Source -3 -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $pyResolved) {
+            $builderCandidates += $pyResolved.Trim()
+        }
+    } catch {}
+}
+
+Get-Command python.exe -All -ErrorAction SilentlyContinue |
+    ForEach-Object { $builderCandidates += $_.Source }
+
+foreach ($candidate in ($builderCandidates | Select-Object -Unique)) {
+    try {
+        & $candidate -m pip --version *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $builderPython = $candidate
+            break
+        }
+    } catch {}
+}
+
+if (-not $builderPython) {
+    throw "Building the Windows bundle requires any Python installation with pip."
 }
 
 Remove-Item $pythonTarget -Recurse -Force -ErrorAction SilentlyContinue
@@ -67,7 +91,7 @@ Remove-Item $tempArchive -Force -ErrorAction SilentlyContinue
 
 $sitePackages = Join-Path $pythonTarget "Lib\site-packages"
 New-Item -ItemType Directory -Path $sitePackages -Force | Out-Null
-& $builderPython -m pip install --disable-pip-version-check --no-compile --only-binary=:all: --target $sitePackages -r $requirements
+& $builderPython -m pip install --disable-pip-version-check --no-compile --only-binary=:all: --platform win_amd64 --python-version 3.12 --implementation cp --abi cp312 --target $sitePackages -r $requirements
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to install embedded launcher dependencies."
 }
