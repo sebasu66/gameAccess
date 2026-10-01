@@ -359,7 +359,7 @@ def onboard_provider_account(
         "registered_app_count": len(catalog_game_ids),
         # Keep the older field for callers; it now means AppIDs registered in
         # the backend, not metadata requests that happened to succeed.
-        "catalog_game_count": len(owned_game_ids),
+        "catalog_game_count": len(catalog_game_ids),
         "accessible_catalog_game_count": len(catalog_game_ids),
         "metadata_pending_count": len(metadata_pending_app_ids),
         "ownership_promoted": ownership_update["promoted"],
