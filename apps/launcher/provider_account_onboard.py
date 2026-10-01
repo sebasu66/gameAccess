@@ -169,7 +169,7 @@ def _persist_failed_scan_account(
         payload={
             "label": credential.label,
             "provider": "steam",
-            "game_ids": game_ids,
+            "game_ids": owned_game_ids,
             "notes": notes,
         },
         timeout=30.0,
@@ -298,7 +298,7 @@ def onboard_provider_account(
     shared_game_ids, shared_unresolved, shared_pending = _register_verified_apps(
         base, sorted(set(accessible_app_ids) - set(owned_app_ids))
     )
-    game_ids = sorted(set(owned_game_ids + shared_game_ids))
+    catalog_game_ids = sorted(set(owned_game_ids + shared_game_ids))
     unresolved_app_ids = sorted(set(owned_unresolved + shared_unresolved))
     metadata_pending_app_ids = sorted(set(owned_pending + shared_pending))
 
@@ -314,7 +314,9 @@ def onboard_provider_account(
             "owned_app_count": len(owned_app_ids),
             "accessible_app_ids": accessible_app_ids,
             "accessible_app_count": len(accessible_app_ids),
-            "registered_app_count": len(game_ids),
+            "registered_app_count": len(catalog_game_ids),
+            "owned_catalog_game_count": len(owned_game_ids),
+            "shared_catalog_game_count": len(shared_game_ids),
             "metadata_enrichment": "server-background",
             "metadata_pending_count": len(metadata_pending_app_ids),
             "unresolved_app_count": len(unresolved_app_ids),
@@ -353,11 +355,11 @@ def onboard_provider_account(
         "label": credential.label,
         "owned_app_count": len(owned_app_ids),
         "accessible_app_count": len(accessible_app_ids),
-        "registered_app_count": len(game_ids),
+        "registered_app_count": len(catalog_game_ids),
         # Keep the older field for callers; it now means AppIDs registered in
         # the backend, not metadata requests that happened to succeed.
-        "catalog_game_count": len(game_ids),
-        "accessible_catalog_game_count": len(game_ids),
+        "catalog_game_count": len(owned_game_ids),
+        "accessible_catalog_game_count": len(catalog_game_ids),
         "metadata_pending_count": len(metadata_pending_app_ids),
         "ownership_promoted": ownership_update["promoted"],
         "unresolved_app_count": len(unresolved_app_ids),
