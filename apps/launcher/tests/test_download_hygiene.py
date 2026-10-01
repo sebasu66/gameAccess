@@ -5,6 +5,7 @@ import os
 import time
 from pathlib import Path
 
+import download_log
 import download_reconciliation as reconciliation
 import provider_download_manager as manager
 
@@ -144,3 +145,47 @@ def test_manifest_probe_is_deleted_immediately_after_estimate(monkeypatch, tmp_p
     result = manager.estimate_download(400, "provider-a")
     assert result["bytes_total"] == 1234
     assert not (root / "downloads" / "provider-a" / "400-manifest-only").exists()
+
+
+def test_old_download_tool_versions_are_pruned_only_when_idle(monkeypatch, tmp_path) -> None:
+    root = _configure_roots(monkeypatch, tmp_path)
+    tools = root / "tools"
+    current = tools / "depotdownloader-3.4.0"
+    old = tools / "depotdownloader-3.3.0"
+    current.mkdir(parents=True)
+    old.mkdir(parents=True)
+    (current / "DepotDownloader.exe").write_bytes(b"current")
+    (old / "DepotDownloader.exe").write_bytes(b"old")
+    monkeypatch.setattr(reconciliation, "TOOLS_ROOT", tools)
+    monkeypatch.setattr(reconciliation, "CURRENT_DEPOTDOWNLOADER_ROOT", current)
+
+    removed, _bytes = reconciliation._prune_old_download_tools(set())
+    assert removed == 1
+    assert current.is_dir()
+    assert not old.exists()
+
+    old.mkdir(parents=True)
+    (old / "DepotDownloader.exe").write_bytes(b"old")
+    removed, _bytes = reconciliation._prune_old_download_tools({400})
+    assert removed == 0
+    assert old.is_dir()
+
+
+def test_download_logs_rotate_and_stay_bounded(monkeypatch, tmp_path) -> None:
+    log_root = tmp_path / "downloads" / "logs"
+    monkeypatch.setattr(download_log, "MAX_LOG_BYTES", 160)
+    monkeypatch.setattr(download_log, "MAX_LOG_LINE_CHARS", 80)
+
+    for index in range(20):
+        download_log.append_download_log(
+            log_root,
+            400,
+            {"app_id": 400, "event": "progress", "index": index, "detail": "x" * 40},
+        )
+
+    current = log_root / "app-400.jsonl"
+    archive = log_root / "app-400.jsonl.1"
+    assert current.is_file()
+    assert current.stat().st_size <= 160
+    assert archive.is_file()
+    assert archive.stat().st_size <= 160
