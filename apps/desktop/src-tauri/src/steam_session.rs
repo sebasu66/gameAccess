@@ -706,6 +706,21 @@ pub fn steam_session_status(state: tauri::State<SteamSessionState>) -> SteamSess
         .unwrap_or_default()
 }
 
+#[tauri::command]
+pub fn steam_app_is_running(app_id: u32) -> bool {
+    if app_id == 0 {
+        return false;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return steam_app_running(app_id) == Some(true);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{should_clear_stale_session, SteamSessionStatus};
