@@ -482,6 +482,21 @@ fn start_provider_download_blocking(
         .map_err(|_| "Provider download start lock is poisoned".to_string())?;
 
     let launcher = launcher_dir()?;
+    let remote_credentials = match api_base_url.filter(|value| !value.trim().is_empty()) {
+        Some(api) => Some(crate::provider_transport::fetch_provider_download_credentials(api, app_id)?),
+        None => None,
+    };
+    let effective_provider_id = requested_provider_id.clone().or_else(|| {
+        remote_credentials
+            .as_ref()
+            .and_then(|credentials| credentials.provider_id.clone())
+    });
+    if effective_provider_id.as_ref().is_some_and(|provider_id| {
+        provider_id.contains('/') || provider_id.contains('\\') || provider_id == "." || provider_id == ".."
+    }) {
+        return Err("Invalid provider id returned by GameAccess".into());
+    }
+
     if let Some(mut status) = provider_download_status(app_id)? {
         if is_active_state(&status.state) {
             #[cfg(target_os = "windows")]
@@ -535,7 +550,7 @@ fn start_provider_download_blocking(
         speed_bps: None,
         eta_seconds: None,
         installed: false,
-        provider_id: requested_provider_id.clone(),
+        provider_id: effective_provider_id.clone(),
         prepared_target: None,
         library_index: requested_library_index,
         error: None,
@@ -545,10 +560,9 @@ fn start_provider_download_blocking(
     write_provider_download_status(&launcher, &initial)?;
 
     let mut command = Command::new(python);
+    apply_runtime_env(&mut command, &launcher);
     command
         .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
         .args([
             script.to_string_lossy().as_ref(),
             "--app-id",
@@ -557,21 +571,42 @@ fn start_provider_download_blocking(
             "--job-id",
             &job_id,
         ]);
-    if let Some(provider_id) = requested_provider_id.filter(|value| !value.trim().is_empty()) {
-        command.args(["--provider-id", &provider_id]);
+    if let Some(provider_id) = effective_provider_id.as_ref().filter(|value| !value.trim().is_empty()) {
+        command.args(["--provider-id", provider_id]);
+    }
+    if remote_credentials.is_some() {
+        command.arg("--credential-stdin");
     }
     let library_index_arg = requested_library_index.map(|value| value.to_string());
     if let Some(ref value) = library_index_arg {
         command.args(["--library-index", value]);
     }
     command
-        .stdin(Stdio::null())
+        .stdin(if remote_credentials.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     hide_window(&mut command);
-    let child = command
+    let mut child = command
         .spawn()
         .map_err(|err| format!("Could not start provider download: {err}"))?;
+    if let Some(credentials) = remote_credentials.as_ref() {
+        let provider_id = effective_provider_id
+            .as_deref()
+            .ok_or_else(|| "Remote download credential did not include a provider id".to_string())?;
+        let payload = serde_json::json!({
+            "app_id": app_id,
+            "provider_id": provider_id,
+            "account_name": credentials.account_name,
+            "secret": credentials.password,
+        });
+        let encoded = serde_json::to_vec(&payload)
+            .map_err(|_| "Could not encode remote download credential".to_string())?;
+        let mut stdin = child.stdin.take()
+            .ok_or_else(|| "Could not open provider download credential channel".to_string())?;
+        stdin.write_all(&encoded)
+            .and_then(|_| stdin.write_all(b"\n"))
+            .map_err(|err| format!("Could not deliver provider download credential: {err}"))?;
+    }
     let mut started = initial;
     started.worker_pid = Some(child.id());
     if let Some(current) = provider_download_status(app_id)? {
