@@ -5,6 +5,25 @@ $pythonArchive = "python-$pythonVersion-embed-amd64.zip"
 $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/$pythonArchive"
 $pythonMd5 = "f34996cc1f44c98729ef6ce92d05e41c"
 
+function Get-GameAccessFileHash([string]$Path, [string]$Algorithm) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        switch ($Algorithm.ToUpperInvariant()) {
+            "SHA256" { $hasher = [System.Security.Cryptography.SHA256]::Create() }
+            "MD5" { $hasher = [System.Security.Cryptography.MD5]::Create() }
+            default { throw "Unsupported hash algorithm: $Algorithm" }
+        }
+        try {
+            $bytes = $hasher.ComputeHash($stream)
+            return ([System.BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+        } finally {
+            $hasher.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 $desktopRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $repoRoot = Resolve-Path (Join-Path $desktopRoot "..\..")
 $launcherSource = Join-Path $repoRoot "apps\launcher"
@@ -26,7 +45,7 @@ Get-ChildItem $launcherSource -File |
     Where-Object { $_.Extension -eq ".py" -or $_.Name -eq "requirements.txt" } |
     Copy-Item -Destination $launcherTarget
 
-$requirementsSha = (Get-FileHash $requirements -Algorithm SHA256).Hash
+$requirementsSha = (Get-GameAccessFileHash $requirements "SHA256").ToUpperInvariant()
 $runtimeReady = $false
 if (Test-Path $marker) {
     try {
@@ -82,7 +101,7 @@ New-Item -ItemType Directory -Path $pythonTarget -Force | Out-Null
 
 $tempArchive = Join-Path ([System.IO.Path]::GetTempPath()) $pythonArchive
 Invoke-WebRequest -Uri $pythonUrl -OutFile $tempArchive
-$actualMd5 = (Get-FileHash $tempArchive -Algorithm MD5).Hash.ToLowerInvariant()
+$actualMd5 = Get-GameAccessFileHash $tempArchive "MD5"
 if ($actualMd5 -ne $pythonMd5) {
     Remove-Item $tempArchive -Force -ErrorAction SilentlyContinue
     throw "Embedded Python archive checksum mismatch."
