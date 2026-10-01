@@ -353,6 +353,11 @@ def reconcile() -> list[dict[str, Any]]:
             # The Tauri caller marks dead workers interrupted before invoking this scan.
             # A still-active worker owns its directory and must not be offered for deletion.
             continue
+        if status.get("state") == "cancelled":
+            remove_staging(app_id, provider_id, remove_manifest_probe=True)
+            clear_status(app_id)
+            _log(app_id, "cancelled-staging-pruned", provider_id=provider_id)
+            continue
 
         bytes_present = _directory_bytes(staging)
         if not _regular_files(staging):
@@ -465,8 +470,8 @@ def _interrupted_status(app_id: int, provider_id: str, status: dict[str, Any], b
 
 def discard_interrupted(app_id: int, provider_id: str, job_id: str) -> dict[str, Any]:
     status = _read_status(app_id) or {}
-    if status.get("state") != "interrupted" or status.get("provider_id") != provider_id or status.get("job_id") != job_id:
-        raise RuntimeError("Download changed since the recovery prompt; staging was preserved")
+    if status.get("state") not in {"interrupted", "cancelled"} or status.get("provider_id") != provider_id or status.get("job_id") != job_id:
+        raise RuntimeError("Download changed since the recovery/cancellation request; staging was preserved")
     removed = remove_staging(app_id, provider_id, remove_manifest_probe=False)
     clear_status(app_id)
     _log(app_id, "interrupted-download-discarded", provider_id=provider_id, job_id=job_id)
