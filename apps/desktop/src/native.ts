@@ -101,6 +101,7 @@ export interface LocalSteamAccount {
   account_name: string;
   steam_id64?: string;
   user_id32?: number | null;
+  remembered?: boolean;
   app_ids: number[];
   runnable_app_ids?: number[];
   runnable_verified?: boolean;
@@ -126,13 +127,13 @@ export interface LocalSteamPool {
 }
 
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
-  await narrate("Native layer: reading Steam remembered accounts and their local library/access data.", { area: "LOCAL STEAM" });
+  await narrate("Native layer: reading registered Steam accounts and their local library/access data.", { area: "LOCAL STEAM" });
   try {
     const pool = hasTauriRuntime()
       ? await invoke<LocalSteamPool>("local_steam_pool")
       : await bridgeRequest<LocalSteamPool>("/local-steam-pool");
     await narrate(
-      `Native Steam scan completed: ${pool.accounts.length} remembered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
+      `Native Steam scan completed: ${pool.accounts.length} registered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
       { area: "LOCAL STEAM" },
     );
     mergePlayHistory(Object.fromEntries(pool.games.map(game => [game.app_id, game.last_played_at ?? 0])));
@@ -183,7 +184,8 @@ export async function hasAutomaticSteamLogin(accountNameValue: string): Promise<
   const target = accountNameValue.trim();
   if (!target || !hasTauriRuntime()) return false;
   const pool = await getLocalSteamPool();
-  if (pool && findSteamAccount(pool.accounts, target)) return true;
+  const localAccount = pool ? findSteamAccount(pool.accounts, target) : undefined;
+  if (localAccount?.remembered) return true;
   return hasSteamCredential(target);
 }
 
