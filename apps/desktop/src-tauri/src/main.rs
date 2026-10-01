@@ -326,25 +326,12 @@ fn quoted_vdf_value(text: &str, key: &str) -> Option<String> {
 }
 
 fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
-    let steam_root = native_core::runtime_prerequisites()
-        .steam_path
-        .map(PathBuf::from)
-        .ok_or_else(|| "Steam no está instalado o no pudo ser localizado.".to_string())?;
-    let mut roots = vec![steam_root.clone()];
-    let library_file = steam_root.join("steamapps").join("libraryfolders.vdf");
-    if let Ok(text) = fs::read_to_string(library_file) {
-        for line in text.lines() {
-            let parts: Vec<&str> = line.split('"').collect();
-            if parts.len() < 4 || !parts[1].eq_ignore_ascii_case("path") {
-                continue;
-            }
-            let candidate = PathBuf::from(parts[3].replace("\\\\", "\\"));
-            if !roots.iter().any(|root| root == &candidate) {
-                roots.push(candidate);
-            }
-        }
+    let roots = native_core::steam_library_roots();
+    if roots.is_empty() {
+        Err("Steam no está instalado o no pudo ser localizado.".to_string())
+    } else {
+        Ok(roots)
     }
-    Ok(roots)
 }
 
 fn provider_prepared_game_folder(app_id: u32) -> Option<PathBuf> {
