@@ -89,12 +89,12 @@ def sync_recent_scan(
                 if str(app_id).isdigit() and int(app_id) > 0
             }
         )
-        game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
+        owned_game_ids, owned_unresolved = _import_verified_games(base, owned_app_ids)
         shared_game_ids, shared_unresolved = _import_verified_games(
             base, sorted(set(accessible_app_ids) - set(owned_app_ids))
         )
-        unresolved_app_ids = sorted(set(unresolved_app_ids + shared_unresolved))
-        game_ids = sorted(set(game_ids + shared_game_ids))
+        unresolved_app_ids = sorted(set(owned_unresolved + shared_unresolved))
+        catalog_game_ids = sorted(set(owned_game_ids + shared_game_ids))
         notes = json.dumps(
             {
                 "source": "incremental-provider-refresh",
@@ -105,7 +105,9 @@ def sync_recent_scan(
                 "owned_app_count": len(owned_app_ids),
                 "accessible_app_ids": accessible_app_ids,
                 "accessible_app_count": len(accessible_app_ids),
-                "imported_game_count": len(game_ids),
+                "imported_game_count": len(catalog_game_ids),
+                "owned_catalog_game_count": len(owned_game_ids),
+                "shared_catalog_game_count": len(shared_game_ids),
                 "unresolved_app_count": len(unresolved_app_ids),
             },
             ensure_ascii=False,
@@ -117,7 +119,9 @@ def sync_recent_scan(
             payload={
                 "label": credential.label,
                 "provider": "steam",
-                "game_ids": game_ids,
+                # /admin/accounts/sync maps game_ids to authoritative AccountGame
+                # ownership. Family-visible/shared games must never enter this list.
+                "game_ids": owned_game_ids,
                 "notes": notes,
             },
             timeout=30.0,
@@ -127,7 +131,7 @@ def sync_recent_scan(
                 "provider_id": provider_id,
                 "owned_app_count": len(owned_app_ids),
                 "accessible_app_count": len(accessible_app_ids),
-                "imported_game_count": len(game_ids),
+                "imported_game_count": len(catalog_game_ids),
                 "unresolved_app_count": len(unresolved_app_ids),
             }
         )
