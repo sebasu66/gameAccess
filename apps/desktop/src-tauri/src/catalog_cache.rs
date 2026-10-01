@@ -75,9 +75,8 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
     let Some(seed_dir) = bundled_catalog_dir() else {
         return Ok(false);
     };
-    let manifest_path = seed_dir.join("manifest.json");
-    let artifact_path = seed_dir.join("catalog.sqlite.gz");
-    if !manifest_path.is_file() || !artifact_path.is_file() {
+    let manifest_path = seed_dir.join("catalog-manifest.json");
+    if !manifest_path.is_file() {
         return Ok(false);
     }
 
@@ -91,6 +90,10 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
             "Bundled catalog schema {} is unsupported; expected {}",
             manifest.schema_version, CACHE_SCHEMA_VERSION
         ));
+    }
+    let artifact_path = seed_dir.join(format!("catalog-cache-{}.sqlite.gz", manifest.revision));
+    if !artifact_path.is_file() {
+        return Ok(false);
     }
 
     let compressed = fs::read(&artifact_path)
