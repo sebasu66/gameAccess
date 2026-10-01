@@ -7,6 +7,7 @@ and are never overwritten.
 """
 from __future__ import annotations
 
+import os
 import argparse
 import hashlib
 import json
@@ -18,7 +19,7 @@ from pool_sync import _steam_library_folders
 from steam_appinfo import read_local_app_catalog
 from steam_pool import steam_root
 
-DOWNLOAD_ROOT = Path(__file__).resolve().parent / ".gameaccess" / "downloads"
+DOWNLOAD_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess")) / "downloads"
 
 
 def _stats(path: Path) -> tuple[int, int]:
