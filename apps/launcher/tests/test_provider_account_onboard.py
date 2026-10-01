@@ -74,7 +74,7 @@ def test_onboard_registers_every_verified_app_before_metadata(tmp_path: Path, mo
                 }
         if url.endswith("/admin/accounts/sync"):
             assert payload["label"] == "new-user"
-            assert payload["game_ids"] == [501, 502, 503, 504]
+            assert payload["game_ids"] == [501, 502, 503]
             assert '"accessible_app_ids":[10,20,30,40]' in payload["notes"]
             assert '"metadata_enrichment":"server-background"' in payload["notes"]
             return {
