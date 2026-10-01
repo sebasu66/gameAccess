@@ -693,6 +693,27 @@ fn terminate_verified_worker_tree(pid: u32) -> Result<(), String> {
     }
 }
 
+fn cleanup_cancelled_staging(
+    launcher: &Path,
+    app_id: u32,
+    provider_id: Option<&str>,
+    job_id: &str,
+) {
+    let Some(provider_id) = provider_id.filter(|value| !value.trim().is_empty()) else {
+        return;
+    };
+    let args = vec![
+        "--discard".into(),
+        "--app-id".into(),
+        app_id.to_string(),
+        "--provider-id".into(),
+        provider_id.to_string(),
+        "--job-id".into(),
+        job_id.to_string(),
+    ];
+    let _ = reconciliation_command(launcher, &args);
+}
+
 fn cancel_provider_download_blocking(
     app_id: u32,
     job_id: String,
@@ -728,6 +749,14 @@ fn cancel_provider_download_blocking(
             if current.job_id.as_deref() == Some(job_id.as_str())
                 && matches!(current.state.as_str(), "cancelled" | "installed")
             {
+                if current.state == "cancelled" {
+                    cleanup_cancelled_staging(
+                        &launcher,
+                        app_id,
+                        current.provider_id.as_deref(),
+                        &job_id,
+                    );
+                }
                 return Ok(current);
             }
         }
@@ -759,6 +788,12 @@ fn cancel_provider_download_blocking(
     status.error = None;
     status.worker_pid = None;
     write_provider_download_status(&launcher, &status)?;
+    cleanup_cancelled_staging(
+        &launcher,
+        app_id,
+        status.provider_id.as_deref(),
+        &job_id,
+    );
     Ok(status)
 }
 
