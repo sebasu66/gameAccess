@@ -42,7 +42,7 @@
     "resources": {
       "runtime/launcher": "runtime/launcher",
       "runtime/python": "runtime/python",
-      "runtime/catalog": "runtime/catalog"
+      "../../../deploy/catalog-cache": "runtime/catalog"
     }
   },
   "mainBinaryName": "gameaccess-desktop"
