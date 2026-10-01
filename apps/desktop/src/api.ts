@@ -6,7 +6,7 @@ import { PersonalCatalog } from "./catalog/PersonalCatalog";
 import { getCatalogMode } from "./catalogMode";
 import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
-import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, switchSteamAccount } from "./native";
+import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount } from "./native";
 import { loginProviderSteam } from "./providerLogin";
 import { getApiBaseUrl, getCatalogManifestUrl } from "./settings";
 import {
@@ -432,14 +432,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     throw new Error("El backend GameAccess no está conectado.");
   }
 
-  await narrate("Checking whether GameAccess already has a tracked Steam game session running on this PC.", { area: "LAUNCH" });
-  const session = await getSteamSessionStatus().catch(() => null);
-  if (session && session.appId && !session.done && session.phase !== "idle") {
-    await narrate(`Another tracked game session is still active for Steam AppID ${session.appId}. A new account/license switch is blocked until it closes.`, { area: "LAUNCH", level: "WARN" });
-    throw new Error("Ya hay un juego en ejecución. Cerralo antes de iniciar otro.");
-  }
-
-  await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Stale inactive leases may be replaced.`, { area: "BACKEND" });
+  await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Any active lease for this user will be replaced by the backend.`, { area: "BACKEND" });
   const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
     body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
