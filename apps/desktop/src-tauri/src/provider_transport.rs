@@ -29,10 +29,12 @@ struct CredentialEnvelope {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ProviderCredentials {
-    account_name: String,
-    password: String,
-    expected_user_id32: u32,
+pub(crate) struct ProviderCredentials {
+    #[serde(default)]
+    pub(crate) provider_id: Option<String>,
+    pub(crate) account_name: String,
+    pub(crate) password: String,
+    pub(crate) expected_user_id32: u32,
 }
 
 #[derive(Deserialize)]
@@ -44,10 +46,11 @@ fn transport_aad(lease_id: i64, installation_id: &str) -> Vec<u8> {
     format!("{TRANSPORT_CONTEXT}|{lease_id}|{installation_id}").into_bytes()
 }
 
-fn credential_url(api_base_url: &str, lease_id: i64) -> Result<Url, String> {
-    if lease_id <= 0 {
-        return Err("Invalid GameAccess lease".into());
-    }
+fn download_transport_aad(app_id: u32, installation_id: &str) -> Vec<u8> {
+    format!("gameaccess-provider-download-v1|{app_id}|{installation_id}").into_bytes()
+}
+
+fn transport_url(api_base_url: &str, path: &str) -> Result<Url, String> {
     let base = Url::parse(api_base_url.trim())
         .map_err(|_| "The GameAccess server URL is invalid".to_string())?;
     let host = base.host_str().unwrap_or_default();
@@ -55,8 +58,22 @@ fn credential_url(api_base_url: &str, lease_id: i64) -> Result<Url, String> {
     if base.scheme() != "https" && !local_http {
         return Err("Remote provider credential transport requires HTTPS".into());
     }
-    base.join(&format!("/leases/{lease_id}/steam-login"))
+    base.join(path)
         .map_err(|_| "Could not build the provider credential URL".to_string())
+}
+
+fn credential_url(api_base_url: &str, lease_id: i64) -> Result<Url, String> {
+    if lease_id <= 0 {
+        return Err("Invalid GameAccess lease".into());
+    }
+    transport_url(api_base_url, &format!("/leases/{lease_id}/steam-login"))
+}
+
+fn download_credential_url(api_base_url: &str, app_id: u32) -> Result<Url, String> {
+    if app_id == 0 {
+        return Err("Invalid Steam AppID".into());
+    }
+    transport_url(api_base_url, &format!("/downloads/{app_id}/steam-login"))
 }
 
 fn decrypt_envelope(
@@ -107,14 +124,10 @@ fn decrypt_envelope(
     Ok(credentials)
 }
 
-fn fetch_provider_credentials(
-    api_base_url: String,
-    lease_id: i64,
-) -> Result<ProviderCredentials, String> {
+fn fetch_encrypted_credentials(url: Url, aad: Vec<u8>) -> Result<ProviderCredentials, String> {
     let session_token = crate::access_activation::read_session()?
         .ok_or_else(|| "GameAccess activation session is unavailable".to_string())?;
     let installation_id = crate::access_activation::installation_id()?;
-    let url = credential_url(&api_base_url, lease_id)?;
 
     let mut rng = OsRng;
     let private_key = RsaPrivateKey::new(&mut rng, 2048)
@@ -162,8 +175,25 @@ fn fetch_provider_credentials(
     let envelope = response
         .json::<CredentialEnvelope>()
         .map_err(|_| "Provider credential response is malformed".to_string())?;
-    let aad = transport_aad(lease_id, &installation_id);
     decrypt_envelope(&private_key, envelope, &aad)
+}
+
+fn fetch_provider_credentials(
+    api_base_url: String,
+    lease_id: i64,
+) -> Result<ProviderCredentials, String> {
+    let installation_id = crate::access_activation::installation_id()?;
+    let url = credential_url(&api_base_url, lease_id)?;
+    fetch_encrypted_credentials(url, transport_aad(lease_id, &installation_id))
+}
+
+pub(crate) fn fetch_provider_download_credentials(
+    api_base_url: String,
+    app_id: u32,
+) -> Result<ProviderCredentials, String> {
+    let installation_id = crate::access_activation::installation_id()?;
+    let url = download_credential_url(&api_base_url, app_id)?;
+    fetch_encrypted_credentials(url, download_transport_aad(app_id, &installation_id))
 }
 
 #[tauri::command]
