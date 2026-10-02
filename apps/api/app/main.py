@@ -173,6 +173,12 @@ class SteamLoginTransportRequest(BaseModel):
     client_public_key: str = Field(min_length=300, max_length=2048)
 
 
+class ProviderCredentialInvalidRequest(BaseModel):
+    provider_id: str = Field(min_length=1, max_length=200)
+    app_id: Optional[int] = Field(default=None, ge=1)
+    error_code: str = Field(default="InvalidPassword", max_length=80)
+
+
 class LeaseReleaseRequest(BaseModel):
     reason: str = Field(default="client_requested_release", min_length=1, max_length=80)
 
@@ -1757,7 +1763,77 @@ def _download_account_for_app(session: Session, app_id: int) -> ProviderAccount 
     return None
 
 
-@app.post("/downloads/{app_id}/steam-login")
+@app.post("/downloads/provider-credential-invalid")
+def report_provider_invalid_password(
+    req: ProviderCredentialInvalidRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict:
+    import json
+
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
+    if req.error_code.casefold() != "invalidpassword":
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="provider-credential",
+            reason="unsupported_credential_failure_report",
+            status_code=400,
+            user_message="El reporte de credencial no es válido.",
+            app_id=req.app_id,
+        )
+
+    from . import family_capacity
+
+    provider_identity = req.provider_id.strip().casefold()
+    affected: list[int] = []
+    for account in session.exec(
+        select(ProviderAccount).order_by(ProviderAccount.id)
+    ).all():
+        if family_capacity.account_identity(account) != provider_identity:
+            continue
+        try:
+            notes = json.loads(account.notes or "{}")
+            if not isinstance(notes, dict):
+                notes = {}
+        except Exception:
+            notes = {}
+        notes["credential_status"] = "invalid_password"
+        notes["credential_error"] = "InvalidPassword"
+        notes["credential_invalidated_at"] = now_utc().isoformat()
+        account.status = AccountStatus.disabled
+        account.notes = json.dumps(notes, ensure_ascii=False)
+        session.add(account)
+        affected.append(int(account.id))
+
+    if not affected:
+        _record_access_event(
+            session,
+            installation_id=installation_id,
+            action="provider-credential",
+            outcome="ignored",
+            reason="provider_identity_not_found",
+            app_id=req.app_id,
+            commit=True,
+        )
+        return {"ok": True, "affected": 0}
+
+    for account_id in affected:
+        _record_access_event(
+            session,
+            installation_id=installation_id,
+            action="provider-credential",
+            outcome="disabled",
+            reason="steam_invalid_password_during_download",
+            app_id=req.app_id,
+            account_id=account_id,
+        )
+    session.commit()
+    return {"ok": True, "affected": len(affected)}
+
+
 @app.post("/downloads/{app_id}/steam-login")
 def download_steam_login(
     app_id: int,
