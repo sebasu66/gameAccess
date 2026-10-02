@@ -1618,7 +1618,6 @@ def create_lease(
                     "label": current_account.label,
                     "provider": current_account.provider,
                 },
-                "allocation_mode": "existing-account",
                 "demand": {
                     "request_count_total": demand.request_count_total,
                     "successful_leases": demand.successful_leases,
@@ -1709,7 +1708,6 @@ def create_lease(
             "label": selected.label,
             "provider": selected.provider,
         },
-        "allocation_mode": selection.get("mode"),
         "demand": {
             "request_count_total": demand.request_count_total,
             "successful_leases": demand.successful_leases,
