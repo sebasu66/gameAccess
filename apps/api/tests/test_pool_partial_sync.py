@@ -3,6 +3,8 @@ import json
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app import main as core
+from app import pool_routes
+from app.account_roster import SteamCredential
 from app.pool_routes import PoolAccountInput, PoolSyncInput, _sync_account
 
 
@@ -242,3 +244,58 @@ def test_explicit_invalid_password_disables_then_valid_scan_reactivates(tmp_path
         assert account.status == core.AccountStatus.free
         assert notes["credential_status"] == "valid"
         assert notes["credential_error"] is None
+
+
+def test_runtime_roster_merges_legacy_duplicate_provider_rows(tmp_path, monkeypatch) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="merge-game", name="Merge Game", app_id=123, active=True)
+        canonical = core.ProviderAccount(
+            label="alice",
+            provider="steam",
+            notes=json.dumps({"account_name": "alice"}),
+        )
+        duplicate = core.ProviderAccount(
+            label="alice#2",
+            provider="steam",
+            notes=json.dumps({"account_name": "alice"}),
+        )
+        session.add_all([game, canonical, duplicate])
+        session.commit()
+        session.refresh(game)
+        session.refresh(canonical)
+        session.refresh(duplicate)
+        duplicate_id = duplicate.id
+
+        session.add(core.AccountGame(account_id=duplicate.id, game_id=game.id))
+        lease = core.Lease(
+            user_id=1,
+            game_id=game.id,
+            account_id=duplicate.id,
+            starts_at=core.now_utc(),
+            expires_at=core.now_utc(),
+            credits_spent=0,
+            status=core.LeaseStatus.active,
+        )
+        session.add(lease)
+        session.commit()
+        session.refresh(lease)
+
+        monkeypatch.setattr(
+            pool_routes,
+            "load_account_roster",
+            lambda: [SteamCredential(label="alice", login="alice", password="new-password")],
+        )
+
+        count = pool_routes.sync_runtime_account_roster(session)
+
+        assert count == 1
+        accounts = session.exec(select(core.ProviderAccount)).all()
+        assert [(row.id, row.label) for row in accounts] == [(canonical.id, "alice")]
+        assert session.get(core.ProviderAccount, duplicate_id) is None
+        session.refresh(lease)
+        assert lease.account_id == canonical.id
+        mappings = session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == canonical.id)
+        ).all()
+        assert [row.game_id for row in mappings] == [game.id]
