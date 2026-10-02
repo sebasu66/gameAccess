@@ -33,6 +33,7 @@
 
 ## P0 — Release e instalación limpia
 
+- [ ] **Actualizar la animación del logo/splash** para usar la versión nueva del logo de Game Access. Reemplazar los assets/frames anteriores sin reintroducir logos viejos y verificar la animación real en el build Tauri/instalador.
 - [ ] Construir el instalador exacto desde el commit probado y registrar commit, hash del artefacto y build stamp visible.
 - [ ] Instalar en una máquina/VM Windows limpia y verificar que Game Access no depende de Node, Rust, Python ni archivos del checkout de desarrollo.
 - [ ] Confirmar conexión al backend remoto, activación, catálogo, imágenes, descarga, Play, mensajes de error y actualización de estado después de reiniciar la aplicación.
@@ -76,13 +77,20 @@
 - [ ] Probar fullscreen, juego en segundo plano, Alt+Tab, bloqueo de Windows, Remote Desktop y uso solo con controller antes de activar esta política en producción.
 - [ ] Registrar telemetría mínima para medir falsos positivos: detección AFK, popup mostrado, respuesta, timeout y liberación, sin registrar teclas ni contenido de input.
 
-## P1 — Continuidad de partidas
+## P1 — Continuidad y unificación de partidas guardadas
 
-- [ ] Medir cobertura/fiabilidad de rutas de guardado por juego usando `game_data_path` y/o PCGamingWiki.
-- [ ] Crear perfil local de progreso por usuario de Game Access y juego.
-- [ ] Para juegos compatibles, respaldar/restaurar saves de forma segura sin escribir mientras el juego/Steam los utiliza.
-- [ ] Registrar compatibilidad y excluir automatización cuando el save dependa de SteamID interno u otra condición no portable.
-- [ ] Verificar interacción con Steam Cloud antes de habilitar restauración automática.
+> Objetivo: que el progreso pertenezca al **usuario de Game Access + juego**, no a la cuenta Steam proveedora que haya tocado usar en una sesión concreta.
+
+- [ ] Medir cobertura/fiabilidad de rutas de guardado por juego usando `game_data_path` y/o PCGamingWiki, incluyendo Steam `userdata`, Documentos, AppData y rutas específicas del juego.
+- [ ] Crear un perfil canónico de saves por **usuario de Game Access + AppID/juego**. Cambiar de cuenta Steam proveedora no debe crear un progreso separado cuando el juego permita portar los saves.
+- [ ] Antes de lanzar un juego con otra cuenta Steam, localizar el save canónico de Game Access y preparar/copiar/restaurar el progreso en la ruta que esa sesión vaya a usar.
+- [ ] Al cerrar el juego, detectar qué archivos cambiaron y fusionar/capturar el progreso de vuelta al save canónico del mismo usuario+juego.
+- [ ] Definir una estrategia segura de **merge/conflictos**: no sobrescribir silenciosamente una partida más nueva; comparar timestamps/hash/slots y conservar backups antes de reemplazar.
+- [ ] Cuando el formato del juego permita múltiples slots independientes, preservar todos los slots; cuando no sea fusionable de forma segura, elegir una versión explícitamente o mantener ambas copias para recuperación.
+- [ ] Para juegos compatibles, respaldar/restaurar saves sin escribir mientras el juego o Steam los utiliza.
+- [ ] Registrar compatibilidad por juego y excluir automatización cuando el save dependa de SteamID interno, cifrado por cuenta u otra condición no portable.
+- [ ] Verificar interacción con Steam Cloud: evitar carreras donde Cloud restaure una versión vieja o vuelva a subir una versión equivocada al cambiar de cuenta proveedora.
+- [ ] Diseñar una UI mínima de recuperación/historial para conflictos o restauración manual, sin exponer al usuario la complejidad de las cuentas proveedoras salvo que sea necesario.
 
 ## P1 — UX pendiente del cliente
 
@@ -103,7 +111,10 @@
 
 ## P2 — Publicación
 
-- [ ] Publicar landing y descarga Windows en URL estable.
+- [ ] **Crear la página web pública de Game Access**: landing clara, explicación del servicio, requisitos, preguntas frecuentes básicas y CTA principal de descarga.
+- [ ] Publicar desde esa web el **instalador Windows vigente** mediante una URL estable; mostrar versión/build y evitar que una página vieja apunte a un instalador obsoleto.
+- [ ] Incluir en la web el flujo para obtener/renovar acceso cuando Linkvertise esté listo, además de ayuda básica de instalación y primer inicio.
+- [ ] Definir hosting/dominio definitivo de la web y separar contenido público de cualquier panel/admin o secreto del backend.
 - [ ] Definir estrategia de actualización del cliente y versión mínima soportada por backend.
 - [ ] Firmar instalador/ejecutable cuando se prepare distribución pública.
 - [ ] Añadir backups, recuperación, rate limiting y controles de abuso antes de una beta abierta.
