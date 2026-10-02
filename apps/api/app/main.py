@@ -1617,32 +1617,79 @@ def download_steam_login(
     request: Request,
     session: Session = Depends(get_session),
 ) -> Response:
-    if _activation_for_request(request, session) is None:
-        raise HTTPException(401, "GameAccess activation is required or has expired")
     installation_id = canonical_installation_id(
         request.headers.get("X-GameAccess-Installation", "")
     )
+    if _activation_for_request(request, session) is None:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="activation_missing_or_expired",
+            status_code=401,
+            user_message="Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.",
+            app_id=app_id,
+        )
+
     game = session.exec(
         select(Game).where(Game.app_id == app_id, Game.active == True)  # noqa: E712
     ).first()
     if not game:
-        raise HTTPException(404, "game not found")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="game_not_in_active_catalog",
+            status_code=404,
+            user_message="Este juego no está disponible actualmente en Game Access.",
+            app_id=app_id,
+        )
 
     account = _download_account_for_app(session, app_id)
     if account is None:
-        raise HTTPException(409, "no registered provider account reports access to this game")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="no_registered_account_reports_access",
+            status_code=409,
+            user_message="No encontramos una cuenta registrada que pueda descargar este juego.",
+            game_id=int(game.id),
+            app_id=app_id,
+        )
 
     from .account_roster import credential_for_label
     import json
+
     credential = credential_for_label(account.label)
     if not credential:
-        raise HTTPException(409, "Assigned provider credentials unavailable")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="provider_credentials_unavailable",
+            status_code=409,
+            user_message="La cuenta elegida no está lista para iniciar la descarga. Intenta nuevamente.",
+            game_id=int(game.id),
+            app_id=app_id,
+            account_id=int(account.id),
+        )
     notes = json.loads(account.notes or "{}")
     expected = notes.get("user_id32")
     if not expected and notes.get("steam_id64"):
         expected = int(notes["steam_id64"]) - 76561197960265728
     if not expected:
-        raise HTTPException(409, "Assigned Steam identity is not verified")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="provider_steam_identity_unverified",
+            status_code=409,
+            user_message="La identidad Steam de esta cuenta todavía no está verificada. Intenta nuevamente.",
+            game_id=int(game.id),
+            app_id=app_id,
+            account_id=int(account.id),
+        )
 
     try:
         envelope = encrypt_provider_download_credential(
@@ -1654,8 +1701,29 @@ def download_steam_login(
             password=credential.password,
             expected_user_id32=int(expected),
         )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    except ValueError:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="download",
+            reason="credential_envelope_rejected",
+            status_code=400,
+            user_message="No pudimos preparar el inicio de sesión para la descarga. Intenta nuevamente.",
+            game_id=int(game.id),
+            app_id=app_id,
+            account_id=int(account.id),
+        )
+    _record_access_event(
+        session,
+        installation_id=installation_id,
+        action="download",
+        outcome="allowed",
+        reason="provider_credentials_issued",
+        game_id=int(game.id),
+        app_id=app_id,
+        account_id=int(account.id),
+        commit=True,
+    )
     return JSONResponse(envelope, headers={"Cache-Control": "no-store"})
 
 
@@ -1666,32 +1734,83 @@ def lease_steam_login(
     request: Request,
     session: Session = Depends(get_session),
 ) -> Response:
-    if _activation_for_request(request, session) is None:
-        raise HTTPException(401, "GameAccess activation is required or has expired")
     installation_id = canonical_installation_id(
         request.headers.get("X-GameAccess-Installation", "")
     )
+    if _activation_for_request(request, session) is None:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="activation_missing_or_expired",
+            status_code=401,
+            user_message="Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.",
+            lease_id=lease_id,
+        )
     lease = session.get(Lease, lease_id)
     if not lease or lease.status != LeaseStatus.active:
-        raise HTTPException(409, "An active reservation is required")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="lease_not_active",
+            status_code=409,
+            user_message="Esta reserva ya no está activa. Vuelve a pulsar Jugar para obtener acceso.",
+            lease_id=lease_id,
+        )
     grant = session.get(LeaseCredentialGrant, lease_id)
     if not grant or grant.installation_id != installation_id:
-        raise HTTPException(403, "This reservation belongs to another installation")
-    expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
-    if expires <= now_utc():
-        raise HTTPException(409, "Reservation expired")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="lease_owned_by_other_installation",
+            status_code=403,
+            user_message="Esta reserva pertenece a otra instalación de Game Access.",
+            lease_id=lease_id,
+            account_id=lease.account_id,
+        )
+    if utc(lease.expires_at) <= now_utc():
+        _release_backend_lease(
+            session, lease, reason="activation_expired", status=LeaseStatus.expired
+        )
+        session.commit()
+        raise HTTPException(
+            401, "Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar."
+        )
     account = session.get(ProviderAccount, lease.account_id)
     from .account_roster import credential_for_label
     import json
+
     credential = credential_for_label(account.label) if account else None
     if not credential:
-        raise HTTPException(409, "Assigned provider credentials unavailable")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="provider_credentials_unavailable",
+            status_code=409,
+            user_message="La cuenta asignada no está lista para iniciar sesión. Intenta nuevamente.",
+            game_id=lease.game_id,
+            lease_id=lease_id,
+            account_id=lease.account_id,
+        )
     notes = json.loads(account.notes or "{}")
     expected = notes.get("user_id32")
     if not expected and notes.get("steam_id64"):
         expected = int(notes["steam_id64"]) - 76561197960265728
     if not expected:
-        raise HTTPException(409, "Assigned Steam identity is not verified")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="provider_steam_identity_unverified",
+            status_code=409,
+            user_message="La identidad Steam de la cuenta asignada todavía no está verificada.",
+            game_id=lease.game_id,
+            lease_id=lease_id,
+            account_id=lease.account_id,
+        )
     try:
         envelope = encrypt_provider_credential(
             req.client_public_key,
@@ -1701,8 +1820,29 @@ def lease_steam_login(
             password=credential.password,
             expected_user_id32=int(expected),
         )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    except ValueError:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play-login",
+            reason="credential_envelope_rejected",
+            status_code=400,
+            user_message="No pudimos preparar el inicio de sesión. Intenta nuevamente.",
+            game_id=lease.game_id,
+            lease_id=lease_id,
+            account_id=lease.account_id,
+        )
+    _record_access_event(
+        session,
+        installation_id=installation_id,
+        action="play-login",
+        outcome="allowed",
+        reason="provider_credentials_issued",
+        game_id=lease.game_id,
+        lease_id=lease_id,
+        account_id=lease.account_id,
+        commit=True,
+    )
     return JSONResponse(
         envelope,
         headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
@@ -1710,15 +1850,40 @@ def lease_steam_login(
 
 
 @app.get("/leases/{lease_id}")
-def get_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
+def get_lease(
+    lease_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict:
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
     expire_old_leases(session)
     lease = session.get(Lease, lease_id)
     if not lease:
-        raise HTTPException(404, "lease not found")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="lease-status",
+            reason="lease_not_found",
+            status_code=404,
+            user_message="La reserva ya no existe.",
+            lease_id=lease_id,
+        )
+    grant = session.get(LeaseCredentialGrant, lease_id)
+    if not grant or grant.installation_id != installation_id:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="lease-status",
+            reason="lease_owned_by_other_installation",
+            status_code=403,
+            user_message="Esta reserva pertenece a otra instalación de Game Access.",
+            lease_id=lease_id,
+        )
     game = visible_catalog_game(session, lease.game_id, active_only=False)
     account = session.get(ProviderAccount, lease.account_id)
-    if not game:
-        raise HTTPException(404, "lease game not found")
+    runtime = session.get(LeaseRuntimeState, lease_id)
     return {
         "id": lease.id,
         "status": lease.status,
@@ -1728,40 +1893,55 @@ def get_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
         "starts_at": lease.starts_at,
         "expires_at": lease.expires_at,
         "credits_spent": lease.credits_spent,
+        "release_reason": runtime.release_reason if runtime else None,
+        "idle_since": runtime.idle_since if runtime else None,
+        "last_seen_online_at": runtime.last_seen_online_at if runtime else None,
     }
 
 
 @app.post("/leases/{lease_id}/release")
-def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
+def release_lease(
+    lease_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict:
+    installation_id = canonical_installation_id(
+        request.headers.get("X-GameAccess-Installation", "")
+    )
     lease = session.get(Lease, lease_id)
     if not lease:
-        raise HTTPException(404, "lease not found")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="lease-release",
+            reason="lease_not_found",
+            status_code=404,
+            user_message="La reserva ya no existe.",
+            lease_id=lease_id,
+        )
+    grant = session.get(LeaseCredentialGrant, lease_id)
+    if not grant or grant.installation_id != installation_id:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="lease-release",
+            reason="lease_owned_by_other_installation",
+            status_code=403,
+            user_message="Esta reserva pertenece a otra instalación de Game Access.",
+            lease_id=lease_id,
+        )
+    runtime = session.get(LeaseRuntimeState, lease_id)
     if lease.status != LeaseStatus.active:
-        return {"ok": True, "status": lease.status}
-    lease.status = LeaseStatus.released
-    account = session.get(ProviderAccount, lease.account_id)
-    if account:
-        account.status = AccountStatus.free
-        session.add(account)
-    session.add(lease)
+        return {
+            "ok": True,
+            "status": lease.status,
+            "release_reason": runtime.release_reason if runtime else None,
+        }
+    _release_backend_lease(session, lease, reason="client_requested_release")
     session.commit()
-    return {"ok": True, "status": lease.status}
-
-
-from .pool_routes import (  # noqa: E402 - routes import initialized app
-    router as pool_router,
-)
-
-app.include_router(pool_router)
-
-from .steam_search_routes import (  # noqa: E402 - routes import initialized app
-    router as steam_search_router,
-)
-
-app.include_router(steam_search_router)
-
-from .admin_console_routes import (  # noqa: E402 - routes import initialized app
-    router as admin_console_router,
-)
-
-app.include_router(admin_console_router)
+    runtime = session.get(LeaseRuntimeState, lease_id)
+    return {
+        "ok": True,
+        "status": lease.status,
+        "release_reason": runtime.release_reason if runtime else "client_requested_release",
+    }
