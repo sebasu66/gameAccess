@@ -384,7 +384,7 @@ export const loadSteamApp = async (appId: number) => {
 
 export async function releaseFailedLease(
   lease: LeaseResponse,
-  reason: "provider_profile_missing" | "provider_login_failed" | "play_launch_failed" = "play_launch_failed",
+  reason: "provider_profile_missing" | "provider_login_failed" | "provider_invalid_password" | "play_launch_failed" = "play_launch_failed",
 ): Promise<void> {
   await Promise.allSettled([
     request(`/leases/${lease.lease_id}/release`, {
@@ -475,8 +475,15 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await narrate(`Provider Steam preparation failed for lease ${lease.lease_id}: ${message}. Releasing the lease.`, { area: "ERROR", level: "ERROR" });
-      await releaseFailedLease(lease, "provider_login_failed");
+      const invalidPassword = message.includes("STEAM_INVALID_PASSWORD");
+      await narrate(
+        `Provider Steam preparation failed for lease ${lease.lease_id}: ${message}. Releasing the lease with reason ${invalidPassword ? "provider_invalid_password" : "provider_login_failed"}.`,
+        { area: "ERROR", level: "ERROR" },
+      );
+      await releaseFailedLease(
+        lease,
+        invalidPassword ? "provider_invalid_password" : "provider_login_failed",
+      );
       throw error;
     }
   }
