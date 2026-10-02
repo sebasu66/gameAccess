@@ -69,7 +69,20 @@ def replace_runtime_roster(records: list[SteamCredential]) -> None:
 
 
 def credential_for_label(label: str) -> SteamCredential | None:
-    return _CREDENTIALS_BY_LABEL.get(label)
+    direct = _CREDENTIALS_BY_LABEL.get(label)
+    if direct is not None:
+        return direct
+    # Legacy database rows may still carry old duplicate labels such as
+    # "login#2". They resolve to the one canonical Steam login credential.
+    base = str(label or "").split("#", 1)[0].strip().casefold()
+    return next(
+        (
+            credential
+            for credential in _CREDENTIALS_BY_LABEL.values()
+            if credential.login.casefold() == base
+        ),
+        None,
+    )
 
 
 def runtime_roster_count() -> int:
