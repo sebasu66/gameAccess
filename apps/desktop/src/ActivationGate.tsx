@@ -41,6 +41,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [splashComplete, setSplashComplete] = useState(false);
   const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#obtener-clave");
 
@@ -68,6 +69,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     const invalid = () => {
       setStatus(null);
+      setNotice("");
       setError(t("activationExpiredHelp"));
       void clearActivationSession();
     };
@@ -85,10 +87,26 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   }, [verify]);
   useEffect(() => {
     if (!status) return;
+    setNotice("");
     const remaining = Date.parse(status.expires_at) - Date.parse(status.server_time);
-    const timeout = window.setTimeout(() => void verify(), Math.max(1000, Math.min(remaining, 24 * 60 * 60 * 1000)));
-    return () => window.clearTimeout(timeout);
-  }, [status, verify]);
+    const warningDelay = remaining - 10 * 60 * 1000;
+    let warningTimer: number | undefined;
+    if (warningDelay <= 0 && remaining > 0) {
+      setNotice(t("activationExpiringSoon"));
+    } else if (warningDelay > 0) {
+      warningTimer = window.setTimeout(() => setNotice(t("activationExpiringSoon")), warningDelay);
+    }
+    const expiryTimer = window.setTimeout(() => {
+      setStatus(null);
+      setNotice("");
+      setError(t("activationTimeEnded"));
+      void clearActivationSession();
+    }, Math.max(0, remaining));
+    return () => {
+      if (warningTimer != null) window.clearTimeout(warningTimer);
+      window.clearTimeout(expiryTimer);
+    };
+  }, [status, t]);
 
   const activate = async (event: FormEvent) => {
     event.preventDefault();
@@ -104,7 +122,10 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   };
 
   return <>
-    {status?.active ? children : <main className="runtime-gate activation-gate">
+    {status?.active ? <>
+      {children}
+      {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
+    </> : <main className="runtime-gate activation-gate">
       <div className="activation-showcase" aria-hidden="true">
         <div className="activation-showcase-grid">
           {showcaseGames.map((game, index) => <div className="activation-showcase-cover" key={index}>
