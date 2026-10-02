@@ -1387,62 +1387,96 @@ def add_account(
 def sync_account(
     req: SyncAccountRequest, session: Session = Depends(get_session)
 ) -> dict:
+    import json
+
     label = req.label.strip()
     normalized_game_ids = list(dict.fromkeys(req.game_ids))
     for game_id in normalized_game_ids:
         if not visible_catalog_game(session, game_id, active_only=False):
             raise HTTPException(400, f"unknown game_id {game_id}")
 
-    account = session.exec(
-        select(ProviderAccount).where(ProviderAccount.label == label)
-    ).first()
+    def parsed_notes(value: str) -> dict:
+        try:
+            parsed = json.loads(value or "{}")
+            return parsed if isinstance(parsed, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+
+    incoming = parsed_notes(req.notes)
+    target_identities = {
+        value.strip().casefold()
+        for value in (
+            label,
+            str(incoming.get("account_name") or ""),
+            str(incoming.get("provider_id") or ""),
+        )
+        if value.strip()
+    }
+
+    accounts = session.exec(select(ProviderAccount).order_by(ProviderAccount.id)).all()
+    account = next((row for row in accounts if row.label == label), None)
+    if account is None:
+        for row in accounts:
+            previous = parsed_notes(row.notes)
+            identities = {
+                str(row.label or "").split("#", 1)[0].strip().casefold(),
+                str(previous.get("account_name") or "").strip().casefold(),
+                str(previous.get("provider_id") or "").strip().casefold(),
+            }
+            if target_identities & {value for value in identities if value}:
+                account = row
+                break
+
     created = account is None
     if account is None:
-        account = ProviderAccount(label=label, provider=req.provider, notes=req.notes)
+        account = ProviderAccount(label=label, provider=req.provider, notes="{}")
         session.add(account)
         session.commit()
         session.refresh(account)
-    else:
-        account.provider = req.provider
-        import json
 
-        def parsed_notes(value: str) -> dict:
-            try:
-                parsed = json.loads(value or "{}")
-                return parsed if isinstance(parsed, dict) else {}
-            except (ValueError, TypeError):
-                return {}
+    previous = parsed_notes(account.notes)
+    credential_status = str(incoming.get("credential_status") or "").strip().casefold()
+    if credential_status == "invalid_password":
+        account.status = AccountStatus.disabled
+    elif credential_status == "valid" and account.status == AccountStatus.disabled:
+        account.status = AccountStatus.free
 
-        previous = parsed_notes(account.notes)
-        incoming = parsed_notes(req.notes)
-        if (
-            incoming.get("inventory_complete") is True
-            and incoming.get("ownership_scan_status") == "ok"
-        ):
-            if (
-                account.status == AccountStatus.disabled
-                and previous.get("disabled_by_inventory_scan")
-            ):
-                account.status = AccountStatus.free
-            incoming["disabled_by_inventory_scan"] = False
-            incoming["ownership_scan_error"] = None
-        elif previous.get("disabled_by_inventory_scan"):
-            incoming["disabled_by_inventory_scan"] = True
-        account.notes = json.dumps({**previous, **incoming}) if incoming else req.notes
-        session.add(account)
+    # Keep one canonical label for this Steam login whenever it is safe.
+    if account.label != label:
+        conflict = session.exec(
+            select(ProviderAccount).where(
+                ProviderAccount.label == label,
+                ProviderAccount.id != account.id,
+            )
+        ).first()
+        if conflict is None:
+            account.label = label
+
+    incoming["disabled_by_inventory_scan"] = False
+    account.provider = req.provider
+    account.notes = json.dumps({**previous, **incoming}, ensure_ascii=False)
+    session.add(account)
 
     mappings = session.exec(
         select(AccountGame).where(AccountGame.account_id == account.id)
     ).all()
     by_game = {row.game_id: row for row in mappings}
-    desired = set(normalized_game_ids)
-    for game_id, row in by_game.items():
-        if game_id not in desired:
-            session.delete(row)
-    for game_id in normalized_game_ids:
-        if game_id not in by_game:
-            session.add(AccountGame(account_id=account.id, game_id=game_id))
+
+    authoritative = incoming.get("inventory_complete") is True or not incoming
+    if authoritative:
+        desired = set(normalized_game_ids)
+        for game_id, row in by_game.items():
+            if game_id not in desired:
+                session.delete(row)
+        for game_id in normalized_game_ids:
+            if game_id not in by_game:
+                session.add(AccountGame(account_id=account.id, game_id=game_id))
+
     session.commit()
+    session.refresh(account)
+    final_mappings = session.exec(
+        select(AccountGame).where(AccountGame.account_id == account.id)
+    ).all()
     return {
         "ok": True,
         "created": created,
@@ -1451,7 +1485,7 @@ def sync_account(
             "label": account.label,
             "provider": account.provider,
             "status": account.status,
-            "game_ids": normalized_game_ids,
+            "game_ids": sorted({int(row.game_id) for row in final_mappings}),
         },
     }
 
@@ -1545,8 +1579,10 @@ def create_lease(
 
     if current:
         current_account = session.get(ProviderAccount, current.account_id)
-        if current_account and family_capacity.account_can_access_game(
-            session, current_account, game
+        if (
+            current_account
+            and family_capacity.account_credential_usable(current_account)
+            and family_capacity.account_can_access_game(session, current_account, game)
         ):
             current.expires_at = activation_expires
             runtime = _runtime_state(session, int(current.id))
@@ -1698,31 +1734,30 @@ def create_lease(
 
 
 def _download_account_for_app(session: Session, app_id: int) -> ProviderAccount | None:
-    """Return any registered provider account that Steam says can access this AppID.
-
-    Download probing deliberately ignores GameAccess lease/capacity state. Steam/
-    DepotDownloader is the authority on whether the actual download is allowed.
-    """
-    import json
+    """Choose any usable registered provider with known access; leases do not block download."""
     from .account_roster import credential_for_label
+    from . import family_capacity
 
+    game = session.exec(select(Game).where(Game.app_id == app_id)).first()
+    if game is None:
+        return None
+
+    seen: set[str] = set()
     for account in session.exec(select(ProviderAccount).order_by(ProviderAccount.id)).all():
-        try:
-            notes = json.loads(account.notes or "{}")
-        except Exception:
+        if not family_capacity.account_credential_usable(account):
             continue
-        accessible = notes.get("accessible_app_ids")
-        if not isinstance(accessible, list):
+        identity = family_capacity.account_identity(account) or f"account:{account.id}"
+        if identity in seen:
             continue
-        try:
-            can_access = app_id in {int(value) for value in accessible}
-        except (TypeError, ValueError):
+        seen.add(identity)
+        if not family_capacity.account_can_access_game(session, account, game):
             continue
-        if can_access and credential_for_label(account.label):
+        if credential_for_label(account.label):
             return account
     return None
 
 
+@app.post("/downloads/{app_id}/steam-login")
 @app.post("/downloads/{app_id}/steam-login")
 def download_steam_login(
     app_id: int,
@@ -2053,11 +2088,39 @@ def release_lease(
         "client_requested_release",
         "provider_profile_missing",
         "provider_login_failed",
+        "provider_invalid_password",
         "play_launch_failed",
         "download_install_handoff_complete",
     }
     requested_reason = req.reason if req else "client_requested_release"
     reason = requested_reason if requested_reason in allowed_reasons else "client_requested_release"
+    if reason == "provider_invalid_password":
+        import json
+
+        account = session.get(ProviderAccount, lease.account_id)
+        if account is not None:
+            try:
+                notes = json.loads(account.notes or "{}")
+                if not isinstance(notes, dict):
+                    notes = {}
+            except Exception:
+                notes = {}
+            notes["credential_status"] = "invalid_password"
+            notes["credential_error"] = "InvalidPassword"
+            notes["credential_invalidated_at"] = now_utc().isoformat()
+            account.status = AccountStatus.disabled
+            account.notes = json.dumps(notes, ensure_ascii=False)
+            session.add(account)
+            _record_access_event(
+                session,
+                installation_id=installation_id,
+                action="provider-credential",
+                outcome="disabled",
+                reason="steam_invalid_password",
+                game_id=lease.game_id,
+                lease_id=lease_id,
+                account_id=lease.account_id,
+            )
     _release_backend_lease(session, lease, reason=reason)
     session.commit()
     runtime = session.get(LeaseRuntimeState, lease_id)
