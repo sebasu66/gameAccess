@@ -183,13 +183,6 @@ export interface SteamSessionStatus {
   error: string | null;
 }
 
-export interface SteamAccountActivity {
-  activeUserId32: number | null;
-  accountMatches: boolean;
-  runningAppIds: number[];
-  playing: boolean;
-}
-
 function accountName(account: LocalSteamAccount): string {
   return (account.account_name || account.label || "").trim();
 }
@@ -283,13 +276,6 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
     return { phase: "idle", appId: null, accountName: null, message: "Browser preview", done: true, error: null };
   }
   return invoke<SteamSessionStatus>("steam_session_status");
-}
-
-export async function steamAccountActivity(expectedUserId32: number): Promise<SteamAccountActivity> {
-  if (!expectedUserId32 || !hasTauriRuntime()) {
-    return { activeUserId32: null, accountMatches: false, runningAppIds: [], playing: false };
-  }
-  return invoke<SteamAccountActivity>("steam_account_activity", { expectedUserId32 });
 }
 
 export async function isSteamAppRunning(appId: number): Promise<boolean> {
