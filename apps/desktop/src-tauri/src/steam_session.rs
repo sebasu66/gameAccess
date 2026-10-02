@@ -12,10 +12,11 @@ use std::{
 use tauri::Manager;
 
 const PROVIDER_BUSY: &str = "No disponible en este momento: la cuenta está en uso en Steam. Inténtalo más tarde.";
+const PROVIDER_INVALID_PASSWORD: &str = "STEAM_INVALID_PASSWORD: Steam rechazó la contraseña de esta cuenta.";
 
 #[cfg(test)]
 mod provider_login_tests {
-    use super::{provider_login_event, PROVIDER_BUSY};
+    use super::{provider_login_event, PROVIDER_BUSY, PROVIDER_INVALID_PASSWORD};
 
     #[test]
     fn rejects_occupied_session_and_ignores_other_accounts() {
@@ -31,6 +32,18 @@ mod provider_login_tests {
         assert_eq!(provider_login_event("Login: OnLoginStateChange example 3 1 0 0", "example"), None);
         assert_eq!(provider_login_event("Login: OnLoginStateChange example 5 1 0 0", "example"), Some(Ok(())));
     }
+
+    #[test]
+    fn identifies_invalid_password_without_disabling_other_login_errors() {
+        assert_eq!(
+            provider_login_event("Login: OnLoginStateChange example 1 5 0 0", "example"),
+            Some(Err(PROVIDER_INVALID_PASSWORD)),
+        );
+        assert_eq!(
+            provider_login_event("Login: OnLoginStateChange example 1 2 0 0", "example"),
+            Some(Err("Steam no pudo confirmar el inicio de sesión.")),
+        );
+    }
 }
 
 fn provider_login_event(line: &str, account: &str) -> Option<Result<(), &'static str>> {
@@ -43,6 +56,7 @@ fn provider_login_event(line: &str, account: &str) -> Option<Result<(), &'static
     let result: u32 = fields.next()?.parse().ok()?;
     match (state, result) {
         (_, 6 | 49 | 50) => Some(Err(PROVIDER_BUSY)),
+        (_, 5) => Some(Err(PROVIDER_INVALID_PASSWORD)),
         (5, 1) => Some(Ok(())),
         (1, code) if code != 1 => Some(Err("Steam no pudo confirmar el inicio de sesión.")),
         _ => None,
