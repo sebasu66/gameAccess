@@ -68,18 +68,10 @@ def _parse_local_file(data: object) -> list[CourtesyKey]:
 
 
 def _configured_keys() -> list[CourtesyKey]:
-    # Production contract: Render stores the reusable courtesy key directly in
-    # this exact secret environment variable. Despite the historical "_FILE"
-    # suffix, its VALUE is the key itself, not a filesystem path.
+    # Production contract: this environment variable contains the filesystem
+    # path to the private JSON file that contains the reusable courtesy keys.
     configured = os.environ.get("GAMEACCESS_COURTESY_KEYS_FILE", "").strip()
-    if configured:
-        if not 8 <= len(configured) <= 120:
-            raise ValueError("Invalid GAMEACCESS_COURTESY_KEYS_FILE")
-        return [CourtesyKey(name="courtesy", value=configured, duration_months=1)]
-
-    # Local-development fallback only. This private ignored file makes local
-    # testing convenient without requiring a process-level environment secret.
-    path = _default_config_path()
+    path = Path(configured).expanduser() if configured else _default_config_path()
     if not path.exists():
         return []
     try:
@@ -87,6 +79,7 @@ def _configured_keys() -> list[CourtesyKey]:
     except json.JSONDecodeError as exc:
         raise ValueError("Invalid courtesy keys file") from exc
     return _parse_local_file(data)
+
 
 
 def courtesy_access_configured() -> bool:
