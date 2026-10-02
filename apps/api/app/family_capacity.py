@@ -608,7 +608,6 @@ def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | N
 
 
 def register_lease_allocation(
-def register_lease_allocation(
     session: Session, lease_id: int, family_id: int | None, license_copy_id: int | None
 ) -> None:
     if family_id is None:
