@@ -397,3 +397,67 @@ def test_download_requires_verified_access_not_free_capacity(tmp_path):
         with pytest.raises(HTTPException) as exc:
             core.download_steam_login(400, transport, request, session)
         assert exc.value.status_code == 409
+
+
+def test_invalid_password_release_removes_provider_until_credentials_are_repaired(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'invalid-password-release.db'}")
+    SQLModel.metadata.create_all(engine)
+    now = core.now_utc()
+    installation_id = str(uuid4())
+
+    with Session(engine) as session:
+        game = core.Game(slug="bad-password-game", name="Bad Password Game", app_id=12345)
+        account = core.ProviderAccount(
+            label="bad-password-provider",
+            status=core.AccountStatus.leased,
+            notes=json.dumps({
+                "account_name": "bad-password-provider",
+                "provider_id": "bad-password-provider",
+                "accessible_app_ids": [12345],
+                "credential_status": "unknown",
+            }),
+        )
+        session.add_all([game, account])
+        session.commit()
+        session.refresh(game)
+        session.refresh(account)
+
+        lease = core.Lease(
+            user_id=1,
+            game_id=game.id,
+            account_id=account.id,
+            starts_at=now,
+            expires_at=now + timedelta(hours=1),
+            credits_spent=0,
+            status=core.LeaseStatus.active,
+        )
+        session.add(lease)
+        session.commit()
+        session.refresh(lease)
+        session.add(core.LeaseCredentialGrant(
+            lease_id=lease.id,
+            installation_id=installation_id,
+            created_at=now,
+        ))
+        session.commit()
+
+        request = Request({
+            "type": "http",
+            "headers": [(b"x-gameaccess-installation", installation_id.encode("ascii"))],
+        })
+        result = core.release_lease(
+            lease.id,
+            request,
+            core.LeaseReleaseRequest(reason="provider_invalid_password"),
+            session,
+        )
+
+        session.refresh(account)
+        notes = json.loads(account.notes)
+        assert result["status"] == core.LeaseStatus.released
+        assert account.status == core.AccountStatus.disabled
+        assert notes["credential_status"] == "invalid_password"
+        assert notes["credential_error"] == "InvalidPassword"
+
+        from app import family_capacity as capacity
+        assert capacity.select_best_account(session, game) is None
