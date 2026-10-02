@@ -1,5 +1,20 @@
 # gameAccess
 
+# PRIORIDAD ABSOLUTA: DESCARGAR Y JUGAR SIEMPRE QUE SEA POSIBLE
+
+**ESTA REGLA TIENE PRIORIDAD SOBRE CUALQUIER HEURISTICA, MODELO DE CAPACIDAD O CODIGO HISTORICO.**
+
+Game Access NO debe autoimponerse restricciones que Steam no exige.
+
+- **DOWNLOAD:** si existe una cuenta registrada con acceso conocido al AppID, se intenta la descarga. No se bloquea porque la cuenta este leased, porque el acceso venga de Steam Family, por cantidad de copias calculadas, por capacidad simulada ni por supuestos preventivos. DepotDownloader/Steam es la autoridad final: se prueba la operacion real y solo un error real de Steam/Depot se trata como fallo.
+- **PLAY:** la comprobacion operativa es simple: elegir una cuenta registrada con acceso conocido al AppID que no este marcada leased por otro prestamo activo. No agregar restricciones preventivas adicionales.
+- **MISMO USUARIO:** una lease previa del mismo usuario puede ser reemplazada; Game Access no debe bloquear al usuario contra su propio prestamo.
+- **INACTIVIDAD:** una cuenta prestada permanece reservada mientras hay un juego activo. Si pasan **10 minutos continuos sin ningun juego activo**, el prestamo se libera y el cliente muestra: **"Se ha liberado el acceso a la cuenta por inactividad."**
+- **CODIGO LEGACY:** no agregar ni mantener rutas legacy/fallback en la logica activa de Download, seleccion de licencia o Play. Git conserva la historia; el runtime conserva solamente la implementacion actual.
+
+Antes de agregar una validacion nueva a DOWNLOAD o PLAY, debe existir evidencia concreta de que Steam la requiere. Si no existe esa evidencia, **intentar la operacion real**.
+
+
 ## Human-readable activity log
 
 The desktop app writes a narration-style log intended for people, not just developers. On Windows it is stored at:

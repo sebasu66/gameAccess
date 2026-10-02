@@ -124,6 +124,15 @@ pub struct SteamSessionStatus {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SteamAccountActivity {
+    pub active_user_id32: Option<u32>,
+    pub account_matches: bool,
+    pub running_app_ids: Vec<u32>,
+    pub playing: bool,
+}
+
 impl Default for SteamSessionStatus {
     fn default() -> Self {
         Self {
@@ -286,6 +295,57 @@ fn active_user_id32() -> Option<u32> {
 fn steam_app_running(app_id: u32) -> Option<bool> {
     let key = format!(r"HKCU\Software\Valve\Steam\Apps\{app_id}");
     registry_dword(&key, "Running").map(|value| value != 0)
+}
+
+#[cfg(target_os = "windows")]
+fn running_steam_app_ids() -> Vec<u32> {
+    let Ok(output) = Command::new("reg.exe")
+        .args([
+            "query",
+            r"HKCU\Software\Valve\Steam\Apps",
+            "/s",
+            "/v",
+            "Running",
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let mut current_app_id: Option<u32> = None;
+    let mut running = Vec::new();
+    for raw_line in String::from_utf8_lossy(&output.stdout).lines() {
+        let line = raw_line.trim();
+        if line.starts_with("HKEY_") {
+            current_app_id = line
+                .rsplit('\\')
+                .next()
+                .and_then(|value| value.parse::<u32>().ok());
+            continue;
+        }
+        if !line.to_ascii_lowercase().starts_with("running") {
+            continue;
+        }
+        let raw = line.split_whitespace().last().unwrap_or_default();
+        let value = raw
+            .strip_prefix("0x")
+            .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+            .or_else(|| raw.parse::<u32>().ok())
+            .unwrap_or(0);
+        if value != 0 {
+            if let Some(app_id) = current_app_id {
+                if !running.contains(&app_id) {
+                    running.push(app_id);
+                }
+            }
+        }
+    }
+    running.sort_unstable();
+    running
 }
 
 #[cfg(target_os = "windows")]
@@ -704,6 +764,39 @@ pub fn steam_session_status(state: tauri::State<SteamSessionState>) -> SteamSess
             value.clone()
         })
         .unwrap_or_default()
+}
+
+// ============================================================================
+// PRIORIDAD #1: LA LEASE PERTENECE A LA CUENTA, NO AL APPID QUE LA ORIGINO.
+// Mientras la cuenta prestada siga siendo ActiveUser y CUALQUIER juego Steam
+// este Running=1, Game Access debe considerar que el usuario sigue jugando.
+// No cortar la lease porque haya cerrado el primer juego y abierto otro.
+// ============================================================================
+#[tauri::command]
+pub fn steam_account_activity(expected_user_id32: u32) -> SteamAccountActivity {
+    #[cfg(target_os = "windows")]
+    {
+        let active = active_user_id32();
+        let running_app_ids = running_steam_app_ids();
+        let account_matches = expected_user_id32 > 0 && active == Some(expected_user_id32);
+        let playing = account_matches && !running_app_ids.is_empty();
+        return SteamAccountActivity {
+            active_user_id32: active,
+            account_matches,
+            running_app_ids,
+            playing,
+        };
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = expected_user_id32;
+        SteamAccountActivity {
+            active_user_id32: None,
+            account_matches: false,
+            running_app_ids: Vec::new(),
+            playing: false,
+        }
+    }
 }
 
 #[tauri::command]

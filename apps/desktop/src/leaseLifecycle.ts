@@ -1,16 +1,20 @@
 import type { LeaseResponse } from "./types";
 import { releaseActiveLease } from "./api";
-import { getSteamSessionStatus, isSteamAppRunning } from "./native";
+import { getSteamSessionStatus, steamAccountActivity } from "./native";
 import { narrate } from "./narrationLog";
 
 const STORAGE_KEY = "gameaccess:active-provider-lease";
 const START_GRACE_MS = 45_000;
+const IDLE_RELEASE_MS = 10 * 60_000;
+export const PROVIDER_LEASE_RELEASED_EVENT = "gameaccess:provider-lease-released";
 
 interface ActiveProviderLease {
   leaseId: number;
   appId: number;
   accountLabel: string;
   createdAt: number;
+  idleSince: number | null;
+  expectedUserId32: number | null;
 }
 
 function readActiveProviderLease(): ActiveProviderLease | null {
@@ -25,10 +29,16 @@ function readActiveProviderLease(): ActiveProviderLease | null {
       appId: Number(value.appId),
       accountLabel: String(value.accountLabel ?? ""),
       createdAt: Number(value.createdAt) || 0,
+      idleSince: Number(value.idleSince) || null,
+      expectedUserId32: Number(value.expectedUserId32) || null,
     };
   } catch {
     return null;
   }
+}
+
+function writeActiveProviderLease(value: ActiveProviderLease): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
 }
 
 export function rememberProviderLease(lease: LeaseResponse): void {
@@ -39,8 +49,10 @@ export function rememberProviderLease(lease: LeaseResponse): void {
     appId,
     accountLabel: lease.account?.label ?? "",
     createdAt: Date.now(),
+    idleSince: null,
+    expectedUserId32: Number(lease.account?.user_id32) || null,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+  writeActiveProviderLease(value);
 }
 
 export function forgetProviderLease(leaseId?: number): void {
@@ -57,29 +69,64 @@ export async function reconcileProviderLease(): Promise<boolean> {
   if (!active) return false;
   if (Date.now() - active.createdAt < START_GRACE_MS) return false;
 
-  const [session, appRunning] = await Promise.all([
+  const [session, accountActivity] = await Promise.all([
     getSteamSessionStatus().catch(() => null),
-    isSteamAppRunning(active.appId).catch(() => false),
+    active.expectedUserId32
+      ? steamAccountActivity(active.expectedUserId32).catch(() => null)
+      : Promise.resolve(null),
   ]);
-  const tracked = Boolean(
+  const trackedLaunch = Boolean(
     session
-    && session.appId === active.appId
+    && session.accountName === active.accountLabel
     && !session.done
     && session.phase !== "idle",
   );
-  if (tracked || appRunning) return false;
+  const accountPlaying = Boolean(accountActivity?.playing);
+
+  if (trackedLaunch || accountPlaying) {
+    if (active.idleSince != null) {
+      active.idleSince = null;
+      writeActiveProviderLease(active);
+      await narrate(
+        "Provider lease became active again; inactivity countdown cleared.",
+        { area: "LAUNCH" },
+      );
+    }
+    return false;
+  }
+
+  const now = Date.now();
+  if (active.idleSince == null) {
+    active.idleSince = now;
+    writeActiveProviderLease(active);
+    await narrate(
+      "Provider lease entered inactivity grace. It will be released after 10 continuous minutes without a running game.",
+      { area: "LAUNCH" },
+    );
+    return false;
+  }
+  if (now - active.idleSince < IDLE_RELEASE_MS) return false;
 
   try {
     await releaseActiveLease(active.leaseId);
     forgetProviderLease(active.leaseId);
+    const message = "Se ha liberado el acceso a la cuenta por inactividad.";
+    window.dispatchEvent(new CustomEvent(PROVIDER_LEASE_RELEASED_EVENT, {
+      detail: {
+        message,
+        leaseId: active.leaseId,
+        appId: active.appId,
+        accountLabel: active.accountLabel,
+      },
+    }));
     await narrate(
-      `Released completed/stale provider lease ${active.leaseId} for Steam AppID ${active.appId}.`,
+      "Released provider lease after 10 continuous minutes without a running game.",
       { area: "LAUNCH" },
     );
     return true;
   } catch (error) {
     await narrate(
-      `Could not release provider lease ${active.leaseId}; it will be retried: ${error instanceof Error ? error.message : String(error)}.`,
+      "Could not release provider lease; it will be retried: " + (error instanceof Error ? error.message : String(error)) + ".",
       { area: "LAUNCH", level: "WARN" },
     );
     return false;

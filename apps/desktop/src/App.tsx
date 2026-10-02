@@ -23,7 +23,7 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { narrate } from "./narrationLog";
-import { forgetProviderLease, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
+import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -52,6 +52,30 @@ function playErrorCopy(error: unknown): { title: string; detail: string } {
   return busy
     ? { title: "Licencia ocupada", detail: PLAY_ERROR_BUSY }
     : { title: "Ups, algo ha fallado", detail: PLAY_ERROR_GENERIC };
+}
+
+function playToastBeep(): void {
+  try {
+    const AudioContextCtor = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const context = new AudioContextCtor();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(880, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.13);
+    oscillator.onended = () => { void context.close(); };
+  } catch {
+    // The visual notification is authoritative; audio is optional.
+  }
 }
 
 export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
@@ -105,6 +129,15 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => startProviderLeaseMonitor(), []);
+
+  useEffect(() => {
+    const onProviderLeaseReleased = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      setToast(detail?.message ?? "Se ha liberado el acceso a la cuenta por inactividad.");
+    };
+    window.addEventListener(PROVIDER_LEASE_RELEASED_EVENT, onProviderLeaseReleased);
+    return () => window.removeEventListener(PROVIDER_LEASE_RELEASED_EVENT, onProviderLeaseReleased);
+  }, []);
 
   const refresh = useCallback(async () => {
     const startedAt = performance.now();
@@ -263,7 +296,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 4200);
+    playToastBeep();
+    const timer = window.setTimeout(() => setToast(null), 6000);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -761,7 +795,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         onCancelAction={() => void discardInterruptedStaging()}
         onClose={() => undefined}
       /> : null}
-      {toast ? <div className="toast">{toast}</div> : null}
+      {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
   );
 }

@@ -142,7 +142,7 @@ export interface LeaseResponse {
   lease_id: number;
   user_id?: number;
   game: { id: number; name: string; app_id: number | null };
-  account: { id: number; label: string; provider: string };
+  account: { id: number; label: string; provider: string; user_id32?: number | null };
   credits_spent: number;
   credits_remaining: number;
   starts_at: string;
