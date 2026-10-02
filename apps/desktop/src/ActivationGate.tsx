@@ -4,6 +4,7 @@ import SplashScreen from "./SplashScreen";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation } from "./activation";
 import type { ActivationStatus } from "./activation";
 import { useI18n } from "./i18n";
+import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
 
 // All of these active titles were checked against the local GameAccess catalog.
 // The access gate cannot fetch the protected catalog before a key is redeemed.
@@ -88,23 +89,33 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!status) return;
     setNotice("");
-    const remaining = Date.parse(status.expires_at) - Date.parse(status.server_time);
-    const warningDelay = remaining - 10 * 60 * 1000;
-    let warningTimer: number | undefined;
-    if (warningDelay <= 0 && remaining > 0) {
-      setNotice(t("activationExpiringSoon"));
-    } else if (warningDelay > 0) {
-      warningTimer = window.setTimeout(() => setNotice(t("activationExpiringSoon")), warningDelay);
-    }
-    const expiryTimer = window.setTimeout(() => {
+    const initialRemaining = Date.parse(status.expires_at) - Date.parse(status.server_time);
+    const observedAt = Date.now();
+    let timer: number | undefined;
+    let cancelled = false;
+
+    const expire = () => {
       setStatus(null);
       setNotice("");
       setError(t("activationTimeEnded"));
       void clearActivationSession();
-    }, Math.max(0, remaining));
+    };
+
+    const tick = () => {
+      if (cancelled) return;
+      const remaining = initialRemaining - (Date.now() - observedAt);
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        expire();
+        return;
+      }
+      if (remaining <= ACTIVATION_WARNING_MS) setNotice(t("activationExpiringSoon"));
+      timer = window.setTimeout(tick, nextActivationTimerDelay(remaining));
+    };
+
+    tick();
     return () => {
-      if (warningTimer != null) window.clearTimeout(warningTimer);
-      window.clearTimeout(expiryTimer);
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [status, t]);
 
