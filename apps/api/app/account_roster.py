@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,8 +35,7 @@ def load_account_roster(path: Path | None = None) -> list[SteamCredential]:
     if not source.is_file():
         return []
 
-    seen_pairs: set[tuple[str, str]] = set()
-    login_counts: defaultdict[str, int] = defaultdict(int)
+    index_by_login: dict[str, int] = {}
     records: list[SteamCredential] = []
     with source.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
         reader = csv.reader(handle)
@@ -52,14 +50,16 @@ def load_account_roster(path: Path | None = None) -> list[SteamCredential]:
                 continue
             if login.casefold() in {"usr", "user", "username", "login"} and password.casefold() in {"pass", "password"}:
                 continue
-            pair = (login, password)
-            if pair in seen_pairs:
-                continue
-            seen_pairs.add(pair)
-            login_counts[login] += 1
-            occurrence = login_counts[login]
-            label = login if occurrence == 1 else f"{login}#{occurrence}"
-            records.append(SteamCredential(label=label, login=login, password=password))
+            identity = login.casefold()
+            credential = SteamCredential(label=login, login=login, password=password)
+            if identity in index_by_login:
+                # Same Steam login is one provider account. The latest row wins
+                # so an updated password repairs the existing account instead of
+                # creating a second logical seat.
+                records[index_by_login[identity]] = credential
+            else:
+                index_by_login[identity] = len(records)
+                records.append(credential)
     return records
 
 
