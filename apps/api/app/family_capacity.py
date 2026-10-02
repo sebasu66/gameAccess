@@ -516,11 +516,6 @@ def _verified_access_selection(session: Session, game: core.Game) -> dict[str, A
             continue
         return {
             "account": account,
-            "family_id": None,
-            "license_copy_id": None,
-            "pool_damage": None,
-            "newly_unavailable_games": None,
-            "remaining_seats": None,
             "mode": "verified-access",
         }
     return None
