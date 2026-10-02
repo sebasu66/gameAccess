@@ -31,7 +31,7 @@ def test_sqlite_active_lease_does_not_break_catalog(tmp_path):
         session.refresh(lease)
         assert lease.expires_at.tzinfo is None
         from fastapi import Response
-        assert core.catalog(Response(), session=session)[0]["name"] == "Test"
+        assert core.catalog(Response(), page=1, page_size=50, session=session)[0]["name"] == "Test"
         assert lease.status == core.LeaseStatus.active
         lease.expires_at = core.now_utc() - timedelta(seconds=1)
         session.add(lease)
