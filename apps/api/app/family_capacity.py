@@ -78,6 +78,104 @@ def _accessible_app_ids(account: core.ProviderAccount) -> set[int] | None:
     return result
 
 
+def _account_notes(account: core.ProviderAccount) -> dict[str, Any]:
+    try:
+        notes = json.loads(account.notes or "{}")
+    except Exception:
+        return {}
+    return notes if isinstance(notes, dict) else {}
+
+
+def account_identity(account: core.ProviderAccount) -> str:
+    """Stable Steam-account identity used to collapse stale duplicate rows."""
+    notes = _account_notes(account)
+    raw = (
+        notes.get("provider_id")
+        or notes.get("account_name")
+        or str(account.label or "").split("#", 1)[0]
+    )
+    return str(raw or "").strip().casefold()
+
+
+def account_credential_usable(account: core.ProviderAccount) -> bool:
+    """Only an explicit Steam InvalidPassword result makes a provider unusable."""
+    status = str(_account_notes(account).get("credential_status") or "").strip().casefold()
+    return status != "invalid_password"
+
+
+def _simple_access_snapshot(
+    session: Session, game_ids: set[int] | None = None
+) -> dict[int, dict[str, int]]:
+    """Count real provider identities with known access; Family is diagnostic only."""
+    game_statement = select(core.Game)
+    if game_ids is None:
+        game_statement = game_statement.where(
+            core.Game.active == True,  # noqa: E712
+            core.CATALOG_PRODUCT_FILTER,
+        )
+    else:
+        game_statement = game_statement.where(core.Game.id.in_(game_ids))
+    games = session.exec(game_statement).all()
+    if not games:
+        return {}
+
+    game_by_id = {int(game.id): game for game in games if game.id is not None}
+    game_id_by_app = {
+        int(game.app_id): int(game.id)
+        for game in games
+        if game.id is not None and game.app_id is not None
+    }
+
+    accounts = session.exec(
+        select(core.ProviderAccount).order_by(core.ProviderAccount.id)
+    ).all()
+    account_by_id = {int(a.id): a for a in accounts if a.id is not None}
+
+    mapping_statement = select(core.AccountGame)
+    if game_ids is not None:
+        mapping_statement = mapping_statement.where(core.AccountGame.game_id.in_(game_ids))
+    mapped_game_ids_by_account: dict[int, set[int]] = defaultdict(set)
+    for mapping in session.exec(mapping_statement).all():
+        if int(mapping.game_id) in game_by_id:
+            mapped_game_ids_by_account[int(mapping.account_id)].add(int(mapping.game_id))
+
+    active_leased_account_ids = {
+        int(lease.account_id)
+        for lease in session.exec(
+            select(core.Lease).where(core.Lease.status == core.LeaseStatus.active)
+        ).all()
+    }
+
+    by_identity: dict[str, dict[str, Any]] = {}
+    for account_id, account in account_by_id.items():
+        if not account_credential_usable(account):
+            continue
+        identity = account_identity(account) or f"account:{account_id}"
+        row = by_identity.setdefault(
+            identity,
+            {"game_ids": set(), "busy": False},
+        )
+        row["busy"] = bool(row["busy"] or account_id in active_leased_account_ids)
+        row["game_ids"].update(mapped_game_ids_by_account.get(account_id, set()))
+        accessible = _accessible_app_ids(account)
+        if accessible:
+            row["game_ids"].update(
+                game_id_by_app[app_id]
+                for app_id in accessible
+                if app_id in game_id_by_app
+            )
+
+    snapshot = {game_id: {"total": 0, "available": 0} for game_id in game_by_id}
+    for row in by_identity.values():
+        for game_id in row["game_ids"]:
+            if game_id not in snapshot:
+                continue
+            snapshot[game_id]["total"] += 1
+            if not row["busy"]:
+                snapshot[game_id]["available"] += 1
+    return snapshot
+
+
 def _account_can_launch_family_game(
     state: dict[str, Any], family_id: int, game_id: int, account_id: int
 ) -> bool:
@@ -334,129 +432,45 @@ def catalog_metrics(
 
 
 def fast_catalog_availability(session: Session) -> list[dict[str, Any]] | None:
-    """Return the complete live catalog overlay in one PostgreSQL query.
+    """Family/capacity SQL simulation is retired; use the simple allocator metrics."""
+    return None
 
-    The regular Python implementation remains the source-of-truth fallback for
-    SQLite/tests and for any unexpected PostgreSQL data that cannot be parsed.
-    """
-    connection = session.connection()
-    if connection.dialect.name != "postgresql":
-        return None
 
-    statement = text("""
-    WITH visible_games AS (
-      SELECT g.id, g.app_id, g.credit_cost_per_hour
-      FROM game g
-      JOIN game_metadata m ON m.game_id = g.id
-      WHERE g.active = true
-        AND lower(coalesce(m.product_type,'')) = 'game'
-        AND lower(trim(coalesce(g.name,''))) <> ('steam ' || g.app_id::text)
-        AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id = g.id)
-    ),
-    family_copy_counts AS (
-      SELECT family_id, game_id, count(*)::int AS copies
-      FROM familygamelicensecopy
-      GROUP BY family_id, game_id
-    ),
-    enabled_members AS (
-      SELECT fm.family_id,
-             count(*) FILTER (WHERE pa.status::text <> 'disabled')::int AS enabled
-      FROM familymember fm
-      JOIN provideraccount pa ON pa.id = fm.account_id
-      GROUP BY fm.family_id
-    ),
-    account_accessible AS (
-      SELECT pa.id AS account_id, access.value::int AS app_id
-      FROM provideraccount pa
-      CROSS JOIN LATERAL jsonb_array_elements_text(
-        coalesce((nullif(pa.notes,'')::jsonb)->'accessible_app_ids','[]'::jsonb)
-      ) AS access(value)
-      WHERE pa.status::text = 'free'
-        AND access.value ~ '^[0-9]+$'
-    ),
-    eligible_counts AS (
-      SELECT fm.family_id, vg.id AS game_id,
-             count(DISTINCT fm.account_id)::int AS eligible
-      FROM account_accessible aa
-      JOIN familymember fm ON fm.account_id = aa.account_id
-      JOIN visible_games vg ON vg.app_id = aa.app_id
-      GROUP BY fm.family_id, vg.id
-    ),
-    usage_counts AS (
-      SELECT coalesce(la.family_id, fm.family_id) AS family_id,
-             l.game_id,
-             count(*)::int AS used
-      FROM lease l
-      LEFT JOIN leaseallocation la ON la.lease_id = l.id
-      LEFT JOIN familymember fm ON fm.account_id = l.account_id
-      WHERE l.status::text = 'active'
-        AND coalesce(la.family_id, fm.family_id) IS NOT NULL
-      GROUP BY coalesce(la.family_id, fm.family_id), l.game_id
-    ),
-    family_capacity AS (
-      SELECT fcc.game_id,
-             sum(least(fcc.copies, coalesce(em.enabled,0)))::int AS total,
-             sum(least(
-               greatest(fcc.copies - coalesce(uc.used,0), 0),
-               coalesce(ec.eligible,0)
-             ))::int AS available
-      FROM family_copy_counts fcc
-      LEFT JOIN enabled_members em ON em.family_id = fcc.family_id
-      LEFT JOIN eligible_counts ec
-        ON ec.family_id = fcc.family_id AND ec.game_id = fcc.game_id
-      LEFT JOIN usage_counts uc
-        ON uc.family_id = fcc.family_id AND uc.game_id = fcc.game_id
-      GROUP BY fcc.game_id
-    ),
-    direct_capacity AS (
-      SELECT ag.game_id,
-             count(DISTINCT ag.account_id)::int AS total,
-             count(DISTINCT ag.account_id)
-               FILTER (WHERE pa.status::text='free')::int AS available
-      FROM accountgame ag
-      JOIN provideraccount pa ON pa.id = ag.account_id
-      GROUP BY ag.game_id
-    )
-    SELECT
-      vg.id,
-      vg.app_id,
-      vg.credit_cost_per_hour,
-      coalesce(fc.total, dc.total, 0)::int AS copies_total,
-      coalesce(fc.available, dc.available, 0)::int AS copies_available,
-      coalesce(gd.request_count_total, 0)::int AS request_count_total,
-      coalesce(gd.successful_leases, 0)::int AS successful_leases,
-      coalesce(gd.demand_value, 1.0)::float AS demand_value,
-      coalesce(gd.price_factor, 1.0)::float AS price_factor
-    FROM visible_games vg
-    LEFT JOIN family_capacity fc ON fc.game_id = vg.id
-    LEFT JOIN direct_capacity dc ON dc.game_id = vg.id
-    LEFT JOIN gamedemand gd ON gd.game_id = vg.id
-    ORDER BY vg.id
-    """)
+def catalog_metrics(
+    session: Session, game_ids: set[int] | None = None
+) -> dict[int, dict[str, float | int]]:
+    """Availability mirrors the allocator: known access, usable credential, not leased."""
+    snapshot = _simple_access_snapshot(session, game_ids)
+    demand_statement = select(GameDemand)
+    if game_ids is not None:
+        demand_statement = demand_statement.where(GameDemand.game_id.in_(game_ids))
+    demand_by_game = {
+        int(row.game_id): row for row in session.exec(demand_statement).all()
+    }
 
-    rows = connection.execute(statement).mappings().all()
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        total = int(row["copies_total"] or 0)
-        available = int(row["copies_available"] or 0)
-        demand_value = float(row["demand_value"] or 1.0)
-        price_factor = float(row["price_factor"] or 1.0)
-        result.append({
-            "id": int(row["id"]),
-            "app_id": int(row["app_id"]) if row["app_id"] is not None else None,
-            "credit_cost_per_hour": int(row["credit_cost_per_hour"] or 0),
-            "copies_total": total,
-            "copies_available": available,
-            "availability_state": (
-                "ready" if available > 0 else ("owned-busy" if total > 0 else "unavailable")
-            ),
-            "request_count_total": int(row["request_count_total"] or 0),
-            "successful_leases": int(row["successful_leases"] or 0),
+    result: dict[int, dict[str, float | int]] = {}
+    for game_id, capacity in snapshot.items():
+        demand = demand_by_game.get(game_id)
+        demand_value = float(demand.demand_value) if demand else DEMAND_START
+        price_factor = float(demand.price_factor) if demand else 1.0
+        result[game_id] = {
+            "total": int(capacity["total"]),
+            "available": int(capacity["available"]),
+            "request_count_total": int(demand.request_count_total) if demand else 0,
+            "successful_leases": int(demand.successful_leases) if demand else 0,
             "demand_value": round(demand_value, 4),
             "price_factor": round(price_factor, 4),
             "pool_value": round(demand_value * price_factor, 4),
-        })
+        }
     return result
+
+
+def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
+    game_id = int(game.id or 0)
+    row = _simple_access_snapshot(session, {game_id}).get(
+        game_id, {"total": 0, "available": 0}
+    )
+    return int(row["total"]), int(row["available"])
 
 
 def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
@@ -550,97 +564,50 @@ def account_can_access_game(
 
 
 def _verified_access_selection(session: Session, game: core.Game) -> dict[str, Any] | None:
-    if not game.app_id:
-        return None
-    for account in session.exec(
+    active_accounts = {
+        int(lease.account_id)
+        for lease in session.exec(
+            select(core.Lease).where(core.Lease.status == core.LeaseStatus.active)
+        ).all()
+    }
+    accounts = session.exec(
         select(core.ProviderAccount).order_by(core.ProviderAccount.id)
-    ).all():
-        if account.status != core.AccountStatus.free:
+    ).all()
+    busy_identities = {
+        account_identity(account)
+        for account in accounts
+        if account.id is not None and int(account.id) in active_accounts
+    }
+    seen: set[str] = set()
+    for account in accounts:
+        if account.id is None or not account_credential_usable(account):
             continue
-        if account_can_access_game(session, account, game):
-            return {
-                "account": account,
-                "family_id": None,
-                "license_copy_id": None,
-                "pool_damage": None,
-                "newly_unavailable_games": None,
-                "remaining_seats": None,
-                "mode": "verified-access",
-            }
+        identity = account_identity(account) or f"account:{account.id}"
+        if identity in seen:
+            continue
+        seen.add(identity)
+        if identity in busy_identities:
+            continue
+        if not account_can_access_game(session, account, game):
+            continue
+        return {
+            "account": account,
+            "family_id": None,
+            "license_copy_id": None,
+            "pool_damage": None,
+            "newly_unavailable_games": None,
+            "remaining_seats": None,
+            "mode": "verified-access",
+        }
     return None
 
 
 def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | None:
-    if not _family_inventory_present(session):
-        return _verified_access_selection(session, game)
-
-    game_id = int(game.id or 0)
-    state = _state(session, include_inactive_game_ids={game_id})
-    family_game_ids = {candidate_game_id for _, candidate_game_id in state["copies_by_family_game"]}
-    if game_id not in family_game_ids:
-        return _verified_access_selection(session, game)
-
-    before = _snapshot(state)
-    candidates: list[tuple[tuple[float, int, int, int], dict[str, Any]]] = []
-    for (family_id, candidate_game_id), copies in state[
-        "copies_by_family_game"
-    ].items():
-        if candidate_game_id != game_id:
-            continue
-        used = int(state["usage_by_family_game"].get((family_id, game_id), 0))
-        if used >= len(copies):
-            continue
-        free_copy = next(
-            (
-                copy
-                for copy in copies
-                if int(copy.id or 0) not in state["used_copy_ids"]
-            ),
-            None,
-        )
-        if free_copy is None:
-            continue
-        for account_id in state["members_by_family"].get(family_id, []):
-            account = state["account_by_id"].get(account_id)
-            if not account or account.status != core.AccountStatus.free:
-                continue
-            if not _account_can_launch_family_game(
-                state, family_id, game_id, account_id
-            ):
-                continue
-            after = _snapshot(
-                state,
-                simulated_busy_account_id=account_id,
-                simulated_family_id=family_id,
-                simulated_game_id=game_id,
-            )
-            damage, newly_unavailable, remaining = _weighted_damage(
-                state, before, after
-            )
-            key = (damage, newly_unavailable, -remaining, int(account.id or 0))
-            candidates.append(
-                (
-                    key,
-                    {
-                        "account": account,
-                        "family_id": family_id,
-                        "license_copy_id": int(free_copy.id or 0) or None,
-                        "pool_damage": damage,
-                        "newly_unavailable_games": newly_unavailable,
-                        "remaining_seats": remaining,
-                        "mode": "family-simulation",
-                    },
-                )
-            )
-    if not candidates:
-        # Capacity/family simulation is a ranking aid, not an extra Steam gate.
-        # If a free registered account has verified access to the AppID, let the
-        # real Steam launch decide instead of denying pre-emptively.
-        return _verified_access_selection(session, game)
-    candidates.sort(key=lambda item: item[0])
-    return candidates[0][1]
+    """Choose any known-access provider; Steam is the final authority."""
+    return _verified_access_selection(session, game)
 
 
+def register_lease_allocation(
 def register_lease_allocation(
     session: Session, lease_id: int, family_id: int | None, license_copy_id: int | None
 ) -> None:
