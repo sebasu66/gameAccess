@@ -282,3 +282,38 @@ def test_game_without_family_copy_uses_verified_owner_when_other_families_exist(
         metrics = capacity.catalog_metrics(session, {int(game.id)})[int(game.id)]
         assert metrics["total"] == 1
         assert metrics["available"] == 1
+
+def test_verified_free_account_falls_back_when_family_capacity_has_no_candidate(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="permissive", name="Permissive", app_id=515151, active=True)
+        family_owner = core.ProviderAccount(
+            label="family-owner",
+            provider="steam",
+            status=core.AccountStatus.leased,
+            notes=json.dumps({"accessible_app_ids": [515151]}),
+        )
+        outside = core.ProviderAccount(
+            label="outside-verified",
+            provider="steam",
+            status=core.AccountStatus.free,
+            notes=json.dumps({"accessible_app_ids": [515151]}),
+        )
+        session.add_all([game, family_owner, outside])
+        session.commit()
+        for row in (game, family_owner, outside):
+            session.refresh(row)
+        _mark_game(session, game)
+        capacity.replace_family_graph(
+            session,
+            [{
+                "family_key": "busy-family",
+                "members": ["family-owner"],
+                "licenses": [{"app_id": 515151, "quantity": 1, "owner_labels": ["family-owner"]}],
+            }],
+        )
+
+        selection = capacity.select_best_account(session, game)
+        assert selection is not None
+        assert selection["mode"] == "verified-access"
+        assert selection["account"].label == "outside-verified"
