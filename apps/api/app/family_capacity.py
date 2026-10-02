@@ -365,72 +365,6 @@ def _snapshot(
     return totals
 
 
-def catalog_metrics(
-    session: Session, game_ids: set[int] | None = None
-) -> dict[int, dict[str, float | int]]:
-    """Build capacity + demand metrics, optionally limited to one catalog page."""
-    if _family_inventory_present(session):
-        state = _state(session, game_ids)
-        snapshot = _snapshot(state)
-        demand_by_game: dict[int, GameDemand] = state["demand_by_game"]
-        result: dict[int, dict[str, float | int]] = {}
-        for game in state["games"]:
-            game_id = int(game.id or 0)
-            capacity = snapshot.get(game_id, {"total": 0, "available": 0})
-            demand = demand_by_game.get(game_id)
-            demand_value = float(demand.demand_value) if demand else DEMAND_START
-            price_factor = float(demand.price_factor) if demand else 1.0
-            result[game_id] = {
-                "total": int(capacity["total"]),
-                "available": int(capacity["available"]),
-                "request_count_total": int(demand.request_count_total) if demand else 0,
-                "successful_leases": int(demand.successful_leases) if demand else 0,
-                "demand_value": round(demand_value, 4),
-                "price_factor": round(price_factor, 4),
-                "pool_value": round(demand_value * price_factor, 4),
-            }
-        return result
-
-    accounts = session.exec(select(core.ProviderAccount)).all()
-    mapping_statement = select(core.AccountGame)
-    demand_statement = select(GameDemand)
-    game_statement = select(core.Game).where(
-        core.Game.active == True,  # noqa: E712
-        core.CATALOG_PRODUCT_FILTER,
-    )
-    if game_ids is not None:
-        mapping_statement = mapping_statement.where(core.AccountGame.game_id.in_(game_ids))
-        demand_statement = demand_statement.where(GameDemand.game_id.in_(game_ids))
-        game_statement = game_statement.where(core.Game.id.in_(game_ids))
-    mappings = session.exec(mapping_statement).all()
-    demands = session.exec(demand_statement).all()
-    demand_by_game = {int(row.game_id): row for row in demands}
-    status_by_account = {int(a.id): a.status for a in accounts if a.id is not None}
-    total_by_game: dict[int, int] = defaultdict(int)
-    available_by_game: dict[int, int] = defaultdict(int)
-    for mapping in mappings:
-        game_id = int(mapping.game_id)
-        total_by_game[game_id] += 1
-        if status_by_account.get(int(mapping.account_id)) == core.AccountStatus.free:
-            available_by_game[game_id] += 1
-    result: dict[int, dict[str, float | int]] = {}
-    for game in session.exec(game_statement).all():
-        game_id = int(game.id or 0)
-        demand = demand_by_game.get(game_id)
-        demand_value = float(demand.demand_value) if demand else DEMAND_START
-        price_factor = float(demand.price_factor) if demand else 1.0
-        result[game_id] = {
-            "total": int(total_by_game.get(game_id, 0)),
-            "available": int(available_by_game.get(game_id, 0)),
-            "request_count_total": int(demand.request_count_total) if demand else 0,
-            "successful_leases": int(demand.successful_leases) if demand else 0,
-            "demand_value": round(demand_value, 4),
-            "price_factor": round(price_factor, 4),
-            "pool_value": round(demand_value * price_factor, 4),
-        }
-    return result
-
-
 def fast_catalog_availability(session: Session) -> list[dict[str, Any]] | None:
     """Family/capacity SQL simulation is retired; use the simple allocator metrics."""
     return None
@@ -470,16 +404,6 @@ def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
     row = _simple_access_snapshot(session, {game_id}).get(
         game_id, {"total": 0, "available": 0}
     )
-    return int(row["total"]), int(row["available"])
-
-
-def game_capacity(session: Session, game: core.Game) -> tuple[int, int]:
-    game_id = int(game.id or 0)
-    state = _state(session, {game_id})
-    if _family_inventory_present(session):
-        row = _snapshot(state).get(game_id, {"total": 0, "available": 0})
-    else:
-        row = _direct_account_capacity(state, game_id)
     return int(row["total"]), int(row["available"])
 
 
