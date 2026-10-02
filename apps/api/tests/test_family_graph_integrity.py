@@ -1,4 +1,4 @@
-"""Regression contracts for graph integrity and shared capacity semantics."""
+"""Regression contracts for Family graph integrity as diagnostic metadata."""
 
 import json
 
@@ -60,27 +60,36 @@ def identities(session):
 
 
 @pytest.mark.parametrize("quantity", [1, 2])
-def test_copies_are_not_multiplied_by_borrowers(pool, quantity):
+def test_family_copy_diagnostics_do_not_override_operational_account_capacity(pool, quantity):
     session, game = pool
     capacity.replace_family_graph(session, graph(quantity))
-    assert capacity.game_capacity(session, game) == (quantity, quantity)
+
+    # Family still records its own copy count for diagnostics.
     rows = capacity.family_breakdown_for_game(session, game.id)
     assert sum(row["available_seats"] for row in rows) == quantity
     assert rows[0]["eligible_free_members"] == 6
 
+    # Play availability is deliberately simpler: six known-access provider
+    # identities are available regardless of the Family copy model.
+    assert capacity.game_capacity(session, game) == (6, 6)
 
-def test_breakdown_applies_same_access_check_as_allocator(pool):
+
+def test_family_breakdown_and_allocator_are_independent(pool):
     session, game = pool
     capacity.replace_family_graph(session, graph(2))
     for account in session.exec(select(core.ProviderAccount)).all():
         account.notes = json.dumps({"accessible_app_ids": []})
         session.add(account)
     session.commit()
+
     rows = capacity.family_breakdown_for_game(session, game.id)
     assert rows[0]["free_members"] == 6
     assert rows[0]["eligible_free_members"] == 0
     assert rows[0]["available_seats"] == 0
-    assert capacity.game_capacity(session, game) == (2, 0)
+
+    # No provider has direct known-access evidence, so the operational pool is
+    # empty even though Family metadata still contains two historical copies.
+    assert capacity.game_capacity(session, game) == (0, 0)
     assert capacity.select_best_account(session, game) is None
 
 
