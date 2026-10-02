@@ -531,6 +531,24 @@ def _weighted_damage(
     return round(damage, 8), newly_unavailable, total_after
 
 
+def account_can_access_game(
+    session: Session, account: core.ProviderAccount, game: core.Game
+) -> bool:
+    """Use only verified GameAccess inventory evidence to decide account access."""
+    if game.app_id:
+        accessible = _accessible_app_ids(account)
+        if accessible is not None and int(game.app_id) in accessible:
+            return True
+    if not account.id or not game.id:
+        return False
+    return session.exec(
+        select(core.AccountGame).where(
+            core.AccountGame.account_id == int(account.id),
+            core.AccountGame.game_id == int(game.id),
+        )
+    ).first() is not None
+
+
 def _verified_access_selection(session: Session, game: core.Game) -> dict[str, Any] | None:
     if not game.app_id:
         return None
