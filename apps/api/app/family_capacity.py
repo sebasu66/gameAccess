@@ -552,14 +552,12 @@ def account_can_access_game(
 def _verified_access_selection(session: Session, game: core.Game) -> dict[str, Any] | None:
     if not game.app_id:
         return None
-    app_id = int(game.app_id)
     for account in session.exec(
         select(core.ProviderAccount).order_by(core.ProviderAccount.id)
     ).all():
         if account.status != core.AccountStatus.free:
             continue
-        accessible = _accessible_app_ids(account)
-        if accessible is not None and app_id in accessible:
+        if account_can_access_game(session, account, game):
             return {
                 "account": account,
                 "family_id": None,
