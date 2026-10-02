@@ -1,6 +1,7 @@
 import { mergePlayHistory } from "./recentGames";
 import { invoke } from "@tauri-apps/api/core";
 
+import { activationHeaders } from "./activation";
 import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
 import { getCatalogMode } from "./catalogMode";
 import { getApiBaseUrl } from "./settings";
@@ -59,6 +60,45 @@ export interface SteamLibraryFolder {
 }
 
 const reportedDownloadStatusErrors = new Set<string>();
+const reportedInvalidProviderPasswords = new Set<string>();
+
+function isExplicitInvalidPassword(error: string): boolean {
+  return error.toLocaleLowerCase().replace(/[^a-z0-9]/g, "").includes("invalidpassword");
+}
+
+async function reportInvalidProviderPassword(status: SteamDownloadStatus, error: string): Promise<void> {
+  const providerId = status.provider_id?.trim();
+  if (!providerId || !isExplicitInvalidPassword(error)) return;
+  const fingerprint = providerId.toLocaleLowerCase();
+  if (reportedInvalidProviderPasswords.has(fingerprint)) return;
+  reportedInvalidProviderPasswords.add(fingerprint);
+
+  const api = await getApiBaseUrl();
+  if (!api) return;
+  try {
+    const response = await fetch(`${api}/downloads/provider-credential-invalid`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...activationHeaders() },
+      body: JSON.stringify({
+        provider_id: providerId,
+        app_id: status.app_id,
+        error_code: "InvalidPassword",
+      }),
+    });
+    if (!response.ok) {
+      await narrate(
+        `Backend rejected InvalidPassword report for provider '${providerId}' with HTTP ${response.status}.`,
+        { area: "DOWNLOAD", level: "WARN" },
+      );
+    }
+  } catch (reportError) {
+    await narrate(
+      `Could not report InvalidPassword for provider '${providerId}': ${reportError instanceof Error ? reportError.message : String(reportError)}.`,
+      { area: "DOWNLOAD", level: "WARN" },
+    );
+  }
+}
 
 async function reportDownloadStatusError(status: SteamDownloadStatus): Promise<void> {
   const error = status.error?.trim();
@@ -66,6 +106,7 @@ async function reportDownloadStatusError(status: SteamDownloadStatus): Promise<v
   const fingerprint = `${status.app_id}|${status.state}|${error}`;
   if (reportedDownloadStatusErrors.has(fingerprint)) return;
   reportedDownloadStatusErrors.add(fingerprint);
+  await reportInvalidProviderPassword(status, error);
   await narrate(
     `Download worker for AppID ${status.app_id} entered state '${status.state}' with error: ${error}.`,
     { area: "DOWNLOAD", level: "ERROR" },
