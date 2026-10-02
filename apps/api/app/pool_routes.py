@@ -76,6 +76,76 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
     return slug
 
 
+def _merge_duplicate_provider_accounts(
+    session: Session,
+    canonical: core.ProviderAccount,
+    duplicates: list[core.ProviderAccount],
+) -> None:
+    """Collapse legacy login#N rows into one Steam account without losing references."""
+    if canonical.id is None:
+        session.flush()
+    canonical_id = int(canonical.id)
+
+    canonical_games = {
+        int(row.game_id)
+        for row in session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == canonical_id)
+        ).all()
+    }
+    canonical_families = {
+        int(row.family_id)
+        for row in session.exec(
+            select(family_capacity.FamilyMember).where(
+                family_capacity.FamilyMember.account_id == canonical_id
+            )
+        ).all()
+    }
+
+    for duplicate in duplicates:
+        if duplicate.id is None or int(duplicate.id) == canonical_id:
+            continue
+        duplicate_id = int(duplicate.id)
+
+        for mapping in session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == duplicate_id)
+        ).all():
+            if int(mapping.game_id) in canonical_games:
+                session.delete(mapping)
+            else:
+                mapping.account_id = canonical_id
+                canonical_games.add(int(mapping.game_id))
+                session.add(mapping)
+
+        for lease in session.exec(
+            select(core.Lease).where(core.Lease.account_id == duplicate_id)
+        ).all():
+            lease.account_id = canonical_id
+            session.add(lease)
+
+        for member in session.exec(
+            select(family_capacity.FamilyMember).where(
+                family_capacity.FamilyMember.account_id == duplicate_id
+            )
+        ).all():
+            if int(member.family_id) in canonical_families:
+                session.delete(member)
+            else:
+                member.account_id = canonical_id
+                canonical_families.add(int(member.family_id))
+                session.add(member)
+
+        for copy in session.exec(
+            select(family_capacity.FamilyGameLicenseCopy).where(
+                family_capacity.FamilyGameLicenseCopy.owner_account_id == duplicate_id
+            )
+        ).all():
+            copy.owner_account_id = canonical_id
+            session.add(copy)
+
+        session.flush()
+        session.delete(duplicate)
+
+
 def sync_runtime_account_roster(session: Session) -> int:
     records = load_account_roster()
     replace_runtime_roster(records)
@@ -89,18 +159,19 @@ def sync_runtime_account_roster(session: Session) -> int:
         )
         return str(raw or "").strip().casefold()
 
-    existing_accounts = session.exec(
-        select(core.ProviderAccount).order_by(core.ProviderAccount.id)
-    ).all()
-    by_identity: dict[str, core.ProviderAccount] = {}
-    for account in existing_accounts:
-        identity = identity_for(account)
-        if identity and identity not in by_identity:
-            by_identity[identity] = account
-
     for record in records:
         identity = record.login.casefold()
-        account = by_identity.get(identity)
+        matches = [
+            account
+            for account in session.exec(
+                select(core.ProviderAccount).order_by(core.ProviderAccount.id)
+            ).all()
+            if identity_for(account) == identity
+        ]
+        account = next(
+            (row for row in matches if str(row.label or "").casefold() == identity),
+            matches[0] if matches else None,
+        )
         if account is None:
             account = core.ProviderAccount(
                 label=record.login,
@@ -109,7 +180,12 @@ def sync_runtime_account_roster(session: Session) -> int:
             )
             session.add(account)
             session.flush()
-            by_identity[identity] = account
+        else:
+            _merge_duplicate_provider_accounts(
+                session,
+                account,
+                [row for row in matches if row.id != account.id],
+            )
 
         notes = _decode_notes(account)
         notes.update(
@@ -119,18 +195,11 @@ def sync_runtime_account_roster(session: Session) -> int:
                 "provider_id": record.login,
             }
         )
-        if account.label != record.login:
-            conflict = session.exec(
-                select(core.ProviderAccount).where(
-                    core.ProviderAccount.label == record.login,
-                    core.ProviderAccount.id != account.id,
-                )
-            ).first()
-            if conflict is None:
-                account.label = record.login
+        account.label = record.login
         account.provider = "steam"
         account.notes = json.dumps(notes, ensure_ascii=False, separators=(",", ":"))
         session.add(account)
+
     session.commit()
     return len(records)
 
