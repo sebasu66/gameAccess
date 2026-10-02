@@ -8,6 +8,10 @@ Game Access NO debe autoimponerse restricciones que Steam no exige.
 
 - **DOWNLOAD:** si existe una cuenta registrada con acceso conocido al AppID, se intenta la descarga. No se bloquea por lease, capacidad simulada ni supuestos preventivos. Steam/DepotDownloader es la autoridad final.
 - **PLAY:** elegir una cuenta registrada con acceso conocido al AppID que no esté reservada por otra instalación. No agregar restricciones preventivas adicionales.
+- **ESTADO DE CUENTA:** los estados históricos `inactive`/`disabled` no son autoridad para excluir una cuenta, porque pueden provenir de comprobaciones imperfectas. Una cuenta con acceso conocido sigue siendo candidata salvo que exista evidencia explícita de contraseña inválida.
+- **CREDENCIAL INVALIDA:** únicamente un `InvalidPassword` explícito devuelto por Steam deja la cuenta fuera del pool. Timeouts, Steam Guard, cuenta ocupada, red, API, scan incompleto u otros errores no invalidan la cuenta.
+- **REPARACION DE CREDENCIAL:** un login Steam representa una sola cuenta. Si se vuelve a cargar ese mismo login con una contraseña válida, se actualiza/reactiva la cuenta original y se eliminan/consolidan duplicados legacy como `login#2`.
+- **STEAM FAMILY:** la topología Family y sus copias pueden conservarse como metadata/diagnóstico, pero no participan en la decisión de Play/Download ni en el cálculo operativo de disponibilidad.
 - **IDENTIDAD DEL CLIENTE:** la propiedad de una lease se determina por el `installation_id` ya ligado a la key/activación, no por IP ni por el usuario prototipo `user_id=1`.
 - **MISMA INSTALACION + MISMA CUENTA:** si la instalación pide otro juego que la cuenta ya asignada puede ejecutar, se reutiliza la misma lease y la misma cuenta.
 - **CAMBIO DE CUENTA:** si la cuenta actual no sirve para el nuevo juego, la lease anterior solo se libera después de haber encontrado una cuenta alternativa válida.
