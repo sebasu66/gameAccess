@@ -155,18 +155,29 @@ def test_remote_login_returns_only_encrypted_active_lease_credential(tmp_path):
             )
         assert exc.value.status_code == 403
 
+        # Historical leases used a short session timeout. A still-valid
+        # activation now extends that timestamp instead of denying the player.
         lease.expires_at = core.now_utc() - timedelta(seconds=1)
         session.add(lease)
         session.commit()
-        _, expired_transport = _transport_request()
-        with pytest.raises(HTTPException) as exc:
-            core.lease_steam_login(
+        _, legacy_transport = _transport_request()
+        with patch(
+            "app.account_roster.credential_for_label",
+            return_value=SteamCredential(
+                "test-provider",
+                "test-login",
+                "test-password",
+            ),
+        ):
+            legacy_response = core.lease_steam_login(
                 lease.id,
-                expired_transport,
+                legacy_transport,
                 request,
                 session,
             )
-        assert exc.value.status_code == 409
+        assert legacy_response.status_code == 200
+        session.refresh(lease)
+        assert core.utc(lease.expires_at) == core.utc(now + timedelta(hours=1))
 
 
 def test_remote_login_requires_valid_activation(tmp_path):
