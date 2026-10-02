@@ -32,37 +32,108 @@ class CourtesySession(SQLModel, table=True):
     expires_at: datetime
 
 
-def _config_path() -> Path:
-    configured = os.environ.get("GAMEACCESS_COURTESY_KEYS_FILE", "").strip()
-    return Path(configured) if configured else Path(__file__).resolve().parent.parent / "courtesy-keys.json"
+def _default_config_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "courtesy-keys.json"
 
 
-def _configured_keys() -> list[CourtesyKey]:
-    path = _config_path()
-    if not path.exists():
-        return []
-    data = json.loads(path.read_text(encoding="utf-8"))
+def _parse_config(data: object, *, source: str) -> list[CourtesyKey]:
     entries = data.get("keys") if isinstance(data, dict) else None
     if not isinstance(entries, list):
-        raise ValueError("Invalid courtesy keys file")
+        raise ValueError(f"Invalid courtesy keys configuration from {source}")
+
     keys: list[CourtesyKey] = []
     names: set[str] = set()
     values: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict):
-            raise ValueError("Invalid courtesy key entry")
+            raise ValueError(f"Invalid courtesy key entry from {source}")
         name = entry.get("name")
         value = entry.get("key")
         months = entry.get("duration_months", 1)
-        if (not isinstance(name, str) or not name.strip()
-                or not isinstance(value, str) or not 8 <= len(value) <= 120
-                or type(months) is not int or not 1 <= months <= 12
-                or name in names or value in values):
-            raise ValueError("Invalid or duplicate courtesy key entry")
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(value, str)
+            or not 8 <= len(value) <= 120
+            or type(months) is not int
+            or not 1 <= months <= 12
+            or name in names
+            or value in values
+        ):
+            raise ValueError(f"Invalid or duplicate courtesy key entry from {source}")
         names.add(name)
         values.add(value)
         keys.append(CourtesyKey(name=name, value=value, duration_months=months))
     return keys
+
+
+def _single_key(value: str, *, source: str) -> list[CourtesyKey]:
+    value = value.strip()
+    if not 8 <= len(value) <= 120:
+        raise ValueError(f"Invalid courtesy key from {source}")
+    months_text = os.environ.get("GAMEACCESS_COURTESY_DURATION_MONTHS", "1").strip() or "1"
+    try:
+        months = int(months_text)
+    except ValueError as exc:
+        raise ValueError("Invalid GAMEACCESS_COURTESY_DURATION_MONTHS") from exc
+    if not 1 <= months <= 12:
+        raise ValueError("Invalid GAMEACCESS_COURTESY_DURATION_MONTHS")
+    return [CourtesyKey(name="courtesy", value=value, duration_months=months)]
+
+
+def _configured_keys() -> list[CourtesyKey]:
+    # Preferred production configuration: keep the reusable key/configuration
+    # directly in a Render secret environment variable.
+    direct_json = os.environ.get("GAMEACCESS_COURTESY_KEYS", "").strip()
+    if direct_json:
+        try:
+            return _parse_config(json.loads(direct_json), source="GAMEACCESS_COURTESY_KEYS")
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON in GAMEACCESS_COURTESY_KEYS") from exc
+
+    direct_key = os.environ.get("GAMEACCESS_COURTESY_KEY", "").strip()
+    if direct_key:
+        return _single_key(direct_key, source="GAMEACCESS_COURTESY_KEY")
+
+    # Backward compatibility: GAMEACCESS_COURTESY_KEYS_FILE historically named
+    # the setting even when deployment configuration treated it as a secret
+    # variable. Accept JSON or a direct key here before interpreting it as a
+    # filesystem path.
+    configured = os.environ.get("GAMEACCESS_COURTESY_KEYS_FILE", "").strip()
+    if configured:
+        if configured.startswith("{") or configured.startswith("["):
+            try:
+                return _parse_config(
+                    json.loads(configured), source="GAMEACCESS_COURTESY_KEYS_FILE"
+                )
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid JSON in GAMEACCESS_COURTESY_KEYS_FILE") from exc
+
+        configured_path = Path(configured)
+        if configured_path.exists():
+            try:
+                data = json.loads(configured_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid courtesy keys file") from exc
+            return _parse_config(data, source=str(configured_path))
+
+        # If the value clearly looks like a path, do not accidentally accept
+        # the path string itself as an access key.
+        if "/" in configured or "\\" in configured or configured.lower().endswith(".json"):
+            return []
+
+        return _single_key(configured, source="GAMEACCESS_COURTESY_KEYS_FILE")
+
+    # Local-development compatibility. This file remains private/ignored and is
+    # not required in production when a secret environment variable is used.
+    path = _default_config_path()
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError("Invalid courtesy keys file") from exc
+    return _parse_config(data, source=str(path))
 
 
 def redeem_courtesy_key(
