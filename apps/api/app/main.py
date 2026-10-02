@@ -782,6 +782,11 @@ def expire_old_leases(session: Session) -> None:
 _presence_worker_started = False
 
 
+def _configured_steam_web_api_key() -> str:
+    """Return the exact Render secret used for Steam presence checks."""
+    return os.environ.get("STEAM_WEB_API_KEY", "").strip()
+
+
 def _provider_steam_id64(account: ProviderAccount) -> str | None:
     import json
 
@@ -796,7 +801,7 @@ def _provider_steam_id64(account: ProviderAccount) -> str | None:
 def _steam_presence_loop() -> None:
     missing_key_logged = False
     while True:
-        api_key = os.environ.get("STEAM_WEB_API_KEY", "").strip()
+        api_key = _configured_steam_web_api_key()
         if not api_key:
             if not missing_key_logged:
                 _access_logger.warning(
