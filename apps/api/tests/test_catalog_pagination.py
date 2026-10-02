@@ -54,12 +54,14 @@ def test_catalog_includes_only_games_in_results_and_totals() -> None:
                 SELECT COUNT(*)
                 FROM game g
                 WHERE g.id IN (SELECT DISTINCT game_id FROM accountgame)
+                  AND g.active = 1
                   AND EXISTS (
                     SELECT 1
                     FROM game_metadata m
                     WHERE m.game_id = g.id
                       AND lower(coalesce(m.product_type, '')) = 'game'
                   )
+                  AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))
                 """
             ).scalar_one()
         )
