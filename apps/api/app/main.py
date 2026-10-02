@@ -661,6 +661,30 @@ def _lease_installation_id(session: Session, lease_id: int) -> str:
     return grant.installation_id if grant else ""
 
 
+def _installation_access_expires_at(
+    session: Session, installation_id: str
+) -> datetime | None:
+    """Return the latest server-known access expiry for one installation."""
+    if not installation_id:
+        return None
+    expirations: list[datetime] = []
+    for row in session.exec(
+        select(AccessKey).where(
+            AccessKey.installation_id == installation_id,
+            AccessKey.revoked_at.is_(None),
+        )
+    ).all():
+        if row.expires_at is not None:
+            expirations.append(utc(row.expires_at))
+    for row in session.exec(
+        select(CourtesySession).where(
+            CourtesySession.installation_id == installation_id
+        )
+    ).all():
+        expirations.append(utc(row.expires_at))
+    return max(expirations) if expirations else None
+
+
 def _runtime_state(session: Session, lease_id: int) -> LeaseRuntimeState:
     runtime = session.get(LeaseRuntimeState, lease_id)
     if runtime is None:
@@ -708,17 +732,40 @@ def _release_backend_lease(
 
 
 def expire_old_leases(session: Session) -> None:
-    """Lease hard expiry follows the activation/key expiry, never a play-time timer."""
+    """Lease hard expiry follows the activation/key expiry, never a play-time timer.
+
+    Historical leases used expires_at as a short session timer. When a lease has
+    an installation grant, normalize that old timestamp to the installation's
+    actual activation expiry before deciding anything.
+    """
     now = now_utc()
     leases = session.exec(select(Lease).where(Lease.status == LeaseStatus.active)).all()
     changed = False
     for lease in leases:
-        expires = utc(lease.expires_at)
-        if expires <= now:
+        installation_id = _lease_installation_id(session, int(lease.id))
+        access_expires = _installation_access_expires_at(session, installation_id)
+        if access_expires is not None:
+            if access_expires > now:
+                if utc(lease.expires_at) != access_expires:
+                    lease.expires_at = access_expires
+                    session.add(lease)
+                    changed = True
+                continue
             _release_backend_lease(
                 session,
                 lease,
                 reason="activation_expired",
+                status=LeaseStatus.expired,
+            )
+            changed = True
+            continue
+
+        # Ungranted legacy/test rows have no installation entitlement to derive.
+        if utc(lease.expires_at) <= now:
+            _release_backend_lease(
+                session,
+                lease,
+                reason="lease_expired_without_installation_grant",
                 status=LeaseStatus.expired,
             )
             changed = True
@@ -1803,7 +1850,8 @@ def lease_steam_login(
     installation_id = canonical_installation_id(
         request.headers.get("X-GameAccess-Installation", "")
     )
-    if _activation_for_request(request, session) is None:
+    activation = _activation_for_request(request, session)
+    if activation is None:
         _reject_access(
             session,
             installation_id=installation_id,
@@ -1836,14 +1884,11 @@ def lease_steam_login(
             lease_id=lease_id,
             account_id=lease.account_id,
         )
-    if utc(lease.expires_at) <= now_utc():
-        _release_backend_lease(
-            session, lease, reason="activation_expired", status=LeaseStatus.expired
-        )
+    activation_expires = utc(activation.expires_at)
+    if utc(lease.expires_at) != activation_expires:
+        lease.expires_at = activation_expires
+        session.add(lease)
         session.commit()
-        raise HTTPException(
-            401, "Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar."
-        )
     account = session.get(ProviderAccount, lease.account_id)
     from .account_roster import credential_for_label
     import json
@@ -2021,3 +2066,22 @@ def release_lease(
         "status": lease.status,
         "release_reason": runtime.release_reason if runtime else reason,
     }
+
+
+from .pool_routes import (  # noqa: E402 - routes import initialized app
+    router as pool_router,
+)
+
+app.include_router(pool_router)
+
+from .steam_search_routes import (  # noqa: E402 - routes import initialized app
+    router as steam_search_router,
+)
+
+app.include_router(steam_search_router)
+
+from .admin_console_routes import (  # noqa: E402 - routes import initialized app
+    router as admin_console_router,
+)
+
+app.include_router(admin_console_router)
