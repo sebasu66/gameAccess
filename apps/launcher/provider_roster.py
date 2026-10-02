@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import csv
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -59,8 +58,7 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
     if not source.is_file():
         return []
 
-    seen_pairs: set[tuple[str, str]] = set()
-    login_counts: defaultdict[str, int] = defaultdict(int)
+    index_by_login: dict[str, int] = {}
     records: list[ProviderCredential] = []
     with source.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
         reader = csv.reader(handle)
@@ -76,21 +74,20 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
             # Accept an optional conventional header without requiring one.
             if login.casefold() in {"usr", "user", "username", "login"} and password.casefold() in {"pass", "password"}:
                 continue
-            pair = (login, password)
-            if pair in seen_pairs:
-                continue
-            seen_pairs.add(pair)
-            login_counts[login] += 1
-            occurrence = login_counts[login]
-            label = login if occurrence == 1 else f"{login}#{occurrence}"
-            records.append(
-                ProviderCredential(
-                    provider_id=login,
-                    label=label,
-                    login=login,
-                    password=password,
-                )
+            identity = login.casefold()
+            credential = ProviderCredential(
+                provider_id=login,
+                label=login,
+                login=login,
+                password=password,
             )
+            if identity in index_by_login:
+                # One Steam login is one provider seat. Keep ordering stable and
+                # let the latest password repair the existing account.
+                records[index_by_login[identity]] = credential
+            else:
+                index_by_login[identity] = len(records)
+                records.append(credential)
     return records
 
 
