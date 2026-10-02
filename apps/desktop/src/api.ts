@@ -382,9 +382,15 @@ export const loadSteamApp = async (appId: number) => {
   return request<SteamMetadata>(`/steam/apps/${appId}?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`);
 };
 
-export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
+export async function releaseFailedLease(
+  lease: LeaseResponse,
+  reason: "provider_profile_missing" | "provider_login_failed" | "play_launch_failed" = "play_launch_failed",
+): Promise<void> {
   await Promise.allSettled([
-    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request(`/leases/${lease.lease_id}/release`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
     request("/credits", {
       method: "POST",
       body: JSON.stringify({
@@ -410,7 +416,10 @@ export async function getProviderLeaseStatus(leaseId: number): Promise<ProviderL
 
 export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
-    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request(`/leases/${lease.lease_id}/release`, {
+      method: "POST",
+      body: JSON.stringify({ reason: "download_install_handoff_complete" }),
+    }),
     request("/credits", {
       method: "POST",
       body: JSON.stringify({
@@ -456,7 +465,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   if (lease.session_action === "provider_adapter_required") {
     if (!lease.account?.label) {
       await narrate("The backend created a lease but did not provide a Steam provider profile. Releasing the failed lease.", { area: "ERROR", level: "ERROR" });
-      await releaseFailedLease(lease);
+      await releaseFailedLease(lease, "provider_profile_missing");
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
@@ -467,7 +476,7 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await narrate(`Provider Steam preparation failed for lease ${lease.lease_id}: ${message}. Releasing the lease.`, { area: "ERROR", level: "ERROR" });
-      await releaseFailedLease(lease);
+      await releaseFailedLease(lease, "provider_login_failed");
       throw error;
     }
   }
