@@ -16,3 +16,5 @@ services:
         sync: false
       - key: GAMEACCESS_ADMIN_TOKEN
         sync: false
+      - key: STEAM_WEB_API_KEY
+        sync: false
