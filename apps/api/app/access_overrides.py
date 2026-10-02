@@ -1,4 +1,4 @@
-"""Private reusable access keys for developers and invited testers."""
+"""Private reusable access key for developers and invited testers."""
 
 from __future__ import annotations
 
@@ -36,17 +36,17 @@ def _default_config_path() -> Path:
     return Path(__file__).resolve().parent.parent / "courtesy-keys.json"
 
 
-def _parse_config(data: object, *, source: str) -> list[CourtesyKey]:
+def _parse_local_file(data: object) -> list[CourtesyKey]:
     entries = data.get("keys") if isinstance(data, dict) else None
     if not isinstance(entries, list):
-        raise ValueError(f"Invalid courtesy keys configuration from {source}")
+        raise ValueError("Invalid courtesy keys file")
 
     keys: list[CourtesyKey] = []
     names: set[str] = set()
     values: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict):
-            raise ValueError(f"Invalid courtesy key entry from {source}")
+            raise ValueError("Invalid courtesy key entry")
         name = entry.get("name")
         value = entry.get("key")
         months = entry.get("duration_months", 1)
@@ -60,76 +60,25 @@ def _parse_config(data: object, *, source: str) -> list[CourtesyKey]:
             or name in names
             or value in values
         ):
-            raise ValueError(f"Invalid or duplicate courtesy key entry from {source}")
+            raise ValueError("Invalid or duplicate courtesy key entry")
         names.add(name)
         values.add(value)
         keys.append(CourtesyKey(name=name, value=value, duration_months=months))
     return keys
 
 
-def _single_key(value: str, *, source: str) -> list[CourtesyKey]:
-    value = value.strip()
-    if not 8 <= len(value) <= 120:
-        raise ValueError(f"Invalid courtesy key from {source}")
-    months_text = os.environ.get("GAMEACCESS_COURTESY_DURATION_MONTHS", "1").strip() or "1"
-    try:
-        months = int(months_text)
-    except ValueError as exc:
-        raise ValueError("Invalid GAMEACCESS_COURTESY_DURATION_MONTHS") from exc
-    if not 1 <= months <= 12:
-        raise ValueError("Invalid GAMEACCESS_COURTESY_DURATION_MONTHS")
-    return [CourtesyKey(name="courtesy", value=value, duration_months=months)]
-
-
 def _configured_keys() -> list[CourtesyKey]:
-    # Preferred production configuration: keep the reusable key/configuration
-    # directly in a Render secret environment variable. Accept the historical
-    # aliases so deployment configuration does not have to change when the
-    # loader implementation changes.
-    for env_name in ("GAMEACCESS_COURTESY_KEYS", "GAMEACCESS_COURTESY_KEYS_JSON"):
-        direct_json = os.environ.get(env_name, "").strip()
-        if direct_json:
-            try:
-                return _parse_config(json.loads(direct_json), source=env_name)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSON in {env_name}") from exc
-
-    for env_name in ("GAMEACCESS_COURTESY_KEY", "COURTESY_KEY"):
-        direct_key = os.environ.get(env_name, "").strip()
-        if direct_key:
-            return _single_key(direct_key, source=env_name)
-
-    # Backward compatibility: GAMEACCESS_COURTESY_KEYS_FILE historically named
-    # the setting even when deployment configuration treated it as a secret
-    # variable. Accept JSON or a direct key here before interpreting it as a
-    # filesystem path.
-    configured = os.environ.get("GAMEACCESS_COURTESY_KEYS_FILE", "").strip()
+    # Production contract: Render stores the reusable courtesy key in exactly
+    # one secret environment variable. Do not rename it or replace it with a
+    # file-based deployment mechanism.
+    configured = os.environ.get("GAMEACCESS_COURTESY_KEY", "").strip()
     if configured:
-        if configured.startswith("{") or configured.startswith("["):
-            try:
-                return _parse_config(
-                    json.loads(configured), source="GAMEACCESS_COURTESY_KEYS_FILE"
-                )
-            except json.JSONDecodeError as exc:
-                raise ValueError("Invalid JSON in GAMEACCESS_COURTESY_KEYS_FILE") from exc
+        if not 8 <= len(configured) <= 120:
+            raise ValueError("Invalid GAMEACCESS_COURTESY_KEY")
+        return [CourtesyKey(name="courtesy", value=configured, duration_months=1)]
 
-        configured_path = Path(configured)
-        if configured_path.exists():
-            try:
-                data = json.loads(configured_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                raise ValueError("Invalid courtesy keys file") from exc
-            return _parse_config(data, source=str(configured_path))
-
-        # If the value clearly looks like a path, do not accidentally accept
-        # the path string itself as an access key.
-        if "/" in configured or "\\" in configured or configured.lower().endswith(".json"):
-            return []
-
-        return _single_key(configured, source="GAMEACCESS_COURTESY_KEYS_FILE")
-
-    # Local-development compatibility. This file remains private/ignored and is
-    # not required in production when a secret environment variable is used.
+    # Local-development fallback only. This private ignored file makes local
+    # testing convenient without requiring a process-level environment secret.
     path = _default_config_path()
     if not path.exists():
         return []
@@ -137,7 +86,15 @@ def _configured_keys() -> list[CourtesyKey]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ValueError("Invalid courtesy keys file") from exc
-    return _parse_config(data, source=str(path))
+    return _parse_local_file(data)
+
+
+def courtesy_access_configured() -> bool:
+    """Report configuration presence without exposing the courtesy key itself."""
+    try:
+        return bool(_configured_keys())
+    except ValueError:
+        return False
 
 
 def redeem_courtesy_key(
@@ -185,11 +142,3 @@ def valid_courtesy_session(
         ):
             return row
     return None
-
-
-def courtesy_access_configured() -> bool:
-    """Report configuration presence without exposing the courtesy key itself."""
-    try:
-        return bool(_configured_keys())
-    except ValueError:
-        return False
