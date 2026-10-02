@@ -79,24 +79,55 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
 def sync_runtime_account_roster(session: Session) -> int:
     records = load_account_roster()
     replace_runtime_roster(records)
+
+    def identity_for(account: core.ProviderAccount) -> str:
+        notes = _decode_notes(account)
+        raw = (
+            notes.get("provider_id")
+            or notes.get("account_name")
+            or str(account.label or "").split("#", 1)[0]
+        )
+        return str(raw or "").strip().casefold()
+
+    existing_accounts = session.exec(
+        select(core.ProviderAccount).order_by(core.ProviderAccount.id)
+    ).all()
+    by_identity: dict[str, core.ProviderAccount] = {}
+    for account in existing_accounts:
+        identity = identity_for(account)
+        if identity and identity not in by_identity:
+            by_identity[identity] = account
+
     for record in records:
-        account = session.exec(
-            select(core.ProviderAccount).where(
-                core.ProviderAccount.label == record.label
-            )
-        ).first()
+        identity = record.login.casefold()
+        account = by_identity.get(identity)
         if account is None:
             account = core.ProviderAccount(
-                label=record.label, provider="steam", status=core.AccountStatus.free
+                label=record.login,
+                provider="steam",
+                status=core.AccountStatus.free,
             )
-        notes: dict[str, Any] = {}
-        try:
-            decoded = json.loads(account.notes or "{}")
-            if isinstance(decoded, dict):
-                notes = decoded
-        except Exception:
-            notes = {}
-        notes.update({"source": "local-account-roster", "account_name": record.login})
+            session.add(account)
+            session.flush()
+            by_identity[identity] = account
+
+        notes = _decode_notes(account)
+        notes.update(
+            {
+                "source": "local-account-roster",
+                "account_name": record.login,
+                "provider_id": record.login,
+            }
+        )
+        if account.label != record.login:
+            conflict = session.exec(
+                select(core.ProviderAccount).where(
+                    core.ProviderAccount.label == record.login,
+                    core.ProviderAccount.id != account.id,
+                )
+            ).first()
+            if conflict is None:
+                account.label = record.login
         account.provider = "steam"
         account.notes = json.dumps(notes, ensure_ascii=False, separators=(",", ":"))
         session.add(account)
