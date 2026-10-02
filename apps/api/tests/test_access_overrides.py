@@ -7,12 +7,12 @@ from app import access_overrides
 
 
 def _clear_env(monkeypatch) -> None:
-    monkeypatch.delenv("GAMEACCESS_COURTESY_KEY", raising=False)
+    monkeypatch.delenv("GAMEACCESS_COURTESY_KEYS_FILE", raising=False)
 
 
 def test_reads_exact_production_secret_variable(monkeypatch) -> None:
     _clear_env(monkeypatch)
-    monkeypatch.setenv("GAMEACCESS_COURTESY_KEY", "GA-COURTESY-TEST-1234")
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", "GA-COURTESY-TEST-1234")
 
     keys = access_overrides._configured_keys()
 
@@ -24,7 +24,7 @@ def test_reads_exact_production_secret_variable(monkeypatch) -> None:
 
 def test_secret_variable_takes_priority_over_local_file(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
-    monkeypatch.setenv("GAMEACCESS_COURTESY_KEY", "GA-PRODUCTION-SECRET-1234")
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", "GA-PRODUCTION-SECRET-1234")
     monkeypatch.setattr(
         access_overrides,
         "_default_config_path",
@@ -55,7 +55,7 @@ def test_local_file_remains_development_fallback(monkeypatch, tmp_path) -> None:
 def test_courtesy_key_redeems_and_session_validates(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
     key = "GA-COURTESY-REDEEM-1234"
-    monkeypatch.setenv("GAMEACCESS_COURTESY_KEY", key)
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", key)
     monkeypatch.setattr(
         access_overrides,
         "_default_config_path",
@@ -79,7 +79,7 @@ def test_courtesy_key_redeems_and_session_validates(monkeypatch, tmp_path) -> No
 def test_same_courtesy_key_is_reusable_across_installations(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
     key = "GA-COURTESY-REUSE-1234"
-    monkeypatch.setenv("GAMEACCESS_COURTESY_KEY", key)
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", key)
     monkeypatch.setattr(
         access_overrides,
         "_default_config_path",
@@ -108,7 +108,7 @@ def test_same_courtesy_key_is_reusable_across_installations(monkeypatch, tmp_pat
 
 def test_wrong_courtesy_key_is_rejected(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
-    monkeypatch.setenv("GAMEACCESS_COURTESY_KEY", "GA-CORRECT-COURTESY-1234")
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", "GA-CORRECT-COURTESY-1234")
     monkeypatch.setattr(
         access_overrides,
         "_default_config_path",
