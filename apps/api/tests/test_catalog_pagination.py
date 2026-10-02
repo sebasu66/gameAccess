@@ -1,5 +1,20 @@
-from app.main import app, engine
+from types import SimpleNamespace
+
+import pytest
+from app import main as core
 from fastapi.testclient import TestClient
+
+app = core.app
+engine = core.engine
+
+
+@pytest.fixture(autouse=True)
+def active_activation(monkeypatch):
+    monkeypatch.setattr(
+        core,
+        "_activation_for_request",
+        lambda request, session: SimpleNamespace(expires_at=core.now_utc()),
+    )
 
 
 def test_catalog_is_paginated_by_default_and_reports_page_metadata() -> None:
