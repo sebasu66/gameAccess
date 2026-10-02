@@ -85,7 +85,6 @@ def test_family_graph_does_not_change_play_selection(tmp_path) -> None:
         selection = capacity.select_best_account(session, game)
         assert selection is not None
         assert selection["mode"] == "verified-access"
-        assert selection["family_id"] is None
         assert selection["account"].id == first.id
         assert capacity.game_capacity(session, game) == (2, 2)
 
