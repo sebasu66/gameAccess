@@ -27,6 +27,7 @@ from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRa
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
 from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
 from .credential_transport import encrypt_provider_credential, encrypt_provider_download_credential
+from .steam_presence import fetch_player_summaries
 from .catalog_metadata import (
     CATALOG_ALLOWED_PRODUCT_TYPES,
     ensure_catalog_schema,
@@ -43,6 +44,13 @@ from .catalog_metadata import (
 
 STEAM_CACHE = DB_PATH.parent / ".steam_cache"
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
+_access_logger = logging.getLogger("gameaccess.access")
+LEASE_IDLE_TIMEOUT_SECONDS = max(
+    60, int(os.environ.get("GAMEACCESS_LEASE_IDLE_TIMEOUT_SECONDS", "600"))
+)
+STEAM_PRESENCE_INTERVAL_SECONDS = max(
+    15, int(os.environ.get("GAMEACCESS_STEAM_PRESENCE_INTERVAL_SECONDS", "30"))
+)
 _ALLOWED_PRODUCT_TYPES_SQL = ", ".join(
     f"'{product_type}'" for product_type in sorted(CATALOG_ALLOWED_PRODUCT_TYPES)
 )
@@ -113,6 +121,29 @@ class LeaseCredentialGrant(SQLModel, table=True):
     created_at: datetime
 
 
+class LeaseRuntimeState(SQLModel, table=True):
+    lease_id: int = SQLField(primary_key=True, foreign_key="lease.id")
+    last_presence_check_at: Optional[datetime] = None
+    last_seen_online_at: Optional[datetime] = None
+    idle_since: Optional[datetime] = None
+    last_game_id: Optional[int] = None
+    release_reason: Optional[str] = None
+    released_at: Optional[datetime] = None
+
+
+class AccessEvent(SQLModel, table=True):
+    id: Optional[int] = SQLField(default=None, primary_key=True)
+    created_at: datetime = SQLField(index=True)
+    installation_id: str = SQLField(index=True)
+    action: str = SQLField(index=True)
+    outcome: str = SQLField(index=True)
+    reason: str
+    game_id: Optional[int] = SQLField(default=None, index=True)
+    app_id: Optional[int] = SQLField(default=None, index=True)
+    lease_id: Optional[int] = SQLField(default=None, index=True)
+    account_id: Optional[int] = SQLField(default=None, index=True)
+
+
 class ClientErrorReport(SQLModel, table=True):
     id: Optional[int] = SQLField(default=None, primary_key=True)
     installation_id: str = SQLField(index=True)
@@ -134,10 +165,8 @@ class CreditLedger(SQLModel, table=True):
 
 
 class LeaseRequest(BaseModel):
-    user_id: int
     game_id: int
-    minutes: int = Field(ge=5, le=24 * 60)
-    replace_existing: bool = False
+    minutes: int = Field(default=60, ge=5, le=24 * 60)
 
 
 class SteamLoginTransportRequest(BaseModel):
@@ -274,6 +303,76 @@ def _activation_for_request(request: Request, session: Session) -> AccessKey | C
     )
 
 
+def _record_access_event(
+    session: Session,
+    *,
+    installation_id: str,
+    action: str,
+    outcome: str,
+    reason: str,
+    game_id: int | None = None,
+    app_id: int | None = None,
+    lease_id: int | None = None,
+    account_id: int | None = None,
+    commit: bool = False,
+) -> None:
+    installation_id = str(installation_id or "")[:64]
+    _access_logger.info(
+        "action=%s outcome=%s reason=%s installation=%s game_id=%s app_id=%s lease_id=%s account_id=%s",
+        action,
+        outcome,
+        reason,
+        installation_id or "-",
+        game_id,
+        app_id,
+        lease_id,
+        account_id,
+    )
+    session.add(
+        AccessEvent(
+            created_at=now_utc(),
+            installation_id=installation_id,
+            action=action[:80],
+            outcome=outcome[:40],
+            reason=reason[:240],
+            game_id=game_id,
+            app_id=app_id,
+            lease_id=lease_id,
+            account_id=account_id,
+        )
+    )
+    if commit:
+        session.commit()
+
+
+def _reject_access(
+    session: Session,
+    *,
+    installation_id: str,
+    action: str,
+    reason: str,
+    status_code: int,
+    user_message: str,
+    game_id: int | None = None,
+    app_id: int | None = None,
+    lease_id: int | None = None,
+    account_id: int | None = None,
+) -> None:
+    _record_access_event(
+        session,
+        installation_id=installation_id,
+        action=action,
+        outcome="denied",
+        reason=reason,
+        game_id=game_id,
+        app_id=app_id,
+        lease_id=lease_id,
+        account_id=account_id,
+        commit=True,
+    )
+    raise HTTPException(status_code, user_message)
+
+
 @app.middleware("http")
 async def require_active_installation(request: Request, call_next):
     path = request.url.path
@@ -281,7 +380,19 @@ async def require_active_installation(request: Request, call_next):
     if request.method != "OPTIONS" and any(path == prefix or path.startswith(prefix) for prefix in protected):
         with Session(engine) as session:
             if _activation_for_request(request, session) is None:
-                return JSONResponse({"detail": "GameAccess activation is required or has expired"}, status_code=401)
+                installation_id = request.headers.get("X-GameAccess-Installation", "")
+                _record_access_event(
+                    session,
+                    installation_id=installation_id,
+                    action=f"{request.method} {path}",
+                    outcome="denied",
+                    reason="activation_missing_or_expired",
+                    commit=True,
+                )
+                return JSONResponse(
+                    {"detail": "Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar."},
+                    status_code=401,
+                )
     return await call_next(request)
 
 
@@ -479,22 +590,208 @@ th{{position:sticky;top:0;background:#111827}} code{{font-size:11px}}
     return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 
 
+def _lease_installation_id(session: Session, lease_id: int) -> str:
+    grant = session.get(LeaseCredentialGrant, lease_id)
+    return grant.installation_id if grant else ""
+
+
+def _runtime_state(session: Session, lease_id: int) -> LeaseRuntimeState:
+    runtime = session.get(LeaseRuntimeState, lease_id)
+    if runtime is None:
+        runtime = LeaseRuntimeState(lease_id=lease_id)
+        session.add(runtime)
+    return runtime
+
+
+def _release_backend_lease(
+    session: Session,
+    lease: Lease,
+    *,
+    reason: str,
+    status: LeaseStatus = LeaseStatus.released,
+) -> None:
+    if lease.status != LeaseStatus.active:
+        return
+    lease.status = status
+    account = session.get(ProviderAccount, lease.account_id)
+    other_active = session.exec(
+        select(Lease).where(
+            Lease.account_id == lease.account_id,
+            Lease.status == LeaseStatus.active,
+            Lease.id != lease.id,
+        )
+    ).first()
+    if account and other_active is None and account.status == AccountStatus.leased:
+        account.status = AccountStatus.free
+        session.add(account)
+    runtime = _runtime_state(session, int(lease.id))
+    runtime.release_reason = reason
+    runtime.released_at = now_utc()
+    session.add(runtime)
+    session.add(lease)
+    _record_access_event(
+        session,
+        installation_id=_lease_installation_id(session, int(lease.id)),
+        action="lease-release",
+        outcome="released",
+        reason=reason,
+        game_id=lease.game_id,
+        lease_id=int(lease.id),
+        account_id=lease.account_id,
+    )
+
+
 def expire_old_leases(session: Session) -> None:
+    """Lease hard expiry follows the activation/key expiry, never a play-time timer."""
     now = now_utc()
     leases = session.exec(select(Lease).where(Lease.status == LeaseStatus.active)).all()
     changed = False
     for lease in leases:
-        expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
+        expires = utc(lease.expires_at)
         if expires <= now:
-            lease.status = LeaseStatus.expired
-            account = session.get(ProviderAccount, lease.account_id)
-            if account and account.status == AccountStatus.leased:
-                account.status = AccountStatus.free
-                session.add(account)
-            session.add(lease)
+            _release_backend_lease(
+                session,
+                lease,
+                reason="activation_expired",
+                status=LeaseStatus.expired,
+            )
             changed = True
     if changed:
         session.commit()
+
+
+_presence_worker_started = False
+
+
+def _provider_steam_id64(account: ProviderAccount) -> str | None:
+    import json
+
+    try:
+        notes = json.loads(account.notes or "{}")
+    except Exception:
+        return None
+    raw = str(notes.get("steam_id64") or "").strip()
+    return raw if raw.isdigit() else None
+
+
+def _steam_presence_loop() -> None:
+    missing_key_logged = False
+    while True:
+        api_key = os.environ.get("STEAM_WEB_API_KEY", "").strip()
+        if not api_key:
+            if not missing_key_logged:
+                _access_logger.warning(
+                    "Steam presence monitor disabled: STEAM_WEB_API_KEY is not configured; active leases are preserved."
+                )
+                missing_key_logged = True
+            time.sleep(max(60, STEAM_PRESENCE_INTERVAL_SECONDS))
+            continue
+        missing_key_logged = False
+
+        lease_rows: list[tuple[int, int, str]] = []
+        with Session(engine) as session:
+            expire_old_leases(session)
+            for lease in session.exec(
+                select(Lease).where(Lease.status == LeaseStatus.active)
+            ).all():
+                account = session.get(ProviderAccount, lease.account_id)
+                steam_id64 = _provider_steam_id64(account) if account else None
+                if steam_id64:
+                    lease_rows.append((int(lease.id), lease.account_id, steam_id64))
+                else:
+                    _access_logger.warning(
+                        "Presence unknown for lease %s: provider account %s has no verified steam_id64; lease preserved.",
+                        lease.id,
+                        lease.account_id,
+                    )
+
+        if not lease_rows:
+            time.sleep(STEAM_PRESENCE_INTERVAL_SECONDS)
+            continue
+
+        steam_ids = list(dict.fromkeys(row[2] for row in lease_rows))
+        try:
+            presence = fetch_player_summaries(api_key, steam_ids)
+        except Exception as exc:
+            _access_logger.warning(
+                "Steam presence check failed; no inactivity timers advanced and leases are preserved: %s",
+                exc,
+            )
+            time.sleep(STEAM_PRESENCE_INTERVAL_SECONDS)
+            continue
+
+        now = now_utc()
+        changed = False
+        with Session(engine) as session:
+            for lease_id, account_id, steam_id64 in lease_rows:
+                lease = session.get(Lease, lease_id)
+                if not lease or lease.status != LeaseStatus.active:
+                    continue
+                runtime = _runtime_state(session, lease_id)
+                snapshot = presence.get(steam_id64)
+                runtime.last_presence_check_at = now
+
+                if snapshot is None or not snapshot.known:
+                    # Unknown is not inactivity: an API/privacy/network ambiguity must not evict a player.
+                    runtime.idle_since = None
+                    session.add(runtime)
+                    changed = True
+                    _access_logger.warning(
+                        "Presence unknown for active lease %s / SteamID %s; inactivity timer reset and lease preserved.",
+                        lease_id,
+                        steam_id64,
+                    )
+                    continue
+
+                if snapshot.playing:
+                    runtime.last_seen_online_at = now
+                    runtime.idle_since = None
+                    runtime.last_game_id = snapshot.game_id
+                    session.add(runtime)
+                    changed = True
+                    continue
+
+                if runtime.idle_since is None:
+                    runtime.idle_since = now
+                    session.add(runtime)
+                    changed = True
+                    _record_access_event(
+                        session,
+                        installation_id=_lease_installation_id(session, lease_id),
+                        action="steam-presence",
+                        outcome="idle-grace",
+                        reason="steam_not_playing_online",
+                        game_id=lease.game_id,
+                        app_id=snapshot.game_id,
+                        lease_id=lease_id,
+                        account_id=account_id,
+                    )
+                    continue
+
+                idle_since = utc(runtime.idle_since)
+                if (now - idle_since).total_seconds() >= LEASE_IDLE_TIMEOUT_SECONDS:
+                    _release_backend_lease(
+                        session,
+                        lease,
+                        reason="steam_inactive_timeout",
+                    )
+                    changed = True
+
+            if changed:
+                session.commit()
+        time.sleep(STEAM_PRESENCE_INTERVAL_SECONDS)
+
+
+def _start_steam_presence_monitor() -> None:
+    global _presence_worker_started
+    if _presence_worker_started:
+        return
+    _presence_worker_started = True
+    threading.Thread(
+        target=_steam_presence_loop,
+        name="gameaccess-steam-presence",
+        daemon=True,
+    ).start()
 
 
 
@@ -625,6 +922,7 @@ def startup() -> None:
         seed_defaults(session)
     seed_known_games(engine)
     _start_steam_review_importer()
+    _start_steam_presence_monitor()
 
 
 @app.get("/health")
@@ -1082,62 +1380,146 @@ def create_lease(
     installation_id = canonical_installation_id(
         request.headers.get("X-GameAccess-Installation", "")
     )
-    expire_old_leases(session)
-    user = session.get(User, req.user_id)
-    game = visible_catalog_game(session, req.game_id)
-    if not user:
-        raise HTTPException(404, "user not found")
-    if not game or not is_game_licensed(session, game.id):
-        raise HTTPException(404, "game not found")
-
-    active_for_user = session.exec(
-        select(Lease).where(
-            Lease.user_id == user.id, Lease.status == LeaseStatus.active
+    activation = _activation_for_request(request, session)
+    if activation is None:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play",
+            reason="activation_missing_or_expired",
+            status_code=401,
+            user_message="Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.",
+            game_id=req.game_id,
         )
+    expire_old_leases(session)
+
+    game = visible_catalog_game(session, req.game_id)
+    if not game or not is_game_licensed(session, req.game_id):
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play",
+            reason="game_not_in_gameaccess_catalog",
+            status_code=404,
+            user_message="Este juego no está disponible actualmente en Game Access.",
+            game_id=req.game_id,
+        )
+
+    user = session.exec(select(User).order_by(User.id)).first()
+    if not user:
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play",
+            reason="backend_user_record_missing",
+            status_code=503,
+            user_message="Game Access no pudo preparar el acceso en este momento.",
+            game_id=req.game_id,
+        )
+
+    activation_expires = utc(activation.expires_at)
+    current = session.exec(
+        select(Lease)
+        .join(LeaseCredentialGrant, LeaseCredentialGrant.lease_id == Lease.id)
+        .where(
+            LeaseCredentialGrant.installation_id == installation_id,
+            Lease.status == LeaseStatus.active,
+        )
+        .order_by(Lease.starts_at.desc())
     ).first()
-    if active_for_user:
-        if not req.replace_existing:
-            raise HTTPException(409, "user already has an active lease")
-        active_for_user.status = LeaseStatus.released
-        stale_account = session.get(ProviderAccount, active_for_user.account_id)
-        if stale_account and stale_account.status == AccountStatus.leased:
-            stale_account.status = AccountStatus.free
-            session.add(stale_account)
-        session.add(active_for_user)
-        session.commit()
 
     from . import family_capacity
 
+    if current:
+        current_account = session.get(ProviderAccount, current.account_id)
+        if current_account and family_capacity.account_can_access_game(
+            session, current_account, game
+        ):
+            current.expires_at = activation_expires
+            runtime = _runtime_state(session, int(current.id))
+            runtime.release_reason = None
+            runtime.released_at = None
+            session.add(current)
+            session.add(runtime)
+            demand = family_capacity.record_successful_lease(session, int(game.id))
+            _record_access_event(
+                session,
+                installation_id=installation_id,
+                action="play",
+                outcome="allowed",
+                reason="reused_same_installation_account",
+                game_id=int(game.id),
+                app_id=game.app_id,
+                lease_id=int(current.id),
+                account_id=current.account_id,
+            )
+            session.commit()
+            return {
+                "lease_id": current.id,
+                "user_id": current.user_id,
+                "game": {"id": game.id, "name": game.name, "app_id": game.app_id},
+                "account": {
+                    "id": current_account.id,
+                    "label": current_account.label,
+                    "provider": current_account.provider,
+                },
+                "family_id": None,
+                "allocation": {"mode": "existing-account"},
+                "demand": {
+                    "request_count_total": demand.request_count_total,
+                    "successful_leases": demand.successful_leases,
+                    "demand_value": demand.demand_value,
+                    "price_factor": demand.price_factor,
+                    "pool_value": round(demand.demand_value * demand.price_factor, 4),
+                },
+                "starts_at": current.starts_at,
+                "expires_at": activation_expires,
+                "credits_spent": current.credits_spent,
+                "credits_remaining": user.credits,
+                "session_action": "provider_adapter_required",
+                "reused": True,
+            }
+
     selection = family_capacity.select_best_account(session, game)
     if not selection:
-        raise HTTPException(409, "no account currently available for this game")
+        _reject_access(
+            session,
+            installation_id=installation_id,
+            action="play",
+            reason="no_free_verified_account_for_game",
+            status_code=409,
+            user_message="Todas las cuentas que pueden abrir este juego están ocupadas en este momento.",
+            game_id=int(game.id),
+            app_id=game.app_id,
+        )
     selected = selection["account"]
 
-    # Prototype phase: Game Access sessions are free. Keep the accounting
-    # fields in the API so monetization can be re-enabled later without changing
-    # the client contract.
-    cost = 0
+    # Only replace the caller's old lease after a valid replacement exists.
+    if current:
+        _release_backend_lease(
+            session,
+            current,
+            reason="replaced_by_same_installation",
+        )
 
+    cost = 0
     starts = now_utc()
-    expires = starts + timedelta(minutes=req.minutes)
     lease = Lease(
-        user_id=user.id,
-        game_id=game.id,
-        account_id=selected.id,
+        user_id=int(user.id),
+        game_id=int(game.id),
+        account_id=int(selected.id),
         starts_at=starts,
-        expires_at=expires,
+        expires_at=activation_expires,
         credits_spent=cost,
     )
     selected.status = AccountStatus.leased
     user.credits -= cost
-    session.add(selected)
-    session.add(user)
-    session.add(lease)
+    session.add_all([selected, user, lease])
     session.add(
         CreditLedger(
-            user_id=user.id,
+            user_id=int(user.id),
             amount=-cost,
-            reason=f"lease:{game.slug}:{req.minutes}m",
+            reason=f"lease:{game.slug}",
             created_at=starts,
         )
     )
@@ -1150,7 +1532,7 @@ def create_lease(
             created_at=starts,
         )
     )
-    session.commit()
+    session.add(LeaseRuntimeState(lease_id=int(lease.id)))
     family_capacity.register_lease_allocation(
         session,
         int(lease.id),
@@ -1158,6 +1540,17 @@ def create_lease(
         selection.get("license_copy_id"),
     )
     demand = family_capacity.record_successful_lease(session, int(game.id))
+    _record_access_event(
+        session,
+        installation_id=installation_id,
+        action="play",
+        outcome="allowed",
+        reason="new_provider_account_assigned",
+        game_id=int(game.id),
+        app_id=game.app_id,
+        lease_id=int(lease.id),
+        account_id=int(selected.id),
+    )
     session.commit()
     return {
         "lease_id": lease.id,
@@ -1183,10 +1576,11 @@ def create_lease(
             "pool_value": round(demand.demand_value * demand.price_factor, 4),
         },
         "starts_at": starts,
-        "expires_at": expires,
+        "expires_at": activation_expires,
         "credits_spent": cost,
         "credits_remaining": user.credits,
         "session_action": "provider_adapter_required",
+        "reused": False,
     }
 
 
