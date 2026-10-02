@@ -461,3 +461,53 @@ def test_invalid_password_release_removes_provider_until_credentials_are_repaire
 
         from app import family_capacity as capacity
         assert capacity.select_best_account(session, game) is None
+
+
+def test_download_invalid_password_report_marks_all_rows_for_same_identity(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'download-invalid-password.db'}")
+    SQLModel.metadata.create_all(engine)
+    installation_id = str(uuid4())
+
+    with Session(engine) as session:
+        first = core.ProviderAccount(
+            label="alice",
+            status=core.AccountStatus.free,
+            notes=json.dumps({
+                "account_name": "alice",
+                "provider_id": "alice",
+                "credential_status": "unknown",
+            }),
+        )
+        duplicate = core.ProviderAccount(
+            label="alice#2",
+            status=core.AccountStatus.free,
+            notes=json.dumps({
+                "account_name": "alice",
+                "provider_id": "alice",
+                "credential_status": "unknown",
+            }),
+        )
+        session.add_all([first, duplicate])
+        session.commit()
+
+        request = Request({
+            "type": "http",
+            "headers": [(b"x-gameaccess-installation", installation_id.encode("ascii"))],
+        })
+        result = core.report_provider_invalid_password(
+            core.ProviderCredentialInvalidRequest(
+                provider_id="ALICE",
+                app_id=730,
+                error_code="InvalidPassword",
+            ),
+            request,
+            session,
+        )
+
+        assert result == {"ok": True, "affected": 2}
+        for account in (first, duplicate):
+            session.refresh(account)
+            notes = json.loads(account.notes)
+            assert account.status == core.AccountStatus.disabled
+            assert notes["credential_status"] == "invalid_password"
+            assert notes["credential_error"] == "InvalidPassword"
