@@ -142,7 +142,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the HTTP status when the backend did not return JSON.
     }
-    await narrate(`Backend request ${method} ${path} failed with HTTP ${response.status}; response detail is omitted from the log.`, { area: "BACKEND", level: "ERROR" });
+    await narrate(`Backend request ${method} ${path} failed with HTTP ${response.status}: ${detail}.`, { area: "BACKEND", level: "ERROR" });
     throw new Error(detail);
   }
   await narrate(`Backend request ${method} ${path} succeeded with HTTP ${response.status}.`, { area: "BACKEND" });
@@ -396,9 +396,16 @@ export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
   ]);
 }
 
-export async function releaseActiveLease(leaseId: number): Promise<void> {
-  if (!Number.isInteger(leaseId) || leaseId <= 0) return;
-  await request(`/leases/${leaseId}/release`, { method: "POST" });
+export interface ProviderLeaseStatus {
+  id: number;
+  status: "active" | "released" | "expired";
+  release_reason: string | null;
+  idle_since: string | null;
+  last_seen_online_at: string | null;
+}
+
+export async function getProviderLeaseStatus(leaseId: number): Promise<ProviderLeaseStatus> {
+  return request<ProviderLeaseStatus>(`/leases/${leaseId}`);
 }
 
 export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promise<void> {
@@ -437,10 +444,10 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     throw new Error("El backend GameAccess no está conectado.");
   }
 
-  await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Any active lease for this user will be replaced by the backend.`, { area: "BACKEND" });
+  await narrate(`Requesting a GameAccess lease for game id ${gameId}. The backend will reuse this installation's current provider account whenever it can run the requested game.`, { area: "BACKEND" });
   const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
-    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
+    body: JSON.stringify({ game_id: gameId, minutes }),
   });
   await narrate(
     `Backend lease ${lease.lease_id} assigned account '${lease.account?.label ?? "unknown"}' with session_action='${lease.session_action}'.`,
