@@ -633,7 +633,10 @@ def select_best_account(session: Session, game: core.Game) -> dict[str, Any] | N
                 )
             )
     if not candidates:
-        return None
+        # Capacity/family simulation is a ranking aid, not an extra Steam gate.
+        # If a free registered account has verified access to the AppID, let the
+        # real Steam launch decide instead of denying pre-emptively.
+        return _verified_access_selection(session, game)
     candidates.sort(key=lambda item: item[0])
     return candidates[0][1]
 
