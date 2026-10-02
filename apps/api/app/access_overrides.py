@@ -83,17 +83,21 @@ def _single_key(value: str, *, source: str) -> list[CourtesyKey]:
 
 def _configured_keys() -> list[CourtesyKey]:
     # Preferred production configuration: keep the reusable key/configuration
-    # directly in a Render secret environment variable.
-    direct_json = os.environ.get("GAMEACCESS_COURTESY_KEYS", "").strip()
-    if direct_json:
-        try:
-            return _parse_config(json.loads(direct_json), source="GAMEACCESS_COURTESY_KEYS")
-        except json.JSONDecodeError as exc:
-            raise ValueError("Invalid JSON in GAMEACCESS_COURTESY_KEYS") from exc
+    # directly in a Render secret environment variable. Accept the historical
+    # aliases so deployment configuration does not have to change when the
+    # loader implementation changes.
+    for env_name in ("GAMEACCESS_COURTESY_KEYS", "GAMEACCESS_COURTESY_KEYS_JSON"):
+        direct_json = os.environ.get(env_name, "").strip()
+        if direct_json:
+            try:
+                return _parse_config(json.loads(direct_json), source=env_name)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON in {env_name}") from exc
 
-    direct_key = os.environ.get("GAMEACCESS_COURTESY_KEY", "").strip()
-    if direct_key:
-        return _single_key(direct_key, source="GAMEACCESS_COURTESY_KEY")
+    for env_name in ("GAMEACCESS_COURTESY_KEY", "COURTESY_KEY"):
+        direct_key = os.environ.get(env_name, "").strip()
+        if direct_key:
+            return _single_key(direct_key, source=env_name)
 
     # Backward compatibility: GAMEACCESS_COURTESY_KEYS_FILE historically named
     # the setting even when deployment configuration treated it as a secret
@@ -181,3 +185,11 @@ def valid_courtesy_session(
         ):
             return row
     return None
+
+
+def courtesy_access_configured() -> bool:
+    """Report configuration presence without exposing the courtesy key itself."""
+    try:
+        return bool(_configured_keys())
+    except ValueError:
+        return False
