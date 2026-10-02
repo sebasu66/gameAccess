@@ -6,13 +6,19 @@
 
 Game Access NO debe autoimponerse restricciones que Steam no exige.
 
-- **DOWNLOAD:** si existe una cuenta registrada con acceso conocido al AppID, se intenta la descarga. No se bloquea porque la cuenta este leased, porque el acceso venga de Steam Family, por cantidad de copias calculadas, por capacidad simulada ni por supuestos preventivos. DepotDownloader/Steam es la autoridad final: se prueba la operacion real y solo un error real de Steam/Depot se trata como fallo.
-- **PLAY:** la comprobacion operativa es simple: elegir una cuenta registrada con acceso conocido al AppID que no este marcada leased por otro prestamo activo. No agregar restricciones preventivas adicionales.
-- **MISMO USUARIO:** una lease previa del mismo usuario puede ser reemplazada; Game Access no debe bloquear al usuario contra su propio prestamo.
-- **INACTIVIDAD:** una cuenta prestada permanece reservada mientras hay un juego activo. Si pasan **10 minutos continuos sin ningun juego activo**, el prestamo se libera y el cliente muestra: **"Se ha liberado el acceso a la cuenta por inactividad."**
-- **CODIGO LEGACY:** no agregar ni mantener rutas legacy/fallback en la logica activa de Download, seleccion de licencia o Play. Git conserva la historia; el runtime conserva solamente la implementacion actual.
+- **DOWNLOAD:** si existe una cuenta registrada con acceso conocido al AppID, se intenta la descarga. No se bloquea por lease, capacidad simulada ni supuestos preventivos. Steam/DepotDownloader es la autoridad final.
+- **PLAY:** elegir una cuenta registrada con acceso conocido al AppID que no esté reservada por otra instalación. No agregar restricciones preventivas adicionales.
+- **IDENTIDAD DEL CLIENTE:** la propiedad de una lease se determina por el `installation_id` ya ligado a la key/activación, no por IP ni por el usuario prototipo `user_id=1`.
+- **MISMA INSTALACION + MISMA CUENTA:** si la instalación pide otro juego que la cuenta ya asignada puede ejecutar, se reutiliza la misma lease y la misma cuenta.
+- **CAMBIO DE CUENTA:** si la cuenta actual no sirve para el nuevo juego, la lease anterior solo se libera después de haber encontrado una cuenta alternativa válida.
+- **INACTIVIDAD ONLINE:** el backend consulta presencia Steam. Mientras exista evidencia de que la cuenta está jugando online, continúa reservada. Tras 10 minutos continuos de una consulta válida que indique que no está jugando online, la cuenta vuelve a estar disponible.
+- **DESCONOCIDO NO ES INACTIVO:** un error de red/API, una respuesta ambigua o falta de identidad Steam verificable nunca debe avanzar el timeout; se preserva la lease.
+- **OFFLINE ES INTENCIONALMENTE VALIDO:** liberar disponibilidad en backend nunca cierra Steam, mata el juego ni fuerza logout local. El usuario puede seguir jugando poniendo Steam en modo offline o desconectando Wi-Fi.
+- **KEY/ACTIVACION:** el vencimiento de la key es el único límite duro del acceso a nuevas operaciones Game Access. Diez minutos antes se avisa al usuario; al vencer se limpia la sesión local de Game Access y se vuelve a la pantalla para ingresar una nueva key. No se fuerza el cierre del juego/Steam que ya estuvieran ejecutándose.
+- **MENSAJES Y LOGS:** toda denegación, timeout, liberación o condición que afecte al jugador debe tener un mensaje comprensible y un motivo técnico persistido/logueado en backend.
+- **CODIGO LEGACY:** no mantener rutas alternativas que contradigan estas reglas. Git conserva la historia; el runtime conserva solamente la implementación actual.
 
-Antes de agregar una validacion nueva a DOWNLOAD o PLAY, debe existir evidencia concreta de que Steam la requiere. Si no existe esa evidencia, **intentar la operacion real**.
+Antes de agregar una validación nueva a DOWNLOAD o PLAY, debe existir evidencia concreta de que Steam la requiere. Si no existe esa evidencia, **intentar la operación real**.
 
 
 ## Human-readable activity log
