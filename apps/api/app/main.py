@@ -1618,8 +1618,7 @@ def create_lease(
                     "label": current_account.label,
                     "provider": current_account.provider,
                 },
-                "family_id": None,
-                "allocation": {"mode": "existing-account"},
+                "allocation_mode": "existing-account",
                 "demand": {
                     "request_count_total": demand.request_count_total,
                     "successful_leases": demand.successful_leases,
@@ -1688,12 +1687,6 @@ def create_lease(
         )
     )
     session.add(LeaseRuntimeState(lease_id=int(lease.id)))
-    family_capacity.register_lease_allocation(
-        session,
-        int(lease.id),
-        selection.get("family_id"),
-        selection.get("license_copy_id"),
-    )
     demand = family_capacity.record_successful_lease(session, int(game.id))
     _record_access_event(
         session,
@@ -1716,13 +1709,7 @@ def create_lease(
             "label": selected.label,
             "provider": selected.provider,
         },
-        "family_id": selection.get("family_id"),
-        "allocation": {
-            "mode": selection.get("mode"),
-            "pool_damage": selection.get("pool_damage"),
-            "newly_unavailable_games": selection.get("newly_unavailable_games"),
-            "remaining_seats": selection.get("remaining_seats"),
-        },
+        "allocation_mode": selection.get("mode"),
         "demand": {
             "request_count_total": demand.request_count_total,
             "successful_leases": demand.successful_leases,
