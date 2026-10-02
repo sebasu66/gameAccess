@@ -625,7 +625,6 @@ fn main() {
             provider_transport::login_provider_steam_for_lease,
             steam_session::start_steam_game_session,
             steam_session::steam_session_status,
-            steam_session::steam_account_activity,
             steam_session::steam_app_is_running,
             visual_debug_config,
             capture_visual_debug,
