@@ -290,7 +290,7 @@ def test_verified_free_account_falls_back_when_family_capacity_has_no_candidate(
         family_owner = core.ProviderAccount(
             label="family-owner",
             provider="steam",
-            status=core.AccountStatus.leased,
+            status=core.AccountStatus.free,
             notes=json.dumps({"accessible_app_ids": [515151]}),
         )
         outside = core.ProviderAccount(
@@ -312,6 +312,9 @@ def test_verified_free_account_falls_back_when_family_capacity_has_no_candidate(
                 "licenses": [{"app_id": 515151, "quantity": 1, "owner_labels": ["family-owner"]}],
             }],
         )
+        family_owner.status = core.AccountStatus.leased
+        session.add(family_owner)
+        session.commit()
 
         selection = capacity.select_best_account(session, game)
         assert selection is not None
