@@ -441,14 +441,68 @@ def revoke_access_key(key_id: int, request: Request, session: Session = Depends(
     return {"ok": True}
 
 
+@app.get("/admin/access-events")
+def list_access_events(
+    request: Request,
+    limit: int = Query(default=200, ge=1, le=1000),
+    installation_id: Optional[str] = Query(default=None),
+    action: Optional[str] = Query(default=None),
+    outcome: Optional[str] = Query(default=None),
+    session: Session = Depends(get_session),
+) -> dict:
+    _admin_activation_access(request)
+    statement = select(AccessEvent)
+    if installation_id:
+        statement = statement.where(AccessEvent.installation_id == installation_id)
+    if action:
+        statement = statement.where(AccessEvent.action == action)
+    if outcome:
+        statement = statement.where(AccessEvent.outcome == outcome)
+    rows = session.exec(statement.order_by(AccessEvent.id.desc()).limit(limit)).all()
+    return {
+        "events": [
+            {
+                "id": row.id,
+                "created_at": row.created_at,
+                "installation_id": row.installation_id,
+                "action": row.action,
+                "outcome": row.outcome,
+                "reason": row.reason,
+                "game_id": row.game_id,
+                "app_id": row.app_id,
+                "lease_id": row.lease_id,
+                "account_id": row.account_id,
+            }
+            for row in rows
+        ]
+    }
+
+
 @app.post("/activation/redeem")
 def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session)) -> dict:
+    installation_id = str(req.installation_id or "")
     try:
-        installation_id = canonical_installation_id(req.installation_id)
+        installation_id = canonical_installation_id(installation_id)
         courtesy = redeem_courtesy_key(session, req.key, installation_id)
         token, expires_at = courtesy if courtesy is not None else redeem_key(session, req.key, installation_id)
     except ValueError as exc:
+        _record_access_event(
+            session,
+            installation_id=installation_id,
+            action="activation-redeem",
+            outcome="denied",
+            reason=f"activation_key_rejected:{str(exc)[:160]}",
+            commit=True,
+        )
         raise HTTPException(400, str(exc)) from exc
+    _record_access_event(
+        session,
+        installation_id=installation_id,
+        action="activation-redeem",
+        outcome="allowed",
+        reason="activation_session_issued",
+        commit=True,
+    )
     return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at}
 
 
@@ -456,6 +510,14 @@ def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(ge
 def activation_status(request: Request, session: Session = Depends(get_session)) -> dict:
     row = _activation_for_request(request, session)
     if row is None:
+        _record_access_event(
+            session,
+            installation_id=request.headers.get("X-GameAccess-Installation", ""),
+            action="activation-status",
+            outcome="denied",
+            reason="activation_missing_or_expired",
+            commit=True,
+        )
         raise HTTPException(401, "GameAccess activation is required or has expired")
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
 
