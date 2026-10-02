@@ -25,7 +25,7 @@ from sqlmodel import Session, SQLModel, select
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
-from .access_overrides import CourtesySession, redeem_courtesy_key, valid_courtesy_session
+from .access_overrides import CourtesySession, courtesy_access_configured, redeem_courtesy_key, valid_courtesy_session
 from .credential_transport import encrypt_provider_credential, encrypt_provider_download_credential
 from .steam_presence import fetch_player_summaries
 from .catalog_metadata import (
@@ -1051,6 +1051,7 @@ def health() -> dict:
         "time": now_utc(),
         "version": app.version,
         "database": engine.dialect.name,
+        "courtesy_access_configured": courtesy_access_configured(),
     }
 
 
