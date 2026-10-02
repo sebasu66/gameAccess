@@ -173,6 +173,10 @@ class SteamLoginTransportRequest(BaseModel):
     client_public_key: str = Field(min_length=300, max_length=2048)
 
 
+class LeaseReleaseRequest(BaseModel):
+    reason: str = Field(default="client_requested_release", min_length=1, max_length=80)
+
+
 class ClientErrorReportRequest(BaseModel):
     area: str = Field(default="APP", min_length=1, max_length=80)
     message: str = Field(min_length=1, max_length=8000)
@@ -1965,6 +1969,7 @@ def get_lease(
 def release_lease(
     lease_id: int,
     request: Request,
+    req: LeaseReleaseRequest | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
     installation_id = canonical_installation_id(
@@ -1999,11 +2004,20 @@ def release_lease(
             "status": lease.status,
             "release_reason": runtime.release_reason if runtime else None,
         }
-    _release_backend_lease(session, lease, reason="client_requested_release")
+    allowed_reasons = {
+        "client_requested_release",
+        "provider_profile_missing",
+        "provider_login_failed",
+        "play_launch_failed",
+        "download_install_handoff_complete",
+    }
+    requested_reason = req.reason if req else "client_requested_release"
+    reason = requested_reason if requested_reason in allowed_reasons else "client_requested_release"
+    _release_backend_lease(session, lease, reason=reason)
     session.commit()
     runtime = session.get(LeaseRuntimeState, lease_id)
     return {
         "ok": True,
         "status": lease.status,
-        "release_reason": runtime.release_reason if runtime else "client_requested_release",
+        "release_reason": runtime.release_reason if runtime else reason,
     }
