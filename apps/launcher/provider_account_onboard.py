@@ -15,8 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from family_refresh import build_family_graph
-from provider_family_evidence import merge_family_evidence
 from provider_license_scan import persist_scan_result, scan_provider_licenses
 from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
 from provider_roster import (
@@ -41,7 +39,7 @@ def upsert_provider_credentials(
     login: str,
     password: str,
 ) -> tuple[ProviderCredential, bool]:
-    """Persist one credential atomically while keeping provider ordering stable."""
+    """Persist one Steam login exactly once; updating its password never duplicates it."""
     login = login.strip()
     if not login:
         raise ValueError("Steam account name is required")
@@ -50,41 +48,46 @@ def upsert_provider_credentials(
 
     path = Path(path)
     rows = _read_rows(path)
-    updated = False
+    cleaned: list[list[str]] = []
+    inserted = False
     created = True
+    identity = login.casefold()
+
     for row in rows:
         if len(row) < 2:
+            cleaned.append(row)
             continue
         current_login = str(row[0]).strip()
         current_password = str(row[1]).strip()
         if current_login.casefold() in {
-            "usr",
-            "user",
-            "username",
-            "login",
+            "usr", "user", "username", "login",
         } and current_password.casefold() in {"pass", "password"}:
+            cleaned.append(row)
             continue
-        if current_login.casefold() == login.casefold():
-            row[0] = login
-            row[1] = password
-            updated = True
-            created = False
-            break
-    if not updated:
-        rows.append([login, password])
+        if current_login.casefold() == identity:
+            if not inserted:
+                cleaned.append([login, password])
+                inserted = True
+                created = False
+            # Drop every additional row for the same Steam login.
+            continue
+        cleaned.append(row)
+
+    if not inserted:
+        cleaned.append([login, password])
 
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f"{path.name}.tmp")
     with temp.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
-        writer.writerows(rows)
+        writer.writerows(cleaned)
     temp.replace(path)
 
     credential = next(
         (
             item
             for item in load_provider_credentials(path)
-            if item.login.casefold() == login.casefold()
+            if item.login.casefold() == identity
         ),
         None,
     )
@@ -133,15 +136,24 @@ def _selected_scan(
     return scan, account
 
 
+def _is_invalid_password(error_text: str) -> bool:
+    normalized = "".join(ch for ch in str(error_text or "").casefold() if ch.isalnum())
+    return "invalidpassword" in normalized
+
+
 def _persist_failed_scan_account(
     api: str, credential: ProviderCredential, inventory: dict[str, Any],
     scan: dict[str, Any], error_text: str,
 ) -> dict[str, Any] | None:
-    """Keep a failed/temporary provider visible without erasing old licenses."""
+    """Preserve known licenses; only explicit InvalidPassword disables a provider."""
     base = api.rstrip("/")
     existing_accounts = _api_json("GET", f"{base}/admin/accounts", timeout=20.0) or []
     existing = next(
-        (row for row in existing_accounts if str(row.get("label") or "") == credential.label),
+        (
+            row
+            for row in existing_accounts
+            if str(row.get("label") or "").casefold() == credential.login.casefold()
+        ),
         None,
     )
     game_ids = [
@@ -149,6 +161,7 @@ def _persist_failed_scan_account(
         for game in ((existing or {}).get("games") or [])
         if isinstance(game, dict) and isinstance(game.get("id"), int)
     ]
+    invalid_password = _is_invalid_password(error_text)
     notes = json.dumps(
         {
             "source": "provider-account-onboard",
@@ -159,6 +172,8 @@ def _persist_failed_scan_account(
             "inventory_complete": False,
             "ownership_scan_status": str(scan.get("status") or "error"),
             "ownership_scan_error": error_text[:500],
+            "credential_status": "invalid_password" if invalid_password else "unknown",
+            "credential_error": "InvalidPassword" if invalid_password else None,
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -167,9 +182,9 @@ def _persist_failed_scan_account(
         "POST",
         f"{base}/admin/accounts/sync",
         payload={
-            "label": credential.label,
+            "label": credential.login,
             "provider": "steam",
-            "game_ids": owned_game_ids,
+            "game_ids": game_ids,
             "notes": notes,
         },
         timeout=30.0,
@@ -208,17 +223,6 @@ def _register_verified_apps(
         if str(registered.get("metadata_state") or "pending") == "pending":
             metadata_pending_app_ids.append(app_id)
     return game_ids, unresolved_app_ids, metadata_pending_app_ids
-
-
-def _merge_family_inventory(
-    partial: dict[str, Any], provider_id: str
-) -> dict[str, Any]:
-    return merge_family_evidence(
-        {},
-        partial,
-        DEFAULT_STORE.with_name("provider_family_evidence.db"),
-        selected={provider_id},
-    )
 
 
 def onboard_provider_account(
@@ -311,6 +315,9 @@ def onboard_provider_account(
             "ownership_verified_at": inventory.get("verified_at"),
             "inventory_complete": True,
             "ownership_scan_status": "ok",
+            "ownership_scan_error": None,
+            "credential_status": "valid",
+            "credential_error": None,
             "owned_app_count": len(owned_app_ids),
             "accessible_app_ids": accessible_app_ids,
             "accessible_app_count": len(accessible_app_ids),
@@ -337,16 +344,9 @@ def onboard_provider_account(
         timeout=30.0,
     )
 
-    # Preserve earlier partial successes when rebuilding family capacity.
-    # This performs no Steam login or Store metadata request for other accounts.
-    merged_inventory = _merge_family_inventory(inventory, credential.provider_id)
-    families = build_family_graph(merged_inventory)
-    family_sync = _api_json(
-        "POST",
-        f"{base}/admin/pool/families/sync",
-        payload={"families": families},
-        timeout=30.0,
-    )
+    # Family topology is retained only as optional diagnostics. It is no longer
+    # part of provider selection or capacity, so onboarding does not rebuild it.
+    family_sync = {"skipped": True, "reason": "family_capacity_not_used_for_allocation"}
 
     print("STATE=done", flush=True)
     return {
@@ -366,7 +366,7 @@ def onboard_provider_account(
         "unresolved_app_count": len(unresolved_app_ids),
         "unresolved_app_ids": unresolved_app_ids[:25],
         "account": synced.get("account") if isinstance(synced, dict) else None,
-        "family_count": len(families),
+        "family_count": 0,
         "family_sync": family_sync,
     }
 
