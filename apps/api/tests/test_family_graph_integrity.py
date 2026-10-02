@@ -14,6 +14,7 @@ from sqlmodel import Session, SQLModel, create_engine, select
 def pool(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'pool.db'}")
     SQLModel.metadata.create_all(engine)
+    core.ensure_catalog_schema(engine)
     with Session(engine) as session:
         game = core.Game(slug="shared", name="Shared", app_id=10, active=True)
         session.add(game)
@@ -26,6 +27,11 @@ def pool(tmp_path):
                 )
             )
         session.commit()
+        session.refresh(game)
+        session.connection().exec_driver_sql(
+            "INSERT INTO game_metadata (game_id, product_type, updated_at) VALUES (?, 'game', ?)",
+            (game.id, core.now_utc().isoformat()),
+        )
         yield session, game
     engine.dispose()
 
