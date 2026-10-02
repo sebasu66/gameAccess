@@ -675,7 +675,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     } catch (err) {
       void narrate(`Play flow failed for catalog game ${game.id} after ${Math.round(performance.now() - startedAt)} ms: ${err instanceof Error ? err.message : String(err)}.`, { area: "LAUNCH", level: "ERROR" });
       if (leaseForRollback) {
-        await releaseFailedLease(leaseForRollback);
+        await releaseFailedLease(leaseForRollback, "play_launch_failed");
         forgetProviderLease(leaseForRollback.lease_id);
         leaseForRollback = null;
         await refresh().catch(() => undefined);
