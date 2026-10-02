@@ -170,6 +170,12 @@ def _decode_notes(account: core.ProviderAccount) -> dict[str, Any]:
         return {}
 
 
+def _is_invalid_password_failure(status: str, error: str | None) -> bool:
+    raw = f"{status or ''} {error or ''}".casefold()
+    normalized = "".join(ch for ch in raw if ch.isalnum())
+    return "invalidpassword" in normalized
+
+
 def _sync_account(
     req: PoolSyncInput,
     incoming: PoolAccountInput,
@@ -212,26 +218,24 @@ def _sync_account(
                 session.add(core.AccountGame(account_id=account.id, game_id=game_id))
         session.commit()
 
-    # Steam login failures are operational availability failures, not proof of
-    # zero ownership. Preserve mappings but remove the seat from availability.
+    # Operational scan failures do not remove a provider from the pool.
+    # Only Steam's explicit InvalidPassword result is a hard credential failure.
     scan_status = (incoming.scan_status or "unknown").strip()
-    scan_failed = scan_status not in {"", "unknown", "not_scanned", "ok"}
-    disabled_by_scan = bool(notes.get("disabled_by_inventory_scan"))
-    temporary_busy = scan_status == "temporarily_unavailable" or incoming.scan_error in {
-        "AlreadyLoggedInElsewhere", "LoggedInElsewhere", "PasswordRequiredToKickSession",
-    }
-    if temporary_busy:
-        if account.status == core.AccountStatus.disabled and disabled_by_scan:
-            account.status = core.AccountStatus.free
-        disabled_by_scan = False
-    elif scan_failed:
-        if account.status == core.AccountStatus.free:
-            account.status = core.AccountStatus.disabled
-            disabled_by_scan = True
+    invalid_password = _is_invalid_password_failure(scan_status, incoming.scan_error)
+    previous_credential_status = str(notes.get("credential_status") or "").strip()
+    if invalid_password:
+        account.status = core.AccountStatus.disabled
+        credential_status = "invalid_password"
+        credential_error = "InvalidPassword"
     elif authoritative_ownership and scan_status == "ok":
-        if account.status == core.AccountStatus.disabled and disabled_by_scan:
+        if account.status == core.AccountStatus.disabled:
             account.status = core.AccountStatus.free
-        disabled_by_scan = False
+        credential_status = "valid"
+        credential_error = None
+    else:
+        credential_status = previous_credential_status or "unknown"
+        credential_error = notes.get("credential_error")
+    disabled_by_scan = False
 
     current_mappings = session.exec(
         select(core.AccountGame).where(core.AccountGame.account_id == account.id)
@@ -249,7 +253,9 @@ def _sync_account(
             "last_catalog_verification_complete": req.verification_complete,
             "ownership_scan_status": scan_status,
             "ownership_scan_error": incoming.scan_error,
-            "disabled_by_inventory_scan": disabled_by_scan,
+            "disabled_by_inventory_scan": False,
+            "credential_status": credential_status,
+            "credential_error": credential_error,
         }
     )
     if authoritative_ownership:
@@ -337,7 +343,7 @@ def sync_family_graph(req: FamilyGraphSyncInput, session: Session = Depends(core
     return {
         "ok": True,
         **result,
-        "capacity_semantics": "family-license-copies-x-free-members",
-        "allocation_semantics": "simulate-each-candidate-minimize-weighted-pool-damage",
+        "capacity_semantics": "diagnostic-only",
+        "allocation_semantics": "not-used-for-play-or-download",
     }
 
