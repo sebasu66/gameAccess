@@ -1,321 +1,517 @@
-# gameAccess
+# Game Access
 
-# PRIORIDAD ABSOLUTA: DESCARGAR Y JUGAR SIEMPRE QUE SEA POSIBLE
+Game Access es una aplicación Windows construida con **React + Vite + Tauri 2** y un backend central **FastAPI**. El objetivo actual de la beta es permitir que un usuario active Game Access durante un período limitado, consulte el catálogo, descargue juegos y use cuentas Steam proveedoras de forma transparente, manteniendo la autoridad de disponibilidad y leases en el servidor.
 
-**ESTA REGLA TIENE PRIORIDAD SOBRE CUALQUIER HEURISTICA, MODELO DE CAPACIDAD O CODIGO HISTORICO.**
+> **Estado de arquitectura: 2026-10-01.**
+>
+> `README.md` describe las reglas vigentes. `TODO.md` contiene solamente trabajo pendiente. `skill.md` conserva contexto técnico y decisiones más detalladas.
 
-Game Access NO debe autoimponerse restricciones que Steam no exige.
+## Regla principal del producto
 
-- **DOWNLOAD:** si existe una cuenta registrada con acceso conocido al AppID, se intenta la descarga. No se bloquea por lease, capacidad simulada ni supuestos preventivos. Steam/DepotDownloader es la autoridad final.
-- **PLAY:** elegir una cuenta registrada con acceso conocido al AppID que no esté reservada por otra instalación. No agregar restricciones preventivas adicionales.
-- **ESTADO DE CUENTA:** los estados históricos `inactive`/`disabled` no son autoridad para excluir una cuenta, porque pueden provenir de comprobaciones imperfectas. Una cuenta con acceso conocido sigue siendo candidata salvo que exista evidencia explícita de contraseña inválida.
-- **CREDENCIAL INVALIDA:** únicamente un `InvalidPassword` explícito devuelto por Steam deja la cuenta fuera del pool. Timeouts, Steam Guard, cuenta ocupada, red, API, scan incompleto u otros errores no invalidan la cuenta.
-- **REPARACION DE CREDENCIAL:** un login Steam representa una sola cuenta. Si se vuelve a cargar ese mismo login con una contraseña válida, se actualiza/reactiva la cuenta original y se eliminan/consolidan duplicados legacy como `login#2`.
-- **STEAM FAMILY:** la topología Family y sus copias pueden conservarse como metadata/diagnóstico, pero no participan en la decisión de Play/Download ni en el cálculo operativo de disponibilidad.
-- **IDENTIDAD DEL CLIENTE:** la propiedad de una lease se determina por el `installation_id` ya ligado a la key/activación, no por IP ni por el usuario prototipo `user_id=1`.
-- **MISMA INSTALACION + MISMA CUENTA:** si la instalación pide otro juego que la cuenta ya asignada puede ejecutar, se reutiliza la misma lease y la misma cuenta.
-- **CAMBIO DE CUENTA:** si la cuenta actual no sirve para el nuevo juego, la lease anterior solo se libera después de haber encontrado una cuenta alternativa válida.
-- **INACTIVIDAD ONLINE:** el backend consulta presencia Steam. Mientras exista evidencia de que la cuenta está jugando online, continúa reservada. Tras 10 minutos continuos de una consulta válida que indique que no está jugando online, la cuenta vuelve a estar disponible.
-- **DESCONOCIDO NO ES INACTIVO:** un error de red/API, una respuesta ambigua o falta de identidad Steam verificable nunca debe avanzar el timeout; se preserva la lease.
-- **OFFLINE ES INTENCIONALMENTE VALIDO:** liberar disponibilidad en backend nunca cierra Steam, mata el juego ni fuerza logout local. El usuario puede seguir jugando poniendo Steam en modo offline o desconectando Wi-Fi.
-- **KEY/ACTIVACION:** el vencimiento de la key es el único límite duro del acceso a nuevas operaciones Game Access. Diez minutos antes se avisa al usuario; al vencer se limpia la sesión local de Game Access y se vuelve a la pantalla para ingresar una nueva key. No se fuerza el cierre del juego/Steam que ya estuvieran ejecutándose.
-- **MENSAJES Y LOGS:** toda denegación, timeout, liberación o condición que afecte al jugador debe tener un mensaje comprensible y un motivo técnico persistido/logueado en backend.
-- **CODIGO LEGACY:** no mantener rutas alternativas que contradigan estas reglas. Git conserva la historia; el runtime conserva solamente la implementación actual.
+**DESCARGAR Y JUGAR SIEMPRE QUE SEA POSIBLE.**
 
-Antes de agregar una validación nueva a DOWNLOAD o PLAY, debe existir evidencia concreta de que Steam la requiere. Si no existe esa evidencia, **intentar la operación real**.
+Game Access no debe introducir restricciones preventivas que Steam no requiera. La disponibilidad real debe derivarse de evidencia concreta y del estado central de las leases, no de heurísticas históricas.
 
+### Download
 
-## Human-readable activity log
+Si existe una cuenta registrada con acceso conocido al AppID, Game Access intenta la descarga.
 
-The desktop app writes a narration-style log intended for people, not just developers. On Windows it is stored at:
+- DOWNLOAD **no** se bloquea por una lease activa, por Steam Family ni por capacidad simulada.
+- Steam/DepotDownloader es la autoridad final sobre si la operación concreta puede completarse.
+- Un error de descarga no invalida automáticamente la cuenta.
+- Solo un `InvalidPassword` explícito reportado por Steam marca la credencial como inutilizable.
+
+### Play
+
+Para jugar:
+
+1. validar que la activación de Game Access siga vigente;
+2. reutilizar la cuenta ya asignada a esa misma instalación si puede acceder al nuevo AppID;
+3. si hace falta otra cuenta, seleccionar cualquier identidad Steam registrada con acceso conocido al AppID;
+4. excluir identidades reservadas por una **lease activa de otra instalación**;
+5. excluir solamente credenciales explícitamente marcadas `invalid_password`;
+6. si no queda ninguna candidata, informar que no hay disponibilidad.
+
+No se usa Steam Family, `ProviderAccount.status`, IP, fingerprint ni el viejo `user_id=1` como scheduler de Play.
+
+## Identidad del cliente y activación
+
+La identidad estable del cliente es `installation_id`.
+
+En Windows se genera una vez y se conserva localmente bajo el área de datos de Game Access. La activación/key queda vinculada a esa instalación y el cliente la envía al backend mediante los headers de activación.
+
+Reglas actuales:
+
+- `installation_id` es la identidad de ownership de una lease;
+- no se deriva identidad de IP, hostname ni fingerprint;
+- una key/sesión no habilita otra instalación automáticamente;
+- el backend valida activación en catálogo, descargas, leases y operaciones protegidas;
+- el vencimiento de la activación es el límite duro de nuevas operaciones Game Access;
+- **10 minutos antes del vencimiento** el cliente muestra un aviso;
+- al vencer, se limpia la sesión local de Game Access y se vuelve al gate de activación;
+- el vencimiento **no cierra Steam ni mata un juego que ya esté abierto**.
+
+Mensaje esperado a T-10:
+
+```text
+Tu acceso expirará en 10 minutos. Puedes generar otra llave siguiendo el mismo procedimiento.
+```
+
+Al expirar:
+
+```text
+Terminó el tiempo de acceso. Ingresa una nueva llave para continuar.
+```
+
+## Modelo de leases
+
+Las leases representan disponibilidad central de una **cuenta Steam proveedora**, no control del proceso local de Steam.
+
+### Reutilización
+
+Si un `installation_id` ya tiene una lease y la misma cuenta puede acceder al nuevo AppID, se reutilizan la misma cuenta y la misma lease.
+
+Esto evita cambios de cuenta innecesarios.
+
+### Cambio de cuenta
+
+Si la cuenta actual no puede acceder al nuevo juego:
+
+- primero se busca una alternativa válida;
+- solo después de encontrarla se libera/reemplaza la lease anterior;
+- nunca se libera preventivamente la cuenta actual dejando al jugador sin alternativa.
+
+### Liberar una lease no significa cerrar Steam
+
+Una liberación central:
+
+- vuelve a ofrecer la cuenta al pool;
+- no hace logout;
+- no cambia la cuenta local;
+- no cierra Steam;
+- no mata el juego;
+- no intenta revocar una sesión local que el usuario ya está usando.
+
+Esta separación es deliberada.
+
+## Presencia Steam e inactividad online
+
+El backend es la autoridad de inactividad de leases.
+
+Game Access usa la **Steam Web API** (`ISteamUser/GetPlayerSummaries/v2`) con el secreto de servidor:
+
+```text
+STEAM_WEB_API_KEY
+```
+
+La key se configura solamente en el entorno del backend, por ejemplo en Render. Nunca debe entrar en Git, frontend, instalador o logs.
+
+El monitor consulta las cuentas con leases activas:
+
+- si Steam devuelve evidencia de que la cuenta está jugando online, se conserva la lease y se limpia cualquier período de inactividad;
+- si una respuesta válida indica que ya no está jugando online, comienza el período de gracia;
+- después de **10 minutos continuos** sin actividad online válida, el backend libera la lease con `steam_inactive_timeout`;
+- si la API falla, hay timeout, falta SteamID verificable o la respuesta es ambigua, el estado es **unknown**, no inactive;
+- unknown **no avanza el contador** y nunca libera una cuenta por error.
+
+Si `STEAM_WEB_API_KEY` no está configurada, el comportamiento seguro es preservar las leases en vez de inferir inactividad.
+
+## Offline play
+
+El juego offline es un comportamiento válido y buscado.
+
+Después de que el backend libera una cuenta por inactividad online, el usuario puede continuar localmente si Steam y el juego lo permiten, por ejemplo usando Steam Offline Mode o desconectando Wi-Fi.
+
+El cliente debe explicar la liberación sin presentar el juego como terminado.
+
+Una lease liberada en el servidor y un juego que sigue corriendo localmente son estados compatibles.
+
+## Cuentas proveedoras y credenciales
+
+### Una identidad Steam = una cuenta de Game Access
+
+El login Steam es la identidad canónica de una cuenta proveedora.
+
+El roster y el backend tratan el login case-insensitive. No deben existir asientos operativos separados como:
+
+```text
+alice
+alice#2
+alice#3
+```
+
+Si aparecen duplicados históricos, el sync consolida mappings, leases y referencias hacia una sola identidad canónica.
+
+### Actualizar una contraseña
+
+Si se vuelve a cargar el mismo login con una contraseña nueva:
+
+- se actualiza la credencial de esa cuenta;
+- no se crea otra cuenta;
+- la contraseña más reciente reemplaza a la anterior;
+- una validación correcta reactiva una cuenta previamente marcada por contraseña inválida.
+
+### Única invalidez dura: InvalidPassword
+
+Los estados históricos `inactive`, `disabled`, `free` o `leased` pueden estar desactualizados y **no son autoridad de elegibilidad**.
+
+Una cuenta queda fuera del pool únicamente cuando Steam devuelve explícitamente `InvalidPassword`.
+
+Actualmente esa señal puede llegar desde:
+
+- scan/onboarding SteamKit;
+- login real para Play;
+- worker de Download/DepotDownloader.
+
+No invalidan una cuenta:
+
+- Steam ocupado / `AlreadyLoggedInElsewhere`;
+- Steam Guard;
+- timeout;
+- error de red;
+- API caída;
+- scan incompleto;
+- respuesta desconocida;
+- fallo genérico de descarga/login.
+
+Una contraseña válida posterior para el mismo login repara la cuenta original.
+
+## Steam Family
+
+Steam Family dejó de formar parte del scheduler operativo.
+
+La topología Family, miembros y copias pueden mantenerse como **metadata y diagnóstico histórico**, pero:
+
+- no limitan Play;
+- no limitan Download;
+- no calculan disponibilidad operativa;
+- no rankean cuentas;
+- no reservan “seats” para el runtime.
+
+La disponibilidad operativa es simplemente: **acceso conocido + credencial utilizable + identidad no ocupada por otra lease activa**.
+
+Cualquier investigación futura de Steam Family debe permanecer separada de esta regla salvo una decisión explícita posterior.
+
+## AFK local — pendiente, no implementado
+
+Está prevista una segunda señal de inactividad desde el cliente, pero todavía **no forma parte del runtime actual**.
+
+Diseño acordado:
+
+- detectar aproximadamente 10 minutos sin input real del sistema;
+- incluir teclado, mouse y controller/gamepad cuando corresponda;
+- mostrar un popup nativo “¿Sigues ahí?”;
+- esperar inicialmente 60 segundos, configurable a 30–60 s para pruebas;
+- si el usuario responde o genera input, conservar la lease;
+- si no responde, enviar `client_afk_timeout` al backend;
+- el backend liberará solo la lease central;
+- tampoco en este caso se cerrará Steam ni el juego.
+
+La implementación debe evitar falsos positivos en fullscreen, Alt+Tab, bloqueo de Windows, Remote Desktop y sesiones jugadas solo con controller.
+
+## Partidas guardadas — objetivo pendiente
+
+La continuidad de saves debe pertenecer al **usuario de Game Access + juego**, no a la cuenta Steam proveedora que haya sido asignada en una sesión concreta.
+
+La arquitectura futura debe:
+
+- descubrir rutas reales por juego: Steam `userdata`, Documentos, AppData y rutas específicas;
+- mantener un save canónico por usuario + AppID;
+- preparar/restaurar ese progreso antes de lanzar el mismo juego con otra cuenta proveedora;
+- capturar los archivos modificados al cerrar;
+- conservar backups;
+- resolver conflictos por timestamp/hash/slots sin sobrescribir silenciosamente una partida más nueva;
+- mantener múltiples slots cuando el formato lo permita;
+- excluir automatización en juegos ligados a SteamID/cifrado por cuenta;
+- coordinarse cuidadosamente con Steam Cloud para evitar restauraciones o uploads incorrectos.
+
+## Logging y diagnóstico
+
+El cliente escribe un log narrativo pensado también para diagnóstico humano:
 
 ```text
 %LOCALAPPDATA%\GameAccess\logs\gameaccess.log
 ```
 
-It narrates front-end startup, resolved backend URL, catalog mode, remembered personal Steam accounts, local visibility vs. ownership-candidate counts, the exact rule used for each game's availability decision, GameAccess server license counts, account switching, game launch routing, and download state changes. Passwords and Steam authentication material are never written.
+Los errores técnicos importantes se reportan al backend mediante el canal de errores del cliente.
 
-`build-and-run.ps1` also copies the generic live-tail helper to `C:\SebaSU_Tools\tail.ps1` and `tail.cmd` when that folder is writable. Example:
+Nunca deben escribirse:
 
-```powershell
-C:\SebaSU_Tools\tail.ps1 "$env:LOCALAPPDATA\GameAccess\logs\gameaccess.log"
+- contraseñas;
+- bearer tokens;
+- activation keys;
+- session tokens;
+- material criptográfico de transporte;
+- credenciales Steam completas.
+
+Toda denegación/liberación relevante del backend debe registrar una razón concreta y, cuando corresponda, `installation_id`, AppID/game, lease y cuenta.
+
+## Arquitectura actual
+
+```text
+Cliente Windows
+┌─────────────────────────────────────────────┐
+│ Game Access / Tauri                         │
+│ React + Vite                                │
+│                                             │
+│ - activación                                │
+│ - catálogo                                  │
+│ - descarga                                  │
+│ - Play                                      │
+│ - transporte cifrado de credenciales        │
+│ - integración local con Steam               │
+└───────────────────┬─────────────────────────┘
+                    │ HTTPS
+                    ▼
+Backend central / FastAPI
+┌─────────────────────────────────────────────┐
+│ - activaciones + installation_id            │
+│ - catálogo                                  │
+│ - inventario de cuentas                     │
+│ - leases                                    │
+│ - presencia Steam                           │
+│ - audit/access events                       │
+│ - errores cliente                           │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+Steam Web API / Steam services
 ```
 
-## Build and run the Windows app
+### `apps/api`
 
-Run `powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1` from the repository root (Node/npm, Rust, Python 3 and Tauri Windows build prerequisites must be installed).
-The script now validates **both halves of the product**: it prepares the FastAPI virtual environment when necessary, installs server requirements when they change, compiles/import-checks `apps/api`, then builds the production Tauri executable, replaces `GameAccess-latest.exe` in the root and opens it. Steam, games and download workers are not stopped.
+Backend central FastAPI. Actualmente contiene:
 
-Use `-Server` to additionally start/restart the local FastAPI server on `http://127.0.0.1:38147` and build the desktop with that local endpoint pinned for the run:
+- activación y sesiones por instalación;
+- catálogo/metadata;
+- cuentas proveedoras y ownership conocido;
+- leases;
+- monitor de presencia Steam;
+- audit events;
+- endpoints de transporte de credenciales;
+- sincronización administrativa;
+- prototipos históricos de créditos/Family que no gobiernan el flujo actual.
+
+El backend de producción/desarrollo remoto debe ser independiente del cliente. El cliente no requiere que el usuario ejecute manualmente un FastAPI local.
+
+### `apps/desktop`
+
+Aplicación Windows de usuario:
+
+- React/Vite;
+- Tauri 2;
+- catálogo;
+- activation gate;
+- Play/Download;
+- polling de estado de lease;
+- mensajes de expiración/inactividad;
+- login Steam en contexto local;
+- runtime Python embebido para las tareas que todavía lo necesitan.
+
+La ventana principal está configurada como ventana redimensionable, no fullscreen.
+
+### `apps/launcher`
+
+Harness/herramientas anteriores y runtime Python de apoyo para experimentos Steam, scans, ownership y downloads.
+
+No es la interfaz de usuario final.
+
+## Backend remoto y configuración del cliente
+
+El frontend empaquetado lee:
+
+```text
+apps/desktop/public/gameaccess.settings.json
+```
+
+La configuración actual usa un resolver estable:
+
+```json
+{
+  "api_url": "",
+  "api_url_resolver": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/apps/desktop/public/backend-pointer.json",
+  "catalog_manifest_url": "https://api.github.com/repos/sebasu66/gameAccess/contents/deploy/catalog-cache/catalog-manifest.json?ref=dev"
+}
+```
+
+Esto permite cambiar el backend remoto mediante `backend-pointer.json` sin recompilar el cliente.
+
+Un build con `build-and-run.ps1 -Server` puede fijarse explícitamente a la API local para desarrollo.
+
+## Build del cliente
+
+### EXE rápido de desarrollo
+
+Desde la raíz:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1
+```
+
+El script:
+
+- valida/importa el backend FastAPI;
+- prepara dependencias cuando hacen falta;
+- genera un timestamp UTC de build;
+- compila Tauri en release;
+- reemplaza `GameAccess-latest.exe` de forma atómica;
+- calcula SHA256;
+- no cierra Steam, juegos ni workers de descarga.
+
+Con servidor local:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1 -Server
 ```
 
-`-ServerPort 38147` changes the local development port. `-NoRun` builds/validates both server and client without starting either process. Build failure preserves the previous root executable and returns a nonzero exit code.
+Solo build/validación:
 
-The title bar shows **Build: [UTC timestamp]**, embedded during compilation, not the launch time. The executable name and product version stay unchanged. The script prints the final SHA256 hash. No installer is built.
-
-### Frontend backend settings
-
-The packaged frontend reads `apps/desktop/public/gameaccess.settings.json`. It supports either a direct backend or a stable resolver/pointer:
-
-```json
-{
-  "api_url": "https://current-backend.onrender.com",
-  "api_url_resolver": ""
-}
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-and-run.ps1 -NoRun
 ```
 
-For a backend whose Render/host URL may change, leave `api_url` empty and point `api_url_resolver` at a stable HTTPS file/page, for example a JSON file served from GitHub/Pages or `raw.githubusercontent.com`:
+### Instalador NSIS
 
-```json
-{
-  "api_url": "",
-  "api_url_resolver": "https://example.github.io/gameaccess/backend.json"
-}
+Desde `apps/desktop`:
+
+```powershell
+$env:VITE_BUILD_TIMESTAMP = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+npm run tauri -- build
 ```
 
-The stable file can contain `{ "api_url": "https://new-service.onrender.com" }`, a plain-text HTTPS URL, or an HTML meta-refresh target. The desktop resolves it once at startup, so changing only that small hosted pointer can move clients to a new backend without rebuilding the Windows application. A real HTTP 3xx redirect is also followed. Remote API and resolver URLs must use HTTPS; loopback `http://127.0.0.1`/`localhost` remains allowed for local development. `VITE_GAMEACCESS_API` remains the highest-priority build-time override and is what `build-and-run.ps1 -Server` uses.
-
-> **Project status / handoff document**  
-> Last reviewed: 2026-08-28
-
-`gameAccess` is an experimental PC-game access platform whose goal is to make temporary or alternative access to games feel like using **Netflix, Xbox Game Pass, or GeForce NOW**, rather than buying, receiving, or manually managing provider accounts.
-
-The customer-facing abstraction is the **game**. Provider accounts, license pools, suppliers, leases, Steam identities, fulfillment mechanisms, and eventually cloud capacity should remain implementation details behind the product.
-
-This repository is currently an **MVP / technical and business validation project**, not a production service.
-
-## Product intent
-
-The target customer experience is one Windows executable (`gameAccess.exe`) connected over HTTPS to a central hosted gameAccess backend. The customer must not need to run a separate local API/server process. React/Vite may remain the UI implementation inside Tauri, while machine-local Steam/process/filesystem behavior belongs in the native desktop layer.
-
-The central backend is authoritative for shared state: customers, wallet/fichas, provider profiles, licenses/entitlements, availability, queues, leases/sessions, catalog, telemetry and later payments. A web administration application uses the same backend and data model.
+Tauri genera el instalador en:
 
 ```text
-Customer PC                              Hosted gameAccess
-┌──────────────────────────────┐         ┌──────────────────────────────┐
-│ gameAccess.exe               │ HTTPS   │ Central backend             │
-│ React UI + Tauri/native      ├────────>│ accounts/licenses/leases    │
-│ Steam/local adapters         │         │ queues/wallet/catalog       │
-└──────────────────────────────┘         └──────────────┬───────────────┘
-                                                       │
-                                                Admin web app
+apps/desktop/src-tauri/target/release/bundle/nsis/gameAccess_0.1.0_x64-setup.exe
 ```
 
-## Unified Steam + gameAccess experience
+El bundle incluye:
 
-The desktop application should make gameAccess feel like an extension of the user's existing PC-game library rather than a separate account marketplace.
+- frontend compilado;
+- binario Tauri;
+- runtime Python embebido;
+- runtime/launcher;
+- catálogo empaquetado configurado como recurso;
+- bootstrapper de WebView2 cuando sea necesario.
 
-At startup it should discover the Steam users/accounts already present on the machine and determine, as reliably as supported interfaces/local metadata allow, which games are installed/owned/available through those accounts. Multiple local Steam accounts should be represented in one game-centric catalog.
+No deben committearse instaladores, EXEs de release, secrets ni artefactos de `target`.
 
-For every game the UI should clearly distinguish the access source while keeping the workflow simple:
+## Instalador de prueba actual
 
-1. **Owned / local access** — the user already owns the game through one of their Steam accounts. Launch normally using the appropriate local identity.
-2. **Buy on Steam** — for an unowned game, offer the normal Steam Store purchase route and leave the gameAccess commercial flow.
-3. **gameAccess shared access** — spend fichas/tokens for temporary access, initially envisioned as time-based access where appropriate.
-4. **Dedicated/private access** — where commercially and contractually viable, offer dedicated inventory rather than waiting for shared capacity.
-
-The ficha balance remains persistently visible. Subscription economics, recurring plans and exact token packages are intentionally deferred until the core access flow is validated.
-
-## Availability and waiting queue
-
-Shared inventory is finite. When a gameAccess copy is available, the normal action is **PLAY**. When all compatible capacity is occupied, the user should be able to **JOIN WAITLIST** rather than repeatedly retrying.
-
-The central backend owns queue order and reservations. When capacity becomes available, the next eligible user receives a desktop notification with a direct **PLAY NOW** action and a bounded reservation window; if it expires, capacity can move to the next user.
-
-The waiting state is also a high-value demand signal and should feed procurement analytics.
-
-A user waiting for a game may also be shown a separate **GET PRIVATE ACCESS / SKIP THE WAIT** offer when dedicated inventory can legitimately be sourced. This must remain a distinct entitlement/product type from a temporary shared lease.
-
-## Steam Families research direction
-
-A usability hypothesis is to reduce account switching by using **Steam Families** where Valve's rules genuinely permit it: a user's primary account could access shareable games owned by another eligible family member while retaining their own saves/achievements/account experience.
-
-This is **research, not an assumed fulfillment mechanism**. Steam Families is a Valve feature intended for a family/household context, has membership/eligibility restrictions, and individual games may opt out of Family Sharing. gameAccess must validate current Steam rules and technical behavior before depending on it. It must not manufacture or rotate families merely to circumvent account, regional, licensing, household or sharing restrictions.
-
-## Steam store country / Argentina — important constraint
-
-Do **not** implement an automatic "change this Steam account to Argentina" function as a gameAccess provisioning shortcut.
-
-Valve's current Steam Support rules state that the store country must correspond to where the account holder currently resides, and changing it after moving requires completing a purchase with a payment method from the new country. Steam currently limits changing store country to once every three months. This is therefore not simply an editable profile field that gameAccess should programmatically force, and there is no documented Steamworks API intended for a third-party launcher to arbitrarily set a consumer account's store country.
-
-GameAccess may detect/display relevant regional compatibility and guide a legitimate user through Steam's own supported flow when they actually qualify, but regional manipulation must not become part of automated account provisioning.
-
-## Business goal
-
-The project is designed around capital-light validation. Before investing in broad inventory or owned GPU/cloud infrastructure, prove demand, reliable fulfillment and unit economics.
-
-Potential revenue mechanisms include wallet top-ups, temporary access, recurring membership, trials/promotions and later additional fulfillment methods such as cloud gaming.
-
-A strategic feature is **demand sensing**: searches, installs, Play attempts, waitlist joins, blocked demand, occupancy and repeat demand should tell the operator what inventory is worth acquiring.
-
-See [`docs/PRODUCT_PLAN.md`](docs/PRODUCT_PLAN.md) for the detailed commercial model.
-
-## Procurement / market-offer module
-
-Build sourcing as a standalone backend module rather than coupling it to the Windows launcher. The initial research target is G2G or other permitted suppliers.
-
-Conceptual pipeline:
+Build generado el **2026-10-01** para validar los últimos cambios de leases/presencia/credenciales:
 
 ```text
-game title
--> supplier search/discovery
--> normalize candidate offers
--> extract structured account/game facts
--> filter/rank viable low-cost offers
--> compare with Steam Argentina reference price
--> apply risk + margin + pricing rules
--> optional LLM Spanish presentation text
--> admin review / gameAccess offer / external-channel candidate
+C:\DEV\Game Access Dev\GameAccess-v0.1.0-Installer-2026-10-01.exe
 ```
 
-Structured facts and prices must be extracted and validated deterministically where possible. An LLM may translate/summarize verified facts into customer-readable Spanish, but must not invent ownership, transferability, included games, guarantees or price facts.
-
-Pricing should maximize sustainable contribution margin while remaining meaningfully competitive with the relevant legitimate purchase alternative. Supplier/platform terms and account-transfer rules must be checked before automating purchasing, resale or external marketplace publication.
-
-## Repository architecture
+SHA256:
 
 ```text
-gameAccess/
-├─ apps/
-│  ├─ api/       prototype backend; evolves into hosted central service
-│  ├─ desktop/   React + Vite + Tauri 2 Windows customer application
-│  └─ launcher/  earlier Windows/Tkinter experimental harness
-├─ docs/
-│  ├─ PRODUCT_PLAN.md
-│  └─ architecture.md
-├─ TODO.md       centralized prioritized implementation queue
-├─ skill.md      accumulated implementation/research knowledge
-└─ README.md     project direction + current handoff/status
+33027A3616D90639A025E79942C87F966A6A7E3674FC9D90D6D7201F873011E5
 ```
 
-### `apps/api`
+Build stamp embebido:
 
-Current responsibilities include catalog, Steam Store metadata/cache, credits prototype, provider-account inventory, availability, timed leases and administrative inventory synchronization. In production this is a **hosted service**, not a companion localhost process for the desktop app.
-
-### `apps/desktop`
-
-The intended consumer product. React/Vite/Tauri provides the streaming-style catalog and native Windows integration. It should ultimately ship as a normal Windows executable/installer with no separately managed local backend.
-
-### `apps/launcher`
-
-Earlier experimental Windows harness used to validate Steam/session/account-selection behavior. Useful findings should migrate behind proper native adapters; this is not the intended final UI.
-
-## Current state — 2026-08-28
-
-### Present/prototyped
-
-- FastAPI + SQLite backend prototype.
-- Game catalog and Steam metadata adapter/cache.
-- Provider account/inventory model.
-- Availability and timed lease mechanics.
-- React/Vite/Tauri desktop application and streaming-style catalog.
-- Basic wallet/fichas concepts.
-- PLAY / DOWNLOAD UI actions.
-- Experimental local Windows Steam launcher/session work.
-- Product/business and architecture documentation.
-
-### Still to prove/build
-
-- Single packaged Windows application with local API dependency removed.
-- Discovery/unification of multiple local Steam identities and owned libraries.
-- Clear Owned / Buy on Steam / gameAccess access states.
-- Central hosted backend reachable across the Internet.
-- Queue/reservation/notification lifecycle.
-- End-to-end reliable provider session lifecycle and cleanup.
-- Per-game compatibility matrix and save continuity.
-- Production authentication and immutable wallet ledger.
-- Payments/subscriptions/trials.
-- Demand telemetry and procurement engine.
-- Admin web application.
-- Supplier integration and offer normalization.
-- Production-grade security/revocation.
-- Cloud fulfillment.
-
-**The next stage is an Internet-connected live-development system, not production:** packaged Windows client + hosted development backend + lightweight test persistence + admin web UI. The API contract should survive the later migration to production persistence/hosting.
-
-## Immediate development priorities
-
-`TODO.md` is the authoritative prioritized work queue. At a high level the sequence is:
-
-1. Prove constraints that could invalidate fulfillment assumptions (Steam regional rules, Families applicability, session behavior).
-2. Convert the desktop into a self-contained Windows application and separate local/native responsibilities from remote/shared responsibilities.
-3. Implement local Steam-account/library discovery and unified access-state UX.
-4. Harden the central entitlement allocator and implement waitlists/reservations.
-5. Put the backend on a stable Internet-accessible development environment and add the admin UI.
-6. Prove one complete real Play -> cleanup -> lease-release lifecycle.
-7. Add demand telemetry and the standalone sourcing/pricing module.
-8. Harden wallet/payments only after access mechanics and economics are demonstrated.
-
-## Product/architecture rules
-
-- The customer interacts with **games**, not raw provider accounts.
-- One customer-facing Windows executable; no separately managed localhost server in production.
-- Shared truth, money, scarce resources and authorization live on the central backend.
-- Windows/Steam/process/filesystem operations live in the desktop/native layer.
-- Admin tooling uses the same backend, not a parallel data model.
-- Owned/local access and paid gameAccess access must always be distinguishable to the customer.
-- Download/preparation and entitlement are separate concepts.
-- A SteamID is identity, not proof of ownership/license.
-- Do not bypass Steam DRM, fabricate entitlements, collect Steam Guard secrets as a shortcut, manipulate regions, or rely on sharing mechanisms outside their permitted use.
-- Customer machines are untrusted endpoints.
-- Inventory acquisition follows demonstrated demand/economics.
-- The legacy Tkinter launcher is an experimental harness only.
-
-## Development quick start
-
-Desktop/Vite:
-
-```bash
-cd apps/desktop
-npm install
-npm run dev
+```text
+2026-10-02T01:57:02.780Z
 ```
 
-Tauri:
+El cambio de fecha entre nombre local y timestamp UTC es normal: la build se generó el 1 de octubre por la noche en Argentina y ya era 2 de octubre UTC.
 
-```bash
-cd apps/desktop
-npm install
-npm run tauri dev
+## Validación reciente
+
+Snapshot de pruebas previo a este README:
+
+- backend completo: **57 passed**;
+- launcher completo: **64 passed**;
+- Rust login/presencia de resultado: **3 passed**;
+- tests dirigidos desktop de lease/activación/credencial: **8 passed**;
+- `cargo check`: OK;
+- TypeScript: OK;
+- Vite production build: OK;
+- Tauri release + NSIS: OK.
+
+Los warnings actuales de backend son deprecaciones de FastAPI/Starlette y no fallos funcionales.
+
+## Seguridad y transporte de credenciales
+
+Las credenciales de cuentas proveedoras permanecen en infraestructura controlada por Game Access y no se distribuye un CSV de cuentas al cliente.
+
+Para Play/Download:
+
+- el cliente solicita la credencial correspondiente a la operación autorizada;
+- el backend verifica activación, lease/identidad cuando aplica y acceso al AppID;
+- la credencial se entrega mediante el transporte cifrado implementado;
+- Tauri la utiliza localmente para el login Steam;
+- Game Access no la persiste como roster local del cliente;
+- el backend nunca debe entregar credenciales de una lease perteneciente a otro `installation_id`.
+
+Las contraseñas no deben aparecer en logs, UI diagnóstica ni reportes de error.
+
+## Catálogo
+
+Reglas actuales:
+
+- incluir juegos reales conocidos por las cuentas proveedoras;
+- excluir DLC/tools/software/soundtracks y otros tipos no-juego cuando están clasificados;
+- no destruir ownership válido por un fallo transitorio de otro scan;
+- metadata pendiente puede resolverse incrementalmente;
+- el catálogo empaquetado/cacheado es una optimización de UX, no una fuente de nuevas licencias;
+- todas las bibliotecas Steam configuradas en el PC deben ser consideradas para instalación/detección local.
+
+## Plataforma Steam
+
+Game Access debe usar Steam y sus interfaces como autoridad final. No se debe diseñar alrededor de modificar `steam_api64.dll`, fabricar ownership ni eludir DRM.
+
+Tampoco se debe automatizar el cambio arbitrario de store country. La región de una cuenta debe seguir los mecanismos soportados por Steam y la situación real del titular.
+
+## Funcionalidades pendientes principales
+
+La cola autoritativa está en `TODO.md`. Entre los pendientes actuales destacan:
+
+- prueba end-to-end del nuevo flujo de lease/presencia con el instalador recién generado;
+- nueva animación del logo/splash;
+- web pública de Game Access con descarga del instalador;
+- continuidad/unificación de partidas guardadas por usuario + juego;
+- detección AFK local con confirmación antes de liberar capacidad;
+- validación de instalación limpia;
+- consolidación final de catálogo/artwork;
+- flujo Linkvertise;
+- publicación/update strategy del cliente.
+
+## Archivos clave
+
+```text
+README.md                              reglas y arquitectura vigente
+TODO.md                                trabajo pendiente
+skill.md                               conocimiento técnico acumulado
+render.yaml                            declaración de entorno/deploy backend
+apps/api/app/main.py                   API central
+apps/api/app/family_capacity.py        metadata Family + selector simple actual
+apps/api/app/steam_presence.py         consulta de presencia Steam
+apps/api/app/pool_routes.py            sync de roster/inventario
+apps/desktop/src/api.ts                API del cliente
+apps/desktop/src/leaseLifecycle.ts     observación de lease server-side
+apps/desktop/src/native.ts             operaciones nativas/download
+apps/desktop/src/ActivationGate.tsx    activación y expiración
+apps/desktop/src-tauri/src/steam_session.rs
+                                       login/session Steam local
+apps/launcher/provider_account_onboard.py
+                                       alta/repair de cuentas proveedoras
 ```
 
-Prototype API:
+## Principios de mantenimiento
 
-```bash
-cd apps/api
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-The localhost API is a **development convenience only**. Production/live-test desktop builds should target the configured hosted backend.
-
-## Documentation map
-
-Read in this order when taking over the project:
-
-1. `README.md` — direction, architecture and handoff.
-2. `TODO.md` — authoritative next work, priority ordered.
-3. `docs/PRODUCT_PLAN.md` — detailed product/business model.
-4. `docs/architecture.md` — technical boundaries.
-5. `skill.md` — living Steam/session implementation research.
-
-Update `skill.md` when technical Steam/session facts change. Update this README when product direction or implementation status changes. Keep `TODO.md` current whenever work is completed, reprioritized or newly discovered.
-
-## Handoff summary
-
-**What are we building?** A game-centric Windows application that combines the user's existing Steam access with clearly labeled optional paid gameAccess fulfillment.
-
-**What is the architecture?** One native desktop product connected to a hosted central backend, plus an operator web application using that same backend.
-
-**What is the next milestone?** A live-development environment where a packaged Windows client discovers local Steam access, communicates with the hosted allocator, shows Owned/Steam/gameAccess choices, can queue for scarce capacity, and completes one reliable real-game session lifecycle.
-
-**What should not happen next?** Do not prematurely add production payments, buy broad inventory, assume Steam Families can be used as a generic fulfillment mechanism, or attempt automated Steam-region changes.
-
+- inspeccionar código real antes de modificar arquitectura;
+- no resetear/limpiar cambios locales del usuario;
+- Git es el historial: no conservar implementaciones runtime contradictorias solo “por si acaso”;
+- no introducir nuevas restricciones a Play/Download sin evidencia concreta;
+- unknown nunca debe convertirse silenciosamente en inactive;
+- `InvalidPassword` requiere evidencia explícita;
+- una identidad Steam no puede multiplicarse por duplicados de base/CSV;
+- liberar una lease central nunca implica cerrar la sesión local;
+- cambios que afecten al jugador deben tener mensaje claro + razón técnica auditable;
+- mantener `TODO.md` limpio: tareas terminadas u obsoletas se eliminan después de registrar evidencia.
 
 ## Desktop detail layout contract (2026-09-08)
 
