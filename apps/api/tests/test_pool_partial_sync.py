@@ -187,3 +187,58 @@ def test_busy_scan_preserves_valid_account_and_ownership(tmp_path) -> None:
         assert refreshed.status == core.AccountStatus.free
         notes = json.loads(refreshed.notes)
         assert notes["disabled_by_inventory_scan"] is False
+
+
+def test_explicit_invalid_password_disables_then_valid_scan_reactivates(tmp_path) -> None:
+    engine = _make_session(tmp_path)
+    with Session(engine) as session:
+        game = core.Game(slug="credential-game", name="Credential Game", app_id=999, active=True)
+        account = core.ProviderAccount(
+            label="credential-provider",
+            provider="steam",
+            status=core.AccountStatus.free,
+        )
+        session.add_all([game, account])
+        session.commit()
+        session.refresh(game)
+        session.refresh(account)
+        session.add(core.AccountGame(account_id=account.id, game_id=game.id))
+        session.commit()
+
+        req = PoolSyncInput(
+            source="steamkit-license-list-pics",
+            verification_complete=False,
+            accounts=[],
+            games=[],
+        )
+        invalid = PoolAccountInput(
+            label="credential-provider",
+            app_ids=[],
+            accessible_app_ids=[999],
+            inventory_complete=False,
+            scan_status="authentication_error",
+            scan_error="InvalidPassword",
+        )
+        _sync_account(req, invalid, {999: game}, session)
+
+        session.refresh(account)
+        notes = json.loads(account.notes)
+        assert account.status == core.AccountStatus.disabled
+        assert notes["credential_status"] == "invalid_password"
+        assert notes["credential_error"] == "InvalidPassword"
+
+        recovered = PoolAccountInput(
+            label="credential-provider",
+            app_ids=[999],
+            accessible_app_ids=[999],
+            ownership_source="steamkit-license-list-pics",
+            inventory_complete=True,
+            scan_status="ok",
+        )
+        _sync_account(req, recovered, {999: game}, session)
+
+        session.refresh(account)
+        notes = json.loads(account.notes)
+        assert account.status == core.AccountStatus.free
+        assert notes["credential_status"] == "valid"
+        assert notes["credential_error"] is None
