@@ -12,7 +12,15 @@ def _make_session(tmp_path):
         connect_args={"check_same_thread": False},
     )
     SQLModel.metadata.create_all(engine)
+    core.ensure_catalog_schema(engine)
     return engine
+
+
+def _mark_game(session: Session, game: core.Game) -> None:
+    session.connection().exec_driver_sql(
+        "INSERT INTO game_metadata (game_id, product_type, updated_at) VALUES (?, 'game', ?)",
+        (game.id, core.now_utc().isoformat()),
+    )
 
 
 def _seed_example(session: Session):
@@ -34,6 +42,8 @@ def _seed_example(session: Session):
     session.commit()
     for row in [*games.values(), *accounts.values()]:
         session.refresh(row)
+    for game in games.values():
+        _mark_game(session, game)
 
     capacity.replace_family_graph(
         session,
@@ -128,6 +138,7 @@ def test_demand_value_increases_and_is_bounded(tmp_path) -> None:
         session.add(game)
         session.commit()
         session.refresh(game)
+        _mark_game(session, game)
         assert capacity.demand_fields(session, int(game.id))["demand_value"] == 1.0
 
         for _ in range(100):
@@ -157,6 +168,7 @@ def test_family_member_without_verified_access_is_not_a_launch_candidate(tmp_pat
         session.commit()
         for row in (game, owner, child):
             session.refresh(row)
+        _mark_game(session, game)
 
         capacity.replace_family_graph(
             session,
@@ -202,6 +214,7 @@ def test_direct_owner_without_current_access_is_not_assigned(tmp_path) -> None:
         session.commit()
         for row in (game, owner, usable):
             session.refresh(row)
+        _mark_game(session, game)
         capacity.replace_family_graph(
             session,
             [{
@@ -229,6 +242,7 @@ def test_no_currently_accessible_member_makes_family_copy_unavailable(tmp_path) 
         session.commit()
         session.refresh(game)
         session.refresh(owner)
+        _mark_game(session, game)
         capacity.replace_family_graph(
             session,
             [{
@@ -256,12 +270,13 @@ def test_game_without_family_copy_uses_verified_owner_when_other_families_exist(
         session.add(game)
         session.commit()
         session.refresh(game)
+        _mark_game(session, game)
         session.add(core.AccountGame(account_id=accounts["X"].id, game_id=game.id))
         session.commit()
 
         selection = capacity.select_best_account(session, game)
         assert selection is not None
-        assert selection["mode"] == "legacy-account-fallback"
+        assert selection["mode"] == "verified-access"
         assert selection["account"].id == accounts["X"].id
         assert capacity.game_capacity(session, game) == (1, 1)
         metrics = capacity.catalog_metrics(session, {int(game.id)})[int(game.id)]
