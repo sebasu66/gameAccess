@@ -83,6 +83,11 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Build frontend assets required by Tauri
         run: npm run build
+      - name: Prepare Tauri resource directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "runtime/launcher", "runtime/python" -Force | Out-Null
+          New-Item -ItemType Directory -Path "../../deploy/catalog-cache" -Force | Out-Null
       - name: Run Steam provider login regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml provider_login_tests --quiet
 
