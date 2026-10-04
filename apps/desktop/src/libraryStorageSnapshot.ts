@@ -10,7 +10,7 @@ export function applyInstalledSnapshot(current: Record<number, ManagedDownloadSt
   }
   for (const id of ids) {
     const state = gameStateManager.resolve(current[id]);
-    if (state.transferActive || state.storageBusy || state.frozen || state.prepared) continue;
+    if (state.transferActive || state.prepared) continue;
     next[id] = { ...current[id], app_id: id, state: "installed", installed: true, progress: 100, bytes_downloaded: current[id]?.bytes_downloaded ?? null, bytes_total: current[id]?.bytes_total ?? null };
   }
   return next;

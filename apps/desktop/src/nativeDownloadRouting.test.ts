@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
+vi.mock("./settings", () => ({ getApiBaseUrl: vi.fn(async () => "https://gameaccess-api.example.test") }));
+
 import { invoke } from "@tauri-apps/api/core";
 import { openSteamInstall } from "./native";
 
@@ -62,7 +64,7 @@ describe("Steam download routing", () => {
     await openSteamInstall(222);
 
     expect(invokeMock).toHaveBeenCalledWith("register_download_job", { appId: 222, jobId: expect.stringMatching(/^ui-222-/) });
-    expect(invokeMock).toHaveBeenCalledWith("start_provider_download", { appId: 222, jobId: "job-222" });
+    expect(invokeMock).toHaveBeenCalledWith("start_provider_download", { appId: 222, jobId: "job-222", apiBaseUrl: "https://gameaccess-api.example.test" });
     expect(invokeMock).not.toHaveBeenCalledWith("local_steam_pool");
     expect(invokeMock).not.toHaveBeenCalledWith("open_steam_install", expect.anything());
   });

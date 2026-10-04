@@ -1,0 +1,9 @@
+{
+  "sources": [
+    {
+      "url": "sources/community_sources.json",
+      "label": "Servidor Recomendado",
+      "enabled": true
+    }
+  ]
+}

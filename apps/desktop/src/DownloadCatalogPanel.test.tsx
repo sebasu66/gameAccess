@@ -29,7 +29,7 @@ describe("DownloadCatalogPanel grid contract", () => {
     expect(markup).not.toContain("aria-label=\"Jugar Installed\"");
   });
 
-  it("shows a ready frozen marker and its restore-on-play tooltip", () => {
+  it("does not show a ready marker for a legacy frozen game", () => {
     const markup = renderToStaticMarkup(
       <DownloadCatalogPanel
         games={[game]}
@@ -41,9 +41,8 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).toContain("library-install-state ready frozen");
-    expect(markup).toContain("Juego congelado · compactado para ahorrar espacio");
-    expect(markup).toContain("juego congelado");
+    expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("congelado");
   });
 
   it("uses local file readiness even when no shared copy is available", () => {

@@ -117,7 +117,6 @@ def test_pool_seeds_catalog_from_verified_steamkit_ownership(monkeypatch) -> Non
             "matched_identity_count": 1,
             "missing_identity_count": 0,
             "missing_provider_ids": [],
-            "all_provider_remember_false": False,
             "candidate_app_count": 1,
             "accessible_unique_app_count": 0,
         }
@@ -128,6 +127,10 @@ def test_pool_seeds_catalog_from_verified_steamkit_ownership(monkeypatch) -> Non
     pool = pool_sync.build_game_pool()
 
     assert observed_candidates == {app_id}
+    # A provider registered in GameAccess stays a provider even when Steam also
+    # remembers that account locally. Remembered/local status is not taxonomy.
+    assert pool["account_count"] == 1
+    assert pool["accounts"][0]["provider_id"] == "provider-001"
     assert pool["licenses"] == {str(app_id): ["provider-001"]}
     assert [game["app_id"] for game in pool["games"]] == [app_id]
     assert pool["accounts"][0]["accessible_app_ids"] == []

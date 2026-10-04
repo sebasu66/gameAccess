@@ -1,0 +1,106 @@
+name: Game Access core regression
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-core:
+    name: api-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/launcher/requirements.txt
+      - name: Install API test dependencies
+        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest
+      - name: Run complete API regression suite
+        env:
+          PYTHONPATH: apps/api
+        run: pytest -q apps/api/tests
+
+  desktop-core:
+    name: desktop-core
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install desktop dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run critical activation and lease regressions
+        run: npx vitest run src/leaseGuard.test.ts src/activationExpiry.test.ts src/providerCredentialPolicy.test.ts
+      - name: Type-check desktop
+        run: npx tsc --noEmit
+
+  launcher-core:
+    name: launcher-core
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install launcher dependencies
+        run: pip install -r apps/launcher/requirements.txt pytest
+      - name: Run launcher regression suite
+        env:
+          PYTHONPATH: apps/launcher
+        run: python -m pytest -q apps/launcher/tests
+
+  native-login-core:
+    name: native-login-core
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install desktop dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build frontend assets required by Tauri
+        run: npm run build
+      - name: Run Steam provider login regressions
+        run: cargo test --manifest-path src-tauri/Cargo.toml provider_login_tests --quiet
+
+  core-regression:
+    name: core-regression
+    if: always()
+    needs: [api-core, desktop-core, launcher-core, native-login-core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every core lane to pass
+        env:
+          API: ${{ needs.api-core.result }}
+          DESKTOP: ${{ needs.desktop-core.result }}
+          LAUNCHER: ${{ needs.launcher-core.result }}
+          NATIVE: ${{ needs.native-login-core.result }}
+        run: |
+          echo "api=$API desktop=$DESKTOP launcher=$LAUNCHER native=$NATIVE"
+          test "$API" = success
+          test "$DESKTOP" = success
+          test "$LAUNCHER" = success
+          test "$NATIVE" = success

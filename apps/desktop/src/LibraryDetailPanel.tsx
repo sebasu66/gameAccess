@@ -17,7 +17,9 @@ import {
   removeFailedDetailImage,
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
+import { getCatalogMode } from "./catalogMode";
 import { downloadManager } from "./downloadManager";
+import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
@@ -367,7 +369,7 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
     ["Género", compactValue(steam?.genres)],
     ["Funciones Steam", compactValue(steam?.categories, 4)],
     ["Desarrollador", compactValue(steam?.developers, 2)],
-    ["Publisher", compactValue(steam?.publishers, 2)],
+    ["Editor", compactValue(steam?.publishers, 2)],
     ["Lanzamiento", steam?.release_date || "No informado"],
     ["Plataformas", platforms(details)],
   ];
@@ -375,15 +377,8 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
 }
 
 function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus }) {
-  if (!downloadManager.isTracked(download)) return null;
-  const rows = [
-    download?.bytes_total != null ? ["Tamaño", downloadManager.formatBytes(download.bytes_total)] : null,
-    download?.bytes_downloaded != null ? ["Descargado", downloadManager.formatBytes(download.bytes_downloaded)] : null,
-    download?.speed_bps != null ? ["Velocidad", downloadManager.formatSpeed(download.speed_bps)] : null,
-    download?.eta_seconds != null ? ["Tiempo restante", downloadManager.formatEta(download.eta_seconds)] : null,
-  ].filter((row): row is string[] => Boolean(row));
-  const progress = downloadManager.progress(download);
-  return <div className="library-room-active-download">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
+  if (!download || (!downloadManager.isTracked(download) && !download.progress && !download.statusText)) return null;
+  return <GenericDownloadProgressView download={download} />;
 }
 
 function ExtendedDetails({ details }: { details: GameDetails | null }) {
@@ -410,8 +405,8 @@ function DesktopFeature(props: FeaturePanelProps) {
     <aside className="library-room-feature">
       <section className="library-detail-essential" aria-label="Resumen esencial del juego">
         <DesktopDetailMedia game={props.game} details={details} />
-        <section className="library-room-first-row" aria-label="First row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
-        <section className="library-room-second-row" aria-label="Second row"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
+        <section className="library-room-first-row" aria-label="Fila principal"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
+        <section className="library-room-second-row" aria-label="Fila secundaria"><SteamFacts details={details} />{getCatalogMode() === "gameaccess" ? <div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div> : null}<ActiveDownloadFacts download={props.download} /></section>
       </section>
       <ExtendedDetails details={details} />
     </aside>

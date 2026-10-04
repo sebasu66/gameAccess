@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { loadDetails } from "./api";
+import { useI18n } from "./i18n";
 import type { GameDetails } from "./types";
 
 export type LibrarySurfaceMode = "desktop" | "tablet" | "display";
@@ -36,6 +37,7 @@ export interface SelectedGameDetailsState {
 
 export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): SelectedGameDetailsState {
   const { surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen } = input;
+  const { locale } = useI18n();
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
         if (requestTokenRef.current === token) setLoading(false);
       });
     return () => { ++requestTokenRef.current; };
-  }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen]);
+  }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen, locale]);
 
   return {
     details: detailsGameId === selectedGameId ? details : null,

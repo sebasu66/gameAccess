@@ -31,10 +31,10 @@ describe("detail Play state", () => {
     expect(source).not.toContain("const installed = download?.state === \"installed\"");
   });
 
-  it("labels terminal storage states without offering another download", () => {
+  it("labels prepared state and keeps download blocked only by ready or active transfer", () => {
     expect(source).toContain("function downloadActionLabel");
     expect(source).toContain("if (state.prepared) return \"Preparado\";");
-    expect(source).toContain("if (state.frozen) return \"Congelado\";");
-    expect(source).toContain("downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy");
+    expect(source).not.toContain("Congelado");
+    expect(source).toContain("downloadBlocked: localState.playButtonReady || localState.transferActive");
   });
 });

@@ -95,6 +95,11 @@ try {
     Get-Command cargo -ErrorAction Stop | Out-Null
 
     Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
+    if ($Server) {
+        Write-Host "Stopping any existing local GameAccess server on port $ServerPort before rebuild..."
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort -StopOnly
+        if ($LASTEXITCODE -ne 0) { throw "Could not stop the local server before rebuild (exit $LASTEXITCODE)." }
+    }
     Write-Host "Preparing GameAccess server build: $buildTimestamp"
     $serverRequirementsHash = Ensure-ServerBuild
     Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"

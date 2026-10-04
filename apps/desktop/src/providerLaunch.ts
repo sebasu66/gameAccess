@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { prepareFrozenGameForPlay } from "./gameStorage";
 import { narrate } from "./narrationLog";
 import { hasTauriRuntime, type SteamSessionStatus } from "./native";
 
@@ -14,7 +13,6 @@ export async function openProviderSteamRun(appId: number, providerLabel: string)
   if (!providerLabel.trim()) throw new Error("La reserva no tiene una cuenta proveedora asociada.");
   if (!hasTauriRuntime()) throw new Error("Las sesiones proveedoras de GameAccess requieren la aplicación de escritorio.");
 
-  await prepareFrozenGameForPlay(appId);
   await narrate(
     `Launching GameAccess Steam AppID ${appId} with the provider session that the lease already authenticated. Personal remembered-account resolution is intentionally skipped.`,
     { area: "LAUNCH" },

@@ -1,0 +1,83 @@
+name: Patch Dev Lab Server Mode
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - .github/workflows/patch-dev-lab-server-mode.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - name: Patch Dev Lab watcher
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('tools/dev-lab/watch.ps1')
+          text = path.read_text(encoding='utf-8')
+
+          old_publish = """    $safeLog = Join-Path $RunDirectory 'gameaccess.sanitized.log'\n    if (Test-Path $safeLog) { Copy-Item $safeLog (Join-Path $stage \"$prefix--gameaccess.log\") -Force }\n"""
+          new_publish = """    $safeLog = Join-Path $RunDirectory 'gameaccess.sanitized.log'\n    if (Test-Path $safeLog) { Copy-Item $safeLog (Join-Path $stage \"$prefix--gameaccess.log\") -Force }\n    $safeServerLog = Join-Path $RunDirectory 'server.sanitized.log'\n    if (Test-Path $safeServerLog) { Copy-Item $safeServerLog (Join-Path $stage \"$prefix--server.log\") -Force }\n"""
+          if old_publish not in text:
+              raise SystemExit('publish anchor not found')
+          text = text.replace(old_publish, new_publish, 1)
+
+          old_init = """    $appProcess = $null\n    $startedAt = [DateTime]::UtcNow\n"""
+          new_init = """    $appProcess = $null\n    $startedAt = [DateTime]::UtcNow\n    $serverPort = 38147\n    $serverLog = Join-Path $repoRoot (\"apps\\api\\local-api-{0}.log\" -f $serverPort)\n"""
+          if old_init not in text:
+              raise SystemExit('init anchor not found')
+          text = text.replace(old_init, new_init, 1)
+
+          old_build = """        if ([bool]$config.tests.release_build) {\n            if (-not (Invoke-Step 'release-build' $repoRoot 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'build-and-run.ps1'), '-NoRun') $runDir $steps)) { throw 'release build failed' }\n        }\n\n        $casePath = Join-Path $repoRoot ([string]$config.automation_case)\n"""
+          new_build = """        if ([bool]$config.tests.release_build) {\n            if (-not (Invoke-Step 'release-build' $repoRoot 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'build-and-run.ps1'), '-Server', '-NoRun', '-ServerPort', ([string]$serverPort)) $runDir $steps)) { throw 'release build failed' }\n        }\n\n        $serverRestartScript = Join-Path $api 'restart_local_api.ps1'\n        if (-not (Invoke-Step 'local-api-start' $api 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serverRestartScript, '-Port', ([string]$serverPort)) $runDir $steps)) { throw 'local API start failed' }\n        Write-LabLog \"Local GameAccess backend ready at http://127.0.0.1:$serverPort.\"\n\n        $casePath = Join-Path $repoRoot ([string]$config.automation_case)\n"""
+          if old_build not in text:
+              raise SystemExit('release build anchor not found')
+          text = text.replace(old_build, new_build, 1)
+
+          old_lines = """        $stdoutLines = 0\n        $stderrLines = 0\n        $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, [int]$config.automation_timeout_seconds))\n"""
+          new_lines = """        $stdoutLines = 0\n        $stderrLines = 0\n        $serverLogLines = if (Test-Path -LiteralPath $serverLog -PathType Leaf) { @(Get-Content -LiteralPath $serverLog -ErrorAction SilentlyContinue).Count } else { 0 }\n        $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, [int]$config.automation_timeout_seconds))\n"""
+          if old_lines not in text:
+              raise SystemExit('line counter anchor not found')
+          text = text.replace(old_lines, new_lines, 1)
+
+          old_loop = """            Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '\n            Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '\n            Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '\n"""
+          new_loop = """            Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '\n            Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '\n            Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '\n            Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '\n"""
+          if text.count(old_loop) != 1:
+              raise SystemExit(f'automation loop anchor count was {text.count(old_loop)}')
+          text = text.replace(old_loop, new_loop, 1)
+
+          old_after_loop = """        Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '\n        Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '\n        Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '\n"""
+          new_after_loop = """        Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '\n        Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '\n        Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '\n        Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '\n"""
+          if old_after_loop not in text:
+              raise SystemExit('post-loop anchor not found')
+          text = text.replace(old_after_loop, new_after_loop, 1)
+
+          old_final = """        Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')\n"""
+          new_final = """        Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')\n        Sanitize-TextFile $serverLog (Join-Path $runDir 'server.sanitized.log')\n"""
+          if old_final not in text:
+              raise SystemExit('finalization anchor not found')
+          text = text.replace(old_final, new_final, 1)
+
+          path.write_text(text, encoding='utf-8')
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- tools/dev-lab/watch.ps1; then
+            echo 'No watcher changes required.'
+            exit 0
+          fi
+          git config user.name 'gameaccess-dev-lab'
+          git config user.email 'actions@users.noreply.github.com'
+          git add tools/dev-lab/watch.ps1
+          git commit -m 'fix: run dev lab smoke with local backend'
+          git push origin dev

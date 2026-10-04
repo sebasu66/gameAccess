@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
 import { loadDetails } from "./api";
+import { useI18n } from "./i18n";
 import { gameStateManager, type ResolvedGameState } from "./GameStateManager";
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
@@ -10,7 +11,6 @@ import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
 import { stripHtml, wait, availabilityLabel, heavinessLabel, GlassActionButton } from "./AppPresentation";
 
 function playActionLabel(state: ResolvedGameState) {
-  if (state.frozen) return "Descongelar y jugar";
   if (state.playButtonReady) return "Jugar ahora";
   if (state.transferActive) return "Preparando";
   return "No listo";
@@ -19,7 +19,6 @@ function playActionLabel(state: ResolvedGameState) {
 function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadStatus) {
   if (state.installed) return "Instalado";
   if (state.prepared) return "Preparado";
-  if (state.frozen) return "Congelado";
   if (state.transferActive) {
     return download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando";
   }
@@ -32,7 +31,7 @@ function detailActionState(download?: SteamDownloadStatus) {
     localState,
     activeDownload: localState.transferActive,
     playReady: localState.playButtonReady,
-    downloadBlocked: localState.playButtonReady || localState.transferActive || localState.storageBusy,
+    downloadBlocked: localState.playButtonReady || localState.transferActive,
   };
 }
 
@@ -55,6 +54,7 @@ export function DetailPanel({
   busy: boolean;
   overLibrary?: boolean;
 }) {
+  const { locale } = useI18n();
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +113,7 @@ export function DetailPanel({
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [game.id]);
+  }, [game.id, locale]);
 
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
@@ -125,7 +125,7 @@ export function DetailPanel({
               {steam?.genres?.length ? <div className="fact"><span>Géneros</span><strong>{steam.genres.slice(0, 6).join(" · ")}</strong></div> : null}
               {steam?.categories?.length ? <div className="fact"><span>Características</span><strong>{steam.categories.slice(0, 6).join(" · ")}</strong></div> : null}
               {steam?.developers?.length ? <div className="fact"><span>Desarrollador</span><strong>{steam.developers.join(", ")}</strong></div> : null}
-              {steam?.publishers?.length ? <div className="fact"><span>Publisher</span><strong>{steam.publishers.join(", ")}</strong></div> : null}
+              {steam?.publishers?.length ? <div className="fact"><span>Editor</span><strong>{steam.publishers.join(", ")}</strong></div> : null}
               {steam?.recommendation_count ? <div className="fact"><span>Recomendaciones</span><strong>{steam.recommendation_count.toLocaleString("es-AR")}</strong></div> : null}
               {steam?.achievement_count ? <div className="fact"><span>Logros</span><strong><Trophy size={14} /> {steam.achievement_count}</strong></div> : null}
               {steam?.price?.final_formatted ? <div className="fact"><span>Precio Steam de referencia</span><strong>{steam.price.final_formatted}</strong></div> : null}

@@ -76,30 +76,130 @@ def _unique_slug(session: Session, name: str, app_id: int) -> str:
     return slug
 
 
+def _merge_duplicate_provider_accounts(
+    session: Session,
+    canonical: core.ProviderAccount,
+    duplicates: list[core.ProviderAccount],
+) -> None:
+    """Collapse legacy login#N rows into one Steam account without losing references."""
+    if canonical.id is None:
+        session.flush()
+    canonical_id = int(canonical.id)
+
+    canonical_games = {
+        int(row.game_id)
+        for row in session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == canonical_id)
+        ).all()
+    }
+    canonical_families = {
+        int(row.family_id)
+        for row in session.exec(
+            select(family_capacity.FamilyMember).where(
+                family_capacity.FamilyMember.account_id == canonical_id
+            )
+        ).all()
+    }
+
+    for duplicate in duplicates:
+        if duplicate.id is None or int(duplicate.id) == canonical_id:
+            continue
+        duplicate_id = int(duplicate.id)
+
+        for mapping in session.exec(
+            select(core.AccountGame).where(core.AccountGame.account_id == duplicate_id)
+        ).all():
+            if int(mapping.game_id) in canonical_games:
+                session.delete(mapping)
+            else:
+                mapping.account_id = canonical_id
+                canonical_games.add(int(mapping.game_id))
+                session.add(mapping)
+
+        for lease in session.exec(
+            select(core.Lease).where(core.Lease.account_id == duplicate_id)
+        ).all():
+            lease.account_id = canonical_id
+            session.add(lease)
+
+        for member in session.exec(
+            select(family_capacity.FamilyMember).where(
+                family_capacity.FamilyMember.account_id == duplicate_id
+            )
+        ).all():
+            if int(member.family_id) in canonical_families:
+                session.delete(member)
+            else:
+                member.account_id = canonical_id
+                canonical_families.add(int(member.family_id))
+                session.add(member)
+
+        for copy in session.exec(
+            select(family_capacity.FamilyGameLicenseCopy).where(
+                family_capacity.FamilyGameLicenseCopy.owner_account_id == duplicate_id
+            )
+        ).all():
+            copy.owner_account_id = canonical_id
+            session.add(copy)
+
+        session.flush()
+        session.delete(duplicate)
+
+
 def sync_runtime_account_roster(session: Session) -> int:
     records = load_account_roster()
     replace_runtime_roster(records)
+
+    def identity_for(account: core.ProviderAccount) -> str:
+        notes = _decode_notes(account)
+        raw = (
+            notes.get("provider_id")
+            or notes.get("account_name")
+            or str(account.label or "").split("#", 1)[0]
+        )
+        return str(raw or "").strip().casefold()
+
     for record in records:
-        account = session.exec(
-            select(core.ProviderAccount).where(
-                core.ProviderAccount.label == record.label
-            )
-        ).first()
+        identity = record.login.casefold()
+        matches = [
+            account
+            for account in session.exec(
+                select(core.ProviderAccount).order_by(core.ProviderAccount.id)
+            ).all()
+            if identity_for(account) == identity
+        ]
+        account = next(
+            (row for row in matches if str(row.label or "").casefold() == identity),
+            matches[0] if matches else None,
+        )
         if account is None:
             account = core.ProviderAccount(
-                label=record.label, provider="steam", status=core.AccountStatus.free
+                label=record.login,
+                provider="steam",
+                status=core.AccountStatus.free,
             )
-        notes: dict[str, Any] = {}
-        try:
-            decoded = json.loads(account.notes or "{}")
-            if isinstance(decoded, dict):
-                notes = decoded
-        except Exception:
-            notes = {}
-        notes.update({"source": "local-account-roster", "account_name": record.login})
+            session.add(account)
+            session.flush()
+        else:
+            _merge_duplicate_provider_accounts(
+                session,
+                account,
+                [row for row in matches if row.id != account.id],
+            )
+
+        notes = _decode_notes(account)
+        notes.update(
+            {
+                "source": "local-account-roster",
+                "account_name": record.login,
+                "provider_id": record.login,
+            }
+        )
+        account.label = record.login
         account.provider = "steam"
         account.notes = json.dumps(notes, ensure_ascii=False, separators=(",", ":"))
         session.add(account)
+
     session.commit()
     return len(records)
 
@@ -170,6 +270,12 @@ def _decode_notes(account: core.ProviderAccount) -> dict[str, Any]:
         return {}
 
 
+def _is_invalid_password_failure(status: str, error: str | None) -> bool:
+    raw = f"{status or ''} {error or ''}".casefold()
+    normalized = "".join(ch for ch in raw if ch.isalnum())
+    return "invalidpassword" in normalized
+
+
 def _sync_account(
     req: PoolSyncInput,
     incoming: PoolAccountInput,
@@ -212,26 +318,24 @@ def _sync_account(
                 session.add(core.AccountGame(account_id=account.id, game_id=game_id))
         session.commit()
 
-    # Steam login failures are operational availability failures, not proof of
-    # zero ownership. Preserve mappings but remove the seat from availability.
+    # Operational scan failures do not remove a provider from the pool.
+    # Only Steam's explicit InvalidPassword result is a hard credential failure.
     scan_status = (incoming.scan_status or "unknown").strip()
-    scan_failed = scan_status not in {"", "unknown", "not_scanned", "ok"}
-    disabled_by_scan = bool(notes.get("disabled_by_inventory_scan"))
-    temporary_busy = scan_status == "temporarily_unavailable" or incoming.scan_error in {
-        "AlreadyLoggedInElsewhere", "LoggedInElsewhere", "PasswordRequiredToKickSession",
-    }
-    if temporary_busy:
-        if account.status == core.AccountStatus.disabled and disabled_by_scan:
-            account.status = core.AccountStatus.free
-        disabled_by_scan = False
-    elif scan_failed:
-        if account.status == core.AccountStatus.free:
-            account.status = core.AccountStatus.disabled
-            disabled_by_scan = True
+    invalid_password = _is_invalid_password_failure(scan_status, incoming.scan_error)
+    previous_credential_status = str(notes.get("credential_status") or "").strip()
+    if invalid_password:
+        account.status = core.AccountStatus.disabled
+        credential_status = "invalid_password"
+        credential_error = "InvalidPassword"
     elif authoritative_ownership and scan_status == "ok":
-        if account.status == core.AccountStatus.disabled and disabled_by_scan:
+        if account.status == core.AccountStatus.disabled:
             account.status = core.AccountStatus.free
-        disabled_by_scan = False
+        credential_status = "valid"
+        credential_error = None
+    else:
+        credential_status = previous_credential_status or "unknown"
+        credential_error = notes.get("credential_error")
+    disabled_by_scan = False
 
     current_mappings = session.exec(
         select(core.AccountGame).where(core.AccountGame.account_id == account.id)
@@ -249,7 +353,9 @@ def _sync_account(
             "last_catalog_verification_complete": req.verification_complete,
             "ownership_scan_status": scan_status,
             "ownership_scan_error": incoming.scan_error,
-            "disabled_by_inventory_scan": disabled_by_scan,
+            "disabled_by_inventory_scan": False,
+            "credential_status": credential_status,
+            "credential_error": credential_error,
         }
     )
     if authoritative_ownership:
@@ -337,7 +443,7 @@ def sync_family_graph(req: FamilyGraphSyncInput, session: Session = Depends(core
     return {
         "ok": True,
         **result,
-        "capacity_semantics": "family-license-copies-x-free-members",
-        "allocation_semantics": "simulate-each-candidate-minimize-weighted-pool-damage",
+        "capacity_semantics": "diagnostic-only",
+        "allocation_semantics": "not-used-for-play-or-download",
     }
 

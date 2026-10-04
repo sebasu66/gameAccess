@@ -51,20 +51,6 @@ def _validated_copies(incoming, key, members, accounts, games, seen):
     return copies
 
 
-def _fallback_rows(rows, seen, accounts, session):
-    # Compatibility only: provenance of synthetic domains is a separate migration.
-    mapped = {}
-    for mapping in session.exec(select(core.AccountGame)).all():
-        mapped.setdefault(mapping.account_id, set()).add(mapping.game_id)
-    for label, account in accounts.items():
-        if label not in seen:
-            copies = [(gid, int(account.id)) for gid in mapped.get(account.id, set())]
-            rows.append((f"account:{account.id}", [account.id], copies))
-    keys = [row[0] for row in rows]
-    if len(keys) != len(set(keys)):
-        raise HTTPException(422, "Explicit family key conflicts with fallback domain")
-
-
 def _require_idle_graph(session):
     # Acquire SQLite's writer reservation BEFORE checking activity or reading graph.
     # No rows are changed, but concurrent graph replacements serialize.
@@ -151,8 +137,7 @@ def replace_family_graph(session: Session, families: list[dict]) -> dict[str, in
         _require_idle_graph(session)
         accounts = {a.label: a for a in session.exec(select(core.ProviderAccount))}
         games = {g.app_id: g for g in session.exec(select(core.Game)) if g.app_id}
-        rows, seen = _validated_rows(families, accounts, games)
-        _fallback_rows(rows, seen, accounts, session)
+        rows, _ = _validated_rows(families, accounts, games)
         members, copies = _desired_graph(session, rows)
         _sync_members(session, members)
         _sync_copies(session, copies)

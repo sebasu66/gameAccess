@@ -5,20 +5,34 @@ It does not launch Steam, switch accounts, or decide UI behavior.
 """
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from download_log import append_download_log
+from provider_download_probe import TOOL_ROOT as CURRENT_DEPOTDOWNLOADER_ROOT
 from steam_prepare_import import app_metadata
 from pool_sync import _steam_library_folders
 from steam_pool import steam_root
 
-RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 DOWNLOAD_ROOT = RUNTIME_ROOT / "downloads"
 STATUS_ROOT = DOWNLOAD_ROOT / "status"
 LOG_ROOT = DOWNLOAD_ROOT / "logs"
+LOCK_ROOT = RUNTIME_ROOT / "locks"
+MEDIA_CACHE_ROOT = RUNTIME_ROOT / "media-cache"
+TOOLS_ROOT = RUNTIME_ROOT / "tools"
+
+STALE_TEMP_SECONDS = 24 * 60 * 60
+STALE_LOCK_SECONDS = 6 * 60 * 60
+MEDIA_CACHE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+MEDIA_CACHE_MAX_BYTES = 128 * 1024 * 1024
+DOWNLOAD_LOG_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+DOWNLOAD_LOG_MAX_BYTES = 64 * 1024 * 1024
 
 
 def _directory_bytes(path: Path) -> int:
@@ -26,7 +40,7 @@ def _directory_bytes(path: Path) -> int:
     if not path.exists():
         return 0
     for item in path.rglob("*"):
-        if not item.is_file():
+        if item.is_symlink() or not item.is_file():
             continue
         try:
             total += item.stat().st_size
@@ -35,16 +49,223 @@ def _directory_bytes(path: Path) -> int:
     return total
 
 
+def _regular_files(path: Path) -> list[Path]:
+    if not path.exists() or path.is_symlink():
+        return []
+    return [item for item in path.rglob("*") if not item.is_symlink() and item.is_file()]
+
+
 def _log(app_id: int, event: str, **details: Any) -> None:
-    LOG_ROOT.mkdir(parents=True, exist_ok=True)
     body = {
         "at": datetime.now(timezone.utc).isoformat(),
         "app_id": app_id,
         "event": event,
         **details,
     }
-    with (LOG_ROOT / f"app-{app_id}.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(body, ensure_ascii=True) + "\n")
+    append_download_log(LOG_ROOT, app_id, body)
+
+
+def _age_seconds(path: Path) -> float:
+    try:
+        return max(0.0, datetime.now(timezone.utc).timestamp() - path.stat().st_mtime)
+    except OSError:
+        return 0.0
+
+
+def _remove_regular_file(path: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        path.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _active_status_app_ids() -> set[int]:
+    active: set[int] = set()
+    if not STATUS_ROOT.is_dir() or STATUS_ROOT.is_symlink():
+        return active
+    for path in STATUS_ROOT.glob("app-*.json"):
+        raw = path.stem.removeprefix("app-")
+        if not raw.isdigit():
+            continue
+        status = _read_status(int(raw))
+        if status and status.get("state") in {"requested", "preparing", "downloading", "paused", "cancelling"}:
+            active.add(int(raw))
+    return active
+
+
+def _prune_stale_temp_files() -> int:
+    removed = 0
+    for root in (DOWNLOAD_ROOT, STATUS_ROOT):
+        if not root.is_dir() or root.is_symlink():
+            continue
+        for path in root.rglob("*.tmp"):
+            if _age_seconds(path) > STALE_TEMP_SECONDS and _remove_regular_file(path):
+                removed += 1
+    return removed
+
+
+def _prune_stale_locks() -> int:
+    removed = 0
+    if not LOCK_ROOT.is_dir() or LOCK_ROOT.is_symlink():
+        return removed
+    for path in LOCK_ROOT.rglob("*.lock"):
+        if _age_seconds(path) > STALE_LOCK_SECONDS and _remove_regular_file(path):
+            removed += 1
+    return removed
+
+
+def _prune_manifest_probes(active_app_ids: set[int]) -> tuple[int, int]:
+    removed_dirs = 0
+    removed_bytes = 0
+    if not DOWNLOAD_ROOT.is_dir() or DOWNLOAD_ROOT.is_symlink():
+        return removed_dirs, removed_bytes
+    root = DOWNLOAD_ROOT.resolve()
+    for provider_dir in DOWNLOAD_ROOT.iterdir():
+        if provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
+            continue
+        for path in provider_dir.iterdir():
+            if path.is_symlink() or not path.is_dir() or not path.name.endswith("-manifest-only"):
+                continue
+            raw = path.name.removesuffix("-manifest-only")
+            if not raw.isdigit() or int(raw) in active_app_ids:
+                continue
+            try:
+                path.resolve().relative_to(root)
+            except (OSError, ValueError):
+                continue
+            bytes_present = _directory_bytes(path)
+            try:
+                shutil.rmtree(path)
+            except OSError:
+                continue
+            removed_dirs += 1
+            removed_bytes += bytes_present
+        try:
+            if not any(provider_dir.iterdir()):
+                provider_dir.rmdir()
+        except OSError:
+            pass
+    return removed_dirs, removed_bytes
+
+
+def _bounded_file_prune(
+    root: Path,
+    *,
+    max_age_seconds: int,
+    max_total_bytes: int,
+    protected_names: set[str] | None = None,
+) -> tuple[int, int]:
+    if not root.is_dir() or root.is_symlink():
+        return 0, 0
+    protected_names = protected_names or set()
+    files: list[tuple[float, int, Path]] = []
+    for path in root.iterdir():
+        if path.name in protected_names or path.is_symlink() or not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        files.append((stat.st_mtime, stat.st_size, path))
+
+    removed = 0
+    removed_bytes = 0
+    now = datetime.now(timezone.utc).timestamp()
+    kept: list[tuple[float, int, Path]] = []
+    for modified, size, path in files:
+        if now - modified > max_age_seconds and _remove_regular_file(path):
+            removed += 1
+            removed_bytes += size
+        else:
+            kept.append((modified, size, path))
+
+    total = sum(size for _modified, size, _path in kept)
+    for _modified, size, path in sorted(kept, key=lambda item: item[0]):
+        if total <= max_total_bytes:
+            break
+        if _remove_regular_file(path):
+            total -= size
+            removed += 1
+            removed_bytes += size
+    return removed, removed_bytes
+
+
+def _prune_download_logs(active_app_ids: set[int]) -> tuple[int, int]:
+    protected: set[str] = set()
+    for app_id in active_app_ids:
+        protected.add(f"app-{app_id}.jsonl")
+        protected.add(f"app-{app_id}.jsonl.1")
+    return _bounded_file_prune(
+        LOG_ROOT,
+        max_age_seconds=DOWNLOAD_LOG_MAX_AGE_SECONDS,
+        max_total_bytes=DOWNLOAD_LOG_MAX_BYTES,
+        protected_names=protected,
+    )
+
+
+def _prune_media_cache() -> tuple[int, int]:
+    return _bounded_file_prune(
+        MEDIA_CACHE_ROOT,
+        max_age_seconds=MEDIA_CACHE_MAX_AGE_SECONDS,
+        max_total_bytes=MEDIA_CACHE_MAX_BYTES,
+    )
+
+
+def _prune_old_download_tools(active_app_ids: set[int]) -> tuple[int, int]:
+    if active_app_ids or not TOOLS_ROOT.is_dir() or TOOLS_ROOT.is_symlink():
+        return 0, 0
+    try:
+        root = TOOLS_ROOT.resolve()
+        current = CURRENT_DEPOTDOWNLOADER_ROOT.resolve()
+    except OSError:
+        return 0, 0
+    removed = 0
+    removed_bytes = 0
+    for path in TOOLS_ROOT.iterdir():
+        if (
+            path.is_symlink()
+            or not path.is_dir()
+            or not path.name.startswith("depotdownloader-")
+        ):
+            continue
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved == current:
+            continue
+        bytes_present = _directory_bytes(path)
+        try:
+            shutil.rmtree(path)
+        except OSError:
+            continue
+        removed += 1
+        removed_bytes += bytes_present
+    return removed, removed_bytes
+
+
+def _run_storage_hygiene() -> dict[str, int]:
+    active = _active_status_app_ids()
+    probes, probe_bytes = _prune_manifest_probes(active)
+    download_logs, download_log_bytes = _prune_download_logs(active)
+    media_files, media_bytes = _prune_media_cache()
+    old_tools, old_tool_bytes = _prune_old_download_tools(active)
+    return {
+        "stale_temp_files_removed": _prune_stale_temp_files(),
+        "stale_locks_removed": _prune_stale_locks(),
+        "manifest_probe_dirs_removed": probes,
+        "manifest_probe_bytes_removed": probe_bytes,
+        "download_log_files_removed": download_logs,
+        "download_log_bytes_removed": download_log_bytes,
+        "media_cache_files_removed": media_files,
+        "media_cache_bytes_removed": media_bytes,
+        "old_tool_dirs_removed": old_tools,
+        "old_tool_bytes_removed": old_tool_bytes,
+    }
 
 
 def _status_path(app_id: int) -> Path:
@@ -67,11 +288,11 @@ def _staging_candidates() -> list[tuple[int, str, Path]]:
     if not DOWNLOAD_ROOT.is_dir():
         return result
     for provider_dir in DOWNLOAD_ROOT.iterdir():
-        if not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
+        if provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
             continue
         provider_id = provider_dir.name
         for child in provider_dir.iterdir():
-            if not child.is_dir() or not child.name.endswith("-download"):
+            if child.is_symlink() or not child.is_dir() or not child.name.endswith("-download"):
                 continue
             raw_id = child.name.removesuffix("-download")
             if raw_id.isdigit() and int(raw_id) > 0:
@@ -84,12 +305,20 @@ def steam_install_observation(app_id: int) -> dict[str, Any]:
     root = steam_root()
     metadata = app_metadata(app_id)
     install_dir = str(metadata["install_dir"])
+    install_path = Path(install_dir)
+    if install_path.is_absolute() or len(install_path.parts) != 1 or install_dir in {".", ".."}:
+        raise ValueError(f"Unsafe Steam install directory for AppID {app_id}")
     libraries: list[dict[str, Any]] = []
     if root is not None:
         for library in _steam_library_folders(root):
             library_root = Path(library["path"])
             manifest = library_root / "steamapps" / f"appmanifest_{app_id}.acf"
-            target = library_root / "steamapps" / "common" / install_dir
+            common_root = library_root / "steamapps" / "common"
+            target = common_root / install_dir
+            try:
+                target.resolve().relative_to(common_root.resolve())
+            except (OSError, ValueError):
+                continue
             state_flags = 0
             if manifest.is_file():
                 try:
@@ -119,13 +348,22 @@ def steam_install_observation(app_id: int) -> dict[str, Any]:
 
 
 def remove_staging(app_id: int, provider_id: str, *, remove_manifest_probe: bool = True) -> dict[str, Any]:
+    if app_id <= 0 or not provider_id or provider_id in {".", ".."} or any(separator in provider_id for separator in ("/", "\\", "\0")):
+        raise ValueError("Invalid app or provider identity for staging cleanup")
     provider_root = DOWNLOAD_ROOT / provider_id
     staging = provider_root / f"{app_id}-download"
     manifest_probe = provider_root / f"{app_id}-manifest-only"
+    root = DOWNLOAD_ROOT.resolve()
     removed: list[str] = []
     for path in (staging, manifest_probe if remove_manifest_probe else None):
         if path is None or not path.exists():
             continue
+        if path.is_symlink():
+            raise RuntimeError(f"Refusing to remove symbolic-link staging path: {path}")
+        try:
+            path.resolve().relative_to(root)
+        except (OSError, ValueError):
+            raise RuntimeError(f"Refusing to remove path outside download root: {path}") from None
         shutil.rmtree(path)
         removed.append(str(path))
     _log(app_id, "staging-cleanup", provider_id=provider_id, removed=removed)
@@ -142,49 +380,165 @@ def clear_status(app_id: int) -> None:
 
 
 def reconcile() -> list[dict[str, Any]]:
-    """Return unresolved interrupted downloads and remove definitely redundant staging."""
+    """Find recoverable staging and prune only disposable GameAccess data."""
+    hygiene = _run_storage_hygiene()
+    if any(hygiene.values()):
+        _log(0, "storage-hygiene", **hygiene)
     interrupted: list[dict[str, Any]] = []
-    for app_id, provider_id, staging in _staging_candidates():
-        bytes_present = _directory_bytes(staging)
-        if bytes_present <= 0:
-            remove_staging(app_id, provider_id)
-            continue
-
+    staging_candidates = _staging_candidates()
+    for app_id, provider_id, staging in staging_candidates:
         status = _read_status(app_id) or {}
-        observation = steam_install_observation(app_id)
-
-        # Once Steam has an authoritative installed manifest, GameAccess staging is redundant.
-        if observation["steam_installed"]:
-            remove_staging(app_id, provider_id)
+        if status.get("state") in {"requested", "preparing", "downloading", "paused", "cancelling"}:
+            # The Tauri caller marks dead workers interrupted before invoking this scan.
+            # A still-active worker owns its directory and must not be offered for deletion.
+            continue
+        if status.get("state") == "cancelled":
+            remove_staging(app_id, provider_id, remove_manifest_probe=True)
             clear_status(app_id)
-            _log(app_id, "reconcile-steam-installed", provider_id=provider_id)
+            _log(app_id, "cancelled-staging-pruned", provider_id=provider_id)
             continue
 
-        # A provider job that already finished copying into Steam no longer needs the bulky source.
-        # Keep the tiny prepared status so Play can finish Steam discovery/validation.
-        if status.get("state") == "prepared" and status.get("prepared_target"):
-            target = Path(str(status["prepared_target"]))
-            if target.is_dir():
-                remove_staging(app_id, provider_id)
-                _log(app_id, "reconcile-prepared-target", provider_id=provider_id, target=str(target))
-                continue
+        bytes_present = _directory_bytes(staging)
+        if not _regular_files(staging):
+            remove_staging(app_id, provider_id, remove_manifest_probe=False)
+            if status.get("state") == "interrupted":
+                clear_status(app_id)
+            _log(app_id, "reconcile-empty-staging-removed", provider_id=provider_id)
+            continue
 
-        recovered = {
-            "app_id": app_id,
-            "state": "interrupted",
-            "progress": status.get("progress"),
-            "bytes_downloaded": status.get("bytes_downloaded") or bytes_present,
-            "bytes_total": status.get("bytes_total"),
-            "speed_bps": None,
-            "eta_seconds": None,
-            "installed": False,
-            "provider_id": status.get("provider_id") or provider_id,
-            "prepared_target": None,
-            "library_index": status.get("library_index"),
-            "error": None,
-            "job_id": status.get("job_id") or f"recovered-{app_id}",
-            "worker_pid": None,
-        }
-        interrupted.append(recovered)
-        _log(app_id, "reconcile-interrupted", provider_id=provider_id, bytes_present=bytes_present)
+        observation = {"libraries": [], "steam_installed": False}
+        if status.get("state") in {"prepared", "installed"}:
+            try:
+                observation = steam_install_observation(app_id)
+            except Exception as exc:
+                _log(app_id, "reconcile-steam-observation-failed", error=str(exc)[:500])
+
+        candidates = [item for item in observation.get("libraries", []) if item.get("target_exists")]
+        if status.get("prepared_target"):
+            prepared_target = Path(str(status["prepared_target"]))
+            candidates.sort(key=lambda item: Path(item["target"]).resolve() != prepared_target.resolve())
+        for candidate in candidates:
+            target = Path(candidate["target"])
+            if _payload_matches(staging, target):
+                remove_staging(app_id, provider_id, remove_manifest_probe=False)
+                if candidate.get("steam_installed"):
+                    clear_status(app_id)
+                _log(app_id, "reconcile-verified-steam-copy", provider_id=provider_id, target=str(target))
+                break
+        else:
+            interrupted.append(_interrupted_status(app_id, provider_id, status, bytes_present))
+            _log(app_id, "reconcile-interrupted", provider_id=provider_id, bytes_present=bytes_present)
+
+    # Steam owns uninstalling game payloads. Once Steam has removed both its
+    # manifest and install directory, discard only stale GameAccess status JSON;
+    # never infer that a resumable staging folder is obsolete from this check.
+    staged_app_ids = {app_id for app_id, _provider_id, _path in staging_candidates}
+    if STATUS_ROOT.is_dir() and not STATUS_ROOT.is_symlink():
+        for status_path in STATUS_ROOT.iterdir():
+            if status_path.is_symlink() or not status_path.is_file():
+                continue
+            prefix, suffix = status_path.stem, status_path.suffix
+            if suffix != ".json" or not prefix.startswith("app-"):
+                continue
+            raw_app_id = prefix.removeprefix("app-")
+            if not raw_app_id.isdigit() or int(raw_app_id) <= 0:
+                continue
+            app_id = int(raw_app_id)
+            if app_id in staged_app_ids:
+                continue
+            status = _read_status(app_id)
+            if not status or status.get("app_id") != app_id or status.get("state") not in {"prepared", "installed"}:
+                continue
+            try:
+                observation = steam_install_observation(app_id)
+            except Exception as exc:
+                _log(app_id, "stale-status-check-failed", error=str(exc)[:500])
+                continue
+            libraries = observation.get("libraries", [])
+            if libraries and all(not item.get("manifest_exists") and not item.get("target_exists") for item in libraries):
+                clear_status(app_id)
+                _log(app_id, "uninstalled-game-status-pruned")
     return interrupted
+
+
+def _payload_matches(source: Path, target: Path) -> bool:
+    """Require every regular staged file to match its Steam copy byte-for-byte."""
+    if source.is_symlink() or target.is_symlink() or not source.is_dir() or not target.is_dir():
+        return False
+    source_files = sorted(item for item in source.rglob("*") if not item.is_symlink() and item.is_file())
+    if not source_files:
+        return False
+    for src in source_files:
+        dst = target / src.relative_to(source)
+        if dst.is_symlink() or not dst.is_file():
+            return False
+        try:
+            if src.stat().st_size != dst.stat().st_size:
+                return False
+            with src.open("rb") as source_file, dst.open("rb") as target_file:
+                while True:
+                    source_chunk = source_file.read(1024 * 1024)
+                    target_chunk = target_file.read(1024 * 1024)
+                    if source_chunk != target_chunk:
+                        return False
+                    if not source_chunk:
+                        break
+        except OSError:
+            return False
+    return True
+
+
+def _interrupted_status(app_id: int, provider_id: str, status: dict[str, Any], bytes_present: int) -> dict[str, Any]:
+    return {
+        "app_id": app_id,
+        "state": "interrupted",
+        "progress": status.get("progress"),
+        "bytes_downloaded": status.get("bytes_downloaded") or bytes_present,
+        "bytes_total": status.get("bytes_total"),
+        "speed_bps": None,
+        "eta_seconds": None,
+        "installed": False,
+        "provider_id": provider_id,
+        "prepared_target": None,
+        "library_index": status.get("library_index"),
+        "error": None,
+        "job_id": status.get("job_id") or f"recovered-{app_id}",
+        "worker_pid": None,
+    }
+
+
+def discard_interrupted(app_id: int, provider_id: str, job_id: str) -> dict[str, Any]:
+    status = _read_status(app_id) or {}
+    if status.get("state") not in {"interrupted", "cancelled"} or status.get("provider_id") != provider_id or status.get("job_id") != job_id:
+        raise RuntimeError("Download changed since the recovery/cancellation request; staging was preserved")
+    removed = remove_staging(app_id, provider_id, remove_manifest_probe=False)
+    clear_status(app_id)
+    _log(app_id, "interrupted-download-discarded", provider_id=provider_id, job_id=job_id)
+    return removed
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Reconcile or discard GameAccess download staging")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--reconcile", action="store_true")
+    mode.add_argument("--discard", action="store_true")
+    parser.add_argument("--app-id", type=int)
+    parser.add_argument("--provider-id")
+    parser.add_argument("--job-id")
+    args = parser.parse_args()
+    try:
+        if args.reconcile:
+            result: Any = reconcile()
+        else:
+            if not args.app_id or not args.provider_id or not args.job_id:
+                parser.error("--discard requires --app-id, --provider-id and --job-id")
+            result = discard_interrupted(args.app_id, args.provider_id, args.job_id)
+        print(json.dumps(result, ensure_ascii=True))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)[:1200]}, ensure_ascii=True))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

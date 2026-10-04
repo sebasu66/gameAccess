@@ -11,6 +11,8 @@ export type GameAccessCatalogLoader = () => Promise<CatalogGame[]>;
  *   backend response ever contains them.
  * - A matching Steam AppID in Propios is a separate license route and is never
  *   merged into this catalog.
+ * - Pending Steam AppIDs remain visible as placeholders until the backend
+ *   classifies them. DLC/tools are removed by the backend once identified.
  */
 export class GameAccessCatalog {
   constructor(private readonly loadBackendCatalog: GameAccessCatalogLoader) {}

@@ -33,8 +33,18 @@ from pool_sync import _ownership_state_by_provider
 from provider_inventory import build_provider_catalog
 from provider_roster import credential_by_provider_id
 
+_REMOTE_DOWNLOAD_GRANTS: set[tuple[str, int]] = set()
+
+
+def set_remote_download_grant(provider_id: str, app_id: int) -> None:
+    provider_id = provider_id.strip()
+    if not provider_id or app_id <= 0:
+        raise ValueError("Invalid remote provider download grant")
+    _REMOTE_DOWNLOAD_GRANTS.add((provider_id, int(app_id)))
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 TOOL_VERSION = "3.4.0"
 TOOL_URL = (
     "https://github.com/SteamRE/DepotDownloader/releases/download/"
@@ -178,19 +188,20 @@ def ensure_depotdownloader() -> dict[str, Any]:
             TOOL_URL,
             headers={"User-Agent": "GameAccess-DepotDownloader-Probe/1.0"},
         )
-        with tempfile.NamedTemporaryFile(
-            prefix="depotdownloader-", suffix=".zip", delete=False
-        ) as temp:
-            temp_path = Path(temp.name)
-            digest = hashlib.sha256()
-            with urllib.request.urlopen(request, timeout=60) as response:
-                while True:
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    temp.write(chunk)
-                    digest.update(chunk)
+        temp_path: Path | None = None
+        digest = hashlib.sha256()
         try:
+            with tempfile.NamedTemporaryFile(
+                prefix="depotdownloader-", suffix=".zip", delete=False
+            ) as temp:
+                temp_path = Path(temp.name)
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        temp.write(chunk)
+                        digest.update(chunk)
             with zipfile.ZipFile(temp_path) as archive:
                 bad_member = archive.testzip()
                 if bad_member:
@@ -199,7 +210,8 @@ def ensure_depotdownloader() -> dict[str, Any]:
                     )
                 archive.extractall(TOOL_ROOT)
         finally:
-            temp_path.unlink(missing_ok=True)
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
         executable = _find_executable(TOOL_ROOT)
         if executable is None:
@@ -361,11 +373,19 @@ def run_probe(
     if manifest_only == download:
         raise ValueError("select exactly one of --manifest-only or --download")
 
-    candidates = {item["app_id"]: item for item in provider_candidates(provider_id)}
-    if app_id not in candidates:
-        raise RuntimeError(
-            f"AppID {app_id} is not verified as an owned Windows game for {provider_id}"
-        )
+    if (provider_id, app_id) in _REMOTE_DOWNLOAD_GRANTS:
+        candidates = {
+            app_id: {
+                "app_id": app_id,
+                "name": f"Steam AppID {app_id}",
+            }
+        }
+    else:
+        candidates = {item["app_id"]: item for item in provider_candidates(provider_id)}
+        if app_id not in candidates:
+            raise RuntimeError(
+                f"AppID {app_id} is not verified as an owned Windows game for {provider_id}"
+            )
 
     credential = credential_by_provider_id(provider_id)
     if credential is None:

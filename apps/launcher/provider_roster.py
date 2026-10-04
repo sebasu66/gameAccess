@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import csv
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,22 @@ class ProviderCredential:
     label: str
     login: str
     password: str
+
+
+_EPHEMERAL_CREDENTIALS: dict[str, ProviderCredential] = {}
+
+
+def set_ephemeral_provider_credential(provider_id: str, login: str, secret: str) -> None:
+    provider_id = provider_id.strip()
+    login = login.strip()
+    if not provider_id or not login or not secret:
+        raise ValueError("Incomplete ephemeral provider credential")
+    _EPHEMERAL_CREDENTIALS[provider_id] = ProviderCredential(
+        provider_id=provider_id,
+        label=provider_id,
+        login=login,
+        password=secret,
+    )
 
 
 def configured_accounts_path() -> Path:
@@ -43,8 +58,7 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
     if not source.is_file():
         return []
 
-    seen_pairs: set[tuple[str, str]] = set()
-    login_counts: defaultdict[str, int] = defaultdict(int)
+    index_by_login: dict[str, int] = {}
     records: list[ProviderCredential] = []
     with source.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
         reader = csv.reader(handle)
@@ -60,21 +74,20 @@ def load_provider_credentials(path: Path | None = None) -> list[ProviderCredenti
             # Accept an optional conventional header without requiring one.
             if login.casefold() in {"usr", "user", "username", "login"} and password.casefold() in {"pass", "password"}:
                 continue
-            pair = (login, password)
-            if pair in seen_pairs:
-                continue
-            seen_pairs.add(pair)
-            login_counts[login] += 1
-            occurrence = login_counts[login]
-            label = login if occurrence == 1 else f"{login}#{occurrence}"
-            records.append(
-                ProviderCredential(
-                    provider_id=login,
-                    label=label,
-                    login=login,
-                    password=password,
-                )
+            identity = login.casefold()
+            credential = ProviderCredential(
+                provider_id=login,
+                label=login,
+                login=login,
+                password=password,
             )
+            if identity in index_by_login:
+                # One Steam login is one provider seat. Keep ordering stable and
+                # let the latest password repair the existing account.
+                records[index_by_login[identity]] = credential
+            else:
+                index_by_login[identity] = len(records)
+                records.append(credential)
     return records
 
 
@@ -175,6 +188,9 @@ def match_provider_identities(path: Path | None = None) -> dict[str, Any]:
 
 
 def credential_by_provider_id(provider_id: str, path: Path | None = None) -> ProviderCredential | None:
+    ephemeral = _EPHEMERAL_CREDENTIALS.get(provider_id)
+    if ephemeral is not None:
+        return ephemeral
     for credential in load_provider_credentials(path):
         if credential.provider_id == provider_id:
             return credential

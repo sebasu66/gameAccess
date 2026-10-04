@@ -29,7 +29,7 @@
     .credential{padding:13px;border:1px solid rgba(101,240,178,.18);border-radius:12px;background:rgba(101,240,178,.045);margin-top:12px}.credential strong{display:block;margin-bottom:7px;color:#cffff0}.credential code{display:block;padding:9px;border-radius:8px;background:#06090d;word-break:break-all}.credential small{display:block;margin-top:7px;color:#8090a0}
     .task{padding:13px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:rgba(255,255,255,.02)}.task-top{display:flex;align-items:center;justify-content:space-between;gap:10px}.task h4{margin:0;font-size:12px}.task pre{margin:10px 0 0;max-height:170px;overflow:auto;padding:10px;border-radius:9px;background:#05080c;color:#9caaba;font:10px/1.5 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap}.task-meta{margin-top:4px;color:var(--muted);font-size:10px}
     .tab{display:none}.tab.active{display:block}.search{width:240px;height:38px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:#0a0f16;color:white;outline:0}
-    .toast{position:fixed;right:22px;bottom:22px;max-width:420px;padding:13px 15px;border:1px solid rgba(101,240,178,.2);border-radius:12px;background:#101721;box-shadow:0 20px 60px rgba(0,0,0,.45);font-size:12px;z-index:20}.offline{color:var(--red)}
+    .toast{position:fixed;right:22px;bottom:22px;max-width:420px;padding:13px 15px;border:1px solid rgba(101,240,178,.2);border-radius:12px;background:#101721;box-shadow:0 20px 60px rgba(0,0,0,.45);font-size:12px;z-index:20}.offline{color:var(--red)}.dialog-backdrop{position:fixed;inset:0;display:none;place-items:center;padding:24px;background:rgba(0,0,0,.68);z-index:50}.dialog{width:min(720px,100%);max-height:82vh;overflow:auto;border:1px solid var(--line);border-radius:16px;background:#0c1118;box-shadow:0 30px 100px rgba(0,0,0,.65);padding:18px}.dialog h3{margin:0 0 8px}.dialog p{color:#aab6c4;white-space:pre-line}.dialog pre{max-height:320px;overflow:auto;padding:11px;border-radius:10px;background:#05080c;color:#aab6c4;font:11px/1.5 "SFMono-Regular",Consolas,monospace;white-space:pre-wrap}
     @media(max-width:1180px){.stats{grid-template-columns:repeat(3,1fr)}.split{grid-template-columns:1fr}}@media(max-width:780px){.app{grid-template-columns:1fr}aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.aside-foot{display:none}nav{grid-template-columns:repeat(3,1fr)}main{padding:22px 16px}.stats{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:1fr}.field.full{grid-column:auto}.top{flex-direction:column}.top-actions{width:100%;flex-wrap:wrap}.search{width:100%}}
   </style>
 </head>
@@ -45,6 +45,7 @@
       <button data-tab="seats">Asientos <span class="nav-badge" id="nSeats">0</span></button>
       <button data-tab="sessions">Sesiones <span class="nav-badge" id="nSessions">0</span></button>
       <button data-tab="tools">Herramientas</button>
+      <a href="/admin-console/digital" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid rgba(101,240,178,.2);border-radius:10px;background:rgba(101,240,178,.07);color:#c7f9e5;text-decoration:none;font-size:13px;font-weight:600">Sección Digital · Catálogo & Fuentes ✦</a>
       <button data-tab="errors">Errores <span class="nav-badge" id="nErrors">0</span></button>
     </nav>
     <div class="aside-foot">Panel local de operación. Los datos se actualizan cada 3 segundos desde FastAPI.</div>
@@ -52,7 +53,7 @@
 
   <main>
     <section class="tab active" id="tab-overview">
-      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><button class="btn" onclick="startFullUpdate()">Actualizar pool</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
+      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><a class="btn" href="/admin-console/digital" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;border-color:rgba(101,240,178,.24);background:rgba(101,240,178,.10);color:#cffff0">✦ Sección Digital</a><button class="btn" onclick="startFullUpdate()">Actualizar pool</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
       <div class="grid stats" id="stats"></div>
       <div class="grid split">
         <div class="panel"><div class="panel-head"><h2>Licencias con más capacidad</h2><span id="overviewLicenseCount"></span></div><div class="panel-body" id="overviewLicenses"></div></div>
@@ -84,6 +85,21 @@
       <div class="top"><div><h1>Herramientas</h1><p>Operaciones locales gestionadas desde el panel.</p></div></div>
       <div class="grid split">
         <div>
+          <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Sección Digital</h2><span>Catálogo independiente y fuentes Hydra</span></div><div class="panel-body">
+            <div class="tool-card" style="margin-bottom:0"><div><h3>Administrador de Juegos Digitales</h3><p>Gestionar fuentes de descarga de la comunidad, resolver enlaces y administrar el catálogo digital independiente.</p></div><a class="btn primary" href="/admin-console/digital" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">Abrir Sección Digital ✦</a></div>
+          </div></div>
+          <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Generar claves de acceso</h2><span>Se muestra una sola vez</span></div><div class="panel-body">
+            <form id="accessKeyForm" class="form">
+              <div class="field"><label>Duración del acceso</label><input name="access_duration" type="number" min="1" max="60" value="12" required></div>
+              <div class="field"><label>Unidad</label><select name="access_unit"><option value="hours">Horas</option><option value="months">Meses</option></select></div>
+              <div class="field"><label>Vence si no se usa</label><select name="key_ttl_hours"><option value="24" selected>1 día</option><option value="72">3 días</option><option value="168">7 días</option><option value="720">30 días</option></select></div>
+              <div class="field"><label>Cantidad de claves</label><input name="count" type="number" min="1" max="100" value="1" required></div>
+              <div class="field full"><label>Token de administración del servidor</label><input name="admin_token" type="password" autocomplete="off" required placeholder="Se envía solo al servidor"></div>
+              <div class="field full"><button class="btn primary" type="submit">Generar claves</button></div>
+            </form>
+            <div class="credential"><strong>Claves fáciles de dictar</strong><small>Formato de palabra pronunciable + símbolo + número. El acceso empieza al canjearla; el vencimiento por falta de uso empieza al generarla.</small></div>
+            <div id="accessKeyResults"></div>
+          </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Agregar cuenta existente al pool</h2><span>SteamKit · sólo esta cuenta</span></div><div class="panel-body">
             <form id="providerForm" class="form">
               <div class="field"><label>Nombre de cuenta Steam</label><input name="account_name" required autocomplete="username" placeholder="cuenta-proveedor"></div>
@@ -117,8 +133,10 @@
   </main>
 </div>
 <div id="toast"></div>
+<div id="operationDialog" class="dialog-backdrop" onclick="if(event.target===this)closeOperationDialog()"><div class="dialog"><h3 id="operationDialogTitle">Steam</h3><p id="operationDialogMessage"></p><pre id="operationDialogDetail"></pre><div style="display:flex;justify-content:flex-end"><button class="btn primary" onclick="closeOperationDialog()">Cerrar</button></div></div></div>
 <script>
   const API = location.pathname.startsWith('/admin-console') ? '/admin-console' : 'http://127.0.0.1:38147/admin-console';
+  const ACTIVATION_API = API.startsWith('http') ? new URL(API).origin : '';
   let data = {stats:{},accounts:[],licenses:[],seats:[],leases:[],diagnostics:[],tasks:[]};
   let currentTab='overview';
   let refreshPending=false;
@@ -131,6 +149,12 @@
   document.querySelectorAll('nav button').forEach(btn=>btn.onclick=()=>go(btn.dataset.tab));
 
   function toast(msg,error=false){$('toast').innerHTML=`<div class="toast ${error?'offline':''}">${esc(msg)}</div>`;setTimeout(()=>{$('toast').innerHTML=''},3600)}
+
+  function closeOperationDialog(){$('operationDialog').style.display='none'}
+  function taskPayload(task){for(const line of String(task?.log||'').trim().split(/\r?\n/).reverse()){try{const value=JSON.parse(line.trim());if(value&&typeof value==='object')return value}catch{}}return null}
+  function showOperationDialog(title,message,task){const payload=taskPayload(task);$('operationDialogTitle').textContent=title;$('operationDialogMessage').textContent=message;$('operationDialogDetail').textContent=payload?JSON.stringify(payload,null,2):String(task?.log||'Sin detalle devuelto por Steam.');$('operationDialog').style.display='grid'}
+  function taskFailure(task,payload){const parts=[];const status=payload?.scan_status||payload?.status||task?.state;if(status)parts.push(`Steam: ${status}`);if(payload?.error)parts.push(String(payload.error));if(payload?.guard_method)parts.push(`Steam Guard: ${payload.guard_method}`);if(Array.isArray(payload?.attempts))parts.push('Intentos: '+payload.attempts.map(x=>`${x.mode||'login'}=${x.status||'unknown'}`).join(' · '));return parts.join('\n')||`La operación terminó con código ${task?.exit_code??'desconocido'}.`}
+  async function waitForTask(id,title,success){const until=Date.now()+240000;while(Date.now()<until){try{const tasks=await api('/tasks');const task=(tasks||[]).find(x=>x.id===id);if(!task||task.status==='running'){await new Promise(r=>setTimeout(r,1000));continue}const payload=taskPayload(task);await refresh();if(task.status==='error'||payload?.ok===false)showOperationDialog(title+' · error',taskFailure(task,payload),task);else toast(success);return}catch(err){showOperationDialog(title+' · error',err.message,{log:''});return}}showOperationDialog(title+' · timeout','La operación no terminó dentro de 4 minutos.',{log:''})}
 
   async function api(path,opts={}){const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...opts});let body=null;try{body=await r.json()}catch{}if(!r.ok)throw new Error(body?.detail||`${r.status} ${r.statusText}`);return body;}
 
@@ -155,7 +179,7 @@
     const d=data.diagnostics||[];$('overviewHealth').innerHTML=d.length?d.slice(0,6).map(alertHtml).join(''):'<div class="alert"><div><strong style="color:var(--green)">Sin inconsistencias detectadas</strong><p>El pool y las relaciones principales son coherentes.</p></div></div>';
   }
 
-  function renderAccounts(){const q=($('accountSearch')?.value||'').toLowerCase();const rows=(data.accounts||[]).filter(a=>a.label.toLowerCase().includes(q)||(a.identity?.account_name||'').toLowerCase().includes(q));$('accountsTable').innerHTML=rows.length?`<table><thead><tr><th>Cuenta</th><th>Estado</th><th>Steam account</th><th>Juegos</th><th>Lease</th><th>Steam</th></tr></thead><tbody>${rows.map(a=>`<tr><td><strong>${esc(a.label)}</strong><div class="muted mono">#${a.id}</div></td><td>${badge(a.status)}</td><td>${esc(a.identity?.account_name||'—')}<div class="muted mono">${esc(a.identity?.steam_id64||'')}</div></td><td><strong>${a.game_count}</strong><div class="muted">${esc((a.games_preview||[]).slice(0,3).join(' · '))}</div></td><td>${a.active_lease_id?`#${a.active_lease_id}`:'—'}</td><td><button class="btn primary" style="padding:6px 9px" onclick="loginProviderSteam('${esc(a.identity?.account_name||a.label)}')">Login</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay cuentas que coincidan.</div>'}
+  function renderAccounts(){const q=($('accountSearch')?.value||'').toLowerCase();const rows=(data.accounts||[]).filter(a=>a.label.toLowerCase().includes(q)||(a.identity?.account_name||'').toLowerCase().includes(q));$('accountsTable').innerHTML=rows.length?`<table><thead><tr><th>Cuenta</th><th>Estado</th><th>Scan</th><th>Steam account</th><th>Juegos</th><th>Lease</th><th>Steam</th></tr></thead><tbody>${rows.map(a=>{const provider=a.identity?.provider_id||a.identity?.account_name||a.label;const scan=a.scan_status||'—';const retry=a.scan_status&&a.scan_status!=='ok'?` <button class="btn" style="padding:6px 9px" onclick="retryProviderScan('${esc(provider)}')">Retry scan</button>`:'';return`<tr><td><strong>${esc(a.label)}</strong><div class="muted mono">#${a.id}</div></td><td>${badge(a.status)}</td><td>${esc(scan)}${a.scan_error?`<div class="muted" title="${esc(a.scan_error)}">${esc(a.scan_error)}</div>`:''}</td><td>${esc(a.identity?.account_name||'—')}<div class="muted mono">${esc(a.identity?.steam_id64||'')}</div></td><td><strong>${a.game_count}</strong><div class="muted">${esc((a.games_preview||[]).slice(0,3).join(' · '))}</div></td><td>${a.active_lease_id?`#${a.active_lease_id}`:'—'}</td><td><button class="btn primary" style="padding:6px 9px" onclick="loginProviderSteam('${esc(provider)}')">Login</button>${retry}</td></tr>`}).join('')}</tbody></table>`:'<div class="empty">No hay cuentas que coincidan.</div>'}
 
   function renderLicenses(){const q=($('licenseSearch')?.value||'').toLowerCase();const rows=(data.licenses||[]).filter(g=>g.name.toLowerCase().includes(q)||String(g.app_id||'').includes(q));$('licensesTable').innerHTML=rows.length?`<table><thead><tr><th>Juego</th><th>Copias</th><th>Disponibles</th><th>Propietarios</th><th>Fichas/h</th></tr></thead><tbody>${rows.map(g=>`<tr><td><strong>${esc(g.name)}</strong><div class="muted mono">Steam ${esc(g.app_id||'—')}</div></td><td>${g.copies_total}</td><td><strong style="color:${g.copies_available?'var(--green)':'var(--amber)'}">${g.copies_available}</strong></td><td><div class="owners">${(g.owners||[]).map(o=>`<span class="pill">${esc(o.label)} · ${esc(o.status)}</span>`).join('')}</div></td><td>${g.cost_per_hour}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No hay licencias que coincidan.</div>'}
 
@@ -168,12 +192,31 @@
 
   function renderTasks(){const rows=data.tasks||[];$('tasksList').innerHTML=rows.length?rows.map(t=>`<div class="task"><div class="task-top"><div><h4>${esc(t.label)}</h4><div class="task-meta">${esc(t.kind)} · ${fmtDate(t.started_at)}${t.state?` · ${esc(t.state)}`:''}</div></div><div>${badge(t.status)} ${t.status==='running'?`<button class="btn danger" style="padding:5px 8px;margin-left:6px" onclick="stopTask('${t.id}')">Detener</button>`:''}</div></div>${t.log?`<pre>${esc(t.log)}</pre>`:''}</div>`).join(''):'<div class="empty">No hay tareas en esta ejecución.</div>'}
 
+  $('accessKeyForm').access_unit.onchange=e=>{$('accessKeyForm').access_duration.max=e.target.value==='hours'?'43800':'60'};
+  $('accessKeyForm').onsubmit=async e=>{
+    e.preventDefault();
+    const f=new FormData(e.target);
+    const duration=Number(f.get('access_duration'));
+    const unit=f.get('access_unit');
+    const payload={duration_hours:unit==='hours'?duration:null,duration_months:unit==='months'?duration:null,key_ttl_hours:Number(f.get('key_ttl_hours')),count:Number(f.get('count'))};
+    const token=f.get('admin_token');
+    try{
+      const response=await fetch(ACTIVATION_API+'/admin/access-keys',{method:'POST',headers:{'Content-Type':'application/json','X-GameAccess-Admin-Token':token},body:JSON.stringify(payload)});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body?.detail||response.status+' '+response.statusText);
+      $('accessKeyResults').innerHTML='<div class="credential"><strong>Claves generadas · copialas ahora</strong>'+ (body.keys||[]).map(item=>'<code>'+esc(item.key)+'</code>').join('')+'<small>No se guardan en el panel ni se pueden volver a consultar completas.</small><button class="btn" style="margin-top:10px" type="button" onclick="navigator.clipboard.writeText([...document.querySelectorAll(\'#accessKeyResults code\')].map(x=>x.textContent).join(\'\\n\')).then(()=>toast(\'Claves copiadas\')).catch(()=>toast(\'No se pudo copiar\',true))">Copiar todas</button></div>';
+      e.target.admin_token.value='';
+      toast((body.keys?.length||0)+' clave(s) generada(s)');
+    }catch(err){toast(err.message,true)}
+  };
+
   $('providerForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const payload={account_name:f.get('account_name'),password:f.get('password')};try{const r=await api('/tools/provider-account/start',{method:'POST',body:JSON.stringify(payload)});e.target.password.value='';toast(`Scan parcial iniciado para ${r.account_name}. Sólo se actualizará esa cuenta.`);await refresh()}catch(err){toast(err.message,true)}};
 
   $('steamForm').generate_password.onchange=e=>{$('manualPasswordField').style.display=e.target.value==='false'?'grid':'none'};
   $('steamForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const payload={email:f.get('email'),account_name:f.get('account_name'),country:f.get('country'),browser:f.get('browser'),generate_password:f.get('generate_password')==='true',password:f.get('password')||null};try{const r=await api('/tools/steam-account/start',{method:'POST',body:JSON.stringify(payload)});$('credentialBox').innerHTML=`<div class="credential"><strong>Credenciales de esta cuenta</strong><div class="muted">${esc(r.credentials.email)}</div><code>${esc(r.credentials.account_name)}<br>${esc(r.credentials.password)}</code><small>Copialas ahora. La contraseña no se conserva en el dashboard.</small></div>`;toast('Selenium iniciado. Revisá la ventana de Chrome.');await refresh();}catch(err){toast(err.message,true)}};
 
-  async function loginProviderSteam(providerId){try{await api('/tools/provider-login/start',{method:'POST',body:JSON.stringify({provider_id:providerId})});toast(`Login de Steam iniciado para ${providerId}`);await refresh()}catch(err){toast(err.message,true)}}
+  async function loginProviderSteam(providerId){try{const r=await api('/tools/provider-login/start',{method:'POST',body:JSON.stringify({provider_id:providerId})});toast(`Login de Steam iniciado para ${providerId}`);void waitForTask(r.task.id,`Login Steam · ${providerId}`,`Login Steam correcto para ${providerId}`);await refresh()}catch(err){showOperationDialog(`Login Steam · ${providerId}`,err.message,{log:''})}}
+  async function retryProviderScan(providerId){try{const r=await api('/tools/provider-scan/retry',{method:'POST',body:JSON.stringify({provider_id:providerId})});toast(`Retry de SteamKit iniciado para ${providerId}`);void waitForTask(r.task.id,`Scan SteamKit · ${providerId}`,`Scan actualizado para ${providerId}`);await refresh()}catch(err){showOperationDialog(`Scan SteamKit · ${providerId}`,err.message,{log:''})}}
   async function startFullUpdate(){try{await api('/tools/pool-sync/start',{method:'POST',body:'{}'});toast('Re-scan SteamKit iniciado · familias y licencias se actualizarán al terminar');go('tools');await refresh()}catch(err){toast(err.message,true)}}
   async function startPoolSync(){return startFullUpdate()}
   async function stopTask(id){try{await api('/tasks/'+id+'/stop',{method:'POST',body:'{}'});toast('Tarea detenida');await refresh()}catch(err){toast(err.message,true)}}

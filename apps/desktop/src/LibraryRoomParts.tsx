@@ -1,7 +1,7 @@
 import SteamCover from "./SteamCover";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Loader2, Play, Snowflake, XCircle } from "lucide-react";
+import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";
 
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -36,9 +36,6 @@ export function firstPresent<T>(...values: Array<T | null | undefined>): T | und
 
 function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
   const state = gameStateManager.resolve(status);
-  if (state.frozen) {
-    return <span className="library-install-state frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
-  }
   if (!state.playButtonReady) return null;
   return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
 }
@@ -143,11 +140,7 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   const state = gameStateManager.resolve(status);
 
   if (state.primaryAction === "wait") {
-    const label = state.technicalState === "freezing"
-      ? "Congelando…"
-      : state.technicalState === "thawing"
-        ? "Restaurando…"
-        : "Procesando…";
+    const label = "Procesando…";
     return [{ label, icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 

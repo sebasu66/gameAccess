@@ -415,6 +415,22 @@ fn launcher_dir() -> Option<PathBuf> {
         .map(|apps| apps.join("launcher"))
 }
 
+#[cfg(target_os = "windows")]
+fn launcher_python(launcher: &Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
+    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
+    if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    }
+}
+
 pub fn local_steam_pool() -> Result<serde_json::Value, String> {
     read_local_steam_pool()
 }
@@ -422,12 +438,7 @@ pub fn local_steam_pool() -> Result<serde_json::Value, String> {
 pub fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
     let launcher =
         launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() {
-        venv_python
-    } else {
-        PathBuf::from("python")
-    };
+    let python = launcher_python(&launcher);
     let code = r#"import json; import steam_verified_inventory as inventory; from steam_verified_sync_v5 import deterministic_switch; inventory._switch=lambda identity,attempts=2: deterministic_switch(identity); result=inventory.verify_all_remembered_accounts(save=True); print(json.dumps(result,ensure_ascii=False))"#;
     let output = Command::new(&python)
         .current_dir(&launcher)
@@ -452,12 +463,7 @@ pub fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
 pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
     let launcher =
         launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() {
-        venv_python
-    } else {
-        PathBuf::from("python")
-    };
+    let python = launcher_python(&launcher);
     let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root,local_library_apps; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set(); recent={};
 for account in p.get('accounts',[]):
  for aid,info in local_library_apps(int(account.get('user_id32') or 0)).items():
@@ -508,12 +514,7 @@ pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
                 message: "Could not locate the local Steam adapter".into(),
             };
         };
-        let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-        let python = if venv_python.is_file() {
-            venv_python
-        } else {
-            PathBuf::from("python")
-        };
+        let python = launcher_python(&launcher);
         let code = r#"import json,sys; from steam_pool import remembered_account_identities,active_user_id32; from steam_verified_sync_v5 import deterministic_switch; target=sys.argv[1].strip().casefold(); identity=next((i for i in remembered_account_identities() if str(i.get('account_name') or '').casefold()==target or str(i.get('display_name') or '').casefold()==target),None); ok,msg=(False,'Steam account is not remembered on this PC') if identity is None else deterministic_switch(identity); expected=None if identity is None else identity.get('user_id32'); active=active_user_id32(); verified=bool(ok and expected and active==expected); print(json.dumps({'ok':verified,'stage':'ready' if verified else 'switch','message':msg,'expected_user_id32':expected,'active_user_id32':active}, ensure_ascii=False))"#;
         let output = Command::new(&python)
             .current_dir(&launcher)

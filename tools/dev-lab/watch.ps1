@@ -1,0 +1,449 @@
+[CmdletBinding()]
+param(
+    [string]$ConfigPath = ''
+)
+
+$ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $ConfigPath) { $ConfigPath = Join-Path $scriptRoot 'config.json' }
+$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$repoRoot = [IO.Path]::GetFullPath([string]$config.repo_root)
+$branch = [string]$config.branch
+$pollSeconds = [Math]::Max(5, [int]$config.poll_seconds)
+$stateRoot = Join-Path $env:LOCALAPPDATA 'GameAccess\dev-lab'
+$runsRoot = Join-Path $stateRoot 'runs'
+$bundlesRoot = Join-Path $stateRoot 'bundles'
+$stateFile = Join-Path $stateRoot 'state.json'
+$stopFile = Join-Path $stateRoot 'stop.flag'
+$watcherLog = Join-Path $stateRoot 'watcher.log'
+$pidFile = Join-Path $stateRoot 'watcher.pid'
+$activeAppPidFile = Join-Path $stateRoot 'active-app.pid'
+$gameAccessLog = Join-Path $env:LOCALAPPDATA 'GameAccess\logs\gameaccess.log'
+
+New-Item -ItemType Directory -Force -Path $stateRoot, $runsRoot, $bundlesRoot | Out-Null
+Set-Content -LiteralPath $pidFile -Value $PID -Encoding ASCII
+Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
+
+function Write-LabLog([string]$Message, [string]$Level = 'INFO') {
+    $line = '{0} [{1}] {2}' -f ([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss.fff')), $Level, $Message
+    Add-Content -LiteralPath $watcherLog -Value $line -Encoding UTF8
+    if ($Level -eq 'ERROR') { Write-Host $line -ForegroundColor Red }
+    elseif ($Level -eq 'WARN') { Write-Host $line -ForegroundColor Yellow }
+    else { Write-Host $line }
+}
+
+function Git([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+    Write-Host ("> git -C `"{0}`" {1}" -f $repoRoot, ($Arguments -join ' ')) -ForegroundColor DarkGray
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & git.exe -C $repoRoot @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($output) { @($output) | ForEach-Object { Write-Host $_ } }
+    if ($exitCode -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
+    return @($output)
+}
+
+function GitQuiet([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & git.exe -C $repoRoot @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0) { throw "git $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)" }
+    return @($output)
+}
+
+function Load-State {
+    if (-not (Test-Path -LiteralPath $stateFile)) {
+        return [ordered]@{ last_processed_sha = ''; last_passed_sha = ''; last_run = $null }
+    }
+    try { return Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json }
+    catch { return [ordered]@{ last_processed_sha = ''; last_passed_sha = ''; last_run = $null } }
+}
+
+function Save-State($State) {
+    $State | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stateFile -Encoding UTF8
+}
+
+function Show-NewTextLines([string]$Path, [ref]$LineCount, [string]$Prefix = '') {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $lines = @(Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue)
+    $seen = [int]$LineCount.Value
+    for ($i = $seen; $i -lt $lines.Count; $i++) {
+        Write-Host ("{0}{1}" -f $Prefix, $lines[$i])
+    }
+    $LineCount.Value = $lines.Count
+}
+
+function Invoke-Step {
+    param(
+        [string]$Name,
+        [string]$WorkingDirectory,
+        [string]$File,
+        [string[]]$Arguments,
+        [string]$RunDirectory,
+        [System.Collections.Generic.List[object]]$Steps
+    )
+    $started = [DateTime]::UtcNow
+    $logPath = Join-Path $RunDirectory ("step-{0}.log" -f $Name)
+    $exitCode = 0
+    try {
+        Push-Location $WorkingDirectory
+        try {
+            $global:LASTEXITCODE = 0
+            Write-LabLog ("COMMAND [{0}] {1} {2}" -f $Name, $File, ($Arguments -join ' '))
+            $previousErrorActionPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                & $File @Arguments 2>&1 | Tee-Object -FilePath $logPath | ForEach-Object { Write-Host $_ }
+                $nativeExitCode = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previousErrorActionPreference
+            }
+            $exitCode = if ($null -eq $nativeExitCode) { 0 } else { [int]$nativeExitCode }
+        } finally {
+            Pop-Location
+        }
+    } catch {
+        $errorOutput = $_ | Out-String
+        $errorOutput | Out-File -LiteralPath $logPath -Encoding utf8
+        Write-Host $errorOutput -ForegroundColor Red
+        $exitCode = 1
+    }
+    $entry = [ordered]@{
+        name = $Name
+        started_at = $started.ToString('o')
+        finished_at = [DateTime]::UtcNow.ToString('o')
+        exit_code = $exitCode
+        log = $logPath
+    }
+    $Steps.Add([pscustomobject]$entry)
+    if ($exitCode -ne 0) {
+        Write-LabLog "Step '$Name' failed with exit code $exitCode." 'ERROR'
+        return $false
+    }
+    Write-LabLog "Step '$Name' passed."
+    return $true
+}
+
+function Sanitize-TextFile([string]$Source, [string]$Destination) {
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { return }
+    $text = Get-Content -LiteralPath $Source -Raw -ErrorAction SilentlyContinue
+    if ($null -eq $text) { return }
+    if ($env:USERPROFILE) { $text = $text.Replace($env:USERPROFILE, '%USERPROFILE%') }
+    $text = [regex]::Replace($text, '(?i)\b(gh[pousr]_[A-Za-z0-9_]+)\b', '[REDACTED_GITHUB_TOKEN]')
+    $text = [regex]::Replace($text, '(?i)(password\s*[=:]\s*)\S+', '$1[REDACTED]')
+    Set-Content -LiteralPath $Destination -Value $text -Encoding UTF8
+}
+
+function Ensure-DevLabRelease {
+    if (-not [bool]$config.upload) { return $false }
+
+    # Windows PowerShell 5.1 promotes native stderr to an ErrorRecord when
+    # ErrorActionPreference is Stop. `gh release view` intentionally writes
+    # "release not found" to stderr when the prerelease must be created, so
+    # trust the native exit code instead of treating stderr as an exception.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & gh.exe release view ([string]$config.release_tag) --repo ([string]$config.github_repo) *> $null
+        $viewExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($viewExitCode -eq 0) { return $true }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & gh.exe release create ([string]$config.release_tag) --repo ([string]$config.github_repo) --target $branch --prerelease --title 'Game Access Dev Lab' --notes 'Automated local Windows validation evidence. Assets are rotated to the most recent runs.' *> $null
+        $createExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($createExitCode -ne 0) {
+        Write-LabLog 'Could not create dev-lab GitHub release. Evidence remains local.' 'ERROR'
+        return $false
+    }
+    return $true
+}
+
+function Publish-Run {
+    param([string]$RunDirectory, [string]$Commit, [string]$RunStamp)
+    if (-not (Ensure-DevLabRelease)) { return }
+
+    $prefix = "run-$RunStamp-$($Commit.Substring(0, 8))"
+    $stage = Join-Path $RunDirectory 'upload'
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+    $summary = Join-Path $RunDirectory 'summary.json'
+    if (Test-Path $summary) { Copy-Item $summary (Join-Path $stage "$prefix--summary.json") -Force }
+    $automationResult = Join-Path $RunDirectory 'automation\result.json'
+    if (Test-Path $automationResult) { Copy-Item $automationResult (Join-Path $stage "$prefix--automation-result.json") -Force }
+    $safeLog = Join-Path $RunDirectory 'gameaccess.sanitized.log'
+    if (Test-Path $safeLog) { Copy-Item $safeLog (Join-Path $stage "$prefix--gameaccess.log") -Force }
+    $safeServerLog = Join-Path $RunDirectory 'server.sanitized.log'
+    if (Test-Path $safeServerLog) { Copy-Item $safeServerLog (Join-Path $stage "$prefix--server.log") -Force }
+
+    $shotIndex = 0
+    Get-ChildItem -LiteralPath (Join-Path $RunDirectory 'automation') -Filter '*.png' -File -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object {
+        $shotIndex += 1
+        Copy-Item $_.FullName (Join-Path $stage ("{0}--screenshot-{1:D2}-{2}" -f $prefix, $shotIndex, $_.Name)) -Force
+    }
+
+    $bundle = Join-Path $bundlesRoot "$prefix--bundle.zip"
+    Remove-Item -LiteralPath $bundle -Force -ErrorAction SilentlyContinue
+    $bundleSources = Get-ChildItem -LiteralPath $RunDirectory -Force | Where-Object Name -ne 'upload'
+    if ($bundleSources) { Compress-Archive -Path $bundleSources.FullName -DestinationPath $bundle -CompressionLevel Optimal -Force }
+    if (Test-Path $bundle) { Copy-Item $bundle (Join-Path $stage (Split-Path $bundle -Leaf)) -Force }
+
+    $assets = @(Get-ChildItem -LiteralPath $stage -File | Select-Object -ExpandProperty FullName)
+    if ($assets.Count) {
+        & gh release upload ([string]$config.release_tag) @assets --repo ([string]$config.github_repo) --clobber *> (Join-Path $RunDirectory 'github-upload.log')
+        if ($LASTEXITCODE -ne 0) {
+            Write-LabLog "GitHub upload failed for $prefix. Evidence remains in $RunDirectory." 'ERROR'
+            return
+        }
+        Write-LabLog "Uploaded screenshots/logs/results for $prefix."
+    }
+
+    $names = @(& gh release view ([string]$config.release_tag) --repo ([string]$config.github_repo) --json assets --jq '.assets[].name' 2>$null)
+    $groups = @($names | ForEach-Object {
+        if ($_ -match '^(run-\d{8}-\d{6}-[0-9a-fA-F]{8})--') { $Matches[1] }
+    } | Where-Object { $_ } | Sort-Object -Unique -Descending)
+    $retain = [Math]::Max(1, [int]$config.retain_runs)
+    foreach ($oldGroup in @($groups | Select-Object -Skip $retain)) {
+        foreach ($assetName in @($names | Where-Object { $_ -like "$oldGroup--*" })) {
+            & gh release delete-asset ([string]$config.release_tag) $assetName --repo ([string]$config.github_repo) -y *> $null
+        }
+    }
+}
+
+function Stop-ExactProcess([System.Diagnostics.Process]$Process) {
+    if (-not $Process -or $Process.HasExited) { return }
+    try { $null = $Process.CloseMainWindow() } catch {}
+    try { if (-not $Process.WaitForExit(5000)) { $Process.Kill() } } catch {}
+}
+
+function Invoke-ValidationRun([string]$Commit) {
+    $runStamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
+    $runDir = Join-Path $runsRoot ("$runStamp-$($Commit.Substring(0, 8))")
+    $automationDir = Join-Path $runDir 'automation'
+    New-Item -ItemType Directory -Force -Path $automationDir | Out-Null
+    $steps = New-Object 'System.Collections.Generic.List[object]'
+    $status = 'failed'
+    $errorText = $null
+    $appProcess = $null
+    $startedAt = [DateTime]::UtcNow
+    $serverPort = 38147
+    $serverLog = Join-Path $repoRoot ("apps\api\local-api-{0}.log" -f $serverPort)
+
+    Write-LabLog "Starting validation for dev commit $Commit."
+    try {
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & git.exe -C $repoRoot diff --quiet --ignore-submodules --
+            $worktreeDiffExit = $LASTEXITCODE
+            & git.exe -C $repoRoot diff --cached --quiet --ignore-submodules --
+            $stagedDiffExit = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($worktreeDiffExit -gt 1 -or $stagedDiffExit -gt 1) {
+            throw "Could not inspect tracked local changes (worktree=$worktreeDiffExit, staged=$stagedDiffExit)."
+        }
+        if ($worktreeDiffExit -eq 1 -or $stagedDiffExit -eq 1) {
+            $trackedChanges = @(Git status --porcelain --untracked-files=no)
+            throw "Dedicated dev checkout has real tracked local changes; refusing to overwrite them: $($trackedChanges -join '; ')"
+        }
+
+        Git checkout $branch | Out-Null
+        Git reset --hard "origin/$branch" | Out-Null
+        $actual = (Git rev-parse HEAD | Select-Object -First 1).Trim()
+        if ($actual -ne $Commit) { throw "Expected $Commit after sync, got $actual." }
+
+        $desktop = Join-Path $repoRoot 'apps\desktop'
+        $api = Join-Path $repoRoot 'apps\api'
+
+        if ([bool]$config.tests.frontend) {
+            if (-not (Invoke-Step 'npm-ci' $desktop 'npm.cmd' @('ci') $runDir $steps)) { throw 'npm ci failed' }
+            if (-not (Invoke-Step 'frontend-tests' $desktop 'npm.cmd' @('test') $runDir $steps)) { throw 'frontend tests failed' }
+            if (-not (Invoke-Step 'frontend-build' $desktop 'npm.cmd' @('run', 'build') $runDir $steps)) { throw 'frontend build failed' }
+        }
+
+        if ([bool]$config.tests.api) {
+            $apiPython = Join-Path $api '.venv\Scripts\python.exe'
+            if (-not (Test-Path -LiteralPath $apiPython -PathType Leaf)) {
+                if (-not (Invoke-Step 'api-venv' $api 'py.exe' @('-3', '-m', 'venv', '.venv') $runDir $steps)) { throw 'API venv creation failed' }
+            }
+            if (-not (Invoke-Step 'api-deps' $api $apiPython @('-m', 'pip', 'install', '--disable-pip-version-check', '-r', 'requirements-dev.txt') $runDir $steps)) { throw 'API dependency install failed' }
+            if (-not (Invoke-Step 'api-tests' $api $apiPython @('-m', 'pytest', '-q', 'tests') $runDir $steps)) { throw 'API tests failed' }
+        }
+
+        if ([bool]$config.tests.rust) {
+            if (-not (Invoke-Step 'prepare-icons' $desktop 'npm.cmd' @('run', 'prepare-icons') $runDir $steps)) { throw 'icon preparation failed' }
+            if (-not (Invoke-Step 'rust-tests' $desktop 'cargo.exe' @('test', '--manifest-path', 'src-tauri/Cargo.toml') $runDir $steps)) { throw 'Rust/Tauri tests failed' }
+        }
+
+        if ([bool]$config.tests.release_build) {
+            if (-not (Invoke-Step 'release-build' $repoRoot 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'build-and-run.ps1'), '-Server', '-NoRun', '-ServerPort', ([string]$serverPort)) $runDir $steps)) { throw 'release build failed' }
+        }
+
+        $serverRestartScript = Join-Path $api 'restart_local_api.ps1'
+        if (-not (Invoke-Step 'local-api-start' $api 'powershell.exe' @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serverRestartScript, '-Port', ([string]$serverPort)) $runDir $steps)) { throw 'local API start failed' }
+        Write-LabLog "Local GameAccess backend ready at http://127.0.0.1:$serverPort."
+
+        $casePath = Join-Path $repoRoot ([string]$config.automation_case)
+        if (-not (Test-Path -LiteralPath $casePath -PathType Leaf)) { throw "Automation case does not exist: $casePath" }
+        $exe = Join-Path $repoRoot 'GameAccess-latest.exe'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Built GameAccess executable is missing: $exe" }
+
+        $stdout = Join-Path $runDir 'app.stdout.log'
+        $stderr = Join-Path $runDir 'app.stderr.log'
+        $argumentLine = "--automation-script `"$casePath`" --automation-output `"$automationDir`""
+        $appProcess = Start-Process -FilePath $exe -WorkingDirectory $repoRoot -ArgumentList $argumentLine -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        Set-Content -LiteralPath $activeAppPidFile -Value $appProcess.Id -Encoding ASCII
+        Write-LabLog "Launched GameAccess automation case '$($config.automation_case)' as PID $($appProcess.Id)."
+
+        $resultPath = Join-Path $automationDir 'result.json'
+        $gameAccessLogLines = if (Test-Path -LiteralPath $gameAccessLog -PathType Leaf) { @(Get-Content -LiteralPath $gameAccessLog -ErrorAction SilentlyContinue).Count } else { 0 }
+        $stdoutLines = 0
+        $stderrLines = 0
+        $serverLogLines = if (Test-Path -LiteralPath $serverLog -PathType Leaf) { @(Get-Content -LiteralPath $serverLog -ErrorAction SilentlyContinue).Count } else { 0 }
+        $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, [int]$config.automation_timeout_seconds))
+        while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
+            Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+            Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '
+            Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
+            Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
+            if ($appProcess.HasExited) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        Show-NewTextLines $gameAccessLog ([ref]$gameAccessLogLines) '[GAMEACCESS] '
+        Show-NewTextLines $serverLog ([ref]$serverLogLines) '[SERVER] '
+        Show-NewTextLines $stdout ([ref]$stdoutLines) '[APP-OUT] '
+        Show-NewTextLines $stderr ([ref]$stderrLines) '[APP-ERR] '
+        if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
+            throw "Automation result.json was not produced before timeout/process exit."
+        }
+        $automationResult = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+        if ([string]$automationResult.status -ne 'ok') {
+            throw "GameAccess automation reported '$($automationResult.status)': $($automationResult.error)"
+        }
+        $status = 'ok'
+    } catch {
+        $errorText = $_.Exception.Message
+        Write-LabLog "Validation failed for ${Commit}: $errorText" 'ERROR'
+    } finally {
+        Stop-ExactProcess $appProcess
+        Remove-Item -LiteralPath $activeAppPidFile -Force -ErrorAction SilentlyContinue
+        Sanitize-TextFile $gameAccessLog (Join-Path $runDir 'gameaccess.sanitized.log')
+        Sanitize-TextFile $serverLog (Join-Path $runDir 'server.sanitized.log')
+        try {
+            $stepArray = @($steps | ForEach-Object { $_ })
+            $summary = [ordered]@{
+                schema_version = 1
+                commit = $Commit
+                branch = $branch
+                status = $status
+                error = $errorText
+                started_at = $startedAt.ToString('o')
+                finished_at = [DateTime]::UtcNow.ToString('o')
+                automation_case = [string]$config.automation_case
+                steps = $stepArray
+            }
+            $summary | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $runDir 'summary.json') -Encoding UTF8
+            try {
+                Publish-Run $runDir $Commit $runStamp
+            } catch {
+                Write-LabLog "Evidence publication failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
+            }
+        } catch {
+            Write-LabLog "Evidence finalization failed for ${Commit}: $($_.Exception.Message)" 'ERROR'
+        }
+    }
+
+    return $status
+}
+
+try {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot '.git'))) { throw "Not a Git checkout: $repoRoot" }
+    Write-LabLog "Watcher started for $repoRoot -> origin/$branch (poll ${pollSeconds}s)."
+    $state = Load-State
+    $first = $true
+    $lastPollingError = ''
+    $lastPollingErrorAt = [DateTime]::MinValue
+
+    while (-not (Test-Path -LiteralPath $stopFile)) {
+        $cycleStartedAt = [DateTime]::UtcNow
+        try {
+            # Polling is intentionally silent. Console output is reserved for
+            # detected commits, validation commands and real errors.
+            GitQuiet fetch --prune origin $branch | Out-Null
+            $remote = (GitQuiet rev-parse "origin/$branch" | Select-Object -First 1).Trim()
+            $lastPollingError = ''
+
+            $shouldRun = $remote -ne [string]$state.last_processed_sha
+            if ($first -and -not [bool]$config.run_on_start -and -not [string]$state.last_processed_sha) {
+                $state.last_processed_sha = $remote
+                Save-State $state
+                $shouldRun = $false
+            }
+            $first = $false
+
+            if ($shouldRun) {
+                Write-LabLog "Detected new origin/$branch commit $remote. Starting validation."
+
+                # Claim this SHA before running it. A broken commit is reported once;
+                # it is not retried forever on every polling cycle.
+                $state.last_processed_sha = $remote
+                $state.last_run = [DateTime]::UtcNow.ToString('o')
+                Save-State $state
+
+                $result = Invoke-ValidationRun $remote
+                if ($result -eq 'ok') {
+                    $state.last_passed_sha = $remote
+                    Save-State $state
+                }
+            }
+        } catch {
+            $currentPollingError = $_.Exception.Message
+            $now = [DateTime]::UtcNow
+            if ($currentPollingError -ne $lastPollingError -or ($now - $lastPollingErrorAt).TotalMinutes -ge 5) {
+                Write-LabLog "Polling cycle failed: $currentPollingError" 'ERROR'
+                $lastPollingError = $currentPollingError
+                $lastPollingErrorAt = $now
+            }
+        }
+
+        # Hard rate limit: even if polling or validation fails instantly, the
+        # next poll cannot run immediately. Long validation runs also get a
+        # full poll interval before another fetch.
+        if (-not (Test-Path -LiteralPath $stopFile)) {
+            $elapsedMs = ([DateTime]::UtcNow - $cycleStartedAt).TotalMilliseconds
+            $intervalMs = [double]$pollSeconds * 1000.0
+            if ($elapsedMs -ge $intervalMs) {
+                $waitMs = $intervalMs
+            } else {
+                $waitMs = $intervalMs - $elapsedMs
+            }
+            $remaining = [int][Math]::Ceiling([Math]::Max(1000.0, $waitMs))
+            while ($remaining -gt 0 -and -not (Test-Path -LiteralPath $stopFile)) {
+                $chunk = [Math]::Min(250, $remaining)
+                Start-Sleep -Milliseconds $chunk
+                $remaining -= $chunk
+            }
+        }
+    }
+    Write-LabLog 'Watcher stop flag received. Exiting.'
+} finally {
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+}
