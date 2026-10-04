@@ -86,7 +86,7 @@ jobs:
       - name: Prepare Tauri resource directories
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path "runtime/launcher", "runtime/python" -Force | Out-Null
+          New-Item -ItemType Directory -Path "src-tauri/runtime/launcher", "src-tauri/runtime/python" -Force | Out-Null
           New-Item -ItemType Directory -Path "../../deploy/catalog-cache" -Force | Out-Null
       - name: Run Steam provider login regressions
         run: cargo test --manifest-path src-tauri/Cargo.toml provider_login_tests --quiet
