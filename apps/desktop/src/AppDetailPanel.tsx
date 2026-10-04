@@ -173,7 +173,7 @@ export function DetailPanel({
               <GlassActionButton
                 icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
                 label={downloadActionLabel(localState, download)}
-                tone="download" disabled={!game.app_id || downloadBlocked}
+                tone="download" disabled={(!game.app_id && !game.id) || downloadBlocked}
                 onClick={() => void onDownload(game)}
               />
             </div>

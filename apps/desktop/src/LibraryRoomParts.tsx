@@ -171,7 +171,7 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   return [{
     label: "Descargar",
     icon: <Download size={23} />,
-    disabled: !game.app_id,
+    disabled: !game.app_id && !game.id,
     kind: "download",
   }];
 }

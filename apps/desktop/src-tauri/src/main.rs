@@ -660,6 +660,8 @@ async fn start_digital_download(
     name: String,
     download_source: String,
     install_process: String,
+    torbox_key: Option<String>,
+    keep_archive: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
@@ -684,6 +686,16 @@ async fn start_digital_download(
 
         if !install_process.trim().is_empty() {
             cmd.arg("--install-process").arg(&install_process);
+        }
+
+        if let Some(ref key) = torbox_key {
+            if !key.trim().is_empty() {
+                cmd.arg("--torbox-key").arg(key.trim());
+            }
+        }
+
+        if keep_archive == Some(true) {
+            cmd.arg("--keep-archive");
         }
 
         #[cfg(target_os = "windows")]

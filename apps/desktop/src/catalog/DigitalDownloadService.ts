@@ -21,7 +21,18 @@ export class DigitalDownloadService implements IDownloadProvider {
   readonly name = "digital-python-downloader";
   private activeJobs = new Map<number, DownloadProgressSnapshot>();
   private listeners = new Map<number, Set<(snapshot: DownloadProgressSnapshot) => void>>();
+  private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   private digitalRecords = new Map<number, DigitalGameRecord>();
+
+  /**
+   * Subscribes to all digital download updates across all games.
+   */
+  onGlobalUpdate(listener: (snapshot: DownloadProgressSnapshot) => void): () => void {
+    this.globalListeners.add(listener);
+    return () => {
+      this.globalListeners.delete(listener);
+    };
+  }
 
   /**
    * Registers or updates digital catalog records from digital_catalog.json.
@@ -91,6 +102,8 @@ export class DigitalDownloadService implements IDownloadProvider {
           name,
           downloadSource,
           installProcess,
+          torboxKey: options?.torboxKey,
+          keepArchive: options?.keepArchive,
         });
         this.startStatusPolling(gameId, appId);
       } catch (err) {
@@ -278,6 +291,13 @@ export class DigitalDownloadService implements IDownloadProvider {
         } catch {
           // Prevent listener errors from breaking update loop
         }
+      }
+    }
+    for (const listener of this.globalListeners) {
+      try {
+        listener(snapshot);
+      } catch {
+        // Prevent listener errors from breaking update loop
       }
     }
   }

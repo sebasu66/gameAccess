@@ -40,6 +40,7 @@ if sys.stdout.encoding.lower() != 'utf-8':
 # Global cancellation and child process tracking
 g_cancelled = threading.Event()
 g_active_subprocess: Optional[subprocess.Popen] = None
+g_torrent_session = None
 g_temp_files: List[str] = []
 g_app_id: str = ""
 
@@ -99,9 +100,15 @@ def emit_error(app_id: str, error_message: str):
 
 def cleanup_on_cancel(signum=None, frame=None):
     """Graceful cleanup handler for SIGINT/SIGTERM."""
-    global g_cancelled, g_active_subprocess, g_temp_files, g_app_id
+    global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
     
+    if g_torrent_session is not None:
+        try:
+            g_torrent_session.pause()
+        except Exception:
+            pass
+
     # Terminate active external process if any
     if g_active_subprocess and g_active_subprocess.poll() is None:
         try:
@@ -381,7 +388,10 @@ class TorboxClient:
     def __init__(self, api_key: str):
         self.api_key = api_key.strip()
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
+        self.session.headers.update({
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": "GameAccess/1.0.0"
+        })
 
     def check_cached(self, link_or_hash: str) -> bool:
         url = f"{self.BASE_URL}/torrents/checkcached"
@@ -426,7 +436,7 @@ class TorboxClient:
 
     def get_status(self, torrent_id: int) -> Optional[Dict[str, Any]]:
         url = f"{self.BASE_URL}/torrents/mylist"
-        params = {"id": torrent_id}
+        params = {"id": torrent_id, "bypass_cache": "true"}
         r = self.session.get(url, params=params, timeout=15)
         if not r.ok:
             return None
@@ -438,11 +448,12 @@ class TorboxClient:
             return data
         return None
 
-    def request_link(self, torrent_id: int, file_id: Optional[int] = None, zip_link: bool = False) -> str:
+    def request_link(self, torrent_id: int, file_id: Optional[int] = None, zip_link: bool = True) -> str:
         url = f"{self.BASE_URL}/torrents/requestdl"
         params = {
             "token": self.api_key,
             "torrent_id": torrent_id,
+            "zip_link": "true" if zip_link else "false",
             "zip": "true" if zip_link else "false",
         }
         if file_id is not None and not zip_link:
@@ -456,6 +467,294 @@ class TorboxClient:
         if not link or not isinstance(link, str):
             raise RuntimeError(f"Respuesta de enlace inválida: {res}")
         return link
+
+
+# --- Direct Torrent Downloader (libtorrent) ---
+def download_direct_torrent(
+    torrent_source: str,
+    dest_dir: str,
+    app_id: str,
+    game_name: str
+) -> str:
+    """
+    Downloads torrent content directly using libtorrent (matching Hydra's TorrentService).
+    Zero technical jargon emitted to the user.
+    Returns path of downloaded file or directory.
+    """
+    global g_torrent_session
+    try:
+        import libtorrent as lt
+    except ImportError:
+        raise RuntimeError("El módulo libtorrent no está instalado. Ejecute: pip install libtorrent")
+
+    emit_progress(
+        app_id=app_id,
+        phase="preparing",
+        progress_percent=12.0,
+        status_text=f"Conectando con la red para preparar {game_name}..."
+    )
+
+    settings = {
+        'listen_interfaces': '0.0.0.0:6881,[::]:6881',
+        'enable_dht': True,
+        'enable_lsd': True,
+        'enable_upnp': True,
+        'enable_natpmp': True,
+        'alert_mask': lt.alert.category_t.error_notification | lt.alert.category_t.status_notification
+    }
+    ses = lt.session(settings)
+    g_torrent_session = ses
+
+    default_trackers = [
+        "udp://tracker.opentrackr.org:1337/announce",
+        "udp://open.stealth.si:80/announce",
+        "udp://tracker.torrent.eu.org:451/announce",
+        "udp://tracker.bittor.pw:1337/announce",
+        "udp://public.popcorn-tracker.org:6969/announce",
+        "udp://tracker.dler.org:6969/announce",
+        "udp://exodus.desync.com:6969/announce",
+        "udp://open.demonii.com:1337/announce"
+    ]
+    dht_bootstrap = [
+        ("router.bittorrent.com", 6881),
+        ("dht.transmissionbt.com", 6881),
+        ("router.utorrent.com", 6881),
+        ("dht.libtorrent.org", 25401)
+    ]
+
+    temp_torrent_path = None
+    if torrent_source.startswith("magnet:?"):
+        params = lt.parse_magnet_uri(torrent_source)
+        params.save_path = dest_dir
+        existing_trackers = set(getattr(params, "trackers", []))
+        for tr in default_trackers:
+            if tr not in existing_trackers:
+                existing_trackers.add(tr)
+        params.trackers = list(existing_trackers)
+        params.dht_nodes = dht_bootstrap
+        handle = ses.add_torrent(params)
+    elif os.path.isfile(torrent_source):
+        info = lt.torrent_info(torrent_source)
+        params = lt.add_torrent_params()
+        params.ti = info
+        params.save_path = dest_dir
+        params.trackers = default_trackers
+        params.dht_nodes = dht_bootstrap
+        handle = ses.add_torrent(params)
+    elif torrent_source.startswith("http://") or torrent_source.startswith("https://"):
+        temp_torrent_path = os.path.join(dest_dir, f"{app_id}_temp.torrent")
+        g_temp_files.append(temp_torrent_path)
+        emit_progress(app_id, "preparing", 14.0, status_text="Descargando manifiesto de instalación...")
+        r = requests.get(torrent_source, timeout=30)
+        r.raise_for_status()
+        with open(temp_torrent_path, "wb") as f:
+            f.write(r.content)
+        info = lt.torrent_info(temp_torrent_path)
+        params = lt.add_torrent_params()
+        params.ti = info
+        params.save_path = dest_dir
+        params.trackers = default_trackers
+        params.dht_nodes = dht_bootstrap
+        handle = ses.add_torrent(params)
+    else:
+        raise ValueError(f"Fuente de descarga inválida: {torrent_source}")
+
+    # Wait for metadata if necessary
+    meta_start = time.time()
+    while not handle.status().has_metadata:
+        if g_cancelled.is_set():
+            ses.remove_torrent(handle)
+            return ""
+        elapsed = time.time() - meta_start
+        emit_progress(
+            app_id=app_id,
+            phase="preparing",
+            progress_percent=min(14.0 + (elapsed * 1.5), 35.0),
+            status_text="Obteniendo información del juego..."
+        )
+        time.sleep(1)
+
+    tinfo = handle.torrent_file()
+    torrent_name = tinfo.name() if tinfo else game_name
+    total_wanted = handle.status().total_wanted or (tinfo.total_size() if tinfo else 0)
+
+    target_path = os.path.join(dest_dir, torrent_name)
+    g_temp_files.append(target_path)
+
+    emit_progress(
+        app_id=app_id,
+        phase="downloading",
+        progress_percent=0.0,
+        bytes_downloaded=0,
+        total_bytes=total_wanted,
+        status_text=f"Iniciando descarga de {game_name}..."
+    )
+
+    last_emit = 0
+    while not g_cancelled.is_set():
+        s = handle.status()
+        progress = s.progress * 100.0
+        bytes_done = s.total_wanted_done
+        total_bytes = s.total_wanted or total_wanted
+        speed = s.download_rate
+
+        remaining = max(total_bytes - bytes_done, 0)
+        eta = int(remaining / speed) if speed > 0 else 0
+
+        now = time.time()
+        if now - last_emit >= 0.5:
+            last_emit = now
+            emit_progress(
+                app_id=app_id,
+                phase="downloading",
+                progress_percent=progress,
+                bytes_downloaded=bytes_done,
+                total_bytes=total_bytes,
+                speed_bps=speed,
+                eta_seconds=eta,
+                status_text=f"Descargando {game_name} ({progress:.1f}%)"
+            )
+
+        if s.is_finished or s.state in (lt.torrent_status.finished, lt.torrent_status.seeding) or progress >= 100.0:
+            break
+
+        time.sleep(0.5)
+
+    if g_cancelled.is_set():
+        ses.remove_torrent(handle)
+        return ""
+
+    ses.remove_torrent(handle)
+    g_torrent_session = None
+
+    if temp_torrent_path and os.path.exists(temp_torrent_path):
+        try: os.remove(temp_torrent_path)
+        except Exception: pass
+
+    return target_path
+
+
+# --- Archive Extraction & Cleaner (Matching Hydra GameFilesManager) ---
+def extract_archives_in_path(
+    target_path: str,
+    dest_dir: str,
+    host: Optional[str] = None,
+    password: Optional[str] = None,
+    delete_archive: bool = True
+) -> bool:
+    """
+    Extracts archive files (or archives found inside target directory) using portable 7-Zip,
+    with Python zipfile/tarfile fallback.
+    If delete_archive is True, removes original compressed archive(s) and volume parts.
+    """
+    archives_to_extract = []
+
+    if os.path.isfile(target_path) and is_archive(target_path):
+        archives_to_extract.append(target_path)
+    elif os.path.isdir(target_path):
+        for root, _, files in os.walk(target_path):
+            for f in files:
+                full_path = os.path.join(root, f)
+                if is_archive(full_path):
+                    fn = f.lower()
+                    if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
+                        continue
+                    if re.search(r"\.(?!001\b)\d{3}$", fn):
+                        continue
+                    if re.search(r"\.z\d+$", fn):
+                        continue
+                    archives_to_extract.append(full_path)
+
+    # Also check dest_dir top-level for any loose archives
+    if os.path.isdir(dest_dir):
+        for f in os.listdir(dest_dir):
+            full_path = os.path.join(dest_dir, f)
+            if os.path.isfile(full_path) and is_archive(full_path):
+                fn = f.lower()
+                if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
+                    continue
+                if re.search(r"\.(?!001\b)\d{3}$", fn):
+                    continue
+                if re.search(r"\.z\d+$", fn):
+                    continue
+                if full_path not in archives_to_extract:
+                    archives_to_extract.append(full_path)
+
+    if not archives_to_extract:
+        return False
+
+    seven_zip = find_portable_7z()
+
+    # Determine password
+    effective_password = password
+    if not effective_password and host:
+        host_key = host.strip()
+        profile = HOST_PROFILES.get(host_key) or HOST_PROFILES.get(host_key.upper()) or HOST_PROFILES.get(host_key.lower())
+        if profile and "password" in profile:
+            effective_password = profile["password"]
+
+    total = len(archives_to_extract)
+    for idx, arc in enumerate(archives_to_extract):
+        arc_name = os.path.basename(arc)
+        emit_progress(
+            app_id=g_app_id,
+            phase="decompressing",
+            progress_percent=round((idx / total) * 100.0, 1),
+            status_text=f"Organizando archivos de {arc_name} ({idx+1}/{total})..."
+        )
+
+        success = False
+        if seven_zip:
+            cmd = [
+                seven_zip,
+                "x",
+                os.path.abspath(arc),
+                f"-o{os.path.abspath(dest_dir)}",
+                "-y"
+            ]
+            if effective_password:
+                cmd.append(f"-p{effective_password}")
+
+            global g_active_subprocess
+            g_active_subprocess = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            stdout, stderr = g_active_subprocess.communicate()
+            if g_active_subprocess.returncode == 0:
+                success = True
+            else:
+                emit_error(g_app_id, f"Error al organizar {arc_name}: {stderr.strip() or stdout.strip()[-150:]}")
+                return False
+        else:
+            import zipfile, tarfile
+            try:
+                if zipfile.is_zipfile(arc):
+                    with zipfile.ZipFile(arc, 'r') as zf:
+                        zf.extractall(dest_dir, pwd=effective_password.encode() if effective_password else None)
+                    success = True
+                elif tarfile.is_tarfile(arc):
+                    with tarfile.open(arc, 'r') as tf:
+                        tf.extractall(dest_dir)
+                    success = True
+            except Exception as e:
+                emit_error(g_app_id, f"Error extrayendo {arc_name}: {e}")
+                return False
+
+        if success and delete_archive:
+            delete_archive_and_parts(arc)
+            if arc in g_temp_files:
+                g_temp_files.remove(arc)
+
+    emit_progress(
+        app_id=g_app_id,
+        phase="decompressing",
+        progress_percent=100.0,
+        status_text="Archivos organizados y listos."
+    )
+    return True
 
 
 # --- Main Orchestration ---
@@ -474,6 +773,7 @@ def main():
     parser.add_argument("--host", default=None, help="Host profile identifier (e.g. 'X' uses password 'zzzz')")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
     parser.add_argument("--connections", "-n", type=int, default=16, help="Parallel download connections")
+    parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")
     parser.add_argument("--keep-archive", action="store_true", help="Keep archive after decompressing")
 
     args = parser.parse_args()
@@ -524,6 +824,7 @@ def main():
 
     download_url = None
     target_filename = None
+    target_content_path = None
     is_torrent = (
         download_source.startswith("magnet:?") or
         download_source.endswith(".torrent") or
@@ -532,83 +833,105 @@ def main():
 
     try:
         if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
-            torbox_key = args.torbox_key
-            if not torbox_key:
-                raise ValueError("Se requiere TorBox API Key para optimizar la descarga (--torbox-key o TORBOX_API_KEY)")
+            torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
+            use_torbox = False
 
-            tb = TorboxClient(torbox_key)
-            emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
+            if torbox_key:
+                try:
+                    tb = TorboxClient(torbox_key)
+                    emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
 
-            is_cached = tb.check_cached(download_source)
-            if is_cached:
-                emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso inmediato listo.")
+                    is_cached = tb.check_cached(download_source)
+                    if is_cached:
+                        emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
 
-            # Submit package to high-speed cloud resolver
-            torrent_id = tb.add_torrent(download_source)
-            emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
+                    # Submit package to high-speed cloud resolver
+                    torrent_id = tb.add_torrent(download_source)
+                    emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
 
-            # Poll cloud status until completed/cached
-            while not g_cancelled.is_set():
-                status = tb.get_status(torrent_id)
-                if status:
-                    is_finished = status.get("download_finished", False)
-                    state = status.get("download_state", "unknown")
-                    progress = status.get("progress", 0.0)
-                    pct = progress if progress > 1.0 else progress * 100
+                    # Poll cloud status until completed/cached (up to 30 attempts)
+                    tb_attempts = 0
+                    while not g_cancelled.is_set() and tb_attempts < 30:
+                        tb_attempts += 1
+                        status = tb.get_status(torrent_id)
+                        if status:
+                            is_finished = status.get("download_finished", False)
+                            state = status.get("download_state", "unknown")
+                            progress = status.get("progress", 0.0)
+                            pct = progress if progress > 1.0 else progress * 100
 
+                            emit_progress(
+                                app_id=app_id,
+                                phase="preparing",
+                                progress_percent=min(pct * 0.25 + 22.0, 48.0),
+                                status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
+                            )
+
+                            if is_finished or state in ("completed", "cached") or pct >= 100.0:
+                                raw_files = status.get("files") or []
+                                files = [f for f in raw_files if isinstance(f, dict)]
+                                t_name = status.get("name", "game_package")
+
+                                if len(files) == 1:
+                                    f_obj = files[0]
+                                    target_filename = f_obj.get("name") or t_name
+                                    file_id = f_obj.get("id")
+                                    download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
+                                else:
+                                    target_filename = f"{t_name}.zip"
+                                    download_url = tb.request_link(torrent_id, zip_link=True)
+                                use_torbox = True
+                                break
+                        time.sleep(2)
+                except Exception as tb_err:
                     emit_progress(
                         app_id=app_id,
                         phase="preparing",
-                        progress_percent=min(pct * 0.25 + 22.0, 48.0),
-                        status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
+                        progress_percent=15.0,
+                        status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
                     )
+                    use_torbox = False
 
-                    if is_finished or state in ("completed", "cached") or pct >= 100.0:
-                        raw_files = status.get("files") or []
-                        files = [f for f in raw_files if isinstance(f, dict)]
-                        t_name = status.get("name", "game_package")
-
-                        if len(files) == 1:
-                            f_obj = files[0]
-                            target_filename = f_obj.get("name") or t_name
-                            file_id = f_obj.get("id")
-                            download_url = tb.request_link(torrent_id, file_id=file_id)
-                        else:
-                            # Package multi-file content into single archive
-                            target_filename = f"{t_name}.zip"
-                            download_url = tb.request_link(torrent_id, zip_link=True)
-                        break
-                time.sleep(2)
+            # If TorBox is unavailable or has no key, fall back to direct torrent download
+            if not use_torbox or not download_url:
+                target_content_path = download_direct_torrent(
+                    torrent_source=download_source,
+                    dest_dir=dest_dir,
+                    app_id=app_id,
+                    game_name=game_name
+                )
+                if not target_content_path or g_cancelled.is_set():
+                    cleanup_on_cancel()
+                    return
         else:
             download_url = download_source
             parsed = urlparse(download_url)
             target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
 
-        if not download_url:
-            raise RuntimeError("No se pudo obtener el enlace de descarga directo.")
+        # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
+        if download_url:
+            out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
+            g_temp_files.append(out_filepath)
+            target_content_path = out_filepath
 
-        # 2. PHASE: DOWNLOADING
-        out_filepath = os.path.join(dest_dir, target_filename)
-        g_temp_files.append(out_filepath)
+            emit_progress(
+                app_id=app_id,
+                phase="downloading",
+                progress_percent=0.0,
+                status_text="Iniciando descarga de alta velocidad..."
+            )
 
-        emit_progress(
-            app_id=app_id,
-            phase="downloading",
-            progress_percent=0.0,
-            status_text="Iniciando descarga de alta velocidad..."
-        )
+            ok = download_segmented(
+                url=download_url,
+                output_path=out_filepath,
+                app_id=app_id,
+                game_name=game_name,
+                connections=args.connections
+            )
 
-        ok = download_segmented(
-            url=download_url,
-            output_path=out_filepath,
-            app_id=app_id,
-            game_name=game_name,
-            connections=args.connections
-        )
-
-        if not ok or g_cancelled.is_set():
-            cleanup_on_cancel()
-            return
+            if not ok or g_cancelled.is_set():
+                cleanup_on_cancel()
+                return
 
         emit_progress(
             app_id=app_id,
@@ -617,62 +940,15 @@ def main():
             status_text="Descarga finalizada. Preparando instalación..."
         )
 
-        # 3. PHASE: DECOMPRESSING / EXTRACTING
-        archive_detected = is_archive(out_filepath)
-        extracted_dir = dest_dir
-
-        if archive_detected:
-            emit_progress(
-                app_id=app_id,
-                phase="decompressing",
-                progress_percent=0.0,
-                status_text="Organizando y verificando archivos del juego..."
-            )
-
-            seven_zip = find_portable_7z()
-            if not seven_zip:
-                raise RuntimeError("No se encontró 7-Zip Portable (bin/7z/7z.exe) para descomprimir")
-
-            # Determine password (e.g. host X -> zzzz)
-            effective_password = args.password
-            if not effective_password and args.host:
-                host_key = args.host.strip()
-                profile = HOST_PROFILES.get(host_key) or HOST_PROFILES.get(host_key.upper()) or HOST_PROFILES.get(host_key.lower())
-                if profile and "password" in profile:
-                    effective_password = profile["password"]
-
-            cmd = [
-                seven_zip,
-                "x",
-                os.path.abspath(out_filepath),
-                f"-o{os.path.abspath(dest_dir)}",
-                "-y"
-            ]
-            if effective_password:
-                cmd.append(f"-p{effective_password}")
-
-            g_active_subprocess = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = g_active_subprocess.communicate()
-
-            if g_active_subprocess.returncode != 0:
-                raise RuntimeError(f"Error al organizar archivos (código {g_active_subprocess.returncode}): {stderr.strip() or stdout.strip()[-200:]}")
-
-            emit_progress(
-                app_id=app_id,
-                phase="decompressing",
-                progress_percent=100.0,
-                status_text="Archivos del juego preparados correctamente"
-            )
-
-            if not args.keep_archive:
-                delete_archive_and_parts(out_filepath)
-                if out_filepath in g_temp_files:
-                    g_temp_files.remove(out_filepath)
+        # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
+        should_delete_archive = not args.keep_archive
+        extracted = extract_archives_in_path(
+            target_path=target_content_path or dest_dir,
+            dest_dir=dest_dir,
+            host=args.host,
+            password=args.password,
+            delete_archive=should_delete_archive
+        )
 
         # 4. PHASE: INSTALLING (Optional post-download install command)
         if args.install_process:
@@ -686,7 +962,7 @@ def main():
             # Context variable substitution
             seven_zip_path = find_portable_7z() or "7z"
             cmd_rendered = args.install_process.format(
-                file=out_filepath,
+                file=target_content_path or dest_dir,
                 dest=dest_dir,
                 dir=dest_dir,
                 appId=app_id,
@@ -716,7 +992,13 @@ def main():
             )
 
         # 5. PHASE: COMPLETED
-        final_size = os.path.getsize(out_filepath) if os.path.exists(out_filepath) else 0
+        final_size = 0
+        if target_content_path and os.path.exists(target_content_path):
+            if os.path.isfile(target_content_path):
+                final_size = os.path.getsize(target_content_path)
+            elif os.path.isdir(target_content_path):
+                final_size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(target_content_path) for f in fs)
+
         emit_progress(
             app_id=app_id,
             phase="completed",

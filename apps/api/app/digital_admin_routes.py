@@ -663,6 +663,32 @@ def resolve_options_for_game(name: str = Query(..., min_length=1)) -> dict[str, 
         })
 
     return {"ok": True, "game": name, "count": len(results), "options": results}
+ 
+ 
+@router.get("/source/{game_id}")
+def get_admin_digital_source(game_id: int, name: Optional[str] = Query(None)) -> dict[str, Any]:
+    catalog = load_digital_catalog_json()
+    for item in catalog:
+        if item.get("id") == game_id:
+            src = str(item.get("downloadSource") or "").strip()
+            if src:
+                return {"ok": True, "id": game_id, "name": item.get("name"), "uri": src}
+            if not name:
+                name = item.get("name")
+
+    if name:
+        cached = load_cached_downloads()
+        scored = []
+        for c in cached:
+            score = calculate_match_score(name, c.get("raw_title", ""))
+            if score >= 0.55:
+                scored.append((score, c))
+        if scored:
+            scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
+            best = scored[0][1]
+            return {"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "size": best.get("file_size")}
+
+    raise HTTPException(404, detail="No download source found for this game")
 
 
 @router.post("/raw-json")

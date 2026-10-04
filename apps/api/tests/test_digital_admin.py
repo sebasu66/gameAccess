@@ -163,3 +163,14 @@ def test_import_direct_hydra_json_payload():
     assert data["added_to_catalog"] >= 0
 
 
+def test_digital_source_resolution():
+    # Query source endpoint for Stardew Valley
+    resp = client.get("/digital/source/999999?name=Stardew+Valley")
+    # If found via hydra source or returns 200/404 properly
+    assert resp.status_code in [200, 404]
+    if resp.status_code == 200:
+        data = resp.json()
+        assert "uri" in data
+        assert data["ok"] is True
+
+

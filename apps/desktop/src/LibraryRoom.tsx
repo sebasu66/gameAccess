@@ -113,7 +113,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
   const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
   const selectedGameIdResolved = selectedGame?.id;
-  const selectedAppId = selectedGame?.app_id;
+  const selectedAppId = selectedGame?.app_id ?? selectedGame?.id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   // Selected-game probes and storage events replace stale local completion overlays.

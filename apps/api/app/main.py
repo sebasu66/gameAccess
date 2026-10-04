@@ -1346,9 +1346,43 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
 @app.get("/digital/catalog")
 @app.get("/digital-catalog.json")
 @app.get("/digital_catalog.json")
-def get_digital_catalog() -> list[dict]:
-    """Return the digital game list JSON stored on the server."""
-    return load_digital_catalog_json()
+def get_digital_catalog(all: bool = Query(False, description="Include items without download sources")) -> list[dict]:
+    """Return the digital game list JSON stored on the server.
+    By default filters out entries with empty downloadSource to ensure only downloadable items are returned to clients.
+    """
+    items = load_digital_catalog_json()
+    if all:
+        return items
+    return [item for item in items if str(item.get("downloadSource") or "").strip()]
+
+
+@app.get("/digital/source/{game_id}")
+def get_digital_game_source(game_id: int, name: Optional[str] = Query(None)) -> dict:
+    """Find or resolve a download source for a specific digital game by ID or game name."""
+    items = load_digital_catalog_json()
+    for item in items:
+        if item.get("id") == game_id:
+            src = str(item.get("downloadSource") or "").strip()
+            if src:
+                return {"ok": True, "id": game_id, "name": item.get("name"), "uri": src}
+            if not name:
+                name = item.get("name")
+
+    # If not directly defined on catalog item, attempt matching cached Hydra sources if name is known
+    if name:
+        from .digital_admin_routes import load_cached_downloads, calculate_match_score
+        cached = load_cached_downloads()
+        scored = []
+        for c in cached:
+            score = calculate_match_score(name, c.get("raw_title", ""))
+            if score >= 0.55:
+                scored.append((score, c))
+        if scored:
+            scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
+            best = scored[0][1]
+            return {"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "size": best.get("file_size")}
+
+    raise HTTPException(404, detail="No download source found for this game")
 
 
 @app.post("/admin/catalog/digital/sync")

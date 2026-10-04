@@ -13,6 +13,8 @@ import { normalizeSteamStoreMetadata } from "../steamMetadata";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
+import { digitalProcessManager } from "./DigitalProcessManager";
+import { getApiBaseUrl } from "../settings";
 
 export interface DigitalGameRecord {
   name: string;
@@ -59,12 +61,26 @@ export class DigitalCatalog {
       let raw: unknown = null;
       if (typeof window !== "undefined" && typeof fetch !== "undefined") {
         try {
-          const response = await fetch("/digital_catalog.json", { cache: "no-store" });
-          if (response.ok) {
-            raw = await response.json();
+          const apiUrl = await getApiBaseUrl();
+          if (apiUrl) {
+            const response = await fetch(`${apiUrl}/digital/catalog`, { cache: "no-store" });
+            if (response.ok) {
+              raw = await response.json();
+            }
           }
         } catch {
-          // Fall back to bundled JSON on network error or test environment.
+          // Fall back to local or bundled JSON on network error or test environment.
+        }
+
+        if (!Array.isArray(raw) || !raw.length) {
+          try {
+            const response = await fetch("/digital_catalog.json", { cache: "no-store" });
+            if (response.ok) {
+              raw = await response.json();
+            }
+          } catch {
+            // Fall back to bundled JSON on network error or test environment.
+          }
         }
       }
 
@@ -78,7 +94,7 @@ export class DigitalCatalog {
     // In Digital mode, games that have no download sources available must not be shown
     // in the digital catalog (they count as invalid records).
     const validRecords = rawList.filter((item) => {
-      const source = (item.downloadSource ?? "").trim();
+      const source = (item.downloadSource ?? (item as any).download_source ?? "").trim();
       return Boolean(source);
     });
 
@@ -90,10 +106,10 @@ export class DigitalCatalog {
         const rec: DigitalGameRecord = {
           name: item.name || `Juego ${id}`,
           id,
-          downloadSource: (item.downloadSource ?? "").trim(),
-          installProcess: item.installProcess ?? "",
-          playProcess: item.playProcess ?? "",
-          uninstallProcess: item.uninstallProcess ?? "",
+          downloadSource: (item.downloadSource ?? (item as any).download_source ?? "").trim(),
+          installProcess: item.installProcess ?? (item as any).install_process ?? "",
+          playProcess: item.playProcess ?? (item as any).play_process ?? "",
+          uninstallProcess: item.uninstallProcess ?? (item as any).uninstall_process ?? "",
         };
         this.rawRecords.set(id, rec);
         digitalRecords.push(rec);
@@ -174,10 +190,16 @@ export class DigitalCatalog {
     if (this.options.playHandler) {
       return this.options.playHandler(game);
     }
-    if (!game.app_id) {
-      throw new Error(`El juego '${game.name}' no tiene configurado un AppID de Steam para ejecutarse.`);
+    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    if (record?.playProcess && record.playProcess.trim()) {
+      await digitalProcessManager.executePlay(game, record);
+      return;
     }
-    await openSteamRun(game.app_id);
+    if (game.app_id) {
+      await openSteamRun(game.app_id);
+      return;
+    }
+    await digitalProcessManager.executePlay(game, record);
   }
 
   /**
@@ -188,11 +210,40 @@ export class DigitalCatalog {
       return this.options.downloadHandler(game);
     }
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
+    let downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+
+    if (!downloadSource) {
+      try {
+        const apiUrl = await getApiBaseUrl();
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.uri) {
+              downloadSource = data.uri;
+            }
+          }
+        }
+      } catch {
+        // Continue
+      }
+    }
+
     if (!downloadSource) {
       throw new Error(`El juego '${game.name}' no tiene fuentes de descarga configuradas.`);
     }
-    return digitalDownloadService.start(game, { record });
+
+    const effectiveRecord: DigitalGameRecord = {
+      ...(record || {
+        name: game.name,
+        id: game.id,
+        installProcess: "",
+        playProcess: "",
+        uninstallProcess: "",
+      }),
+      downloadSource,
+    };
+    return digitalDownloadService.start(game, { record: effectiveRecord });
   }
 
   /**

@@ -61,3 +61,8 @@ apps/api/*.log
 accFullOLD.csv
 apps/api/courtesy-keys.json
 apps/desktop/src-tauri/runtime/
+apps/api/.cache/
+apps/launcher/.cache/
+*.exe
+*.psd
+*.log

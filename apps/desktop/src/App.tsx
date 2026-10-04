@@ -23,6 +23,7 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
 let visualDebugStarted = false;
@@ -240,6 +241,20 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     };
     window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
     return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+  }, []);
+
+  useEffect(() => {
+    const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
+      const managed = digitalDownloadService.getManagedStatus(snapshot.gameId);
+      if (managed) {
+        setDownloads((current) => ({
+          ...current,
+          [snapshot.gameId]: managed,
+          ...(managed.app_id ? { [managed.app_id]: managed } : {})
+        }));
+      }
+    });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -821,7 +836,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         </div>
       </main>
 
-      {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
+      {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}
