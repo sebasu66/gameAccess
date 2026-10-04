@@ -15,7 +15,6 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
-from . import main as core
 from .digital_catalog import get_digital_catalog_path, load_digital_catalog_json, sync_digital_catalog
 from .database import engine as default_engine
 
@@ -175,6 +174,67 @@ def calculate_match_score(target_name: str, candidate_title: str) -> float:
 
     seq_ratio = SequenceMatcher(None, norm_target, norm_candidate).ratio()
     return (ratio * 0.6) + (seq_ratio * 0.4)
+
+
+def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
+    """Resolves the official Steam AppID for a game title using Steam Store Search API.
+    
+    Applies strict edition & numeral matching so titles like 'Mortal Kombat',
+    'Mortal Kombat X' and 'Mortal Kombat 11' never cross-match with each other.
+    Returns (app_id, official_name) or None if no high-confidence match is found.
+    """
+    clean = clean_user_friendly_title(game_name).strip()
+    if not clean:
+        return None
+
+    queries = [clean]
+    # Strip semantic version numbers like '1.6' or build numbers
+    no_ver = re.sub(r"\b\d+\.\d+[\d.]*\b", " ", clean)
+    no_ver = re.sub(r"\s+", " ", no_ver).strip()
+    if no_ver and no_ver.lower() != clean.lower():
+        queries.append(no_ver)
+
+    # Strip subtitle/edition tags after colon or dash if not matched yet
+    sub_title = re.split(r"[:\-|–—]", clean)[0].strip()
+    if sub_title and sub_title.lower() not in [q.lower() for q in queries]:
+        queries.append(sub_title)
+
+    for q in queries:
+        try:
+            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+                resp = client.get(
+                    "https://store.steampowered.com/api/storesearch/",
+                    params={"term": q, "l": "spanish", "cc": "ar"},
+                    headers={"User-Agent": "gameAccess/0.2 Steam App Resolver"}
+                )
+                if resp.status_code != 200:
+                    continue
+                items = resp.json().get("items", [])
+        except Exception as exc:
+            logger.debug("Steam search exception for %s: %s", q, exc)
+            continue
+
+        candidates = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            if item_type not in ("app", None):
+                continue
+            cand_id = item.get("id")
+            cand_name = item.get("name")
+            if not cand_id or not cand_name:
+                continue
+            score = calculate_match_score(q, cand_name)
+            if score >= 0.70:
+                candidates.append((score, int(cand_id), str(cand_name)))
+
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            best_score, best_id, best_name = candidates[0]
+            return best_id, best_name
+
+    return None
 
 
 def load_cached_downloads() -> list[dict[str, Any]]:
@@ -611,14 +671,24 @@ def populate_catalog_from_sources() -> dict[str, Any]:
             continue
 
         game_id = item.get("id")
+        official_name = None
         if not game_id or game_id in existing_ids:
-            base_id = abs(hash(norm)) % 8000000 + 1000000
-            while base_id in existing_ids:
-                base_id += 1
-            game_id = base_id
+            # First attempt to resolve real Steam AppID
+            steam_match = resolve_steam_app_id(title)
+            if steam_match:
+                resolved_id, resolved_name = steam_match
+                if resolved_id not in existing_ids:
+                    game_id = resolved_id
+                    official_name = resolved_name
+            if not game_id or game_id in existing_ids:
+                base_id = abs(hash(norm)) % 8000000 + 1000000
+                while base_id in existing_ids:
+                    base_id += 1
+                game_id = base_id
 
+        final_title = official_name or title
         catalog.append({
-            "name": title,
+            "name": final_title,
             "id": game_id,
             "downloadSource": item["uri"],
             "installProcess": "",

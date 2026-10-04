@@ -144,7 +144,27 @@ export class DigitalCatalog {
           });
         }
       } catch {
-        // Continue with local metadata if Steam Store metadata is unavailable
+        // Continue to server fallback
+      }
+
+      try {
+        const apiUrl = await getApiBaseUrl();
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}/games/${game.app_id}/details`);
+          if (res.ok) {
+            const serverData = await res.json();
+            if (serverData && serverData.steam) {
+              const steam = normalizeSteamStoreMetadata(game, serverData.steam);
+              return applyBundledDetails({
+                ...game,
+                steam,
+                metadata_state: serverData.metadata_state || "ready",
+              });
+            }
+          }
+        }
+      } catch {
+        // Continue to fallback
       }
     }
 
