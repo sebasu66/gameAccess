@@ -496,17 +496,17 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   };
 
   const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
-    if (!game.app_id) return;
     if (getCatalogMode() === "digital") {
+      const downloadKey = game.app_id ?? game.id;
       try {
         setDownloads((current) => ({
           ...current,
-          [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }
+          [downloadKey]: { app_id: downloadKey, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }
         }));
         rememberRecent(game);
         await digitalCatalogService.download(game);
         const status = await digitalCatalogService.getStatus(game);
-        setDownloads((current) => ({ ...current, [game.app_id!]: status }));
+        setDownloads((current) => ({ ...current, [downloadKey]: status }));
         if (status.error) {
           setToast(`Error en descarga: ${status.error}`);
         } else {
@@ -516,12 +516,13 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         const errorMsg = err instanceof Error ? err.message : String(err);
         setDownloads((current) => ({
           ...current,
-          [game.app_id!]: { app_id: game.app_id!, state: "error", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
+          [downloadKey]: { app_id: downloadKey, state: "error", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
         }));
         setToast(`Error al iniciar descarga: ${errorMsg}`);
       }
       return;
     }
+    if (!game.app_id) return;
     const gameAccessMode = getCatalogMode() === "gameaccess";
     const markRequested = () => {
       setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));

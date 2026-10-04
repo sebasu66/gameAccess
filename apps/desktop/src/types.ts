@@ -43,6 +43,10 @@ export interface CatalogGame {
   local_owner_steam_ids?: string[];
   local_inventory_verified?: boolean;
   local_inventory_verified_at?: string | null;
+  downloadSource?: string;
+  installProcess?: string;
+  playProcess?: string;
+  uninstallProcess?: string;
 }
 
 export interface SteamSearchPrice {

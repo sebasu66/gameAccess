@@ -347,9 +347,8 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
     await narrate(`Loading game details for catalog game ${gameId} in ${getCatalogMode()} mode.`, { area: "GAME" });
     try {
       let details: GameDetails;
-      if (getCatalogMode() === "local") {
-        details = await loadLocalDetails(gameId);
-      } else if (getCatalogMode() === "digital") {
+      if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+      if (getCatalogMode() === "digital") {
         details = await digitalCatalogService.loadDetails(gameId);
       } else {
         const language = getSteamStoreLanguage();

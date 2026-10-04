@@ -12,6 +12,7 @@ describe("DigitalCatalog", () => {
     copies_total: 1,
     copies_available: 1,
     availability_state: "ready",
+    downloadSource: "magnet:?xt=urn:btih:sample999",
   };
 
   it("loads games from configured catalogLoader", async () => {
@@ -96,8 +97,27 @@ describe("DigitalCatalog", () => {
       name: "Invalid Game No Source",
       downloadSource: "",
     };
+    const gameWithWhitespace = {
+      ...sampleGame,
+      id: 103,
+      app_id: 103,
+      name: "Invalid Game Whitespace",
+      downloadSource: "   ",
+    };
+    const gameWithUndefined = {
+      ...sampleGame,
+      id: 104,
+      app_id: 104,
+      name: "Invalid Game Undefined",
+      downloadSource: undefined,
+    };
     const service = new DigitalCatalog({
-      catalogLoader: async () => [gameWithSource as any, gameWithoutSource as any],
+      catalogLoader: async () => [
+        gameWithSource as any,
+        gameWithoutSource as any,
+        gameWithWhitespace as any,
+        gameWithUndefined as any,
+      ],
     });
     const games = await service.loadCatalog();
     expect(games.length).toBe(1);
@@ -112,6 +132,7 @@ describe("DigitalCatalog", () => {
       id: 888,
       app_id: 888,
       name: "Game Without Source",
+      downloadSource: "",
     };
     await expect(service.download(gameNoSource)).rejects.toThrow(
       "El juego 'Game Without Source' no tiene fuentes de descarga configuradas."

@@ -50,35 +50,30 @@ export class DigitalCatalog {
    * Loads games from the JSON catalog file.
    */
   async loadCatalog(): Promise<CatalogGame[]> {
+    let rawList: (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
+
     if (this.options.catalogLoader) {
       const loaded = await this.options.catalogLoader();
-      this.cachedGames = loaded.filter((item) => {
-        const record = item as Partial<DigitalGameRecord>;
-        if (record.downloadSource !== undefined) {
-          return Boolean(record.downloadSource && record.downloadSource.trim());
+      rawList = (Array.isArray(loaded) ? loaded : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
+    } else {
+      let raw: unknown = null;
+      if (typeof window !== "undefined" && typeof fetch !== "undefined") {
+        try {
+          const response = await fetch("/digital_catalog.json", { cache: "no-store" });
+          if (response.ok) {
+            raw = await response.json();
+          }
+        } catch {
+          // Fall back to bundled JSON on network error or test environment.
         }
-        return true;
-      });
-      return this.cachedGames;
-    }
-
-    let raw: unknown = null;
-    if (typeof window !== "undefined" && typeof fetch !== "undefined") {
-      try {
-        const response = await fetch("/digital_catalog.json", { cache: "no-store" });
-        if (response.ok) {
-          raw = await response.json();
-        }
-      } catch {
-        // Fall back to bundled JSON on network error or test environment.
       }
-    }
 
-    if (!Array.isArray(raw) || !raw.length) {
-      raw = defaultCatalog;
-    }
+      if (!Array.isArray(raw) || !raw.length) {
+        raw = defaultCatalog;
+      }
 
-    const rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
+      rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
+    }
 
     // In Digital mode, games that have no download sources available must not be shown
     // in the digital catalog (they count as invalid records).
