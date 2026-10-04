@@ -45,7 +45,7 @@
       <button data-tab="seats">Asientos <span class="nav-badge" id="nSeats">0</span></button>
       <button data-tab="sessions">Sesiones <span class="nav-badge" id="nSessions">0</span></button>
       <button data-tab="tools">Herramientas</button>
-      <a href="/admin-console/digital" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid rgba(101,240,178,.2);border-radius:10px;background:rgba(101,240,178,.07);color:#c7f9e5;text-decoration:none;font-size:13px;font-weight:600">Catálogo & Fuentes ✦</a>
+      <a href="/admin-console/digital" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid rgba(101,240,178,.2);border-radius:10px;background:rgba(101,240,178,.07);color:#c7f9e5;text-decoration:none;font-size:13px;font-weight:600">Sección Digital · Catálogo & Fuentes ✦</a>
       <button data-tab="errors">Errores <span class="nav-badge" id="nErrors">0</span></button>
     </nav>
     <div class="aside-foot">Panel local de operación. Los datos se actualizan cada 3 segundos desde FastAPI.</div>
@@ -53,7 +53,7 @@
 
   <main>
     <section class="tab active" id="tab-overview">
-      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><button class="btn" onclick="startFullUpdate()">Actualizar pool</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
+      <div class="top"><div><h1>Control del pool</h1><p>Capacidad, licencias, asientos y actividad en vivo.</p></div><div class="top-actions"><a class="btn" href="/admin-console/digital" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;border-color:rgba(101,240,178,.24);background:rgba(101,240,178,.10);color:#cffff0">✦ Sección Digital</a><button class="btn" onclick="startFullUpdate()">Actualizar pool</button><button class="btn primary" onclick="go('tools')">+ Herramientas</button></div></div>
       <div class="grid stats" id="stats"></div>
       <div class="grid split">
         <div class="panel"><div class="panel-head"><h2>Licencias con más capacidad</h2><span id="overviewLicenseCount"></span></div><div class="panel-body" id="overviewLicenses"></div></div>
@@ -85,6 +85,9 @@
       <div class="top"><div><h1>Herramientas</h1><p>Operaciones locales gestionadas desde el panel.</p></div></div>
       <div class="grid split">
         <div>
+          <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Sección Digital</h2><span>Catálogo independiente y fuentes Hydra</span></div><div class="panel-body">
+            <div class="tool-card" style="margin-bottom:0"><div><h3>Administrador de Juegos Digitales</h3><p>Gestionar fuentes de descarga de la comunidad, resolver enlaces y administrar el catálogo digital independiente.</p></div><a class="btn primary" href="/admin-console/digital" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">Abrir Sección Digital ✦</a></div>
+          </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Generar claves de acceso</h2><span>Se muestra una sola vez</span></div><div class="panel-body">
             <form id="accessKeyForm" class="form">
               <div class="field"><label>Duración del acceso</label><input name="access_duration" type="number" min="1" max="60" value="12" required></div>

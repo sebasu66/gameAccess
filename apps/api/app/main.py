@@ -2236,9 +2236,12 @@ app.include_router(steam_search_router)
 
 from .admin_console_routes import (  # noqa: E402 - routes import initialized app
     router as admin_console_router,
+    admin_console,
 )
 
 app.include_router(admin_console_router)
+app.add_api_route("/admin", admin_console, methods=["GET"], include_in_schema=False)
+app.add_api_route("/admin/", admin_console, methods=["GET"], include_in_schema=False)
 
 from .digital_admin_routes import (  # noqa: E402
     router as digital_admin_router,
@@ -2247,3 +2250,4 @@ from .digital_admin_routes import (  # noqa: E402
 
 app.include_router(digital_admin_router)
 app.add_api_route("/admin/digital", get_digital_admin_page, methods=["GET"], include_in_schema=False)
+app.add_api_route("/admin/digital/", get_digital_admin_page, methods=["GET"], include_in_schema=False)

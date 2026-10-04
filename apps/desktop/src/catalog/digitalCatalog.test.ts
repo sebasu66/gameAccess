@@ -80,4 +80,53 @@ describe("DigitalCatalog", () => {
     await service.openInstallFolder(sampleGame);
     expect(folderSpy).toHaveBeenCalledWith(sampleGame);
   });
+
+  it("filters out invalid records that lack download sources", async () => {
+    const gameWithSource = {
+      ...sampleGame,
+      id: 101,
+      app_id: 101,
+      name: "Valid Game",
+      downloadSource: "magnet:?xt=urn:btih:valid123",
+    };
+    const gameWithoutSource = {
+      ...sampleGame,
+      id: 102,
+      app_id: 102,
+      name: "Invalid Game No Source",
+      downloadSource: "",
+    };
+    const service = new DigitalCatalog({
+      catalogLoader: async () => [gameWithSource as any, gameWithoutSource as any],
+    });
+    const games = await service.loadCatalog();
+    expect(games.length).toBe(1);
+    expect(games[0].id).toBe(101);
+    expect(games[0].name).toBe("Valid Game");
+  });
+
+  it("provides proper error feedback when downloading a game without download sources", async () => {
+    const service = new DigitalCatalog();
+    const gameNoSource: CatalogGame = {
+      ...sampleGame,
+      id: 888,
+      app_id: 888,
+      name: "Game Without Source",
+    };
+    await expect(service.download(gameNoSource)).rejects.toThrow(
+      "El juego 'Game Without Source' no tiene fuentes de descarga configuradas."
+    );
+  });
+
+  it("loads default bundled catalog filtering out games with empty download sources", async () => {
+    const service = new DigitalCatalog();
+    const games = await service.loadCatalog();
+    expect(games.length).toBeGreaterThan(0);
+    // All returned games must have valid records with downloadSource
+    for (const g of games) {
+      const rec = service.getRecord(g.id);
+      expect(rec).toBeDefined();
+      expect(rec?.downloadSource.trim().length).toBeGreaterThan(0);
+    }
+  });
 });

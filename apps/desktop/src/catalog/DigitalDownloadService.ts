@@ -69,8 +69,20 @@ export class DigitalDownloadService implements IDownloadProvider {
 
     const appId = record?.id ?? game.app_id ?? gameId;
     const name = record?.name ?? game.name;
-    const downloadSource = record?.downloadSource ?? "";
+    const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
     const installProcess = record?.installProcess ?? "";
+
+    if (!downloadSource) {
+      const errorMsg = `El juego '${name}' no posee fuentes de descarga disponibles.`;
+      this.updateSnapshot({
+        gameId,
+        phase: "error",
+        progress: 0,
+        statusText: "Sin fuentes de descarga disponibles",
+        error: errorMsg,
+      });
+      throw new Error(errorMsg);
+    }
 
     if (hasTauriRuntime()) {
       try {

@@ -396,7 +396,8 @@ def dashboard(session: Session) -> dict:
     }
 
 
-@router.get("/")
+@router.get("", response_class=FileResponse)
+@router.get("/", response_class=FileResponse)
 def admin_console() -> FileResponse:
     if not ADMIN_HTML.is_file():
         raise HTTPException(404, "admin console HTML not found")

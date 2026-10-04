@@ -16,6 +16,28 @@ def test_digital_admin_page_accessible():
     assert alias_resp.status_code == 200
     assert "Gestión de Catálogo y Fuentes" in alias_resp.text
 
+    slash_resp = client.get("/admin-console/digital/")
+    assert slash_resp.status_code == 200
+
+    alias_slash_resp = client.get("/admin/digital/")
+    assert alias_slash_resp.status_code == 200
+
+
+def test_admin_console_has_link_to_digital_section():
+    # Both /admin-console and /admin-console/ should load index.html
+    resp = client.get("/admin-console/")
+    assert resp.status_code == 200
+    assert "/admin-console/digital" in resp.text
+    assert "Sección Digital" in resp.text
+
+    resp_noslash = client.get("/admin-console")
+    assert resp_noslash.status_code == 200
+    assert "/admin-console/digital" in resp_noslash.text
+
+    resp_admin = client.get("/admin")
+    assert resp_admin.status_code == 200
+    assert "/admin-console/digital" in resp_admin.text
+
 
 def test_get_catalog():
     response = client.get("/admin-console/digital/catalog")

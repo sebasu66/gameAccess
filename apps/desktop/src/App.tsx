@@ -507,9 +507,18 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         await digitalCatalogService.download(game);
         const status = await digitalCatalogService.getStatus(game);
         setDownloads((current) => ({ ...current, [game.app_id!]: status }));
-        setToast(status.error ?? "Solicitud aceptada. Steam continuará con la descarga.");
+        if (status.error) {
+          setToast(`Error en descarga: ${status.error}`);
+        } else {
+          setToast(`Iniciando descarga digital de ${game.name}...`);
+        }
       } catch (err) {
-        setToast(`Error al iniciar descarga: ${err instanceof Error ? err.message : String(err)}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setDownloads((current) => ({
+          ...current,
+          [game.app_id!]: { app_id: game.app_id!, state: "error", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
+        }));
+        setToast(`Error al iniciar descarga: ${errorMsg}`);
       }
       return;
     }

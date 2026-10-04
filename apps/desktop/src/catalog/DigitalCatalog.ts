@@ -51,7 +51,14 @@ export class DigitalCatalog {
    */
   async loadCatalog(): Promise<CatalogGame[]> {
     if (this.options.catalogLoader) {
-      this.cachedGames = await this.options.catalogLoader();
+      const loaded = await this.options.catalogLoader();
+      this.cachedGames = loaded.filter((item) => {
+        const record = item as Partial<DigitalGameRecord>;
+        if (record.downloadSource !== undefined) {
+          return Boolean(record.downloadSource && record.downloadSource.trim());
+        }
+        return true;
+      });
       return this.cachedGames;
     }
 
@@ -71,7 +78,35 @@ export class DigitalCatalog {
       raw = defaultCatalog;
     }
 
-    const normalized = this.normalizeGames(raw as Partial<CatalogGame>[]);
+    const rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
+
+    // In Digital mode, games that have no download sources available must not be shown
+    // in the digital catalog (they count as invalid records).
+    const validRecords = rawList.filter((item) => {
+      const source = (item.downloadSource ?? "").trim();
+      return Boolean(source);
+    });
+
+    this.rawRecords.clear();
+    const digitalRecords: DigitalGameRecord[] = [];
+    for (const item of validRecords) {
+      const id = item.id ?? item.app_id;
+      if (typeof id === "number") {
+        const rec: DigitalGameRecord = {
+          name: item.name || `Juego ${id}`,
+          id,
+          downloadSource: (item.downloadSource ?? "").trim(),
+          installProcess: item.installProcess ?? "",
+          playProcess: item.playProcess ?? "",
+          uninstallProcess: item.uninstallProcess ?? "",
+        };
+        this.rawRecords.set(id, rec);
+        digitalRecords.push(rec);
+      }
+    }
+    digitalDownloadService.registerRecords(digitalRecords);
+
+    const normalized = this.normalizeGames(validRecords);
     const finalGames = await applyBundledCatalogArtwork(normalized);
     this.cachedGames = finalGames;
     return finalGames;
@@ -158,6 +193,10 @@ export class DigitalCatalog {
       return this.options.downloadHandler(game);
     }
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
+    if (!downloadSource) {
+      throw new Error(`El juego '${game.name}' no tiene fuentes de descarga configuradas.`);
+    }
     return digitalDownloadService.start(game, { record });
   }
 
