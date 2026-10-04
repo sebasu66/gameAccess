@@ -22,6 +22,7 @@ import SteamInstallFallbackDialog from "./SteamInstallFallbackDialog";
 import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
 let visualDebugStarted = false;
@@ -496,6 +497,22 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 
   const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
     if (!game.app_id) return;
+    if (getCatalogMode() === "digital") {
+      try {
+        setDownloads((current) => ({
+          ...current,
+          [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }
+        }));
+        rememberRecent(game);
+        await digitalCatalogService.download(game);
+        const status = await digitalCatalogService.getStatus(game);
+        setDownloads((current) => ({ ...current, [game.app_id!]: status }));
+        setToast(status.error ?? "Solicitud aceptada. Steam continuará con la descarga.");
+      } catch (err) {
+        setToast(`Error al iniciar descarga: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      return;
+    }
     const gameAccessMode = getCatalogMode() === "gameaccess";
     const markRequested = () => {
       setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));
@@ -633,6 +650,22 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     setSelected(null);
     rememberRecent(game);
     setLeaseBusy(true);
+
+    if (getCatalogMode() === "digital") {
+      setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Iniciando juego del catálogo Digital." });
+      try {
+        await digitalCatalogService.play(game);
+        if (game.app_id) recordPlayed(game.app_id);
+        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició directamente sin reserva de licencia." });
+      } catch (err) {
+        const copy = playErrorCopy(err);
+        setSession({ game, phase: "error", title: copy.title, detail: copy.detail });
+      } finally {
+        setLeaseBusy(false);
+      }
+      return;
+    }
+
     setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando una licencia disponible para esta sesión." });
 
     if (hasLocalRoute(game)) {

@@ -6,10 +6,13 @@ import { ArrowUpDown, ArrowUpToLine, Loader2, Play, Star } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
+import { getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
 import { getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
+import { getCatalogMode } from "./catalogMode";
+import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
@@ -23,14 +26,7 @@ function StorageBadge() {
 }
 
 function statusLabel(status: ManagedDownloadStatus | undefined, progress: number) {
-  switch (status?.state) {
-    case "requested": return "Pendiente";
-    case "preparing": return "Preparando";
-    case "paused": return "Pausado";
-    case "cancelling": return "Cancelando";
-    case "interrupted": return "Interrumpida";
-    default: return `${Math.round(progress)}%`;
-  }
+  return getDownloadStatusLabel(status, progress);
 }
 
 function cardClass(selected: boolean, active: boolean, pinned: boolean) {
@@ -277,7 +273,13 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={game.app_id ? props.downloads[game.app_id] : undefined} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {props.actionsTarget ? createPortal(backToTop, props.actionsTarget) : null}
-      {contextMenu ? <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} /> : null}
+      {contextMenu ? (
+        getCatalogMode() === "digital" ? (
+          <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />
+        ) : (
+          <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />
+        )
+      ) : null}
     </section>
   );
 }

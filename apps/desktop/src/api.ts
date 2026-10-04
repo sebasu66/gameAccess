@@ -3,6 +3,7 @@ import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "./bundledArtwork";
 import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
 import { PersonalCatalog } from "./catalog/PersonalCatalog";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
 import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
@@ -279,6 +280,20 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
     return { games, user, offlineDemo: false };
   }
 
+  if (mode === "digital") {
+    await narrate("Using Digital catalog mode. Loaded from JSON file.", { area: "CATALOG" });
+    const games = await digitalCatalogService.loadCatalog();
+    let user: UserSummary = { id: 1, username: "digital", credits: 0 };
+    if (api) {
+      try {
+        user = await request<UserSummary>("/users/1");
+      } catch {
+        await narrate("Backend user profile unavailable; Digital catalog remains available.", { area: "BACKEND", level: "WARN" });
+      }
+    }
+    return { games, user, offlineDemo: false };
+  }
+
   if (mode === "store") {
     await narrate("Using Steam store/discovery mode. This view does not itself claim that a license is available.", { area: "CATALOG" });
     let user: UserSummary = { id: 1, username: "store", credits: 0 };
@@ -334,6 +349,8 @@ export const loadDetails = async (gameId: number): Promise<GameDetails> => {
       let details: GameDetails;
       if (getCatalogMode() === "local") {
         details = await loadLocalDetails(gameId);
+      } else if (getCatalogMode() === "digital") {
+        details = await digitalCatalogService.loadDetails(gameId);
       } else {
         const language = getSteamStoreLanguage();
         const current = gameAccessCatalog.find((game) => game.id === gameId);
@@ -367,6 +384,24 @@ const localSearch = async (query: string, limit = 20): Promise<SteamSearchRespon
 
 export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
   if (getCatalogMode() === "local") return localSearch(query, limit);
+  if (getCatalogMode() === "digital") {
+    const games = await digitalCatalogService.loadCatalog();
+    return {
+      query,
+      count: games.length,
+      results: games
+        .filter((game) => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+        .slice(0, limit)
+        .map((game) => ({
+          app_id: game.app_id ?? 0,
+          name: game.name,
+          image_url: game.header_image,
+          catalog_game: game,
+          access_state: "available",
+          steam_url: game.steam_url ?? undefined,
+        })),
+    };
+  }
   try { return await request<SteamSearchResponse>(`/steam/search?q=${encodeURIComponent(query)}&limit=${limit}`); }
   catch { return { query, count: 0, results: [] }; }
 };
@@ -441,6 +476,24 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     const localLease = await tryLocalLease(game, minutes);
     if (localLease) return localLease;
     throw new Error("No hay una cuenta personal verificada que pueda ejecutar este juego.");
+  }
+
+  if (mode === "digital") {
+    const games = await digitalCatalogService.loadCatalog();
+    const game = games.find((item) => item.id === gameId || item.app_id === gameId);
+    if (!game) throw new Error("El juego no pertenece al catálogo Digital actual.");
+    await digitalCatalogService.play(game);
+    const now = Date.now();
+    return {
+      lease_id: now,
+      game: { id: game.id, name: game.name, app_id: game.app_id },
+      account: { id: 0, label: "digital", provider: "steam" },
+      credits_spent: 0,
+      credits_remaining: 0,
+      starts_at: new Date(now).toISOString(),
+      expires_at: new Date(now + minutes * 60_000).toISOString(),
+      session_action: "launch_ready",
+    };
   }
 
   if (mode !== "gameaccess") {

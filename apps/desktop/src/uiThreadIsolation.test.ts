@@ -14,7 +14,7 @@ describe("UI thread isolation contract", () => {
     expect(providerDownloadSource).toContain("pub async fn start_provider_download");
     expect(providerDownloadSource).toContain("spawn_blocking(move || {");
     expect(providerDownloadSource).toContain(
-      "start_provider_download_blocking(app_id, job_id, library_index)",
+      "start_provider_download_blocking(app_id, job_id, library_index, provider_id, api_base_url)",
     );
   });
 

@@ -41,6 +41,7 @@ from .catalog_metadata import (
     save_steam_review_summary,
     defer_steam_review_summary,
 )
+from .digital_catalog import DigitalGame, load_digital_catalog_json, sync_digital_catalog
 
 STEAM_CACHE = DB_PATH.parent / ".steam_cache"
 steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
@@ -1045,6 +1046,11 @@ def startup() -> None:
     with Session(engine) as session:
         seed_defaults(session)
     seed_known_games(engine)
+    if os.environ.get("GAMEACCESS_SYNC_DIGITAL_ON_STARTUP") == "1":
+        try:
+            sync_digital_catalog(engine=engine)
+        except Exception:
+            logging.getLogger("gameaccess.digital_catalog").exception("Startup digital catalog sync failed")
     _start_steam_review_importer()
     _start_steam_presence_monitor()
 
@@ -1335,6 +1341,24 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
         "game": game_summary(session, existing),
         "steam": metadata,
     }
+
+
+@app.get("/digital/catalog")
+@app.get("/digital-catalog.json")
+def get_digital_catalog() -> list[dict]:
+    """Return the digital game list JSON stored on the server."""
+    return load_digital_catalog_json()
+
+
+@app.post("/admin/catalog/digital/sync")
+def sync_digital_catalog_endpoint(
+    request: Request,
+    force: bool = False,
+    reviews: bool = False,
+) -> dict:
+    """Sync digital catalog JSON with Steam store details in the database."""
+    _admin_activation_access(request)
+    return sync_digital_catalog(engine=engine, force=force, fetch_reviews=reviews)
 
 
 @app.get("/users/{user_id}")
@@ -2215,3 +2239,11 @@ from .admin_console_routes import (  # noqa: E402 - routes import initialized ap
 )
 
 app.include_router(admin_console_router)
+
+from .digital_admin_routes import (  # noqa: E402
+    router as digital_admin_router,
+    get_digital_admin_page,
+)
+
+app.include_router(digital_admin_router)
+app.add_api_route("/admin/digital", get_digital_admin_page, methods=["GET"], include_in_schema=False)

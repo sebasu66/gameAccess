@@ -14,10 +14,13 @@ export interface ResolvedGameState {
   canUninstall: boolean;
 }
 
-const DOWNLOAD_ACTIVE_STATES = new Set<ManagedDownloadStatus["state"]>([
+const DOWNLOAD_ACTIVE_STATES = new Set<string>([
   "requested",
   "preparing",
   "downloading",
+  "decompressing",
+  "extracting",
+  "installing",
   "paused",
   "cancelling",
 ]);

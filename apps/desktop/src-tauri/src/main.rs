@@ -564,6 +564,212 @@ fn activation_clear_session() -> Result<(), String> {
     access_activation::clear_session()
 }
 
+fn find_launcher_python(launcher: &std::path::Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
+    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
+    if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    }
+}
+
+fn find_launcher_dir() -> Option<PathBuf> {
+    if let Ok(path) = env::var("GAMEACCESS_LAUNCHER_DIR") {
+        let candidate = PathBuf::from(path);
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+    }
+    if let Ok(exe) = env::current_exe() {
+        for ancestor in exe.ancestors() {
+            let candidate = ancestor.join("apps").join("launcher");
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+            let candidate2 = ancestor.join("launcher");
+            if candidate2.is_dir() {
+                return Some(candidate2);
+            }
+        }
+    }
+    env::current_dir().ok().and_then(|cwd| {
+        for ancestor in cwd.ancestors() {
+            let candidate = ancestor.join("apps").join("launcher");
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+        }
+        None
+    })
+}
+
+#[tauri::command]
+async fn run_digital_process(
+    action: String,
+    app_id: u32,
+    name: String,
+    command: String,
+    working_dir: Option<String>,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let runner_script = launcher.join("digital_process_runner.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&runner_script)
+            .arg("--action")
+            .arg(&action)
+            .arg("--app-id")
+            .arg(app_id.to_string())
+            .arg("--name")
+            .arg(&name)
+            .arg("--command")
+            .arg(&command);
+
+        if let Some(ref cwd) = working_dir {
+            cmd.arg("--working-dir").arg(cwd);
+        }
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !output.status.success() && stdout.is_empty() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() { "Process execution failed".to_string() } else { stderr });
+        }
+        serde_json::from_str(&stdout).map_err(|err| format!("Process runner returned invalid JSON: {err} ({stdout})"))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn start_digital_download(
+    app_id: u32,
+    name: String,
+    download_source: String,
+    install_process: String,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let downloader_script = launcher.join("digital_downloader.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&downloader_script)
+            .arg("--app-id")
+            .arg(app_id.to_string())
+            .arg("--name")
+            .arg(&name);
+
+        let src = if download_source.trim().is_empty() {
+            "auto".to_string()
+        } else {
+            download_source
+        };
+        cmd.arg("--source").arg(&src);
+
+        if !install_process.trim().is_empty() {
+            cmd.arg("--install-process").arg(&install_process);
+        }
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let child = cmd.spawn().map_err(|err| format!("Failed to spawn digital downloader: {err}"))?;
+
+        Ok(serde_json::json!({
+            "ok": true,
+            "appId": app_id,
+            "pid": child.id(),
+            "status": "started"
+        }))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn cancel_digital_download(app_id: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
+        if status_file.exists() {
+            let cancel_payload = serde_json::json!({
+                "type": "progress",
+                "appId": app_id.to_string(),
+                "phase": "cancelled",
+                "progressPercent": 0.0,
+                "statusText": "Instalación cancelada"
+            });
+            let _ = fs::write(&status_file, cancel_payload.to_string());
+        }
+        Ok(serde_json::json!({ "ok": true, "appId": app_id, "status": "cancelled" }))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn digital_download_status(app_id: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
+        if status_file.exists() {
+            let content = fs::read_to_string(&status_file).map_err(|err| err.to_string())?;
+            serde_json::from_str(&content).map_err(|err| err.to_string())
+        } else {
+            Ok(serde_json::json!({
+                "appId": app_id.to_string(),
+                "phase": "preparing",
+                "progressPercent": 0.0,
+                "statusText": "Preparando..."
+            }))
+        }
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn query_digital_options(name: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let resolver_script = launcher.join("digital_source_resolver.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&resolver_script)
+            .arg("search")
+            .arg(&name)
+            .arg("--json");
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().map_err(|err| format!("Failed to query digital options: {err}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        serde_json::from_str(&stdout).map_err(|err| format!("Invalid JSON from resolver: {err} ({stdout})"))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
@@ -629,7 +835,12 @@ fn main() {
             visual_debug_config,
             capture_visual_debug,
             finish_visual_debug,
-            set_visual_debug_viewport
+            set_visual_debug_viewport,
+            run_digital_process,
+            start_digital_download,
+            cancel_digital_download,
+            digital_download_status,
+            query_digital_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
