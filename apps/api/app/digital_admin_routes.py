@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+import time
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -66,6 +67,13 @@ class SourceItem(BaseModel):
 
 class DeleteSourceRequest(BaseModel):
     url: str
+
+
+class ImportSourceRequest(BaseModel):
+    raw_json: Optional[str] = None
+    json_data: Optional[Any] = None
+    label: Optional[str] = None
+    auto_add_to_catalog: bool = True
 
 
 def get_sources_path() -> Path:
@@ -282,6 +290,56 @@ def delete_source(req: DeleteSourceRequest) -> dict[str, Any]:
     return {"ok": True, "deleted_url": req.url}
 
 
+def extract_hydra_items(raw_data: Any, source_label: str = "Fuente") -> list[dict[str, Any]]:
+    raw_list = []
+    if isinstance(raw_data, dict):
+        if "downloads" in raw_data and isinstance(raw_data["downloads"], list):
+            raw_list = raw_data["downloads"]
+        elif "items" in raw_data and isinstance(raw_data["items"], list):
+            raw_list = raw_data["items"]
+    elif isinstance(raw_data, list):
+        for entry in raw_data:
+            if isinstance(entry, dict) and "downloads" in entry:
+                raw_list.extend(entry["downloads"])
+            elif isinstance(entry, dict):
+                raw_list.append(entry)
+
+    items = []
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("name") or "").strip()
+        if not title:
+            continue
+        uris = item.get("uris") or item.get("urls") or []
+        if isinstance(uris, str):
+            uris = [uris]
+        elif not isinstance(uris, list):
+            uris = []
+        if not uris and item.get("uri"):
+            uris = [item["uri"]]
+        if not uris and item.get("url"):
+            uris = [item["url"]]
+
+        valid_uris = [str(u).strip() for u in uris if u and isinstance(u, (str, int)) and str(u).strip()]
+        if not valid_uris:
+            continue
+
+        raw_id = item.get("id") or item.get("app_id") or item.get("steam_app_id")
+
+        items.append({
+            "raw_title": title,
+            "clean_title": clean_user_friendly_title(title),
+            "uri": valid_uris[0],
+            "uris": valid_uris,
+            "file_size": str(item.get("fileSize") or item.get("file_size") or item.get("size") or "Estándar").strip(),
+            "upload_date": str(item.get("uploadDate") or item.get("date") or "").strip(),
+            "source": source_label,
+            "id": int(raw_id) if isinstance(raw_id, (int, str)) and str(raw_id).isdigit() else None,
+        })
+    return items
+
+
 @router.post("/sources/sync")
 async def sync_sources() -> dict[str, Any]:
     cfg = load_sources_config()
@@ -309,45 +367,8 @@ async def sync_sources() -> dict[str, Any]:
                         continue
                     raw_data = resp.json()
 
-                # Extract items
-                raw_list = []
-                if isinstance(raw_data, dict):
-                    if "downloads" in raw_data and isinstance(raw_data["downloads"], list):
-                        raw_list = raw_data["downloads"]
-                    elif "items" in raw_data and isinstance(raw_data["items"], list):
-                        raw_list = raw_data["items"]
-                elif isinstance(raw_data, list):
-                    for entry in raw_data:
-                        if isinstance(entry, dict) and "downloads" in entry:
-                            raw_list.extend(entry["downloads"])
-                        elif isinstance(entry, dict):
-                            raw_list.append(entry)
-
-                for item in raw_list:
-                    if not isinstance(item, dict):
-                        continue
-                    title = item.get("title") or item.get("name") or ""
-                    if not title:
-                        continue
-                    uris = item.get("uris") or item.get("urls") or []
-                    if isinstance(uris, str):
-                        uris = [uris]
-                    if not uris and item.get("uri"):
-                        uris = [item["uri"]]
-                    if not uris and item.get("url"):
-                        uris = [item["url"]]
-                    if not uris:
-                        continue
-
-                    all_downloads.append({
-                        "raw_title": title,
-                        "clean_title": clean_user_friendly_title(title),
-                        "uri": uris[0],
-                        "file_size": item.get("fileSize") or item.get("file_size") or item.get("size") or "Estándar",
-                        "upload_date": item.get("uploadDate") or item.get("date") or "",
-                        "source": s.get("label", "Servidor"),
-                    })
-
+                items = extract_hydra_items(raw_data, source_label=s.get("label", "Servidor"))
+                all_downloads.extend(items)
                 synced_sources += 1
             except Exception as e:
                 errors.append(f"Error al sincronizar {url}: {e}")
@@ -360,6 +381,261 @@ async def sync_sources() -> dict[str, Any]:
         "synced_sources": synced_sources,
         "total_items": len(all_downloads) if all_downloads else len(load_cached_downloads()),
         "errors": errors,
+    }
+
+
+@router.post("/sources/import-json")
+async def import_source_json(request: Request) -> dict[str, Any]:
+    try:
+        body = await request.json()
+    except Exception as e:
+        raise HTTPException(400, f"Error decodificando JSON: {e}")
+
+    auto_add_to_catalog = True
+    req_label = None
+
+    if isinstance(body, dict):
+        if "auto_add_to_catalog" in body:
+            auto_add_to_catalog = bool(body.get("auto_add_to_catalog"))
+        req_label = body.get("label")
+
+        if "raw_json" in body and isinstance(body["raw_json"], str):
+            try:
+                data = json.loads(body["raw_json"])
+            except Exception as e:
+                raise HTTPException(400, f"El texto provisto en 'raw_json' no es un JSON válido: {e}")
+        elif "json_data" in body:
+            data = body["json_data"]
+        else:
+            # Direct Hydra JSON object (e.g. {"name": "...", "downloads": [...]})
+            data = body
+    else:
+        # Direct list / array
+        data = body
+
+    # 1. Check if it is a Hydra source with downloads
+    source_name = req_label or (data.get("name") if isinstance(data, dict) else None) or "Fuente Hydra"
+    items = extract_hydra_items(data, source_label=source_name)
+    if items:
+        sources_dir = API_ROOT / "data" / "sources"
+        sources_dir.mkdir(parents=True, exist_ok=True)
+        safe_slug = re.sub(r"[^a-zA-Z0-9_\-]+", "_", source_name.lower()).strip("_") or "hydra_source"
+        filename = f"{safe_slug}_{int(time.time())}.json"
+        saved_file = sources_dir / filename
+        with saved_file.open("w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        cfg = load_sources_config()
+        sources_list = cfg.get("sources", [])
+        existing = next((s for s in sources_list if s.get("url") == str(saved_file)), None)
+        if existing:
+            existing["label"] = source_name
+            existing["items_count"] = len(items)
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            sources_list.append({
+                "url": str(saved_file),
+                "label": source_name,
+                "enabled": True,
+                "type": "hydra_source",
+                "added_at": datetime.now(timezone.utc).isoformat(),
+                "items_count": len(items),
+            })
+        cfg["sources"] = sources_list
+        save_sources_config(cfg)
+
+        # Update cache
+        current_cache = load_cached_downloads()
+        existing_uris = {d.get("uri") for d in current_cache if "uri" in d}
+        new_downloads = [it for it in items if it.get("uri") not in existing_uris]
+        updated_cache = current_cache + new_downloads
+        save_cached_downloads(updated_cache)
+
+        # Auto add to catalog if requested
+        added_to_catalog = 0
+        updated_in_catalog = 0
+        catalog = load_digital_catalog_json()
+        if auto_add_to_catalog:
+            catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
+            existing_ids = {c.get("id") for c in catalog if "id" in c}
+            for it in items:
+                norm = normalize_title(it["clean_title"])
+                if not norm:
+                    continue
+                if norm in catalog_names:
+                    for c in catalog:
+                        if normalize_title(c.get("name", "")) == norm and not c.get("downloadSource"):
+                            c["downloadSource"] = it["uri"]
+                            updated_in_catalog += 1
+                    continue
+
+                game_id = it.get("id")
+                if not game_id or game_id in existing_ids:
+                    base_id = abs(hash(norm)) % 8000000 + 1000000
+                    while base_id in existing_ids:
+                        base_id += 1
+                    game_id = base_id
+
+                catalog.append({
+                    "name": it["clean_title"],
+                    "id": game_id,
+                    "downloadSource": it["uri"],
+                    "installProcess": "",
+                    "playProcess": "",
+                    "uninstallProcess": "",
+                })
+                existing_ids.add(game_id)
+                catalog_names.add(norm)
+                added_to_catalog += 1
+
+            if added_to_catalog > 0 or updated_in_catalog > 0:
+                save_catalog_json(catalog)
+
+        return {
+            "ok": True,
+            "mode": "hydra_source",
+            "source_name": source_name,
+            "indexed_items": len(items),
+            "added_to_catalog": added_to_catalog,
+            "updated_in_catalog": updated_in_catalog,
+            "total_catalog_games": len(catalog),
+            "message": f"Fuente '{source_name}' importada exitosamente. Se indexaron {len(items)} paquetes de descarga y se sincronizaron {added_to_catalog} juegos al catálogo.",
+        }
+
+    # 2. Check if it is a list of source URLs
+    urls = []
+    if isinstance(data, list):
+        for entry in data:
+            if isinstance(entry, str) and entry.startswith("http"):
+                urls.append(entry)
+            elif isinstance(entry, dict) and entry.get("url"):
+                urls.append(entry["url"])
+    elif isinstance(data, dict) and "sources" in data and isinstance(data["sources"], list):
+        for entry in data["sources"]:
+            if isinstance(entry, str) and entry.startswith("http"):
+                urls.append(entry)
+            elif isinstance(entry, dict) and entry.get("url"):
+                urls.append(entry["url"])
+
+    if urls:
+        cfg = load_sources_config()
+        current_sources = cfg.get("sources", [])
+        existing_urls = {s.get("url") for s in current_sources}
+        added = 0
+        for u in urls:
+            if u not in existing_urls:
+                current_sources.append({
+                    "url": u,
+                    "label": f"Fuente {len(current_sources) + 1}",
+                    "enabled": True,
+                    "added_at": datetime.now(timezone.utc).isoformat(),
+                })
+                existing_urls.add(u)
+                added += 1
+        cfg["sources"] = current_sources
+        save_sources_config(cfg)
+
+        sync_res = await sync_sources()
+        return {
+            "ok": True,
+            "mode": "sources_list",
+            "sources_added": added,
+            "sync_result": sync_res,
+            "message": f"Se importaron {added} fuentes de Hydra a la lista y se sincronizaron ({sync_res.get('total_items', 0)} paquetes indexados).",
+        }
+
+    # 3. Check if it is a catalog of games
+    if isinstance(data, list) and len(data) > 0 and all(isinstance(x, dict) and ("name" in x or "title" in x) for x in data):
+        catalog = load_digital_catalog_json()
+        existing_ids = {c.get("id") for c in catalog}
+        catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
+        added = 0
+        for g in data:
+            title = g.get("name") or g.get("title")
+            norm = normalize_title(title)
+            gid = g.get("id") or g.get("app_id")
+            if not gid or gid in existing_ids:
+                base_id = abs(hash(norm)) % 8000000 + 1000000
+                while base_id in existing_ids:
+                    base_id += 1
+                gid = base_id
+
+            dl_source = g.get("downloadSource") or g.get("download_source") or g.get("uri") or g.get("url") or ""
+            if norm not in catalog_names:
+                catalog.append({
+                    "name": title,
+                    "id": gid,
+                    "downloadSource": dl_source,
+                    "installProcess": g.get("installProcess", ""),
+                    "playProcess": g.get("playProcess", ""),
+                    "uninstallProcess": g.get("uninstallProcess", ""),
+                })
+                existing_ids.add(gid)
+                catalog_names.add(norm)
+                added += 1
+
+        save_catalog_json(catalog)
+        return {
+            "ok": True,
+            "mode": "catalog",
+            "games_imported": added,
+            "total_games": len(catalog),
+            "message": f"Se importaron {added} juegos al catálogo digital.",
+        }
+
+    raise HTTPException(400, "El formato del JSON no es reconocido como fuente de Hydra (debe contener un listado de 'downloads' o una lista de fuentes).")
+
+
+@router.post("/catalog/populate-from-sources")
+def populate_catalog_from_sources() -> dict[str, Any]:
+    cached = load_cached_downloads()
+    if not cached:
+        raise HTTPException(400, "No hay descargas indexadas en la caché. Agrega o importa fuentes primero.")
+
+    catalog = load_digital_catalog_json()
+    catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
+    existing_ids = {c.get("id") for c in catalog if "id" in c}
+    added_count = 0
+    updated_count = 0
+
+    for item in cached:
+        title = item.get("clean_title") or item.get("raw_title", "")
+        norm = normalize_title(title)
+        if not norm:
+            continue
+        if norm in catalog_names:
+            for c in catalog:
+                if normalize_title(c.get("name", "")) == norm and not c.get("downloadSource"):
+                    c["downloadSource"] = item["uri"]
+                    updated_count += 1
+            continue
+
+        game_id = item.get("id")
+        if not game_id or game_id in existing_ids:
+            base_id = abs(hash(norm)) % 8000000 + 1000000
+            while base_id in existing_ids:
+                base_id += 1
+            game_id = base_id
+
+        catalog.append({
+            "name": title,
+            "id": game_id,
+            "downloadSource": item["uri"],
+            "installProcess": "",
+            "playProcess": "",
+            "uninstallProcess": "",
+        })
+        existing_ids.add(game_id)
+        catalog_names.add(norm)
+        added_count += 1
+
+    save_catalog_json(catalog)
+    return {
+        "ok": True,
+        "added_games": added_count,
+        "updated_sources": updated_count,
+        "total_catalog_games": len(catalog),
+        "message": f"Catálogo digital actualizado: {added_count} nuevos juegos agregados y {updated_count} fuentes vinculadas.",
     }
 
 

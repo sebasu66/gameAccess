@@ -93,3 +93,73 @@ def test_raw_json_validation():
     opt_resp = client.get("/admin-console/digital/resolve-options?name=Elden+Ring")
     assert opt_resp.status_code == 200
     assert opt_resp.json()["ok"] is True
+
+
+def test_import_hydra_source_json():
+    hydra_sample = {
+        "name": "Comunidad FitGirl Test",
+        "downloads": [
+            {
+                "title": "Hollow Knight: Silksong (v1.0) [FitGirl Repack]",
+                "uris": ["magnet:?xt=urn:btih:hollowknightsilksongtest1234567890abcdef12&dn=Hollow+Knight"],
+                "fileSize": "4.5 GB",
+                "uploadDate": "2024-06-01T00:00:00.000Z"
+            }
+        ]
+    }
+    resp = client.post(
+        "/admin-console/digital/sources/import-json",
+        json={
+            "raw_json": json.dumps(hydra_sample),
+            "label": "FitGirl Test",
+            "auto_add_to_catalog": True,
+        }
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["mode"] == "hydra_source"
+    assert data["indexed_items"] == 1
+    assert data["added_to_catalog"] >= 0
+
+    # Verify game now exists in catalog
+    cat_resp = client.get("/admin-console/digital/catalog")
+    assert cat_resp.status_code == 200
+    cat_games = cat_resp.json()
+    assert any("Hollow Knight" in g.get("name", "") for g in cat_games)
+
+
+def test_get_digital_catalog_variations():
+    for path in ["/digital/catalog", "/digital-catalog.json", "/digital_catalog.json"]:
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+
+def test_import_direct_hydra_json_payload():
+    user_format = {
+        "name": "Source name",
+        "downloads": [
+            {
+                "title": "Stardew Valley 1.6",
+                "uploadDate": "2026-10-04T17:51:42+00:00",
+                "fileSize": "33.6 GB",
+                "uris": [
+                    "magnet:?xt=urn:btih:stardewtest1234567890abcdef1234567890abcdef&dn=Stardew"
+                ]
+            }
+        ]
+    }
+    resp = client.post(
+        "/admin-console/digital/sources/import-json",
+        json=user_format,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["mode"] == "hydra_source"
+    assert data["source_name"] == "Source name"
+    assert data["indexed_items"] == 1
+    assert data["added_to_catalog"] >= 0
+
+

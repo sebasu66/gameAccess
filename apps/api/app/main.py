@@ -1345,6 +1345,7 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
 
 @app.get("/digital/catalog")
 @app.get("/digital-catalog.json")
+@app.get("/digital_catalog.json")
 def get_digital_catalog() -> list[dict]:
     """Return the digital game list JSON stored on the server."""
     return load_digital_catalog_json()

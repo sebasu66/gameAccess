@@ -67,6 +67,8 @@
         </div>
         <div class="top-actions">
           <input class="search" id="catalogSearch" placeholder="Filtrar por nombre o AppID..." oninput="renderCatalogTable()">
+          <button class="btn primary" onclick="openImportModal('catalog')">📥 Importar Fuente JSON (Hydra)</button>
+          <button class="btn" onclick="populateCatalogFromSources()" title="Agrega las descargas indexadas de las fuentes al catálogo de juegos">⚡ Poblar desde Fuentes</button>
           <button class="btn secondary" onclick="openGameModal()">+ Nuevo Juego</button>
           <button class="btn" onclick="syncSteamStore()">Sincronizar Steam</button>
         </div>
@@ -83,11 +85,12 @@
       <div class="top">
         <div>
           <h1>Fuentes de Descarga (JSON)</h1>
-          <p>Repositorios comunitarios compatibles con el formato de Hydra Launcher. El servidor indexa los paquetes automáticamente.</p>
+          <p>Repositorios comunitarios compatibles con el formato de Hydra Launcher. Puedes importar archivos .json o URLs directas.</p>
         </div>
         <div class="top-actions">
-          <button class="btn primary" onclick="syncSourcesNow()">Sincronizar Fuentes Ahora</button>
-          <button class="btn secondary" onclick="openSourceModal()">+ Agregar Fuente</button>
+          <button class="btn primary" onclick="openImportModal('sources')">📥 Importar Fuente JSON (Hydra)</button>
+          <button class="btn secondary" onclick="openSourceModal()">+ Agregar por URL</button>
+          <button class="btn" onclick="syncSourcesNow()">Sincronizar Todas</button>
         </div>
       </div>
       <div class="panel">
@@ -166,6 +169,71 @@
     <div id="resolveOptionsList"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px">
       <button type="button" class="btn" onclick="closeResolveModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORT HYDRA SOURCE (FILE, JSON OR URL) -->
+<div class="dialog-backdrop" id="importModal">
+  <div class="dialog" style="max-width:680px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">📥 Importar Fuente JSON (como Hydra)</h3>
+      <button type="button" class="btn" style="padding:4px 8px" onclick="closeImportModal()">✕</button>
+    </div>
+    <p style="margin:0 0 16px;color:var(--muted);font-size:12px">
+      Importa un archivo <code>.json</code> compatible con Hydra Launcher o pega su contenido. El servidor indexará automáticamente todos los paquetes y enlaces de descarga.
+    </p>
+
+    <!-- Source Type Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:10px">
+      <button type="button" class="btn primary" id="importTabFileBtn" onclick="switchImportTab('file')">📁 Subir Archivo .json</button>
+      <button type="button" class="btn" id="importTabTextBtn" onclick="switchImportTab('text')">📋 Pegar JSON</button>
+      <button type="button" class="btn" id="importTabUrlBtn" onclick="switchImportTab('url')">🌐 URL de Fuente</button>
+    </div>
+
+    <!-- Mode 1: File Upload -->
+    <div id="importPanelFile">
+      <div id="dropZone" style="border:2px dashed rgba(101,240,178,.35);border-radius:12px;padding:34px 20px;text-align:center;background:rgba(101,240,178,.03);cursor:pointer;transition:border-color .2s" onclick="document.getElementById('filePicker').click()">
+        <div style="font-size:36px;margin-bottom:8px">📄</div>
+        <strong style="color:var(--green);font-size:14px">Arrastra aquí tu archivo .json de Hydra</strong>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:12px">o haz clic para examinar tus carpetas</p>
+        <input type="file" id="filePicker" accept=".json,application/json" style="display:none" onchange="handleFileSelected(event)">
+      </div>
+      <div id="fileSelectedInfo" style="display:none;margin-top:12px;padding:11px 14px;border:1px solid rgba(101,240,178,.25);border-radius:10px;background:rgba(101,240,178,.05);font-size:12px"></div>
+    </div>
+
+    <!-- Mode 2: Paste JSON -->
+    <div id="importPanelText" style="display:none">
+      <div class="field full">
+        <label>Contenido JSON de Hydra</label>
+        <textarea id="importJsonTextarea" class="raw-editor" style="min-height:220px;resize:vertical" placeholder='{"name": "Fuente Comunitaria", "downloads": [{"title": "Nombre del Juego", "uris": ["magnet:..."]}]}'></textarea>
+      </div>
+    </div>
+
+    <!-- Mode 3: URL -->
+    <div id="importPanelUrl" style="display:none">
+      <div class="field full">
+        <label>URL de la Fuente (JSON público de GitHub, Gist o servidor web)</label>
+        <input id="importUrlInput" placeholder="https://raw.githubusercontent.com/.../source.json">
+      </div>
+    </div>
+
+    <!-- Common Options -->
+    <div style="margin-top:16px;display:grid;gap:12px">
+      <div class="field full">
+        <label>Nombre o Etiqueta de la Fuente (Opcional, se auto-detecta del JSON)</label>
+        <input id="importLabelInput" placeholder="Ej: FitGirl Repacks, Dodi, Comunidad...">
+      </div>
+
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:#c7f9e5;background:rgba(101,240,178,.06);padding:10px 12px;border:1px solid rgba(101,240,178,.2);border-radius:10px">
+        <input type="checkbox" id="autoAddToCatalogCheck" checked style="width:auto;margin:0">
+        <span><b>Agregar automáticamente estos juegos al Catálogo Digital</b> (para que aparezcan de inmediato en el cliente)</span>
+      </label>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+      <button type="button" class="btn" onclick="closeImportModal()">Cancelar</button>
+      <button type="button" class="btn primary" id="btnDoImport" onclick="executeImportSource()">Importar Fuente</button>
     </div>
   </div>
 </div>
@@ -291,7 +359,7 @@
   function renderSourcesTable() {
     const container = document.getElementById('sourcesTable');
     if (!sourcesData.length) {
-      container.innerHTML = '<div style="padding:28px;text-align:center;color:var(--muted)">No hay fuentes configuradas. Haz clic en "+ Agregar Fuente".</div>';
+      container.innerHTML = '<div style="padding:28px;text-align:center;color:var(--muted)">No hay fuentes configuradas. Haz clic en "📥 Importar Fuente JSON (Hydra)" para cargar una.</div>';
       return;
     }
 
@@ -299,21 +367,30 @@
       <thead>
         <tr>
           <th>Etiqueta / Servidor</th>
-          <th>URL del JSON</th>
+          <th>Tipo</th>
+          <th>Ubicación / Archivo</th>
+          <th>Paquetes</th>
           <th>Estado</th>
           <th>Acciones</th>
         </tr>
       </thead>
       <tbody>
-        ${sourcesData.map((s, idx) => `<tr>
+        ${sourcesData.map((s, idx) => {
+          const isFile = (s.type === 'hydra_source' || !s.url.startsWith('http'));
+          const typeLabel = isFile ? '<span class="status custom">Archivo Hydra</span>' : '<span class="status auto">Remoto (URL)</span>';
+          const itemsStr = s.items_count ? `<strong>${s.items_count}</strong>` : '—';
+          return `<tr>
           <td><strong>${esc(s.label || 'Servidor ' + (idx + 1))}</strong></td>
+          <td>${typeLabel}</td>
           <td><span class="mono muted" style="word-break:break-all">${esc(s.url)}</span></td>
+          <td>${itemsStr}</td>
           <td><span class="status ${s.enabled !== false ? 'auto' : 'disabled'}">${s.enabled !== false ? 'Activo' : 'Inactivo'}</span></td>
           <td>
             <button class="btn" style="padding:5px 9px" onclick="toggleSource('${esc(s.url)}')">${s.enabled !== false ? 'Desactivar' : 'Activar'}</button>
             <button class="btn danger" style="padding:5px 9px" onclick="deleteSource('${esc(s.url)}')">Eliminar</button>
           </td>
-        </tr>`).join('')}
+        </tr>`;
+        }).join('')}
       </tbody>
     </table>`;
   }
@@ -392,6 +469,130 @@
   }
   function closeSourceModal() {
     document.getElementById('sourceModal').style.display = 'none';
+  }
+
+  // IMPORT MODAL (HYDRA SOURCE / FILE / TEXT / URL)
+  let selectedImportFileContent = null;
+  let currentImportTab = 'file';
+
+  function switchImportTab(tab) {
+    currentImportTab = tab;
+    document.getElementById('importPanelFile').style.display = tab === 'file' ? 'block' : 'none';
+    document.getElementById('importPanelText').style.display = tab === 'text' ? 'block' : 'none';
+    document.getElementById('importPanelUrl').style.display = tab === 'url' ? 'block' : 'none';
+
+    document.getElementById('importTabFileBtn').classList.toggle('primary', tab === 'file');
+    document.getElementById('importTabTextBtn').classList.toggle('primary', tab === 'text');
+    document.getElementById('importTabUrlBtn').classList.toggle('primary', tab === 'url');
+  }
+
+  function openImportModal(origin = 'sources') {
+    document.getElementById('importModal').style.display = 'grid';
+    switchImportTab('file');
+  }
+
+  function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+    selectedImportFileContent = null;
+    document.getElementById('fileSelectedInfo').style.display = 'none';
+    const picker = document.getElementById('filePicker');
+    if (picker) picker.value = '';
+    const txt = document.getElementById('importJsonTextarea');
+    if (txt) txt.value = '';
+    const urlIn = document.getElementById('importUrlInput');
+    if (urlIn) urlIn.value = '';
+    const labelIn = document.getElementById('importLabelInput');
+    if (labelIn) labelIn.value = '';
+  }
+
+  async function handleFileSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      selectedImportFileContent = text;
+      const parsed = JSON.parse(text);
+      const count = Array.isArray(parsed.downloads) ? parsed.downloads.length : (Array.isArray(parsed.items) ? parsed.items.length : (Array.isArray(parsed) ? parsed.length : '?'));
+      const infoEl = document.getElementById('fileSelectedInfo');
+      infoEl.style.display = 'block';
+      infoEl.innerHTML = `<span style="color:var(--green)">✓ Archivo cargado:</span> <strong>${esc(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB) · <span class="muted">${count} elementos detectados</span>`;
+      if (parsed.name && !document.getElementById('importLabelInput').value) {
+        document.getElementById('importLabelInput').value = parsed.name;
+      }
+    } catch (err) {
+      toast('El archivo no es un JSON válido: ' + err.message, true);
+    }
+  }
+
+  async function executeImportSource() {
+    const btn = document.getElementById('btnDoImport');
+    const label = document.getElementById('importLabelInput').value.trim();
+    const autoAdd = document.getElementById('autoAddToCatalogCheck').checked;
+
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+
+    try {
+      let payload = { label, auto_add_to_catalog: autoAdd };
+
+      if (currentImportTab === 'file') {
+        if (!selectedImportFileContent) {
+          throw new Error('Por favor selecciona o arrastra un archivo .json de Hydra primero.');
+        }
+        payload.raw_json = selectedImportFileContent;
+      } else if (currentImportTab === 'text') {
+        const text = document.getElementById('importJsonTextarea').value.trim();
+        if (!text) {
+          throw new Error('Por favor pega el contenido JSON en el área de texto.');
+        }
+        payload.raw_json = text;
+      } else if (currentImportTab === 'url') {
+        const url = document.getElementById('importUrlInput').value.trim();
+        if (!url) throw new Error('Por favor ingresa la URL de la fuente.');
+        const res = await fetch(API_BASE + '/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, label, enabled: true })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al agregar la fuente');
+        toast('Fuente URL agregada. Sincronizando paquetes...');
+        closeImportModal();
+        await syncSourcesNow();
+        if (autoAdd) await populateCatalogFromSources();
+        return;
+      }
+
+      const response = await fetch(API_BASE + '/sources/import-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || 'Error al importar la fuente');
+
+      toast(result.message || 'Fuente importada con éxito');
+      closeImportModal();
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Importar Fuente';
+    }
+  }
+
+  async function populateCatalogFromSources() {
+    try {
+      toast('Actualizando catálogo con descargas de las fuentes...');
+      const res = await fetch(API_BASE + '/catalog/populate-from-sources', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Error al poblar catálogo');
+      toast(data.message || 'Catálogo actualizado');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
   }
 
   async function handleSourceSubmit(e) {
@@ -579,6 +780,39 @@
     } catch (err) {
       toast(err.message, true);
     }
+  }
+
+  // Initialize drag & drop on dropZone
+  const dropZone = document.getElementById('dropZone');
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--green)';
+        dropZone.style.background = 'rgba(101,240,178,.08)';
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'rgba(101,240,178,.35)';
+        dropZone.style.background = 'rgba(101,240,178,.03)';
+      }, false);
+    });
+    dropZone.addEventListener('drop', async e => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length) {
+        const picker = document.getElementById('filePicker');
+        if (picker) picker.files = files;
+        await handleFileSelected({ target: { files } });
+      }
+    });
+  }
+
+  // Check URL params for direct actions
+  if (window.location.search.includes('action=import') || window.location.hash === '#import') {
+    openImportModal();
   }
 
   loadData();
