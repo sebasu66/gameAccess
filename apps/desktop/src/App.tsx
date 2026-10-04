@@ -516,7 +516,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         const errorMsg = err instanceof Error ? err.message : String(err);
         setDownloads((current) => ({
           ...current,
-          [downloadKey]: { app_id: downloadKey, state: "error", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
+          [downloadKey]: { app_id: downloadKey, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
         }));
         setToast(`Error al iniciar descarga: ${errorMsg}`);
       }
