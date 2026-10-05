@@ -174,3 +174,13 @@ def test_digital_source_resolution():
         assert data["ok"] is True
 
 
+def test_resolve_steam_app_id_nascar_26():
+    from app.digital_admin_routes import resolve_steam_app_id
+    # Test NASCAR 26 resolving to base game 4883590 and not DLC/Pass
+    match = resolve_steam_app_id("NASCAR 26")
+    assert match is not None
+    app_id, name = match
+    assert app_id == 4883590
+    assert "NASCAR 26" in name
+
+

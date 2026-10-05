@@ -225,8 +225,18 @@ def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
             cand_name = item.get("name")
             if not cand_id or not cand_name:
                 continue
+
+            lower_name = str(cand_name).lower()
+            is_dlc = any(kw in lower_name for kw in [
+                " - season pass", "season pass", " - pack", "pack", " dlc",
+                "expansion pack", "bonus", "soundtrack", "pre-order", "pre order",
+                "upgrade", "deluxe edition upgrade"
+            ])
+
             score = calculate_match_score(q, cand_name)
             if score >= 0.70:
+                if is_dlc:
+                    score -= 0.35
                 candidates.append((score, int(cand_id), str(cand_name)))
 
         if candidates:
@@ -530,14 +540,22 @@ async def import_source_json(request: Request) -> dict[str, Any]:
                     continue
 
                 game_id = it.get("id")
+                official_title = None
                 if not game_id or game_id in existing_ids:
-                    base_id = abs(hash(norm)) % 8000000 + 1000000
-                    while base_id in existing_ids:
-                        base_id += 1
-                    game_id = base_id
+                    steam_match = resolve_steam_app_id(it["clean_title"])
+                    if steam_match:
+                        s_id, s_name = steam_match
+                        if s_id not in existing_ids:
+                            game_id = s_id
+                            official_title = s_name
+                    if not game_id or game_id in existing_ids:
+                        base_id = abs(hash(norm)) % 8000000 + 1000000
+                        while base_id in existing_ids:
+                            base_id += 1
+                        game_id = base_id
 
                 catalog.append({
-                    "name": it["clean_title"],
+                    "name": official_title or it["clean_title"],
                     "id": game_id,
                     "downloadSource": it["uri"],
                     "installProcess": "",
