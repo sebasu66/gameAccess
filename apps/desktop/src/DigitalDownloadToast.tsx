@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Download } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { downloadPhaseLabels, formatDownloadBytes } from "./DigitalDownloadsScreen";
 import "./digital-download-toast.css";
+import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
 
 const terminal = new Set(["completed", "cancelled", "error", "interrupted"]);
 type Entry = ReturnType<typeof digitalDownloadService.getDownloads>[number];
@@ -31,7 +32,7 @@ export default function DigitalDownloadToast({ onOpen }: { onOpen: () => void })
   const percent = Number.isFinite(snapshot.progress) ? Math.max(0, Math.min(100, snapshot.progress)) : 0;
   const status = downloadPhaseLabels[snapshot.phase];
   return <button type="button" className="digital-download-toast" onClick={onOpen} aria-label={`Abrir gestor de descargas · ${game.name} · ${status}`}>
-    <span className="digital-download-toast-art">{game.header_image ? <img src={game.header_image} alt="" /> : <Download size={24} />}</span>
+    <span className="digital-download-toast-art"><DigitalDownloadArtwork game={game} /></span>
     <span className="digital-download-toast-content">
       <span className="digital-download-toast-heading"><span>DESCARGAS · DIGITAL</span><ChevronRight size={16} /></span>
       <strong>{game.name}</strong>

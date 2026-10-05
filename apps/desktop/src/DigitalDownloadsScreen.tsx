@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Pause, Play, RotateCcw, X } from "lucide-react";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
+import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
 
 export const downloadPhaseLabels: Record<DownloadPhase, string> = {
   queued: "En cola", preparing: "Preparando", downloading: "Descargando", paused: "Pausada",
@@ -52,7 +53,7 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
-      <div className="digital-download-art">{game.header_image ? <img src={game.header_image} alt="" /> : <Download size={32} />}</div>
+      <div className="digital-download-art"><DigitalDownloadArtwork game={game} /></div>
       <div className="digital-download-info">
         <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · En cola` : downloadPhaseLabels[phase]}</span></div>
         <p>{snapshot.error || snapshot.statusText || downloadPhaseLabels[phase]}</p>
@@ -86,4 +87,3 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
     {history.length ? <section aria-label="Historial de descargas"><h2 className="digital-download-section-label">FINALIZADAS</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
   </section>;
 }
-
