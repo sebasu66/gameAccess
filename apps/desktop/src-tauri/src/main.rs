@@ -654,6 +654,12 @@ async fn run_digital_process(
     .map_err(|err| format!("Task failed: {err}"))?
 }
 
+static DIGITAL_DOWNLOAD_PIDS: OnceLock<Mutex<std::collections::HashMap<u32, u32>>> = OnceLock::new();
+
+fn digital_pids() -> &'static Mutex<std::collections::HashMap<u32, u32>> {
+    DIGITAL_DOWNLOAD_PIDS.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
 #[tauri::command]
 async fn start_digital_download(
     app_id: u32,
@@ -664,9 +670,22 @@ async fn start_digital_download(
     keep_archive: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        println!("[Rust:start_digital_download] Received request: app_id={app_id}, name='{name}', source='{download_source}'");
+        let launcher = find_launcher_dir().ok_or_else(|| {
+            let err = "Could not locate launcher directory".to_string();
+            eprintln!("[Rust:start_digital_download:Error] {err}");
+            err
+        })?;
         let python = find_launcher_python(&launcher);
         let downloader_script = launcher.join("digital_downloader.py");
+        println!("[Rust:start_digital_download] Using launcher={launcher:?}, python={python:?}, script={downloader_script:?}");
+
+        if !downloader_script.is_file() {
+            let err = format!("Downloader script not found at {downloader_script:?}");
+            eprintln!("[Rust:start_digital_download:Error] {err}");
+            return Err(err);
+        }
+
         let mut cmd = Command::new(&python);
         cmd.current_dir(&launcher)
             .env("PYTHONUTF8", "1")
@@ -701,12 +720,22 @@ async fn start_digital_download(
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let child = cmd.spawn().map_err(|err| format!("Failed to spawn digital downloader: {err}"))?;
+        println!("[Rust:start_digital_download] Spawning child process: {cmd:?}");
+        let child = cmd.spawn().map_err(|err| {
+            let err_str = format!("Failed to spawn digital downloader: {err}");
+            eprintln!("[Rust:start_digital_download:Error] {err_str}");
+            err_str
+        })?;
 
+        let pid = child.id();
+        println!("[Rust:start_digital_download] Successfully spawned PID {}", pid);
+        if let Ok(mut map) = digital_pids().lock() {
+            map.insert(app_id, pid);
+        }
         Ok(serde_json::json!({
             "ok": true,
             "appId": app_id,
-            "pid": child.id(),
+            "pid": pid,
             "status": "started"
         }))
     })
@@ -717,6 +746,25 @@ async fn start_digital_download(
 #[tauri::command]
 async fn cancel_digital_download(app_id: u32) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        println!("[Rust:cancel_digital_download] Cancelling download for app_id={app_id}");
+        let maybe_pid = digital_pids().lock().ok().and_then(|mut map| map.remove(&app_id));
+        if let Some(pid) = maybe_pid {
+            println!("[Rust:cancel_digital_download] Terminating child process PID {pid} for app_id={app_id}");
+            #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .status();
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = Command::new("kill")
+                    .args(["-9", &pid.to_string()])
+                    .status();
+            }
+        }
+
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
         let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
         if status_file.exists() {
@@ -742,8 +790,10 @@ async fn digital_download_status(app_id: u32) -> Result<serde_json::Value, Strin
         let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
         if status_file.exists() {
             let content = fs::read_to_string(&status_file).map_err(|err| err.to_string())?;
+            println!("[Rust:digital_download_status] Status file exists for {app_id}: {content}");
             serde_json::from_str(&content).map_err(|err| err.to_string())
         } else {
+            println!("[Rust:digital_download_status] No status file yet for {app_id} (path={status_file:?})");
             Ok(serde_json::json!({
                 "appId": app_id.to_string(),
                 "phase": "preparing",

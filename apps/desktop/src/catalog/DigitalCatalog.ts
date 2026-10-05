@@ -226,31 +226,41 @@ export class DigitalCatalog {
    * Initiates installation or download for the game.
    */
   async download(game: CatalogGame): Promise<void> {
+    console.log("[DigitalCatalog:download] Starting download for:", { id: game.id, app_id: game.app_id, name: game.name });
     if (this.options.downloadHandler) {
+      console.log("[DigitalCatalog:download] Using custom downloadHandler");
       return this.options.downloadHandler(game);
     }
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    console.log("[DigitalCatalog:download] Found local digital record:", record);
     let downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+    console.log("[DigitalCatalog:download] Initial downloadSource:", downloadSource);
 
     if (!downloadSource) {
       try {
         const apiUrl = await getApiBaseUrl();
+        console.log(`[DigitalCatalog:download] No local downloadSource. Querying API at ${apiUrl}/digital/source/${game.id}...`);
         if (apiUrl) {
           const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`);
           if (res.ok) {
             const data = await res.json();
+            console.log("[DigitalCatalog:download] API source response:", data);
             if (data?.uri) {
               downloadSource = data.uri;
             }
+          } else {
+            console.warn(`[DigitalCatalog:download] API returned status ${res.status}`);
           }
         }
-      } catch {
-        // Continue
+      } catch (srcErr) {
+        console.warn("[DigitalCatalog:download] Error querying digital source from API:", srcErr);
       }
     }
 
     if (!downloadSource) {
-      throw new Error(`El juego '${game.name}' no tiene fuentes de descarga configuradas.`);
+      const errMsg = `El juego '${game.name}' no tiene fuentes de descarga configuradas.`;
+      console.error("[DigitalCatalog:download] Failed: " + errMsg);
+      throw new Error(errMsg);
     }
 
     const effectiveRecord: DigitalGameRecord = {
@@ -263,6 +273,7 @@ export class DigitalCatalog {
       }),
       downloadSource,
     };
+    console.log("[DigitalCatalog:download] Calling digitalDownloadService.start with record:", effectiveRecord);
     return digitalDownloadService.start(game, { record: effectiveRecord });
   }
 

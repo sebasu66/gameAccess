@@ -23,6 +23,7 @@ import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
+import { getCatalogMode } from "./catalogMode";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 
@@ -248,6 +249,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   }, [downloads]);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     if (!trackedAppIds.length) return;
     let cancelled = false;
     let timer: number | null = null;

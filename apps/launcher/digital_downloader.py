@@ -559,18 +559,24 @@ def download_direct_torrent(
     else:
         raise ValueError(f"Fuente de descarga inválida: {torrent_source}")
 
-    # Wait for metadata if necessary
+    # Wait for metadata if necessary (timeout after 45 seconds if no peers/trackers answer)
     meta_start = time.time()
+    METADATA_TIMEOUT_SECONDS = 45.0
     while not handle.status().has_metadata:
         if g_cancelled.is_set():
             ses.remove_torrent(handle)
             return ""
         elapsed = time.time() - meta_start
+        if elapsed > METADATA_TIMEOUT_SECONDS:
+            ses.remove_torrent(handle)
+            err_msg = f"No se pudo conectar con las fuentes de descarga para '{game_name}' (sin pares activos disponibles)."
+            emit_error(app_id, err_msg)
+            raise TimeoutError(err_msg)
         emit_progress(
             app_id=app_id,
             phase="preparing",
-            progress_percent=min(14.0 + (elapsed * 1.5), 35.0),
-            status_text="Obteniendo información del juego..."
+            progress_percent=min(14.0 + (elapsed * 0.4), 35.0),
+            status_text="Conectando con fuentes de descarga..."
         )
         time.sleep(1)
 
@@ -783,6 +789,14 @@ def main():
     game_name = args.name
     dest_dir = os.path.abspath(args.destination_dir)
     os.makedirs(dest_dir, exist_ok=True)
+
+    # Clean any stale status file from previous runs
+    try:
+        old_status = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.json"
+        if old_status.is_file():
+            old_status.unlink()
+    except Exception:
+        pass
 
     # 1. PHASE: PREPARING
     emit_progress(

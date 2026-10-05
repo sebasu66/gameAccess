@@ -511,24 +511,37 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   };
 
   const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
+    console.log("[DownloadUI:Start] User triggered download for game:", {
+      id: game.id,
+      app_id: game.app_id,
+      name: game.name,
+      catalogMode: getCatalogMode(),
+      recovery,
+    });
     if (getCatalogMode() === "digital") {
       const downloadKey = game.app_id ?? game.id;
+      console.log(`[DownloadUI:Digital] Mode is digital. DownloadKey=${downloadKey}`);
       try {
         setDownloads((current) => ({
           ...current,
           [downloadKey]: { app_id: downloadKey, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }
         }));
         rememberRecent(game);
+        console.log(`[DownloadUI:Digital] Invoking digitalCatalogService.download for '${game.name}'...`);
         await digitalCatalogService.download(game);
+        console.log(`[DownloadUI:Digital] digitalCatalogService.download completed. Getting status...`);
         const status = await digitalCatalogService.getStatus(game);
+        console.log(`[DownloadUI:Digital] Current status for '${game.name}':`, status);
         setDownloads((current) => ({ ...current, [downloadKey]: status }));
         if (status.error) {
+          console.error(`[DownloadUI:Digital] Status reports error: ${status.error}`);
           setToast(`Error en descarga: ${status.error}`);
         } else {
           setToast(`Iniciando descarga digital de ${game.name}...`);
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[DownloadUI:DigitalError] Exception during download of '${game.name}':`, err);
         setDownloads((current) => ({
           ...current,
           [downloadKey]: { app_id: downloadKey, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }

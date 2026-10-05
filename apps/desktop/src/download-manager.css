@@ -31,8 +31,9 @@
 
 .library-room-card-color-fill {
   z-index: 1;
+  pointer-events: none;
   clip-path: inset(calc(100% - var(--download-progress, 0%)) 0 0 0);
-  transition: clip-path .75s cubic-bezier(.2,.8,.2,1);
+  transition: clip-path .4s ease-out;
 }
 
 .library-room-card.is-download-active .library-room-card-art {

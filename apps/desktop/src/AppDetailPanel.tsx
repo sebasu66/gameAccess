@@ -6,9 +6,11 @@ import { useI18n } from "./i18n";
 import { gameStateManager, type ResolvedGameState } from "./GameStateManager";
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
+import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
 
 import { stripHtml, wait, availabilityLabel, heavinessLabel, GlassActionButton } from "./AppPresentation";
+import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 
 function playActionLabel(state: ResolvedGameState) {
   if (state.playButtonReady) return "Jugar ahora";
@@ -16,7 +18,7 @@ function playActionLabel(state: ResolvedGameState) {
   return "No listo";
 }
 
-function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadStatus) {
+function downloadActionLabel(state: ResolvedGameState, download?: ManagedDownloadStatus) {
   if (state.installed) return "Instalado";
   if (state.prepared) return "Preparado";
   if (state.transferActive) {
@@ -25,7 +27,7 @@ function downloadActionLabel(state: ResolvedGameState, download?: SteamDownloadS
   return "Descargar";
 }
 
-function detailActionState(download?: SteamDownloadStatus) {
+function detailActionState(download?: ManagedDownloadStatus) {
   const localState = gameStateManager.resolve(download);
   return {
     localState,
@@ -47,7 +49,7 @@ export function DetailPanel({
 }: {
   game: CatalogGame;
   machine: MachineProfile | null;
-  download?: SteamDownloadStatus;
+  download?: ManagedDownloadStatus;
   onClose: () => void;
   onLease: (game: CatalogGame) => Promise<void>;
   onDownload: (game: CatalogGame) => Promise<void>;
@@ -177,6 +179,11 @@ export function DetailPanel({
                 onClick={() => void onDownload(game)}
               />
             </div>
+            {activeDownload || download?.progress != null || download?.statusText ? (
+              <div style={{ marginTop: "14px", width: "100%", maxWidth: "480px" }}>
+                <GenericDownloadProgressView download={download} showMetrics={true} />
+              </div>
+            ) : null}
           </>);
 
   const renderMetadata = () => (<><div className="detail-meta">

@@ -65,8 +65,9 @@ export class DigitalDownloadService implements IDownloadProvider {
    *   --app-id, --name, --source (downloadSource), --install-process (installProcess)
    */
   async start(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
-    const gameId = game.id;
+    const gameId = game.app_id ?? game.id;
     const record = options?.record || this.getRecord(gameId) || this.getRecord(game.app_id ?? 0);
+    console.log(`[DigitalDownloaderService:start] Starting for gameId=${gameId}, record=`, record);
 
     const initialSnapshot: DownloadProgressSnapshot = {
       gameId,
@@ -82,9 +83,11 @@ export class DigitalDownloadService implements IDownloadProvider {
     const name = record?.name ?? game.name;
     const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
     const installProcess = record?.installProcess ?? "";
+    console.log(`[DigitalDownloaderService:start] Params: appId=${appId}, name='${name}', source='${downloadSource}'`);
 
     if (!downloadSource) {
       const errorMsg = `El juego '${name}' no posee fuentes de descarga disponibles.`;
+      console.error(`[DigitalDownloaderService:start] No downloadSource: ${errorMsg}`);
       this.updateSnapshot({
         gameId,
         phase: "error",
@@ -97,7 +100,8 @@ export class DigitalDownloadService implements IDownloadProvider {
 
     if (hasTauriRuntime()) {
       try {
-        await invoke("start_digital_download", {
+        console.log(`[DigitalDownloaderService:start] Invoking Tauri start_digital_download...`);
+        const result = await invoke("start_digital_download", {
           appId,
           name,
           downloadSource,
@@ -105,8 +109,10 @@ export class DigitalDownloadService implements IDownloadProvider {
           torboxKey: options?.torboxKey,
           keepArchive: options?.keepArchive,
         });
+        console.log(`[DigitalDownloaderService:start] start_digital_download response:`, result);
         this.startStatusPolling(gameId, appId);
       } catch (err) {
+        console.error(`[DigitalDownloaderService:start] Error invoking start_digital_download:`, err);
         // Fallback or report error in snapshot
         this.updateSnapshot({
           gameId,
@@ -118,12 +124,13 @@ export class DigitalDownloadService implements IDownloadProvider {
         throw err;
       }
     } else {
-      // In web/mock test environments, simulate initial preparation
+      console.log(`[DigitalDownloaderService:start] Web mock environment: opening download link`);
+      window.open(downloadSource, "_blank");
       this.updateSnapshot({
         gameId,
         phase: "downloading",
-        progress: 1,
-        statusText: "Descargando desde fuente digital...",
+        progress: 100,
+        statusText: "Enlace de descarga abierto en el navegador.",
       });
     }
   }
@@ -131,6 +138,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   private pollingIntervals = new Map<number, any>();
 
   private startStatusPolling(gameId: number, appId: number): void {
+    console.log(`[DigitalDownloaderService:polling] Starting status polling for gameId=${gameId}, appId=${appId}`);
     if (this.pollingIntervals.has(gameId)) {
       clearInterval(this.pollingIntervals.get(gameId));
     }
@@ -138,6 +146,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       if (!hasTauriRuntime()) return;
       try {
         const raw = await invoke<any>("digital_download_status", { appId });
+        console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
         if (raw && raw.phase) {
           const snapshot: DownloadProgressSnapshot = {
             gameId,
@@ -152,11 +161,13 @@ export class DigitalDownloadService implements IDownloadProvider {
           };
           this.updateSnapshot(snapshot);
           if (["completed", "error", "cancelled"].includes(raw.phase)) {
+            console.log(`[DigitalDownloaderService:polling] Terminal phase reached (${raw.phase}), stopping polling.`);
             clearInterval(interval);
             this.pollingIntervals.delete(gameId);
           }
         }
-      } catch {
+      } catch (pollErr) {
+        console.warn(`[DigitalDownloaderService:polling] Error during status polling:`, pollErr);
         // continue polling
       }
     }, 1000);
