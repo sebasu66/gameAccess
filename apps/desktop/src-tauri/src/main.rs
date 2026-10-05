@@ -686,6 +686,12 @@ async fn start_digital_download(
             return Err(err);
         }
 
+        let status_dir = launcher.join(".cache").join("digital_downloads");
+        fs::create_dir_all(&status_dir).map_err(|err| err.to_string())?;
+        for suffix in ["json", "control.json"] {
+            let path = status_dir.join(format!("{app_id}.{suffix}"));
+            if path.exists() { fs::remove_file(path).map_err(|err| err.to_string())?; }
+        }
         let mut cmd = Command::new(&python);
         cmd.current_dir(&launcher)
             .env("PYTHONUTF8", "1")
@@ -743,44 +749,69 @@ async fn start_digital_download(
     .map_err(|err| format!("Task failed: {err}"))?
 }
 
+fn write_digital_control(app_id: u32, action: &str) -> Result<std::path::PathBuf, String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let dir = launcher.join(".cache").join("digital_downloads");
+    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    let control = serde_json::json!({ "action": action, "requestId": uuid::Uuid::new_v4().to_string() });
+    let path = dir.join(format!("{app_id}.control.json"));
+    let temp = dir.join(format!("{app_id}.control.tmp"));
+    fs::write(&temp, control.to_string()).map_err(|err| err.to_string())?;
+    fs::rename(temp, path).map_err(|err| err.to_string())?;
+    Ok(dir.join(format!("{app_id}.json")))
+}
+
+#[tauri::command]
+async fn control_digital_download(app_id: u32, action: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if action != "pause" && action != "resume" { return Err("Invalid download action".to_string()); }
+        let path = write_digital_control(app_id, &action)?;
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if let Ok(raw) = fs::read_to_string(&path) {
+                if let Ok(status) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    let phase = status["phase"].as_str().unwrap_or("");
+                    if (action == "pause" && phase == "paused") || (action == "resume" && ["preparing", "downloading", "installing", "decompressing"].contains(&phase)) {
+                        return Ok(status);
+                    }
+                    if ["completed", "cancelled", "error"].contains(&phase) {
+                        return Err("La descarga ya terminó".to_string());
+                    }
+                }
+            }
+        }
+        Err("El motor no confirmó la acción. El estado se actualizará al recibir su respuesta.".to_string())
+    }).await.map_err(|err| err.to_string())?
+}
+
 #[tauri::command]
 async fn cancel_digital_download(app_id: u32) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        println!("[Rust:cancel_digital_download] Cancelling download for app_id={app_id}");
-        let maybe_pid = digital_pids().lock().ok().and_then(|mut map| map.remove(&app_id));
-        if let Some(pid) = maybe_pid {
-            println!("[Rust:cancel_digital_download] Terminating child process PID {pid} for app_id={app_id}");
-            #[cfg(target_os = "windows")]
-            {
-                let _ = Command::new("taskkill")
-                    .args(["/F", "/T", "/PID", &pid.to_string()])
-                    .creation_flags(CREATE_NO_WINDOW)
-                    .status();
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                let _ = Command::new("kill")
-                    .args(["-9", &pid.to_string()])
-                    .status();
+        let path = write_digital_control(app_id, "cancel")?;
+        for _ in 0..80 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if let Ok(raw) = fs::read_to_string(&path) {
+                if let Ok(status) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    if status["phase"] == "cancelled" || status["phase"] == "completed" {
+                        digital_pids().lock().map_err(|err| err.to_string())?.remove(&app_id);
+                        return Ok(status);
+                    }
+                }
             }
         }
-
-        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
-        let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
-        if status_file.exists() {
-            let cancel_payload = serde_json::json!({
-                "type": "progress",
-                "appId": app_id.to_string(),
-                "phase": "cancelled",
-                "progressPercent": 0.0,
-                "statusText": "Instalación cancelada"
-            });
-            let _ = fs::write(&status_file, cancel_payload.to_string());
-        }
-        Ok(serde_json::json!({ "ok": true, "appId": app_id, "status": "cancelled" }))
-    })
-    .await
-    .map_err(|err| format!("Task failed: {err}"))?
+        let pid = digital_pids().lock().map_err(|err| err.to_string())?.get(&app_id).copied()
+            .ok_or_else(|| "No se pudo confirmar la cancelación del proceso".to_string())?;
+        #[cfg(target_os = "windows")]
+        let result = Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW).output().map_err(|err| err.to_string())?;
+        #[cfg(not(target_os = "windows"))]
+        let result = Command::new("kill").args(["-9", &pid.to_string()]).output().map_err(|err| err.to_string())?;
+        if !result.status.success() { return Err("No se pudo detener el proceso de descarga".to_string()); }
+        digital_pids().lock().map_err(|err| err.to_string())?.remove(&app_id);
+        let status = serde_json::json!({ "appId": app_id, "phase": "cancelled", "progressPercent": 0, "statusText": "Descarga cancelada" });
+        fs::write(&path, status.to_string()).map_err(|err| err.to_string())?;
+        Ok(status)
+    }).await.map_err(|err| err.to_string())?
 }
 
 #[tauri::command]
@@ -791,7 +822,18 @@ async fn digital_download_status(app_id: u32) -> Result<serde_json::Value, Strin
         if status_file.exists() {
             let content = fs::read_to_string(&status_file).map_err(|err| err.to_string())?;
             println!("[Rust:digital_download_status] Status file exists for {app_id}: {content}");
-            serde_json::from_str(&content).map_err(|err| err.to_string())
+            let mut value: serde_json::Value = serde_json::from_str(&content).map_err(|err| err.to_string())?;
+            let phase = value["phase"].as_str().unwrap_or("");
+            if ["preparing", "downloading", "paused", "installing", "decompressing"].contains(&phase) {
+                let stale = fs::metadata(&status_file).and_then(|m| m.modified()).ok()
+                    .and_then(|time| time.elapsed().ok()).map(|elapsed| elapsed.as_secs() > 15).unwrap_or(false);
+                if stale {
+                    value["phase"] = serde_json::json!("interrupted");
+                    value["statusText"] = serde_json::json!("El proceso dejó de responder");
+                    value["error"] = serde_json::json!("El motor no actualizó su estado. Reintentá la descarga.");
+                }
+            }
+            Ok(value)
         } else {
             println!("[Rust:digital_download_status] No status file yet for {app_id} (path={status_file:?})");
             Ok(serde_json::json!({
@@ -901,9 +943,11 @@ fn main() {
             run_digital_process,
             start_digital_download,
             cancel_digital_download,
+            control_digital_download,
             digital_download_status,
             query_digital_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
 }
+

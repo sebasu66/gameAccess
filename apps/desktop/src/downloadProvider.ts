@@ -7,6 +7,7 @@ import type { ManagedDownloadStatus, ManagedDownloadState } from "./downloadType
  * can map its internal steps to these phases.
  */
 export type DownloadPhase =
+  | "queued"
   | "preparing"      // Initial checks, reserving space, acquiring metadata or tokens
   | "downloading"    // Actively transferring bits over network
   | "decompressing"  // Unpacking archives (.zip, .7z, .tar, .bin)
@@ -126,6 +127,9 @@ export function snapshotToManagedStatus(snapshot: DownloadProgressSnapshot): Man
   let installed = false;
 
   switch (snapshot.phase) {
+    case "queued":
+      mappedState = "requested";
+      break;
     case "preparing":
       mappedState = "preparing";
       break;
@@ -174,3 +178,4 @@ export function snapshotToManagedStatus(snapshot: DownloadProgressSnapshot): Man
     error: snapshot.error ?? null,
   };
 }
+

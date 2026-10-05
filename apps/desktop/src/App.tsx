@@ -23,6 +23,7 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
@@ -81,6 +82,7 @@ function playToastBeep(): void {
 }
 
 export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -529,6 +531,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         rememberRecent(game);
         console.log(`[DownloadUI:Digital] Invoking digitalCatalogService.download for '${game.name}'...`);
         await digitalCatalogService.download(game);
+        setSelected(null);
+        setDownloadsOpen(true);
         console.log(`[DownloadUI:Digital] digitalCatalogService.download completed. Getting status...`);
         const status = await digitalCatalogService.getStatus(game);
         console.log(`[DownloadUI:Digital] Current status for '${game.name}':`, status);
@@ -537,7 +541,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           console.error(`[DownloadUI:Digital] Status reports error: ${status.error}`);
           setToast(`Error en descarga: ${status.error}`);
         } else {
-          setToast(`Iniciando descarga digital de ${game.name}...`);
+          setToast(status.state === "requested" ? `${game.name} añadido a la cola` : `Iniciando descarga digital de ${game.name}...`);
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -824,8 +828,9 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
         {catalogNavigation}
-        <div className="catalog-header-controls" ref={setToolbarTarget} />
+        <div className="catalog-header-controls" ref={setToolbarTarget} style={downloadsOpen ? { display: "none" } : undefined} />
         <div className="topbar-actions">
+          {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}>Descargas</button> : null}
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
@@ -834,6 +839,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
+        {downloadsOpen ? <DigitalDownloadsScreen onClose={() => setDownloadsOpen(false)} /> : <>
         <LibraryRoom toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
@@ -847,6 +853,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
             <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
           </>}
         </div>
+        </>}
       </main>
 
       {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
@@ -874,3 +881,4 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 function hasLocalRoute(game: CatalogGame) {
   return Boolean((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id);
 }
+

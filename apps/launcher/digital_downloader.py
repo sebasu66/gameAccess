@@ -39,12 +39,68 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 # Global cancellation and child process tracking
 g_cancelled = threading.Event()
+g_paused = threading.Event()
+g_status_lock = threading.RLock()
+g_last_payload = {}
+
+def wait_if_paused():
+    torrent_paused = False
+    while g_paused.is_set() and not g_cancelled.is_set():
+        if g_torrent_session is not None and not torrent_paused:
+            g_torrent_session.pause()
+            torrent_paused = True
+        time.sleep(0.1)
+    if torrent_paused and g_torrent_session is not None and not g_cancelled.is_set():
+        g_torrent_session.resume()
+
+def watch_controls():
+    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
+    last_request = None
+    last_heartbeat = time.monotonic()
+    while not g_cancelled.wait(0.1):
+        if time.monotonic() - last_heartbeat >= 1:
+            with g_status_lock:
+                if g_last_payload.get("phase") in ("completed", "error", "cancelled"):
+                    return
+                if g_last_payload:
+                    emit_json(dict(g_last_payload))
+            last_heartbeat = time.monotonic()
+        try:
+            control = json.loads(control_file.read_text(encoding="utf-8"))
+            if control.get("requestId") == last_request:
+                continue
+            last_request = control.get("requestId")
+            action = control.get("action")
+            if action == "cancel":
+                g_paused.clear()
+                g_cancelled.set()
+                if g_active_subprocess and g_active_subprocess.poll() is None:
+                    g_active_subprocess.terminate()
+                return
+            if action == "pause" and g_last_payload.get("phase") in ("downloading", "preparing"):
+                g_paused.set()
+                emit_json(dict(g_last_payload))
+            elif action == "resume" and g_paused.is_set():
+                g_paused.clear()
+                emit_json(dict(g_last_payload))
+        except (OSError, ValueError):
+            pass
+
 g_active_subprocess: Optional[subprocess.Popen] = None
 g_torrent_session = None
 g_temp_files: List[str] = []
 g_app_id: str = ""
 
 def emit_json(payload: dict):
+    global g_last_payload
+    with g_status_lock:
+        g_last_payload = dict(payload)
+        payload = dict(payload, workerPid=os.getpid())
+        if g_paused.is_set() and payload.get("phase") in ("preparing", "downloading"):
+            payload.update(phase="paused", statusText="Descarga pausada", speedBps=0, etaSeconds=0)
+        _write_status(payload)
+
+def _write_status(payload: dict):
     """Emits a single-line JSON event to stdout with immediate flush and updates cached status file."""
     try:
         line = json.dumps(payload, ensure_ascii=False)
@@ -98,7 +154,7 @@ def emit_error(app_id: str, error_message: str):
         "statusText": f"Error: {error_message}"
     })
 
-def cleanup_on_cancel(signum=None, frame=None):
+def cleanup_on_cancel(signum=None, frame=None, error_message=None):
     """Graceful cleanup handler for SIGINT/SIGTERM."""
     global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
@@ -132,8 +188,11 @@ def cleanup_on_cancel(signum=None, frame=None):
             except Exception:
                 pass
 
-    emit_error(g_app_id, "Proceso cancelado por el usuario")
-    sys.exit(130)
+    if error_message:
+        emit_error(g_app_id, error_message)
+    else:
+        emit_progress(g_app_id, "cancelled", 0, status_text="Descarga cancelada")
+    sys.exit(1 if error_message else 130)
 
 # Register signal handlers
 signal.signal(signal.SIGINT, cleanup_on_cancel)
@@ -276,6 +335,7 @@ def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int,
                 with open(filepath, "r+b") as f:
                     f.seek(start)
                     for chunk in r.iter_content(chunk_size=1024 * 64, decode_unicode=False):
+                        wait_if_paused()
                         if g_cancelled.is_set():
                             return
                         if chunk:
@@ -309,6 +369,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
             downloaded = 0
             start_time = time.time()
             for chunk in r.iter_content(chunk_size=1024 * 64):
+                wait_if_paused()
                 if g_cancelled.is_set():
                     return False
                 if chunk:
@@ -563,6 +624,7 @@ def download_direct_torrent(
     meta_start = time.time()
     METADATA_TIMEOUT_SECONDS = 45.0
     while not handle.status().has_metadata:
+        wait_if_paused()
         if g_cancelled.is_set():
             ses.remove_torrent(handle)
             return ""
@@ -598,6 +660,7 @@ def download_direct_torrent(
 
     last_emit = 0
     while not g_cancelled.is_set():
+        wait_if_paused()
         s = handle.status()
         progress = s.progress * 100.0
         bytes_done = s.total_wanted_done
@@ -790,6 +853,9 @@ def main():
     dest_dir = os.path.abspath(args.destination_dir)
     os.makedirs(dest_dir, exist_ok=True)
 
+    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.control.json"
+    threading.Thread(target=watch_controls, daemon=True).start()
+
     # Clean any stale status file from previous runs
     try:
         old_status = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.json"
@@ -954,6 +1020,9 @@ def main():
             status_text="Descarga finalizada. Preparando instalación..."
         )
 
+        wait_if_paused()
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
         should_delete_archive = not args.keep_archive
         extracted = extract_archives_in_path(
@@ -964,6 +1033,8 @@ def main():
             delete_archive=should_delete_archive
         )
 
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
         # 4. PHASE: INSTALLING (Optional post-download install command)
         if args.install_process:
             emit_progress(
@@ -1005,6 +1076,8 @@ def main():
                 status_text="Instalación completada"
             )
 
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
         # 5. PHASE: COMPLETED
         final_size = 0
         if target_content_path and os.path.exists(target_content_path):
@@ -1026,9 +1099,8 @@ def main():
         sys.exit(0)
 
     except Exception as e:
-        emit_error(app_id, str(e))
-        cleanup_on_cancel()
-        sys.exit(1)
+        cleanup_on_cancel(error_message=None if g_cancelled.is_set() else str(e))
 
 if __name__ == "__main__":
     main()
+
