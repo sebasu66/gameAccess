@@ -1,13 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
-import {
-  getSteamStoreMetadata,
-} from "../native";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
-import { snapshotToManagedStatus, type DownloadPhase } from "../downloadProvider";
 import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
@@ -129,20 +124,6 @@ export class DigitalCatalog {
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     if (game.app_id) {
-      try {
-        const raw = await getSteamStoreMetadata(game.app_id);
-        if (raw) {
-          const steam = normalizeSteamStoreMetadata(game, raw);
-          return applyBundledDetails({
-            ...game,
-            steam,
-            metadata_state: "steam-store",
-          });
-        }
-      } catch {
-        // Continue to server fallback
-      }
-
       try {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {

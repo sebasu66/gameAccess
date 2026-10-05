@@ -24,7 +24,7 @@ const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNAL
 /**
  * Dedicated Process Manager for the Digital tab.
  *
- * Executes the terminal command sequences specified in `playProcess` and `uninstallProcess`
+ * Runs the dedicated Digital folder lifecycle and resolves a local game executable
  * by passing them to the Python process runner (`digital_process_runner.py`) via Tauri.
  */
 export class DigitalProcessManager {
@@ -47,7 +47,6 @@ export class DigitalProcessManager {
   private async execute(action: ProcessExecutionResult["action"], game: CatalogGame, record?: DigitalGameRecord, workingDir?: string, payload?: string): Promise<ProcessExecutionResult> {
     const appId = record?.id ?? game.app_id ?? game.id;
     const name = record?.name ?? game.name;
-    const field = action === "play" ? "playProcess" : "uninstallProcess";
     const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
     try {
       if (hasTauriRuntime()) {
