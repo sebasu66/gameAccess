@@ -10,7 +10,7 @@ export function DownloadProblemDialog({ problem, onClose }: { problem: DownloadP
   const support = problem.reported === null ? "Estamos enviando los detalles a nuestro soporte."
     : problem.reported ? "Ya hemos enviado los detalles a nuestro soporte."
     : "No pudimos enviar los detalles a nuestro soporte.";
-  return <AppDialog title={`Hubo un problema con ${problem.name}`} tone="alert"
+  return <AppDialog title={`Hubo un problema con ${problem.name}`} tone="error"
     message={`${problem.error}\n\n${support} Disculpe las molestias.`} onClose={onClose} />;
 }
 
