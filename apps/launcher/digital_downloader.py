@@ -735,8 +735,8 @@ def request_archive_passwords():
     raise RuntimeError("El cliente no recibió las contraseñas del servidor. La descarga se conserva.")
 
 
-def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: str) -> Optional[str]:
-    """Return the one enclosing folder, or an empty string for loose contents."""
+def archive_member_names(archive: str, seven_zip: Optional[str], password: str) -> Optional[list[str]]:
+    """List incoming payload files without extracting or prompting."""
     import zipfile, tarfile
     names = []
     if zipfile.is_zipfile(archive):
@@ -759,6 +759,14 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
             fields = dict(line.split(" = ", 1) for line in block.splitlines() if " = " in line)
             if "Path" in fields and fields.get("Folder") != "+" and not fields.get("Attributes", "").startswith("D"):
                 names.append(fields["Path"])
+    return names
+
+
+def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: str) -> Optional[str]:
+    """Return the one enclosing folder, or an empty string for loose contents."""
+    names = archive_member_names(archive, seven_zip, password)
+    if names is None:
+        return None
     if not names:
         return ""
     parts = [name.replace("\\", "/").strip("/").split("/") for name in names]
@@ -768,12 +776,42 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
     return first if all(len(path) > 1 and path[0] == first for path in parts) else ""
 
 
+def backup_incoming_archive(archive: str, extraction_dir: str, game_dir: str,
+                            seven_zip: Optional[str], password: str, game_name: Optional[str]) -> None:
+    """Back up only the incoming files after overwrite, never the replaced files."""
+    import zipfile
+    from digital_storage import DigitalGameStorage
+    members = archive_member_names(archive, seven_zip, password)
+    if members is None:
+        raise RuntimeError("No se pudo listar el contenido entrante para crear su respaldo.")
+    root = Path(extraction_dir).resolve()
+    backup_dir = Path(game_dir).resolve()
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    title = DigitalGameStorage.folder_name(game_name or backup_dir.name)
+    output = backup_dir / f"backup for {title}.zip"
+    temporary = output.with_suffix(".zip.tmp")
+    try:
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+            for member in dict.fromkeys(members):
+                relative = member.replace("\\", "/")
+                incoming = (root / relative).resolve()
+                if not incoming.is_relative_to(root) or not incoming.is_file():
+                    raise RuntimeError(f"No se pudo respaldar el archivo entrante: {member}")
+                if incoming in (output, temporary):
+                    raise RuntimeError("El paquete usa el nombre reservado para su respaldo.")
+                zf.write(incoming, arcname=relative)
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def extract_archives_in_path(
     target_path: str,
     dest_dir: str,
     host: Optional[str] = None,
     password: Optional[str] = None,
-    delete_archive: bool = True
+    delete_archive: bool = True,
+    game_name: Optional[str] = None
 ) -> bool:
     """
     Extracts archive files (or archives found inside target directory) using portable 7-Zip,
@@ -790,6 +828,8 @@ def extract_archives_in_path(
                 full_path = os.path.join(root, f)
                 if is_archive(full_path):
                     fn = f.lower()
+                    if fn.startswith("backup for ") and fn.endswith(".zip"):
+                        continue
                     if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
                         continue
                     if re.search(r"\.(?!001\b)\d{3}$", fn):
@@ -840,11 +880,11 @@ def extract_archives_in_path(
                     )
                 enclosing = archive_enclosing_folder(arc, seven_zip, candidate_password)
                 extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
-                if enclosing and idx < total - 1:
+                if enclosing and idx == 0 and total > 1:
                     game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 cmd = [
                     seven_zip, "x", os.path.abspath(arc),
-                    f"-o{extraction_dir}", "-y",
+                    f"-o{extraction_dir}", "-y", "-aoa",
                     "-bsp1", "-bso1", "-bse1",
                     f"-p{candidate_password}",
                 ]
@@ -901,7 +941,7 @@ def extract_archives_in_path(
             try:
                 enclosing = archive_enclosing_folder(arc, None, effective_password or "-")
                 extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
-                if enclosing and idx < total - 1:
+                if enclosing and idx == 0 and total > 1:
                     game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 if zipfile.is_zipfile(arc):
                     with zipfile.ZipFile(arc, 'r') as zf:
@@ -915,6 +955,12 @@ def extract_archives_in_path(
                 raise RuntimeError(f"Error extrayendo {arc_name}: {e}") from e
             if not success:
                 raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
+
+        if success and idx == total - 1:
+            emit_progress(app_id=g_app_id, phase="decompressing", progress_percent=99.0,
+                          status_text=f"Creando respaldo de los archivos entrantes de {arc_name}...")
+            backup_incoming_archive(arc, extraction_dir, game_subfolder, seven_zip,
+                                    candidate_password if seven_zip else effective_password or "-", game_name)
 
         if success and delete_archive:
             delete_archive_and_parts(arc)
@@ -1143,7 +1189,8 @@ def main():
             dest_dir=dest_dir,
             host=args.host,
             password=args.password,
-            delete_archive=should_delete_archive
+            delete_archive=should_delete_archive,
+            game_name=game_name
         )
 
         if g_cancelled.is_set():

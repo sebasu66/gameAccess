@@ -93,6 +93,7 @@ class ExtractionTest(unittest.TestCase):
             archive.writestr("fix.dll", b"fix")
         with zipfile.ZipFile(large, "w") as archive:
             archive.writestr("Game/game.exe", b"main" * 10000)
+            archive.writestr("Game/fix.dll", b"old replaced bytes")
         for extractor in [None, str(SEVEN_ZIP) if SEVEN_ZIP.exists() else None]:
             output = self.root / ("native" if extractor else "fallback")
             events = []
@@ -100,9 +101,29 @@ class ExtractionTest(unittest.TestCase):
                 worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
             self.assertEqual((output / "Game" / "fix.dll").read_bytes(), b"fix")
             self.assertFalse((output / "fix.dll").exists())
+            with zipfile.ZipFile(output / "Game" / "backup for Game.zip") as backup:
+                self.assertEqual(backup.namelist(), ["fix.dll"])
+                self.assertEqual(backup.read("fix.dll"), b"fix")
             organizing = [e["status_text"] for e in events if e.get("status_text", "").startswith("Organizando")]
             self.assertIn("z-large-game.zip", organizing[0])
             self.assertIn("a-small-fix.zip", organizing[1])
+
+    def test_auxiliary_archive_does_not_replace_the_game_subfolder(self):
+        import zipfile
+        worker = load_worker()
+        packages = self.root / "packages"
+        packages.mkdir()
+        for filename, member, data in [
+            ("main.zip", "Game/game.exe", b"main" * 10000),
+            ("tools.zip", "Tools/tool.dat", b"tool" * 1000),
+            ("fix.zip", "fix.dll", b"fix")]:
+            with zipfile.ZipFile(packages / filename, "w") as archive:
+                archive.writestr(member, data)
+        output = self.root / "output"
+        with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+        self.assertTrue((output / "Game" / "fix.dll").is_file())
+        self.assertFalse((output / "Tools" / "fix.dll").exists())
 
     def test_smallest_archive_with_own_folder_does_not_double_nest(self):
         import zipfile
@@ -144,7 +165,7 @@ class ExtractionTest(unittest.TestCase):
         child.stdout = io.StringIO("extracting\r 25%\r 65%\r 100%\n")
         child.wait.return_value = 0
         events = []
-        with patch.object(worker, "archive_enclosing_folder", return_value=None), patch.object(worker, "find_portable_7z", return_value="7z"), patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
+        with patch.object(worker, "archive_member_names", return_value=["fixture.bin"]), patch.object(worker, "archive_enclosing_folder", return_value=None), patch.object(worker, "find_portable_7z", return_value="7z"), patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
             self.assertTrue(worker.extract_archives_in_path(str(arc), str(self.root), delete_archive=False))
         self.assertIn(25, [event["progress_percent"] for event in events])
         self.assertIn(65, [event["progress_percent"] for event in events])
