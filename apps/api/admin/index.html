@@ -216,7 +216,7 @@
   };
 
   async function archivePasswordsRequest(method){
-    const response=await fetch(ACTIVATION_API+'/admin/archive-passwords',{method,cache:'no-store',headers:{'Content-Type':'application/json','X-GameAccess-Admin-Token':token},...(method==='PUT'?{body:JSON.stringify({passwords:$('archivePasswords').value})}:{})});
+    const response=await fetch(ACTIVATION_API+'/admin/archive-passwords',{method,cache:'no-store',headers:{'Content-Type':'application/json'},...(method==='PUT'?{body:JSON.stringify({passwords:$('archivePasswords').value})}:{})});
     const result=await response.json();
     if(!response.ok)throw new Error(result.detail||'No se pudo actualizar la lista.');
     return result;
