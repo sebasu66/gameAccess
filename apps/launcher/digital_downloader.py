@@ -738,21 +738,6 @@ def extract_archives_in_path(
                         continue
                     archives_to_extract.append(full_path)
 
-    # Also check dest_dir top-level for any loose archives
-    if os.path.isdir(dest_dir):
-        for f in os.listdir(dest_dir):
-            full_path = os.path.join(dest_dir, f)
-            if os.path.isfile(full_path) and is_archive(full_path):
-                fn = f.lower()
-                if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
-                    continue
-                if re.search(r"\.(?!001\b)\d{3}$", fn):
-                    continue
-                if re.search(r"\.z\d+$", fn):
-                    continue
-                if full_path not in archives_to_extract:
-                    archives_to_extract.append(full_path)
-
     if not archives_to_extract:
         return False
 
@@ -779,28 +764,50 @@ def extract_archives_in_path(
         success = False
         if seven_zip:
             cmd = [
-                seven_zip,
-                "x",
-                os.path.abspath(arc),
-                f"-o{os.path.abspath(dest_dir)}",
-                "-y"
+                seven_zip, "x", os.path.abspath(arc),
+                f"-o{os.path.abspath(dest_dir)}", "-y",
+                "-bsp1", "-bso1", "-bse1",
+                f"-p{effective_password if effective_password else '-'}",
             ]
-            if effective_password:
-                cmd.append(f"-p{effective_password}")
-
+            # Never allow a hidden password prompt to wait forever.
             global g_active_subprocess
             g_active_subprocess = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
             )
-            stdout, stderr = g_active_subprocess.communicate()
-            if g_active_subprocess.returncode == 0:
-                success = True
-            else:
-                emit_error(g_app_id, f"Error al organizar {arc_name}: {stderr.strip() or stdout.strip()[-150:]}")
+            output_tail = ""
+            token = ""
+            last_percent = -1
+            while True:
+                character = g_active_subprocess.stdout.read(1)
+                if not character:
+                    break
+                output_tail = (output_tail + character)[-2000:]
+                token = (token + character)[-100:]
+                if character == "%":
+                    match = re.search(r"(\d{1,3})%$", token)
+                    if match:
+                        percent = min(int(match.group(1)), 100)
+                        if percent != last_percent:
+                            last_percent = percent
+                            emit_progress(
+                                app_id=g_app_id, phase="decompressing",
+                                progress_percent=((idx + percent / 100) / total) * 100,
+                                status_text=f"Descomprimiendo {arc_name} ({idx+1}/{total}) · {percent}%"
+                            )
+                if character in "\r\n":
+                    token = ""
+            g_active_subprocess.stdout.close()
+            returncode = g_active_subprocess.wait()
+            g_active_subprocess = None
+            if g_cancelled.is_set():
                 return False
+            if returncode != 0:
+                if re.search(r"password|encrypted|contrase", output_tail, re.I):
+                    raise RuntimeError(f"No se pudo descomprimir {arc_name}: el archivo requiere una contraseña válida. La descarga se conserva.")
+                raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
+            success = True
         else:
             import zipfile, tarfile
             try:
@@ -813,8 +820,9 @@ def extract_archives_in_path(
                         tf.extractall(dest_dir)
                     success = True
             except Exception as e:
-                emit_error(g_app_id, f"Error extrayendo {arc_name}: {e}")
-                return False
+                raise RuntimeError(f"Error extrayendo {arc_name}: {e}") from e
+            if not success:
+                raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
         if success and delete_archive:
             delete_archive_and_parts(arc)
@@ -1027,6 +1035,9 @@ def main():
         wait_if_paused()
         if g_cancelled.is_set():
             cleanup_on_cancel()
+        # Completed downloads must survive extraction/installation errors or cancellation.
+        if target_content_path in g_temp_files:
+            g_temp_files.remove(target_content_path)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
         should_delete_archive = not args.keep_archive
         extracted = extract_archives_in_path(
@@ -1107,4 +1118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
