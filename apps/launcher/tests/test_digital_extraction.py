@@ -61,6 +61,27 @@ class ExtractionTest(unittest.TestCase):
         result = self.extract(arc)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(unrelated.read_bytes(), b"invalid archive belonging to another download")
+    @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
+    def test_tries_password_file_in_order_until_success(self):
+        arc = self.archive(password="fixture-password")
+        output = self.root / "output"
+        output.mkdir()
+        (output / "contraseñas_zip").write_text("wrong-password\nfixture-password\n", encoding="utf-8")
+        result = self.extract(arc)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Probando contraseña 2/2", result.stdout)
+        self.assertNotIn("wrong-password", result.stdout)
+        self.assertEqual((output / "fixture.bin").read_bytes(), self.source.read_bytes())
+    @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
+    def test_exhausted_password_file_reports_error_and_preserves_archive(self):
+        arc = self.archive(password="fixture-password")
+        output = self.root / "output"
+        output.mkdir()
+        (output / "contraseñas_zip").write_text("wrong-one\nwrong-two\n", encoding="utf-8")
+        result = self.extract(arc)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ninguna contraseña de contraseñas_zip funcionó", result.stdout)
+        self.assertTrue(arc.exists())
     def test_reports_percentages_from_extractor_output(self):
         worker = load_worker()
         arc = self.root / "fixture.7z"

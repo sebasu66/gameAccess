@@ -751,6 +751,16 @@ def extract_archives_in_path(
         if profile and "password" in profile:
             effective_password = profile["password"]
 
+    passwords = [effective_password] if effective_password else []
+    password_file = LAUNCHER_DIR / "contraseñas_zip"
+    if password_file.exists():
+        for line in password_file.read_text(encoding="utf-8-sig").splitlines():
+            if line and line not in passwords:
+                passwords.append(line)
+    # "-" supplies an explicit placeholder so unprotected archives work without prompting.
+    if not passwords:
+        passwords = ["-"]
+
     total = len(archives_to_extract)
     for idx, arc in enumerate(archives_to_extract):
         arc_name = os.path.basename(arc)
@@ -763,50 +773,60 @@ def extract_archives_in_path(
 
         success = False
         if seven_zip:
-            cmd = [
-                seven_zip, "x", os.path.abspath(arc),
-                f"-o{os.path.abspath(dest_dir)}", "-y",
-                "-bsp1", "-bso1", "-bse1",
-                f"-p{effective_password if effective_password else '-'}",
-            ]
-            # Never allow a hidden password prompt to wait forever.
-            global g_active_subprocess
-            g_active_subprocess = subprocess.Popen(
-                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
-            )
-            output_tail = ""
-            token = ""
-            last_percent = -1
-            while True:
-                character = g_active_subprocess.stdout.read(1)
-                if not character:
-                    break
-                output_tail = (output_tail + character)[-2000:]
-                token = (token + character)[-100:]
-                if character == "%":
-                    match = re.search(r"(\d{1,3})%$", token)
-                    if match:
-                        percent = min(int(match.group(1)), 100)
-                        if percent != last_percent:
-                            last_percent = percent
-                            emit_progress(
-                                app_id=g_app_id, phase="decompressing",
-                                progress_percent=((idx + percent / 100) / total) * 100,
-                                status_text=f"Descomprimiendo {arc_name} ({idx+1}/{total}) · {percent}%"
-                            )
-                if character in "\r\n":
-                    token = ""
-            g_active_subprocess.stdout.close()
-            returncode = g_active_subprocess.wait()
-            g_active_subprocess = None
-            if g_cancelled.is_set():
-                return False
-            if returncode != 0:
-                if re.search(r"password|encrypted|contrase", output_tail, re.I):
-                    raise RuntimeError(f"No se pudo descomprimir {arc_name}: el archivo requiere una contraseña válida. La descarga se conserva.")
-                raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
+            for attempt, candidate_password in enumerate(passwords):
+                if attempt:
+                    emit_progress(
+                        app_id=g_app_id, phase="decompressing",
+                        progress_percent=(idx / total) * 100,
+                        status_text=f"Probando contraseña {attempt+1}/{len(passwords)} para {arc_name}..."
+                    )
+                cmd = [
+                    seven_zip, "x", os.path.abspath(arc),
+                    f"-o{os.path.abspath(dest_dir)}", "-y",
+                    "-bsp1", "-bso1", "-bse1",
+                    f"-p{candidate_password}",
+                ]
+                # Never allow a hidden password prompt to wait forever.
+                global g_active_subprocess
+                g_active_subprocess = subprocess.Popen(
+                    cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                    **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
+                )
+                output_tail = ""
+                token = ""
+                last_percent = -1
+                while True:
+                    character = g_active_subprocess.stdout.read(1)
+                    if not character:
+                        break
+                    output_tail = (output_tail + character)[-2000:]
+                    token = (token + character)[-100:]
+                    if character == "%":
+                        match = re.search(r"(\d{1,3})%$", token)
+                        if match:
+                            percent = min(int(match.group(1)), 100)
+                            if percent != last_percent:
+                                last_percent = percent
+                                emit_progress(
+                                    app_id=g_app_id, phase="decompressing",
+                                    progress_percent=((idx + percent / 100) / total) * 100,
+                                    status_text=f"Descomprimiendo {arc_name} ({idx+1}/{total}) · {percent}%"
+                                )
+                    if character in "\r\n":
+                        token = ""
+                g_active_subprocess.stdout.close()
+                returncode = g_active_subprocess.wait()
+                g_active_subprocess = None
+                if g_cancelled.is_set():
+                    return False
+                if returncode != 0:
+                    if re.search(r"password|encrypted|contrase", output_tail, re.I):
+                        if attempt + 1 < len(passwords):
+                            continue
+                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña de contraseñas_zip funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
+                    raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
+                break
             success = True
         else:
             import zipfile, tarfile
