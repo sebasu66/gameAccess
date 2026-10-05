@@ -11,7 +11,6 @@ import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from urllib.parse import urlsplit
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -23,6 +22,7 @@ from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
+from .admin_auth import admin_authenticated, install_admin_auth
 from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
@@ -234,6 +234,7 @@ class AccessKeyRedeemRequest(BaseModel):
 
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
+install_admin_auth(app)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
@@ -265,6 +266,8 @@ def now_utc() -> datetime:
 
 
 def _admin_activation_access(request: Request) -> None:
+    if admin_authenticated(request):
+        return
     configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
     if len(configured) < 32:
         raise HTTPException(503, "Activation key issuance is not configured")
@@ -274,6 +277,8 @@ def _admin_activation_access(request: Request) -> None:
 
 
 def _admin_browser_access(request: Request) -> None:
+    if admin_authenticated(request):
+        return
     configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
     challenge = {"WWW-Authenticate": 'Basic realm="GameAccess client errors"'}
     if len(configured) < 32:
@@ -535,24 +540,13 @@ def activation_status(request: Request, session: Session = Depends(get_session))
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
 
 
-def _admin_archive_password_access(request: Request) -> None:
-    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
-    client_host = request.client.host if request.client else ""
-    origin = request.headers.get("Origin")
-    local_origin = not origin or urlsplit(origin).hostname in loopback_hosts
-    forwarded = any(name in request.headers for name in ("Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Real-IP"))
-    if client_host in {"127.0.0.1", "::1"} and request.url.hostname in loopback_hosts and local_origin and not forwarded:
-        return
-    _admin_activation_access(request)
-
-
 class ArchivePasswordsRequest(BaseModel):
     passwords: str = Field(max_length=100000)
 
 
 @app.get("/admin/archive-passwords")
 def admin_archive_passwords(request: Request, response: Response) -> dict:
-    _admin_archive_password_access(request)
+    _admin_activation_access(request)
     response.headers["Cache-Control"] = "no-store"
     passwords = read_archive_passwords()
     return {"passwords": "\n".join(passwords), "count": len(passwords)}
@@ -560,7 +554,7 @@ def admin_archive_passwords(request: Request, response: Response) -> dict:
 
 @app.put("/admin/archive-passwords")
 def admin_save_archive_passwords(req: ArchivePasswordsRequest, request: Request, response: Response) -> dict:
-    _admin_archive_password_access(request)
+    _admin_activation_access(request)
     response.headers["Cache-Control"] = "no-store"
     try:
         passwords = save_archive_passwords(req.passwords)

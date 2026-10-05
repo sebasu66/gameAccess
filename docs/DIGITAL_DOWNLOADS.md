@@ -2,7 +2,7 @@
 
 The central password list is stored on the API server in `apps/api/data/contraseñas_zip`, one password per line. Set `GAMEACCESS_ARCHIVE_PASSWORD_FILE` to use a persistent server storage location. The list is runtime data and must not be committed.
 
-Open the administration panel, select **Herramientas**, and use **Contraseñas de archivos Digital**. Supply the existing server admin token, load the current list, edit it, and save. Reading and writing require the same admin authorization as access-key management.
+Open the administration panel, select **Herramientas**, and use **Contraseñas de archivos Digital**. Load the current list, edit it, and save. Direct local administration needs no token. Hosted administration uses one sign-in at /admin-session/login and a shared, HttpOnly session cookie for all admin pages and actions. Individual forms do not request tokens. The session expires after 12 hours or logout; changing the server admin token invalidates existing sessions.
 
 An encrypted archive requests the list only after extraction rejects the initial password. The activated client retrieves `GET /digital/archive-passwords` with its activation session and installation identifier, then delivers it to the worker through the native bridge. The bridge reply is temporary, is consumed and deleted by the worker, and is excluded from download history and logs. The worker tries the server passwords in order. Missing server access, exhaustion, malformed replies and delivery timeout produce an error while preserving the completed download.
 
