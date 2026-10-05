@@ -23,7 +23,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   private listeners = new Map<number, Set<(snapshot: DownloadProgressSnapshot) => void>>();
   private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   private queue: number[] = [];
-  private running: number | null = null;
+  private running = new Set<number>();
+  readonly maxParallelDownloads = 4;
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
   private controls = new Set<number>();
 
@@ -39,14 +40,18 @@ export class DigitalDownloadService implements IDownloadProvider {
         this.activeJobs.set(entry.snapshot.gameId, entry.snapshot);
       }
       this.queue = Array.isArray(saved.queue) ? saved.queue.filter((id: number) => this.activeJobs.get(id)?.phase === "queued") : [];
-      const active = this.activeJobs.get(saved.running);
-      this.running = active && !["completed", "error", "cancelled", "interrupted"].includes(active.phase) ? saved.running : null;
+      const runningIds = Array.isArray(saved.running) ? saved.running : [saved.running];
+      for (const id of runningIds) {
+        const active = this.activeJobs.get(id);
+        if (active && !["queued", "completed", "error", "cancelled", "interrupted"].includes(active.phase)) this.running.add(id);
+      }
       setTimeout(() => {
         if (!hasTauriRuntime()) return;
-        if (this.running !== null) {
-          const record = this.jobs.get(this.running)?.options?.record;
-          this.startStatusPolling(this.running, record?.id ?? this.running);
-        } else { void this.pump(); }
+        for (const id of this.running) {
+          const record = this.jobs.get(id)?.options?.record;
+          this.startStatusPolling(id, record?.id ?? id);
+        }
+        void this.pump();
       }, 0);
     } catch { /* Invalid saved state must not block catalog startup. */ }
   }
@@ -55,7 +60,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (!this.storageKey || typeof localStorage === "undefined") return;
     try {
       localStorage.setItem(this.storageKey, JSON.stringify({
-        queue: this.queue, running: this.running,
+        queue: this.queue, running: [...this.running],
         entries: this.getDownloads().map(entry => ({ ...entry, record: this.jobs.get(entry.snapshot.gameId)?.options?.record })),
       }));
     } catch { /* Storage is best-effort; running jobs remain managed in memory. */ }
@@ -78,15 +83,17 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   private async pump(): Promise<void> {
-    if (this.running !== null) return;
-    const id = this.queue.shift();
-    if (id === undefined) return;
-    this.running = id;
-    const job = this.jobs.get(id)!;
-    try {
-      await this.launch(job.game, job.options);
-    } catch (error) {
-      this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: "No se pudo iniciar", error: String(error) });
+    while (this.running.size < this.maxParallelDownloads && this.queue.length > 0) {
+      const id = this.queue.shift()!;
+      const job = this.jobs.get(id);
+      if (!job) continue;
+      // Reserve before awaiting native startup so concurrent callers share the limit.
+      this.running.add(id);
+      try {
+        await this.launch(job.game, job.options);
+      } catch (error) {
+        this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: "No se pudo iniciar", error: String(error) });
+      }
     }
   }
 
@@ -103,7 +110,7 @@ export class DigitalDownloadService implements IDownloadProvider {
 
   async resume(gameId: number): Promise<void> {
     if (this.activeJobs.get(gameId)?.phase !== "paused") return;
-    if (this.running === gameId) {
+    if (this.running.has(gameId)) {
       await this.control(gameId, "resume");
     } else {
       this.queue.push(gameId);
@@ -238,12 +245,12 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     let pending = false;
     const interval = setInterval(async () => {
-      if (!hasTauriRuntime() || pending || this.running !== gameId) return;
+      if (!hasTauriRuntime() || pending || !this.running.has(gameId)) return;
       pending = true;
       try {
         const raw = await invoke<any>("digital_download_status", { appId });
         console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
-        if (this.running !== gameId) return;
+        if (!this.running.has(gameId)) return;
         if (raw && raw.phase) {
           const snapshot: DownloadProgressSnapshot = {
             gameId,
@@ -305,7 +312,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (!previous || ["completed", "cancelled", "error"].includes(previous.phase) || this.controls.has(gameId)) return;
     this.controls.add(gameId);
     try {
-      if (this.running === gameId) {
+      if (this.running.has(gameId)) {
         const appId = this.jobs.get(gameId)?.options?.record?.id ?? this.getRecord(gameId)?.id ?? gameId;
         this.updateSnapshot({ ...previous, phase: "cancelling", statusText: "Cancelando…" });
         try {
@@ -403,10 +410,10 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.jobs.delete(snapshot.gameId);
       this.queue = this.queue.filter(id => id !== snapshot.gameId);
     }
-    if (["completed", "error", "cancelled", "interrupted"].includes(snapshot.phase) && this.running === snapshot.gameId) {
+    if (["completed", "error", "cancelled", "interrupted"].includes(snapshot.phase) && this.running.has(snapshot.gameId)) {
       clearInterval(this.pollingIntervals.get(snapshot.gameId));
       this.pollingIntervals.delete(snapshot.gameId);
-      this.running = null;
+      this.running.delete(snapshot.gameId);
       queueMicrotask(() => { void this.pump(); });
     }
     this.persist();
@@ -431,5 +438,3 @@ export class DigitalDownloadService implements IDownloadProvider {
 }
 
 export const digitalDownloadService = new DigitalDownloadService("gameaccess.digital.downloads.v1");
-
-
