@@ -4,6 +4,7 @@ import { digitalDownloadService, type DigitalDownloadService } from "./catalog/D
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
 import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
+import { useDialogFocus } from "./dialogFocus";
 
 export const downloadPhaseLabels: Record<DownloadPhase, string> = {
   queued: "En cola", preparing: "Preparando", downloading: "Descargando", paused: "Pausada",
@@ -28,6 +29,12 @@ const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrup
 export default function DigitalDownloadsScreen({ onClose, service = digitalDownloadService }: {
   onClose: () => void; service?: DigitalDownloadService;
 }) {
+  const dialogRef = useDialogFocus(onClose);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
   const [entries, setEntries] = useState(() => service.getDownloads());
   const [busy, setBusy] = useState<number[]>([]);
   const [error, setError] = useState("");
@@ -76,10 +83,10 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
       </div>
     </article>;
   };
-  return <section className="digital-downloads-screen" aria-label="Gestor de descargas Digital">
+  return <section ref={dialogRef} className="digital-downloads-screen" role="dialog" aria-modal="true" aria-label="Gestor de descargas Digital">
     <header className="digital-downloads-heading">
       <div><span className="digital-download-eyebrow">DIGITAL</span><h1>Descargas</h1><p>{entries.filter(entry => !terminal(entry)).length} pendientes · {history.filter(entry => entry.snapshot.phase === "completed").length} completadas</p></div>
-      <button type="button" className="digital-download-back" onClick={onClose} aria-label="Cerrar descargas y volver a la pantalla principal"><X size={18} />Cerrar</button>
+      <button type="button" className="digital-download-back" data-dialog-initial onClick={onClose} aria-label="Cerrar descargas y volver a la pantalla principal"><X size={18} />Cerrar</button>
     </header>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>No hay descargas</h2><p>Elegí un juego del catálogo Digital para comenzar.</p><button onClick={onClose}>Explorar catálogo</button></div> : null}

@@ -1,5 +1,5 @@
-.digital-downloads-screen { min-height:calc(100vh - var(--catalog-header-height, 100px)); padding:calc(var(--window-chrome-height, 34px) + var(--catalog-header-height, 106px) + 32px) clamp(20px,4vw,80px) 80px; background:#0a1116; color:#edf4f4; }
-.digital-downloads-heading { display:flex; align-items:center; justify-content:space-between; gap:32px; margin-bottom:42px; }
+.digital-downloads-screen { position:fixed; inset:var(--window-chrome-height, 34px) 0 0; z-index:400; overflow-y:auto; overscroll-behavior:contain; padding:32px clamp(20px,4vw,80px) 80px; background:#0a1116; color:#edf4f4; }
+.digital-downloads-heading { position:sticky; top:0; z-index:1; background:#0a1116; padding:12px 0; display:flex; align-items:center; justify-content:space-between; gap:32px; margin-bottom:42px; }
 .digital-downloads-heading h1 { font-size:36px; letter-spacing:-1px; margin:4px 0 8px; }
 .digital-downloads-heading p,.digital-download-info p { color:#a7b6bb; margin:0; font-size:13px; }
 .digital-download-eyebrow,.digital-download-section-label { color:#a8c0bd; font-size:11px; font-weight:700; letter-spacing:1.8px; }

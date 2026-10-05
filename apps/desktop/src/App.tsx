@@ -844,7 +844,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
         {catalogNavigation}
-        <div className="catalog-header-controls" ref={setToolbarTarget} style={downloadsOpen ? { display: "none" } : undefined} />
+        <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions">
           {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}>Descargas</button> : null}
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
@@ -855,7 +855,6 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        {downloadsOpen ? <DigitalDownloadsScreen onClose={() => setDownloadsOpen(false)} /> : <>
         <LibraryRoom toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
@@ -869,8 +868,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
             <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
           </>}
         </div>
-        </>}
       </main>
+      {downloadsOpen ? <DigitalDownloadsScreen onClose={() => setDownloadsOpen(false)} /> : null}
 
       {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
