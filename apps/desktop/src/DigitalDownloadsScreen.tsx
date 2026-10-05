@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, Pause, Play, RotateCcw, X } from "lucide-react";
+import { Download, Pause, Play, RotateCcw, X } from "lucide-react";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
@@ -71,14 +71,15 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />Pausar</button> : null}
         {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />Reanudar</button> : null}
         {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />Reintentar</button> : null}
+        {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={`Abortar descarga de ${game.name}`} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />Abortar</button> : null}
         {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={`Cancelar descarga de ${game.name}`} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />Cancelar</button> : null}
       </div>
     </article>;
   };
   return <section className="digital-downloads-screen" aria-label="Gestor de descargas Digital">
     <header className="digital-downloads-heading">
-      <button className="digital-download-back" onClick={onClose}><ArrowLeft size={18} />Volver al catálogo</button>
       <div><span className="digital-download-eyebrow">DIGITAL</span><h1>Descargas</h1><p>{entries.filter(entry => !terminal(entry)).length} pendientes · {history.filter(entry => entry.snapshot.phase === "completed").length} completadas</p></div>
+      <button type="button" className="digital-download-back" onClick={onClose} aria-label="Cerrar descargas y volver a la pantalla principal"><X size={18} />Cerrar</button>
     </header>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>No hay descargas</h2><p>Elegí un juego del catálogo Digital para comenzar.</p><button onClick={onClose}>Explorar catálogo</button></div> : null}

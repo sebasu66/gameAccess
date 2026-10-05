@@ -108,6 +108,16 @@ describe("Digital download scheduling", () => {
     expect(narrate).toHaveBeenCalledTimes(1);
     expect(narrate).toHaveBeenCalledWith("Digital AppID 1 · Game 1 · error: ninguna contraseña funcionó", { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   });
+  it("removes failed downloads when aborted without restarting or cancelling a finished worker", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+    const service = new DigitalDownloadService("abort-error");
+    service.recordFailure(game(1), "Invalid archive password");
+    await service.cancel(1);
+    expect(service.getDownloads()).toEqual([]);
+    expect(JSON.parse(storage.get("abort-error")!).entries).toEqual([]);
+    expect(mock).not.toHaveBeenCalled();
+  });
   it("keeps completed when completion races with cancellation", async () => {
     const service = new DigitalDownloadService(); await service.start(game(1));
     mock.mockResolvedValueOnce({ phase: "completed" });

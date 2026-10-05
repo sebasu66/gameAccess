@@ -323,7 +323,7 @@ export class DigitalDownloadService implements IDownloadProvider {
    */
   async cancel(gameId: number): Promise<void> {
     const previous = this.activeJobs.get(gameId);
-    if (!previous || ["completed", "cancelled", "error"].includes(previous.phase) || this.controls.has(gameId)) return;
+    if (!previous || ["completed", "cancelled"].includes(previous.phase) || this.controls.has(gameId)) return;
     this.controls.add(gameId);
     try {
       if (this.running.has(gameId)) {
