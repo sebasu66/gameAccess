@@ -735,6 +735,39 @@ def request_archive_passwords():
     raise RuntimeError("El cliente no recibió las contraseñas del servidor. La descarga se conserva.")
 
 
+def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: str) -> Optional[str]:
+    """Return the one enclosing folder, or an empty string for loose contents."""
+    import zipfile, tarfile
+    names = []
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive) as zf:
+            names = [entry.filename for entry in zf.infolist() if not entry.is_dir()]
+    elif tarfile.is_tarfile(archive):
+        with tarfile.open(archive) as tf:
+            names = [entry.name for entry in tf.getmembers() if entry.isfile()]
+    elif seven_zip:
+        listed = subprocess.run(
+            [seven_zip, "l", "-slt", "-ba", os.path.abspath(archive), f"-p{password}"],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30,
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
+        )
+        if listed.returncode:
+            # An encrypted header will be listed again with the next password.
+            return None
+        for block in re.split(r"\n\s*\n", listed.stdout):
+            fields = dict(line.split(" = ", 1) for line in block.splitlines() if " = " in line)
+            if "Path" in fields and fields.get("Folder") != "+" and not fields.get("Attributes", "").startswith("D"):
+                names.append(fields["Path"])
+    if not names:
+        return ""
+    parts = [name.replace("\\", "/").strip("/").split("/") for name in names]
+    if any(".." in path or path[0].endswith(":") for path in parts):
+        raise RuntimeError("El archivo contiene rutas fuera de la carpeta del juego.")
+    first = parts[0][0]
+    return first if all(len(path) > 1 and path[0] == first for path in parts) else ""
+
+
 def extract_archives_in_path(
     target_path: str,
     dest_dir: str,
@@ -768,6 +801,9 @@ def extract_archives_in_path(
     if not archives_to_extract:
         return False
 
+    # Treat multipart volumes as one archive; only their first volume is extracted.
+    archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
+    game_subfolder = os.path.abspath(dest_dir)
     seven_zip = find_portable_7z()
 
     # Determine password
@@ -802,9 +838,13 @@ def extract_archives_in_path(
                         progress_percent=(idx / total) * 100,
                         status_text=f"Probando contraseña {attempt+1}/{len(passwords)} para {arc_name}..."
                     )
+                enclosing = archive_enclosing_folder(arc, seven_zip, candidate_password)
+                extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if enclosing and idx < total - 1:
+                    game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 cmd = [
                     seven_zip, "x", os.path.abspath(arc),
-                    f"-o{os.path.abspath(dest_dir)}", "-y",
+                    f"-o{extraction_dir}", "-y",
                     "-bsp1", "-bso1", "-bse1",
                     f"-p{candidate_password}",
                 ]
@@ -859,13 +899,17 @@ def extract_archives_in_path(
         else:
             import zipfile, tarfile
             try:
+                enclosing = archive_enclosing_folder(arc, None, effective_password or "-")
+                extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if enclosing and idx < total - 1:
+                    game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 if zipfile.is_zipfile(arc):
                     with zipfile.ZipFile(arc, 'r') as zf:
-                        zf.extractall(dest_dir, pwd=effective_password.encode() if effective_password else None)
+                        zf.extractall(extraction_dir, pwd=effective_password.encode() if effective_password else None)
                     success = True
                 elif tarfile.is_tarfile(arc):
                     with tarfile.open(arc, 'r') as tf:
-                        tf.extractall(dest_dir)
+                        tf.extractall(extraction_dir)
                     success = True
             except Exception as e:
                 raise RuntimeError(f"Error extrayendo {arc_name}: {e}") from e

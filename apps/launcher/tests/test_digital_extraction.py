@@ -82,6 +82,43 @@ class ExtractionTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ninguna contraseña del servidor funcionó", result.stdout)
         self.assertTrue(arc.exists())
+    def test_smallest_flat_archive_is_last_and_goes_inside_game_folder(self):
+        import zipfile
+        worker = load_worker()
+        packages = self.root / "packages"
+        packages.mkdir()
+        small = packages / "a-small-fix.zip"
+        large = packages / "z-large-game.zip"
+        with zipfile.ZipFile(small, "w") as archive:
+            archive.writestr("fix.dll", b"fix")
+        with zipfile.ZipFile(large, "w") as archive:
+            archive.writestr("Game/game.exe", b"main" * 10000)
+        for extractor in [None, str(SEVEN_ZIP) if SEVEN_ZIP.exists() else None]:
+            output = self.root / ("native" if extractor else "fallback")
+            events = []
+            with patch.object(worker, "find_portable_7z", return_value=extractor), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
+                worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+            self.assertEqual((output / "Game" / "fix.dll").read_bytes(), b"fix")
+            self.assertFalse((output / "fix.dll").exists())
+            organizing = [e["status_text"] for e in events if e.get("status_text", "").startswith("Organizando")]
+            self.assertIn("z-large-game.zip", organizing[0])
+            self.assertIn("a-small-fix.zip", organizing[1])
+
+    def test_smallest_archive_with_own_folder_does_not_double_nest(self):
+        import zipfile
+        worker = load_worker()
+        packages = self.root / "packages"
+        packages.mkdir()
+        with zipfile.ZipFile(packages / "main.zip", "w") as archive:
+            archive.writestr("Game/game.exe", b"main" * 10000)
+        with zipfile.ZipFile(packages / "fix.zip", "w") as archive:
+            archive.writestr("Game/fix.dll", b"fix")
+        output = self.root / "output"
+        with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+        self.assertTrue((output / "Game" / "fix.dll").is_file())
+        self.assertFalse((output / "Game" / "Game").exists())
+
     def test_reports_percentages_from_extractor_output(self):
         worker = load_worker()
         arc = self.root / "fixture.7z"
