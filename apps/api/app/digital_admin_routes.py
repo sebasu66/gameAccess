@@ -665,10 +665,20 @@ async def import_source_json(request: Request) -> dict[str, Any]:
 
 
 @router.post("/catalog/populate-from-sources")
-def populate_catalog_from_sources() -> dict[str, Any]:
+async def populate_catalog_from_sources() -> dict[str, Any]:
     cached = load_cached_downloads()
     if not cached:
-        raise HTTPException(400, "No hay descargas indexadas en la caché. Agrega o importa fuentes primero.")
+        # Try to automatically sync enabled sources first if cache is empty (e.g. after fresh deploy)
+        sync_result = await sync_sources()
+        cached = load_cached_downloads()
+        if not cached:
+            return {
+                "ok": True,
+                "added_games": 0,
+                "updated_sources": 0,
+                "total_catalog_games": len(load_digital_catalog_json()),
+                "message": "No hay descargas indexadas en la caché. Agrega una fuente o sube un archivo JSON primero."
+            }
 
     catalog = load_digital_catalog_json()
     catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
