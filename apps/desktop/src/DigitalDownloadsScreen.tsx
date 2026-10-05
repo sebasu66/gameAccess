@@ -4,7 +4,7 @@ import { digitalDownloadService, type DigitalDownloadService } from "./catalog/D
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
 
-const labels: Record<DownloadPhase, string> = {
+export const downloadPhaseLabels: Record<DownloadPhase, string> = {
   queued: "En cola", preparing: "Preparando", downloading: "Descargando", paused: "Pausada",
   decompressing: "Descomprimiendo", installing: "Instalando", cancelling: "Cancelando",
   cancelled: "Cancelada", interrupted: "Interrumpida", completed: "Listo para jugar", error: "Error",
@@ -54,11 +54,11 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       <div className="digital-download-art">{game.header_image ? <img src={game.header_image} alt="" /> : <Download size={32} />}</div>
       <div className="digital-download-info">
-        <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · En cola` : labels[phase]}</span></div>
-        <p>{snapshot.error || snapshot.statusText || labels[phase]}</p>
+        <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · En cola` : downloadPhaseLabels[phase]}</span></div>
+        <p>{snapshot.error || snapshot.statusText || downloadPhaseLabels[phase]}</p>
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" ? <>
-          <div className="digital-download-progress-line"><span>{phase === "completed" ? "Instalación completada" : labels[phase]}</span><strong>{Math.round(percent)}%</strong></div>
-          <progress max={100} value={percent} aria-label={`Progreso de ${game.name} · ${labels[phase]}`} />
+          <div className="digital-download-progress-line"><span>{phase === "completed" ? "Instalación completada" : downloadPhaseLabels[phase]}</span><strong>{Math.round(percent)}%</strong></div>
+          <progress max={100} value={percent} aria-label={`Progreso de ${game.name} · ${downloadPhaseLabels[phase]}`} />
           <dl className="digital-download-metrics">
             <div><dt>Descargado</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded)} / {snapshot.bytesTotal ? formatDownloadBytes(snapshot.bytesTotal) : "—"}</dd></div>
             <div><dt>Velocidad</dt><dd>{transfer ? `${formatDownloadBytes(snapshot.speedBps)} / s` : "—"}</dd></div>
@@ -86,3 +86,4 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
     {history.length ? <section aria-label="Historial de descargas"><h2 className="digital-download-section-label">FINALIZADAS</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
   </section>;
 }
+

@@ -24,6 +24,7 @@ import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
+import DigitalDownloadToast from "./DigitalDownloadToast";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
@@ -546,7 +547,6 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         console.log(`[DownloadUI:Digital] Invoking digitalCatalogService.download for '${game.name}'...`);
         await digitalCatalogService.download(game);
         setSelected(null);
-        setDownloadsOpen(true);
         console.log(`[DownloadUI:Digital] digitalCatalogService.download completed. Getting status...`);
         const status = await digitalCatalogService.getStatus(game);
         console.log(`[DownloadUI:Digital] Current status for '${game.name}':`, status);
@@ -555,7 +555,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           console.error(`[DownloadUI:Digital] Status reports error: ${status.error}`);
           setToast(`Error en descarga: ${status.error}`);
         } else {
-          setToast(status.state === "requested" ? `${game.name} añadido a la cola` : `Iniciando descarga digital de ${game.name}...`);
+          // The persistent download toast shows progress without leaving the catalog.
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -887,6 +887,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         onCancelAction={() => void discardInterruptedStaging()}
         onClose={() => undefined}
       /> : null}
+      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
       {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
   );
@@ -895,4 +896,5 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 function hasLocalRoute(game: CatalogGame) {
   return Boolean((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id);
 }
+
 
