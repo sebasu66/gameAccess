@@ -18,7 +18,6 @@ const cleanMessage = (value: string) => value.replace(/\s+/g, " ").trim();
 let writeQueue: Promise<void> = Promise.resolve();
 let logPathPromise: Promise<string | null> | null = null;
 
-const remoteErrorCooldown = new Map<string, number>();
 
 function sanitizedRemoteError(value: string): string {
   return value
@@ -35,46 +34,41 @@ function numericContext(message: string, pattern: RegExp): number | null {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
-async function reportRemoteError(message: string, area: string): Promise<void> {
-  if (!hasTauriRuntime()) return;
+const remoteErrorRequests = new Map<string, { time: number; promise: Promise<boolean> }>();
+
+export function reportClientError(message: string, area: string): Promise<boolean> {
+  if (!hasTauriRuntime()) return Promise.resolve(false);
   const safe = sanitizedRemoteError(message);
-  if (!safe) return;
-
+  if (!safe) return Promise.resolve(false);
   const fingerprint = `${area}|${safe}`;
-  const now = Date.now();
-  const previous = remoteErrorCooldown.get(fingerprint) ?? 0;
-  if (now - previous < 30_000) return;
-  remoteErrorCooldown.set(fingerprint, now);
+  const existing = remoteErrorRequests.get(fingerprint);
+  if (existing && Date.now() - existing.time < 30_000) return existing.promise;
+  const promise = sendRemoteError(safe, area);
+  remoteErrorRequests.set(fingerprint, { time: Date.now(), promise });
+  return promise;
+}
 
+async function sendRemoteError(safe: string, area: string): Promise<boolean> {
   try {
     const [api, token, installationId] = await Promise.all([
-      getApiBaseUrl(),
-      readActivationSession(),
-      getInstallationId(),
+      getApiBaseUrl(), readActivationSession(), getInstallationId(),
     ]);
-    if (!api || !token || !installationId) return;
-
+    if (!api || !token || !installationId) return false;
     const response = await fetch(`${api}/client-errors`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-GameAccess-Installation": installationId,
-      },
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-GameAccess-Installation": installationId },
       body: JSON.stringify({
-        area,
-        message: safe,
+        area, message: safe,
         app_id: numericContext(safe, /\bAppID\s+(\d+)\b/i),
         lease_id: numericContext(safe, /\blease\s+(\d+)\b/i),
         client_build: typeof __BUILD_TIMESTAMP__ === "string" ? __BUILD_TIMESTAMP__ : "development",
       }),
     });
-    if (!response.ok) {
-      console.warn("[GameAccess][REPORT] Server rejected client error report:", response.status);
-    }
+    if (!response.ok) console.warn("[GameAccess][REPORT] Server rejected client error report:", response.status);
+    return response.ok;
   } catch (error) {
     console.warn("[GameAccess][REPORT] Could not send client error report:", error);
+    return false;
   }
 }
 
@@ -106,7 +100,7 @@ export function narrate(message: string, options: NarrationOptions = {}): Promis
   const area = options.area ?? "APP";
   const level = options.level ?? "INFO";
   consoleNarration(clean, area, level);
-  if (level === "ERROR") void reportRemoteError(clean, area);
+  if (level === "ERROR") void reportClientError(clean, area);
   if (!hasTauriRuntime()) return Promise.resolve();
   return queueNativeWrite(() => invoke("append_narration_log", { message: clean, area, level }));
 }
@@ -118,7 +112,7 @@ export function narrateBatch(messages: string[], options: NarrationOptions = {})
   const level = options.level ?? "INFO";
   for (const message of clean) {
     consoleNarration(message, area, level);
-    if (level === "ERROR") void reportRemoteError(message, area);
+    if (level === "ERROR") void reportClientError(message, area);
   }
   if (!hasTauriRuntime()) return Promise.resolve();
   return queueNativeWrite(() => invoke("append_narration_log_batch", { messages: clean, area, level }));

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
+import { digitalErrorMessage } from "../digitalErrors";
 import { supplyArchivePasswords } from "./archivePasswords";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
@@ -415,9 +416,15 @@ export class DigitalDownloadService implements IDownloadProvider {
   /**
    * Receives incoming progress updates from the Python script (via Tauri events or polling).
    */
+  recordFailure(game: CatalogGame, error: string): void {
+    const id = game.app_id ?? game.id;
+    if (!this.jobs.has(id)) this.jobs.set(id, { game });
+    this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: "No se pudo descargar el juego", error });
+  }
+
   private reportFailure(snapshot: DownloadProgressSnapshot): void {
     if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) return;
-    void narrate(`Digital AppID ${snapshot.gameId} · ${snapshot.phase}: ${snapshot.error || snapshot.statusText || "Error de ejecución"}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+    void narrate(digitalErrorMessage(snapshot, this.jobs.get(snapshot.gameId)?.game.name), { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   }
 
   updateSnapshot(snapshot: DownloadProgressSnapshot): void {

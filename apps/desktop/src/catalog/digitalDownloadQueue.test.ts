@@ -106,7 +106,7 @@ describe("Digital download scheduling", () => {
     const error = { gameId: 1, phase: "error" as const, progress: 0, error: "ninguna contraseña funcionó" };
     service.updateSnapshot(error); service.updateSnapshot(error);
     expect(narrate).toHaveBeenCalledTimes(1);
-    expect(narrate).toHaveBeenCalledWith("Digital AppID 1 · error: ninguna contraseña funcionó", { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+    expect(narrate).toHaveBeenCalledWith("Digital AppID 1 · Game 1 · error: ninguna contraseña funcionó", { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   });
   it("keeps completed when completion races with cancellation", async () => {
     const service = new DigitalDownloadService(); await service.start(game(1));

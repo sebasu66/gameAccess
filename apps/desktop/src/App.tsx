@@ -25,6 +25,7 @@ import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DigitalDownloadToast from "./DigitalDownloadToast";
+import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
@@ -564,6 +565,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           ...current,
           [downloadKey]: { app_id: downloadKey, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
         }));
+        digitalDownloadService.recordFailure(game, errorMsg);
         setToast(`Error al iniciar descarga: ${errorMsg}`);
       }
       return;
@@ -887,6 +889,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         onCancelAction={() => void discardInterruptedStaging()}
         onClose={() => undefined}
       /> : null}
+      <DigitalDownloadErrorDialog />
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
       {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
@@ -896,5 +899,3 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 function hasLocalRoute(game: CatalogGame) {
   return Boolean((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id);
 }
-
-
