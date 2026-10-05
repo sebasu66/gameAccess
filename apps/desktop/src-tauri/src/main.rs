@@ -633,7 +633,10 @@ async fn run_digital_process(
             .arg("--name")
             .arg(&name)
             .arg("--command")
-            .arg(&command);
+            .arg(if action == "snapshot" { "" } else { &command });
+        if action == "snapshot" {
+            cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+        }
 
         if let Some(ref cwd) = working_dir {
             cmd.arg("--working-dir").arg(cwd);
@@ -642,7 +645,14 @@ async fn run_digital_process(
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let output = cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
+        let output = if action == "snapshot" {
+            let mut child = cmd.spawn().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
+            child.stdin.take().ok_or_else(|| "Missing Digital snapshot input".to_string())?
+                .write_all(command.as_bytes()).map_err(|err| err.to_string())?;
+            child.wait_with_output().map_err(|err| err.to_string())?
+        } else {
+            cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?
+        };
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !output.status.success() && stdout.is_empty() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();

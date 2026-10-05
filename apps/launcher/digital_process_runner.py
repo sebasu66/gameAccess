@@ -76,7 +76,8 @@ def main():
     parser.add_argument("--command", default="")
     parser.add_argument("--working-dir", default=None)
     args = parser.parse_args()
-    result = run_process(args.action, args.app_id, args.name, args.command)
+    payload = sys.stdin.read() if args.action == "snapshot" and not args.command else args.command
+    result = run_process(args.action, args.app_id, args.name, payload)
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("ok") else 1
 
