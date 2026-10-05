@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { narrate } from "../narrationLog";
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 import { DigitalProcessManager } from "./DigitalProcessManager";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 
 describe("DigitalProcessManager", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
   const sampleGame: CatalogGame = {
     id: 2592160,
     slug: "dispatch",
@@ -66,5 +71,17 @@ describe("DigitalProcessManager", () => {
     await expect(manager.executeUninstall(sampleGame, emptyRecord)).rejects.toThrow(
       /no tiene configurado un 'uninstallProcess'/
     );
+  });
+  it("reports native execution failures and rejects unsuccessful process results", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    vi.mocked(invoke).mockResolvedValueOnce({ ok: false, error: "process exited with code 7" });
+    await expect(new DigitalProcessManager().executePlay(sampleGame, sampleRecord)).rejects.toThrow("process exited with code 7");
+    expect(narrate).toHaveBeenCalledWith("Digital AppID 2592160 · play: process exited with code 7", { area: "DIGITAL_EXECUTION", level: "ERROR" });
+  });
+  it("reports native command rejections", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("could not spawn"));
+    await expect(new DigitalProcessManager().executeUninstall(sampleGame, sampleRecord)).rejects.toThrow("could not spawn");
+    expect(narrate).toHaveBeenCalledWith("Digital AppID 2592160 · uninstall: could not spawn", { area: "DIGITAL_EXECUTION", level: "ERROR" });
   });
 });

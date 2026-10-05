@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { narrate } from "../narrationLog";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
 import { snapshotToManagedStatus } from "../downloadProvider";
@@ -38,6 +39,7 @@ export class DigitalDownloadService implements IDownloadProvider {
         if (entry.snapshot.phase === "cancelled") continue;
         this.jobs.set(entry.snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
         this.activeJobs.set(entry.snapshot.gameId, entry.snapshot);
+        this.reportFailure(entry.snapshot);
       }
       this.queue = Array.isArray(saved.queue) ? saved.queue.filter((id: number) => this.activeJobs.get(id)?.phase === "queued") : [];
       const runningIds = Array.isArray(saved.running) ? saved.running : [saved.running];
@@ -125,6 +127,9 @@ export class DigitalDownloadService implements IDownloadProvider {
     try {
       const appId = this.jobs.get(gameId)?.options?.record?.id ?? this.getRecord(gameId)?.id ?? gameId;
       await invoke("control_digital_download", { appId, action });
+    } catch (error) {
+      void narrate(`Digital AppID ${gameId} · ${action}: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+      throw error;
     } finally {
       this.controls.delete(gameId);
     }
@@ -271,6 +276,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           }
         }
       } catch (pollErr) {
+        void narrate(`Digital AppID ${gameId} · consulta de estado: ${String(pollErr)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
         console.warn(`[DigitalDownloaderService:polling] Error during status polling:`, pollErr);
         // Preserve the last confirmed state on a failed probe.
       } finally {
@@ -297,7 +303,8 @@ export class DigitalDownloadService implements IDownloadProvider {
             status: opt.status,
           }));
         }
-      } catch {
+      } catch (error) {
+        void narrate(`Digital · fuentes de ${gameName}: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
         return [];
       }
     }
@@ -402,9 +409,15 @@ export class DigitalDownloadService implements IDownloadProvider {
   /**
    * Receives incoming progress updates from the Python script (via Tauri events or polling).
    */
+  private reportFailure(snapshot: DownloadProgressSnapshot): void {
+    if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) return;
+    void narrate(`Digital AppID ${snapshot.gameId} · ${snapshot.phase}: ${snapshot.error || snapshot.statusText || "Error de ejecución"}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+  }
+
   updateSnapshot(snapshot: DownloadProgressSnapshot): void {
     const previous = this.activeJobs.get(snapshot.gameId);
     if (previous?.phase === "cancelling" && !["cancelled", "completed", "error"].includes(snapshot.phase)) return;
+    if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
     this.activeJobs.set(snapshot.gameId, snapshot);
     if (snapshot.phase === "cancelled") {
       this.jobs.delete(snapshot.gameId);

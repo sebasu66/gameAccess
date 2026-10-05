@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
+import { narrate } from "../narrationLog";
+vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 import { DigitalDownloadService } from "./DigitalDownloadService";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const game = (id: number): CatalogGame => ({ id, app_id: id, name: `Game ${id}`, slug: String(id), credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, downloadSource: "http://localhost/fixture.bin" });
 const mock = vi.mocked(invoke);
 describe("Digital download scheduling", () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); mock.mockReset(); mock.mockResolvedValue({ phase: "downloading" }); });
+  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); vi.mocked(narrate).mockClear(); mock.mockReset(); mock.mockResolvedValue({ phase: "downloading" }); });
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
   it("runs up to four workers, suppresses duplicates and advances the FIFO queue on completion", async () => {
     const service = new DigitalDownloadService();
@@ -97,6 +99,14 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(5)).phase).toBe(ids.length === 4 ? "queued" : "preparing");
     await vi.advanceTimersByTimeAsync(1000);
     for (const appId of ids) expect(mock).toHaveBeenCalledWith("digital_download_status", { appId });
+  });
+  it("reports worker errors through the existing server reporting path without duplicating polls", async () => {
+    const service = new DigitalDownloadService();
+    await service.start(game(1));
+    const error = { gameId: 1, phase: "error" as const, progress: 0, error: "ninguna contraseña funcionó" };
+    service.updateSnapshot(error); service.updateSnapshot(error);
+    expect(narrate).toHaveBeenCalledTimes(1);
+    expect(narrate).toHaveBeenCalledWith("Digital AppID 1 · error: ninguna contraseña funcionó", { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   });
   it("keeps completed when completion races with cancellation", async () => {
     const service = new DigitalDownloadService(); await service.start(game(1));
