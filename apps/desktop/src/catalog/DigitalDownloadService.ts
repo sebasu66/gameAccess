@@ -34,6 +34,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       if (!saved || !Array.isArray(saved.entries)) return;
       for (const entry of saved.entries) {
         if (!entry?.game || !entry?.snapshot || typeof entry.snapshot.gameId !== "number") continue;
+        if (entry.snapshot.phase === "cancelled") continue;
         this.jobs.set(entry.snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
         this.activeJobs.set(entry.snapshot.gameId, entry.snapshot);
       }
@@ -398,6 +399,10 @@ export class DigitalDownloadService implements IDownloadProvider {
     const previous = this.activeJobs.get(snapshot.gameId);
     if (previous?.phase === "cancelling" && !["cancelled", "completed", "error"].includes(snapshot.phase)) return;
     this.activeJobs.set(snapshot.gameId, snapshot);
+    if (snapshot.phase === "cancelled") {
+      this.jobs.delete(snapshot.gameId);
+      this.queue = this.queue.filter(id => id !== snapshot.gameId);
+    }
     if (["completed", "error", "cancelled", "interrupted"].includes(snapshot.phase) && this.running === snapshot.gameId) {
       clearInterval(this.pollingIntervals.get(snapshot.gameId));
       this.pollingIntervals.delete(snapshot.gameId);
@@ -426,4 +431,5 @@ export class DigitalDownloadService implements IDownloadProvider {
 }
 
 export const digitalDownloadService = new DigitalDownloadService("gameaccess.digital.downloads.v1");
+
 
