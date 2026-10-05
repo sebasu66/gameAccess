@@ -162,6 +162,16 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     void refresh();
     steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
+    if (getCatalogMode() === "digital") {
+      const restored: DownloadMap = {};
+      for (const { snapshot } of digitalDownloadService.getDownloads()) {
+        const status = digitalDownloadService.getManagedStatus(snapshot.gameId);
+        if (status) restored[snapshot.gameId] = status;
+      }
+      setDownloads(restored);
+      setRecoveryReady(true);
+      return;
+    }
     // Lightweight baseline only: installed AppIDs for green grid badges.
     // Do not load per-game size/progress/details until that game is navigated to.
     steamInstalledAppIds().then((appIds) => {
@@ -236,6 +246,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, [hasPendingSteamMetadata]);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     const storageStateChanged = (event: Event) => {
       const status = (event as CustomEvent<{ status?: SteamDownloadStatus }>).detail?.status;
       if (!status?.app_id) return;
@@ -246,6 +257,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() !== "digital") return;
     const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
       const managed = digitalDownloadService.getManagedStatus(snapshot.gameId);
       if (managed) {
@@ -260,6 +272,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     let cancelled = false;
     let pending = false;
     const refreshInstalled = async () => {
@@ -280,6 +293,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     const activeIds = Object.entries(downloads)
       .filter(([, status]) => downloadManager.isTracked(status))
       .map(([id]) => Number(id));
@@ -835,7 +849,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         </div>
       </header>
 
-      {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
+      {!steamOk && getCatalogMode() !== "digital" ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>

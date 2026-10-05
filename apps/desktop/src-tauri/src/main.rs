@@ -951,3 +951,78 @@ fn main() {
         .expect("error while running gameAccess");
 }
 
+
+#[cfg(test)]
+mod digital_controls_tests {
+    use super::*;
+    struct Fixture {
+        server: std::process::Child,
+        launcher: PathBuf,
+        previous_launcher: Option<std::ffi::OsString>,
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = self.server.kill();
+            let _ = self.server.wait();
+            match &self.previous_launcher {
+                Some(path) => env::set_var("GAMEACCESS_LAUNCHER_DIR", path),
+                None => env::remove_var("GAMEACCESS_LAUNCHER_DIR"),
+            }
+            if self.launcher.starts_with(env::temp_dir()) && self.launcher.file_name().unwrap().to_string_lossy().starts_with("gameaccess-digital-smoke-") {
+                let _ = fs::remove_dir_all(&self.launcher);
+            }
+        }
+    }
+    fn wait_status(app_id: u32, predicate: impl Fn(&serde_json::Value) -> bool) -> serde_json::Value {
+        for _ in 0..200 {
+            let value = tauri::async_runtime::block_on(digital_download_status(app_id)).unwrap();
+            if predicate(&value) { return value; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("Digital worker did not reach expected status");
+    }
+    #[test]
+    fn native_digital_pause_resume_cancel() {
+        let original = find_launcher_dir().unwrap();
+        let python = find_launcher_python(&original);
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let mut server_command = Command::new(&python);
+        server_command.arg(original.join("tests/test_digital_download_controls.py")).args(["--serve", &port.to_string()])
+            .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        #[cfg(target_os = "windows")]
+        server_command.creation_flags(CREATE_NO_WINDOW);
+        let server = server_command.spawn().unwrap();
+        let launcher = env::temp_dir().join(format!("gameaccess-digital-smoke-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&launcher).unwrap();
+        fs::copy(original.join("digital_downloader.py"), launcher.join("digital_downloader.py")).unwrap();
+        let fixture = Fixture { server, launcher: launcher.clone(), previous_launcher: env::var_os("GAMEACCESS_LAUNCHER_DIR") };
+        env::set_var("GAMEACCESS_LAUNCHER_DIR", &launcher);
+        let url = format!("http://127.0.0.1:{port}/fixture.bin");
+        let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(1)).build().unwrap();
+        let mut ready = false;
+        for _ in 0..50 {
+            if client.head(&url).send().is_ok() { ready = true; break; }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(ready, "Local fixture HTTP server did not start");
+        let app_id = 987654321;
+        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, "".into(), None, Some(true))).unwrap();
+        wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
+        let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();
+        assert_eq!(paused["phase"], "paused");
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        let settled = tauri::async_runtime::block_on(digital_download_status(app_id)).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        let still_paused = tauri::async_runtime::block_on(digital_download_status(app_id)).unwrap();
+        assert_eq!(still_paused["phase"], "paused");
+        assert_eq!(still_paused["bytesDownloaded"], settled["bytesDownloaded"]);
+        tauri::async_runtime::block_on(control_digital_download(app_id, "resume".into())).unwrap();
+        wait_status(app_id, |s| s["phase"] == "downloading");
+        let cancelled = tauri::async_runtime::block_on(cancel_digital_download(app_id)).unwrap();
+        assert_eq!(cancelled["phase"], "cancelled");
+        assert!(!launcher.join("games/fixture.bin").exists());
+        drop(fixture);
+    }
+}

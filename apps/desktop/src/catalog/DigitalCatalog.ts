@@ -12,6 +12,7 @@ import {
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
+import { snapshotToManagedStatus, type DownloadPhase } from "../downloadProvider";
 import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
@@ -194,13 +195,7 @@ export class DigitalCatalog {
     if (this.options.isInstalledHandler) {
       return this.options.isInstalledHandler(game);
     }
-    if (!game.app_id) return false;
-    try {
-      const installedIds = await steamInstalledAppIds();
-      return installedIds.includes(game.app_id);
-    } catch {
-      return false;
-    }
+    return (await this.getStatus(game)).installed;
   }
 
   /**
@@ -313,30 +308,16 @@ export class DigitalCatalog {
       return active;
     }
 
-    if (!game.app_id) {
-      return {
-        app_id: 0,
-        state: "not-installed",
-        progress: null,
-        bytes_downloaded: null,
-        bytes_total: null,
-        installed: false,
-      };
-    }
-
-    const installed = await this.isInstalled(game);
-    if (installed) {
-      return {
-        app_id: game.app_id,
-        state: "installed",
-        progress: 100,
-        bytes_downloaded: null,
-        bytes_total: null,
-        installed: true,
-      };
-    }
-
-    return steamDownloadStatus(game.app_id);
+    const id = game.app_id ?? game.id;
+    try {
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        const raw = await invoke<{ phase?: DownloadPhase; workerPid?: number; progressPercent?: number; bytesDownloaded?: number; totalBytes?: number; speedBps?: number; etaSeconds?: number; error?: string; statusText?: string }>("digital_download_status", { appId: this.getRecord(game.id)?.id ?? id });
+        if (raw.workerPid && raw.phase) {
+          return snapshotToManagedStatus({ gameId: id, phase: raw.phase, progress: raw.progressPercent ?? 0, bytesDownloaded: raw.bytesDownloaded, bytesTotal: raw.totalBytes, speedBps: raw.speedBps, etaSeconds: raw.etaSeconds, error: raw.error, statusText: raw.statusText });
+        }
+      }
+    } catch { /* Keep Digital independent of Steam probes. */ }
+    return { app_id: id, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false };
   }
 
   private normalizeGames(list: Partial<CatalogGame & DigitalGameRecord>[]): CatalogGame[] {
@@ -370,3 +351,4 @@ export class DigitalCatalog {
 }
 
 export const digitalCatalogService = new DigitalCatalog();
+

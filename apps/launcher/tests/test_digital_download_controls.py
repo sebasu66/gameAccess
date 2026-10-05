@@ -116,4 +116,7 @@ class DigitalControlsTest(unittest.TestCase):
         self.assertEqual(self.process.returncode, 1)
 
 if __name__ == "__main__":
-    unittest.main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--serve":
+        http.server.ThreadingHTTPServer(("127.0.0.1", int(sys.argv[2])), Handler).serve_forever()
+    else:
+        unittest.main()
