@@ -72,6 +72,19 @@ class DigitalStorageTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    def test_root_game_launcher_is_preferred_over_nested_binary_and_gdk_helper(self):
+        folder = self.storage.register(1, "Fixture")
+        (folder / "Dungeons.exe").write_bytes(b"fixture")
+        (folder / "wdapp.exe").write_bytes(b"helper")
+        nested = folder / "Dungeons" / "Binaries"
+        nested.mkdir(parents=True)
+        (nested / "Dungeons-Win64-Shipping.exe").write_bytes(b"fixture")
+        with patch("digital_process_runner.subprocess.Popen") as spawn:
+            spawn.return_value.pid = 42
+            result = self.runner.run("play", 1, "Fixture")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(spawn.call_args.args[0], [str(folder / "Dungeons.exe")])
+
     def test_empty_and_archive_only_folders_are_not_playable(self):
         folder = self.storage.register(1, "Fixture")
         self.assertFalse(self.storage.status(1, "Fixture")["installed"])

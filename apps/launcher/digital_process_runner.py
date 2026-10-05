@@ -26,7 +26,10 @@ class DigitalProcessRunner:
                 raise ValueError("El ejecutable configurado no se encuentra en la carpeta descargada.")
         else:
             candidates = [p for p in folder.rglob("*.exe") if not re.search(
-                r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist", str(p.relative_to(folder)), re.I)]
+                r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp", str(p.relative_to(folder)), re.I)]
+            root_candidates = [p for p in candidates if p.parent == folder]
+            if len(root_candidates) == 1:
+                candidates = root_candidates
             if len(candidates) != 1:
                 raise ValueError("No se pudo identificar un único ejecutable del juego en la carpeta descargada. Configure playProcess con su ruta relativa.")
             executable = candidates[0].resolve()
