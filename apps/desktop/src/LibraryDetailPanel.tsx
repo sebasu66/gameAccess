@@ -1,3 +1,9 @@
+import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
+import { scheduleSelectedMedia } from "./selectedMediaDelay";
+import { useSharedMediaAudio } from "./sharedMediaAudio";
+import { cachedLibraryCover } from "./libraryCoverResolver";
+import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
+import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Loader2, Pause, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
@@ -11,7 +17,9 @@ import {
   removeFailedDetailImage,
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
+import { getCatalogMode } from "./catalogMode";
 import { downloadManager } from "./downloadManager";
+import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
@@ -29,11 +37,11 @@ function plainText(value?: string | null): string {
 
 function selectedMovie(details: GameDetails | null): SteamMovie | undefined {
   const movies = details?.steam?.movies;
-  return movies?.find((item) => item.highlight) ?? movies?.[0];
+  return selectSteamTrailer(movies);
 }
 
 function selectedVideo(movie?: SteamMovie): string | undefined {
-  return firstPresent(movie?.mp4, movie?.webm);
+  return steamTrailerSource(movie);
 }
 
 function fallbackArtwork(game: CatalogGame, details: GameDetails | null): string | undefined {
@@ -126,7 +134,7 @@ function useCrossfadeArtwork(source?: string) {
     };
     if (image.complete && image.naturalWidth) void reveal();
     else image.onload = () => { void reveal(); };
-    return () => { cancelled = true; image.onload = null; };
+    return () => { cancelled = true; image.onload = null; image.src = ""; };
   }, [source]);
 
   return { layers, activeLayer };
@@ -255,16 +263,21 @@ interface MediaController {
 
 function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaController {
   const reducedMotion = useReducedMotion();
-  const movie = selectedMovie(details);
+  const [mediaReady, setMediaReady] = useState(false);
+  useEffect(() => scheduleSelectedMedia(() => setMediaReady(true)), []);
+  const movie = mediaReady ? selectedMovie(details) : undefined;
   const videoSrc = selectedVideo(movie);
-  const images = useMemo(() => screenshotImages(details), [details]);
-  const fallback = fallbackArtwork(game, details);
-  const [muted, setMuted] = useState(true);
-  const [volume, setVolume] = useState(0.68);
+  const images = useMemo(() => mediaReady ? screenshotImages(details) : [], [details, mediaReady]);
+  const cachedPoster = useMediaPoster(game.app_id);
+  const fallback = cachedPoster ?? (mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined);
+  const posterSource = images[0] ?? fallbackArtwork(game, details);
+  useEffect(() => mediaReady ? cacheMediaImage(game.app_id, posterSource) : undefined, [game.app_id, posterSource, mediaReady]);
+  const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<DetailMediaSequenceState>(() => createDetailMediaSequence({ videoSrc, images, reducedMotion }));
+  useSteamTrailer(videoRef, videoSrc, state.phase === "video" && state.videoAvailable, game.app_id, () => setState((current) => disableDetailVideo(current)));
   const currentImage = state.phase === "image" ? (state.images[state.imageIndex] ?? fallback) : fallback;
   const artwork = useCrossfadeArtwork(currentImage);
   useEffect(() => {
@@ -294,8 +307,8 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
     video.volume = volume;
     video.muted = muted;
     if (paused || state.phase !== "video") video.pause();
-    else void video.play().catch(() => setState((current) => disableDetailVideo(current)));
-  }, [paused, state.phase, volume, muted]);
+    else if (readyVideo) void video.play().catch(() => setPaused(true));
+  }, [paused, state.phase, volume, muted, readyVideo]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -331,7 +344,7 @@ function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: Gam
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
       <div className="library-room-feature-media">
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
-        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} src={model.videoSrc} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
+        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
         <MediaControls model={model} />
       </div>
@@ -356,7 +369,7 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
     ["Género", compactValue(steam?.genres)],
     ["Funciones Steam", compactValue(steam?.categories, 4)],
     ["Desarrollador", compactValue(steam?.developers, 2)],
-    ["Publisher", compactValue(steam?.publishers, 2)],
+    ["Editor", compactValue(steam?.publishers, 2)],
     ["Lanzamiento", steam?.release_date || "No informado"],
     ["Plataformas", platforms(details)],
   ];
@@ -364,15 +377,8 @@ function SteamFacts({ details }: { details: GameDetails | null }) {
 }
 
 function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus }) {
-  if (!downloadManager.isTracked(download)) return null;
-  const rows = [
-    download?.bytes_total != null ? ["Tamaño", downloadManager.formatBytes(download.bytes_total)] : null,
-    download?.bytes_downloaded != null ? ["Descargado", downloadManager.formatBytes(download.bytes_downloaded)] : null,
-    download?.speed_bps != null ? ["Velocidad", downloadManager.formatSpeed(download.speed_bps)] : null,
-    download?.eta_seconds != null ? ["Tiempo restante", downloadManager.formatEta(download.eta_seconds)] : null,
-  ].filter((row): row is string[] => Boolean(row));
-  const progress = downloadManager.progress(download);
-  return <div className="library-room-active-download">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
+  if (!download || (!downloadManager.isTracked(download) && !download.progress && !download.statusText)) return null;
+  return <GenericDownloadProgressView download={download} />;
 }
 
 function ExtendedDetails({ details }: { details: GameDetails | null }) {
@@ -399,9 +405,8 @@ function DesktopFeature(props: FeaturePanelProps) {
     <aside className="library-room-feature">
       <section className="library-detail-essential" aria-label="Resumen esencial del juego">
         <DesktopDetailMedia game={props.game} details={details} />
-        <div className="library-detail-essential-overlay" />
-        <section className="library-room-first-row" aria-label="First row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
-        <section className="library-room-second-row" aria-label="Second row"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
+        <section className="library-room-first-row" aria-label="Fila principal"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
+        <section className="library-room-second-row" aria-label="Fila secundaria"><SteamFacts details={details} />{getCatalogMode() === "gameaccess" ? <div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div> : null}<ActiveDownloadFacts download={props.download} /></section>
       </section>
       <ExtendedDetails details={details} />
     </aside>
@@ -413,5 +418,5 @@ function isDisplaySurface(): boolean {
 }
 
 export function FeaturePanel(props: FeaturePanelProps) {
-  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature {...props} />;
+  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
 }

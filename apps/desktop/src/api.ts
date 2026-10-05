@@ -1,23 +1,51 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
+import { activationHeaders, invalidateActivation } from "./activation";
+import { applyBundledCatalogArtwork, applyBundledDetails } from "./bundledArtwork";
 import { GameAccessCatalog } from "./catalog/GameAccessCatalog";
 import { PersonalCatalog } from "./catalog/PersonalCatalog";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
 import { narrate, narrateBatch } from "./narrationLog";
-import { getLocalSteamPool, getSteamSessionStatus, getSteamStoreMetadata, loginProviderSteam, switchSteamAccount } from "./native";
-import { getApiBaseUrl } from "./settings";
+import { getLocalSteamPool, getSteamStoreMetadata, switchSteamAccount } from "./native";
+import { loginProviderSteam } from "./providerLogin";
+import { getApiBaseUrl, getCatalogManifestUrl } from "./settings";
+import {
+  readCatalogCache,
+  readCatalogCachedDetail,
+  storeCatalogCachedDetail,
+  syncCatalogCache,
+  upsertCatalogCacheGame,
+} from "./catalogCache";
 import { normalizeSteamStoreMetadata } from "./steamMetadata";
 import type { CatalogGame, GameDetails, LeaseResponse, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
 
 const DETAIL_TTL_MS = 10 * 60 * 1000;
 
 let localCatalog: CatalogGame[] = [];
+let gameAccessCatalog: CatalogGame[] = [];
+let backendCatalogLoadPromise: Promise<CatalogGame[]> | null = null;
+
+interface CatalogAvailability {
+  id: number;
+  app_id: number | null;
+  credit_cost_per_hour: number;
+  copies_total: number;
+  copies_available: number;
+  availability_state: CatalogGame["availability_state"];
+  request_count_total: number;
+  successful_leases: number;
+  demand_value: number;
+  price_factor: number;
+  pool_value: number;
+}
 
 const personalCatalogBuilder = new PersonalCatalog();
-const steamMetadataCache = new Map<number, SteamMetadata>();
+const steamMetadataCache = new Map<string, SteamMetadata>();
 const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ ttlMs: DETAIL_TTL_MS });
 
 function detailCacheKey(gameId: number): string {
-  return `${getCatalogMode()}|${gameId}`;
+  return `${getCatalogMode()}|${getAppLocale()}|${gameId}`;
 }
 
 async function loadLocalCatalog(): Promise<CatalogGame[]> {
@@ -55,7 +83,7 @@ async function loadLocalCatalog(): Promise<CatalogGame[]> {
     { area: "LOCAL STEAM" },
   );
 
-  localCatalog = personalCatalogBuilder.build(pool);
+  localCatalog = await applyBundledCatalogArtwork(personalCatalogBuilder.build(pool));
   await narrate(
     `Finished Propios catalog: ${localCatalog.length} game(s), all backed by a verified personal owned or Family-runnable route.`,
     { area: "CATALOG" },
@@ -74,19 +102,20 @@ async function loadLocalDetails(gameId: number): Promise<GameDetails> {
   const game = localCatalog.find((item) => item.id === gameId || item.app_id === gameId);
   if (!game) throw new Error("Juego no encontrado en el catálogo local");
   if (game.app_id) {
-    let steam = steamMetadataCache.get(game.app_id);
+    const metadataKey = `${game.app_id}|${getAppLocale()}`;
+    let steam = steamMetadataCache.get(metadataKey);
     if (!steam) {
       try {
         const raw = await getSteamStoreMetadata(game.app_id);
         if (raw) {
           steam = normalizeSteamStoreMetadata(game, raw);
-          steamMetadataCache.set(game.app_id, steam);
+          steamMetadataCache.set(metadataKey, steam);
         }
       } catch {
         // Keep browsing even if Steam Store metadata is temporarily unavailable.
       }
     }
-    if (steam) return { ...game, steam, metadata_state: "steam-store" };
+    if (steam) return applyBundledDetails({ ...game, steam, metadata_state: "steam-store" });
   }
   return localDetails(game);
 }
@@ -95,16 +124,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const api = await getApiBaseUrl();
   if (!api) {
     await narrate(`Backend request ${init?.method ?? "GET"} ${path} was skipped because no GameAccess server URL is configured.`, { area: "BACKEND", level: "WARN" });
-    throw new Error("Online backend is not configured");
+    throw new Error("El servidor de GameAccess no está configurado.");
   }
 
   const method = init?.method ?? "GET";
   await narrate(`Sending ${method} ${path} to the GameAccess backend at ${api}.`, { area: "BACKEND" });
   const response = await fetch(`${api}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    cache: method === "GET" ? "no-store" : init?.cache,
+    headers: { "Content-Type": "application/json", ...activationHeaders(), ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
+    if (response.status === 401) invalidateActivation();
     let detail = `${response.status} ${response.statusText}`;
     try {
       const body = await response.json() as { detail?: unknown };
@@ -112,11 +143,119 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Keep the HTTP status when the backend did not return JSON.
     }
-    await narrate(`Backend request ${method} ${path} failed: ${detail}.`, { area: "BACKEND", level: "ERROR" });
+    await narrate(`Backend request ${method} ${path} failed with HTTP ${response.status}: ${detail}.`, { area: "BACKEND", level: "ERROR" });
     throw new Error(detail);
   }
   await narrate(`Backend request ${method} ${path} succeeded with HTTP ${response.status}.`, { area: "BACKEND" });
   return response.json() as Promise<T>;
+}
+
+async function loadBackendCatalogPages(): Promise<CatalogGame[]> {
+  const api = await getApiBaseUrl();
+  if (!api) throw new Error("El servidor de GameAccess no está configurado.");
+
+  const pageSize = 200;
+  const loadPage = async (page: number): Promise<{ games: CatalogGame[]; totalPages: number }> => {
+    const startedAt = performance.now();
+    await narrate(`Catalog page ${page} request started (page size ${pageSize}).`, { area: "CATALOG" });
+    try {
+      const response = await fetch(`${api}/catalog?page=${page}&page_size=${pageSize}`, { cache: "no-store", headers: activationHeaders() });
+      if (!response.ok) {
+        if (response.status === 401) invalidateActivation();
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      const games = await response.json() as CatalogGame[];
+      const totalPages = Math.max(1, Number(response.headers.get("X-Total-Pages") ?? "1"));
+      await narrate(`Catalog page ${page}/${totalPages} loaded ${games.length} entries in ${Math.round(performance.now() - startedAt)} ms.`, { area: "CATALOG" });
+      return { games, totalPages };
+    } catch (error) {
+      await narrate(`Catalog page ${page} request failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
+      throw error;
+    }
+  };
+
+  const startedAt = performance.now();
+  const first = await loadPage(1);
+  if (first.totalPages <= 1) return first.games;
+
+  const games = [...first.games];
+  const concurrency = 6;
+  for (let page = 2; page <= first.totalPages; page += concurrency) {
+    const lastPage = Math.min(first.totalPages, page + concurrency - 1);
+    await narrate(`Loading catalog page batch ${page}-${lastPage} of ${first.totalPages} (concurrency ${concurrency}).`, { area: "CATALOG" });
+    const batch = await Promise.all(
+      Array.from({ length: lastPage - page + 1 }, (_, index) => loadPage(page + index)),
+    );
+    for (const result of batch) games.push(...result.games);
+  }
+  await narrate(
+    `Loaded ${games.length} GameAccess catalog entries across ${first.totalPages} backend pages in ${Math.round(performance.now() - startedAt)} ms.`,
+    { area: "CATALOG" },
+  );
+  return games;
+}
+
+async function computeCachedBackendCatalog(): Promise<CatalogGame[]> {
+  const manifestUrl = await getCatalogManifestUrl();
+  let cachedGames: CatalogGame[] = [];
+
+  if (manifestUrl) {
+    try {
+      const sync = await syncCatalogCache(manifestUrl);
+      if (sync) {
+        await narrate(
+          `Catalog cache ${sync.updated ? "updated" : "already current"} at revision ${sync.revision} with ${sync.catalog_count} static game record(s).`,
+          { area: "CATALOG" },
+        );
+      }
+    } catch (error) {
+      await narrate(
+        `Catalog cache synchronization failed; using the last local snapshot if available: ${error instanceof Error ? error.message : String(error)}.`,
+        { area: "CATALOG", level: "WARN" },
+      );
+    }
+  }
+
+  cachedGames = await readCatalogCache().catch(() => []);
+
+  if (!cachedGames.length) {
+    await narrate("No usable local catalog snapshot is available; loading the full backend catalog as fallback.", { area: "CATALOG", level: "WARN" });
+    return loadBackendCatalogPages();
+  }
+
+  const availability = await request<CatalogAvailability[]>("/catalog/availability");
+  const byId = new Map(cachedGames.map((game) => [game.id, game]));
+  const missing = availability.filter((row) => !byId.has(row.id));
+  for (const row of missing) {
+    try {
+      const staticGame = await request<CatalogGame>(`/catalog/static/${row.id}`);
+      byId.set(row.id, staticGame);
+      await upsertCatalogCacheGame(staticGame);
+      await narrate(`Patched catalog cache with newly licensed game ${row.id}.`, { area: "CATALOG" });
+    } catch (error) {
+      await narrate(
+        `Could not patch static metadata for newly licensed game ${row.id}: ${error instanceof Error ? error.message : String(error)}.`,
+        { area: "CATALOG", level: "WARN" },
+      );
+    }
+  }
+
+  return availability.flatMap((live) => {
+    const staticGame = byId.get(live.id);
+    if (!staticGame) return [];
+    return [{
+      ...staticGame,
+      ...live,
+    } satisfies CatalogGame];
+  });
+}
+
+function loadCachedBackendCatalog(): Promise<CatalogGame[]> {
+  if (backendCatalogLoadPromise) return backendCatalogLoadPromise;
+  backendCatalogLoadPromise = computeCachedBackendCatalog().finally(() => {
+    backendCatalogLoadPromise = null;
+  });
+  return backendCatalogLoadPromise;
 }
 
 export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSummary; offlineDemo: boolean }> {
@@ -141,6 +280,20 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
     return { games, user, offlineDemo: false };
   }
 
+  if (mode === "digital") {
+    await narrate("Using Digital catalog mode. Loaded from JSON file.", { area: "CATALOG" });
+    const games = await digitalCatalogService.loadCatalog();
+    let user: UserSummary = { id: 1, username: "digital", credits: 0 };
+    if (api) {
+      try {
+        user = await request<UserSummary>("/users/1");
+      } catch {
+        await narrate("Backend user profile unavailable; Digital catalog remains available.", { area: "BACKEND", level: "WARN" });
+      }
+    }
+    return { games, user, offlineDemo: false };
+  }
+
   if (mode === "store") {
     await narrate("Using Steam store/discovery mode. This view does not itself claim that a license is available.", { area: "CATALOG" });
     let user: UserSummary = { id: 1, username: "store", credits: 0 };
@@ -157,22 +310,26 @@ export async function loadHome(): Promise<{ games: CatalogGame[]; user: UserSumm
   }
 
   await narrate("Requesting the GameAccess-only catalog and current user profile from the backend.", { area: "BACKEND" });
-  const gameAccessCatalog = new GameAccessCatalog(() => request<CatalogGame[]>("/catalog"));
-  const [games, user] = await Promise.all([
-    gameAccessCatalog.load(),
+  const catalogLoader = new GameAccessCatalog(loadCachedBackendCatalog);
+  const [backendGames, user] = await Promise.all([
+    catalogLoader.load(),
     request<UserSummary>("/users/1").catch(() => ({ id: 1, username: "gameaccess", credits: 0 })),
   ]);
+  const games = await applyBundledCatalogArtwork(backendGames);
+  gameAccessCatalog = games;
   if (!games.length) throw new Error(`GameAccess backend ${api}/catalog returned an empty catalog.`);
 
-  void narrateBatch(
-    games.map((game) => {
-      const decision = game.copies_available > 0
-        ? `PLAYABLE NOW because GameAccess reports ${game.copies_available} available license copy/copies.`
-        : game.copies_total > 0
-          ? `NOT PLAYABLE NOW because all ${game.copies_total} GameAccess license copy/copies are currently unavailable.`
-          : "NOT PLAYABLE NOW because GameAccess reports zero license copies for this game.";
-      return `${game.name}${game.app_id ? ` (Steam AppID ${game.app_id})` : ""}. GameAccess license state: copies_total=${game.copies_total}, copies_available=${game.copies_available}, availability_state=${game.availability_state}. Decision: ${decision}`;
-    }),
+  const availabilitySummary = games.reduce(
+    (summary, game) => {
+      if (game.copies_available > 0) summary.ready += 1;
+      else if (game.copies_total > 0) summary.busy += 1;
+      else summary.unavailable += 1;
+      return summary;
+    },
+    { ready: 0, busy: 0, unavailable: 0 },
+  );
+  await narrate(
+    `GameAccess availability overlay: ${availabilitySummary.ready} playable now, ${availabilitySummary.busy} owned but busy, ${availabilitySummary.unavailable} unavailable; ${games.length} games total.`,
     { area: "AVAILABILITY" },
   );
   await narrate(`GameAccess backend catalog loaded successfully with ${games.length} game(s).`, { area: "CATALOG" });
@@ -186,11 +343,30 @@ export function findLocalGameForDetails(gameId: number, catalog: CatalogGame[] =
 export const loadDetails = async (gameId: number): Promise<GameDetails> => {
   const key = detailCacheKey(gameId);
   return gameDetailsResources.get(key, async () => {
-    if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+    const startedAt = performance.now();
+    await narrate(`Loading game details for catalog game ${gameId} in ${getCatalogMode()} mode.`, { area: "GAME" });
     try {
-      return await request<GameDetails>(`/games/${gameId}/details`);
-    } catch {
-      throw new Error("No se pudo obtener la ficha del juego");
+      let details: GameDetails;
+      if (getCatalogMode() === "local") return loadLocalDetails(gameId);
+      if (getCatalogMode() === "digital") {
+        details = await digitalCatalogService.loadDetails(gameId);
+      } else {
+        const language = getSteamStoreLanguage();
+        const current = gameAccessCatalog.find((game) => game.id === gameId);
+        const cached = await readCatalogCachedDetail(gameId, language, "ar").catch(() => null);
+        if (cached && current) {
+          details = await applyBundledDetails({ ...cached, ...current, steam: cached.steam });
+          await narrate(`Loaded cached static details for catalog game ${gameId} (${language}/ar).`, { area: "GAME" });
+        } else {
+          details = await applyBundledDetails(await request<GameDetails>(`/games/${gameId}/details?language=${encodeURIComponent(language)}&country=ar`));
+          void storeCatalogCachedDetail(gameId, language, "ar", details).catch(() => undefined);
+        }
+      }
+      await narrate(`Game details loaded for catalog game ${gameId} in ${Math.round(performance.now() - startedAt)} ms.`, { area: "GAME" });
+      return details;
+    } catch (error) {
+      await narrate(`Game details failed for catalog game ${gameId} after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "GAME", level: "ERROR" });
+      throw new Error(translate("gameDetailsFailed"));
     }
   });
 };
@@ -207,6 +383,24 @@ const localSearch = async (query: string, limit = 20): Promise<SteamSearchRespon
 
 export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
   if (getCatalogMode() === "local") return localSearch(query, limit);
+  if (getCatalogMode() === "digital") {
+    const games = await digitalCatalogService.loadCatalog();
+    return {
+      query,
+      count: games.length,
+      results: games
+        .filter((game) => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+        .slice(0, limit)
+        .map((game) => ({
+          app_id: game.app_id ?? 0,
+          name: game.name,
+          image_url: game.header_image,
+          catalog_game: game,
+          access_state: "available",
+          steam_url: game.steam_url ?? undefined,
+        })),
+    };
+  }
   try { return await request<SteamSearchResponse>(`/steam/search?q=${encodeURIComponent(query)}&limit=${limit}`); }
   catch { return { query, count: 0, results: [] }; }
 };
@@ -219,12 +413,18 @@ export const loadSteamApp = async (appId: number) => {
     if (!details.steam) throw new Error("Steam metadata is unavailable");
     return details.steam;
   }
-  return request<SteamMetadata>(`/steam/apps/${appId}`);
+  return request<SteamMetadata>(`/steam/apps/${appId}?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`);
 };
 
-export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
+export async function releaseFailedLease(
+  lease: LeaseResponse,
+  reason: "provider_profile_missing" | "provider_login_failed" | "provider_invalid_password" | "play_launch_failed" = "play_launch_failed",
+): Promise<void> {
   await Promise.allSettled([
-    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request(`/leases/${lease.lease_id}/release`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
     request("/credits", {
       method: "POST",
       body: JSON.stringify({
@@ -236,9 +436,24 @@ export async function releaseFailedLease(lease: LeaseResponse): Promise<void> {
   ]);
 }
 
+export interface ProviderLeaseStatus {
+  id: number;
+  status: "active" | "released" | "expired";
+  release_reason: string | null;
+  idle_since: string | null;
+  last_seen_online_at: string | null;
+}
+
+export async function getProviderLeaseStatus(leaseId: number): Promise<ProviderLeaseStatus> {
+  return request<ProviderLeaseStatus>(`/leases/${leaseId}`);
+}
+
 export async function releaseDownloadFallbackLease(lease: LeaseResponse): Promise<void> {
   await Promise.allSettled([
-    request(`/leases/${lease.lease_id}/release`, { method: "POST" }),
+    request(`/leases/${lease.lease_id}/release`, {
+      method: "POST",
+      body: JSON.stringify({ reason: "download_install_handoff_complete" }),
+    }),
     request("/credits", {
       method: "POST",
       body: JSON.stringify({
@@ -262,26 +477,38 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
     throw new Error("No hay una cuenta personal verificada que pueda ejecutar este juego.");
   }
 
+  if (mode === "digital") {
+    const games = await digitalCatalogService.loadCatalog();
+    const game = games.find((item) => item.id === gameId || item.app_id === gameId);
+    if (!game) throw new Error("El juego no pertenece al catálogo Digital actual.");
+    await digitalCatalogService.play(game);
+    const now = Date.now();
+    return {
+      lease_id: now,
+      game: { id: game.id, name: game.name, app_id: game.app_id },
+      account: { id: 0, label: "digital", provider: "steam" },
+      credits_spent: 0,
+      credits_remaining: 0,
+      starts_at: new Date(now).toISOString(),
+      expires_at: new Date(now + minutes * 60_000).toISOString(),
+      session_action: "launch_ready",
+    };
+  }
+
   if (mode !== "gameaccess") {
     throw new Error("Esta sección no dispone de una ruta de licencia para ejecutar juegos.");
   }
 
-  if (!(await getApiBaseUrl())) {
+  const apiBaseUrl = await getApiBaseUrl();
+  if (!apiBaseUrl) {
     await narrate("GameAccess play was refused because the shared backend is not connected.", { area: "BACKEND", level: "ERROR" });
     throw new Error("El backend GameAccess no está conectado.");
   }
 
-  await narrate("Checking whether GameAccess already has a tracked Steam game session running on this PC.", { area: "LAUNCH" });
-  const session = await getSteamSessionStatus().catch(() => null);
-  if (session && session.appId && !session.done && session.phase !== "idle") {
-    await narrate(`Another tracked game session is still active for Steam AppID ${session.appId}. A new account/license switch is blocked until it closes.`, { area: "LAUNCH", level: "WARN" });
-    throw new Error("Ya hay un juego en ejecución. Cerralo antes de iniciar otro.");
-  }
-
-  await narrate(`Requesting a GameAccess license lease for game id ${gameId}. Stale inactive leases may be replaced.`, { area: "BACKEND" });
+  await narrate(`Requesting a GameAccess lease for game id ${gameId}. The backend will reuse this installation's current provider account whenever it can run the requested game.`, { area: "BACKEND" });
   const lease = await request<LeaseResponse>("/leases", {
     method: "POST",
-    body: JSON.stringify({ user_id: 1, game_id: gameId, minutes, replace_existing: true }),
+    body: JSON.stringify({ game_id: gameId, minutes }),
   });
   await narrate(
     `Backend lease ${lease.lease_id} assigned account '${lease.account?.label ?? "unknown"}' with session_action='${lease.session_action}'.`,
@@ -290,19 +517,25 @@ export const leaseGame = async (gameId: number, minutes = 60) => {
   if (lease.session_action === "provider_adapter_required") {
     if (!lease.account?.label) {
       await narrate("The backend created a lease but did not provide a Steam provider profile. Releasing the failed lease.", { area: "ERROR", level: "ERROR" });
-      await releaseFailedLease(lease);
+      await releaseFailedLease(lease, "provider_profile_missing");
       throw new Error("La reserva no tiene un perfil Steam asociado.");
     }
     try {
-      await narrate(`Preparing provider Steam account '${lease.account.label}' for the leased game. Credentials are requested securely and are never written to this log.`, { area: "ACCOUNT" });
-      const credentials = await request<{ accountName: string; password: string; expectedUserId32: number }>(`/leases/${lease.lease_id}/steam-login`, { method: "POST" });
-      await loginProviderSteam(credentials);
-      await narrate(`Provider Steam account '${credentials.accountName}' is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
+      await narrate(`Preparing the assigned Steam provider session for lease ${lease.lease_id}. The credential envelope is fetched and decrypted only by native Tauri code and is never persisted by GameAccess.`, { area: "ACCOUNT" });
+      await loginProviderSteam(lease.lease_id, apiBaseUrl);
+      await narrate(`Assigned Steam provider session is ready. Lease ${lease.lease_id} can launch the game.`, { area: "ACCOUNT" });
       return { ...lease, session_action: "launch_ready" };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await narrate(`Provider Steam preparation failed for lease ${lease.lease_id}: ${message}. Releasing the lease.`, { area: "ERROR", level: "ERROR" });
-      await releaseFailedLease(lease);
+      const invalidPassword = message.includes("STEAM_INVALID_PASSWORD");
+      await narrate(
+        `Provider Steam preparation failed for lease ${lease.lease_id}: ${message}. Releasing the lease with reason ${invalidPassword ? "provider_invalid_password" : "provider_login_failed"}.`,
+        { area: "ERROR", level: "ERROR" },
+      );
+      await releaseFailedLease(
+        lease,
+        invalidPassword ? "provider_invalid_password" : "provider_login_failed",
+      );
       throw error;
     }
   }

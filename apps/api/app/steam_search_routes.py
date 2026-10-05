@@ -54,7 +54,13 @@ def search_steam(
     app_ids = [int(item.get("id")) for item in raw_items[:limit] if isinstance(item, dict) and str(item.get("id", "")).isdigit()]
     catalog_by_app: dict[int, core.Game] = {}
     if app_ids:
-        games = session.exec(select(core.Game).where(core.Game.app_id.in_(app_ids))).all()
+        games = session.exec(
+            select(core.Game).where(
+                core.Game.app_id.in_(app_ids),
+                core.Game.active == True,  # noqa: E712
+                core.CATALOG_PRODUCT_FILTER,
+            )
+        ).all()
         catalog_by_app = {int(game.app_id): game for game in games if game.app_id is not None and game.active}
 
     results: list[dict[str, Any]] = []
@@ -89,3 +95,11 @@ def search_steam(
         )
 
     return {"query": q.strip(), "count": len(results), "results": results}
+
+
+# main.py imports this module after the FastAPI app exists. Keep provider app
+# registration isolated while exposing it on that same app without coupling it
+# to Store search behavior.
+from .provider_app_routes import router as provider_app_router  # noqa: E402
+
+core.app.include_router(provider_app_router)

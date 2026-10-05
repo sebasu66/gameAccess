@@ -76,7 +76,7 @@ export default function SteamSessionSettings() {
   const updatePreferences = (next: SteamSessionPreferences) => {
     setPreferences(next);
     saveSteamSessionPreferences(next);
-    setMessage("Preferencias de sesi?n guardadas.");
+    setMessage("Preferencias de sesión guardadas.");
   };
 
   if (!hasTauriRuntime()) return null;
@@ -86,29 +86,29 @@ export default function SteamSessionSettings() {
       {activeSession ? (
         <output className="steam-session-chip">
           <Loader2 size={15} className={activeSession.phase === "running" ? "" : "spin"} />
-          <span>{activeSession.phase === "running" ? `Jugando ? AppID ${activeSession.appId}` : activeSession.message}</span>
+          <span>{activeSession.phase === "running" ? `Jugando Â· AppID ${activeSession.appId}` : activeSession.message}</span>
         </output>
       ) : null}
 
-      <button type="button" className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuraci?n de Steam">
+      <button type="button" className="steam-settings-fab" onClick={() => setOpen(true)} aria-label="Configuración de Steam">
         <Settings size={20} />
       </button>
 
       {open ? (
         <div className="steam-settings-backdrop">
-          <button type="button" className="steam-settings-backdrop-dismiss" onClick={() => setOpen(false)} aria-label="Cerrar configuraci?n de Steam" />
-          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuraci?n de sesiones Steam">
+          <button type="button" className="steam-settings-backdrop-dismiss" onClick={() => setOpen(false)} aria-label="Cerrar configuración de Steam" />
+          <section className="steam-settings-panel" role="dialog" aria-modal="true" aria-label="Configuración de sesiones de Steam">
             <header>
               <div>
-                <span className="eyebrow">STEAM SESSION MANAGER</span>
-                <h2>Cuentas y retorno autom?tico</h2>
-                <p>GameAccess detecta como cuentas personales ?nicamente las que Steam tiene marcadas con Recordarme.</p>
+                <span className="eyebrow">GESTOR DE SESIONES DE STEAM</span>
+                <h2>Cuentas y retorno automático</h2>
+                <p>GameAccess detecta como cuentas personales únicamente las que Steam tiene marcadas con Recordarme.</p>
               </div>
               <button type="button" className="steam-settings-close" onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
             </header>
 
             <div className="steam-settings-section">
-              <h3>Despu?s de jugar</h3>
+              <h3>Después de jugar</h3>
               <div className="steam-restore-options">
                 {(["main", "previous", "leave"] as SteamRestoreMode[]).map((mode) => (
                   <label key={mode} className={preferences.restoreMode === mode ? "selected" : ""}>
@@ -134,7 +134,7 @@ export default function SteamSessionSettings() {
                   <option value="">Sin definir</option>
                   {mainAccountOptions.map((account) => (
                     <option key={account.steam_id64 || steamAccountName(account)} value={steamAccountName(account)}>
-                      {account.label}{account.active ? " ? activa" : ""}
+                      {account.label}{account.active ? " Â· activa" : ""}
                     </option>
                   ))}
                 </select>
@@ -145,7 +145,7 @@ export default function SteamSessionSettings() {
               <div className="steam-section-title">
                 <div>
                   <h3>Cuentas Steam detectadas</h3>
-                  <p>Estas cuentas tienen Recordarme activado en Steam y GameAccess puede volver a ellas sin pedirte la contrase?a.</p>
+                  <p>Estas cuentas tienen Recordarme activado en Steam y GameAccess puede volver a ellas sin pedirte la contraseña.</p>
                 </div>
                 <ShieldCheck size={22} />
               </div>
@@ -156,24 +156,24 @@ export default function SteamSessionSettings() {
                     <article className="steam-account-row" key={account.steam_id64 || name}>
                       <div className="steam-account-copy">
                         <strong>{account.label}</strong>
-                        <span>{name || "Cuenta sin nombre"}{account.active ? " ? activa ahora" : ""}</span>
+                        <span>{name || "Cuenta sin nombre"}{account.active ? " Â· activa ahora" : ""}</span>
                       </div>
                       <div className="steam-account-actions enrolled">
-                        <span className="steam-enrolled"><Check size={14} /> Inicio autom?tico listo</span>
+                        <span className="steam-enrolled"><Check size={14} /> Inicio automático listo</span>
                       </div>
                     </article>
                   );
                 })}
                 {!accounts.length && !loadingAccounts ? <p className="steam-settings-empty">No hay cuentas Steam con Recordarme activado en esta PC.</p> : null}
               </div>
-              <p className="steam-settings-help">Para agregar otra cuenta, inici? sesi?n manualmente en Steam con esa cuenta y activ? Recordarme. Despu?s puls? Actualizar.</p>
+              <p className="steam-settings-help">Para agregar otra cuenta, iniciá sesión manualmente en Steam con esa cuenta y activá Recordarme. Después pulsá Actualizar.</p>
               <button type="button" className="steam-enroll-button" onClick={() => void refreshAccounts()} disabled={loadingAccounts}>
                 {loadingAccounts ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Actualizar cuentas
               </button>
             </div>
 
             <footer>
-              <p>GameAccess no solicita ni muestra contrase?as para tus cuentas personales. Steam mantiene la sesi?n recordada en esta PC.</p>
+              <p>GameAccess no solicita ni muestra contraseñas para tus cuentas personales. Steam mantiene la sesión recordada en esta PC.</p>
               {message ? <span className="steam-settings-message">{message}</span> : null}
             </footer>
           </section>

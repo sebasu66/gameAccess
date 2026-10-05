@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "dgSpecHash": "PUdg4mGYvIM=",
+  "success": true,
+  "projectFilePath": "C:\\DEV\\gameAccess\\tools\\steamkit-inventory-scanner\\SteamKitInventoryScanner.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Lorita\\.nuget\\packages\\protobuf-net\\3.2.56\\protobuf-net.3.2.56.nupkg.sha512",
+    "C:\\Users\\Lorita\\.nuget\\packages\\protobuf-net.core\\3.2.56\\protobuf-net.core.3.2.56.nupkg.sha512",
+    "C:\\Users\\Lorita\\.nuget\\packages\\steamkit2\\3.4.0\\steamkit2.3.4.0.nupkg.sha512",
+    "C:\\Users\\Lorita\\.nuget\\packages\\system.io.hashing\\10.0.1\\system.io.hashing.10.0.1.nupkg.sha512",
+    "C:\\Users\\Lorita\\.nuget\\packages\\zstdsharp.port\\0.8.7\\zstdsharp.port.0.8.7.nupkg.sha512"
+  ],
+  "logs": []
+}

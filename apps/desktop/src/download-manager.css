@@ -92,6 +92,21 @@
   box-shadow: 0 34px 100px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.06);
 }
 
+.download-complete-dialog-ready {
+  overflow: hidden;
+  background-position: center 35%;
+  background-size: cover;
+}
+
+.download-complete-dialog-ready .eyebrow,
+.download-complete-dialog-ready h2,
+.download-complete-dialog-ready p,
+.download-complete-dialog-ready .download-complete-actions,
+.download-complete-dialog-ready .download-complete-icon {
+  position: relative;
+  z-index: 1;
+}
+
 .download-complete-dialog h2 {
   margin: 10px 0 9px;
   font-size: clamp(30px,4vw,44px);

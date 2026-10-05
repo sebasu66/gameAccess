@@ -7,13 +7,14 @@ def _identity(user_id: int, name: str) -> dict:
         "account_name": name,
         "steam_id64": str(pool.STEAM_ID64_BASE + user_id),
         "user_id32": user_id,
+        "remembered": True,
     }
 
 
 def test_ticketed_cyberpunk_never_becomes_owned_without_verified_license(monkeypatch) -> None:
     cyberpunk = 1091500
     monkeypatch.setattr(pool, "active_user_id32", lambda: 202)
-    monkeypatch.setattr(pool, "remembered_account_identities", lambda: [_identity(202, "vz3644")])
+    monkeypatch.setattr(pool, "steam_account_identities", lambda: [_identity(202, "vz3644")])
     monkeypatch.setattr(pool, "local_library_apps", lambda user_id: {cyberpunk: {}})
     monkeypatch.setattr(pool, "local_ticketed_apps", lambda user_id: {cyberpunk})
     monkeypatch.setattr(
@@ -44,7 +45,7 @@ def test_ticketed_cyberpunk_never_becomes_owned_without_verified_license(monkeyp
 def test_only_verified_owner_cache_populates_app_ids(monkeypatch) -> None:
     app_id = 10
     monkeypatch.setattr(pool, "active_user_id32", lambda: 101)
-    monkeypatch.setattr(pool, "remembered_account_identities", lambda: [_identity(101, "owner")])
+    monkeypatch.setattr(pool, "steam_account_identities", lambda: [_identity(101, "owner")])
     monkeypatch.setattr(pool, "local_library_apps", lambda user_id: {app_id: {}})
     monkeypatch.setattr(pool, "local_ticketed_apps", lambda user_id: set())
     monkeypatch.setattr(
@@ -71,7 +72,7 @@ def test_only_verified_owner_cache_populates_app_ids(monkeypatch) -> None:
 def test_unverified_account_fails_closed_even_when_ticket_exists(monkeypatch) -> None:
     app_id = 999
     monkeypatch.setattr(pool, "active_user_id32", lambda: 202)
-    monkeypatch.setattr(pool, "remembered_account_identities", lambda: [_identity(202, "unverified")])
+    monkeypatch.setattr(pool, "steam_account_identities", lambda: [_identity(202, "unverified")])
     monkeypatch.setattr(pool, "local_library_apps", lambda user_id: {app_id: {}})
     monkeypatch.setattr(pool, "local_ticketed_apps", lambda user_id: {app_id})
     monkeypatch.setattr(
@@ -100,7 +101,7 @@ def test_unverified_account_fails_closed_even_when_ticket_exists(monkeypatch) ->
 def test_verified_family_runnable_access_is_not_counted_as_owned(monkeypatch) -> None:
     app_id = 244210
     monkeypatch.setattr(pool, "active_user_id32", lambda: 202)
-    monkeypatch.setattr(pool, "remembered_account_identities", lambda: [_identity(202, "family")])
+    monkeypatch.setattr(pool, "steam_account_identities", lambda: [_identity(202, "family")])
     monkeypatch.setattr(pool, "local_library_apps", lambda user_id: {app_id: {}})
     monkeypatch.setattr(pool, "local_ticketed_apps", lambda user_id: set())
     monkeypatch.setattr(
@@ -123,3 +124,35 @@ def test_verified_family_runnable_access_is_not_counted_as_owned(monkeypatch) ->
     assert account["app_ids"] == []
     assert account["runnable_app_ids"] == [app_id]
     assert account["runnable_verified"] is True
+
+
+def test_registered_accounts_are_not_filtered_by_remember_password(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "Steam"
+    config = root / "config"
+    config.mkdir(parents=True)
+    (config / "loginusers.vdf").write_text(
+        '"users"\n'
+        '{\n'
+        f'  "{pool.STEAM_ID64_BASE + 101}"\n'
+        '  {\n'
+        '    "AccountName" "remembered"\n'
+        '    "PersonaName" "Remembered"\n'
+        '    "RememberPassword" "1"\n'
+        '  }\n'
+        f'  "{pool.STEAM_ID64_BASE + 202}"\n'
+        '  {\n'
+        '    "AccountName" "registered_only"\n'
+        '    "PersonaName" "Registered Only"\n'
+        '    "RememberPassword" "0"\n'
+        '  }\n'
+        '}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(pool, "steam_root", lambda: root)
+
+    registered = pool.steam_account_identities()
+    remembered = pool.remembered_account_identities()
+
+    assert [item["account_name"] for item in registered] == ["remembered", "registered_only"]
+    assert [item["remembered"] for item in registered] == [True, False]
+    assert [item["account_name"] for item in remembered] == ["remembered"]

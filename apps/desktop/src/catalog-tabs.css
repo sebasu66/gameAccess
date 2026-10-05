@@ -1,9 +1,6 @@
 .catalog-tabs {
-  position: fixed;
-  top: 17px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 80;
+  position: relative;
+  flex: 0 0 auto;
   height: 40px;
   display: flex;
   align-items: center;
@@ -48,12 +45,5 @@
 .topbar .glass-nav { display: none !important; }
 
 @media (max-width: 760px) {
-  .catalog-tabs {
-    top: 54px;
-    width: calc(100% - 24px);
-  }
-  .catalog-tabs button {
-    flex: 1;
-    min-width: 0;
-  }
+  .catalog-tabs button { min-width: 0; padding-inline: 10px; }
 }

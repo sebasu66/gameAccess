@@ -1,11 +1,13 @@
+import { mergePlayHistory } from "./recentGames";
 import { invoke } from "@tauri-apps/api/core";
 
+import { activationHeaders } from "./activation";
 import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
 import { getCatalogMode } from "./catalogMode";
+import { getApiBaseUrl } from "./settings";
 import { narrate } from "./narrationLog";
 import { cancelDownloadLifecycle, registerDownloadJob } from "./downloadLifecycle";
 import { gameStateManager } from "./GameStateManager";
-import { prepareFrozenGameForPlay } from "./gameStorage";
 import { resolveSteamInstallOwner } from "./steamOwnership";
 import { safeSteamRestoreMode } from "./steamRestorePolicy";
 import { consumePreviousSteamAccount, loadSteamSessionPreferences, rememberPreviousSteamAccount } from "./steamSessionPreferences";
@@ -36,7 +38,7 @@ async function bridgeRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface SteamDownloadStatus {
   app_id: number;
-  state: "not-installed" | "requested" | "preparing" | "downloading" | "paused" | "cancelling" | "cancelled" | "prepared" | "installed" | "freezing" | "frozen" | "thawing" | "unknown";
+  state: "not-installed" | "requested" | "preparing" | "downloading" | "decompressing" | "extracting" | "installing" | "paused" | "cancelling" | "cancelled" | "interrupted" | "prepared" | "installed" | "freezing" | "frozen" | "thawing" | "unknown";
   progress: number | null;
   bytes_downloaded: number | null;
   bytes_total: number | null;
@@ -45,6 +47,7 @@ export interface SteamDownloadStatus {
   installed: boolean;
   provider_id?: string | null;
   prepared_target?: string | null;
+  library_index?: number | null;
   error?: string | null;
   job_id?: string | null;
   worker_pid?: number | null;
@@ -54,6 +57,60 @@ export interface SteamLibraryFolder {
   index: number;
   path: string;
   label: string;
+}
+
+const reportedDownloadStatusErrors = new Set<string>();
+const reportedInvalidProviderPasswords = new Set<string>();
+
+function isExplicitInvalidPassword(error: string): boolean {
+  return error.toLocaleLowerCase().replace(/[^a-z0-9]/g, "").includes("invalidpassword");
+}
+
+async function reportInvalidProviderPassword(status: SteamDownloadStatus, error: string): Promise<void> {
+  const providerId = status.provider_id?.trim();
+  if (!providerId || !isExplicitInvalidPassword(error)) return;
+  const fingerprint = providerId.toLocaleLowerCase();
+  if (reportedInvalidProviderPasswords.has(fingerprint)) return;
+  reportedInvalidProviderPasswords.add(fingerprint);
+
+  const api = await getApiBaseUrl();
+  if (!api) return;
+  try {
+    const response = await fetch(`${api}/downloads/provider-credential-invalid`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...activationHeaders() },
+      body: JSON.stringify({
+        provider_id: providerId,
+        app_id: status.app_id,
+        error_code: "InvalidPassword",
+      }),
+    });
+    if (!response.ok) {
+      await narrate(
+        `Backend rejected InvalidPassword report for provider '${providerId}' with HTTP ${response.status}.`,
+        { area: "DOWNLOAD", level: "WARN" },
+      );
+    }
+  } catch (reportError) {
+    await narrate(
+      `Could not report InvalidPassword for provider '${providerId}': ${reportError instanceof Error ? reportError.message : String(reportError)}.`,
+      { area: "DOWNLOAD", level: "WARN" },
+    );
+  }
+}
+
+async function reportDownloadStatusError(status: SteamDownloadStatus): Promise<void> {
+  const error = status.error?.trim();
+  if (!error) return;
+  const fingerprint = `${status.app_id}|${status.state}|${error}`;
+  if (reportedDownloadStatusErrors.has(fingerprint)) return;
+  reportedDownloadStatusErrors.add(fingerprint);
+  await reportInvalidProviderPassword(status, error);
+  await narrate(
+    `Download worker for AppID ${status.app_id} entered state '${status.state}' with error: ${error}.`,
+    { area: "DOWNLOAD", level: "ERROR" },
+  );
 }
 
 export interface MachineProfile {
@@ -100,6 +157,7 @@ export interface LocalSteamAccount {
   account_name: string;
   steam_id64?: string;
   user_id32?: number | null;
+  remembered?: boolean;
   app_ids: number[];
   runnable_app_ids?: number[];
   runnable_verified?: boolean;
@@ -120,20 +178,21 @@ export interface LocalSteamPool {
   verified_account_count?: number;
   runnable_account_count?: number;
   accounts: LocalSteamAccount[];
-  games: Array<{ app_id: number; name: string; developer?: string; publisher?: string }>;
+  games: Array<{ app_id: number; name: string; developer?: string; publisher?: string; last_played_at?: number }>;
   library_folders?: SteamLibraryFolder[];
 }
 
 export async function getLocalSteamPool(): Promise<LocalSteamPool | null> {
-  await narrate("Native layer: reading Steam remembered accounts and their local library/access data.", { area: "LOCAL STEAM" });
+  await narrate("Native layer: reading registered Steam accounts and their local library/access data.", { area: "LOCAL STEAM" });
   try {
     const pool = hasTauriRuntime()
       ? await invoke<LocalSteamPool>("local_steam_pool")
       : await bridgeRequest<LocalSteamPool>("/local-steam-pool");
     await narrate(
-      `Native Steam scan completed: ${pool.accounts.length} remembered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
+      `Native Steam scan completed: ${pool.accounts.length} registered account(s), ${pool.games.length} game record(s), source='${pool.source}'.`,
       { area: "LOCAL STEAM" },
     );
+    mergePlayHistory(Object.fromEntries(pool.games.map(game => [game.app_id, game.last_played_at ?? 0])));
     return pool;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -181,7 +240,8 @@ export async function hasAutomaticSteamLogin(accountNameValue: string): Promise<
   const target = accountNameValue.trim();
   if (!target || !hasTauriRuntime()) return false;
   const pool = await getLocalSteamPool();
-  if (pool && findSteamAccount(pool.accounts, target)) return true;
+  const localAccount = pool ? findSteamAccount(pool.accounts, target) : undefined;
+  if (localAccount?.remembered) return true;
   return hasSteamCredential(target);
 }
 
@@ -219,7 +279,7 @@ async function waitForSteamInstallConfirmation(appId: number): Promise<void> {
       await narrate(`Download for Steam AppID ${appId} reported an error: ${status.error}.`, { area: "DOWNLOAD", level: "ERROR" });
       throw new Error(status.error);
     }
-    if (status.installed) {
+    if (gameStateManager.isDownloadComplete(status)) {
       await narrate(`Download for Steam AppID ${appId}: installation is complete and the game is ready on disk.`, { area: "DOWNLOAD" });
       return;
     }
@@ -259,7 +319,12 @@ export async function getSteamSessionStatus(): Promise<SteamSessionStatus> {
   return invoke<SteamSessionStatus>("steam_session_status");
 }
 
-export async function openSteamInstall(appId: number): Promise<void> {
+export async function isSteamAppRunning(appId: number): Promise<boolean> {
+  if (!appId || !hasTauriRuntime()) return false;
+  return invoke<boolean>("steam_app_is_running", { appId });
+}
+
+export async function openSteamInstall(appId: number, recovery: { providerId?: string | null; libraryIndex?: number | null } = {}): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   const mode = getCatalogMode();
   await narrate(`Download requested for Steam AppID ${appId}. Current catalog mode is '${mode}'.`, { area: "DOWNLOAD" });
@@ -280,7 +345,17 @@ export async function openSteamInstall(appId: number): Promise<void> {
   try {
     if (mode === "gameaccess") {
       await narrate(`GameAccess mode: asking the provider download manager to resolve a usable provider license and start AppID ${appId}.`, { area: "DOWNLOAD" });
-      const status = await invoke<SteamDownloadStatus>("start_provider_download", { appId, jobId: lifecycle?.job_id ?? null });
+      const recoveryArgs = recovery.providerId || recovery.libraryIndex != null
+        ? { providerId: recovery.providerId ?? null, libraryIndex: recovery.libraryIndex ?? null }
+        : {};
+      const apiBaseUrl = await getApiBaseUrl();
+      if (!apiBaseUrl) throw new Error("El servidor de GameAccess no está configurado.");
+      const status = await invoke<SteamDownloadStatus>("start_provider_download", {
+        appId,
+        jobId: lifecycle?.job_id ?? null,
+        apiBaseUrl,
+        ...recoveryArgs,
+      });
       await narrate(`Provider download manager accepted AppID ${appId}${status.provider_id ? ` using provider '${status.provider_id}'` : ""}; state='${status.state}'.`, { area: "DOWNLOAD" });
       await waitForSteamInstallConfirmation(appId);
       return;
@@ -304,7 +379,10 @@ export async function openSteamInstall(appId: number): Promise<void> {
   }
 }
 
-export async function openSteamClientInstall(appId: number): Promise<void> {
+export async function openSteamClientInstall(
+  appId: number,
+  options: { waitForConfirmation?: boolean } = {},
+): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   await narrate(`Direct Steam-client download requested for AppID ${appId}. This bypasses GameAccess provider download selection.`, { area: "DOWNLOAD" });
   const lifecycle = hasTauriRuntime() ? await registerDownloadJob(appId) : null;
@@ -312,7 +390,7 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-install", { method: "POST", body: JSON.stringify({ appId }) });
-      await waitForSteamInstallConfirmation(appId);
+      if (options.waitForConfirmation !== false) await waitForSteamInstallConfirmation(appId);
     } catch {
       window.location.href = `steam://install/${appId}`;
     }
@@ -321,7 +399,7 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
   try {
     await invoke("open_steam_install", { appId });
     await narrate(`Steam client install URI sent for AppID ${appId}.`, { area: "DOWNLOAD" });
-    await waitForSteamInstallConfirmation(appId);
+    if (options.waitForConfirmation !== false) await waitForSteamInstallConfirmation(appId);
   } catch (error) {
     if (lifecycle) await cancelDownloadLifecycle(appId).catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
@@ -333,7 +411,6 @@ export async function openSteamClientInstall(appId: number): Promise<void> {
 export async function openSteamRun(appId: number): Promise<void> {
   if (!appId) throw new Error("Este juego todavía no tiene Steam AppID configurado.");
   await narrate(`Launch requested for Steam AppID ${appId}. Resolving the Steam account and launch route.`, { area: "LAUNCH" });
-  await prepareFrozenGameForPlay(appId);
   if (!hasTauriRuntime()) {
     try {
       await bridgeRequest("/open-steam-run", { method: "POST", body: JSON.stringify({ appId }) });
@@ -373,13 +450,6 @@ export async function openSteamRun(appId: number): Promise<void> {
   }
 
   await startResolvedSteamSession(appId, owner, refreshed);
-}
-
-export async function loginProviderSteam(credentials: { accountName: string; password: string; expectedUserId32: number }): Promise<void> {
-  if (!hasTauriRuntime()) throw new Error("El login de proveedores requiere la aplicación de escritorio.");
-  await narrate(`Starting provider Steam login for account '${credentials.accountName}'. Password and authentication material are intentionally omitted from the log.`, { area: "ACCOUNT" });
-  await invoke("login_provider_steam", credentials);
-  await narrate(`Provider Steam login completed for account '${credentials.accountName}'.`, { area: "ACCOUNT" });
 }
 
 function rememberActiveSteamAccount(pool: LocalSteamPool | null): void {
@@ -464,12 +534,22 @@ export async function openSteamClient(): Promise<void> {
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
   if (!appId) throw new Error("AppID inválido");
+  let resolved: SteamDownloadStatus;
+
   if (!hasTauriRuntime()) {
-    try { return await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`); }
-    catch { return { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }; }
+    try {
+      resolved = await bridgeRequest<SteamDownloadStatus>(`/steam-download-status/${appId}`);
+    } catch {
+      resolved = { app_id: appId, state: "unknown", progress: null, bytes_downloaded: null, bytes_total: null, installed: false };
+    }
+    await reportDownloadStatusError(resolved);
+    return resolved;
   }
+
   if (getCatalogMode() !== "gameaccess") {
-    return invoke<SteamDownloadStatus>("steam_download_status", { appId });
+    resolved = await invoke<SteamDownloadStatus>("steam_download_status", { appId });
+    await reportDownloadStatusError(resolved);
+    return resolved;
   }
 
   const [steamResult, providerResult] = await Promise.allSettled([
@@ -478,22 +558,26 @@ export async function steamDownloadStatus(appId: number): Promise<SteamDownloadS
   ]);
 
   if (steamResult.status === "fulfilled") {
-    return gameStateManager.reconcileSteamAndProviderStatus(
+    resolved = gameStateManager.reconcileSteamAndProviderStatus(
       steamResult.value,
       providerResult.status === "fulfilled" ? providerResult.value : null,
     );
+  } else if (providerResult.status === "fulfilled" && providerResult.value) {
+    resolved = providerResult.value;
+  } else {
+    resolved = {
+      app_id: appId,
+      state: "unknown",
+      progress: null,
+      bytes_downloaded: null,
+      bytes_total: null,
+      installed: false,
+      error: steamResult.reason instanceof Error ? steamResult.reason.message : String(steamResult.reason ?? "No se pudo verificar la instalación"),
+    };
   }
-  if (providerResult.status === "fulfilled" && providerResult.value) return providerResult.value;
 
-  return {
-    app_id: appId,
-    state: "unknown",
-    progress: null,
-    bytes_downloaded: null,
-    bytes_total: null,
-    installed: false,
-    error: steamResult.reason instanceof Error ? steamResult.reason.message : String(steamResult.reason ?? "No se pudo verificar la instalación"),
-  };
+  await reportDownloadStatusError(resolved);
+  return resolved;
 }
 
 export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatus[]> {
@@ -504,7 +588,7 @@ export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatu
   } catch {
     return [];
   }
-  return Promise.all(providerStatuses.map(async (providerStatus) => {
+  const statuses = await Promise.all(providerStatuses.map(async (providerStatus) => {
     try {
       const steamStatus = await invoke<SteamDownloadStatus>("steam_download_status", { appId: providerStatus.app_id });
       return gameStateManager.reconcileSteamAndProviderStatus(steamStatus, providerStatus);
@@ -512,6 +596,22 @@ export async function steamManagedDownloadStatuses(): Promise<SteamDownloadStatu
       return providerStatus;
     }
   }));
+  await Promise.all(statuses.map(reportDownloadStatusError));
+  return statuses;
+}
+
+export async function reconcileDownloadStaging(): Promise<SteamDownloadStatus[]> {
+  if (!hasTauriRuntime() || getCatalogMode() !== "gameaccess") return [];
+  return invoke<SteamDownloadStatus[]>("reconcile_download_staging");
+}
+
+export async function discardInterruptedDownload(status: SteamDownloadStatus): Promise<void> {
+  if (!hasTauriRuntime() || !status.provider_id || !status.job_id) throw new Error("No se puede descartar esta descarga sin una identidad válida.");
+  await invoke("discard_interrupted_download", {
+    appId: status.app_id,
+    providerId: status.provider_id,
+    jobId: status.job_id,
+  });
 }
 
 export async function providerDownloadEstimate(appId: number): Promise<SteamDownloadStatus | null> {

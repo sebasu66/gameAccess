@@ -66,19 +66,17 @@ describe("LibraryRoom grid presentation", () => {
     expect(markup).not.toContain("<strong>Test Game</strong>");
   });
 
-  it("distinguishes installed games with and without a playable license", () => {
+  it("keeps file readiness independent from the available-copy count", () => {
     expect(render({ 10: installed })).toContain("library-install-state ready");
     const withoutLicense = render({ 10: installed }, 0);
-    expect(withoutLicense).toContain("library-install-state no-license");
-    expect(withoutLicense).toContain("sin licencia disponible");
-    expect(withoutLicense).not.toContain("library-install-state ready");
+    expect(withoutLicense).toContain("library-install-state ready");
+    expect(withoutLicense).not.toContain("library-install-state no-license");
   });
 
-  it("treats a frozen game as playable while keeping its blue storage marker", () => {
+  it("does not mark a legacy frozen game as ready or playable", () => {
     const markup = render({ 10: frozen });
-    expect(markup).toContain("library-install-state frozen");
-    expect(markup).toContain("Jugar");
     expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("Jugar");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {

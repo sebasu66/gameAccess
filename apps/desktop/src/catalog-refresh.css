@@ -1,7 +1,5 @@
 .catalog-refresh-button {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
+  position: static;
   z-index: 42;
   display: inline-flex;
   align-items: center;
@@ -41,8 +39,6 @@
 
 @media (max-width: 720px) {
   .catalog-refresh-button {
-    right: 14px;
-    bottom: 14px;
     width: 44px;
     height: 44px;
     justify-content: center;
@@ -53,3 +49,6 @@
     display: none;
   }
 }
+
+.catalog-bottom-actions { position: fixed; right: 82px; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 10px; }
+.catalog-scroll-action:empty { display: none; }

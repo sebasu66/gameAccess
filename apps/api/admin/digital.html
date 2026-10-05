@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gameAccess · Gestión de Catálogo y Fuentes</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#06090d; --panel:#0c1118; --panel2:#111823; --line:rgba(255,255,255,.08);
+      --text:#eef4f8; --muted:#8190a3; --green:#65f0b2; --green2:#2fc98f;
+      --amber:#f5bf67; --red:#ff7d7d; --blue:#75a9ff; --shadow:0 24px 80px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box} html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    body{background:radial-gradient(circle at 82% -8%,rgba(101,240,178,.08),transparent 28%),radial-gradient(circle at 10% 3%,rgba(117,169,255,.07),transparent 28%),var(--bg)}
+    button,input,select,textarea{font:inherit} button{color:inherit} .app{min-height:100vh;display:grid;grid-template-columns:250px 1fr}
+    aside{position:sticky;top:0;height:100vh;padding:22px 16px;border-right:1px solid var(--line);background:rgba(7,10,14,.86);backdrop-filter:blur(18px)}
+    .brand{display:flex;align-items:center;gap:10px;padding:2px 8px 20px;font-weight:900;font-size:20px;text-decoration:none;color:inherit}
+    .mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#8affca,#3dc98e);color:#06110d;box-shadow:0 10px 28px rgba(101,240,178,.22)}.brand b{color:var(--green)}
+    .live{display:flex;align-items:center;gap:8px;margin:0 8px 20px;padding:9px 10px;border:1px solid rgba(101,240,178,.15);border-radius:11px;background:rgba(101,240,178,.05);font-size:12px;color:#c7f9e5}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(101,240,178,.07)}
+    nav{display:grid;gap:5px}nav button,nav a{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:#98a6b8;text-align:left;cursor:pointer;text-decoration:none}nav button:hover,nav button.active,nav a:hover{background:rgba(255,255,255,.055);color:white}.nav-badge{margin-left:auto;min-width:22px;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.07);font-size:10px;text-align:center}
+    .aside-foot{position:absolute;left:16px;right:16px;bottom:18px;padding:12px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:11px;line-height:1.45}
+    main{min-width:0;padding:28px 34px 60px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}.top h1{margin:0;font-size:28px;letter-spacing:-.035em}.top p{margin:6px 0 0;color:var(--muted);font-size:13px}.top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:rgba(255,255,255,.045);border-radius:10px;padding:9px 14px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:6px}.btn:hover{background:rgba(255,255,255,.08)}.btn.primary{border-color:rgba(101,240,178,.24);background:rgba(101,240,178,.10);color:#cffff0}.btn.danger{border-color:rgba(255,125,125,.22);color:#ffc1c1;background:rgba(255,125,125,.05)}.btn.secondary{border-color:rgba(117,169,255,.24);background:rgba(117,169,255,.10);color:#d0e2ff}
+    .grid{display:grid;gap:14px}.stats{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:22px}.stat{padding:16px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,rgba(17,24,35,.92),rgba(10,15,22,.92));box-shadow:0 12px 34px rgba(0,0,0,.18)}.stat span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.stat strong{display:block;margin-top:7px;font-size:26px;letter-spacing:-.04em}.stat small{display:block;margin-top:5px;color:#6f7d8d;font-size:10px}
+    .panel{border:1px solid var(--line);border-radius:16px;background:rgba(11,16,23,.88);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 18px;border-bottom:1px solid var(--line)}.panel-head h2{margin:0;font-size:15px}.panel-head span{color:var(--muted);font-size:11px}.panel-body{padding:16px}
+    table{width:100%;border-collapse:collapse}th,td{padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.055);text-align:left;font-size:12px;vertical-align:middle}th{color:#6f7d8e;font-size:10px;text-transform:uppercase;letter-spacing:.08em}tr:last-child td{border-bottom:0}.muted{color:var(--muted)}.mono{font-family:"SFMono-Regular",Consolas,monospace;font-size:11px}.status{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}.status.auto{background:rgba(101,240,178,.09);color:var(--green)}.status.custom{background:rgba(117,169,255,.10);color:var(--blue)}.status.empty{background:rgba(245,191,103,.10);color:var(--amber)}.status.disabled{background:rgba(255,125,125,.10);color:var(--red)}
+    .game-cell{display:flex;align-items:center;gap:12px}.game-banner{width:70px;height:32px;border-radius:6px;object-fit:cover;background:#05080c;border:1px solid var(--line)}
+    .form{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field.full{grid-column:1/-1}.field label{color:#8796a7;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#0a0f16;color:white;outline:0}.field textarea{font-family:"SFMono-Regular",Consolas,monospace;font-size:11px;resize:vertical}.field input:focus,.field select:focus,.field textarea:focus{border-color:rgba(101,240,178,.42);box-shadow:0 0 0 3px rgba(101,240,178,.06)}
+    .tab{display:none}.tab.active{display:block}.search{width:260px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#0a0f16;color:white;outline:0}
+    .toast{position:fixed;right:22px;bottom:22px;max-width:440px;padding:13px 16px;border:1px solid rgba(101,240,178,.25);border-radius:12px;background:#101721;box-shadow:0 20px 60px rgba(0,0,0,.5);font-size:12px;z-index:100}
+    .dialog-backdrop{position:fixed;inset:0;display:none;place-items:center;padding:24px;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);z-index:90}.dialog{width:min(740px,100%);max-height:86vh;overflow:auto;border:1px solid var(--line);border-radius:16px;background:#0c1118;box-shadow:0 30px 100px rgba(0,0,0,.7);padding:20px}.dialog h3{margin:0 0 10px;font-size:17px}.dialog p{color:#aab6c4;font-size:13px;margin:0 0 16px}
+    .raw-editor{width:100%;min-height:480px;font-family:"SFMono-Regular",Consolas,monospace;font-size:12px;line-height:1.5;background:#05080c;color:#a5d6ff;border:1px solid var(--line);border-radius:12px;padding:14px;outline:0;white-space:pre}
+    .opt-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02);margin-bottom:8px}
+    .opt-title{font-weight:600;font-size:13px}.opt-sub{color:var(--muted);font-size:11px;margin-top:3px}
+    @media(max-width:980px){.app{grid-template-columns:1fr}aside{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.aside-foot{display:none}.stats{grid-template-columns:repeat(2,1fr)}main{padding:20px 14px}.form{grid-template-columns:1fr}.field.full{grid-column:auto}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a href="/admin-console/" class="brand"><span class="mark">g</span><span>game<b>Access</b></span></a>
+    <div class="live"><span class="dot"></span><span>Gestión Digital</span></div>
+    <nav id="nav">
+      <button class="active" data-tab="catalog">Catálogo Digital <span class="nav-badge" id="nCatalog">0</span></button>
+      <button data-tab="sources">Fuentes JSON <span class="nav-badge" id="nSources">0</span></button>
+      <button data-tab="editor">Editor JSON Directo</button>
+      <a href="/admin-console/" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">← Panel Principal</a>
+    </nav>
+    <div class="aside-foot">Administración de fuentes compatibles con Hydra y catálogo digital alojado en Render.</div>
+  </aside>
+
+  <main>
+    <!-- STATS HEADER -->
+    <div class="grid stats">
+      <div class="stat"><span>Juegos en Catálogo</span><strong id="statGames">0</strong><small>digital_catalog.json</small></div>
+      <div class="stat"><span>Fuentes Configuradas</span><strong id="statSources">0</strong><small>digital_sources.json</small></div>
+      <div class="stat"><span>Paquetes Indexados</span><strong id="statItems">0</strong><small>Caché en servidor</small></div>
+      <div class="stat"><span>Última Sincronización</span><strong id="statSync" style="font-size:16px;margin-top:12px">—</strong><small id="statSyncSub">Automática</small></div>
+    </div>
+
+    <!-- TAB 1: CATALOG -->
+    <section class="tab active" id="tab-catalog">
+      <div class="top">
+        <div>
+          <h1>Catálogo Digital</h1>
+          <p>Juegos disponibles en la pestaña Digital. Pueden usar resolución automática por fuentes o enlaces dedicados.</p>
+        </div>
+        <div class="top-actions">
+          <input class="search" id="catalogSearch" placeholder="Filtrar por nombre o AppID..." oninput="renderCatalogTable()">
+          <button class="btn primary" onclick="openImportModal('catalog')">📥 Importar Fuente JSON (Hydra)</button>
+          <button class="btn" onclick="populateCatalogFromSources()" title="Agrega las descargas indexadas de las fuentes al catálogo de juegos">⚡ Poblar desde Fuentes</button>
+          <button class="btn secondary" onclick="openGameModal()">+ Nuevo Juego</button>
+          <button class="btn" onclick="syncSteamStore()">Sincronizar Steam</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body" style="padding:0">
+          <div id="catalogTable"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SOURCES -->
+    <section class="tab" id="tab-sources">
+      <div class="top">
+        <div>
+          <h1>Fuentes de Descarga (JSON)</h1>
+          <p>Repositorios comunitarios compatibles con el formato de Hydra Launcher. Puedes importar archivos .json o URLs directas.</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn primary" onclick="openImportModal('sources')">📥 Importar Fuente JSON (Hydra)</button>
+          <button class="btn secondary" onclick="openSourceModal()">+ Agregar por URL</button>
+          <button class="btn" onclick="syncSourcesNow()">Sincronizar Todas</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body" style="padding:0">
+          <div id="sourcesTable"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: RAW JSON EDITOR -->
+    <section class="tab" id="tab-editor">
+      <div class="top">
+        <div>
+          <h1>Editor JSON Directo</h1>
+          <p>Edición directa de los archivos de configuración con validación de sintaxis en tiempo real.</p>
+        </div>
+        <div class="top-actions">
+          <select id="rawTarget" style="padding:8px 12px;border-radius:9px;background:#0a0f16;border:1px solid var(--line);color:white" onchange="loadRawJson()">
+            <option value="catalog">digital_catalog.json (Catálogo)</option>
+            <option value="sources">digital_sources.json (Fuentes)</option>
+          </select>
+          <button class="btn" onclick="formatRawJson()">Formatear</button>
+          <button class="btn primary" onclick="saveRawJson()">Guardar Cambios</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <textarea id="rawEditor" class="raw-editor" spellcheck="false" placeholder="Cargando contenido JSON..."></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- MODAL: ADD/EDIT GAME -->
+<div class="dialog-backdrop" id="gameModal">
+  <div class="dialog">
+    <h3 id="gameModalTitle">Agregar Juego al Catálogo</h3>
+    <p>Ingresa los datos del juego. Si dejas la fuente vacía o en 'auto', el sistema buscará la mejor versión en las fuentes comunitarias.</p>
+    <form id="gameForm" class="form" onsubmit="handleGameSubmit(event)">
+      <div class="field full"><label>Nombre del Juego</label><input name="name" required placeholder="Ej: Dragon Age: Inquisition"></div>
+      <div class="field"><label>Steam App ID</label><input name="id" type="number" required placeholder="Ej: 1222690"></div>
+      <div class="field"><label>Fuente de Descarga</label><input name="downloadSource" placeholder="'auto', enlace directo o magnet:"></div>
+      <div class="field full"><label>Comando de Instalación (Opcional)</label><input name="installProcess" placeholder="Ej: setup.exe /SILENT o dejar vacío"></div>
+      <div class="field full"><label>Comando de Ejecución (Opcional)</label><input name="playProcess" placeholder="Ej: Game.exe o dejar vacío"></div>
+      <div class="field full"><label>Comando de Desinstalación (Opcional)</label><input name="uninstallProcess" placeholder="Ej: unins000.exe /SILENT"></div>
+      <div class="field full" style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button type="button" class="btn" onclick="closeGameModal()">Cancelar</button>
+        <button type="submit" class="btn primary">Guardar Juego</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: ADD SOURCE -->
+<div class="dialog-backdrop" id="sourceModal">
+  <div class="dialog">
+    <h3>Agregar Fuente JSON de Hydra</h3>
+    <p>Pega la URL de una fuente compatible con Hydra (archivo .json alojado en GitHub, Gist o servidor web público).</p>
+    <form id="sourceForm" class="form" onsubmit="handleSourceSubmit(event)">
+      <div class="field full"><label>URL de la Fuente (JSON)</label><input name="url" required placeholder="https://raw.githubusercontent.com/.../sources.json"></div>
+      <div class="field full"><label>Nombre o Etiqueta</label><input name="label" placeholder="Ej: Comunidad Repacks"></div>
+      <div class="field full" style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button type="button" class="btn" onclick="closeSourceModal()">Cancelar</button>
+        <button type="submit" class="btn primary">Agregar y Sincronizar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: RESOLVE PACKAGES FOR A GAME -->
+<div class="dialog-backdrop" id="resolveModal">
+  <div class="dialog">
+    <h3 id="resolveTitle">Paquetes Disponibles en Fuentes</h3>
+    <p id="resolveDesc">Buscando paquetes compatibles en las fuentes indexadas...</p>
+    <div id="resolveOptionsList"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn" onclick="closeResolveModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: IMPORT HYDRA SOURCE (FILE, JSON OR URL) -->
+<div class="dialog-backdrop" id="importModal">
+  <div class="dialog" style="max-width:680px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">📥 Importar Fuente JSON (como Hydra)</h3>
+      <button type="button" class="btn" style="padding:4px 8px" onclick="closeImportModal()">✕</button>
+    </div>
+    <p style="margin:0 0 16px;color:var(--muted);font-size:12px">
+      Importa un archivo <code>.json</code> compatible con Hydra Launcher o pega su contenido. El servidor indexará automáticamente todos los paquetes y enlaces de descarga.
+    </p>
+
+    <!-- Source Type Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:10px">
+      <button type="button" class="btn primary" id="importTabFileBtn" onclick="switchImportTab('file')">📁 Subir Archivo .json</button>
+      <button type="button" class="btn" id="importTabTextBtn" onclick="switchImportTab('text')">📋 Pegar JSON</button>
+      <button type="button" class="btn" id="importTabUrlBtn" onclick="switchImportTab('url')">🌐 URL de Fuente</button>
+    </div>
+
+    <!-- Mode 1: File Upload -->
+    <div id="importPanelFile">
+      <div id="dropZone" style="border:2px dashed rgba(101,240,178,.35);border-radius:12px;padding:34px 20px;text-align:center;background:rgba(101,240,178,.03);cursor:pointer;transition:border-color .2s" onclick="document.getElementById('filePicker').click()">
+        <div style="font-size:36px;margin-bottom:8px">📄</div>
+        <strong style="color:var(--green);font-size:14px">Arrastra aquí tu archivo .json de Hydra</strong>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:12px">o haz clic para examinar tus carpetas</p>
+        <input type="file" id="filePicker" accept=".json,application/json" style="display:none" onchange="handleFileSelected(event)">
+      </div>
+      <div id="fileSelectedInfo" style="display:none;margin-top:12px;padding:11px 14px;border:1px solid rgba(101,240,178,.25);border-radius:10px;background:rgba(101,240,178,.05);font-size:12px"></div>
+    </div>
+
+    <!-- Mode 2: Paste JSON -->
+    <div id="importPanelText" style="display:none">
+      <div class="field full">
+        <label>Contenido JSON de Hydra</label>
+        <textarea id="importJsonTextarea" class="raw-editor" style="min-height:220px;resize:vertical" placeholder='{"name": "Fuente Comunitaria", "downloads": [{"title": "Nombre del Juego", "uris": ["magnet:..."]}]}'></textarea>
+      </div>
+    </div>
+
+    <!-- Mode 3: URL -->
+    <div id="importPanelUrl" style="display:none">
+      <div class="field full">
+        <label>URL de la Fuente (JSON público de GitHub, Gist o servidor web)</label>
+        <input id="importUrlInput" placeholder="https://raw.githubusercontent.com/.../source.json">
+      </div>
+    </div>
+
+    <!-- Common Options -->
+    <div style="margin-top:16px;display:grid;gap:12px">
+      <div class="field full">
+        <label>Nombre o Etiqueta de la Fuente (Opcional, se auto-detecta del JSON)</label>
+        <input id="importLabelInput" placeholder="Ej: FitGirl Repacks, Dodi, Comunidad...">
+      </div>
+
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px;color:#c7f9e5;background:rgba(101,240,178,.06);padding:10px 12px;border:1px solid rgba(101,240,178,.2);border-radius:10px">
+        <input type="checkbox" id="autoAddToCatalogCheck" checked style="width:auto;margin:0">
+        <span><b>Agregar automáticamente estos juegos al Catálogo Digital</b> (para que aparezcan de inmediato en el cliente)</span>
+      </label>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
+      <button type="button" class="btn" onclick="closeImportModal()">Cancelar</button>
+      <button type="button" class="btn primary" id="btnDoImport" onclick="executeImportSource()">Importar Fuente</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script>
+  let catalogData = [];
+  let sourcesData = [];
+  let cacheMeta = {};
+  let currentEditingAppId = null;
+
+  const API_BASE = '/admin-console/digital';
+
+  function toast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    t.style.borderColor = isError ? 'rgba(255,125,125,.4)' : 'rgba(101,240,178,.4)';
+    t.style.color = isError ? 'var(--red)' : '#cffff0';
+    setTimeout(() => { t.style.display = 'none'; }, 4000);
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Navigation tab switching
+  document.querySelectorAll('#nav button[data-tab]').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#nav button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      const tabEl = document.getElementById('tab-' + btn.dataset.tab);
+      if (tabEl) tabEl.classList.add('active');
+      if (btn.dataset.tab === 'editor') loadRawJson();
+    };
+  });
+
+  async function loadData() {
+    try {
+      const [rCat, rSrc] = await Promise.all([
+        fetch(API_BASE + '/catalog'),
+        fetch(API_BASE + '/sources')
+      ]);
+      if (rCat.ok) catalogData = await rCat.json();
+      if (rSrc.ok) {
+        const s = await rSrc.json();
+        sourcesData = s.sources || [];
+        cacheMeta = s;
+      }
+      updateStats();
+      renderCatalogTable();
+      renderSourcesTable();
+    } catch (e) {
+      toast('Error conectando con la API: ' + e.message, true);
+    }
+  }
+
+  function updateStats() {
+    document.getElementById('statGames').textContent = catalogData.length;
+    document.getElementById('nCatalog').textContent = catalogData.length;
+    document.getElementById('statSources').textContent = sourcesData.length;
+    document.getElementById('nSources').textContent = sourcesData.length;
+    document.getElementById('statItems').textContent = cacheMeta.cached_items || 0;
+    document.getElementById('statSync').textContent = cacheMeta.last_sync ? new Date(cacheMeta.last_sync).toLocaleTimeString() : 'Al día';
+  }
+
+  function renderCatalogTable() {
+    const q = (document.getElementById('catalogSearch')?.value || '').toLowerCase();
+    const rows = catalogData.filter(g => 
+      (g.name || '').toLowerCase().includes(q) || String(g.id || '').includes(q)
+    );
+
+    const container = document.getElementById('catalogTable');
+    if (!rows.length) {
+      container.innerHTML = '<div style="padding:28px;text-align:center;color:var(--muted)">No se encontraron juegos en el catálogo.</div>';
+      return;
+    }
+
+    container.innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>Juego</th>
+          <th>AppID</th>
+          <th>Fuente de Descarga</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(g => {
+          const src = g.downloadSource ? g.downloadSource.trim() : '';
+          const isAuto = !src || src.toLowerCase() === 'auto';
+          const banner = `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/header.jpg`;
+          return `<tr>
+            <td>
+              <div class="game-cell">
+                <img class="game-banner" src="${banner}" onerror="this.style.display='none'">
+                <div>
+                  <strong>${esc(g.name)}</strong>
+                  <div class="muted mono">AppID: ${g.id}</div>
+                </div>
+              </div>
+            </td>
+            <td class="mono">${g.id}</td>
+            <td>
+              <span class="status ${isAuto ? 'auto' : 'custom'}">
+                ${isAuto ? 'Auto (Fuentes Hydra)' : 'Específica'}
+              </span>
+              ${!isAuto ? `<div class="muted mono" style="font-size:10px;margin-top:3px;max-width:240px;overflow:hidden;text-overflow:ellipsis" title="${esc(src)}">${esc(src)}</div>` : ''}
+            </td>
+            <td>
+              <button class="btn" style="padding:5px 9px" onclick="resolveGameOptions('${esc(g.name)}', ${g.id})">🔍 Buscar Opciones</button>
+              <button class="btn" style="padding:5px 9px" onclick="openGameModal(${g.id})">Editar</button>
+              <button class="btn danger" style="padding:5px 9px" onclick="deleteGame(${g.id})">Eliminar</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  function renderSourcesTable() {
+    const container = document.getElementById('sourcesTable');
+    if (!sourcesData.length) {
+      container.innerHTML = '<div style="padding:28px;text-align:center;color:var(--muted)">No hay fuentes configuradas. Haz clic en "📥 Importar Fuente JSON (Hydra)" para cargar una.</div>';
+      return;
+    }
+
+    container.innerHTML = `<table>
+      <thead>
+        <tr>
+          <th>Etiqueta / Servidor</th>
+          <th>Tipo</th>
+          <th>Ubicación / Archivo</th>
+          <th>Paquetes</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sourcesData.map((s, idx) => {
+          const isFile = (s.type === 'hydra_source' || !s.url.startsWith('http'));
+          const typeLabel = isFile ? '<span class="status custom">Archivo Hydra</span>' : '<span class="status auto">Remoto (URL)</span>';
+          const itemsStr = s.items_count ? `<strong>${s.items_count}</strong>` : '—';
+          return `<tr>
+          <td><strong>${esc(s.label || 'Servidor ' + (idx + 1))}</strong></td>
+          <td>${typeLabel}</td>
+          <td><span class="mono muted" style="word-break:break-all">${esc(s.url)}</span></td>
+          <td>${itemsStr}</td>
+          <td><span class="status ${s.enabled !== false ? 'auto' : 'disabled'}">${s.enabled !== false ? 'Activo' : 'Inactivo'}</span></td>
+          <td>
+            <button class="btn" style="padding:5px 9px" onclick="toggleSource('${esc(s.url)}')">${s.enabled !== false ? 'Desactivar' : 'Activar'}</button>
+            <button class="btn danger" style="padding:5px 9px" onclick="deleteSource('${esc(s.url)}')">Eliminar</button>
+          </td>
+        </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  // GAME MODAL
+  function openGameModal(appId = null) {
+    currentEditingAppId = appId;
+    const form = document.getElementById('gameForm');
+    form.reset();
+    if (appId) {
+      document.getElementById('gameModalTitle').textContent = 'Editar Juego';
+      const game = catalogData.find(g => g.id === appId);
+      if (game) {
+        form.name.value = game.name || '';
+        form.id.value = game.id || '';
+        form.id.readOnly = true;
+        form.downloadSource.value = game.downloadSource || '';
+        form.installProcess.value = game.installProcess || '';
+        form.playProcess.value = game.playProcess || '';
+        form.uninstallProcess.value = game.uninstallProcess || '';
+      }
+    } else {
+      document.getElementById('gameModalTitle').textContent = 'Agregar Juego al Catálogo';
+      form.id.readOnly = false;
+    }
+    document.getElementById('gameModal').style.display = 'grid';
+  }
+
+  function closeGameModal() {
+    document.getElementById('gameModal').style.display = 'none';
+  }
+
+  async function handleGameSubmit(e) {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const payload = {
+      name: f.get('name'),
+      id: Number(f.get('id')),
+      downloadSource: f.get('downloadSource') || '',
+      installProcess: f.get('installProcess') || '',
+      playProcess: f.get('playProcess') || '',
+      uninstallProcess: f.get('uninstallProcess') || ''
+    };
+
+    try {
+      const res = await fetch(API_BASE + '/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Error al guardar');
+      toast('Juego guardado correctamente');
+      closeGameModal();
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteGame(appId) {
+    if (!confirm('¿Eliminar este juego del catálogo digital?')) return;
+    try {
+      const res = await fetch(API_BASE + '/catalog/' + appId, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Error al eliminar');
+      toast('Juego eliminado');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // SOURCE MODAL
+  function openSourceModal() {
+    document.getElementById('sourceForm').reset();
+    document.getElementById('sourceModal').style.display = 'grid';
+  }
+  function closeSourceModal() {
+    document.getElementById('sourceModal').style.display = 'none';
+  }
+
+  // IMPORT MODAL (HYDRA SOURCE / FILE / TEXT / URL)
+  let selectedImportFileContent = null;
+  let currentImportTab = 'file';
+
+  function switchImportTab(tab) {
+    currentImportTab = tab;
+    document.getElementById('importPanelFile').style.display = tab === 'file' ? 'block' : 'none';
+    document.getElementById('importPanelText').style.display = tab === 'text' ? 'block' : 'none';
+    document.getElementById('importPanelUrl').style.display = tab === 'url' ? 'block' : 'none';
+
+    document.getElementById('importTabFileBtn').classList.toggle('primary', tab === 'file');
+    document.getElementById('importTabTextBtn').classList.toggle('primary', tab === 'text');
+    document.getElementById('importTabUrlBtn').classList.toggle('primary', tab === 'url');
+  }
+
+  function openImportModal(origin = 'sources') {
+    document.getElementById('importModal').style.display = 'grid';
+    switchImportTab('file');
+  }
+
+  function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+    selectedImportFileContent = null;
+    document.getElementById('fileSelectedInfo').style.display = 'none';
+    const picker = document.getElementById('filePicker');
+    if (picker) picker.value = '';
+    const txt = document.getElementById('importJsonTextarea');
+    if (txt) txt.value = '';
+    const urlIn = document.getElementById('importUrlInput');
+    if (urlIn) urlIn.value = '';
+    const labelIn = document.getElementById('importLabelInput');
+    if (labelIn) labelIn.value = '';
+  }
+
+  async function handleFileSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      selectedImportFileContent = text;
+      const parsed = JSON.parse(text);
+      const count = Array.isArray(parsed.downloads) ? parsed.downloads.length : (Array.isArray(parsed.items) ? parsed.items.length : (Array.isArray(parsed) ? parsed.length : '?'));
+      const infoEl = document.getElementById('fileSelectedInfo');
+      infoEl.style.display = 'block';
+      infoEl.innerHTML = `<span style="color:var(--green)">✓ Archivo cargado:</span> <strong>${esc(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB) · <span class="muted">${count} elementos detectados</span>`;
+      if (parsed.name && !document.getElementById('importLabelInput').value) {
+        document.getElementById('importLabelInput').value = parsed.name;
+      }
+    } catch (err) {
+      toast('El archivo no es un JSON válido: ' + err.message, true);
+    }
+  }
+
+  async function executeImportSource() {
+    const btn = document.getElementById('btnDoImport');
+    const label = document.getElementById('importLabelInput').value.trim();
+    const autoAdd = document.getElementById('autoAddToCatalogCheck').checked;
+
+    btn.disabled = true;
+    btn.textContent = 'Importando...';
+
+    try {
+      let payload = { label, auto_add_to_catalog: autoAdd };
+
+      if (currentImportTab === 'file') {
+        if (!selectedImportFileContent) {
+          throw new Error('Por favor selecciona o arrastra un archivo .json de Hydra primero.');
+        }
+        payload.raw_json = selectedImportFileContent;
+      } else if (currentImportTab === 'text') {
+        const text = document.getElementById('importJsonTextarea').value.trim();
+        if (!text) {
+          throw new Error('Por favor pega el contenido JSON en el área de texto.');
+        }
+        payload.raw_json = text;
+      } else if (currentImportTab === 'url') {
+        const url = document.getElementById('importUrlInput').value.trim();
+        if (!url) throw new Error('Por favor ingresa la URL de la fuente.');
+        const res = await fetch(API_BASE + '/sources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, label, enabled: true })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al agregar la fuente');
+        toast('Fuente URL agregada. Sincronizando paquetes...');
+        closeImportModal();
+        await syncSourcesNow();
+        if (autoAdd) await populateCatalogFromSources();
+        return;
+      }
+
+      const response = await fetch(API_BASE + '/sources/import-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || 'Error al importar la fuente');
+
+      toast(result.message || 'Fuente importada con éxito');
+      closeImportModal();
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Importar Fuente';
+    }
+  }
+
+  async function populateCatalogFromSources() {
+    try {
+      toast('Actualizando catálogo con descargas de las fuentes...');
+      const res = await fetch(API_BASE + '/catalog/populate-from-sources', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Error al poblar catálogo');
+      toast(data.message || 'Catálogo actualizado');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function handleSourceSubmit(e) {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const payload = {
+      url: f.get('url'),
+      label: f.get('label') || 'Servidor'
+    };
+
+    try {
+      const res = await fetch(API_BASE + '/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Error al agregar fuente');
+      toast('Fuente agregada. Sincronizando paquetes...');
+      closeSourceModal();
+      await syncSourcesNow();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function deleteSource(url) {
+    if (!confirm('¿Eliminar esta fuente de descarga?')) return;
+    try {
+      const res = await fetch(API_BASE + '/sources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (!res.ok) throw new Error('Error al eliminar fuente');
+      toast('Fuente eliminada');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function toggleSource(url) {
+    const s = sourcesData.find(x => x.url === url);
+    if (!s) return;
+    try {
+      await fetch(API_BASE + '/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled === false })
+      });
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function syncSourcesNow() {
+    toast('Sincronizando fuentes con servidores...');
+    try {
+      const res = await fetch(API_BASE + '/sources/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        toast(`Sincronización completa: ${data.total_items} paquetes indexados.`);
+      } else {
+        toast('Advertencia: ' + (data.errors || []).join(', '), true);
+      }
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function syncSteamStore() {
+    toast('Sincronizando catálogo con Steam Store...');
+    try {
+      const res = await fetch(API_BASE + '/sync-steam', { method: 'POST' });
+      const data = await res.json();
+      toast('Sincronización con Steam Store completada.');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // RESOLVE OPTIONS MODAL
+  async function resolveGameOptions(gameName, appId) {
+    document.getElementById('resolveTitle').textContent = 'Opciones para: ' + gameName;
+    document.getElementById('resolveDesc').textContent = 'Consultando fuentes de Hydra...';
+    document.getElementById('resolveOptionsList').innerHTML = '<div style="padding:14px;color:var(--muted)">Buscando...</div>';
+    document.getElementById('resolveModal').style.display = 'grid';
+
+    try {
+      const res = await fetch(API_BASE + '/resolve-options?name=' + encodeURIComponent(gameName));
+      const data = await res.json();
+      const list = data.options || [];
+
+      if (!list.length) {
+        document.getElementById('resolveDesc').textContent = 'No se encontraron paquetes coincidentes en las fuentes.';
+        document.getElementById('resolveOptionsList').innerHTML = '<div style="padding:14px;color:var(--amber)">Asegúrate de tener fuentes activas sincronizadas con este título.</div>';
+        return;
+      }
+
+      document.getElementById('resolveDesc').textContent = `Se encontraron ${list.length} opciones disponibles:`;
+      document.getElementById('resolveOptionsList').innerHTML = list.map(opt => `
+        <div class="opt-card">
+          <div>
+            <div class="opt-title">${esc(opt.title)}</div>
+            <div class="opt-sub">Tamaño: <strong>${esc(opt.size)}</strong> · Etiqueta: <span class="status auto">${esc(opt.badge)}</span></div>
+          </div>
+          <button class="btn primary" onclick="assignSourceToGame(${appId}, '${esc(opt.uri)}')">Asignar a este juego</button>
+        </div>
+      `).join('');
+    } catch (err) {
+      document.getElementById('resolveOptionsList').innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
+    }
+  }
+
+  async function assignSourceToGame(appId, uri) {
+    const game = catalogData.find(g => g.id === appId);
+    if (!game) return;
+    game.downloadSource = uri;
+    try {
+      const res = await fetch(API_BASE + '/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(game)
+      });
+      if (!res.ok) throw new Error('Error al asignar');
+      toast('Fuente asignada al juego.');
+      closeResolveModal();
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  function closeResolveModal() {
+    document.getElementById('resolveModal').style.display = 'none';
+  }
+
+  // RAW EDITOR
+  async function loadRawJson() {
+    const target = document.getElementById('rawTarget').value;
+    const url = target === 'catalog' ? (API_BASE + '/catalog') : (API_BASE + '/sources');
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      document.getElementById('rawEditor').value = JSON.stringify(data.sources || data, null, 2);
+    } catch (err) {
+      toast('Error al cargar JSON: ' + err.message, true);
+    }
+  }
+
+  function formatRawJson() {
+    const area = document.getElementById('rawEditor');
+    try {
+      const parsed = JSON.parse(area.value);
+      area.value = JSON.stringify(parsed, null, 2);
+      toast('JSON formateado correctamente.');
+    } catch (err) {
+      toast('JSON inválido: ' + err.message, true);
+    }
+  }
+
+  async function saveRawJson() {
+    const target = document.getElementById('rawTarget').value;
+    const text = document.getElementById('rawEditor').value;
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      toast('Error de sintaxis JSON: ' + err.message, true);
+      return;
+    }
+
+    try {
+      const res = await fetch(API_BASE + '/raw-json?target=' + target, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed)
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Error al guardar');
+      toast('JSON guardado y aplicado correctamente.');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  // Initialize drag & drop on dropZone
+  const dropZone = document.getElementById('dropZone');
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--green)';
+        dropZone.style.background = 'rgba(101,240,178,.08)';
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'rgba(101,240,178,.35)';
+        dropZone.style.background = 'rgba(101,240,178,.03)';
+      }, false);
+    });
+    dropZone.addEventListener('drop', async e => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files && files.length) {
+        const picker = document.getElementById('filePicker');
+        if (picker) picker.files = files;
+        await handleFileSelected({ target: { files } });
+      }
+    });
+  }
+
+  // Check URL params for direct actions
+  if (window.location.search.includes('action=import') || window.location.hash === '#import') {
+    openImportModal();
+  }
+
+  loadData();
+</script>
+</body>
+</html>

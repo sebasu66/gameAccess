@@ -15,6 +15,9 @@ import argparse
 import json
 import os
 import re
+import shutil
+import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,13 +26,16 @@ from typing import Any
 from provider_download_probe import (
     provider_candidates,
     run_probe,
+    set_remote_download_grant,
     verified_provider_ids_for_app,
 )
+from download_log import append_download_log
 from provider_inventory import build_provider_catalog
 from provider_license_scan import persist_scan_result, scan_provider_licenses
+from provider_roster import set_ephemeral_provider_credential
 from steam_prepare_import import inspect, prepare
 
-RUNTIME_ROOT = Path(__file__).resolve().parent / ".gameaccess"
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 STATUS_ROOT = RUNTIME_ROOT / "downloads" / "status"
 LOG_ROOT = RUNTIME_ROOT / "downloads" / "logs"
 ACTIVE_STATES = {"requested", "preparing", "downloading", "paused", "cancelling"}
@@ -39,15 +45,9 @@ def status_path(app_id: int) -> Path:
     return STATUS_ROOT / f"app-{app_id}.json"
 
 
-def log_path(app_id: int) -> Path:
-    return LOG_ROOT / f"app-{app_id}.jsonl"
-
-
 def _append_status_log(body: dict[str, Any]) -> None:
-    LOG_ROOT.mkdir(parents=True, exist_ok=True)
     entry = {"at": datetime.now(timezone.utc).isoformat(), **body}
-    with log_path(int(body["app_id"])).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
+    append_download_log(LOG_ROOT, int(body["app_id"]), entry)
 
 
 def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -77,9 +77,38 @@ def write_status(app_id: int, payload: dict[str, Any]) -> dict[str, Any]:
                 previous = value
         except (OSError, json.JSONDecodeError):
             pass
-    temp = target.with_suffix(".tmp")
-    temp.write_text(json.dumps(body, ensure_ascii=True), encoding="utf-8")
-    temp.replace(target)
+    serialized = json.dumps(body, ensure_ascii=True)
+    temp: Path | None = None
+    try:
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f"{target.stem}.",
+            suffix=".tmp",
+            dir=str(STATUS_ROOT),
+        )
+        temp = Path(temp_name)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        last_error: OSError | None = None
+        for attempt in range(12):
+            try:
+                temp.replace(target)
+                temp = None
+                last_error = None
+                break
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.025 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
+    finally:
+        if temp is not None:
+            try:
+                temp.unlink()
+            except FileNotFoundError:
+                pass
     transition_keys = (
         "state",
         "error",
@@ -280,26 +309,35 @@ def _prepared_library(
 
 
 def estimate_download(app_id: int, provider_id: str) -> dict[str, Any]:
-    result = run_probe(
-        provider_id,
-        app_id,
-        manifest_only=True,
-        download=False,
-        timeout_seconds=10 * 60,
-    )
-    if not result.get("ok"):
-        detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
-            -1000:
-        ]
-        raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
-    total = int(result.get("total_bytes") or 0)
-    return {
-        "ok": True,
-        "app_id": app_id,
-        "provider_id": provider_id,
-        "bytes_total": total or None,
-        "depot_totals": result.get("depot_totals") or {},
-    }
+    probe_root = RUNTIME_ROOT / "downloads" / provider_id / f"{app_id}-manifest-only"
+    try:
+        result = run_probe(
+            provider_id,
+            app_id,
+            manifest_only=True,
+            download=False,
+            timeout_seconds=10 * 60,
+        )
+        if not result.get("ok"):
+            detail = str(result.get("stderr_tail") or result.get("stdout_tail") or "")[
+                -1000:
+            ]
+            raise RuntimeError(detail or "No se pudo calcular el tamaño de descarga")
+        total = int(result.get("total_bytes") or 0)
+        return {
+            "ok": True,
+            "app_id": app_id,
+            "provider_id": provider_id,
+            "bytes_total": total or None,
+            "depot_totals": result.get("depot_totals") or {},
+        }
+    finally:
+        if probe_root.is_dir() and not probe_root.is_symlink():
+            try:
+                probe_root.resolve().relative_to((RUNTIME_ROOT / "downloads").resolve())
+                shutil.rmtree(probe_root)
+            except (OSError, ValueError):
+                pass
 
 
 class SteamDownloadManager:
@@ -721,7 +759,22 @@ def main() -> int:
     parser.add_argument("--provider-id")
     parser.add_argument("--job-id")
     parser.add_argument("--library-index", type=int)
+    parser.add_argument("--credential-stdin", action="store_true")
     args = parser.parse_args()
+
+    if args.credential_stdin:
+        try:
+            payload = json.loads(sys.stdin.readline())
+            provider_id = str(payload.get("provider_id") or "").strip()
+            login = str(payload.get("account_name") or "").strip()
+            secret = str(payload.get("secret") or "")
+            if not provider_id or int(payload.get("app_id") or 0) != args.app_id:
+                raise ValueError("Remote download grant does not match this AppID")
+            set_ephemeral_provider_credential(provider_id, login, secret)
+            set_remote_download_grant(provider_id, args.app_id)
+        except Exception as exc:
+            _print({"ok": False, "app_id": args.app_id, "error": f"Invalid remote download credential grant: {exc}"})
+            return 2
 
     if args.validate:
         try:

@@ -12,6 +12,15 @@ class SteamCatalogError(RuntimeError):
     pass
 
 
+class SteamReviewRateLimited(SteamCatalogError):
+    def __init__(self, retry_after: str | None = None) -> None:
+        super().__init__("Steam review endpoint returned HTTP 429")
+        try:
+            self.retry_after = max(0, int(retry_after or 0))
+        except ValueError:
+            self.retry_after = 0
+
+
 def steam_assets(app_id: int | None) -> dict[str, str | None]:
     if not app_id:
         return {
@@ -55,6 +64,8 @@ class SteamCatalogAdapter:
             payload = json.loads(path.read_text(encoding="utf-8"))
             if not allow_stale and time.time() - float(payload.get("cached_at", 0)) > self.ttl_seconds:
                 return None
+            if not allow_stale and payload.get("schema_version") != 2:
+                return None
             data = payload.get("data")
             return data if isinstance(data, dict) else None
         except Exception:
@@ -62,7 +73,7 @@ class SteamCatalogAdapter:
 
     def _write_cache(self, app_id: int, language: str, country: str, data: dict[str, Any]) -> None:
         path = self._cache_path(app_id, language, country)
-        payload = {"cached_at": time.time(), "data": data}
+        payload = {"schema_version": 2, "cached_at": time.time(), "data": data}
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         tmp.replace(path)
@@ -96,6 +107,45 @@ class SteamCatalogAdapter:
         self._write_cache(app_id, language, country, normalized)
         return normalized
 
+
+    def fetch_review_summary(self, app_id: int) -> dict[str, int | float | None]:
+        """Fetch Steam's public review totals without downloading review bodies."""
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                response = client.get(
+                    f"https://store.steampowered.com/appreviews/{app_id}",
+                    params={
+                        "json": 1,
+                        "filter": "all",
+                        "language": "all",
+                        "purchase_type": "all",
+                        "num_per_page": 1,
+                    },
+                    headers={"User-Agent": "gameAccess/0.1 catalog prototype"},
+                )
+                if response.status_code == 429:
+                    raise SteamReviewRateLimited(response.headers.get("Retry-After"))
+                response.raise_for_status()
+                payload = response.json()
+        except SteamReviewRateLimited:
+            raise
+        except Exception as exc:
+            raise SteamCatalogError(f"Steam review request failed for AppID {app_id}: {exc}") from exc
+
+        summary = payload.get("query_summary") if isinstance(payload, dict) else None
+        if payload.get("success") != 1 or not isinstance(summary, dict):
+            raise SteamCatalogError(f"Steam returned no review summary for AppID {app_id}")
+        positive = max(0, int(summary.get("total_positive") or 0))
+        negative = max(0, int(summary.get("total_negative") or 0))
+        total = max(0, int(summary.get("total_reviews") or positive + negative))
+        score = round(positive * 100.0 / total, 2) if total else None
+        return {
+            "steam_review_score": score,
+            "steam_review_count": total,
+            "steam_positive_count": positive,
+            "steam_negative_count": negative,
+        }
+
     def _normalize(self, app_id: int, raw: dict[str, Any]) -> dict[str, Any]:
         assets = steam_assets(app_id)
         screenshots = [
@@ -121,6 +171,7 @@ class SteamCatalogAdapter:
                     "thumbnail": item.get("thumbnail"),
                     "mp4": mp4.get("max") or mp4.get("480"),
                     "webm": webm.get("max") or webm.get("480"),
+                    "hls_h264": item.get("hls_h264"),
                     "highlight": bool(item.get("highlight")),
                 }
             )
@@ -135,6 +186,7 @@ class SteamCatalogAdapter:
             "app_id": app_id,
             "name": raw.get("name"),
             "type": raw.get("type"),
+            "controller_support": raw.get("controller_support"),
             "short_description": raw.get("short_description"),
             "about_the_game": raw.get("about_the_game"),
             "detailed_description": raw.get("detailed_description"),
@@ -146,6 +198,8 @@ class SteamCatalogAdapter:
             "release_date": release.get("date"),
             "coming_soon": bool(release.get("coming_soon")),
             "required_age": raw.get("required_age"),
+            "content_descriptors": raw.get("content_descriptors") if isinstance(raw.get("content_descriptors"), dict) else {},
+            "ratings": raw.get("ratings") if isinstance(raw.get("ratings"), dict) else {},
             "metacritic": raw.get("metacritic"),
             "recommendation_count": recommendations.get("total"),
             "achievement_count": achievements.get("total"),
@@ -162,6 +216,8 @@ class SteamCatalogAdapter:
             "capsule_image": raw.get("capsule_imagev5") or assets["capsule_image"],
             "hero_image": assets["hero_image"],
             "background": raw.get("background_raw") or raw.get("background") or assets["hero_image"],
+            "website": raw.get("website"),
+            "support_info": raw.get("support_info") if isinstance(raw.get("support_info"), dict) else {},
             "steam_url": assets["steam_url"],
             "source": "steam-store",
         }

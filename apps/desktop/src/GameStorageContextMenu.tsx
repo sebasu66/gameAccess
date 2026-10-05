@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CSSProperties } from "react";
-import { Archive, FolderOpen, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
 
+import AppDialog from "./AppDialog";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { gameStateManager } from "./GameStateManager";
-import { freezeGame, thawGame, uninstallGame } from "./gameStorage";
+import { uninstallGame } from "./gameStorage";
 import type { CatalogGame } from "./types";
 
 export interface GameStorageContextMenuRequest {
@@ -44,72 +46,85 @@ const contextItemStyle: CSSProperties = {
 interface Props {
   request: GameStorageContextMenuRequest;
   onClose: () => void;
+  onInstall?: (game: CatalogGame) => void | Promise<void>;
+  onPlay?: (game: CatalogGame) => void | Promise<void>;
 }
 
-export default function GameStorageContextMenu({ request, onClose }: Props) {
+export default function GameStorageContextMenu({ request, onClose, onInstall, onPlay }: Props) {
+  const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
+  const [uninstalling, setUninstalling] = useState(false);
   const appId = request.game.app_id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
-  const canFreezeAction = Boolean(appId) && (state.canFreeze || state.canThaw);
+  const canPlay = Boolean(appId) && state.playButtonReady;
+  const canInstall = Boolean(appId) && !state.playButtonReady;
+
+  const install = () => {
+    onClose();
+    if (canInstall) void onInstall?.(request.game);
+  };
+
+  const play = () => {
+    onClose();
+    if (canPlay) void onPlay?.(request.game);
+  };
 
   const openInstallFolder = async () => {
-    onClose();
     if (!canInstalledAction || !appId) return;
     try {
       await invoke<string>("open_game_install_folder", { appId });
+      onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      window.alert(`No pudimos abrir la carpeta de instalación.
-
-${message}`);
+      setDialog({ title: "No se pudo abrir la carpeta", message, tone: "error" });
     }
   };
 
-  const uninstallSelected = async () => {
-    onClose();
+  const uninstallSelected = () => {
     if (!state.canUninstall || !appId) return;
-    if (!window.confirm(`¿Desinstalar ${request.game.name}? Steam administrará la eliminación de sus archivos.`)) return;
+    setDialog({
+      title: `¿Desinstalar ${request.game.name}?`,
+      message: "Steam administrará la eliminación de los archivos del juego.",
+      tone: "warning",
+    });
+  };
+
+  const confirmUninstall = async () => {
+    if (!appId) return;
+    setUninstalling(true);
     try {
       await uninstallGame(appId);
+      onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      window.alert(`No pudimos iniciar la desinstalación.
-
-${message}`);
-    }
-  };
-
-  const toggleFreezeSelected = async () => {
-    onClose();
-    if (!canFreezeAction || !appId) return;
-    if (state.canFreeze && !window.confirm(`¿Congelar ${request.game.name}? GameAccess lo sacará de Steam y lo comprimirá para ahorrar espacio.`)) return;
-    try {
-      if (state.canThaw) await thawGame(appId);
-      else await freezeGame(appId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      window.alert(`No pudimos ${state.canThaw ? "restaurar" : "congelar"} el juego.
-
-${message}`);
+      setDialog({ title: "No se pudo iniciar la desinstalación", message, tone: "error" });
+    } finally {
+      setUninstalling(false);
     }
   };
 
   return (
-    <div
+    <>
+    {!dialog ? <div
       role="menu"
       aria-label={`Opciones de ${request.game.name}`}
       style={contextMenuStyle(request.x, request.y)}
       onPointerDown={(event) => event.stopPropagation()}
     >
+      <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: canInstall ? 1 : 0.5 }} disabled={!canInstall} onClick={install}>
+        <Download size={16} /> Instalar
+      </button>
+      <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: canPlay ? 1 : 0.5 }} disabled={!canPlay} onClick={play}>
+        <Play size={16} /> Jugar
+      </button>
       <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: canInstalledAction ? 1 : 0.5 }} disabled={!canInstalledAction} onClick={() => void openInstallFolder()}>
         <FolderOpen size={16} /> Abrir carpeta de instalación
       </button>
-      <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: state.canUninstall ? 1 : 0.5 }} disabled={!state.canUninstall} onClick={() => void uninstallSelected()}>
+      <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: state.canUninstall ? 1 : 0.5 }} disabled={!state.canUninstall} onClick={uninstallSelected}>
         <Trash2 size={16} /> Desinstalar
       </button>
-      <button type="button" role="menuitem" style={{ ...contextItemStyle, opacity: canFreezeAction ? 1 : 0.5 }} disabled={!canFreezeAction} onClick={() => void toggleFreezeSelected()}>
-        <Archive size={16} /> {state.canThaw ? "Descongelar" : "Comprimir / congelar"}
-      </button>
-    </div>
+    </div> : null}
+    {dialog ? <AppDialog title={dialog.title} message={dialog.message} tone={dialog.tone} onClose={onClose} onConfirm={dialog.title.startsWith("¿Desinstalar") ? () => void confirmUninstall() : undefined} confirmDisabled={uninstalling} confirmLabel="Desinstalar" cancelLabel="No, volver" /> : null}
+    </>
   );
 }

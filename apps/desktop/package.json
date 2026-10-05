@@ -9,14 +9,16 @@
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 38148",
     "prepare-icons": "node scripts/prepare-icons.mjs",
-    "pretauri": "npm run prepare-icons",
-    "tauri": "tauri"
+    "pretauri": "npm run prepare-icons && npm run prepare-python-runtime",
+    "tauri": "tauri",
+    "prepare-python-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-python-runtime.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "hls.js": "1.7.2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.4",

@@ -1,197 +1,136 @@
-# gameAccess — Central TODO
+# Game Access — TODO central
 
-> **Authoritative prioritized implementation queue**  
-> Last reviewed: 2026-08-31
+> **Cola autoritativa de trabajo pendiente**
 >
-> Keep this file ordered by priority. When a task is completed, mark it `[x]` and add a short result/commit note where useful. New work should be inserted according to dependency/priority rather than simply appended.
+> Última revisión: **2026-10-01**
+>
+> Este archivo contiene solamente trabajo pendiente que sigue siendo compatible con la arquitectura actual. Las tareas completadas, reemplazadas o descartadas se eliminan de aquí; Git conserva su historial.
+>
+> Las reglas vigentes de acceso, leases, offline play, credenciales y elegibilidad de cuentas están documentadas en `README.md` y `skill.md`. Si una tarea contradice esas reglas, prevalecen esos documentos.
 
+## P0 — Probar la arquitectura actual de acceso y leases
 
-## Current operating model — two parallel fronts
+- [ ] **Generar un instalador nuevo desde `dev`** con los cambios actuales de activación, leases por `installation_id`, presencia Steam server-side, mensajes de expiración y política simplificada de cuentas.
+- [ ] Verificar que el backend de Render esté desplegando el commit actual de `dev` y que la variable `STEAM_WEB_API_KEY` tenga un valor válido. No registrar ni copiar el secreto a Git, logs o cliente.
+- [ ] Hacer una prueba end-to-end con una key suficientemente larga: activar Game Access, pedir un juego, recibir una cuenta, iniciar Steam y lanzar el juego.
+- [ ] Confirmar en logs del backend que la lease queda asociada al `installation_id` correcto y que la presencia Steam detecta actividad online mientras el juego está activo.
+- [ ] Probar liberación por inactividad online: poner Steam en Offline Mode o quitar conectividad de Steam, mantener el juego abierto y confirmar que después de **10 minutos continuos sin evidencia online válida** el backend libera la cuenta con razón `steam_inactive_timeout`.
+- [ ] Confirmar que la liberación server-side **no cierra Steam, no mata el juego, no cambia de cuenta y no interrumpe el juego local/offline**.
+- [ ] Confirmar que el cliente muestra el aviso de lease liberada y explica que se puede seguir jugando con Steam Offline Mode o sin conexión. Si el cliente estaba sin red, mostrarlo cuando vuelva a poder consultar el backend.
+- [ ] Probar reutilización: el mismo `installation_id` pide otro juego accesible por la misma cuenta y reutiliza la lease/cuenta sin nuevo login innecesario.
+- [ ] Probar exclusividad: otro `installation_id` no puede usar esa identidad Steam mientras exista una lease activa; después de liberarse sí puede recibirla.
+- [ ] Probar expiración de acceso: aviso a **T-10 minutos**, expiración efectiva, limpieza de la sesión de Game Access y vuelta al gate de activación sin cerrar el juego/Steam ya abiertos.
+- [ ] Revisar logs de una prueba completa y confirmar que toda denegación/liberación relevante contiene acción, instalación, juego/lease/cuenta cuando corresponda y una razón concreta, sin secretos.
 
-El desarrollo se organizará desde ahora en dos frentes paralelos. El frente Steam es la puerta de entrada del producto y debe alcanzar una interacción confiable antes de agregar demasiadas capas de experiencia. El frente 3D/social debe investigar y validar recursos reutilizables, construir un prototipo independiente y luego integrarlo en Tauri.
+## P0 — Validar la política simplificada de cuentas
 
-### Frente A — Maestría de manejo de Steam
+- [ ] Probar con una cuenta cuyo `ProviderAccount.status` histórico figure `disabled` o `inactive`, pero cuya credencial no esté marcada `invalid_password`; debe seguir siendo candidata si tiene acceso conocido al AppID.
+- [ ] Provocar de forma controlada un **`InvalidPassword` real de Steam** y verificar que esa identidad sale del pool inmediatamente, tanto si ocurre en Play como durante Download/scan.
+- [ ] Volver a cargar el **mismo login Steam** con la contraseña nueva válida y confirmar que se actualiza/reactiva la cuenta original en vez de crear otra.
+- [ ] Verificar en una base que contenga duplicados históricos `login` / `login#2` que el sync consolida mappings, leases y referencias hacia una sola identidad canónica.
+- [ ] Confirmar que errores transitorios —Steam ocupado, Steam Guard, timeout, red, API, scan incompleto— nunca convierten la cuenta en `invalid_password`.
+- [ ] Confirmar que Steam Family permanece solamente como metadata/diagnóstico y no modifica Play, Download ni los contadores operativos de disponibilidad.
 
-**Objetivo:** conocer, probar y encapsular todas las acciones que Game Access necesita realizar alrededor de Steam, tomando como referencia las acciones observadas en Night Light y mejorándolas dentro de flujos autorizados, seguros y mantenibles.
+## P0 — Release e instalación limpia
 
-- [ ] Crear una matriz de capacidades Steam: autenticación, selección de cuenta local, cierre de sesión, cambio de identidad, Steam Guard, biblioteca, licencias, Family Sharing, instalación, pausa/reanudación, actualización, lanzamiento, cierre, detección de proceso, capturas, Steam Cloud y cleanup.
-- [ ] Documentar paso a paso las acciones observadas en Night Light: seleccionar un juego, preparar una cuenta autorizada, iniciar la sesión de Steam, aplicar las restricciones necesarias, entregar la sesión temporal, lanzar el juego, controlar duración, detectar finalización y limpiar/restaurar el estado.
-- [ ] Separar qué parte de cada acción hace Night Light, qué parte hace Steam y qué parte puede hacer Game Access sin romper las reglas de Steam.
-- [ ] Reproducir las acciones primero con cuentas de prueba propias o expresamente autorizadas; no extraer ni reutilizar contraseñas, tokens o sesiones de terceros.
-- [ ] Definir un adaptador de Steam reemplazable, con logs de diagnóstico y estados explícitos: AUTH_REQUIRED, ACCOUNT_SELECTED, LIBRARY_LOADING, GAME_READY, INSTALLING, RUNNING, EXITED, CLEANUP_REQUIRED y ERROR.
-- [ ] Detectar de forma fiable la instalación de Steam, sus bibliotecas y los usuarios locales conocidos mediante estado local no secreto.
-- [ ] Obtener y reconciliar la biblioteca por cuenta, distinguiendo juegos propios, juegos Family Sharing, juegos instalados por otra cuenta y juegos no disponibles para la identidad actual.
-- [ ] Probar los mecanismos permitidos para seleccionar una cuenta local sin exigir reintroducir credenciales cuando Steam ya conserva una sesión válida.
-- [ ] Documentar exactamente cuándo Steam exige interacción visible, Steam Guard, confirmación, cambio de usuario o una ventana propia.
-- [ ] Probar instalación, descarga, pausa, reanudación, actualización, verificación y lanzamiento desde Game Access mediante handoff a Steam.
-- [ ] Crear monitor de procesos para Steam, launchers secundarios y juegos; detectar inicio, cierre normal, crash, timeout y relanzamiento.
-- [ ] Probar cierre/restauración de sesión y limpieza después de una sesión temporal sin borrar datos personales ni dejar una cuenta en estado inesperado.
-- [ ] Investigar el Family Mode observado en Night Light como posible restricción de interfaz, sin asumir que sustituye permisos ni controles de Steam.
-- [ ] Completar la matriz de Family Sharing: juegos elegibles, exclusiones, uso simultáneo, múltiples copias, partidas guardadas, logros y limitaciones actuales.
-- [ ] Probar el flujo con Baldur's Gate 3 y otros juegos representativos solamente después de verificar la elegibilidad real de las cuentas.
-- [ ] Definir qué acciones deben quedarse siempre en Steam y cuáles puede presentar Game Access como UI simplificada.
-- [ ] Implementar un flujo de fallback que abra Steam cuando una acción no sea soportada, cambie entre versiones o requiera una decisión del usuario.
-- [ ] Registrar evidencias de cada prueba: versión de Steam, sistema operativo, cuentas de prueba, juego, pasos, resultado y limitaciones.
-- [ ] Convertir cada caso validado en un perfil de compatibilidad por juego, sin prometer compatibilidad universal.
-- [ ] Priorizar una prueba end-to-end: seleccionar cuenta autorizada -> detectar juego -> instalar si falta -> iniciar -> ejecutar -> detectar cierre -> restaurar Game Access.
-- [ ] Añadir soporte previsto para dos monitores: preferir ejecutar Steam/juego en la segunda pantalla y mantener Game Access activo en la primera.
-- [ ] Probar posiciones de ventana, pantalla completa, launchers secundarios y juegos que ignoran la posición solicitada.
-- [ ] Crear un panel de acompañamiento en la primera pantalla con juego actual, cuenta, estado, amigos, chat, voz, notas y referencias sin inyectarse en el proceso del juego.
+- [ ] **Actualizar la animación del logo/splash** para usar la versión nueva del logo de Game Access. Reemplazar los assets/frames anteriores sin reintroducir logos viejos y verificar la animación real en el build Tauri/instalador.
+- [ ] Construir el instalador exacto desde el commit probado y registrar commit, hash del artefacto y build stamp visible.
+- [ ] Instalar en una máquina/VM Windows limpia y verificar que Game Access no depende de Node, Rust, Python ni archivos del checkout de desarrollo.
+- [ ] Confirmar conexión al backend remoto, activación, catálogo, imágenes, descarga, Play, mensajes de error y actualización de estado después de reiniciar la aplicación.
+- [ ] Verificar detección de **todas** las bibliotecas Steam configuradas en el equipo, no solamente la principal.
+- [ ] Confirmar que la aplicación permanece en modo ventana normal y que no cubre ni reemplaza la barra de tareas.
+- [ ] Revisar todos los textos visibles del flujo principal y eliminar strings técnicos/ingleses accidentales cuando exista un mensaje de usuario en castellano.
 
-### Frente B — Recursos open source para prototipo 3D/social
+## P0 — Catálogo y datos de proveedores
 
-**Objetivo:** investigar, probar y seleccionar recursos reutilizables para construir rápidamente el entorno tridimensional y su primera experiencia social, evitando reinventar networking, voz, sincronización multimedia, edición de escenas y avatares.
+- [ ] Ejecutar un refresh completo del inventario de cuentas proveedoras con el scanner actual y comparar conteos contra el catálogo vigente.
+- [ ] Mantener ownership válido por proveedor aunque otra cuenta falle el scan. Un fallo parcial debe conservar la última evidencia buena de las demás cuentas y registrar diagnóstico/retry.
+- [ ] Mantener fuera del catálogo final DLC, tools, software, soundtracks y otros tipos no-juego; AppIDs todavía sin clasificar quedan pendientes de metadata y no deben destruir ownership conocido.
+- [ ] Completar metadata pendiente del catálogo sin bloquear la navegación ni convertir fallos/rate limits de Steam en pérdida de licencias.
+- [ ] Revalidar el caché local del catálogo en Tauri: primer arranque, segundo arranque, reutilización de snapshot, overlay liviano de disponibilidad, búsqueda/filtros locales y fallback cuando la caché no existe.
+- [ ] Definir y validar el empaquetado de artwork estático del catálogo para que una instalación nueva no tenga que poblar miles de imágenes una por una desde Internet.
+- [ ] Mantener trailers/videos fuera del instalador y obtenerlos on-demand.
+- [ ] Añadir un smoke test de release que detecte catálogo corrupto, assets faltantes y referencias a tipos no-juego antes de publicar.
 
-- [ ] Inventariar librerías y proyectos open source para Three.js, Tauri, React, WebGL/WebGPU, navegación en primera persona, colisiones, salas y objetos interactivos.
-- [ ] Comparar Three.js integrado en Tauri con Godot como alternativa futura; medir tamaño, consumo, carga, video, integración web y facilidad de distribución.
-- [ ] Investigar herramientas para crear casas, salones, arcades, museos y habitaciones modulares: Blender, exportación glTF/GLB, iluminación cocinada, LOD, instancing y generación procedural.
-- [ ] Buscar assets low-poly, mobiliario, luces, pantallas, consolas, máquinas arcade y decoración con licencia comercial compatible.
-- [ ] Investigar networking para presencia, movimiento de avatares, salas, lobbies, mensajes y comunicación entre peers: WebSocket, WebRTC DataChannels y alternativas autoalojables.
-- [ ] Investigar voz de sala, voz por proximidad, grupos, silenciamiento y reconexión con WebRTC, LiveKit u opciones open source equivalentes.
-- [ ] Probar video sincronizado con HTML video, THREE.VideoTexture, estado autoritativo de sala, corrección de drift, permisos de control y fallback por cliente.
-- [ ] Investigar streaming/casting de una PC host hacia los demás participantes con Sunshine/Moonlight, WebRTC y alternativas; medir latencia, calidad e input.
-- [ ] Diseñar una primera arquitectura de host explícito y dejar documentada la futura alternancia del host entre componentes de la red.
-- [ ] Investigar host migration, elección de nuevo host, reconexión y recuperación sin implementarlo antes de tener una sala estable.
-- [ ] Investigar generadores de personajes y avatares 3D fáciles de integrar, modelos humanoides glTF, rigging, retargeting, animaciones y lip sync; revisar licencias antes de elegir.
-- [ ] Crear un prototipo visual de una sala pequeña con navegación WASD/flechas, mouse, Enter/E y Escape.
-- [ ] Crear objetos interactivos genéricos: máquina, pantalla, cartel, puerta, sillón, estantería y portal a la biblioteca.
-- [ ] Diseñar el entorno híbrido: salón público compartido y sección privada personalizable por usuario.
-- [ ] En el salón público, mostrar solamente contactos autorizados que estén conectados al sistema y representarlos con avatares simples.
-- [ ] En la sección privada, permitir inicialmente muebles básicos, distribución de juegos, banners, videos en pantallas, luces y estilos visuales predeterminados.
-- [ ] Crear modelo de datos de sala, permisos public/friends/private, muebles, pantallas, colecciones y posiciones persistentes.
-- [ ] Validar la primera función social: dos amigos ven el mismo entorno tridimensional, conversan por voz y reproducen/pausan el mismo video sincronizado.
-- [ ] Integrar el prototipo 3D/social en Tauri solamente después de validar la escena y sus recursos fuera del flujo principal.
-- [ ] Mantener un modo 2D/grilla, modo de compatibilidad y standby para equipos modestos o cuando el juego está ejecutándose.
-- [ ] Documentar una matriz de licencias, mantenimiento, seguridad, tamaño, rendimiento y facilidad de reemplazo para cada dependencia elegida.
+## P0 — Linkvertise / obtención de acceso
 
-### Dependencias entre frentes
+- [ ] Grabar/incorporar el video real del recorrido de obtención de acceso.
+- [ ] Conectar el flujo oficial de Linkvertise al backend y validar una prueba real de finalización antes de emitir acceso.
+- [ ] Evitar claves/sesiones en URLs; asociar de forma segura navegador ↔ intento de activación de la instalación.
+- [ ] Permitir que Tauri detecte la autorización emitida por el servidor y complete la activación automáticamente, manteniendo la clave manual como fallback.
+- [ ] Añadir al estado de acceso vencido una acción clara para generar otra key siguiendo el mismo procedimiento una vez que el flujo definitivo esté conectado.
 
-- [ ] Mantener ambos frentes desacoplados: el prototipo 3D no debe bloquear la estabilización de Steam y la integración Steam no debe obligar a terminar el mundo completo.
-- [ ] Compartir solamente contratos comunes: GameRecord, Room, Presence, SharedMediaState, SteamSessionState y eventos de lanzamiento/retorno.
-- [ ] Integrar primero un vertical slice pequeño: salón público + sección privada mínima + video sincronizado + voz + lanzamiento de un juego representativo mediante Steam.
-- [ ] Validar dos monitores dentro de ese vertical slice: Game Access en primera pantalla, juego/Steam preferentemente en segunda pantalla y retorno al entorno después del cierre.
+## P1 — Detección local de AFK y liberación voluntaria de capacidad
 
-## P0 — Validate blocking assumptions
+> **Pendiente para más adelante. No implementar en el ciclo actual.**
+>
+> Objetivo: si el usuario realmente dejó la PC, liberar la cuenta central aunque el juego siga figurando online, sin tocar la sesión local.
 
-- [ ] **Steam Families applicability study.** Test/document current eligibility, household/family restrictions, invitation/cooldown behavior, game opt-outs, simultaneous-copy behavior and whether it can legitimately improve UX for a user's own eligible family accounts. Do not build fulfillment around it until validated.
-- [x] **Check automated Steam store-country change assumption.** Result: do not implement an Argentina-region switcher. Valve requires store country to reflect actual residence; a legitimate change after moving is completed through Steam purchase flow with a local payment method and is currently limited to once every 3 months. No documented Steamworks consumer API was found for arbitrarily setting store country.
-- [ ] **Revalidate provider/account transfer model and supplier/platform terms** before treating dedicated inventory as transferable customer ownership. Keep `private/dedicated access` distinct from `account ownership/transfer` in the domain model.
+- [ ] Detectar inactividad **a nivel del sistema operativo**, no solamente eventos del WebView. Considerar teclado, mouse y, si el juego se usa con él, **gamepad/controlador** para evitar falsos AFK.
+- [ ] Umbral inicial: **10 minutos sin input del usuario**.
+- [ ] Al alcanzar el umbral, mostrar un popup nativo visible sobre la experiencia de juego: **“¿Sigues ahí?”** con countdown. Usar inicialmente **60 segundos** de gracia; dejar el valor configurable para poder probar 30–60 s.
+- [ ] Cualquier input válido o una respuesta afirmativa durante la gracia cancela el AFK y mantiene la lease.
+- [ ] Si no hay respuesta al finalizar la gracia, el cliente informa al backend con una razón explícita, por ejemplo `client_afk_timeout`.
+- [ ] El backend libera **solamente la lease/capacidad central**. No enviar logout, no cerrar Steam, no matar el juego y no forzar cambio de cuenta.
+- [ ] Mostrar/loguear una explicación clara: la cuenta se liberó por ausencia de actividad local, pero el juego local puede continuar mientras Steam/juego lo permitan.
+- [ ] Hacer la operación idempotente y segura ante pérdida de red: si el cliente no puede avisar, no fingir que la lease fue liberada; reintentar/reportar estado cuando vuelva la conexión.
+- [ ] Probar fullscreen, juego en segundo plano, Alt+Tab, bloqueo de Windows, Remote Desktop y uso solo con controller antes de activar esta política en producción.
+- [ ] Registrar telemetría mínima para medir falsos positivos: detección AFK, popup mostrado, respuesta, timeout y liberación, sin registrar teclas ni contenido de input.
 
-## P1 — Desktop architecture
+## P1 — Continuidad y unificación de partidas guardadas
 
-- [ ] Make `apps/desktop` build/install as the single customer-facing Windows application (`gameAccess.exe` / installer).
-- [ ] Remove production dependency on a separately running localhost FastAPI process.
-- [ ] Classify existing API calls: machine-local operations move behind Tauri/native adapters; shared/global operations remain central backend calls.
-- [ ] Add environment/config handling for development backend URL vs later production backend URL.
-- [ ] Preserve browser/Vite mode only as a development convenience.
+> Objetivo: que el progreso pertenezca al **usuario de Game Access + juego**, no a la cuenta Steam proveedora que haya tocado usar en una sesión concreta.
 
-## P1 — Local Steam integration and unified library
+- [ ] Medir cobertura/fiabilidad de rutas de guardado por juego usando `game_data_path` y/o PCGamingWiki, incluyendo Steam `userdata`, Documentos, AppData y rutas específicas del juego.
+- [ ] Crear un perfil canónico de saves por **usuario de Game Access + AppID/juego**. Cambiar de cuenta Steam proveedora no debe crear un progreso separado cuando el juego permita portar los saves.
+- [ ] Antes de lanzar un juego con otra cuenta Steam, localizar el save canónico de Game Access y preparar/copiar/restaurar el progreso en la ruta que esa sesión vaya a usar.
+- [ ] Al cerrar el juego, detectar qué archivos cambiaron y fusionar/capturar el progreso de vuelta al save canónico del mismo usuario+juego.
+- [ ] Definir una estrategia segura de **merge/conflictos**: no sobrescribir silenciosamente una partida más nueva; comparar timestamps/hash/slots y conservar backups antes de reemplazar.
+- [ ] Cuando el formato del juego permita múltiples slots independientes, preservar todos los slots; cuando no sea fusionable de forma segura, elegir una versión explícitamente o mantener ambas copias para recuperación.
+- [ ] Para juegos compatibles, respaldar/restaurar saves sin escribir mientras el juego o Steam los utiliza.
+- [ ] Registrar compatibilidad por juego y excluir automatización cuando el save dependa de SteamID interno, cifrado por cuenta u otra condición no portable.
+- [ ] Verificar interacción con Steam Cloud: evitar carreras donde Cloud restaure una versión vieja o vuelva a subir una versión equivocada al cambiar de cuenta proveedora.
+- [ ] Diseñar una UI mínima de recuperación/historial para conflictos o restauración manual, sin exponer al usuario la complejidad de las cuentas proveedoras salvo que sea necesario.
 
-- [ ] Detect Steam installation reliably on Windows.
-- [ ] Discover Steam users/accounts already known on the local machine using supported/non-secret local state.
-- [ ] Discover installed games and determine available ownership/library information per local Steam identity as reliably as possible.
-- [ ] Build a unified game-centric local model across multiple local Steam users.
-- [ ] Clearly classify each game/access path: `OWNED_LOCAL`, `BUY_STEAM`, `GAMEACCESS_SHARED`, `GAMEACCESS_PRIVATE` (names may evolve).
-- [ ] For owned games, select/use the appropriate local Steam identity without involving paid gameAccess allocation.
-- [ ] For unowned games, expose a normal Buy on Steam action that exits the gameAccess commercial flow.
-- [ ] Keep ficha/token balance persistently visible in the customer UI.
+## P1 — UX pendiente del cliente
 
-## P1 — Central backend / entitlement allocator
+- [ ] Terminar auditoría de navegación por teclado/foco: retorno desde juego, Enter/Escape, búsqueda, modales y recuperación del foco sin clics.
+- [ ] Unificar acción primaria de juego: Descargar / Cancelar / Jugar según estado real, sin botones contradictorios.
+- [ ] Verificar cancelación real de descargas administradas por Game Access sin matar Steam ni otros jobs.
+- [ ] Persistir/reconciliar correctamente estado de descarga e instalación después de cerrar/reabrir la app.
+- [ ] Mantener el diálogo de descarga terminada con **Jugar ahora / Ahora no**, sin perder instalaciones ni duplicar notificaciones.
 
-- [ ] Treat `apps/api` as the seed of the hosted central service, not a desktop companion process.
-- [ ] Define stable API contracts for customer identity, catalog, fichas, provider profiles, entitlements, availability, leases and sessions.
-- [ ] Ensure allocation is authoritative/server-side and concurrency-safe.
-- [ ] Model provider account -> contained games/entitlements explicitly.
-- [ ] Model shared vs dedicated/private inventory as different entitlement/product types.
-- [ ] Implement lease expiration/release and failure recovery.
-- [ ] Keep prototype persistence simple for live testing (SQLite acceptable); design repository/storage boundary so it can migrate to PostgreSQL later.
+## P2 — Backend y operación
 
-## P1 — Waitlist / reservation UX
+- [ ] Migrar el estado central desde SQLite a PostgreSQL/Supabase cuando la beta requiera persistencia/concurrencia superiores.
+- [ ] Mantener el backend independiente del checkout/cliente y con URL estable.
+- [ ] Completar panel/admin para cuentas proveedoras, catálogo, clientes, activaciones, leases, disponibilidad y logs de decisiones.
+- [ ] Añadir observabilidad de presencia Steam: número de leases activas, checks OK/unknown/error, idle grace y liberaciones.
+- [ ] Implementar waitlist/reserva corta por juego si la demanda real demuestra que aporta valor.
+- [ ] Probar dos o más clientes Windows reales contra el mismo backend y cubrir carreras de asignación.
 
-- [ ] Add per-game server-side waitlist when compatible shared capacity is exhausted.
-- [ ] Define deterministic queue ordering and cancellation.
-- [ ] When capacity frees, create a short bounded reservation for the next eligible user.
-- [ ] Deliver desktop notification with direct **PLAY NOW** action.
-- [ ] Expire an unclaimed reservation and advance the queue automatically.
-- [ ] Show queue/wait state clearly in the game detail UI.
-- [ ] Record waitlist joins, wait duration, abandonment and conversion as demand telemetry.
-- [ ] Allow a separate **GET PRIVATE ACCESS / SKIP THE WAIT** offer only when legitimate dedicated sourcing exists.
+## P2 — Publicación
 
-## P2 — Internet live-development environment
+- [ ] **Crear la página web pública de Game Access**: landing clara, explicación del servicio, requisitos, preguntas frecuentes básicas y CTA principal de descarga.
+- [ ] Publicar desde esa web el **instalador Windows vigente** mediante una URL estable; mostrar versión/build y evitar que una página vieja apunte a un instalador obsoleto.
+- [ ] Incluir en la web el flujo para obtener/renovar acceso cuando Linkvertise esté listo, además de ayuda básica de instalación y primer inicio.
+- [ ] Definir hosting/dominio definitivo de la web y separar contenido público de cualquier panel/admin o secreto del backend.
+- [ ] Definir estrategia de actualización del cliente y versión mínima soportada por backend.
+- [ ] Firmar instalador/ejecutable cuando se prepare distribución pública.
+- [ ] Añadir backups, recuperación, rate limiting y controles de abuso antes de una beta abierta.
+- [ ] Realizar revisión legal/plataforma antes del lanzamiento comercial público.
 
-- [ ] Prepare backend to run independently from the desktop checkout.
-- [ ] Import/deploy the backend to an Internet-accessible development environment (Replit is the current candidate, but architecture must remain host-independent).
-- [ ] Establish stable DEV backend URL and configuration.
-- [ ] Create a web admin application against the same backend/API.
-- [ ] Admin: provider profiles/accounts.
-- [ ] Admin: games/licenses/entitlements and account contents.
-- [ ] Admin: availability, active leases, queues and reservations.
-- [ ] Admin: customers and ficha balances for test operation.
-- [ ] Admin: disable/quarantine broken inventory.
-- [ ] Test two or more Windows clients against the same hosted backend.
+## P3 — Demanda y negocio
 
-## P2 — End-to-end Steam session lifecycle
+- [ ] Registrar telemetría útil: búsquedas, vistas, intento de Play, asignación exitosa, falta de cuenta, sesiones completadas y tiempos de espera.
+- [ ] Construir métricas de demanda/concurrencia por juego antes de automatizar compras de inventario.
+- [ ] Mantener investigación de proveedores/ofertas separada del launcher y someter cualquier automatización a los términos vigentes de las plataformas.
 
-- [ ] Select one representative supported Steam game for the reference flow.
-- [ ] Prove: request -> allocation -> local preparation -> launch -> running session -> exit detection -> cleanup -> lease release.
-- [ ] Formalize provider/session adapter interface and migrate useful behavior from `apps/launcher`.
-- [ ] Handle failure/restart/timeout without leaving capacity permanently leased.
-- [ ] Build per-game compatibility records: external launcher/account, Family Sharing eligibility, SteamID-bound state, save locations, Steam Cloud behavior and cleanup requirements.
-- [ ] Design/test customer save continuity where technically valid.
+## Reglas para mantener este TODO
 
-## P2 — Steam Families usability experiment
-
-- [ ] Using only accounts genuinely eligible under Valve's current rules, create/test a Steam Family manually first.
-- [ ] Verify whether the primary account sees shareable games from the second account without switching Steam identity.
-- [ ] Verify saves, achievements, simultaneous use and multiple-copy selection behavior.
-- [ ] Identify games that opt out or otherwise fail the desired experience.
-- [ ] Only after policy + behavior validation, decide whether any supported Family-management assistance belongs in gameAccess.
-
-## P3 — Demand telemetry and Demand Engine
-
-- [ ] Record search, no-result search, game-page view, download intent, install, Play attempt, successful allocation, blocked Play, waitlist join, private-access interest and completed session.
-- [ ] Aggregate unique users, concurrency, occupancy and unmet demand per game/time window.
-- [ ] Build opportunity score combining demand, blocked plays, supplier price/depth, expected margin and inventory utilization.
-- [ ] Surface procurement recommendations in admin UI.
-
-## P3 — Standalone supplier / offer intelligence module
-
-- [ ] Keep supplier discovery/pricing independent from the Windows launcher.
-- [ ] Research permitted/robust G2G data-access approach and current terms before automating crawling.
-- [ ] Search offers by game and normalize candidate listings.
-- [ ] Extract structured facts: price, included games, seller/reputation signals, delivery/transfer claims and restrictions.
-- [ ] Rank roughly the 10 cheapest **viable** offers rather than blindly the 10 lowest prices.
-- [ ] Obtain relevant Steam Argentina/reference purchase price through supported sources.
-- [ ] Implement deterministic pricing/margin rules.
-- [ ] Use an LLM only to translate/summarize verified structured facts into Spanish customer copy; never let it invent commercial facts.
-- [ ] Generate proposed gameAccess private-access offer for admin review.
-- [ ] Later evaluate external marketplace publication (e.g. Mercado Libre) separately against its current policies/API and economics.
-
-## P4 — Wallet and commercialization hardening
-
-- [ ] Replace prototype credit mutation with immutable ficha ledger.
-- [ ] Define ficha packages/top-ups.
-- [ ] Implement real payment-provider integration with idempotency/webhooks/refunds.
-- [ ] Define pay-per-use charging rules and reservation/refund behavior.
-- [ ] Later define subscription vs one-off top-up economics.
-- [ ] Later implement trial lifecycle only after core access mechanics work.
-
-## P5 — Production readiness (not current milestone)
-
-- [ ] Production authentication/authorization.
-- [ ] PostgreSQL or selected production datastore migration.
-- [ ] Secrets management and provider-session revocation strategy.
-- [ ] Observability, audit logs, backups and disaster recovery.
-- [ ] Rate limiting/abuse/fraud controls.
-- [ ] Production hosting/deployment pipeline.
-- [ ] Installer signing/update strategy for Windows client.
-- [ ] Legal/platform-policy review before public commercial launch.
-- [ ] Controlled first-customer beta.
-
-## Deferred / explicitly not now
-
-- Owned GPU/cloud fleet.
-- Broad speculative inventory purchasing.
-- Fully automated purchasing/repricing before demand economics are demonstrated.
-- Automatic Steam region manipulation.
-- Treating Steam Families as a generic account-pooling workaround.
+- No volver a agregar Steam Family como scheduler/capacity gate salvo una decisión explícita posterior.
+- No volver a agregar `user_id=1`, IP o fingerprint como identidad de lease: usar `installation_id`.
+- No tratar errores ambiguos como `InvalidPassword`.
+- No convertir timeout de lease en logout/cierre local.
+- No volver a agregar fichas/créditos al flujo activo de la beta salvo nueva decisión explícita.
+- Cuando una tarea se completa, **eliminarla de este archivo** después de registrar la evidencia en commit/docs. Git es el historial.

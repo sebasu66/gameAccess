@@ -43,7 +43,6 @@ def build_provider_catalog(
                 "account_name": identity.get("account_name") or "",
                 "steam_id64": identity.get("steam_id64") or "",
                 "user_id32": user_id32,
-                "remembered": bool(identity.get("remembered")),
                 "matched": bool(identity.get("matched")),
                 "accessible_app_ids": accessible_ids,
             }
@@ -97,7 +96,6 @@ def build_provider_catalog(
         "missing_identity_count": int(mapping.get("missing_identity_count") or 0),
         "missing_provider_ids": list(mapping.get("missing_provider_ids") or []),
         "local_library_nonempty_accounts": nonempty_accounts,
-        "all_provider_remember_false": all(not account["remembered"] for account in accounts),
         "candidate_app_count": len(candidate_ids),
         "accessible_unique_app_count": len(accessible_game_ids),
         "account_count": len(accounts),
@@ -118,7 +116,6 @@ def compact_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
             "missing_identity_count",
             "missing_provider_ids",
             "local_library_nonempty_accounts",
-            "all_provider_remember_false",
             "candidate_app_count",
             "accessible_unique_app_count",
             "account_count",
@@ -129,7 +126,6 @@ def compact_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
             {
                 "provider_id": account["provider_id"],
                 "matched": account["matched"],
-                "remembered": account["remembered"],
                 "accessible_game_count": len(account["accessible_app_ids"]),
             }
             for account in catalog.get("accounts", [])

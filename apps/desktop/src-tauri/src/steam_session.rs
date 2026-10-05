@@ -12,10 +12,11 @@ use std::{
 use tauri::Manager;
 
 const PROVIDER_BUSY: &str = "No disponible en este momento: la cuenta está en uso en Steam. Inténtalo más tarde.";
+const PROVIDER_INVALID_PASSWORD: &str = "STEAM_INVALID_PASSWORD: Steam rechazó la contraseña de esta cuenta.";
 
 #[cfg(test)]
 mod provider_login_tests {
-    use super::{provider_login_event, PROVIDER_BUSY};
+    use super::{provider_login_event, PROVIDER_BUSY, PROVIDER_INVALID_PASSWORD};
 
     #[test]
     fn rejects_occupied_session_and_ignores_other_accounts() {
@@ -31,6 +32,18 @@ mod provider_login_tests {
         assert_eq!(provider_login_event("Login: OnLoginStateChange example 3 1 0 0", "example"), None);
         assert_eq!(provider_login_event("Login: OnLoginStateChange example 5 1 0 0", "example"), Some(Ok(())));
     }
+
+    #[test]
+    fn identifies_invalid_password_without_disabling_other_login_errors() {
+        assert_eq!(
+            provider_login_event("Login: OnLoginStateChange example 1 5 0 0", "example"),
+            Some(Err(PROVIDER_INVALID_PASSWORD)),
+        );
+        assert_eq!(
+            provider_login_event("Login: OnLoginStateChange example 1 2 0 0", "example"),
+            Some(Err("Steam no pudo confirmar el inicio de sesión.")),
+        );
+    }
 }
 
 fn provider_login_event(line: &str, account: &str) -> Option<Result<(), &'static str>> {
@@ -43,6 +56,7 @@ fn provider_login_event(line: &str, account: &str) -> Option<Result<(), &'static
     let result: u32 = fields.next()?.parse().ok()?;
     match (state, result) {
         (_, 6 | 49 | 50) => Some(Err(PROVIDER_BUSY)),
+        (_, 5) => Some(Err(PROVIDER_INVALID_PASSWORD)),
         (5, 1) => Some(Ok(())),
         (1, code) if code != 1 => Some(Err("Steam no pudo confirmar el inicio de sesión.")),
         _ => None,
@@ -359,7 +373,6 @@ fn direct_login(
     wait_for_account(expected_user_id32)
 }
 
-#[tauri::command]
 pub async fn login_provider_steam(
     account_name: String,
     password: String,
@@ -382,7 +395,6 @@ pub async fn login_provider_steam(
                 }
                 let offset = fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
                 let mut command = Command::new(&steam);
-                if silent { command.arg("-silent"); }
                 command.args(["-login", &account_name, &password])
                     .creation_flags(CREATE_NO_WINDOW).spawn()
                     .map_err(|_| "Could not start Steam provider login".to_string())?;
@@ -429,22 +441,49 @@ pub fn direct_switch_steam_account(
 
 #[cfg(target_os = "windows")]
 fn launcher_dir() -> Option<PathBuf> {
+    if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
+        let candidate = PathBuf::from(value);
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+    }
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
+                if candidate.is_dir() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|desktop| desktop.parent())
         .map(|apps| apps.join("launcher"))
+        .filter(|path| path.is_dir())
+}
+
+#[cfg(target_os = "windows")]
+fn launcher_python(launcher: &Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
+    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
+    if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    }
 }
 
 #[cfg(target_os = "windows")]
 fn fallback_switch(account_name: &str) -> Result<(), String> {
     let launcher =
         launcher_dir().ok_or_else(|| "Could not locate the Steam UI adapter".to_string())?;
-    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv.is_file() {
-        venv
-    } else {
-        PathBuf::from("python")
-    };
+    let python = launcher_python(&launcher);
     let code = "import sys; from steam_pool import remembered_account_identities; from steam_verified_sync_v5 import deterministic_switch; t=sys.argv[1].strip().casefold(); i=next((x for x in remembered_account_identities() if str(x.get('account_name') or '').casefold()==t or str(x.get('display_name') or '').casefold()==t),None); ok,msg=(False,'Steam account is not remembered on this PC') if i is None else deterministic_switch(i); print(msg); raise SystemExit(0 if ok else 2)";
     let output = Command::new(python)
         .current_dir(launcher)
@@ -679,6 +718,21 @@ pub fn steam_session_status(state: tauri::State<SteamSessionState>) -> SteamSess
             value.clone()
         })
         .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn steam_app_is_running(app_id: u32) -> bool {
+    if app_id == 0 {
+        return false;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return steam_app_running(app_id) == Some(true);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
 }
 
 #[cfg(test)]

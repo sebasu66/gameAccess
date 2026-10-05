@@ -1,10 +1,8 @@
-"""Add or update Steam providers and synchronize only selected accounts.
+"""Add or update Steam providers and synchronize selected accounts.
 
-Credentials are passed through environment variables so they never appear in
-process arguments or task logs. The existing single-account onboarding flow is
-unchanged. For accounts already present in ``accFull.csv``, the CLI can also
-repeat ``--provider-id`` to run that same individual flow for an explicit list.
-Accounts not listed are never scanned by that batch mode.
+SteamKit ownership is authoritative and is persisted before any Steam Store
+metadata is required. Store enrichment is scheduled independently by the API,
+so metadata failures cannot remove a verified AppID from an account.
 """
 
 from __future__ import annotations
@@ -17,8 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from family_refresh import build_family_graph
-from provider_family_evidence import merge_family_evidence
 from provider_license_scan import persist_scan_result, scan_provider_licenses
 from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
 from provider_roster import (
@@ -43,7 +39,7 @@ def upsert_provider_credentials(
     login: str,
     password: str,
 ) -> tuple[ProviderCredential, bool]:
-    """Persist one credential atomically while keeping provider ordering stable."""
+    """Persist one Steam login exactly once; updating its password never duplicates it."""
     login = login.strip()
     if not login:
         raise ValueError("Steam account name is required")
@@ -52,41 +48,46 @@ def upsert_provider_credentials(
 
     path = Path(path)
     rows = _read_rows(path)
-    updated = False
+    cleaned: list[list[str]] = []
+    inserted = False
     created = True
+    identity = login.casefold()
+
     for row in rows:
         if len(row) < 2:
+            cleaned.append(row)
             continue
         current_login = str(row[0]).strip()
         current_password = str(row[1]).strip()
         if current_login.casefold() in {
-            "usr",
-            "user",
-            "username",
-            "login",
+            "usr", "user", "username", "login",
         } and current_password.casefold() in {"pass", "password"}:
+            cleaned.append(row)
             continue
-        if current_login.casefold() == login.casefold():
-            row[0] = login
-            row[1] = password
-            updated = True
-            created = False
-            break
-    if not updated:
-        rows.append([login, password])
+        if current_login.casefold() == identity:
+            if not inserted:
+                cleaned.append([login, password])
+                inserted = True
+                created = False
+            # Drop every additional row for the same Steam login.
+            continue
+        cleaned.append(row)
+
+    if not inserted:
+        cleaned.append([login, password])
 
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f"{path.name}.tmp")
     with temp.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
-        writer.writerows(rows)
+        writer.writerows(cleaned)
     temp.replace(path)
 
     credential = next(
         (
             item
             for item in load_provider_credentials(path)
-            if item.login.casefold() == login.casefold()
+            if item.login.casefold() == identity
         ),
         None,
     )
@@ -135,49 +136,93 @@ def _selected_scan(
     return scan, account
 
 
-def _import_verified_games(api: str, app_ids: list[int]) -> tuple[list[int], list[int]]:
-    """Return imported backend game IDs and unresolved AppIDs."""
-    imported_game_ids: list[int] = []
+def _is_invalid_password(error_text: str) -> bool:
+    normalized = "".join(ch for ch in str(error_text or "").casefold() if ch.isalnum())
+    return "invalidpassword" in normalized
+
+
+def _persist_failed_scan_account(
+    api: str, credential: ProviderCredential, inventory: dict[str, Any],
+    scan: dict[str, Any], error_text: str,
+) -> dict[str, Any] | None:
+    """Preserve known licenses; only explicit InvalidPassword disables a provider."""
+    base = api.rstrip("/")
+    existing_accounts = _api_json("GET", f"{base}/admin/accounts", timeout=20.0) or []
+    existing = next(
+        (
+            row
+            for row in existing_accounts
+            if str(row.get("label") or "").casefold() == credential.login.casefold()
+        ),
+        None,
+    )
+    game_ids = [
+        int(game["id"])
+        for game in ((existing or {}).get("games") or [])
+        if isinstance(game, dict) and isinstance(game.get("id"), int)
+    ]
+    invalid_password = _is_invalid_password(error_text)
+    notes = json.dumps(
+        {
+            "source": "provider-account-onboard",
+            "account_name": credential.login,
+            "provider_id": credential.provider_id,
+            "ownership_source": inventory.get("source") or "steamkit-license-list-pics",
+            "ownership_verified_at": inventory.get("verified_at"),
+            "inventory_complete": False,
+            "ownership_scan_status": str(scan.get("status") or "error"),
+            "ownership_scan_error": error_text[:500],
+            "credential_status": "invalid_password" if invalid_password else "unknown",
+            "credential_error": "InvalidPassword" if invalid_password else None,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return _api_json(
+        "POST",
+        f"{base}/admin/accounts/sync",
+        payload={
+            "label": credential.login,
+            "provider": "steam",
+            "game_ids": game_ids,
+            "notes": notes,
+        },
+        timeout=30.0,
+    )
+
+
+def _register_verified_apps(
+    api: str, app_ids: list[int]
+) -> tuple[list[int], list[int], list[int]]:
+    """Register verified AppIDs without waiting for Store metadata.
+
+    The API creates a stable inactive placeholder immediately and schedules
+    metadata enrichment after the response. The returned game ID can therefore
+    be mapped to the provider even when Steam Store is rate-limited.
+    """
+    game_ids: list[int] = []
     unresolved_app_ids: list[int] = []
+    metadata_pending_app_ids: list[int] = []
     base = api.rstrip("/")
     for app_id in sorted(set(app_ids)):
         try:
-            metadata = _api_json("GET", f"{base}/steam/apps/{app_id}", timeout=20.0)
-        except Exception:
-            unresolved_app_ids.append(app_id)
-            continue
-        if not isinstance(metadata, dict):
-            unresolved_app_ids.append(app_id)
-            continue
-        if str(metadata.get("type") or "").casefold() != "game" or not bool(
-            metadata.get("windows")
-        ):
-            continue
-        try:
-            imported = _api_json(
-                "POST", f"{base}/admin/games/import-steam/{app_id}", timeout=20.0
+            registered = _api_json(
+                "POST",
+                f"{base}/admin/pool/games/register-steam/{app_id}",
+                timeout=20.0,
             )
         except Exception:
             unresolved_app_ids.append(app_id)
             continue
-        game = imported.get("game") if isinstance(imported, dict) else None
+        game = registered.get("game") if isinstance(registered, dict) else None
         game_id = game.get("id") if isinstance(game, dict) else None
-        if isinstance(game_id, int) and game_id > 0:
-            imported_game_ids.append(game_id)
-        else:
+        if not isinstance(game_id, int) or game_id <= 0:
             unresolved_app_ids.append(app_id)
-    return imported_game_ids, unresolved_app_ids
-
-
-def _merge_family_inventory(
-    partial: dict[str, Any], provider_id: str
-) -> dict[str, Any]:
-    return merge_family_evidence(
-        {},
-        partial,
-        DEFAULT_STORE.with_name("provider_family_evidence.db"),
-        selected={provider_id},
-    )
+            continue
+        game_ids.append(game_id)
+        if str(registered.get("metadata_state") or "pending") == "pending":
+            metadata_pending_app_ids.append(app_id)
+    return game_ids, unresolved_app_ids, metadata_pending_app_ids
 
 
 def onboard_provider_account(
@@ -213,6 +258,12 @@ def onboard_provider_account(
             ),
             {},
         )
+        error_text = str(error.get("error") or scan.get("status") or "scan failed")[:500]
+        persistence_error = None
+        try:
+            _persist_failed_scan_account(base, credential, inventory, scan, error_text)
+        except Exception as exc:
+            persistence_error = f"{type(exc).__name__}: {exc}"[:500]
         return {
             "ok": False,
             "created": created,
@@ -220,12 +271,13 @@ def onboard_provider_account(
             "label": credential.label,
             "scan_status": scan.get("status"),
             "scan_complete": bool(scan.get("complete")),
-            "error": str(error.get("error") or scan.get("status") or "scan failed")[
-                :500
-            ],
+            "error": error_text,
             "guard_method": error.get("guard_method"),
+            "account_status_persistence_error": persistence_error,
         }
 
+    # Phase 1 is now complete before Store enrichment begins. These AppIDs are
+    # the authoritative SteamKit ownership/access result for this provider.
     owned_app_ids = sorted(
         {
             int(app_id)
@@ -240,8 +292,19 @@ def onboard_provider_account(
             if str(app_id).isdigit() and int(app_id) > 0
         }
     )
-    print(f"STATE=metadata:{len(owned_app_ids)}", flush=True)
-    game_ids, unresolved_app_ids = _import_verified_games(base, owned_app_ids)
+
+    # Phase 2 only registers AppID identities in the backend. Each API response
+    # returns before its independent background Store enrichment completes.
+    print(f"STATE=registering:{len(accessible_app_ids)}", flush=True)
+    owned_game_ids, owned_unresolved, owned_pending = _register_verified_apps(
+        base, owned_app_ids
+    )
+    shared_game_ids, shared_unresolved, shared_pending = _register_verified_apps(
+        base, sorted(set(accessible_app_ids) - set(owned_app_ids))
+    )
+    catalog_game_ids = sorted(set(owned_game_ids + shared_game_ids))
+    unresolved_app_ids = sorted(set(owned_unresolved + shared_unresolved))
+    metadata_pending_app_ids = sorted(set(owned_pending + shared_pending))
 
     notes = json.dumps(
         {
@@ -252,10 +315,17 @@ def onboard_provider_account(
             "ownership_verified_at": inventory.get("verified_at"),
             "inventory_complete": True,
             "ownership_scan_status": "ok",
+            "ownership_scan_error": None,
+            "credential_status": "valid",
+            "credential_error": None,
             "owned_app_count": len(owned_app_ids),
             "accessible_app_ids": accessible_app_ids,
             "accessible_app_count": len(accessible_app_ids),
-            "imported_game_count": len(game_ids),
+            "registered_app_count": len(catalog_game_ids),
+            "owned_catalog_game_count": len(owned_game_ids),
+            "shared_catalog_game_count": len(shared_game_ids),
+            "metadata_enrichment": "server-background",
+            "metadata_pending_count": len(metadata_pending_app_ids),
             "unresolved_app_count": len(unresolved_app_ids),
         },
         ensure_ascii=False,
@@ -267,22 +337,16 @@ def onboard_provider_account(
         payload={
             "label": credential.label,
             "provider": "steam",
-            "game_ids": game_ids,
+            # /admin/accounts/sync treats game_ids as authoritative ownership.
+            "game_ids": owned_game_ids,
             "notes": notes,
         },
         timeout=30.0,
     )
 
-    # Preserve earlier partial successes when rebuilding family capacity.
-    # This performs no Steam login or scan for existing accounts.
-    merged_inventory = _merge_family_inventory(inventory, credential.provider_id)
-    families = build_family_graph(merged_inventory)
-    family_sync = _api_json(
-        "POST",
-        f"{base}/admin/pool/families/sync",
-        payload={"families": families},
-        timeout=30.0,
-    )
+    # Family topology is retained only as optional diagnostics. It is no longer
+    # part of provider selection or capacity, so onboarding does not rebuild it.
+    family_sync = {"skipped": True, "reason": "family_capacity_not_used_for_allocation"}
 
     print("STATE=done", flush=True)
     return {
@@ -292,12 +356,17 @@ def onboard_provider_account(
         "label": credential.label,
         "owned_app_count": len(owned_app_ids),
         "accessible_app_count": len(accessible_app_ids),
-        "catalog_game_count": len(game_ids),
+        "registered_app_count": len(catalog_game_ids),
+        # Keep the older field for callers; it now means AppIDs registered in
+        # the backend, not metadata requests that happened to succeed.
+        "catalog_game_count": len(catalog_game_ids),
+        "accessible_catalog_game_count": len(catalog_game_ids),
+        "metadata_pending_count": len(metadata_pending_app_ids),
         "ownership_promoted": ownership_update["promoted"],
         "unresolved_app_count": len(unresolved_app_ids),
         "unresolved_app_ids": unresolved_app_ids[:25],
         "account": synced.get("account") if isinstance(synced, dict) else None,
-        "family_count": len(families),
+        "family_count": 0,
         "family_sync": family_sync,
     }
 
@@ -309,7 +378,7 @@ def onboard_provider_accounts(
     accounts_path: Path | None = None,
     timeout_seconds: int = 70,
 ) -> dict[str, Any]:
-    """Run the existing one-account onboarding flow for an explicit provider list."""
+    """Run the one-account ownership flow for an explicit provider list."""
     requested = list(
         dict.fromkeys(
             provider_id.strip() for provider_id in provider_ids if provider_id.strip()

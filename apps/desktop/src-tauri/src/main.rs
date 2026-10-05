@@ -1,9 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod automation;
+mod access_activation;
+mod catalog_cache;
 mod download_lifecycle;
-mod game_freeze;
 mod game_uninstall;
 mod provider_download;
+mod provider_transport;
+mod steam_artwork;
 mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
@@ -12,13 +16,23 @@ use native_core::{
 };
 
 use serde::Serialize;
-use std::{env, fs, io::Write, path::PathBuf, process::Command, sync::Mutex};
+use std::{
+    env, fs,
+    io::Write,
+    path::PathBuf,
+    process::Command,
+    sync::{Mutex, OnceLock},
+};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+const NARRATION_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
+const NARRATION_LOG_MAX_LINE_BYTES: usize = 16 * 1024;
+static NARRATION_LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn narration_log_file() -> Result<PathBuf, String> {
     let base = env::var_os("LOCALAPPDATA")
@@ -48,26 +62,58 @@ fn append_narration_lines(
     area: String,
     level: String,
 ) -> Result<String, String> {
+    let _guard = NARRATION_LOG_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "GameAccess narration log lock was poisoned".to_string())?;
     let path = narration_log_file()?;
     let safe_area = clean_narration_field(&area, "APP");
     let safe_level = clean_narration_field(&level, "INFO");
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
-
     for message in messages {
-        let clean = clean_narration_field(&message, "");
+        let mut clean = clean_narration_field(&message, "");
         if clean.is_empty() {
             continue;
         }
+        if clean.len() > NARRATION_LOG_MAX_LINE_BYTES {
+            let mut end = NARRATION_LOG_MAX_LINE_BYTES;
+            while !clean.is_char_boundary(end) {
+                end -= 1;
+            }
+            clean.truncate(end);
+            clean.push_str("… [truncated]");
+        }
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        writeln!(file, "{timestamp} [{safe_level}] [{safe_area}] {clean}")
+        let line = format!("{timestamp} [{safe_level}] [{safe_area}] {clean}\n");
+        let current_size = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        if current_size.saturating_add(line.len() as u64) > NARRATION_LOG_MAX_BYTES {
+            let archive = path.with_extension("log.1");
+            if archive.exists() {
+                fs::remove_file(&archive)
+                    .map_err(|err| format!("Could not rotate old GameAccess log: {err}"))?;
+            }
+            if path.exists() {
+                fs::rename(&path, &archive)
+                    .map_err(|err| format!("Could not rotate GameAccess narration log: {err}"))?;
+                if fs::metadata(&archive)
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0)
+                    > NARRATION_LOG_MAX_BYTES
+                {
+                    fs::remove_file(&archive)
+                        .map_err(|err| format!("Could not cap oversized archived GameAccess log: {err}"))?;
+                }
+            }
+        }
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|err| format!("Could not open GameAccess narration log: {err}"))?;
+        file.write_all(line.as_bytes())
             .map_err(|err| format!("Could not append GameAccess narration log: {err}"))?;
+        file.flush()
+            .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     }
-    file.flush()
-        .map_err(|err| format!("Could not flush GameAccess narration log: {err}"))?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -373,12 +419,7 @@ fn open_game_install_folder(app_id: u32) -> Result<String, String> {
 
 #[tauri::command]
 async fn steam_download_status(app_id: u32) -> Result<SteamDownloadStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || -> Result<SteamDownloadStatus, String> {
-        if let Some(status) = game_freeze::GameFreezeManager.download_status(app_id)? {
-            return Ok(status);
-        }
-        Ok(native_core::steam_download_status(app_id))
-    })
+    tauri::async_runtime::spawn_blocking(move || Ok(native_core::steam_download_status(app_id)))
     .await
     .map_err(|err| format!("Steam download-status task failed: {err}"))?
 }
@@ -394,7 +435,6 @@ async fn steam_download_metrics(app_id: u32) -> Result<download_metrics::Downloa
 async fn installed_app_ids() -> Result<Vec<u32>, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let mut ids = native_core::steam_installed_app_ids();
-        ids.extend(provider_download::provider_installed_app_ids());
         ids.sort_unstable();
         ids.dedup();
         ids
@@ -504,14 +544,266 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
     .map_err(|err| format!("Pending download completion scan failed: {err}"))?
 }
 
+#[tauri::command]
+fn activation_installation_id() -> Result<String, String> {
+    access_activation::installation_id()
+}
+
+#[tauri::command]
+fn activation_read_session() -> Result<Option<String>, String> {
+    access_activation::read_session()
+}
+
+#[tauri::command]
+fn activation_save_session(session_token: String) -> Result<(), String> {
+    access_activation::save_session(&session_token)
+}
+
+#[tauri::command]
+fn activation_clear_session() -> Result<(), String> {
+    access_activation::clear_session()
+}
+
+fn find_launcher_python(launcher: &std::path::Path) -> PathBuf {
+    if let Some(runtime_root) = launcher.parent() {
+        let embedded = runtime_root.join("python").join("python.exe");
+        if embedded.is_file() {
+            return embedded;
+        }
+    }
+    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
+    if venv.is_file() {
+        venv
+    } else {
+        PathBuf::from("python")
+    }
+}
+
+fn find_launcher_dir() -> Option<PathBuf> {
+    if let Ok(path) = env::var("GAMEACCESS_LAUNCHER_DIR") {
+        let candidate = PathBuf::from(path);
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+    }
+    if let Ok(exe) = env::current_exe() {
+        for ancestor in exe.ancestors() {
+            let candidate = ancestor.join("apps").join("launcher");
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+            let candidate2 = ancestor.join("launcher");
+            if candidate2.is_dir() {
+                return Some(candidate2);
+            }
+        }
+    }
+    env::current_dir().ok().and_then(|cwd| {
+        for ancestor in cwd.ancestors() {
+            let candidate = ancestor.join("apps").join("launcher");
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+        }
+        None
+    })
+}
+
+#[tauri::command]
+async fn run_digital_process(
+    action: String,
+    app_id: u32,
+    name: String,
+    command: String,
+    working_dir: Option<String>,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let runner_script = launcher.join("digital_process_runner.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&runner_script)
+            .arg("--action")
+            .arg(&action)
+            .arg("--app-id")
+            .arg(app_id.to_string())
+            .arg("--name")
+            .arg(&name)
+            .arg("--command")
+            .arg(&command);
+
+        if let Some(ref cwd) = working_dir {
+            cmd.arg("--working-dir").arg(cwd);
+        }
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !output.status.success() && stdout.is_empty() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() { "Process execution failed".to_string() } else { stderr });
+        }
+        serde_json::from_str(&stdout).map_err(|err| format!("Process runner returned invalid JSON: {err} ({stdout})"))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn start_digital_download(
+    app_id: u32,
+    name: String,
+    download_source: String,
+    install_process: String,
+    torbox_key: Option<String>,
+    keep_archive: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let downloader_script = launcher.join("digital_downloader.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&downloader_script)
+            .arg("--app-id")
+            .arg(app_id.to_string())
+            .arg("--name")
+            .arg(&name);
+
+        let src = if download_source.trim().is_empty() {
+            "auto".to_string()
+        } else {
+            download_source
+        };
+        cmd.arg("--source").arg(&src);
+
+        if !install_process.trim().is_empty() {
+            cmd.arg("--install-process").arg(&install_process);
+        }
+
+        if let Some(ref key) = torbox_key {
+            if !key.trim().is_empty() {
+                cmd.arg("--torbox-key").arg(key.trim());
+            }
+        }
+
+        if keep_archive == Some(true) {
+            cmd.arg("--keep-archive");
+        }
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let child = cmd.spawn().map_err(|err| format!("Failed to spawn digital downloader: {err}"))?;
+
+        Ok(serde_json::json!({
+            "ok": true,
+            "appId": app_id,
+            "pid": child.id(),
+            "status": "started"
+        }))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn cancel_digital_download(app_id: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
+        if status_file.exists() {
+            let cancel_payload = serde_json::json!({
+                "type": "progress",
+                "appId": app_id.to_string(),
+                "phase": "cancelled",
+                "progressPercent": 0.0,
+                "statusText": "Instalación cancelada"
+            });
+            let _ = fs::write(&status_file, cancel_payload.to_string());
+        }
+        Ok(serde_json::json!({ "ok": true, "appId": app_id, "status": "cancelled" }))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn digital_download_status(app_id: u32) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
+        if status_file.exists() {
+            let content = fs::read_to_string(&status_file).map_err(|err| err.to_string())?;
+            serde_json::from_str(&content).map_err(|err| err.to_string())
+        } else {
+            Ok(serde_json::json!({
+                "appId": app_id.to_string(),
+                "phase": "preparing",
+                "progressPercent": 0.0,
+                "statusText": "Preparando..."
+            }))
+        }
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn query_digital_options(name: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+        let python = find_launcher_python(&launcher);
+        let resolver_script = launcher.join("digital_source_resolver.py");
+        let mut cmd = Command::new(&python);
+        cmd.current_dir(&launcher)
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg(&resolver_script)
+            .arg("search")
+            .arg(&name)
+            .arg("--json");
+
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().map_err(|err| format!("Failed to query digital options: {err}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        serde_json::from_str(&stdout).map_err(|err| format!("Invalid JSON from resolver: {err} ({stdout})"))
+    })
+    .await
+    .map_err(|err| format!("Task failed: {err}"))?
+}
+
 fn main() {
     let visual_debug_dir = visual_debug_session_dir();
+    let automation_state = automation::AutomationState::from_process();
     tauri::Builder::default()
+        .manage(automation_state)
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
         })
         .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
+            activation_installation_id,
+            activation_read_session,
+            activation_save_session,
+            activation_clear_session,
+            catalog_cache::catalog_cache_sync,
+            catalog_cache::catalog_cache_read,
+            catalog_cache::catalog_cache_upsert_game,
+            catalog_cache::catalog_cache_read_detail,
+            catalog_cache::catalog_cache_store_detail,
+            automation::automation_config,
+            automation::capture_automation_screenshot,
+            automation::finish_automation,
             narration_log_path,
             append_narration_log,
             append_narration_log_batch,
@@ -522,14 +814,12 @@ fn main() {
             open_steam_run,
             open_game_install_folder,
             game_uninstall::uninstall_game,
-            game_freeze::freeze_game,
-            game_freeze::thaw_game,
-            game_freeze::game_storage_state,
-            game_freeze::frozen_game_statuses,
+            // Freeze/thaw commands are intentionally not registered while the feature is disabled.
             steam_download_status,
             steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
+            steam_artwork::steam_library_cover,
             local_steam_pool,
             verify_local_steam_inventory,
             machine_profile,
@@ -543,18 +833,26 @@ fn main() {
             provider_download::cancel_provider_download,
             provider_download::provider_download_status,
             provider_download::provider_download_statuses,
+            provider_download::reconcile_download_staging,
+            provider_download::discard_interrupted_download,
             provider_download::provider_download_estimate,
             steam_session::save_steam_credential,
             steam_session::remove_steam_credential,
             steam_session::has_steam_credential,
             steam_session::direct_switch_steam_account,
-            steam_session::login_provider_steam,
+            provider_transport::login_provider_steam_for_lease,
             steam_session::start_steam_game_session,
             steam_session::steam_session_status,
+            steam_session::steam_app_is_running,
             visual_debug_config,
             capture_visual_debug,
             finish_visual_debug,
-            set_visual_debug_viewport
+            set_visual_debug_viewport,
+            run_digital_process,
+            start_digital_download,
+            cancel_digital_download,
+            digital_download_status,
+            query_digital_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
