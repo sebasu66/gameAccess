@@ -155,6 +155,7 @@
     <form id="sourceForm" class="form" onsubmit="handleSourceSubmit(event)">
       <div class="field full"><label>URL de la Fuente (JSON)</label><input name="url" required placeholder="https://raw.githubusercontent.com/.../sources.json"></div>
       <div class="field full"><label>Nombre o Etiqueta</label><input name="label" placeholder="Ej: Comunidad Repacks"></div>
+      <div class="field full"><label><input type="checkbox" name="auto_installed"> Instalación automática (auto_installed)</label><span class="muted">Desactivado: conserva y reaplica el respaldo del paquete más pequeño.</span></div>
       <div class="field full" style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
         <button type="button" class="btn" onclick="closeSourceModal()">Cancelar</button>
         <button type="submit" class="btn primary">Agregar y Sincronizar</button>
@@ -374,6 +375,7 @@
           <th>Ubicación / Archivo</th>
           <th>Paquetes</th>
           <th>Estado</th>
+          <th>auto_installed</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -391,6 +393,7 @@
           <td><span class="mono muted" style="word-break:break-all">${esc(s.url)}</span></td>
           <td>${itemsStr}</td>
           <td><span class="status ${s.enabled !== false ? 'auto' : 'disabled'}">${s.enabled !== false ? 'Activo' : 'Inactivo'}</span></td>
+          <td><label><input type="checkbox" aria-label="Instalación automática de ${esc(s.label || s.url)}" ${s.auto_installed === true ? "checked" : ""} onchange="setSourceAutoInstalled(sourcesData[${idx}].url, this.checked)"> Automática</label></td>
           <td>
             <button class="btn" style="padding:5px 9px" onclick="toggleSource(sourcesData[${idx}].url)">${s.enabled !== false ? 'Desactivar' : 'Activar'}</button>
             <button class="btn danger" style="padding:5px 9px" onclick="deleteSource(sourcesData[${idx}].url)">Eliminar</button>
@@ -653,7 +656,8 @@
     const f = new FormData(e.target);
     const payload = {
       url: f.get('url'),
-      label: f.get('label') || 'Servidor'
+      label: f.get('label') || 'Servidor',
+      auto_installed: f.get('auto_installed') === 'on'
     };
 
     try {
@@ -695,13 +699,28 @@
       await fetch(API_BASE + '/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, label: s.label, enabled: s.enabled !== false, priority: prio })
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled !== false, auto_installed: s.auto_installed === true, priority: prio })
       });
       toast(`Prioridad actualizada a ${prio}`);
       await loadData();
     } catch (err) {
       toast(err.message, true);
     }
+  }
+
+  async function setSourceAutoInstalled(url, value) {
+    const s = sourcesData.find(x => x.url === url);
+    if (!s) return;
+    try {
+      const response = await fetch(API_BASE + '/sources', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled !== false,
+          priority: s.priority || 1, auto_installed: value })
+      });
+      if (!response.ok) throw new Error('No se pudo guardar auto_installed');
+      toast('Configuración de la fuente guardada');
+    } catch (error) { toast(error.message, true); }
+    await loadData();
   }
 
   async function toggleSource(url) {
@@ -711,7 +730,7 @@
       await fetch(API_BASE + '/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, label: s.label, enabled: s.enabled === false, priority: s.priority || 1 })
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled === false, auto_installed: s.auto_installed === true, priority: s.priority || 1 })
       });
       await loadData();
     } catch (err) {

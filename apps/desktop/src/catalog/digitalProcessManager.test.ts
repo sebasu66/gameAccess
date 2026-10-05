@@ -52,3 +52,14 @@ describe("Digital folder lifecycle", () => {
     expect(narrate).toHaveBeenCalledWith("Digital AppID 2592160 · play: could not spawn", { area: "DIGITAL_EXECUTION", level: "ERROR" });
   });
 });
+
+it("propagates automatic source policy and skips backup passwords", async () => {
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+  vi.mocked(invoke).mockResolvedValue({ ok: true, backup_requires_password: true });
+  await new DigitalProcessManager().executePlay(game, { ...record, auto_installed: true });
+  expect(supplyArchivePasswords).not.toHaveBeenCalled();
+  expect(invoke).toHaveBeenCalledWith("run_digital_process", expect.objectContaining({ action: "status", autoInstalled: true }));
+  expect(invoke).toHaveBeenCalledWith("run_digital_process", expect.objectContaining({ action: "play", autoInstalled: true }));
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});

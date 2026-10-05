@@ -49,16 +49,17 @@ export class DigitalProcessManager {
   private async execute(action: ProcessExecutionResult["action"], game: CatalogGame, record?: DigitalGameRecord, workingDir?: string, payload?: string): Promise<ProcessExecutionResult> {
     const appId = record?.id ?? game.app_id ?? game.id;
     const name = record?.name ?? game.name;
+    const autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
     const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
     try {
       if (hasTauriRuntime()) {
         if (action === "play") {
-          const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null });
+          const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null, autoInstalled });
           if (!backup.ok) throw new Error(backup.error || "No se pudo verificar el respaldo Digital.");
-          if (backup.backup_requires_password) await supplyArchivePasswords(appId);
+          if (!autoInstalled && backup.backup_requires_password) await supplyArchivePasswords(appId);
         }
         const result = await invoke<ProcessExecutionResult>("run_digital_process", {
-          action, appId, name, command, workingDir: null,
+          action, appId, name, command, workingDir: null, autoInstalled,
         });
         if (!result.ok) throw new Error(result.error || result.stderr || `El proceso terminó con código ${result.exit_code ?? "desconocido"}`);
         return result;

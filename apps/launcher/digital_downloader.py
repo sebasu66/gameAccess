@@ -783,7 +783,8 @@ def extract_archives_in_path(
     password: Optional[str] = None,
     delete_archive: bool = True,
     game_name: Optional[str] = None,
-    retain_backup: bool = True
+    retain_backup: bool = True,
+    auto_installed: bool = False
 ) -> bool:
     """
     Extracts archive files (or archives found inside target directory) using portable 7-Zip,
@@ -814,7 +815,8 @@ def extract_archives_in_path(
         return False
 
     # Treat multipart volumes as one archive; only their first volume is extracted.
-    archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
+    if not auto_installed:
+        archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
     game_subfolder = os.path.abspath(dest_dir)
     seven_zip = find_portable_7z()
 
@@ -851,12 +853,12 @@ def extract_archives_in_path(
                         status_text=f"Probando contraseña {attempt+1}/{len(passwords)} para {arc_name}..."
                     )
                 enclosing = archive_enclosing_folder(arc, seven_zip, candidate_password)
-                extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
-                if enclosing and idx == 0 and total > 1:
+                extraction_dir = game_subfolder if not auto_installed and idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if not auto_installed and enclosing and idx == 0 and total > 1:
                     game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 cmd = [
                     seven_zip, "x", os.path.abspath(arc),
-                    f"-o{extraction_dir}", "-y", "-aoa",
+                    f"-o{extraction_dir}", "-y", "-aos" if auto_installed else "-aoa",
                     "-bsp1", "-bso1", "-bse1",
                     f"-p{candidate_password}",
                 ]
@@ -912,23 +914,25 @@ def extract_archives_in_path(
             import zipfile, tarfile
             try:
                 enclosing = archive_enclosing_folder(arc, None, effective_password or "-")
-                extraction_dir = game_subfolder if idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
-                if enclosing and idx == 0 and total > 1:
+                extraction_dir = game_subfolder if not auto_installed and idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if not auto_installed and enclosing and idx == 0 and total > 1:
                     game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 if zipfile.is_zipfile(arc):
                     with zipfile.ZipFile(arc, 'r') as zf:
-                        zf.extractall(extraction_dir, pwd=effective_password.encode() if effective_password else None)
+                        members = [entry for entry in zf.infolist() if not auto_installed or not os.path.exists(os.path.join(extraction_dir, entry.filename))]
+                        zf.extractall(extraction_dir, members=members, pwd=effective_password.encode() if effective_password else None)
                     success = True
                 elif tarfile.is_tarfile(arc):
                     with tarfile.open(arc, 'r') as tf:
-                        tf.extractall(extraction_dir)
+                        members = [entry for entry in tf.getmembers() if not auto_installed or not os.path.exists(os.path.join(extraction_dir, entry.name))]
+                        tf.extractall(extraction_dir, members=members)
                     success = True
             except Exception as e:
                 raise RuntimeError(f"Error extrayendo {arc_name}: {e}") from e
             if not success:
                 raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
-        if success and idx == total - 1 and retain_backup:
+        if success and idx == total - 1 and retain_backup and not auto_installed:
             from digital_backup import DigitalArchiveBackup
             DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
                 bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")))
@@ -956,6 +960,7 @@ def main():
     parser.add_argument("--app-id", "--appId", dest="appId", required=True, help="Application/Game ID (e.g. 1091500)")
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
+    parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
     parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
@@ -1160,7 +1165,8 @@ def main():
             host=args.host,
             password=args.password,
             delete_archive=should_delete_archive,
-            game_name=game_name
+            game_name=game_name,
+            auto_installed=args.auto_installed
         )
 
         if g_cancelled.is_set():

@@ -38,7 +38,7 @@ class DigitalProcessRunner:
             raise ValueError("El ejecutable debe permanecer dentro de la carpeta Digital.")
         return executable, arguments
 
-    def run(self, action, app_id, name, command=""):
+    def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
             if action == "snapshot":
@@ -47,9 +47,9 @@ class DigitalProcessRunner:
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
             if action == "status":
-                backup = DigitalArchiveBackup.info(folder, name)
+                backup = None if auto_installed else DigitalArchiveBackup.info(folder, name)
                 return {**result, "ok": True, **self.storage.status(app_id, name),
-                        "backup_requires_password": bool(backup and backup["needs_password"])}
+                        "backup_requires_password": bool(not auto_installed and backup and backup["needs_password"])}
             if action == "uninstall":
                 self.storage.uninstall(app_id, name)
                 return {**result, "ok": True, "exit_code": 0}
@@ -60,7 +60,8 @@ class DigitalProcessRunner:
                 return {**result, "ok": True}
             if action != "play":
                 raise ValueError(f"Unknown action '{action}'")
-            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
+            if not auto_installed:
+                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no está descargado y descomprimido en su carpeta Digital.")
             executable, arguments = self.executable(folder, command)
@@ -71,9 +72,9 @@ class DigitalProcessRunner:
         except Exception as error:
             return {**result, "error": str(error)}
 
-def run_process(action, app_id, name, command="", working_dir=None):
+def run_process(action, app_id, name, command="", working_dir=None, auto_installed=False):
     # working_dir cannot redirect Digital execution away from its registered folder.
-    return DigitalProcessRunner().run(action, app_id, name, command)
+    return DigitalProcessRunner().run(action, app_id, name, command, auto_installed)
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
@@ -81,10 +82,11 @@ def main():
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")
+    parser.add_argument("--auto-installed", action="store_true")
     parser.add_argument("--working-dir", default=None)
     args = parser.parse_args()
     payload = sys.stdin.read() if args.action == "snapshot" and not args.command else args.command
-    result = run_process(args.action, args.app_id, args.name, payload)
+    result = run_process(args.action, args.app_id, args.name, payload, auto_installed=args.auto_installed)
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("ok") else 1
 

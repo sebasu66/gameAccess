@@ -221,6 +221,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           name,
           downloadSource,
           installProcess,
+          autoInstalled: record?.auto_installed === true,
           torboxKey: options?.torboxKey,
           keepArchive: options?.keepArchive,
         });

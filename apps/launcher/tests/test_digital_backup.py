@@ -107,3 +107,33 @@ def test_encrypted_original_backup_uses_server_passwords_before_restoration(tmp_
     assert payload.read_bytes() == b"encrypted incoming"
     assert not reply.exists()
     assert json.loads(completed.read_text())["phase"] == "completed"
+
+def test_automatic_source_skips_patch_rules_and_preserves_existing_files(tmp_path):
+    folder = tmp_path / "game"
+    folder.mkdir()
+    (folder / "fix.dll").write_bytes(b"existing")
+    with zipfile.ZipFile(folder / "main.zip", "w") as archive:
+        archive.writestr("Game/game.exe", b"main" * 10000)
+    with zipfile.ZipFile(folder / "patch.zip", "w") as archive:
+        archive.writestr("fix.dll", b"incoming")
+    with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
+        assert worker.extract_archives_in_path(str(folder), str(folder), game_name="Fixture Game", auto_installed=True)
+    assert (folder / "fix.dll").read_bytes() == b"existing"
+    assert not (folder / "Game" / "fix.dll").exists()
+    assert not list(folder.rglob("*.zip"))
+    assert not (folder / ".digital-backup.json").exists()
+
+def test_automatic_source_play_ignores_backup_and_password_metadata(tmp_path):
+    storage, folder, original = prepare(tmp_path)
+    (folder / "Fixture Game_backup.zip").write_bytes(b"corrupt")
+    (folder / ".digital-backup.json").write_text("invalid")
+    patch_file = folder / "Game" / "fix.dll"
+    patch_file.write_bytes(b"modified")
+    runner = DigitalProcessRunner(storage)
+    assert not runner.run("status", 1, "Fixture Game", auto_installed=True)["backup_requires_password"]
+    with patch("digital_process_runner.subprocess.Popen") as launch, patch.object(DigitalArchiveBackup, "restore") as restore:
+        launch.return_value.pid = 42
+        assert runner.run("play", 1, "Fixture Game", auto_installed=True)["ok"]
+        restore.assert_not_called()
+        launch.assert_called_once()
+    assert patch_file.read_bytes() == b"modified"

@@ -616,6 +616,7 @@ async fn run_digital_process(
     name: String,
     command: String,
     working_dir: Option<String>,
+    auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
@@ -638,6 +639,7 @@ async fn run_digital_process(
             cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
         }
 
+        if auto_installed == Some(true) { cmd.arg("--auto-installed"); }
         if let Some(ref cwd) = working_dir {
             cmd.arg("--working-dir").arg(cwd);
         }
@@ -678,6 +680,7 @@ async fn start_digital_download(
     install_process: String,
     torbox_key: Option<String>,
     keep_archive: Option<bool>,
+    auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         println!("[Rust:start_digital_download] Received request: app_id={app_id}, name='{name}', source='{download_source}'");
@@ -728,6 +731,7 @@ async fn start_digital_download(
             }
         }
 
+        if auto_installed == Some(true) { cmd.arg("--auto-installed"); }
         if keep_archive == Some(true) {
             cmd.arg("--keep-archive");
         }
@@ -1033,7 +1037,7 @@ mod digital_controls_tests {
         }
         assert!(ready, "Local fixture HTTP server did not start");
         let app_id = 987654321;
-        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, "".into(), None, Some(true))).unwrap();
+        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, "".into(), None, Some(true), None)).unwrap();
         wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
         let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();
         assert_eq!(paused["phase"], "paused");

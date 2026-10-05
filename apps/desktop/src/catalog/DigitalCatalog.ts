@@ -14,6 +14,7 @@ export interface DigitalGameRecord {
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
+  auto_installed?: boolean;
 }
 
 export interface DigitalCatalogOptions {
@@ -101,6 +102,7 @@ export class DigitalCatalog {
           installProcess: item.installProcess ?? (item as any).install_process ?? "",
           playProcess: item.playProcess ?? (item as any).play_process ?? "",
           uninstallProcess: item.uninstallProcess ?? (item as any).uninstall_process ?? "",
+          auto_installed: item.auto_installed === true,
         };
         this.rawRecords.set(id, rec);
         digitalRecords.push(rec);
@@ -198,7 +200,8 @@ export class DigitalCatalog {
     let downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
     console.log("[DigitalCatalog:download] Initial downloadSource:", downloadSource);
 
-    if (!downloadSource) {
+    let autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
+    if (!downloadSource || downloadSource === "auto") {
       try {
         const apiUrl = await getApiBaseUrl();
         console.log(`[DigitalCatalog:download] No local downloadSource. Querying API at ${apiUrl}/digital/source/${game.id}...`);
@@ -209,6 +212,7 @@ export class DigitalCatalog {
             console.log("[DigitalCatalog:download] API source response:", data);
             if (data?.uri) {
               downloadSource = data.uri;
+              autoInstalled = data.auto_installed === true;
             }
           } else {
             console.warn(`[DigitalCatalog:download] API returned status ${res.status}`);
@@ -234,6 +238,7 @@ export class DigitalCatalog {
         uninstallProcess: "",
       }),
       downloadSource,
+      auto_installed: autoInstalled,
     };
     console.log("[DigitalCatalog:download] Calling digitalDownloadService.start with record:", effectiveRecord);
     return digitalDownloadService.start(game, { record: effectiveRecord });

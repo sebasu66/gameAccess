@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Callable
 
-from sqlalchemy import Column, Engine, Text
+from sqlalchemy import Column, Engine, Text, inspect, text
 from sqlmodel import Field as SQLField, Session, SQLModel, select
 
 from .catalog_metadata import (
@@ -53,6 +53,7 @@ class DigitalSourceRecord(SQLModel, table=True):
     priority: int = 1
     enabled: bool = True
     source_type: str = "hydra_source"
+    auto_installed: bool = False
     items_count: int = 0
     added_at: str = ""
     updated_at: str = ""
@@ -65,6 +66,15 @@ class DigitalCacheRecord(SQLModel, table=True):
     updated_at: str = ""
     total_items: int = 0
     payload: str = SQLField(default="", sa_column=Column(Text, nullable=False))
+
+
+def ensure_digital_source_schema(db_engine: Engine = default_engine) -> None:
+    """Add the source policy safely to existing SQLite/Postgres installations."""
+    DigitalSourceRecord.__table__.create(db_engine, checkfirst=True)
+    columns = {column["name"] for column in inspect(db_engine).get_columns("digital_source")}
+    if "auto_installed" not in columns:
+        with db_engine.begin() as connection:
+            connection.execute(text("ALTER TABLE digital_source ADD COLUMN auto_installed BOOLEAN NOT NULL DEFAULT FALSE"))
 
 
 def get_digital_catalog_path(override_path: Path | str | None = None) -> Path:

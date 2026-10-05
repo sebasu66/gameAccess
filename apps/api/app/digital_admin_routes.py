@@ -19,6 +19,7 @@ from .digital_catalog import (
     DigitalCacheRecord,
     DigitalGame,
     DigitalSourceRecord,
+    ensure_digital_source_schema,
     get_digital_catalog_path,
     load_digital_catalog_from_db,
     load_digital_catalog_json,
@@ -74,6 +75,7 @@ class GameItem(BaseModel):
 
 
 class SourceItem(BaseModel):
+    auto_installed: bool = False
     url: str = Field(min_length=3)
     label: str = ""
     enabled: bool = True
@@ -111,6 +113,8 @@ def load_sources_config() -> dict[str, Any]:
                     sources = data.get("sources", [])
                     if sources:
                         for idx, s in enumerate(sources):
+                            if isinstance(s, dict):
+                                s.setdefault("auto_installed", False)
                             if isinstance(s, dict) and "priority" not in s:
                                 s["priority"] = idx + 1
                         return data
@@ -119,6 +123,7 @@ def load_sources_config() -> dict[str, Any]:
 
     # Fallback to persistent database if disk file is missing or has no sources (e.g. after fresh deploy)
     try:
+        ensure_digital_source_schema(default_engine)
         with Session(default_engine) as session:
             db_sources = session.exec(select(DigitalSourceRecord)).all()
             if db_sources:
@@ -146,6 +151,7 @@ def load_sources_config() -> dict[str, Any]:
                         "enabled": s.enabled,
                         "priority": s.priority,
                         "type": s.source_type,
+                        "auto_installed": s.auto_installed,
                         "items_count": s.items_count,
                         "added_at": s.added_at,
                     })
@@ -170,6 +176,7 @@ def save_sources_config(data: dict[str, Any]) -> None:
     disk_sources = []
     for s in data.get("sources", []):
         if isinstance(s, dict):
+            s.setdefault("auto_installed", False)
             item = {k: v for k, v in s.items() if k != "raw_content"}
             disk_sources.append(item)
     with path.open("w", encoding="utf-8") as f:
@@ -177,6 +184,7 @@ def save_sources_config(data: dict[str, Any]) -> None:
 
     # Sync to persistent database
     try:
+        ensure_digital_source_schema(default_engine)
         with Session(default_engine) as session:
             existing_records = {s.url: s for s in session.exec(select(DigitalSourceRecord)).all()}
             current_urls = set()
@@ -193,6 +201,7 @@ def save_sources_config(data: dict[str, Any]) -> None:
                 if rec:
                     rec.label = s.get("label", rec.label)
                     rec.enabled = bool(s.get("enabled", rec.enabled))
+                    rec.auto_installed = bool(s.get("auto_installed", False))
                     rec.priority = int(s.get("priority", rec.priority or 1))
                     rec.items_count = int(s.get("items_count", rec.items_count or 0))
                     rec.updated_at = now
@@ -206,6 +215,7 @@ def save_sources_config(data: dict[str, Any]) -> None:
                         enabled=bool(s.get("enabled", True)),
                         priority=int(s.get("priority", 1)),
                         source_type=str(s.get("type", "hydra_source")),
+                        auto_installed=bool(s.get("auto_installed", False)),
                         items_count=int(s.get("items_count", 0)),
                         added_at=str(s.get("added_at", now)),
                         updated_at=now,
@@ -542,6 +552,8 @@ def add_or_update_source(source: SourceItem) -> dict[str, Any]:
         if s.get("url") == source.url:
             s["label"] = source.label or s.get("label", "")
             s["enabled"] = source.enabled
+            if "auto_installed" in source.model_fields_set:
+                s["auto_installed"] = source.auto_installed
             if source.priority is not None:
                 s["priority"] = source.priority
             found = True
@@ -551,6 +563,7 @@ def add_or_update_source(source: SourceItem) -> dict[str, Any]:
             "url": source.url,
             "label": source.label or f"Servidor {len(sources) + 1}",
             "enabled": source.enabled,
+            "auto_installed": source.auto_installed,
             "priority": source.priority if source.priority is not None else (len(sources) + 1),
             "added_at": datetime.now(timezone.utc).isoformat(),
         })
