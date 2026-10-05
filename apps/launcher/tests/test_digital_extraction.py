@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 LAUNCHER = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(LAUNCHER))
 SEVEN_ZIP = LAUNCHER / "bin" / "7z" / "7z.exe"
 
 def load_worker():
@@ -98,12 +99,9 @@ class ExtractionTest(unittest.TestCase):
             output = self.root / ("native" if extractor else "fallback")
             events = []
             with patch.object(worker, "find_portable_7z", return_value=extractor), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
-                worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+                worker.extract_archives_in_path(str(packages), str(output), delete_archive=False, retain_backup=False)
             self.assertEqual((output / "Game" / "fix.dll").read_bytes(), b"fix")
             self.assertFalse((output / "fix.dll").exists())
-            with zipfile.ZipFile(output / "Game" / "backup for Game.zip") as backup:
-                self.assertEqual(backup.namelist(), ["fix.dll"])
-                self.assertEqual(backup.read("fix.dll"), b"fix")
             organizing = [e["status_text"] for e in events if e.get("status_text", "").startswith("Organizando")]
             self.assertIn("z-large-game.zip", organizing[0])
             self.assertIn("a-small-fix.zip", organizing[1])
@@ -121,7 +119,7 @@ class ExtractionTest(unittest.TestCase):
                 archive.writestr(member, data)
         output = self.root / "output"
         with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
-            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False, retain_backup=False)
         self.assertTrue((output / "Game" / "fix.dll").is_file())
         self.assertFalse((output / "Tools" / "fix.dll").exists())
 
@@ -136,7 +134,7 @@ class ExtractionTest(unittest.TestCase):
             archive.writestr("Game/fix.dll", b"fix")
         output = self.root / "output"
         with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
-            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False, retain_backup=False)
         self.assertTrue((output / "Game" / "fix.dll").is_file())
         self.assertFalse((output / "Game" / "Game").exists())
 
@@ -153,7 +151,7 @@ class ExtractionTest(unittest.TestCase):
         subprocess.run([str(SEVEN_ZIP), "a", str(packages / "fix.7z"), str(fix), "-y"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=10)
         output = self.root / "output"
         with patch.object(worker, "find_portable_7z", return_value=str(SEVEN_ZIP)), patch.object(worker, "emit_progress"):
-            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False, retain_backup=False)
         self.assertEqual((output / "Game" / "fix.dll").read_bytes(), b"fix")
         self.assertFalse((output / "fix.dll").exists())
 
@@ -181,7 +179,7 @@ if __name__ == "__main__":
         reply.write_text(server_reply.read_text(encoding="utf-8") if server_reply.exists() else '{"passwords": []}', encoding="utf-8")
         worker.find_portable_7z = lambda: str(SEVEN_ZIP)
         try:
-            worker.extract_archives_in_path(sys.argv[2], sys.argv[3], password=sys.argv[4] or None, delete_archive=False)
+            worker.extract_archives_in_path(sys.argv[2], sys.argv[3], password=sys.argv[4] or None, delete_archive=False, retain_backup=False)
         except Exception as error:
             worker.emit_error("fixture", str(error))
             sys.exit(1)

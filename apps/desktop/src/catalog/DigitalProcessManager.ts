@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
+import { supplyArchivePasswords } from "./archivePasswords";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 
@@ -16,6 +17,7 @@ export interface ProcessExecutionResult {
   command: string;
   folder?: string;
   installed?: boolean;
+  backup_requires_password?: boolean;
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
 
@@ -50,6 +52,11 @@ export class DigitalProcessManager {
     const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
     try {
       if (hasTauriRuntime()) {
+        if (action === "play") {
+          const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null });
+          if (!backup.ok) throw new Error(backup.error || "No se pudo verificar el respaldo Digital.");
+          if (backup.backup_requires_password) await supplyArchivePasswords(appId);
+        }
         const result = await invoke<ProcessExecutionResult>("run_digital_process", {
           action, appId, name, command, workingDir: null,
         });

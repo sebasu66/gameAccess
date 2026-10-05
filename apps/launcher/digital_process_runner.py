@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 from digital_storage import DigitalGameStorage
+from digital_backup import DigitalArchiveBackup
 
 class DigitalProcessRunner:
     def __init__(self, storage=None):
@@ -46,7 +47,9 @@ class DigitalProcessRunner:
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
             if action == "status":
-                return {**result, "ok": True, **self.storage.status(app_id, name)}
+                backup = DigitalArchiveBackup.info(folder, name)
+                return {**result, "ok": True, **self.storage.status(app_id, name),
+                        "backup_requires_password": bool(backup and backup["needs_password"])}
             if action == "uninstall":
                 self.storage.uninstall(app_id, name)
                 return {**result, "ok": True, "exit_code": 0}
@@ -59,6 +62,7 @@ class DigitalProcessRunner:
                 raise ValueError(f"Unknown action '{action}'")
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no está descargado y descomprimido en su carpeta Digital.")
+            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             executable, arguments = self.executable(folder, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent),

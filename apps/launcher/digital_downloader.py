@@ -776,42 +776,14 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
     return first if all(len(path) > 1 and path[0] == first for path in parts) else ""
 
 
-def backup_incoming_archive(archive: str, extraction_dir: str, game_dir: str,
-                            seven_zip: Optional[str], password: str, game_name: Optional[str]) -> None:
-    """Back up only the incoming files after overwrite, never the replaced files."""
-    import zipfile
-    from digital_storage import DigitalGameStorage
-    members = archive_member_names(archive, seven_zip, password)
-    if members is None:
-        raise RuntimeError("No se pudo listar el contenido entrante para crear su respaldo.")
-    root = Path(extraction_dir).resolve()
-    backup_dir = Path(game_dir).resolve()
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    title = DigitalGameStorage.folder_name(game_name or backup_dir.name)
-    output = backup_dir / f"backup for {title}.zip"
-    temporary = output.with_suffix(".zip.tmp")
-    try:
-        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
-            for member in dict.fromkeys(members):
-                relative = member.replace("\\", "/")
-                incoming = (root / relative).resolve()
-                if not incoming.is_relative_to(root) or not incoming.is_file():
-                    raise RuntimeError(f"No se pudo respaldar el archivo entrante: {member}")
-                if incoming in (output, temporary):
-                    raise RuntimeError("El paquete usa el nombre reservado para su respaldo.")
-                zf.write(incoming, arcname=relative)
-        os.replace(temporary, output)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def extract_archives_in_path(
     target_path: str,
     dest_dir: str,
     host: Optional[str] = None,
     password: Optional[str] = None,
     delete_archive: bool = True,
-    game_name: Optional[str] = None
+    game_name: Optional[str] = None,
+    retain_backup: bool = True
 ) -> bool:
     """
     Extracts archive files (or archives found inside target directory) using portable 7-Zip,
@@ -828,7 +800,7 @@ def extract_archives_in_path(
                 full_path = os.path.join(root, f)
                 if is_archive(full_path):
                     fn = f.lower()
-                    if fn.startswith("backup for ") and fn.endswith(".zip"):
+                    if (fn.startswith("backup for ") and fn.endswith(".zip")) or re.search(r"_backup(?:\.|$)", fn):
                         continue
                     if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
                         continue
@@ -956,13 +928,11 @@ def extract_archives_in_path(
             if not success:
                 raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
-        if success and idx == total - 1:
-            emit_progress(app_id=g_app_id, phase="decompressing", progress_percent=99.0,
-                          status_text=f"Creando respaldo de los archivos entrantes de {arc_name}...")
-            backup_incoming_archive(arc, extraction_dir, game_subfolder, seven_zip,
-                                    candidate_password if seven_zip else effective_password or "-", game_name)
-
-        if success and delete_archive:
+        if success and idx == total - 1 and retain_backup:
+            from digital_backup import DigitalArchiveBackup
+            DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
+                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")))
+        elif success and delete_archive:
             delete_archive_and_parts(arc)
             if arc in g_temp_files:
                 g_temp_files.remove(arc)
