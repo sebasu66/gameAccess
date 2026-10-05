@@ -876,6 +876,7 @@ def main():
     parser.add_argument("--connections", "-n", type=int, default=16, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")
     parser.add_argument("--keep-archive", action="store_true", help="Keep archive after decompressing")
+    parser.add_argument("--extract-only", default=None, help="Retry extraction of an already downloaded file or directory")
 
     args = parser.parse_args()
 
@@ -909,7 +910,7 @@ def main():
     )
 
     download_source = (args.download_source or "").strip()
-    if not download_source or download_source.lower() == "auto":
+    if not args.extract_only and (not download_source or download_source.lower() == "auto"):
         emit_progress(
             app_id=app_id,
             phase="preparing",
@@ -936,7 +937,7 @@ def main():
 
     download_url = None
     target_filename = None
-    target_content_path = None
+    target_content_path = os.path.abspath(args.extract_only) if args.extract_only else None
     is_torrent = (
         download_source.startswith("magnet:?") or
         download_source.endswith(".torrent") or
@@ -944,107 +945,111 @@ def main():
     )
 
     try:
-        if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
-            torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
-            use_torbox = False
-
-            if torbox_key:
-                try:
-                    tb = TorboxClient(torbox_key)
-                    emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
-
-                    is_cached = tb.check_cached(download_source)
-                    if is_cached:
-                        emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
-
-                    # Submit package to high-speed cloud resolver
-                    torrent_id = tb.add_torrent(download_source)
-                    emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
-
-                    # Poll cloud status until completed/cached (up to 30 attempts)
-                    tb_attempts = 0
-                    while not g_cancelled.is_set() and tb_attempts < 30:
-                        tb_attempts += 1
-                        status = tb.get_status(torrent_id)
-                        if status:
-                            is_finished = status.get("download_finished", False)
-                            state = status.get("download_state", "unknown")
-                            progress = status.get("progress", 0.0)
-                            pct = progress if progress > 1.0 else progress * 100
-
-                            emit_progress(
-                                app_id=app_id,
-                                phase="preparing",
-                                progress_percent=min(pct * 0.25 + 22.0, 48.0),
-                                status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
-                            )
-
-                            if is_finished or state in ("completed", "cached") or pct >= 100.0:
-                                raw_files = status.get("files") or []
-                                files = [f for f in raw_files if isinstance(f, dict)]
-                                t_name = status.get("name", "game_package")
-
-                                if len(files) == 1:
-                                    f_obj = files[0]
-                                    target_filename = f_obj.get("name") or t_name
-                                    file_id = f_obj.get("id")
-                                    download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
-                                else:
-                                    target_filename = f"{t_name}.zip"
-                                    download_url = tb.request_link(torrent_id, zip_link=True)
-                                use_torbox = True
-                                break
-                        time.sleep(2)
-                except Exception as tb_err:
-                    emit_progress(
+        if args.extract_only:
+            if not os.path.exists(target_content_path):
+                raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
+        else:
+            if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
+                torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
+                use_torbox = False
+    
+                if torbox_key:
+                    try:
+                        tb = TorboxClient(torbox_key)
+                        emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
+    
+                        is_cached = tb.check_cached(download_source)
+                        if is_cached:
+                            emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
+    
+                        # Submit package to high-speed cloud resolver
+                        torrent_id = tb.add_torrent(download_source)
+                        emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
+    
+                        # Poll cloud status until completed/cached (up to 30 attempts)
+                        tb_attempts = 0
+                        while not g_cancelled.is_set() and tb_attempts < 30:
+                            tb_attempts += 1
+                            status = tb.get_status(torrent_id)
+                            if status:
+                                is_finished = status.get("download_finished", False)
+                                state = status.get("download_state", "unknown")
+                                progress = status.get("progress", 0.0)
+                                pct = progress if progress > 1.0 else progress * 100
+    
+                                emit_progress(
+                                    app_id=app_id,
+                                    phase="preparing",
+                                    progress_percent=min(pct * 0.25 + 22.0, 48.0),
+                                    status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
+                                )
+    
+                                if is_finished or state in ("completed", "cached") or pct >= 100.0:
+                                    raw_files = status.get("files") or []
+                                    files = [f for f in raw_files if isinstance(f, dict)]
+                                    t_name = status.get("name", "game_package")
+    
+                                    if len(files) == 1:
+                                        f_obj = files[0]
+                                        target_filename = f_obj.get("name") or t_name
+                                        file_id = f_obj.get("id")
+                                        download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
+                                    else:
+                                        target_filename = f"{t_name}.zip"
+                                        download_url = tb.request_link(torrent_id, zip_link=True)
+                                    use_torbox = True
+                                    break
+                            time.sleep(2)
+                    except Exception as tb_err:
+                        emit_progress(
+                            app_id=app_id,
+                            phase="preparing",
+                            progress_percent=15.0,
+                            status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
+                        )
+                        use_torbox = False
+    
+                # If TorBox is unavailable or has no key, fall back to direct torrent download
+                if not use_torbox or not download_url:
+                    target_content_path = download_direct_torrent(
+                        torrent_source=download_source,
+                        dest_dir=dest_dir,
                         app_id=app_id,
-                        phase="preparing",
-                        progress_percent=15.0,
-                        status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
+                        game_name=game_name
                     )
-                    use_torbox = False
-
-            # If TorBox is unavailable or has no key, fall back to direct torrent download
-            if not use_torbox or not download_url:
-                target_content_path = download_direct_torrent(
-                    torrent_source=download_source,
-                    dest_dir=dest_dir,
+                    if not target_content_path or g_cancelled.is_set():
+                        cleanup_on_cancel()
+                        return
+            else:
+                download_url = download_source
+                parsed = urlparse(download_url)
+                target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
+    
+            # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
+            if download_url:
+                out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
+                g_temp_files.append(out_filepath)
+                target_content_path = out_filepath
+    
+                emit_progress(
                     app_id=app_id,
-                    game_name=game_name
+                    phase="downloading",
+                    progress_percent=0.0,
+                    status_text="Iniciando descarga de alta velocidad..."
                 )
-                if not target_content_path or g_cancelled.is_set():
+    
+                ok = download_segmented(
+                    url=download_url,
+                    output_path=out_filepath,
+                    app_id=app_id,
+                    game_name=game_name,
+                    connections=args.connections
+                )
+    
+                if not ok or g_cancelled.is_set():
                     cleanup_on_cancel()
                     return
-        else:
-            download_url = download_source
-            parsed = urlparse(download_url)
-            target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
-
-        # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
-        if download_url:
-            out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
-            g_temp_files.append(out_filepath)
-            target_content_path = out_filepath
-
-            emit_progress(
-                app_id=app_id,
-                phase="downloading",
-                progress_percent=0.0,
-                status_text="Iniciando descarga de alta velocidad..."
-            )
-
-            ok = download_segmented(
-                url=download_url,
-                output_path=out_filepath,
-                app_id=app_id,
-                game_name=game_name,
-                connections=args.connections
-            )
-
-            if not ok or g_cancelled.is_set():
-                cleanup_on_cancel()
-                return
-
+    
         emit_progress(
             app_id=app_id,
             phase="downloading",
