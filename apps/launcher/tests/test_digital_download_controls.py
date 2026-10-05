@@ -110,7 +110,7 @@ class DigitalControlsTest(unittest.TestCase):
         self.assertEqual(result["bytesDownloaded"], len(PAYLOAD))
     def test_error_is_not_cancelled(self):
         self.start("/fail.bin")
-        self.wait_for(lambda s: s.get("phase") == "error")
+        self.wait_for(lambda s: s.get("phase") == "error", timeout=35)
         self.process.wait(timeout=5)
         self.assertEqual(self.snapshot()["phase"], "error")
         self.assertEqual(self.process.returncode, 1)

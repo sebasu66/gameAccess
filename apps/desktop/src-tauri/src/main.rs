@@ -688,7 +688,7 @@ async fn start_digital_download(
 
         let status_dir = launcher.join(".cache").join("digital_downloads");
         fs::create_dir_all(&status_dir).map_err(|err| err.to_string())?;
-        for suffix in ["json", "control.json"] {
+        for suffix in ["json", "control.json", "passwords.json", "passwords.tmp"] {
             let path = status_dir.join(format!("{app_id}.{suffix}"));
             if path.exists() { fs::remove_file(path).map_err(|err| err.to_string())?; }
         }
