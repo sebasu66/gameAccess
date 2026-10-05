@@ -709,9 +709,8 @@ async fn start_digital_download(
         };
         cmd.arg("--source").arg(&src);
 
-        if !install_process.trim().is_empty() {
-            cmd.arg("--install-process").arg(&install_process);
-        }
+        // Digital archives are extracted in place; catalog installation commands are ignored.
+        let _ = install_process;
 
         if let Some(ref key) = torbox_key {
             if !key.trim().is_empty() {
@@ -1011,6 +1010,7 @@ mod digital_controls_tests {
         let launcher = env::temp_dir().join(format!("gameaccess-digital-smoke-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&launcher).unwrap();
         fs::copy(original.join("digital_downloader.py"), launcher.join("digital_downloader.py")).unwrap();
+        fs::copy(original.join("digital_storage.py"), launcher.join("digital_storage.py")).unwrap();
         let fixture = Fixture { server, launcher: launcher.clone(), previous_launcher: env::var_os("GAMEACCESS_LAUNCHER_DIR") };
         env::set_var("GAMEACCESS_LAUNCHER_DIR", &launcher);
         let url = format!("http://127.0.0.1:{port}/fixture.bin");

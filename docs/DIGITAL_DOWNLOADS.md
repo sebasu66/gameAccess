@@ -11,3 +11,9 @@ An encrypted archive requests the list only after extraction rejects the initial
 Digital download, extraction, installation, control, status-probe and process execution failures use the existing `narrate(..., { level: "ERROR" })` path to `POST /client-errors`. Reports carry AppID and execution area. Repeated identical worker snapshots are deduplicated. Server review uses the existing client error admin endpoints.
 
 To retry only extraction of an already downloaded archive, run the committed `digital_downloader.py` with `--app-id`, `--name`, `--extract-only PATH`, `--destination-dir PATH` and `--keep-archive`. The desktop manager must be running and monitoring the same AppID to provide central passwords. Do not run a second worker for the same AppID while the old worker is active.
+
+## Portable Digital lifecycle
+
+DigitalGameStorage owns each game's download folder under launcher/games and remembers it by Digital ID in .cache/digital_games. Existing named game folders are reused in place. New games use ID-name folders to isolate parallel downloads. HTTP, TorBox and torrent content is downloaded and extracted there. Extraction is the installation; installProcess and uninstallProcess are ignored. There is no Steam staging, relocation, manifest, account or lease dependency.
+
+DigitalProcessRunner launches the configured relative executable inside that folder, or discovers the only game executable when playProcess is empty. Its working directory is the executable's directory inside the downloaded folder. Ambiguous executables produce a support-reported error rather than launching Steam. Folder presence with unpacked payload determines availability; empty folders and archive-only downloads are not ready. The UI probes folder state on startup, focus and every 15 seconds, rather than trusting completed history. Uninstall deletes only the checked Digital folder and its local bookkeeping. Root, external and redirected folders are refused.

@@ -897,7 +897,7 @@ def main():
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
-    parser.add_argument("--destination-dir", default="./games", help="Destination folder (default: ./games)")
+    parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
     parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
     parser.add_argument("--host", default=None, help="Host profile identifier (e.g. 'X' uses password 'zzzz')")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
@@ -911,7 +911,8 @@ def main():
     app_id = str(args.appId)
     g_app_id = app_id
     game_name = args.name
-    dest_dir = os.path.abspath(args.destination_dir)
+    from digital_storage import DigitalGameStorage
+    dest_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(DigitalGameStorage().register(int(app_id), game_name))
     os.makedirs(dest_dir, exist_ok=True)
 
     control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.control.json"
@@ -1103,47 +1104,7 @@ def main():
 
         if g_cancelled.is_set():
             cleanup_on_cancel()
-        # 4. PHASE: INSTALLING (Optional post-download install command)
-        if args.install_process:
-            emit_progress(
-                app_id=app_id,
-                phase="installing",
-                progress_percent=0.0,
-                status_text=f"Instalando {game_name}..."
-            )
-
-            # Context variable substitution
-            seven_zip_path = find_portable_7z() or "7z"
-            cmd_rendered = args.install_process.format(
-                file=target_content_path or dest_dir,
-                dest=dest_dir,
-                dir=dest_dir,
-                appId=app_id,
-                name=game_name,
-                seven_zip=seven_zip_path,
-                _7z=seven_zip_path
-            )
-
-            g_active_subprocess = subprocess.Popen(
-                cmd_rendered,
-                shell=True,
-                cwd=dest_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = g_active_subprocess.communicate()
-
-            if g_active_subprocess.returncode != 0:
-                raise RuntimeError(f"El proceso de instalación falló con código {g_active_subprocess.returncode}: {stderr.strip()[:200]}")
-
-            emit_progress(
-                app_id=app_id,
-                phase="installing",
-                progress_percent=100.0,
-                status_text="Instalación completada"
-            )
-
+        # Digital is portable: extraction is the installation. Never execute installProcess.
         if g_cancelled.is_set():
             cleanup_on_cancel()
         # 5. PHASE: COMPLETED

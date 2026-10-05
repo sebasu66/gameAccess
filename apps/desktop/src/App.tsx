@@ -23,6 +23,7 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DigitalDownloadToast from "./DigitalDownloadToast";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
@@ -162,7 +163,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 
   useEffect(() => {
     void refresh();
-    steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
+    if (getCatalogMode() !== "digital") steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
     if (getCatalogMode() === "digital") {
       const restored: DownloadMap = {};
@@ -272,6 +273,36 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (getCatalogMode() !== "digital" || !games.length) return;
+    let cancelled = false;
+    let pending = false;
+    const refreshDigital = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const result = await digitalProcessManager.snapshot(games);
+        if (!cancelled) setDownloads(current => {
+          const next = { ...current };
+          for (const game of games) {
+            const id = game.app_id ?? game.id;
+            const active = digitalDownloadService.getManagedStatus(id);
+            if (active && !["installed", "not-installed"].includes(active.state)) continue;
+            const installed = Boolean(result.statuses?.[id]?.installed);
+            next[id] = { app_id: id, state: installed ? "installed" : "not-installed", progress: installed ? 100 : null,
+              bytes_downloaded: null, bytes_total: null, installed };
+          }
+          return next;
+        });
+      } catch { /* Keep last confirmed folder state on probe errors. */ }
+      finally { pending = false; }
+    };
+    void refreshDigital();
+    const timer = window.setInterval(() => void refreshDigital(), 15000);
+    window.addEventListener("focus", refreshDigital);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
+  }, [games]);
 
   useEffect(() => {
     if (getCatalogMode() === "digital") return;

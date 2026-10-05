@@ -197,7 +197,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const appId = record?.id ?? game.app_id ?? gameId;
     const name = record?.name ?? game.name;
     const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
-    const installProcess = record?.installProcess ?? "";
+    const installProcess = "";
     console.log(`[DigitalDownloaderService:start] Params: appId=${appId}, name='${name}', source='${downloadSource}'`);
 
     if (!downloadSource) {
@@ -354,27 +354,17 @@ export class DigitalDownloadService implements IDownloadProvider {
    */
   async play(game: CatalogGame): Promise<void> {
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    if (record?.playProcess && record.playProcess.trim()) {
-      await digitalProcessManager.executePlay(game, record);
-      return;
-    }
-    if (hasTauriRuntime() && game.app_id) {
-      await invoke("open_steam_run", { appId: game.app_id });
-    }
+    await digitalProcessManager.executePlay(game, record);
   }
 
-  /**
-   * Uninstalls the digital game by running its `uninstallProcess` via DigitalProcessManager.
-   */
   async uninstall(game: CatalogGame): Promise<void> {
-    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    if (record?.uninstallProcess && record.uninstallProcess.trim()) {
-      await digitalProcessManager.executeUninstall(game, record);
-      return;
+    const id = game.app_id ?? game.id;
+    const snapshot = this.activeJobs.get(id);
+    if (snapshot && !["completed", "error", "interrupted", "cancelled"].includes(snapshot.phase)) {
+      throw new Error("Aborte la descarga antes de desinstalar el juego.");
     }
-    if (hasTauriRuntime() && game.app_id) {
-      await invoke("uninstall_game", { appId: game.app_id });
-    }
+    await digitalProcessManager.executeUninstall(game);
+    this.updateSnapshot({ gameId: id, phase: "cancelled", progress: 0, statusText: "Juego desinstalado" });
   }
 
   /**

@@ -1,106 +1,84 @@
 from __future__ import annotations
-
 import argparse
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
+from digital_storage import DigitalGameStorage
 
+class DigitalProcessRunner:
+    def __init__(self, storage=None):
+        self.storage = storage or DigitalGameStorage()
 
-def run_process(action: str, app_id: int, name: str, command: str, working_dir: str | None = None) -> dict:
-    if not command or not command.strip():
-        return {
-            "ok": False,
-            "action": action,
-            "app_id": app_id,
-            "error": f"No {action} command specified.",
-        }
-
-    cmd = command.strip()
-    cwd = Path(working_dir).resolve() if working_dir and Path(working_dir).exists() else None
-
-    # On Windows, using shell=True allows executing command sequences, batch files,
-    # powershell commands, or direct executables seamlessly.
-    try:
-        if action == "play":
-            # For game launching, start detached so the game process keeps running independently.
-            flags = 0
-            if sys.platform == "win32":
-                flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008  # DETACHED_PROCESS
-
-            proc = subprocess.Popen(
-                cmd,
-                shell=True,
-                cwd=str(cwd) if cwd else None,
-                creationflags=flags,
-                close_fds=True,
-            )
-            return {
-                "ok": True,
-                "action": "play",
-                "app_id": app_id,
-                "name": name,
-                "pid": proc.pid,
-                "command": cmd,
-            }
-        elif action == "uninstall":
-            # For uninstalling, wait for completion to know if files were successfully cleaned.
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                cwd=str(cwd) if cwd else None,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            return {
-                "ok": result.returncode == 0,
-                "action": "uninstall",
-                "app_id": app_id,
-                "name": name,
-                "exit_code": result.returncode,
-                "stdout": result.stdout.strip(),
-                "stderr": result.stderr.strip(),
-                "command": cmd,
-            }
+    def executable(self, folder, command):
+        arguments = []
+        if command.strip():
+            if re.search(r"[&|;<>\r\n]|steam:", command, re.I):
+                raise ValueError("Digital requiere un ejecutable local; no admite comandos de Steam ni scripts de instalación.")
+            parts = shlex.split(command, posix=False)
+            candidate = folder / parts[0].strip('"')
+            executable = candidate.resolve()
+            arguments = [p.strip('"') for p in parts[1:]]
+            if not executable.is_relative_to(folder) or not executable.is_file():
+                raise ValueError("El ejecutable configurado no se encuentra en la carpeta descargada.")
         else:
-            return {
-                "ok": False,
-                "action": action,
-                "app_id": app_id,
-                "error": f"Unknown action '{action}'",
-            }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "action": action,
-            "app_id": app_id,
-            "name": name,
-            "error": str(exc),
-        }
+            candidates = [p for p in folder.rglob("*.exe") if not re.search(
+                r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist", str(p.relative_to(folder)), re.I)]
+            if len(candidates) != 1:
+                raise ValueError("No se pudo identificar un único ejecutable del juego en la carpeta descargada. Configure playProcess con su ruta relativa.")
+            executable = candidates[0].resolve()
+        if not executable.is_relative_to(folder):
+            raise ValueError("El ejecutable debe permanecer dentro de la carpeta Digital.")
+        return executable, arguments
 
+    def run(self, action, app_id, name, command=""):
+        result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
+        try:
+            if action == "snapshot":
+                games = json.loads(command)
+                return {"ok": True, "statuses": {str(g["id"]): self.storage.status(g["id"], g["name"]) for g in games}}
+            folder = self.storage.folder(app_id, name)
+            result["folder"] = str(folder)
+            if action == "status":
+                return {**result, "ok": True, **self.storage.status(app_id, name)}
+            if action == "uninstall":
+                self.storage.uninstall(app_id, name)
+                return {**result, "ok": True, "exit_code": 0}
+            if action == "open-folder":
+                if not folder.is_dir():
+                    raise ValueError("No existe la carpeta descargada.")
+                os.startfile(str(folder))
+                return {**result, "ok": True}
+            if action != "play":
+                raise ValueError(f"Unknown action '{action}'")
+            if not self.storage.status(app_id, name)["installed"]:
+                raise ValueError("El juego no está descargado y descomprimido en su carpeta Digital.")
+            executable, arguments = self.executable(folder, command)
+            flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
+            process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent),
+                creationflags=flags, close_fds=True)
+            return {**result, "ok": True, "pid": process.pid, "command": str(executable)}
+        except Exception as error:
+            return {**result, "error": str(error)}
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Digital Game Process Runner")
-    parser.add_argument("--action", choices=["play", "uninstall"], required=True)
+def run_process(action, app_id, name, command="", working_dir=None):
+    # working_dir cannot redirect Digital execution away from its registered folder.
+    return DigitalProcessRunner().run(action, app_id, name, command)
+
+def main():
+    parser = argparse.ArgumentParser(description="Digital folder lifecycle")
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
-    parser.add_argument("--name", type=str, default="")
-    parser.add_argument("--command", type=str, required=True, help="Command sequence to execute in the terminal")
-    parser.add_argument("--working-dir", type=str, default=None, help="Working directory for the process")
+    parser.add_argument("--name", default="")
+    parser.add_argument("--command", default="")
+    parser.add_argument("--working-dir", default=None)
     args = parser.parse_args()
-
-    result = run_process(
-        action=args.action,
-        app_id=args.app_id,
-        name=args.name,
-        command=args.command,
-        working_dir=args.working_dir,
-    )
-
+    result = run_process(args.action, args.app_id, args.name, args.command)
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("ok") else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

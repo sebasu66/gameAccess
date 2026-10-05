@@ -1,13 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
-import { uninstallGame } from "../gameStorage";
 import {
   getSteamStoreMetadata,
-  openSteamInstall,
-  openSteamRun,
-  steamDownloadStatus,
-  steamInstalledAppIds,
 } from "../native";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
 import type { CatalogGame, GameDetails } from "../types";
@@ -205,16 +200,7 @@ export class DigitalCatalog {
     if (this.options.playHandler) {
       return this.options.playHandler(game);
     }
-    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    if (record?.playProcess && record.playProcess.trim()) {
-      await digitalProcessManager.executePlay(game, record);
-      return;
-    }
-    if (game.app_id) {
-      await openSteamRun(game.app_id);
-      return;
-    }
-    await digitalProcessManager.executePlay(game, record);
+    await digitalDownloadService.play(game);
   }
 
   /**
@@ -279,10 +265,7 @@ export class DigitalCatalog {
     if (this.options.uninstallHandler) {
       return this.options.uninstallHandler(game);
     }
-    if (!game.app_id) {
-      throw new Error(`El juego '${game.name}' no tiene configurado un AppID para desinstalar.`);
-    }
-    await uninstallGame(game.app_id);
+    await digitalDownloadService.uninstall(game);
   }
 
   /**
@@ -292,32 +275,19 @@ export class DigitalCatalog {
     if (this.options.openFolderHandler) {
       return this.options.openFolderHandler(game);
     }
-    if (!game.app_id) {
-      throw new Error(`El juego '${game.name}' no tiene configurado un AppID para abrir la carpeta.`);
-    }
-    await invoke<string>("open_game_install_folder", { appId: game.app_id });
+    await digitalProcessManager.openFolder(game);
   }
 
   /**
    * Resolves the current download and installation status for the game.
    */
   async getStatus(game: CatalogGame): Promise<ManagedDownloadStatus> {
-    const active = digitalDownloadService.getManagedStatus(game.id) ||
-      (game.app_id ? digitalDownloadService.getManagedStatus(game.app_id) : undefined);
-    if (active) {
-      return active;
-    }
-
     const id = game.app_id ?? game.id;
-    try {
-      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-        const raw = await invoke<{ phase?: DownloadPhase; workerPid?: number; progressPercent?: number; bytesDownloaded?: number; totalBytes?: number; speedBps?: number; etaSeconds?: number; error?: string; statusText?: string }>("digital_download_status", { appId: this.getRecord(game.id)?.id ?? id });
-        if (raw.workerPid && raw.phase) {
-          return snapshotToManagedStatus({ gameId: id, phase: raw.phase, progress: raw.progressPercent ?? 0, bytesDownloaded: raw.bytesDownloaded, bytesTotal: raw.totalBytes, speedBps: raw.speedBps, etaSeconds: raw.etaSeconds, error: raw.error, statusText: raw.statusText });
-        }
-      }
-    } catch { /* Keep Digital independent of Steam probes. */ }
-    return { app_id: id, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false };
+    const active = digitalDownloadService.getManagedStatus(game.id) || digitalDownloadService.getManagedStatus(id);
+    if (active && !["installed", "not-installed"].includes(active.state)) return active;
+    const status = await digitalProcessManager.status(game);
+    return { app_id: id, state: status.installed ? "installed" : "not-installed", progress: status.installed ? 100 : null,
+      bytes_downloaded: null, bytes_total: null, installed: Boolean(status.installed) };
   }
 
   private normalizeGames(list: Partial<CatalogGame & DigitalGameRecord>[]): CatalogGame[] {
@@ -351,4 +321,3 @@ export class DigitalCatalog {
 }
 
 export const digitalCatalogService = new DigitalCatalog();
-
