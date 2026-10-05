@@ -6,9 +6,9 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
-from sqlalchemy import Engine
+from sqlalchemy import Column, Engine, Text
 from sqlmodel import Field as SQLField, Session, SQLModel, select
 
 from .catalog_metadata import (
@@ -28,6 +28,10 @@ DEFAULT_CATALOG_PATH = Path(__file__).resolve().parent / "digital_catalog.json"
 FALLBACK_CATALOG_PATH = Path(__file__).resolve().parents[1] / "digital_catalog.json"
 STEAM_CACHE_DIR = Path(__file__).resolve().parents[1] / ".steam_cache"
 
+# Real Steam AppIDs routinely exceed 1,000,000 and the resolver never invents IDs anymore,
+# so large IDs are trusted as-is. Flip to True only to re-verify legacy hash-generated IDs.
+RESOLVE_LARGE_IDS = False
+
 
 class DigitalGame(SQLModel, table=True):
     __tablename__ = "digital_game"
@@ -39,6 +43,28 @@ class DigitalGame(SQLModel, table=True):
     play_process: str = ""
     uninstall_process: str = ""
     updated_at: str = ""
+
+
+class DigitalSourceRecord(SQLModel, table=True):
+    __tablename__ = "digital_source"
+    id: Optional[int] = SQLField(default=None, primary_key=True)
+    url: str = SQLField(index=True)
+    label: str = ""
+    priority: int = 1
+    enabled: bool = True
+    source_type: str = "hydra_source"
+    items_count: int = 0
+    added_at: str = ""
+    updated_at: str = ""
+    raw_content: Optional[str] = SQLField(default=None, sa_column=Column(Text, nullable=True))
+
+
+class DigitalCacheRecord(SQLModel, table=True):
+    __tablename__ = "digital_cache"
+    id: int = SQLField(default=1, primary_key=True)
+    updated_at: str = ""
+    total_items: int = 0
+    payload: str = SQLField(default="", sa_column=Column(Text, nullable=False))
 
 
 def get_digital_catalog_path(override_path: Path | str | None = None) -> Path:
@@ -53,15 +79,97 @@ def get_digital_catalog_path(override_path: Path | str | None = None) -> Path:
     return DEFAULT_CATALOG_PATH
 
 
+def sync_catalog_to_db(items: list[dict[str, Any]], engine_override: Engine | None = None) -> None:
+    db_engine = engine_override or default_engine
+    try:
+        with Session(db_engine) as session:
+            existing = {g.steam_app_id: g for g in session.exec(select(DigitalGame)).all()}
+            current_app_ids = set()
+            now = datetime.now(timezone.utc).isoformat()
+            for it in items:
+                try:
+                    app_id = int(it.get("id") or 0)
+                except (ValueError, TypeError):
+                    continue
+                if not app_id:
+                    continue
+                current_app_ids.add(app_id)
+                g = existing.get(app_id)
+                if g:
+                    g.name = str(it.get("name") or "")
+                    g.download_source = str(it.get("downloadSource") or "")
+                    g.install_process = str(it.get("installProcess") or "")
+                    g.play_process = str(it.get("playProcess") or "")
+                    g.uninstall_process = str(it.get("uninstallProcess") or "")
+                    g.updated_at = now
+                    session.add(g)
+                else:
+                    new_g = DigitalGame(
+                        steam_app_id=app_id,
+                        name=str(it.get("name") or ""),
+                        download_source=str(it.get("downloadSource") or ""),
+                        install_process=str(it.get("installProcess") or ""),
+                        play_process=str(it.get("playProcess") or ""),
+                        uninstall_process=str(it.get("uninstallProcess") or ""),
+                        updated_at=now,
+                    )
+                    session.add(new_g)
+            for app_id, old_g in existing.items():
+                if app_id not in current_app_ids:
+                    session.delete(old_g)
+            session.commit()
+    except Exception as e:
+        logger.warning("Could not sync catalog to database: %s", e)
+
+
+def load_digital_catalog_from_db(engine_override: Engine | None = None) -> list[dict[str, Any]]:
+    db_engine = engine_override or default_engine
+    try:
+        with Session(db_engine) as session:
+            games = session.exec(select(DigitalGame)).all()
+            return [
+                {
+                    "name": g.name,
+                    "id": g.steam_app_id,
+                    "downloadSource": g.download_source or "",
+                    "installProcess": g.install_process or "",
+                    "playProcess": g.play_process or "",
+                    "uninstallProcess": g.uninstall_process or "",
+                }
+                for g in games
+            ]
+    except Exception as e:
+        logger.warning("Could not load digital catalog from DB: %s", e)
+        return []
+
+
 def load_digital_catalog_json(catalog_path: Path | str | None = None) -> list[dict[str, Any]]:
     path = get_digital_catalog_path(catalog_path)
-    if not path.exists():
-        logger.warning("Digital catalog JSON not found at %s", path)
-        return []
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, list):
-        return [item for item in data if isinstance(item, dict) and "id" in item]
+    disk_items: list[dict[str, Any]] = []
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                disk_items = [item for item in data if isinstance(item, dict) and "id" in item]
+        except Exception as e:
+            logger.warning("Error reading %s: %s", path, e)
+            disk_items = []
+
+    if disk_items:
+        return disk_items
+
+    # Fallback to persistent database if disk file is missing or empty
+    db_items = load_digital_catalog_from_db()
+    if db_items:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w", encoding="utf-8") as f:
+                json.dump(db_items, f, indent=2, ensure_ascii=False)
+        except Exception as write_err:
+            logger.warning("Could not restore digital_catalog.json on disk: %s", write_err)
+        return db_items
+
     return []
 
 
@@ -83,6 +191,7 @@ def sync_digital_catalog(
     force: bool = False,
     rate_limit_delay: float = 0.5,
     steam_adapter: SteamCatalogAdapter | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Reads digital_catalog.json and automatically fetches Steam store details to add/update them in the DB.
 
@@ -117,9 +226,13 @@ def sync_digital_catalog(
     errors: list[str] = []
     catalog_modified = False
 
-    from .digital_admin_routes import resolve_steam_app_id
+    from .steam_resolver import resolve_steam_app_id
 
     for index, item in enumerate(records):
+        raw_name = str(item.get("name") or "").strip()
+        if progress_callback:
+            progress_callback(index + 1, len(records), raw_name)
+
         raw_id = item.get("id")
         try:
             app_id = int(raw_id)
@@ -127,7 +240,7 @@ def sync_digital_catalog(
             errors.append(f"Invalid app id: {raw_id}")
             continue
 
-        raw_name = str(item.get("name") or "").strip() or f"Steam {app_id}"
+        raw_name = raw_name or f"Steam {app_id}"
         download_source = str(item.get("downloadSource") or "").strip()
         install_process = str(item.get("installProcess") or "").strip()
         play_process = str(item.get("playProcess") or "").strip()
@@ -136,7 +249,7 @@ def sync_digital_catalog(
         # If app_id looks synthetic (e.g. > 1_000_000 generated by hash) or name has never been verified
         # attempt to resolve genuine Steam AppID:
         verified_app_id = app_id
-        if app_id > 1_000_000:
+        if RESOLVE_LARGE_IDS and app_id > 1_000_000:
             resolved = resolve_steam_app_id(raw_name)
             if resolved:
                 res_id, res_name = resolved

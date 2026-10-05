@@ -71,8 +71,10 @@
           <button class="btn" onclick="populateCatalogFromSources()" title="Agrega las descargas indexadas de las fuentes al catálogo de juegos">⚡ Poblar desde Fuentes</button>
           <button class="btn secondary" onclick="openGameModal()">+ Nuevo Juego</button>
           <button class="btn" onclick="syncSteamStore()">Sincronizar Steam</button>
+          <button class="btn danger" onclick="clearCatalog()" title="Borra TODO el catálogo digital para poder regenerarlo desde las fuentes">🗑 Limpiar catálogo</button>
         </div>
       </div>
+      <div id="syncProgressContainer" style="display:none; margin-bottom:15px; padding: 15px; background: rgba(101,240,178,.1); border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); font-weight: bold; text-align: center;"></div>
       <div class="panel">
         <div class="panel-body" style="padding:0">
           <div id="catalogTable"></div>
@@ -85,7 +87,7 @@
       <div class="top">
         <div>
           <h1>Fuentes de Descarga (JSON)</h1>
-          <p>Repositorios comunitarios compatibles con el formato de Hydra Launcher. Puedes importar archivos .json o URLs directas.</p>
+          <p>Repositorios comunitarios compatibles con Hydra Launcher. La <strong>Prioridad</strong> define qué fuente manda si un juego está en varias (1 = mayor prioridad). En empate, gana la versión más reciente.</p>
         </div>
         <div class="top-actions">
           <button class="btn primary" onclick="openImportModal('sources')">📥 Importar Fuente JSON (Hydra)</button>
@@ -241,10 +243,10 @@
 <div id="toast" class="toast" style="display:none"></div>
 
 <script>
-  let catalogData = [];
-  let sourcesData = [];
-  let cacheMeta = {};
-  let currentEditingAppId = null;
+  var catalogData = [];
+  var sourcesData = [];
+  var cacheMeta = {};
+  var currentEditingAppId = null;
 
   const API_BASE = '/admin-console/digital';
 
@@ -366,6 +368,7 @@
     container.innerHTML = `<table>
       <thead>
         <tr>
+          <th style="width:75px;text-align:center">Prioridad</th>
           <th>Etiqueta / Servidor</th>
           <th>Tipo</th>
           <th>Ubicación / Archivo</th>
@@ -380,14 +383,17 @@
           const typeLabel = isFile ? '<span class="status custom">Archivo Hydra</span>' : '<span class="status auto">Remoto (URL)</span>';
           const itemsStr = s.items_count ? `<strong>${s.items_count}</strong>` : '—';
           return `<tr>
+          <td style="text-align:center">
+            <input type="number" min="1" max="99" value="${s.priority ?? (idx + 1)}" style="width:55px;padding:4px 6px;text-align:center;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text);font-weight:600" title="1 = Máxima prioridad" onchange="updateSourcePriority(sourcesData[${idx}].url, this.value)">
+          </td>
           <td><strong>${esc(s.label || 'Servidor ' + (idx + 1))}</strong></td>
           <td>${typeLabel}</td>
           <td><span class="mono muted" style="word-break:break-all">${esc(s.url)}</span></td>
           <td>${itemsStr}</td>
           <td><span class="status ${s.enabled !== false ? 'auto' : 'disabled'}">${s.enabled !== false ? 'Activo' : 'Inactivo'}</span></td>
           <td>
-            <button class="btn" style="padding:5px 9px" onclick="toggleSource('${esc(s.url)}')">${s.enabled !== false ? 'Desactivar' : 'Activar'}</button>
-            <button class="btn danger" style="padding:5px 9px" onclick="deleteSource('${esc(s.url)}')">Eliminar</button>
+            <button class="btn" style="padding:5px 9px" onclick="toggleSource(sourcesData[${idx}].url)">${s.enabled !== false ? 'Desactivar' : 'Activar'}</button>
+            <button class="btn danger" style="padding:5px 9px" onclick="deleteSource(sourcesData[${idx}].url)">Eliminar</button>
           </td>
         </tr>`;
         }).join('')}
@@ -456,6 +462,19 @@
       const res = await fetch(API_BASE + '/catalog/' + appId, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar');
       toast('Juego eliminado');
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
+  async function clearCatalog() {
+    if (!confirm('¿Borrar TODO el catálogo digital? Esta acción no se puede deshacer. Luego podrás regenerarlo con "Poblar desde Fuentes".')) return;
+    try {
+      const res = await fetch(API_BASE + '/catalog/clear', { method: 'POST' });
+      if (!res.ok) throw new Error('Error al limpiar el catálogo');
+      const data = await res.json();
+      toast(`Catálogo limpiado (${data.removed_games} juegos eliminados)`);
       await loadData();
     } catch (err) {
       toast(err.message, true);
@@ -573,6 +592,7 @@
 
       toast(result.message || 'Fuente importada con éxito');
       closeImportModal();
+      startSyncPolling();
       await loadData();
     } catch (err) {
       toast(err.message, true);
@@ -582,14 +602,47 @@
     }
   }
 
+  let syncPollInterval = null;
+
+  async function startSyncPolling() {
+    if (syncPollInterval) return;
+    const container = document.getElementById('syncProgressContainer');
+    container.style.display = 'block';
+    
+    syncPollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(API_BASE + '/catalog/sync-status');
+        const status = await res.json();
+        
+        if (status.is_running) {
+          const typeName = status.task_type === 'populate' ? 'Indexando Fuentes y Buscando en Steam' : 'Sincronizando Metadatos de Steam';
+          let txt = typeName + '... ' + status.processed + ' / ' + status.total;
+          if (status.current_item) txt += ' (' + status.current_item + ')';
+          container.textContent = txt;
+          
+          if (status.processed > 0 && status.processed % 10 === 0) {
+            loadData();
+          }
+        } else {
+          clearInterval(syncPollInterval);
+          syncPollInterval = null;
+          container.style.display = 'none';
+          if (status.message) toast(status.message);
+          await loadData();
+        }
+      } catch (e) {
+        console.error("Error polling sync status:", e);
+      }
+    }, 1000);
+  }
+
   async function populateCatalogFromSources() {
     try {
-      toast('Actualizando catálogo con descargas de las fuentes...');
       const res = await fetch(API_BASE + '/catalog/populate-from-sources', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Error al poblar catálogo');
-      toast(data.message || 'Catálogo actualizado');
-      await loadData();
+      if (!res.ok) throw new Error(data.detail || data.message || 'Error al poblar catálogo');
+      toast(data.message || 'Actualización iniciada...');
+      startSyncPolling();
     } catch (err) {
       toast(err.message, true);
     }
@@ -634,6 +687,23 @@
     }
   }
 
+  async function updateSourcePriority(url, priorityVal) {
+    const s = sourcesData.find(x => x.url === url);
+    if (!s) return;
+    const prio = parseInt(priorityVal, 10) || 1;
+    try {
+      await fetch(API_BASE + '/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled !== false, priority: prio })
+      });
+      toast(`Prioridad actualizada a ${prio}`);
+      await loadData();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }
+
   async function toggleSource(url) {
     const s = sourcesData.find(x => x.url === url);
     if (!s) return;
@@ -641,7 +711,7 @@
       await fetch(API_BASE + '/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, label: s.label, enabled: s.enabled === false })
+        body: JSON.stringify({ url, label: s.label, enabled: s.enabled === false, priority: s.priority || 1 })
       });
       await loadData();
     } catch (err) {
@@ -666,12 +736,12 @@
   }
 
   async function syncSteamStore() {
-    toast('Sincronizando catálogo con Steam Store...');
     try {
       const res = await fetch(API_BASE + '/sync-steam', { method: 'POST' });
       const data = await res.json();
-      toast('Sincronización con Steam Store completada.');
-      await loadData();
+      if (!res.ok) throw new Error(data.detail || data.message || 'Error iniciando sincronización');
+      toast(data.message || 'Sincronización iniciada...');
+      startSyncPolling();
     } catch (err) {
       toast(err.message, true);
     }
@@ -815,6 +885,7 @@
     openImportModal();
   }
 
+  startSyncPolling();
   loadData();
 </script>
 </body>

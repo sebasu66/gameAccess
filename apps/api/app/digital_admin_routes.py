@@ -10,12 +10,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlmodel import Session, select
 
-from .digital_catalog import get_digital_catalog_path, load_digital_catalog_json, sync_digital_catalog
+from .digital_catalog import (
+    DigitalCacheRecord,
+    DigitalGame,
+    DigitalSourceRecord,
+    get_digital_catalog_path,
+    load_digital_catalog_from_db,
+    load_digital_catalog_json,
+    sync_catalog_to_db,
+    sync_digital_catalog,
+)
+from .steam_resolver import (
+    calculate_match_score,
+    clean_for_steam_lookup,
+    generate_fallback_queries,
+    resolve_steam_app_id,
+)
 from .database import engine as default_engine
 
 logger = logging.getLogger("gameaccess.digital_admin")
@@ -62,6 +77,7 @@ class SourceItem(BaseModel):
     url: str = Field(min_length=3)
     label: str = ""
     enabled: bool = True
+    priority: Optional[int] = None
 
 
 class DeleteSourceRequest(BaseModel):
@@ -87,22 +103,123 @@ def get_sources_path() -> Path:
 
 def load_sources_config() -> dict[str, Any]:
     path = get_sources_path()
-    if not path.exists():
-        return {"sources": []}
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    sources = data.get("sources", [])
+                    if sources:
+                        for idx, s in enumerate(sources):
+                            if isinstance(s, dict) and "priority" not in s:
+                                s["priority"] = idx + 1
+                        return data
+        except Exception as e:
+            logger.warning("Error reading digital_sources.json: %s", e)
+
+    # Fallback to persistent database if disk file is missing or has no sources (e.g. after fresh deploy)
     try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {"sources": []}
+        with Session(default_engine) as session:
+            db_sources = session.exec(select(DigitalSourceRecord)).all()
+            if db_sources:
+                sources_dir = API_ROOT / "data" / "sources"
+                sources_dir.mkdir(parents=True, exist_ok=True)
+                sources_list = []
+                for s in db_sources:
+                    target_url = s.url
+                    if s.raw_content:
+                        file_name = Path(s.url).name
+                        if not file_name.endswith(".json"):
+                            file_name = f"source_{s.id or 1}.json"
+                        local_file = sources_dir / file_name
+                        if not local_file.exists():
+                            try:
+                                with local_file.open("w", encoding="utf-8") as f:
+                                    f.write(s.raw_content)
+                            except Exception:
+                                pass
+                        target_url = str(local_file)
+
+                    sources_list.append({
+                        "url": target_url,
+                        "label": s.label,
+                        "enabled": s.enabled,
+                        "priority": s.priority,
+                        "type": s.source_type,
+                        "items_count": s.items_count,
+                        "added_at": s.added_at,
+                    })
+
+                sources_list.sort(key=lambda x: x.get("priority", 999))
+                # Restore to disk
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("w", encoding="utf-8") as f:
+                    json.dump({"sources": sources_list}, f, indent=2, ensure_ascii=False)
+                return {"sources": sources_list}
     except Exception as e:
-        logger.warning("Error reading digital_sources.json: %s", e)
-        return {"sources": []}
+        logger.warning("Error querying sources from database: %s", e)
+
+    return {"sources": []}
 
 
 def save_sources_config(data: dict[str, Any]) -> None:
     path = get_sources_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Clean disk copy (avoid writing huge raw_content into digital_sources.json)
+    disk_sources = []
+    for s in data.get("sources", []):
+        if isinstance(s, dict):
+            item = {k: v for k, v in s.items() if k != "raw_content"}
+            disk_sources.append(item)
     with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump({"sources": disk_sources}, f, indent=2, ensure_ascii=False)
+
+    # Sync to persistent database
+    try:
+        with Session(default_engine) as session:
+            existing_records = {s.url: s for s in session.exec(select(DigitalSourceRecord)).all()}
+            current_urls = set()
+            now = datetime.now(timezone.utc).isoformat()
+            for s in data.get("sources", []):
+                if not isinstance(s, dict):
+                    continue
+                url = s.get("url")
+                if not url:
+                    continue
+                current_urls.add(url)
+                rec = existing_records.get(url)
+                raw_c = s.get("raw_content")
+                if rec:
+                    rec.label = s.get("label", rec.label)
+                    rec.enabled = bool(s.get("enabled", rec.enabled))
+                    rec.priority = int(s.get("priority", rec.priority or 1))
+                    rec.items_count = int(s.get("items_count", rec.items_count or 0))
+                    rec.updated_at = now
+                    if raw_c:
+                        rec.raw_content = raw_c
+                    session.add(rec)
+                else:
+                    new_rec = DigitalSourceRecord(
+                        url=url,
+                        label=str(s.get("label", "")),
+                        enabled=bool(s.get("enabled", True)),
+                        priority=int(s.get("priority", 1)),
+                        source_type=str(s.get("type", "hydra_source")),
+                        items_count=int(s.get("items_count", 0)),
+                        added_at=str(s.get("added_at", now)),
+                        updated_at=now,
+                        raw_content=raw_c,
+                    )
+                    session.add(new_rec)
+
+            for old_url, old_rec in existing_records.items():
+                if old_url not in current_urls:
+                    session.delete(old_rec)
+
+            session.commit()
+    except Exception as e:
+        logger.warning("Could not sync sources to database: %s", e)
 
 
 def save_catalog_json(items: list[dict[str, Any]]) -> None:
@@ -111,14 +228,18 @@ def save_catalog_json(items: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as f:
         json.dump(items, f, indent=2, ensure_ascii=False)
 
+    # Sync to persistent database
+    sync_catalog_to_db(items, default_engine)
+
 
 def normalize_title(title: str) -> str:
     if not title:
         return ""
     text = title.lower()
     text = re.sub(r"\[.*?\]", " ", text)
-    text = re.sub(r"\bv\d+[\d._]*\b", " ", text)
-    text = re.sub(r"\bbuild\s*\d+\b", " ", text)
+    text = re.sub(r"\bv\.?[\d._]+\b", " ", text)
+    text = re.sub(r"\b\d+(?:\.\d+)+[\w._-]*\b", " ", text)
+    text = re.sub(r"\b(?:build|update|patch|release|rev|ver|version|hotfix)[\s._\-]*[\d._]+\b", " ", text)
     text = text.replace("&", " and ").replace("+", " and ")
     for roman, arabic in ROMAN_NUMERALS.items():
         text = re.sub(roman, arabic, text)
@@ -128,8 +249,10 @@ def normalize_title(title: str) -> str:
 
 def clean_user_friendly_title(raw_title: str) -> str:
     cleaned = NOISE_TERMS_PATTERN.sub("", raw_title)
-    cleaned = re.sub(r"\bv\d+[\d._]*\b", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\bbuild\s*\d+\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bv\.?[\d._]+\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b\d+(?:\.\d+)+[\w._-]*\b", "", cleaned)
+    cleaned = re.sub(r"\b(?:build|update|patch|release|rev|ver|version|hotfix)[\s._\-]*[\d._]+\b", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"[\(\[]\s*(?:19\d\d|20\d\d)\s*[\)\]]", "", cleaned)
     cleaned = re.sub(r"[\(\[\{]\s*[\)\]\}]", "", cleaned)
     cleaned = re.sub(r"[-–—]+\s*$", "", cleaned)
     cleaned = re.sub(r"^\s*[-–—]+", "", cleaned)
@@ -147,133 +270,167 @@ def clean_user_friendly_title(raw_title: str) -> str:
     return cleaned or raw_title
 
 
-def calculate_match_score(target_name: str, candidate_title: str) -> float:
-    norm_target = normalize_title(target_name)
-    norm_candidate = normalize_title(candidate_title)
-
-    target_tokens = [t for t in norm_target.split() if t not in ("the", "of", "and", "a", "an", "for")]
-    candidate_tokens = [t for t in norm_candidate.split() if t not in ("the", "of", "and", "a", "an", "for")]
-
-    if not target_tokens:
-        return 0.0
-
-    target_set = set(target_tokens)
-    candidate_set = set(candidate_tokens)
-    matching = target_set.intersection(candidate_set)
-
-    ratio = len(matching) / len(target_set)
-    if ratio < 0.75:
-        return 0.0
-
-    target_numbers = {t for t in target_tokens if t.isdigit() and len(t) <= 2}
-    candidate_numbers = {t for t in candidate_tokens if t.isdigit() and len(t) <= 2}
-    if target_numbers and not target_numbers.issubset(candidate_numbers):
-        return 0.0
-    if not target_numbers and candidate_numbers:
-        return 0.0
-
-    seq_ratio = SequenceMatcher(None, norm_target, norm_candidate).ratio()
-    return (ratio * 0.6) + (seq_ratio * 0.4)
-
-
-_RESOLVER_CACHE: dict[str, Optional[tuple[int, str]]] = {}
-
-
-def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
-    """Resolves the official Steam AppID for a game title using Steam Store Search API.
-    
-    Applies strict edition & numeral matching so titles like 'Mortal Kombat',
-    'Mortal Kombat X' and 'Mortal Kombat 11' never cross-match with each other.
-    Returns (app_id, official_name) or None if no high-confidence match is found.
+def extract_version_tuple(title: str) -> tuple[int, ...]:
+    """Extracts numeric version / build components from a title string.
+    Returns a tuple of integers, e.g. (2, 13) or (1, 0, 0, 13772).
     """
-    clean = clean_user_friendly_title(game_name).strip()
-    if not clean:
-        return None
+    if not title:
+        return ()
 
-    cache_key = clean.lower()
-    if cache_key in _RESOLVER_CACHE:
-        cached_val = _RESOLVER_CACHE[cache_key]
-        logger.info("[SteamResolver:CacheHit] '%s' -> %s", clean, cached_val)
-        return cached_val
+    # Look for tags like: v1.2.3, ver 1.2, version 1.2.3, build 123456, update 5, patch 3, rev 120
+    tag_match = re.search(r"\b(?:v|ver|version|build|update|patch|release|rev)[\s._\-]*(\d+(?:[\._]\d+)*)\b", title, re.IGNORECASE)
+    if tag_match:
+        raw_v = tag_match.group(1).replace("_", ".")
+        parts = [int(p) for p in raw_v.split(".") if p.isdigit()]
+        if parts:
+            return tuple(parts)
 
-    logger.info("[SteamResolver:Start] Resolving AppID for '%s'...", clean)
+    # Standalone semantic/dotted version like 1.0.0.13772, 0.72.0.10499, 1.10.31.0, 2.1
+    sem_match = re.search(r"\b(\d+(?:\.\d+)+)\b", title)
+    if sem_match:
+        parts = [int(p) for p in sem_match.group(1).split(".") if p.isdigit()]
+        if parts:
+            return tuple(parts)
 
-    queries = [clean]
-    # Strip semantic version numbers like '1.6' or build numbers
-    no_ver = re.sub(r"\b\d+\.\d+[\d.]*\b", " ", clean)
-    no_ver = re.sub(r"\s+", " ", no_ver).strip()
-    if no_ver and no_ver.lower() != clean.lower():
-        queries.append(no_ver)
+    return ()
 
-    # Strip subtitle/edition tags after colon or dash if not matched yet
-    sub_title = re.split(r"[:\-|–—]", clean)[0].strip()
-    if sub_title and sub_title.lower() not in [q.lower() for q in queries]:
-        queries.append(sub_title)
 
-    for q in queries:
+def parse_date_timestamp(date_str: str) -> float:
+    """Parses date string to unix timestamp float."""
+    if not date_str:
+        return 0.0
+    cleaned = date_str.strip().replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(cleaned).timestamp()
+    except Exception:
+        pass
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y", "%Y-%m-%dT%H:%M:%S"):
         try:
-            logger.info("[SteamResolver:Query] Querying Steam Store Search with term='%s'", q)
-            with httpx.Client(timeout=4.0, follow_redirects=True) as client:
-                resp = client.get(
-                    "https://store.steampowered.com/api/storesearch/",
-                    params={"term": q, "l": "spanish", "cc": "ar"},
-                    headers={"User-Agent": "gameAccess/0.2 Steam App Resolver"}
-                )
-                if resp.status_code != 200:
-                    logger.warning("[SteamResolver:QueryError] Steam returned status %s for term='%s'", resp.status_code, q)
-                    continue
-                items = resp.json().get("items", [])
-        except Exception as exc:
-            logger.warning("[SteamResolver:QueryFailed] Steam search exception for '%s': %s", q, exc)
+            return datetime.strptime(cleaned, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except Exception:
+            pass
+    return 0.0
+
+
+def rank_download_candidate(
+    item: dict[str, Any],
+    priority_map: dict[str, int],
+) -> tuple[int, tuple[int, ...], float]:
+    """Returns a sorting key for a download candidate:
+    (source_priority, padded_negated_version, -upload_timestamp).
+    Smaller tuple means better ranking!
+
+    1. Source priority: lower number = higher user preference (e.g. 1 is preferred over 2).
+    2. Version tuple: highest version number wins.
+    3. Upload date: most recent upload date wins.
+    """
+    # 1. Source Priority: lower number = higher user preference
+    p = item.get("source_priority")
+    if p is None:
+        source_key = str(item.get("source_url") or item.get("source") or "")
+        p = priority_map.get(source_key, priority_map.get(str(item.get("source") or ""), 999))
+
+    # 2. Version: highest version number wins
+    ver = extract_version_tuple(item.get("raw_title", ""))
+    if ver:
+        padded = tuple(list(ver) + [0] * max(0, 8 - len(ver)))
+        neg_ver = tuple(-x for x in padded[:8])
+    else:
+        neg_ver = tuple(1 for _ in range(8))
+
+    # 3. Date: most recent upload date wins
+    date_ts = parse_date_timestamp(item.get("upload_date", ""))
+
+    return (int(p), neg_ver, -date_ts)
+
+
+def deduplicate_download_items(
+    items: list[dict[str, Any]],
+    sources_config: Optional[dict[str, Any]] = None,
+) -> list[dict[str, Any]]:
+    """Groups downloads of the same game together and retains ONLY the single best release:
+    - Prioritizing by configured source priority (user preference).
+    - In case of tie, choosing the highest version number.
+    - In case of tie, choosing the most recent upload date.
+    All older versions or lower-priority duplicates are discarded.
+    """
+    if not items:
+        return []
+
+    cfg = sources_config or load_sources_config()
+    sources_list = cfg.get("sources", [])
+    priority_map: dict[str, int] = {}
+    for idx, s in enumerate(sources_list):
+        p = s.get("priority")
+        if p is None:
+            p = idx + 1
+        if s.get("url"):
+            priority_map[s["url"]] = p
+        if s.get("label"):
+            priority_map[s["label"]] = p
+
+    # Group items by canonical game identity
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        raw_title = item.get("raw_title") or item.get("title") or ""
+        clean_title = item.get("clean_title") or clean_user_friendly_title(raw_title)
+
+        norm_key = normalize_title(clean_title)
+        if not norm_key:
+            norm_key = normalize_title(raw_title)
+        if not norm_key:
             continue
 
-        candidates = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            item_type = item.get("type")
-            if item_type not in ("app", None):
-                continue
-            cand_id = item.get("id")
-            cand_name = item.get("name")
-            if not cand_id or not cand_name:
-                continue
+        grouped.setdefault(norm_key, []).append(item)
 
-            lower_name = str(cand_name).lower()
-            is_dlc = any(kw in lower_name for kw in [
-                " - season pass", "season pass", " - pack", "pack", " dlc",
-                "expansion pack", "bonus", "soundtrack", "pre-order", "pre order",
-                "upgrade", "deluxe edition upgrade"
-            ])
+    # For each group, sort and pick the top 1
+    best_items: list[dict[str, Any]] = []
+    for norm_key, candidates in grouped.items():
+        candidates.sort(key=lambda it: rank_download_candidate(it, priority_map))
+        best_choice = candidates[0]
+        best_choice["clean_title"] = clean_user_friendly_title(best_choice.get("raw_title") or best_choice.get("clean_title", ""))
+        best_items.append(best_choice)
 
-            score = calculate_match_score(q, cand_name)
-            if score >= 0.70:
-                if is_dlc:
-                    score -= 0.35
-                candidates.append((score, int(cand_id), str(cand_name)))
+    return best_items
 
-        if candidates:
-            candidates.sort(key=lambda x: x[0], reverse=True)
-            best_score, best_id, best_name = candidates[0]
-            logger.info("[SteamResolver:Match] '%s' MATCHED -> AppID: %s ('%s') score=%.2f", clean, best_id, best_name, best_score)
-            res = (best_id, best_name)
-            _RESOLVER_CACHE[cache_key] = res
-            return res
 
-    logger.info("[SteamResolver:NoMatch] No confident Steam match found for '%s'", clean)
-    _RESOLVER_CACHE[cache_key] = None
-    return None
+# Note: resolve_steam_app_id and calculate_match_score are provided by steam_resolver
 
 
 def load_cached_downloads() -> list[dict[str, Any]]:
-    if not CACHE_FILE.exists():
-        return []
+    if CACHE_FILE.exists() and CACHE_FILE.stat().st_size > 0:
+        try:
+            with CACHE_FILE.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+                downloads = data.get("downloads", [])
+                if downloads:
+                    return downloads
+        except Exception:
+            pass
+
+    # Fallback to persistent database if disk file is missing (e.g. after fresh deploy)
     try:
-        with CACHE_FILE.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get("downloads", [])
-    except Exception:
-        return []
+        with Session(default_engine) as session:
+            cache_rec = session.exec(select(DigitalCacheRecord).where(DigitalCacheRecord.id == 1)).first()
+            if cache_rec and cache_rec.payload:
+                downloads = json.loads(cache_rec.payload)
+                if isinstance(downloads, list):
+                    # Restore cache file on disk
+                    try:
+                        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                        with CACHE_FILE.open("w", encoding="utf-8") as f:
+                            json.dump({
+                                "updated_at": cache_rec.updated_at or datetime.now(timezone.utc).isoformat(),
+                                "total_items": len(downloads),
+                                "downloads": downloads,
+                            }, f, ensure_ascii=False)
+                    except Exception:
+                        pass
+                    return downloads
+    except Exception as e:
+        logger.warning("Error querying cached downloads from database: %s", e)
+
+    return []
 
 
 def save_cached_downloads(downloads: list[dict[str, Any]]) -> None:
@@ -284,6 +441,29 @@ def save_cached_downloads(downloads: list[dict[str, Any]]) -> None:
             "total_items": len(downloads),
             "downloads": downloads,
         }, f, ensure_ascii=False)
+
+    # Sync to persistent database
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        payload_str = json.dumps(downloads, ensure_ascii=False)
+        with Session(default_engine) as session:
+            rec = session.exec(select(DigitalCacheRecord).where(DigitalCacheRecord.id == 1)).first()
+            if rec:
+                rec.updated_at = now
+                rec.total_items = len(downloads)
+                rec.payload = payload_str
+                session.add(rec)
+            else:
+                rec = DigitalCacheRecord(
+                    id=1,
+                    updated_at=now,
+                    total_items=len(downloads),
+                    payload=payload_str,
+                )
+                session.add(rec)
+            session.commit()
+    except Exception as e:
+        logger.warning("Could not sync cached downloads to database: %s", e)
 
 
 # --- WEB HTML VIEW ---
@@ -324,6 +504,14 @@ def delete_game(app_id: int) -> dict[str, Any]:
     return {"ok": True, "deleted_id": app_id}
 
 
+@router.post("/catalog/clear")
+def clear_catalog() -> dict[str, Any]:
+    """Wipes the entire digital catalog (disk JSON + DB table) so it can be regenerated."""
+    previous = len(load_digital_catalog_json())
+    save_catalog_json([])
+    return {"ok": True, "removed_games": previous}
+
+
 # --- SOURCES ENDPOINTS ---
 @router.get("/sources")
 def get_sources() -> dict[str, Any]:
@@ -350,10 +538,12 @@ def add_or_update_source(source: SourceItem) -> dict[str, Any]:
     cfg = load_sources_config()
     sources = cfg.get("sources", [])
     found = False
-    for s in sources:
+    for idx, s in enumerate(sources):
         if s.get("url") == source.url:
             s["label"] = source.label or s.get("label", "")
             s["enabled"] = source.enabled
+            if source.priority is not None:
+                s["priority"] = source.priority
             found = True
             break
     if not found:
@@ -361,24 +551,79 @@ def add_or_update_source(source: SourceItem) -> dict[str, Any]:
             "url": source.url,
             "label": source.label or f"Servidor {len(sources) + 1}",
             "enabled": source.enabled,
+            "priority": source.priority if source.priority is not None else (len(sources) + 1),
             "added_at": datetime.now(timezone.utc).isoformat(),
         })
+    sources.sort(key=lambda s: s.get("priority", 999))
     cfg["sources"] = sources
     save_sources_config(cfg)
     return {"ok": True, "source": source.model_dump()}
+
+
+@router.post("/sources/priority")
+def update_sources_priority(req: list[dict[str, Any]]) -> dict[str, Any]:
+    cfg = load_sources_config()
+    sources = cfg.get("sources", [])
+    p_map = {item.get("url"): item.get("priority") for item in req if isinstance(item, dict) and "url" in item and "priority" in item}
+    for s in sources:
+        if s.get("url") in p_map:
+            s["priority"] = int(p_map[s["url"]])
+    sources.sort(key=lambda s: s.get("priority", 999))
+    cfg["sources"] = sources
+    save_sources_config(cfg)
+    return {"ok": True, "sources": sources}
 
 
 @router.delete("/sources")
 def delete_source(req: DeleteSourceRequest) -> dict[str, Any]:
     cfg = load_sources_config()
     sources = cfg.get("sources", [])
+    target = next((s for s in sources if s.get("url") == req.url), None)
+    if target is None:
+        raise HTTPException(404, f"Fuente no encontrada: {req.url}")
     filtered = [s for s in sources if s.get("url") != req.url]
     cfg["sources"] = filtered
     save_sources_config(cfg)
-    return {"ok": True, "deleted_url": req.url}
+
+    # Remove the stored JSON file (only if it lives in our managed sources dir)
+    removed_file = False
+    try:
+        sources_dir = (API_ROOT / "data" / "sources").resolve()
+        file_path = Path(req.url).resolve()
+        if file_path.is_file() and sources_dir in file_path.parents:
+            file_path.unlink()
+            removed_file = True
+    except Exception as e:
+        logger.warning("Could not remove source file %s: %s", req.url, e)
+
+    # Purge this source's downloads from the cache
+    label = target.get("label")
+    cache = load_cached_downloads()
+    kept = [
+        d for d in cache
+        if not (
+            d.get("source_url") == req.url
+            or (not d.get("source_url") and label and d.get("source") == label)
+        )
+    ]
+    removed_items = len(cache) - len(kept)
+    if removed_items:
+        save_cached_downloads(kept)
+
+    return {
+        "ok": True,
+        "deleted_url": req.url,
+        "removed_file": removed_file,
+        "removed_cached_items": removed_items,
+    }
 
 
-def extract_hydra_items(raw_data: Any, source_label: str = "Fuente") -> list[dict[str, Any]]:
+def extract_hydra_items(
+    raw_data: Any,
+    source_label: str = "Fuente",
+    source_url: str = "",
+    source_priority: int = 100,
+) -> list[dict[str, Any]]:
     raw_list = []
     if isinstance(raw_data, dict):
         if "downloads" in raw_data and isinstance(raw_data["downloads"], list):
@@ -423,6 +668,8 @@ def extract_hydra_items(raw_data: Any, source_label: str = "Fuente") -> list[dic
             "file_size": str(item.get("fileSize") or item.get("file_size") or item.get("size") or "Estándar").strip(),
             "upload_date": str(item.get("uploadDate") or item.get("date") or "").strip(),
             "source": source_label,
+            "source_url": source_url,
+            "source_priority": source_priority,
             "id": int(raw_id) if isinstance(raw_id, (int, str)) and str(raw_id).isdigit() else None,
         })
     return items
@@ -437,12 +684,16 @@ async def sync_sources() -> dict[str, Any]:
     synced_sources = 0
 
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers={"User-Agent": "GameAccess-Admin/1.0"}) as client:
-        for s in sources:
+        for idx, s in enumerate(sources):
             if not s.get("enabled", True):
                 continue
             url = s.get("url", "")
             if not url:
                 continue
+
+            priority = s.get("priority")
+            if priority is None:
+                priority = idx + 1
 
             try:
                 if Path(url).is_file():
@@ -455,7 +706,12 @@ async def sync_sources() -> dict[str, Any]:
                         continue
                     raw_data = resp.json()
 
-                items = extract_hydra_items(raw_data, source_label=s.get("label", "Servidor"))
+                items = extract_hydra_items(
+                    raw_data,
+                    source_label=s.get("label", "Servidor"),
+                    source_url=url,
+                    source_priority=priority,
+                )
                 all_downloads.extend(items)
                 synced_sources += 1
             except Exception as e:
@@ -472,8 +728,60 @@ async def sync_sources() -> dict[str, Any]:
     }
 
 
+def _process_auto_add_to_catalog_bg(items: list[dict[str, Any]], cfg: dict[str, Any]) -> None:
+    catalog = load_digital_catalog_json()
+    added_to_catalog = 0
+    updated_in_catalog = 0
+    deduped_import = deduplicate_download_items(items, cfg)
+    catalog_names = {normalize_title(clean_user_friendly_title(c.get("name", ""))) for c in catalog}
+    existing_ids = {c.get("id") for c in catalog if "id" in c}
+    for it in deduped_import:
+        norm = normalize_title(it["clean_title"])
+        if not norm:
+            continue
+        if norm in catalog_names:
+            for c in catalog:
+                c_norm = normalize_title(clean_user_friendly_title(c.get("name", "")))
+                if c_norm == norm and (not c.get("downloadSource") or c.get("downloadSource") == "auto"):
+                    c["downloadSource"] = it["uri"]
+                    updated_in_catalog += 1
+            continue
+
+        game_id = it.get("id")
+        if not game_id:
+            resolved = resolve_steam_app_id(it.get("raw_title") or it["clean_title"])
+            if resolved:
+                game_id, steam_name = resolved
+                it["clean_title"] = steam_name
+            else:
+                logger.info("No official Steam AppID found for '%s', omitting fake ID", it["clean_title"])
+                continue
+
+        if game_id in existing_ids:
+            for c in catalog:
+                if c.get("id") == game_id and (not c.get("downloadSource") or c.get("downloadSource") == "auto"):
+                    c["downloadSource"] = it["uri"]
+                    updated_in_catalog += 1
+            continue
+
+        catalog.append({
+            "name": it["clean_title"],
+            "id": game_id,
+            "downloadSource": it["uri"],
+            "installProcess": "",
+            "playProcess": "",
+            "uninstallProcess": "",
+        })
+        existing_ids.add(game_id)
+        catalog_names.add(norm)
+        added_to_catalog += 1
+
+    if added_to_catalog > 0 or updated_in_catalog > 0:
+        save_catalog_json(catalog)
+
+
 @router.post("/sources/import-json")
-async def import_source_json(request: Request) -> dict[str, Any]:
+async def import_source_json(request: Request, background_tasks: BackgroundTasks) -> dict[str, Any]:
     try:
         body = await request.json()
     except Exception as e:
@@ -510,8 +818,9 @@ async def import_source_json(request: Request) -> dict[str, Any]:
         safe_slug = re.sub(r"[^a-zA-Z0-9_\-]+", "_", source_name.lower()).strip("_") or "hydra_source"
         filename = f"{safe_slug}_{int(time.time())}.json"
         saved_file = sources_dir / filename
+        raw_json_str = json.dumps(data, indent=2, ensure_ascii=False)
         with saved_file.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write(raw_json_str)
 
         cfg = load_sources_config()
         sources_list = cfg.get("sources", [])
@@ -520,6 +829,7 @@ async def import_source_json(request: Request) -> dict[str, Any]:
             existing["label"] = source_name
             existing["items_count"] = len(items)
             existing["updated_at"] = datetime.now(timezone.utc).isoformat()
+            existing["raw_content"] = raw_json_str
         else:
             sources_list.append({
                 "url": str(saved_file),
@@ -528,6 +838,7 @@ async def import_source_json(request: Request) -> dict[str, Any]:
                 "type": "hydra_source",
                 "added_at": datetime.now(timezone.utc).isoformat(),
                 "items_count": len(items),
+                "raw_content": raw_json_str,
             })
         cfg["sources"] = sources_list
         save_sources_config(cfg)
@@ -540,54 +851,18 @@ async def import_source_json(request: Request) -> dict[str, Any]:
         save_cached_downloads(updated_cache)
 
         # Auto add to catalog if requested
-        added_to_catalog = 0
-        updated_in_catalog = 0
-        catalog = load_digital_catalog_json()
         if auto_add_to_catalog:
-            catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
-            existing_ids = {c.get("id") for c in catalog if "id" in c}
-            for it in items:
-                norm = normalize_title(it["clean_title"])
-                if not norm:
-                    continue
-                if norm in catalog_names:
-                    for c in catalog:
-                        if normalize_title(c.get("name", "")) == norm and not c.get("downloadSource"):
-                            c["downloadSource"] = it["uri"]
-                            updated_in_catalog += 1
-                    continue
-
-                game_id = it.get("id")
-                if not game_id or game_id in existing_ids:
-                    base_id = abs(hash(norm)) % 8000000 + 1000000
-                    while base_id in existing_ids:
-                        base_id += 1
-                    game_id = base_id
-
-                catalog.append({
-                    "name": it["clean_title"],
-                    "id": game_id,
-                    "downloadSource": it["uri"],
-                    "installProcess": "",
-                    "playProcess": "",
-                    "uninstallProcess": "",
-                })
-                existing_ids.add(game_id)
-                catalog_names.add(norm)
-                added_to_catalog += 1
-
-            if added_to_catalog > 0 or updated_in_catalog > 0:
-                save_catalog_json(catalog)
+            background_tasks.add_task(_process_auto_add_to_catalog_bg, items, cfg)
+            msg = f"Fuente '{source_name}' importada exitosamente. Se indexaron {len(items)} paquetes de descarga. La sincronización con el catálogo se ejecutará en segundo plano."
+        else:
+            msg = f"Fuente '{source_name}' importada exitosamente. Se indexaron {len(items)} paquetes de descarga."
 
         return {
             "ok": True,
             "mode": "hydra_source",
             "source_name": source_name,
             "indexed_items": len(items),
-            "added_to_catalog": added_to_catalog,
-            "updated_in_catalog": updated_in_catalog,
-            "total_catalog_games": len(catalog),
-            "message": f"Fuente '{source_name}' importada exitosamente. Se indexaron {len(items)} paquetes de descarga y se sincronizaron {added_to_catalog} juegos al catálogo.",
+            "message": msg,
         }
 
     # 2. Check if it is a list of source URLs
@@ -642,11 +917,17 @@ async def import_source_json(request: Request) -> dict[str, Any]:
             title = g.get("name") or g.get("title")
             norm = normalize_title(title)
             gid = g.get("id") or g.get("app_id")
-            if not gid or gid in existing_ids:
-                base_id = abs(hash(norm)) % 8000000 + 1000000
-                while base_id in existing_ids:
-                    base_id += 1
-                gid = base_id
+            if not gid:
+                resolved = resolve_steam_app_id(title)
+                if resolved:
+                    gid, steam_name = resolved
+                    title = steam_name
+                else:
+                    logger.info("No official Steam AppID found for '%s', omitting fake ID", title)
+                    continue
+
+            if gid in existing_ids:
+                continue
 
             dl_source = g.get("downloadSource") or g.get("download_source") or g.get("uri") or g.get("url") or ""
             if norm not in catalog_names:
@@ -673,12 +954,116 @@ async def import_source_json(request: Request) -> dict[str, Any]:
 
     raise HTTPException(400, "El formato del JSON no es reconocido como fuente de Hydra (debe contener un listado de 'downloads' o una lista de fuentes).")
 
+SYNC_STATUS = {
+    "is_running": False,
+    "task_type": "",
+    "processed": 0,
+    "total": 0,
+    "current_item": "",
+    "message": ""
+}
+
+@router.get("/catalog/sync-status")
+def get_sync_status() -> dict[str, Any]:
+    return SYNC_STATUS
+
 
 @router.post("/catalog/populate-from-sources")
-async def populate_catalog_from_sources() -> dict[str, Any]:
+def _populate_catalog_bg(deduped_cached: list[dict[str, Any]]) -> None:
+    global SYNC_STATUS
+    SYNC_STATUS["is_running"] = True
+    SYNC_STATUS["task_type"] = "populate"
+    SYNC_STATUS["total"] = len(deduped_cached)
+    SYNC_STATUS["processed"] = 0
+    SYNC_STATUS["message"] = "Iniciando poblamiento de fuentes..."
+
+    try:
+        raw_catalog = load_digital_catalog_json()
+        catalog_by_norm: dict[str, dict[str, Any]] = {}
+        for entry in raw_catalog:
+            c_norm = normalize_title(clean_user_friendly_title(entry.get("name", "")))
+            if not c_norm:
+                c_norm = normalize_title(entry.get("name", ""))
+            if not c_norm:
+                continue
+            if c_norm not in catalog_by_norm:
+                entry["name"] = clean_user_friendly_title(entry.get("name", ""))
+                catalog_by_norm[c_norm] = entry
+            else:
+                existing_id = catalog_by_norm[c_norm].get("id", 0)
+                candidate_id = entry.get("id", 0)
+                if existing_id >= 1_000_000 and 0 < candidate_id < 1_000_000:
+                    catalog_by_norm[c_norm]["id"] = candidate_id
+                if not catalog_by_norm[c_norm].get("downloadSource") and entry.get("downloadSource"):
+                    catalog_by_norm[c_norm]["downloadSource"] = entry.get("downloadSource")
+
+        existing_ids = {c.get("id") for c in catalog_by_norm.values() if "id" in c}
+        added_count = 0
+        updated_count = 0
+
+        for i, item in enumerate(deduped_cached):
+            SYNC_STATUS["processed"] = i + 1
+            title = item.get("clean_title") or clean_user_friendly_title(item.get("raw_title", ""))
+            norm = normalize_title(title)
+            if not norm:
+                continue
+            
+            SYNC_STATUS["current_item"] = title
+
+            if norm in catalog_by_norm:
+                existing_entry = catalog_by_norm[norm]
+                if not existing_entry.get("downloadSource") or existing_entry.get("downloadSource") == "auto":
+                    existing_entry["downloadSource"] = item["uri"]
+                    updated_count += 1
+                continue
+
+            game_id = item.get("id")
+            if not game_id:
+                resolved = resolve_steam_app_id(item.get("raw_title") or title)
+                if resolved:
+                    game_id, steam_name = resolved
+                    title = steam_name
+                else:
+                    logger.info("No official Steam AppID found for '%s', omitting fake ID", title)
+                    continue
+
+            if game_id in existing_ids:
+                for c in catalog_by_norm.values():
+                    if c.get("id") == game_id and (not c.get("downloadSource") or c.get("downloadSource") == "auto"):
+                        c["downloadSource"] = item["uri"]
+                        updated_count += 1
+                continue
+
+            new_entry = {
+                "name": title,
+                "id": game_id,
+                "downloadSource": item["uri"],
+                "installProcess": "",
+                "playProcess": "",
+                "uninstallProcess": "",
+            }
+            catalog_by_norm[norm] = new_entry
+            existing_ids.add(game_id)
+            added_count += 1
+
+        catalog = list(catalog_by_norm.values())
+        save_catalog_json(catalog)
+        SYNC_STATUS["message"] = f"Completado. {added_count} agregados, {updated_count} vinculados."
+    except Exception as e:
+        logger.error(f"Error en populate_catalog_bg: {e}")
+        SYNC_STATUS["message"] = f"Error: {str(e)}"
+    finally:
+        SYNC_STATUS["is_running"] = False
+
+
+@router.post("/catalog/populate-from-sources")
+async def populate_catalog_from_sources(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    global SYNC_STATUS
+    if SYNC_STATUS["is_running"]:
+        return {"ok": False, "message": "Ya hay un proceso en ejecución."}
+
     cached = load_cached_downloads()
     if not cached:
-        # Try to automatically sync enabled sources first if cache is empty (e.g. after fresh deploy)
         sync_result = await sync_sources()
         cached = load_cached_downloads()
         if not cached:
@@ -690,101 +1075,117 @@ async def populate_catalog_from_sources() -> dict[str, Any]:
                 "message": "No hay descargas indexadas en la caché. Agrega una fuente o sube un archivo JSON primero."
             }
 
-    catalog = load_digital_catalog_json()
-    catalog_names = {normalize_title(c.get("name", "")) for c in catalog}
-    existing_ids = {c.get("id") for c in catalog if "id" in c}
-    added_count = 0
-    updated_count = 0
+    cfg = load_sources_config()
+    deduped_cached = deduplicate_download_items(cached, cfg)
 
-    for item in cached:
-        title = item.get("clean_title") or item.get("raw_title", "")
-        norm = normalize_title(title)
-        if not norm:
-            continue
-        if norm in catalog_names:
-            for c in catalog:
-                if normalize_title(c.get("name", "")) == norm and not c.get("downloadSource"):
-                    c["downloadSource"] = item["uri"]
-                    updated_count += 1
-            continue
+    background_tasks.add_task(_populate_catalog_bg, deduped_cached)
 
-        game_id = item.get("id")
-        if not game_id or game_id in existing_ids:
-            base_id = abs(hash(norm)) % 8000000 + 1000000
-            while base_id in existing_ids:
-                base_id += 1
-            game_id = base_id
-
-        catalog.append({
-            "name": title,
-            "id": game_id,
-            "downloadSource": item["uri"],
-            "installProcess": "",
-            "playProcess": "",
-            "uninstallProcess": "",
-        })
-        existing_ids.add(game_id)
-        catalog_names.add(norm)
-        added_count += 1
-
-    save_catalog_json(catalog)
     return {
         "ok": True,
-        "added_games": added_count,
-        "updated_sources": updated_count,
-        "total_catalog_games": len(catalog),
-        "message": f"Catálogo digital actualizado: {added_count} nuevos juegos agregados y {updated_count} fuentes vinculadas.",
+        "message": "Actualización del catálogo iniciada en segundo plano.",
     }
 
 
 @router.get("/resolve-options")
 def resolve_options_for_game(name: str = Query(..., min_length=1)) -> dict[str, Any]:
     cached = load_cached_downloads()
+    cfg = load_sources_config()
+    sources_list = cfg.get("sources", [])
+    priority_map: dict[str, int] = {}
+    for idx, s in enumerate(sources_list):
+        p = s.get("priority")
+        if p is None:
+            p = idx + 1
+        if s.get("url"):
+            priority_map[s["url"]] = p
+        if s.get("label"):
+            priority_map[s["label"]] = p
+
     scored = []
     for item in cached:
-        score = calculate_match_score(name, item["raw_title"])
+        score = calculate_match_score(name, item.get("raw_title", ""))
         if score >= 0.55:
             scored.append((score, item))
 
-    scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
+    # Sort candidates by:
+    # 1. Match score (higher is better)
+    # 2. Source priority (lower number = user preference)
+    # 3. Version (highest version)
+    # 4. Upload date (most recent)
+    scored.sort(
+        key=lambda x: (
+            -round(x[0], 2),
+            rank_download_candidate(x[1], priority_map)
+        )
+    )
 
     results = []
-    for idx, (score, item) in enumerate(scored, start=1):
-        badge = "Recomendada" if idx == 1 else "Alternativa"
+    seen_uris = set()
+    for score, item in scored:
+        if item.get("uri") in seen_uris:
+            continue
+        seen_uris.add(item.get("uri"))
+        badge = "Recomendada" if len(results) == 0 else "Alternativa"
         results.append({
-            "id": f"opt-{idx}",
-            "title": item["clean_title"],
-            "size": item["file_size"],
+            "id": f"opt-{len(results) + 1}",
+            "title": item.get("clean_title") or clean_user_friendly_title(item.get("raw_title", "")),
+            "raw_title": item.get("raw_title", ""),
+            "source": item.get("source", "Fuente"),
+            "size": item.get("file_size", "Estándar"),
             "badge": badge,
             "uri": item["uri"],
             "score": round(score, 2),
         })
 
     return {"ok": True, "game": name, "count": len(results), "options": results}
- 
- 
+
+
 @router.get("/source/{game_id}")
 def get_admin_digital_source(game_id: int, name: Optional[str] = Query(None)) -> dict[str, Any]:
     catalog = load_digital_catalog_json()
     for item in catalog:
         if item.get("id") == game_id:
             src = str(item.get("downloadSource") or "").strip()
-            if src:
+            if src and src.lower() != "auto":
                 return {"ok": True, "id": game_id, "name": item.get("name"), "uri": src}
             if not name:
                 name = item.get("name")
 
     if name:
         cached = load_cached_downloads()
+        cfg = load_sources_config()
+        sources_list = cfg.get("sources", [])
+        priority_map: dict[str, int] = {}
+        for idx, s in enumerate(sources_list):
+            p = s.get("priority")
+            if p is None:
+                p = idx + 1
+            if s.get("url"):
+                priority_map[s["url"]] = p
+            if s.get("label"):
+                priority_map[s["label"]] = p
+
         scored = []
         for c in cached:
             score = calculate_match_score(name, c.get("raw_title", ""))
             if score >= 0.55:
                 scored.append((score, c))
         if scored:
-            scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
+            scored.sort(
+                key=lambda x: (
+                    -round(x[0], 2),
+                    rank_download_candidate(x[1], priority_map)
+                )
+            )
             best = scored[0][1]
-            return {"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "size": best.get("file_size")}
+            return {
+                "ok": True,
+                "id": game_id,
+                "name": name,
+                "uri": best.get("uri"),
+                "size": best.get("file_size"),
+                "source": best.get("source"),
+            }
 
     raise HTTPException(404, detail="No download source found for this game")
 
@@ -808,6 +1209,158 @@ def save_raw_json(data: Any, target: str = Query(..., pattern="^(catalog|sources
         return {"ok": True, "target": target, "count": len(data.get("sources", []))}
 
 
+def _sync_steam_progress(processed: int, total: int, current_item: str) -> None:
+    global SYNC_STATUS
+    SYNC_STATUS["processed"] = processed
+    SYNC_STATUS["total"] = total
+    SYNC_STATUS["current_item"] = current_item
+
+def _sync_steam_bg() -> None:
+    global SYNC_STATUS
+    SYNC_STATUS["is_running"] = True
+    SYNC_STATUS["task_type"] = "sync_steam"
+    SYNC_STATUS["processed"] = 0
+    SYNC_STATUS["total"] = 0
+    SYNC_STATUS["current_item"] = ""
+    SYNC_STATUS["message"] = "Iniciando sincronización con Steam Store..."
+
+    try:
+        res = sync_digital_catalog(engine=default_engine, force=True, progress_callback=_sync_steam_progress)
+        SYNC_STATUS["message"] = f"Completado. {res.get('processed', 0)} procesados, {res.get('steam_enriched', 0)} actualizados con datos de Steam."
+    except Exception as e:
+        logger.error(f"Error en sync_steam_bg: {e}")
+        SYNC_STATUS["message"] = f"Error: {str(e)}"
+    finally:
+        SYNC_STATUS["is_running"] = False
+
 @router.post("/sync-steam")
-def trigger_steam_sync() -> dict[str, Any]:
-    return sync_digital_catalog(engine=default_engine, force=True)
+def trigger_steam_sync(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    global SYNC_STATUS
+    if SYNC_STATUS["is_running"]:
+        return {"ok": False, "message": "Ya hay un proceso en ejecución."}
+
+    background_tasks.add_task(_sync_steam_bg)
+    return {"ok": True, "message": "Sincronización con Steam iniciada en segundo plano."}
+
+
+def restore_or_sync_digital_storage(engine_override: Any = None) -> None:
+    """Restores persistent digital catalog, sources, and cached downloads from database across deployments.
+
+    On platforms like Render where web services run on ephemeral containers, the filesystem
+    is reset on every deploy/restart. This function ensures that everything previously imported
+    into the database is seamlessly restored to local files on boot.
+    """
+    db_engine = engine_override or default_engine
+    try:
+        from sqlmodel import SQLModel
+        SQLModel.metadata.create_all(db_engine)
+    except Exception as e:
+        logger.warning("Could not ensure SQLModel metadata tables: %s", e)
+
+    # 1. Restore/Sync Catalog
+    try:
+        db_games = load_digital_catalog_from_db(db_engine)
+        disk_games = []
+        path = get_digital_catalog_path()
+        if path.exists():
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        disk_games = [item for item in data if isinstance(item, dict) and "id" in item]
+            except Exception:
+                disk_games = []
+
+        if db_games:
+            # Merge: DB games take precedence, but if disk has games not in DB (e.g. from repo commit), add them to DB
+            merged_by_id = {g["id"]: g for g in db_games}
+            disk_new = 0
+            for dg in disk_games:
+                if dg.get("id") and dg["id"] not in merged_by_id:
+                    merged_by_id[dg["id"]] = dg
+                    disk_new += 1
+            all_games = list(merged_by_id.values())
+            save_catalog_json(all_games)
+            logger.info("Restored digital catalog with %d games (%d from DB, %d new from repo)", len(all_games), len(db_games), disk_new)
+        elif disk_games:
+            # First run on fresh DB: seed DB from repository's digital_catalog.json
+            sync_catalog_to_db(disk_games, db_engine)
+            logger.info("Seeded database with %d digital catalog games from repository JSON", len(disk_games))
+    except Exception as e:
+        logger.warning("Error syncing digital catalog on startup: %s", e)
+
+    # 2. Restore/Sync Sources
+    try:
+        with Session(db_engine) as session:
+            db_sources = session.exec(select(DigitalSourceRecord)).all()
+            sources_dir = API_ROOT / "data" / "sources"
+            sources_dir.mkdir(parents=True, exist_ok=True)
+            sources_list = []
+            for s in db_sources:
+                target_url = s.url
+                # If this was an uploaded source file with raw_content saved in DB
+                if s.raw_content:
+                    file_name = Path(s.url).name
+                    if not file_name.endswith(".json"):
+                        file_name = f"source_{s.id or 1}.json"
+                    local_file = sources_dir / file_name
+                    if not local_file.exists():
+                        try:
+                            with local_file.open("w", encoding="utf-8") as f:
+                                f.write(s.raw_content)
+                            logger.info("Restored uploaded source file on disk: %s", local_file)
+                        except Exception as fe:
+                            logger.warning("Could not recreate source file %s: %s", local_file, fe)
+                    target_url = str(local_file)
+
+                sources_list.append({
+                    "url": target_url,
+                    "label": s.label,
+                    "enabled": s.enabled,
+                    "priority": s.priority,
+                    "type": s.source_type,
+                    "items_count": s.items_count,
+                    "added_at": s.added_at,
+                })
+
+            if sources_list:
+                sources_list.sort(key=lambda x: x.get("priority", 999))
+                # Write to disk
+                sources_path = get_sources_path()
+                sources_path.parent.mkdir(parents=True, exist_ok=True)
+                with sources_path.open("w", encoding="utf-8") as f:
+                    json.dump({"sources": sources_list}, f, indent=2, ensure_ascii=False)
+                logger.info("Restored %d sources to %s", len(sources_list), sources_path)
+            else:
+                # Seed DB from disk if digital_sources.json exists and has sources
+                disk_cfg = load_sources_config()
+                if disk_cfg.get("sources"):
+                    save_sources_config(disk_cfg)
+    except Exception as e:
+        logger.warning("Error syncing sources on startup: %s", e)
+
+    # 3. Restore/Sync Cached Downloads
+    try:
+        if not CACHE_FILE.exists() or CACHE_FILE.stat().st_size == 0:
+            with Session(db_engine) as session:
+                cache_rec = session.exec(select(DigitalCacheRecord).where(DigitalCacheRecord.id == 1)).first()
+                if cache_rec and cache_rec.payload:
+                    downloads = json.loads(cache_rec.payload)
+                    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    with CACHE_FILE.open("w", encoding="utf-8") as f:
+                        json.dump({
+                            "updated_at": cache_rec.updated_at or datetime.now(timezone.utc).isoformat(),
+                            "total_items": len(downloads),
+                            "downloads": downloads,
+                        }, f, ensure_ascii=False)
+                    logger.info("Restored %d cached downloads from database to %s", len(downloads), CACHE_FILE)
+        else:
+            # If cache file exists on disk but DB is empty, seed DB
+            with Session(db_engine) as session:
+                cache_rec = session.exec(select(DigitalCacheRecord).where(DigitalCacheRecord.id == 1)).first()
+                if not cache_rec:
+                    disk_downloads = load_cached_downloads()
+                    if disk_downloads:
+                        save_cached_downloads(disk_downloads)
+    except Exception as e:
+        logger.warning("Error syncing cached downloads on startup: %s", e)
