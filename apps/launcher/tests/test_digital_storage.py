@@ -1,4 +1,8 @@
-import io
+import http.server
+import functools
+import threading
+import subprocess
+import shutil
 import json
 import tempfile
 import unittest
@@ -41,6 +45,33 @@ class DigitalStorageTests(unittest.TestCase):
         self.assertFalse(folder.exists())
         self.assertTrue(sibling.exists())
         self.assertFalse(self.storage.status(1, "Fixture")["installed"])
+    def test_http_worker_downloads_and_extracts_in_place_without_install_command(self):
+        launcher = Path(self.temp.name)
+        original = Path(__file__).resolve().parents[1]
+        for file in ["digital_downloader.py", "digital_storage.py"]:
+            shutil.copyfile(original / file, launcher / file)
+        source = launcher / "source"
+        source.mkdir()
+        with zipfile.ZipFile(source / "fixture.zip", "w") as archive:
+            archive.writestr("game.exe", b"fixture executable")
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(source)))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            result = subprocess.run([sys.executable, str(launcher / "digital_downloader.py"),
+                "--app-id", "1", "--name", "Fixture", "--source",
+                f"http://127.0.0.1:{server.server_port}/fixture.zip",
+                "--keep-archive", "--install-process", "cmd /c exit 99"],
+                cwd=launcher, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-1000:])
+            folder = self.storage.folder(1, "Fixture")
+            self.assertTrue((folder / "fixture.zip").is_file())
+            self.assertTrue((folder / "game.exe").is_file())
+            status = json.loads((launcher / ".cache" / "digital_downloads" / "1.json").read_text())
+            self.assertEqual(status["phase"], "completed")
+        finally:
+            server.shutdown()
+            server.server_close()
+
     def test_empty_and_archive_only_folders_are_not_playable(self):
         folder = self.storage.register(1, "Fixture")
         self.assertFalse(self.storage.status(1, "Fixture")["installed"])
