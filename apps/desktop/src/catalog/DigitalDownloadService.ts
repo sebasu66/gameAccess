@@ -314,6 +314,7 @@ export class DigitalDownloadService implements IDownloadProvider {
             return;
           }
         } catch (error) {
+          this.activeJobs.set(gameId, previous);
           this.updateSnapshot({ ...previous, error: String(error) });
           throw error;
         }

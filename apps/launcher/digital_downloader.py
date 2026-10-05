@@ -356,6 +356,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
     }
 
     head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=25)
+    head_resp.raise_for_status()
     final_url = head_resp.url
     headers_resp = head_resp.headers
 
@@ -366,6 +367,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         # Fallback to single stream
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
+            r.raise_for_status()
             downloaded = 0
             start_time = time.time()
             for chunk in r.iter_content(chunk_size=1024 * 64):
@@ -396,7 +398,9 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         reporter = threading.Thread(target=tracker.monitor, args=(stop_event,), daemon=True)
         reporter.start()
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
+            r.raise_for_status()
             for chunk in r.iter_content(chunk_size=1024 * 64):
+                wait_if_paused()
                 if g_cancelled.is_set():
                     stop_event.set()
                     return False
