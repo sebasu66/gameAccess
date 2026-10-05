@@ -29,8 +29,8 @@ class DigitalStorageTests(unittest.TestCase):
         with zipfile.ZipFile(archive, "w") as z:
             z.writestr("bin/game.exe", b"fixture executable")
         with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch.object(digital_downloader, "emit_progress"):
-            extract_archives_in_path(str(archive), str(folder), delete_archive=False)
-        self.assertTrue(archive.is_file())
+            extract_archives_in_path(str(archive), str(folder), delete_archive=False, game_name="Fixture")
+        self.assertTrue((folder / "Fixture_backup.zip").is_file())
         self.assertTrue(self.storage.status(1, "Fixture")["installed"])
         with patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
@@ -48,7 +48,7 @@ class DigitalStorageTests(unittest.TestCase):
     def test_http_worker_downloads_and_extracts_in_place_without_install_command(self):
         launcher = Path(self.temp.name)
         original = Path(__file__).resolve().parents[1]
-        for file in ["digital_downloader.py", "digital_storage.py"]:
+        for file in ["digital_downloader.py", "digital_storage.py", "digital_backup.py"]:
             shutil.copyfile(original / file, launcher / file)
         source = launcher / "source"
         source.mkdir()
@@ -64,7 +64,7 @@ class DigitalStorageTests(unittest.TestCase):
                 cwd=launcher, capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-1000:])
             folder = self.storage.folder(1, "Fixture")
-            self.assertTrue((folder / "fixture.zip").is_file())
+            self.assertTrue((folder / "Fixture_backup.zip").is_file())
             self.assertTrue((folder / "game.exe").is_file())
             status = json.loads((launcher / ".cache" / "digital_downloads" / "1.json").read_text())
             self.assertEqual(status["phase"], "completed")

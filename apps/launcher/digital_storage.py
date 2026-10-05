@@ -49,7 +49,7 @@ class DigitalGameStorage:
         folder = self.folder(app_id, name)
         # Archives alone and empty/partial folders are not a runnable download.
         available = folder.is_dir() and any(
-            p.is_file() and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I)
+            p.is_file() and p.name != ".digital-backup.json" and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I)
             for p in folder.rglob("*")
         )
         return {"folder": str(folder), "installed": available}

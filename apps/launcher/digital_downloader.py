@@ -1153,7 +1153,7 @@ def main():
         if target_content_path in g_temp_files:
             g_temp_files.remove(target_content_path)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
-        should_delete_archive = not args.keep_archive
+        should_delete_archive = True  # Only the smallest original archive is retained.
         extracted = extract_archives_in_path(
             target_path=target_content_path or dest_dir,
             dest_dir=dest_dir,

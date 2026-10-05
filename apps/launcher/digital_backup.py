@@ -77,7 +77,12 @@ class DigitalArchiveBackup:
         worker.g_app_id = str(app_id)
         worker.g_cancelled.clear()
         # Native runner stdout must remain exactly one JSON result.
-        with contextlib.redirect_stdout(io.StringIO()):
-            worker.extract_archives_in_path(str(info["archive"]), str(info["destination"]),
-                delete_archive=False, retain_backup=False)
+        original_emit = worker.emit_json
+        try:
+            worker.emit_json = lambda *_args, **_kwargs: None
+            with contextlib.redirect_stdout(io.StringIO()):
+                worker.extract_archives_in_path(str(info["archive"]), str(info["destination"]),
+                    delete_archive=False, retain_backup=False)
+        finally:
+            worker.emit_json = original_emit
         return True

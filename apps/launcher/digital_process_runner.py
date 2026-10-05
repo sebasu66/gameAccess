@@ -60,9 +60,9 @@ class DigitalProcessRunner:
                 return {**result, "ok": True}
             if action != "play":
                 raise ValueError(f"Unknown action '{action}'")
+            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no está descargado y descomprimido en su carpeta Digital.")
-            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             executable, arguments = self.executable(folder, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent),
