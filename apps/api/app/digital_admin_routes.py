@@ -176,6 +176,9 @@ def calculate_match_score(target_name: str, candidate_title: str) -> float:
     return (ratio * 0.6) + (seq_ratio * 0.4)
 
 
+_RESOLVER_CACHE: dict[str, Optional[tuple[int, str]]] = {}
+
+
 def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
     """Resolves the official Steam AppID for a game title using Steam Store Search API.
     
@@ -186,6 +189,14 @@ def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
     clean = clean_user_friendly_title(game_name).strip()
     if not clean:
         return None
+
+    cache_key = clean.lower()
+    if cache_key in _RESOLVER_CACHE:
+        cached_val = _RESOLVER_CACHE[cache_key]
+        logger.info("[SteamResolver:CacheHit] '%s' -> %s", clean, cached_val)
+        return cached_val
+
+    logger.info("[SteamResolver:Start] Resolving AppID for '%s'...", clean)
 
     queries = [clean]
     # Strip semantic version numbers like '1.6' or build numbers
@@ -201,17 +212,19 @@ def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
 
     for q in queries:
         try:
-            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+            logger.info("[SteamResolver:Query] Querying Steam Store Search with term='%s'", q)
+            with httpx.Client(timeout=4.0, follow_redirects=True) as client:
                 resp = client.get(
                     "https://store.steampowered.com/api/storesearch/",
                     params={"term": q, "l": "spanish", "cc": "ar"},
                     headers={"User-Agent": "gameAccess/0.2 Steam App Resolver"}
                 )
                 if resp.status_code != 200:
+                    logger.warning("[SteamResolver:QueryError] Steam returned status %s for term='%s'", resp.status_code, q)
                     continue
                 items = resp.json().get("items", [])
         except Exception as exc:
-            logger.debug("Steam search exception for %s: %s", q, exc)
+            logger.warning("[SteamResolver:QueryFailed] Steam search exception for '%s': %s", q, exc)
             continue
 
         candidates = []
@@ -242,8 +255,13 @@ def resolve_steam_app_id(game_name: str) -> Optional[tuple[int, str]]:
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
             best_score, best_id, best_name = candidates[0]
-            return best_id, best_name
+            logger.info("[SteamResolver:Match] '%s' MATCHED -> AppID: %s ('%s') score=%.2f", clean, best_id, best_name, best_score)
+            res = (best_id, best_name)
+            _RESOLVER_CACHE[cache_key] = res
+            return res
 
+    logger.info("[SteamResolver:NoMatch] No confident Steam match found for '%s'", clean)
+    _RESOLVER_CACHE[cache_key] = None
     return None
 
 
@@ -540,22 +558,14 @@ async def import_source_json(request: Request) -> dict[str, Any]:
                     continue
 
                 game_id = it.get("id")
-                official_title = None
                 if not game_id or game_id in existing_ids:
-                    steam_match = resolve_steam_app_id(it["clean_title"])
-                    if steam_match:
-                        s_id, s_name = steam_match
-                        if s_id not in existing_ids:
-                            game_id = s_id
-                            official_title = s_name
-                    if not game_id or game_id in existing_ids:
-                        base_id = abs(hash(norm)) % 8000000 + 1000000
-                        while base_id in existing_ids:
-                            base_id += 1
-                        game_id = base_id
+                    base_id = abs(hash(norm)) % 8000000 + 1000000
+                    while base_id in existing_ids:
+                        base_id += 1
+                    game_id = base_id
 
                 catalog.append({
-                    "name": official_title or it["clean_title"],
+                    "name": it["clean_title"],
                     "id": game_id,
                     "downloadSource": it["uri"],
                     "installProcess": "",
@@ -699,24 +709,14 @@ async def populate_catalog_from_sources() -> dict[str, Any]:
             continue
 
         game_id = item.get("id")
-        official_name = None
         if not game_id or game_id in existing_ids:
-            # First attempt to resolve real Steam AppID
-            steam_match = resolve_steam_app_id(title)
-            if steam_match:
-                resolved_id, resolved_name = steam_match
-                if resolved_id not in existing_ids:
-                    game_id = resolved_id
-                    official_name = resolved_name
-            if not game_id or game_id in existing_ids:
-                base_id = abs(hash(norm)) % 8000000 + 1000000
-                while base_id in existing_ids:
-                    base_id += 1
-                game_id = base_id
+            base_id = abs(hash(norm)) % 8000000 + 1000000
+            while base_id in existing_ids:
+                base_id += 1
+            game_id = base_id
 
-        final_title = official_name or title
         catalog.append({
-            "name": final_title,
+            "name": title,
             "id": game_id,
             "downloadSource": item["uri"],
             "installProcess": "",
