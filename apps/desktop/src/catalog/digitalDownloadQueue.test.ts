@@ -48,7 +48,7 @@ describe("Digital download scheduling", () => {
     mock.mockRejectedValueOnce(new Error("worker still running"));
     await expect(service.cancel(1)).rejects.toThrow("worker still running");
     expect((await service.getStatus(1)).phase).toBe("downloading");
-    expect((await service.getStatus(2)).phase).toBe("queued");
+    expect((await service.getStatus(5)).phase).toBe("queued");
     expect(service.getDownloads()).toHaveLength(5);
   });
   it("removes a confirmed active cancellation before notifying the UI and persists the removal", async () => {
@@ -85,7 +85,7 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(6)).phase).toBe("queued");
     expect(mock.mock.calls.filter(call => call[0] === "start_digital_download").map(call => (call[1] as { appId: number }).appId)).toEqual([1, 2, 3, 4, 5]);
   });
-  it.each([1, [1, 2, 3, 4]])("restores running workers from saved state %j", async running => {
+  it.each([{ running: 1 }, { running: [1, 2, 3, 4] }])("restores running workers from saved state $running", async ({ running }) => {
     const ids = Array.isArray(running) ? running : [running];
     vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({
       entries: [...ids.map(id => ({ game: game(id), snapshot: { gameId: id, phase: "downloading", progress: 10 } })),
