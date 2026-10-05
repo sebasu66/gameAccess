@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -534,13 +535,24 @@ def activation_status(request: Request, session: Session = Depends(get_session))
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
 
 
+def _admin_archive_password_access(request: Request) -> None:
+    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+    client_host = request.client.host if request.client else ""
+    origin = request.headers.get("Origin")
+    local_origin = not origin or urlsplit(origin).hostname in loopback_hosts
+    forwarded = any(name in request.headers for name in ("Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Real-IP"))
+    if client_host in {"127.0.0.1", "::1"} and request.url.hostname in loopback_hosts and local_origin and not forwarded:
+        return
+    _admin_activation_access(request)
+
+
 class ArchivePasswordsRequest(BaseModel):
     passwords: str = Field(max_length=100000)
 
 
 @app.get("/admin/archive-passwords")
 def admin_archive_passwords(request: Request, response: Response) -> dict:
-    _admin_activation_access(request)
+    _admin_archive_password_access(request)
     response.headers["Cache-Control"] = "no-store"
     passwords = read_archive_passwords()
     return {"passwords": "\n".join(passwords), "count": len(passwords)}
@@ -548,7 +560,7 @@ def admin_archive_passwords(request: Request, response: Response) -> dict:
 
 @app.put("/admin/archive-passwords")
 def admin_save_archive_passwords(req: ArchivePasswordsRequest, request: Request, response: Response) -> dict:
-    _admin_activation_access(request)
+    _admin_archive_password_access(request)
     response.headers["Cache-Control"] = "no-store"
     try:
         passwords = save_archive_passwords(req.passwords)

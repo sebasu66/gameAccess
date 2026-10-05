@@ -90,7 +90,7 @@
           </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Contraseñas de archivos Digital</h2><span>Lista central del servidor</span></div><div class="panel-body">
             <form id="archivePasswordsForm" class="form">
-              <div class="field full"><label for="archiveAdminToken">Token de administración del servidor</label><input id="archiveAdminToken" type="password" autocomplete="off" required></div>
+              <div class="field full"><label for="archiveAdminToken">Token de administración (servidor remoto)</label><input id="archiveAdminToken" type="password" autocomplete="off" placeholder="Dejar vacío en servidor local"></div>
               <div class="field full"><label for="archivePasswords">Una contraseña por línea, en orden de intento</label><textarea id="archivePasswords" rows="8" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box;background:#0a0f16;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:13px/1.5 Consolas,monospace"></textarea></div>
               <div class="field full" style="display:flex;gap:8px"><button class="btn" type="button" id="loadArchivePasswords">Cargar lista</button><button class="btn primary" type="submit">Guardar contraseñas</button></div>
             </form>
@@ -220,7 +220,6 @@
 
   async function archivePasswordsRequest(method){
     const token=$('archiveAdminToken').value.trim();
-    if(!token)throw new Error('Ingresá el token de administración.');
     const response=await fetch(ACTIVATION_API+'/admin/archive-passwords',{method,cache:'no-store',headers:{'Content-Type':'application/json','X-GameAccess-Admin-Token':token},...(method==='PUT'?{body:JSON.stringify({passwords:$('archivePasswords').value})}:{})});
     const result=await response.json();
     if(!response.ok)throw new Error(result.detail||'No se pudo actualizar la lista.');

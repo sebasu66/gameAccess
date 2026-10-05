@@ -49,3 +49,34 @@ def test_empty_list_and_invalid_password_lengths(tmp_path, monkeypatch):
     assert core.read_archive_passwords() == []
     with pytest.raises(ValueError):
         core.save_archive_passwords("x" * 1025)
+def local_request(extra_headers=(), client_host="127.0.0.1", host="127.0.0.1:38147"):
+    return Request({"type": "http", "scheme": "http", "path": "/admin/archive-passwords",
+        "client": (client_host, 50000), "server": ("127.0.0.1", 38147),
+        "headers": [(b"host", host.encode()), *extra_headers]})
+
+def test_local_editor_can_load_and_save_without_admin_token(tmp_path, monkeypatch):
+    monkeypatch.delenv("GAMEACCESS_ADMIN_TOKEN", raising=False)
+    monkeypatch.setenv("GAMEACCESS_ARCHIVE_PASSWORD_FILE", str(tmp_path / "contraseñas_zip"))
+    local = local_request([(b"origin", b"http://127.0.0.1:38147")])
+    response = Response()
+    assert core.admin_archive_passwords(local, response)["count"] == 0
+    assert core.admin_save_archive_passwords(core.ArchivePasswordsRequest(passwords="first\nsecond"), local, response)["count"] == 2
+    assert core.admin_archive_passwords(local, response)["passwords"] == "first\nsecond"
+
+@pytest.mark.parametrize("local", [
+    local_request(client_host="192.0.2.20"),
+    local_request(host="hosted.example"),
+    local_request([(b"x-forwarded-for", b"192.0.2.20")]),
+    local_request([(b"origin", b"https://external.example")]),
+])
+def test_remote_or_forwarded_requests_still_require_admin_token(local, monkeypatch):
+    monkeypatch.delenv("GAMEACCESS_ADMIN_TOKEN", raising=False)
+    with pytest.raises(HTTPException) as error:
+        core.admin_archive_passwords(local, Response())
+    assert error.value.status_code == 503
+
+def test_local_editor_does_not_require_configured_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "configured-server-token" * 2)
+    monkeypatch.setenv("GAMEACCESS_ARCHIVE_PASSWORD_FILE", str(tmp_path / "contraseñas_zip"))
+    assert core.admin_archive_passwords(local_request(host="localhost:38147"), Response())["count"] == 0
+
