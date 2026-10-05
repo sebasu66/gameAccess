@@ -119,6 +119,23 @@ class ExtractionTest(unittest.TestCase):
         self.assertTrue((output / "Game" / "fix.dll").is_file())
         self.assertFalse((output / "Game" / "Game").exists())
 
+    @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
+    def test_smallest_7z_flat_fix_is_extracted_into_game_subfolder(self):
+        import zipfile
+        worker = load_worker()
+        packages = self.root / "packages"
+        packages.mkdir()
+        with zipfile.ZipFile(packages / "main.zip", "w") as archive:
+            archive.writestr("Game/game.exe", b"main" * 10000)
+        fix = self.root / "fix.dll"
+        fix.write_bytes(b"fix")
+        subprocess.run([str(SEVEN_ZIP), "a", str(packages / "fix.7z"), str(fix), "-y"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=10)
+        output = self.root / "output"
+        with patch.object(worker, "find_portable_7z", return_value=str(SEVEN_ZIP)), patch.object(worker, "emit_progress"):
+            worker.extract_archives_in_path(str(packages), str(output), delete_archive=False)
+        self.assertEqual((output / "Game" / "fix.dll").read_bytes(), b"fix")
+        self.assertFalse((output / "fix.dll").exists())
+
     def test_reports_percentages_from_extractor_output(self):
         worker = load_worker()
         arc = self.root / "fixture.7z"
@@ -127,7 +144,7 @@ class ExtractionTest(unittest.TestCase):
         child.stdout = io.StringIO("extracting\r 25%\r 65%\r 100%\n")
         child.wait.return_value = 0
         events = []
-        with patch.object(worker, "find_portable_7z", return_value="7z"), patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
+        with patch.object(worker, "archive_enclosing_folder", return_value=None), patch.object(worker, "find_portable_7z", return_value="7z"), patch.object(worker.subprocess, "Popen", return_value=child), patch.object(worker, "emit_progress", side_effect=lambda **event: events.append(event)):
             self.assertTrue(worker.extract_archives_in_path(str(arc), str(self.root), delete_archive=False))
         self.assertIn(25, [event["progress_percent"] for event in events])
         self.assertIn(65, [event["progress_percent"] for event in events])
