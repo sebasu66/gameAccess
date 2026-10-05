@@ -32,7 +32,7 @@ class DigitalStorageTests(unittest.TestCase):
             extract_archives_in_path(str(archive), str(folder), delete_archive=False, game_name="Fixture")
         self.assertTrue((folder / "Fixture_backup.zip").is_file())
         self.assertTrue(self.storage.status(1, "Fixture")["installed"])
-        with patch("digital_process_runner.subprocess.Popen") as spawn:
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
@@ -79,7 +79,7 @@ class DigitalStorageTests(unittest.TestCase):
         nested = folder / "Dungeons" / "Binaries"
         nested.mkdir(parents=True)
         (nested / "Dungeons-Win64-Shipping.exe").write_bytes(b"fixture")
-        with patch("digital_process_runner.subprocess.Popen") as spawn:
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
@@ -109,7 +109,7 @@ class DigitalStorageTests(unittest.TestCase):
         for command in ["steam://run/1", "../external.exe", "game.exe && steam.exe"]:
             self.assertFalse(self.runner.run("play", 1, "Fixture", command)["ok"])
     def test_missing_folder_does_not_fall_back_to_launcher_cwd(self):
-        with patch("digital_process_runner.subprocess.Popen") as spawn:
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             self.assertFalse(self.runner.run("play", 1, "Missing", "game.exe")["ok"])
             spawn.assert_not_called()
 
