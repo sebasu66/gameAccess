@@ -22,6 +22,7 @@ from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
+from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
@@ -531,6 +532,37 @@ def activation_status(request: Request, session: Session = Depends(get_session))
         )
         raise HTTPException(401, "GameAccess activation is required or has expired")
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
+
+
+class ArchivePasswordsRequest(BaseModel):
+    passwords: str = Field(max_length=100000)
+
+
+@app.get("/admin/archive-passwords")
+def admin_archive_passwords(request: Request, response: Response) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    passwords = read_archive_passwords()
+    return {"passwords": "\n".join(passwords), "count": len(passwords)}
+
+
+@app.put("/admin/archive-passwords")
+def admin_save_archive_passwords(req: ArchivePasswordsRequest, request: Request, response: Response) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        passwords = save_archive_passwords(req.passwords)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {"ok": True, "count": len(passwords)}
+
+
+@app.get("/digital/archive-passwords")
+def client_archive_passwords(request: Request, response: Response, session: Session = Depends(get_session)) -> dict:
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    response.headers["Cache-Control"] = "no-store"
+    return {"passwords": read_archive_passwords()}
 
 
 @app.post("/client-errors")

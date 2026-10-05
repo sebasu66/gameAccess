@@ -88,6 +88,14 @@
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Sección Digital</h2><span>Catálogo independiente y fuentes Hydra</span></div><div class="panel-body">
             <div class="tool-card" style="margin-bottom:0"><div><h3>Administrador de Juegos Digitales & Fuentes</h3><p>Importar fuentes JSON compatibles con Hydra (archivos locales o URLs), indexar descargas y administrar el catálogo digital independiente.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn primary" href="/admin-console/digital?action=import" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">📥 Importar Fuente JSON</a><a class="btn" href="/admin-console/digital" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">Abrir Catálogo Digital ✦</a></div></div>
           </div></div>
+          <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Contraseñas de archivos Digital</h2><span>Lista central del servidor</span></div><div class="panel-body">
+            <form id="archivePasswordsForm" class="form">
+              <div class="field full"><label for="archiveAdminToken">Token de administración del servidor</label><input id="archiveAdminToken" type="password" autocomplete="off" required></div>
+              <div class="field full"><label for="archivePasswords">Una contraseña por línea, en orden de intento</label><textarea id="archivePasswords" rows="8" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box;background:#0a0f16;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:13px/1.5 Consolas,monospace"></textarea></div>
+              <div class="field full" style="display:flex;gap:8px"><button class="btn" type="button" id="loadArchivePasswords">Cargar lista</button><button class="btn primary" type="submit">Guardar contraseñas</button></div>
+            </form>
+            <p class="muted" id="archivePasswordsStatus" aria-live="polite">El cliente solicita esta lista al necesitar una contraseña para descomprimir.</p>
+          </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Generar claves de acceso</h2><span>Se muestra una sola vez</span></div><div class="panel-body">
             <form id="accessKeyForm" class="form">
               <div class="field"><label>Duración del acceso</label><input name="access_duration" type="number" min="1" max="60" value="12" required></div>
@@ -210,6 +218,16 @@
     }catch(err){toast(err.message,true)}
   };
 
+  async function archivePasswordsRequest(method){
+    const token=$('archiveAdminToken').value.trim();
+    if(!token)throw new Error('Ingresá el token de administración.');
+    const response=await fetch('/admin/archive-passwords',{method,cache:'no-store',headers:{'Content-Type':'application/json','X-GameAccess-Admin-Token':token},...(method==='PUT'?{body:JSON.stringify({passwords:$('archivePasswords').value})}:{})});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.detail||'No se pudo actualizar la lista.');
+    return result;
+  }
+  $('loadArchivePasswords').onclick=async()=>{try{const result=await archivePasswordsRequest('GET');$('archivePasswords').value=result.passwords;$('archivePasswordsStatus').textContent=result.count+' contraseñas cargadas.'}catch(err){toast(err.message,true)}};
+  $('archivePasswordsForm').onsubmit=async e=>{e.preventDefault();try{const result=await archivePasswordsRequest('PUT');$('archivePasswordsStatus').textContent=result.count+' contraseñas guardadas en el servidor.';toast('Lista de contraseñas guardada.')}catch(err){toast(err.message,true)}};
   $('providerForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const payload={account_name:f.get('account_name'),password:f.get('password')};try{const r=await api('/tools/provider-account/start',{method:'POST',body:JSON.stringify(payload)});e.target.password.value='';toast(`Scan parcial iniciado para ${r.account_name}. Sólo se actualizará esa cuenta.`);await refresh()}catch(err){toast(err.message,true)}};
 
   $('steamForm').generate_password.onchange=e=>{$('manualPasswordField').style.display=e.target.value==='false'?'grid':'none'};

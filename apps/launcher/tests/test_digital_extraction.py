@@ -62,25 +62,25 @@ class ExtractionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(unrelated.read_bytes(), b"invalid archive belonging to another download")
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
-    def test_tries_password_file_in_order_until_success(self):
+    def test_tries_server_passwords_in_order_until_success(self):
         arc = self.archive(password="fixture-password")
         output = self.root / "output"
         output.mkdir()
-        (output / "contraseñas_zip").write_text("wrong-password\nfixture-password\n", encoding="utf-8")
+        (output / "server-reply.json").write_text(json.dumps({"passwords": ["wrong-password", "fixture-password"]}), encoding="utf-8")
         result = self.extract(arc)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Probando contraseña 2/2", result.stdout)
+        self.assertIn("Probando contraseña 3/3", result.stdout)
         self.assertNotIn("wrong-password", result.stdout)
         self.assertEqual((output / "fixture.bin").read_bytes(), self.source.read_bytes())
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
-    def test_exhausted_password_file_reports_error_and_preserves_archive(self):
+    def test_exhausted_server_passwords_report_error_and_preserve_archive(self):
         arc = self.archive(password="fixture-password")
         output = self.root / "output"
         output.mkdir()
-        (output / "contraseñas_zip").write_text("wrong-one\nwrong-two\n", encoding="utf-8")
+        (output / "server-reply.json").write_text(json.dumps({"passwords": ["wrong-one", "wrong-two"]}), encoding="utf-8")
         result = self.extract(arc)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ninguna contraseña de contraseñas_zip funcionó", result.stdout)
+        self.assertIn("ninguna contraseña del servidor funcionó", result.stdout)
         self.assertTrue(arc.exists())
     def test_reports_percentages_from_extractor_output(self):
         worker = load_worker()
@@ -100,6 +100,10 @@ if __name__ == "__main__":
         worker = load_worker()
         worker.LAUNCHER_DIR = Path(sys.argv[3])
         worker.g_app_id = "fixture"
+        reply = worker.LAUNCHER_DIR / ".cache" / "digital_downloads" / "fixture.passwords.json"
+        reply.parent.mkdir(parents=True, exist_ok=True)
+        server_reply = worker.LAUNCHER_DIR / "server-reply.json"
+        reply.write_text(server_reply.read_text(encoding="utf-8") if server_reply.exists() else '{"passwords": []}', encoding="utf-8")
         worker.find_portable_7z = lambda: str(SEVEN_ZIP)
         try:
             worker.extract_archives_in_path(sys.argv[2], sys.argv[3], password=sys.argv[4] or None, delete_archive=False)

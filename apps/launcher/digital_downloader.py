@@ -708,6 +708,33 @@ def download_direct_torrent(
 
 
 # --- Archive Extraction & Cleaner (Matching Hydra GameFilesManager) ---
+def request_archive_passwords():
+    """Request central passwords through the desktop bridge, then discard the reply file."""
+    reply = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.passwords.json"
+    emit_json({
+        "type": "progress", "appId": str(g_app_id), "phase": "decompressing",
+        "progressPercent": 0, "passwordsRequired": True,
+        "statusText": "Solicitando contraseñas al servidor..."
+    })
+    deadline = time.monotonic() + 30
+    while not g_cancelled.is_set() and time.monotonic() < deadline:
+        try:
+            payload = json.loads(reply.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            g_cancelled.wait(0.1)
+            continue
+        reply.unlink(missing_ok=True)
+        if payload.get("error"):
+            raise RuntimeError(str(payload["error"]))
+        passwords = payload.get("passwords")
+        if not isinstance(passwords, list) or any(not isinstance(value, str) for value in passwords):
+            raise RuntimeError("La lista de contraseñas del servidor es inválida.")
+        return list(dict.fromkeys(value for value in passwords if value))
+    if g_cancelled.is_set():
+        return []
+    raise RuntimeError("El cliente no recibió las contraseñas del servidor. La descarga se conserva.")
+
+
 def extract_archives_in_path(
     target_path: str,
     dest_dir: str,
@@ -751,15 +778,8 @@ def extract_archives_in_path(
         if profile and "password" in profile:
             effective_password = profile["password"]
 
-    passwords = [effective_password] if effective_password else []
-    password_file = LAUNCHER_DIR / "contraseñas_zip"
-    if password_file.exists():
-        for line in password_file.read_text(encoding="utf-8-sig").splitlines():
-            if line and line not in passwords:
-                passwords.append(line)
-    # "-" supplies an explicit placeholder so unprotected archives work without prompting.
-    if not passwords:
-        passwords = ["-"]
+    passwords = [effective_password] if effective_password else ["-"]
+    server_passwords_requested = False
 
     total = len(archives_to_extract)
     for idx, arc in enumerate(archives_to_extract):
@@ -773,7 +793,9 @@ def extract_archives_in_path(
 
         success = False
         if seven_zip:
-            for attempt, candidate_password in enumerate(passwords):
+            attempt = 0
+            while attempt < len(passwords):
+                candidate_password = passwords[attempt]
                 if attempt:
                     emit_progress(
                         app_id=g_app_id, phase="decompressing",
@@ -822,9 +844,15 @@ def extract_archives_in_path(
                     return False
                 if returncode != 0:
                     if re.search(r"password|encrypted|contrase", output_tail, re.I):
+                        if not server_passwords_requested:
+                            server_passwords_requested = True
+                            for value in request_archive_passwords():
+                                if value not in passwords:
+                                    passwords.append(value)
                         if attempt + 1 < len(passwords):
+                            attempt += 1
                             continue
-                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña de contraseñas_zip funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
+                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña del servidor funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
                     raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
                 break
             success = True

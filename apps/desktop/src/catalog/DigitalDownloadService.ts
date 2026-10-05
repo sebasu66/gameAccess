@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
+import { supplyArchivePasswords } from "./archivePasswords";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
 import { snapshotToManagedStatus } from "../downloadProvider";
@@ -249,6 +250,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       clearInterval(this.pollingIntervals.get(gameId));
     }
     let pending = false;
+    let passwordsSupplied = false;
     const interval = setInterval(async () => {
       if (!hasTauriRuntime() || pending || !this.running.has(gameId)) return;
       pending = true;
@@ -256,6 +258,10 @@ export class DigitalDownloadService implements IDownloadProvider {
         const raw = await invoke<any>("digital_download_status", { appId });
         console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
         if (!this.running.has(gameId)) return;
+        if (raw?.passwordsRequired && !passwordsSupplied) {
+          passwordsSupplied = true;
+          await supplyArchivePasswords(appId);
+        }
         if (raw && raw.phase) {
           const snapshot: DownloadProgressSnapshot = {
             gameId,

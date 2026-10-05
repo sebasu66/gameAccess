@@ -762,6 +762,19 @@ fn write_digital_control(app_id: u32, action: &str) -> Result<std::path::PathBuf
 }
 
 #[tauri::command]
+async fn supply_digital_archive_passwords(app_id: u32, passwords: Vec<String>, error: Option<String>) -> Result<(), String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let dir = launcher.join(".cache").join("digital_downloads");
+    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    let path = dir.join(format!("{app_id}.passwords.json"));
+    let temporary = dir.join(format!("{app_id}.passwords.tmp"));
+    let payload = serde_json::json!({ "passwords": passwords, "error": error });
+    fs::write(&temporary, payload.to_string()).map_err(|err| err.to_string())?;
+    fs::rename(temporary, path).map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn control_digital_download(app_id: u32, action: String) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if action != "pause" && action != "resume" { return Err("Invalid download action".to_string()); }
@@ -944,6 +957,7 @@ fn main() {
             start_digital_download,
             cancel_digital_download,
             control_digital_download,
+            supply_digital_archive_passwords,
             digital_download_status,
             query_digital_options
         ])
