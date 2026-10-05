@@ -23,6 +23,8 @@ import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { calculateSelectionScrollTop, selectionItemTopInScrollContainer } from "./libraryNavigation";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { getCatalogMode } from "./catalogMode";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 
@@ -118,6 +120,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   const download = selectedDownload(selectedAppId, effectiveDownloads);
   // Selected-game probes and storage events replace stale local completion overlays.
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     const changed = (event: Event) => {
       const status = (event as CustomEvent<{ status?: ManagedDownloadStatus }>).detail?.status;
       if (!status?.app_id) return;
@@ -136,7 +139,9 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
       if (pending) return;
       pending = true;
       try {
-        const status = await steamDownloadStatus(selectedAppId);
+        const status = getCatalogMode() === "digital" && selectedGame
+          ? await digitalCatalogService.getStatus(selectedGame)
+          : await steamDownloadStatus(selectedAppId);
         if (!cancelled && status.state !== "unknown") setManagedDownloads((current) => ({ ...current, [selectedAppId]: status }));
       } catch { /* Keep last known state until a successful probe. */ }
       finally { pending = false; }
@@ -248,6 +253,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   }, [downloads]);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     if (!trackedAppIds.length) return;
     let cancelled = false;
     let timer: number | null = null;
@@ -643,3 +649,4 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
     </section>
   );
 }
+

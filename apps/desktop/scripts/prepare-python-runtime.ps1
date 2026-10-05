@@ -39,7 +39,7 @@ if (-not (Test-Path $requirements)) {
 
 # Stage only runtime source files. Never copy the local .venv, .gameaccess
 # state, caches, credentials, or other developer-machine data.
-Remove-Item $launcherTarget -Recurse -Force -ErrorAction SilentlyContinue
+# Refresh code in place. Never delete launcher/games or its Digital registry.
 New-Item -ItemType Directory -Path $launcherTarget -Force | Out-Null
 Get-ChildItem $launcherSource -File |
     Where-Object { $_.Extension -eq ".py" -or $_.Name -eq "requirements.txt" } |
@@ -60,7 +60,7 @@ if (Test-Path $marker) {
 }
 
 if ($runtimeReady) {
-    Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
+    Get-ChildItem $pythonTarget -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "Embedded Python runtime is up to date."
     exit 0
@@ -126,7 +126,7 @@ $pth = Join-Path $pythonTarget "python312._pth"
     "import site"
 ) | Set-Content -Path $pth -Encoding ASCII
 
-Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
+Get-ChildItem $pythonTarget -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 @{
@@ -139,5 +139,5 @@ if ($LASTEXITCODE -ne 0) {
     throw "Embedded Python runtime self-test failed."
 }
 
-Get-ChildItem $runtimeRoot -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
+Get-ChildItem $pythonTarget -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue

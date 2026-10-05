@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from digital_storage import DigitalGameStorage
 from download_log import append_download_log
 from provider_download_probe import TOOL_ROOT as CURRENT_DEPOTDOWNLOADER_ROOT
 from steam_prepare_import import app_metadata
@@ -26,6 +27,15 @@ LOG_ROOT = DOWNLOAD_ROOT / "logs"
 LOCK_ROOT = RUNTIME_ROOT / "locks"
 MEDIA_CACHE_ROOT = RUNTIME_ROOT / "media-cache"
 TOOLS_ROOT = RUNTIME_ROOT / "tools"
+
+DIGITAL_PROTECTED_ROOTS = (DigitalGameStorage().root, DigitalGameStorage().registry)
+
+
+def _digital_protected(path: Path) -> bool:
+    candidate = path.resolve()
+    return any(candidate.is_relative_to(root.resolve()) or root.resolve().is_relative_to(candidate)
+               for root in DIGITAL_PROTECTED_ROOTS)
+
 
 STALE_TEMP_SECONDS = 24 * 60 * 60
 STALE_LOCK_SECONDS = 6 * 60 * 60
@@ -73,7 +83,7 @@ def _age_seconds(path: Path) -> float:
 
 
 def _remove_regular_file(path: Path) -> bool:
-    if path.is_symlink() or not path.is_file():
+    if _digital_protected(path) or path.is_symlink() or not path.is_file():
         return False
     try:
         path.unlink()
@@ -124,10 +134,10 @@ def _prune_manifest_probes(active_app_ids: set[int]) -> tuple[int, int]:
         return removed_dirs, removed_bytes
     root = DOWNLOAD_ROOT.resolve()
     for provider_dir in DOWNLOAD_ROOT.iterdir():
-        if provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
+        if _digital_protected(provider_dir) or provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
             continue
         for path in provider_dir.iterdir():
-            if path.is_symlink() or not path.is_dir() or not path.name.endswith("-manifest-only"):
+            if _digital_protected(path) or path.is_symlink() or not path.is_dir() or not path.name.endswith("-manifest-only"):
                 continue
             raw = path.name.removesuffix("-manifest-only")
             if not raw.isdigit() or int(raw) in active_app_ids:
@@ -226,7 +236,8 @@ def _prune_old_download_tools(active_app_ids: set[int]) -> tuple[int, int]:
     removed_bytes = 0
     for path in TOOLS_ROOT.iterdir():
         if (
-            path.is_symlink()
+            _digital_protected(path)
+            or path.is_symlink()
             or not path.is_dir()
             or not path.name.startswith("depotdownloader-")
         ):
@@ -288,7 +299,7 @@ def _staging_candidates() -> list[tuple[int, str, Path]]:
     if not DOWNLOAD_ROOT.is_dir():
         return result
     for provider_dir in DOWNLOAD_ROOT.iterdir():
-        if provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
+        if _digital_protected(provider_dir) or provider_dir.is_symlink() or not provider_dir.is_dir() or provider_dir.name in {"logs", "status"}:
             continue
         provider_id = provider_dir.name
         for child in provider_dir.iterdir():
@@ -358,6 +369,8 @@ def remove_staging(app_id: int, provider_id: str, *, remove_manifest_probe: bool
     for path in (staging, manifest_probe if remove_manifest_probe else None):
         if path is None or not path.exists():
             continue
+        if _digital_protected(path):
+            raise RuntimeError(f"Digital folders are excluded from GameAccess cleanup: {path}")
         if path.is_symlink():
             raise RuntimeError(f"Refusing to remove symbolic-link staging path: {path}")
         try:
@@ -372,6 +385,8 @@ def remove_staging(app_id: int, provider_id: str, *, remove_manifest_probe: bool
 
 def clear_status(app_id: int) -> None:
     path = _status_path(app_id)
+    if _digital_protected(path):
+        return
     try:
         path.unlink()
     except FileNotFoundError:

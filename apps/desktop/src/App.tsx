@@ -23,6 +23,10 @@ import { DetailPanel } from "./AppDetailPanel";
 import { openProviderSteamRun } from "./providerLaunch";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
+import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
+import DigitalDownloadToast from "./DigitalDownloadToast";
+import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
@@ -81,6 +85,7 @@ function playToastBeep(): void {
 }
 
 export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -158,8 +163,18 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 
   useEffect(() => {
     void refresh();
-    steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
+    if (getCatalogMode() !== "digital") steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
+    if (getCatalogMode() === "digital") {
+      const restored: DownloadMap = {};
+      for (const { snapshot } of digitalDownloadService.getDownloads()) {
+        const status = digitalDownloadService.getManagedStatus(snapshot.gameId);
+        if (status) restored[snapshot.gameId] = status;
+      }
+      setDownloads(restored);
+      setRecoveryReady(true);
+      return;
+    }
     // Lightweight baseline only: installed AppIDs for green grid badges.
     // Do not load per-game size/progress/details until that game is navigated to.
     steamInstalledAppIds().then((appIds) => {
@@ -234,6 +249,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, [hasPendingSteamMetadata]);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     const storageStateChanged = (event: Event) => {
       const status = (event as CustomEvent<{ status?: SteamDownloadStatus }>).detail?.status;
       if (!status?.app_id) return;
@@ -244,6 +260,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() !== "digital") return;
     const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
       const managed = digitalDownloadService.getManagedStatus(snapshot.gameId);
       if (managed) {
@@ -258,6 +275,37 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() !== "digital" || !games.length) return;
+    let cancelled = false;
+    let pending = false;
+    const refreshDigital = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const result = await digitalProcessManager.snapshot(games);
+        if (!cancelled) setDownloads(current => {
+          const next = { ...current };
+          for (const game of games) {
+            const id = game.app_id ?? game.id;
+            const active = digitalDownloadService.getManagedStatus(id);
+            if (active && !["installed", "not-installed"].includes(active.state)) continue;
+            const installed = Boolean(result.statuses?.[id]?.installed);
+            next[id] = { app_id: id, state: installed ? "installed" : "not-installed", progress: installed ? 100 : null,
+              bytes_downloaded: null, bytes_total: null, installed };
+          }
+          return next;
+        });
+      } catch { /* Keep last confirmed folder state on probe errors. */ }
+      finally { pending = false; }
+    };
+    void refreshDigital();
+    const timer = window.setInterval(() => void refreshDigital(), 15000);
+    window.addEventListener("focus", refreshDigital);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
+  }, [games]);
+
+  useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     let cancelled = false;
     let pending = false;
     const refreshInstalled = async () => {
@@ -278,6 +326,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   useEffect(() => {
+    if (getCatalogMode() === "digital") return;
     const activeIds = Object.entries(downloads)
       .filter(([, status]) => downloadManager.isTracked(status))
       .map(([id]) => Number(id));
@@ -511,28 +560,43 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   };
 
   const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
+    console.log("[DownloadUI:Start] User triggered download for game:", {
+      id: game.id,
+      app_id: game.app_id,
+      name: game.name,
+      catalogMode: getCatalogMode(),
+      recovery,
+    });
     if (getCatalogMode() === "digital") {
       const downloadKey = game.app_id ?? game.id;
+      console.log(`[DownloadUI:Digital] Mode is digital. DownloadKey=${downloadKey}`);
       try {
         setDownloads((current) => ({
           ...current,
           [downloadKey]: { app_id: downloadKey, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false }
         }));
         rememberRecent(game);
+        console.log(`[DownloadUI:Digital] Invoking digitalCatalogService.download for '${game.name}'...`);
         await digitalCatalogService.download(game);
+        setSelected(null);
+        console.log(`[DownloadUI:Digital] digitalCatalogService.download completed. Getting status...`);
         const status = await digitalCatalogService.getStatus(game);
+        console.log(`[DownloadUI:Digital] Current status for '${game.name}':`, status);
         setDownloads((current) => ({ ...current, [downloadKey]: status }));
         if (status.error) {
+          console.error(`[DownloadUI:Digital] Status reports error: ${status.error}`);
           setToast(`Error en descarga: ${status.error}`);
         } else {
-          setToast(`Iniciando descarga digital de ${game.name}...`);
+          // The persistent download toast shows progress without leaving the catalog.
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[DownloadUI:DigitalError] Exception during download of '${game.name}':`, err);
         setDownloads((current) => ({
           ...current,
           [downloadKey]: { app_id: downloadKey, state: "not-installed", progress: null, bytes_downloaded: null, bytes_total: null, installed: false, error: errorMsg }
         }));
+        digitalDownloadService.recordFailure(game, errorMsg);
         setToast(`Error al iniciar descarga: ${errorMsg}`);
       }
       return;
@@ -813,11 +877,12 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions">
+          {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}>Descargas</button> : null}
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
       </header>
 
-      {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
+      {!steamOk && getCatalogMode() !== "digital" ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
@@ -835,6 +900,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           </>}
         </div>
       </main>
+      {downloadsOpen ? <DigitalDownloadsScreen onClose={() => setDownloadsOpen(false)} /> : null}
 
       {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
@@ -853,6 +919,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         onCancelAction={() => void discardInterruptedStaging()}
         onClose={() => undefined}
       /> : null}
+      <DigitalDownloadErrorDialog />
+      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
       {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
   );

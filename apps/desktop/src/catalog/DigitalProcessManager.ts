@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
+import { narrate } from "../narrationLog";
+import { supplyArchivePasswords } from "./archivePasswords";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder";
   app_id: number;
   name?: string;
   pid?: number;
@@ -13,6 +15,10 @@ export interface ProcessExecutionResult {
   stderr?: string;
   error?: string;
   command: string;
+  folder?: string;
+  installed?: boolean;
+  backup_requires_password?: boolean;
+  statuses?: Record<string, { folder: string; installed: boolean }>;
 }
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -20,82 +26,49 @@ const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNAL
 /**
  * Dedicated Process Manager for the Digital tab.
  *
- * Executes the terminal command sequences specified in `playProcess` and `uninstallProcess`
+ * Runs the dedicated Digital folder lifecycle and resolves a local game executable
  * by passing them to the Python process runner (`digital_process_runner.py`) via Tauri.
  */
 export class DigitalProcessManager {
-  /**
-   * Executes the terminal command sequence for `playProcess`.
-   */
-  async executePlay(
-    game: CatalogGame,
-    record?: DigitalGameRecord,
-    workingDir?: string,
-  ): Promise<ProcessExecutionResult> {
-    const appId = record?.id ?? game.app_id ?? game.id;
-    const name = record?.name ?? game.name;
-    const command = record?.playProcess || "";
-
-    if (!command.trim()) {
-      throw new Error(`El juego '${name}' no tiene configurado un 'playProcess' para ejecutarse.`);
-    }
-
-    if (hasTauriRuntime()) {
-      return invoke<ProcessExecutionResult>("run_digital_process", {
-        action: "play",
-        appId,
-        name,
-        command,
-        workingDir: workingDir ?? null,
-      });
-    }
-
-    // In web/mock environments:
-    return {
-      ok: true,
-      action: "play",
-      app_id: appId,
-      name,
-      command,
-      pid: 12345,
-    };
+  executePlay(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
+    return this.execute("play", game, record, workingDir);
   }
 
-  /**
-   * Executes the terminal command sequence for `uninstallProcess`.
-   */
-  async executeUninstall(
-    game: CatalogGame,
-    record?: DigitalGameRecord,
-    workingDir?: string,
-  ): Promise<ProcessExecutionResult> {
+  executeUninstall(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
+    return this.execute("uninstall", game, record, workingDir);
+  }
+
+  status(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("status", game); }
+
+  openFolder(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("open-folder", game); }
+
+  snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {
+    return this.execute("snapshot", { id: 0, app_id: 0, name: "" } as CatalogGame, undefined, undefined, JSON.stringify(games.map(g => ({ id: g.app_id ?? g.id, name: g.name }))));
+  }
+
+  private async execute(action: ProcessExecutionResult["action"], game: CatalogGame, record?: DigitalGameRecord, workingDir?: string, payload?: string): Promise<ProcessExecutionResult> {
     const appId = record?.id ?? game.app_id ?? game.id;
     const name = record?.name ?? game.name;
-    const command = record?.uninstallProcess || "";
-
-    if (!command.trim()) {
-      throw new Error(`El juego '${name}' no tiene configurado un 'uninstallProcess' para desinstalar.`);
+    const autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
+    const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
+    try {
+      if (hasTauriRuntime()) {
+        if (action === "play") {
+          const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null, autoInstalled });
+          if (!backup.ok) throw new Error(backup.error || "No se pudo verificar el respaldo Digital.");
+          if (!autoInstalled && backup.backup_requires_password) await supplyArchivePasswords(appId);
+        }
+        const result = await invoke<ProcessExecutionResult>("run_digital_process", {
+          action, appId, name, command, workingDir: null, autoInstalled,
+        });
+        if (!result.ok) throw new Error(result.error || result.stderr || `El proceso terminó con código ${result.exit_code ?? "desconocido"}`);
+        return result;
+      }
+      return { ok: true, action, app_id: appId, name, command, installed: false, statuses: {}, ...(action === "play" ? { pid: 12345 } : { exit_code: 0 }) };
+    } catch (error) {
+      void narrate(`Digital AppID ${appId} · ${action}: ${error instanceof Error ? error.message : String(error)}`, { area: "DIGITAL_EXECUTION", level: "ERROR" });
+      throw error;
     }
-
-    if (hasTauriRuntime()) {
-      return invoke<ProcessExecutionResult>("run_digital_process", {
-        action: "uninstall",
-        appId,
-        name,
-        command,
-        workingDir: workingDir ?? null,
-      });
-    }
-
-    // In web/mock environments:
-    return {
-      ok: true,
-      action: "uninstall",
-      app_id: appId,
-      name,
-      command,
-      exit_code: 0,
-    };
   }
 }
 

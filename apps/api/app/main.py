@@ -22,6 +22,8 @@ from sqlalchemy import func, text
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
+from .admin_auth import admin_authenticated, install_admin_auth
+from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
@@ -232,6 +234,7 @@ class AccessKeyRedeemRequest(BaseModel):
 
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
+install_admin_auth(app)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
@@ -263,6 +266,8 @@ def now_utc() -> datetime:
 
 
 def _admin_activation_access(request: Request) -> None:
+    if admin_authenticated(request):
+        return
     configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
     if len(configured) < 32:
         raise HTTPException(503, "Activation key issuance is not configured")
@@ -272,6 +277,8 @@ def _admin_activation_access(request: Request) -> None:
 
 
 def _admin_browser_access(request: Request) -> None:
+    if admin_authenticated(request):
+        return
     configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
     challenge = {"WWW-Authenticate": 'Basic realm="GameAccess client errors"'}
     if len(configured) < 32:
@@ -531,6 +538,37 @@ def activation_status(request: Request, session: Session = Depends(get_session))
         )
         raise HTTPException(401, "GameAccess activation is required or has expired")
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
+
+
+class ArchivePasswordsRequest(BaseModel):
+    passwords: str = Field(max_length=100000)
+
+
+@app.get("/admin/archive-passwords")
+def admin_archive_passwords(request: Request, response: Response) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    passwords = read_archive_passwords()
+    return {"passwords": "\n".join(passwords), "count": len(passwords)}
+
+
+@app.put("/admin/archive-passwords")
+def admin_save_archive_passwords(req: ArchivePasswordsRequest, request: Request, response: Response) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        passwords = save_archive_passwords(req.passwords)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {"ok": True, "count": len(passwords)}
+
+
+@app.get("/digital/archive-passwords")
+def client_archive_passwords(request: Request, response: Response, session: Session = Depends(get_session)) -> dict:
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    response.headers["Cache-Control"] = "no-store"
+    return {"passwords": read_archive_passwords()}
 
 
 @app.post("/client-errors")
@@ -1041,6 +1079,8 @@ def slugify(value: str, app_id: int) -> str:
 @app.on_event("startup")
 def startup() -> None:
     SQLModel.metadata.create_all(engine)
+    from .digital_catalog import ensure_digital_source_schema
+    ensure_digital_source_schema(engine)
     ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
     with Session(engine) as session:
@@ -1350,7 +1390,8 @@ def get_digital_catalog(all: bool = Query(False, description="Include items with
     """Return the digital game list JSON stored on the server.
     By default filters out entries with empty downloadSource to ensure only downloadable items are returned to clients.
     """
-    items = load_digital_catalog_json()
+    from .digital_source_policy import annotate_source_policies
+    items = annotate_source_policies(load_digital_catalog_json())
     if all:
         return items
     return [item for item in items if str(item.get("downloadSource") or "").strip()]
@@ -1364,7 +1405,8 @@ def get_digital_game_source(game_id: int, name: Optional[str] = Query(None)) -> 
         if item.get("id") == game_id:
             src = str(item.get("downloadSource") or "").strip()
             if src:
-                return {"ok": True, "id": game_id, "name": item.get("name"), "uri": src}
+                from .digital_source_policy import annotate_source_policies
+                return annotate_source_policies([{"ok": True, "id": game_id, "name": item.get("name"), "uri": src}])[0]
             if not name:
                 name = item.get("name")
 
@@ -1380,7 +1422,8 @@ def get_digital_game_source(game_id: int, name: Optional[str] = Query(None)) -> 
         if scored:
             scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
             best = scored[0][1]
-            return {"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "size": best.get("file_size")}
+            from .digital_source_policy import annotate_source_policies
+            return annotate_source_policies([{"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "source_url": best.get("source_url"), "size": best.get("file_size")}])[0]
 
     raise HTTPException(404, detail="No download source found for this game")
 

@@ -39,12 +39,68 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 # Global cancellation and child process tracking
 g_cancelled = threading.Event()
+g_paused = threading.Event()
+g_status_lock = threading.RLock()
+g_last_payload = {}
+
+def wait_if_paused():
+    torrent_paused = False
+    while g_paused.is_set() and not g_cancelled.is_set():
+        if g_torrent_session is not None and not torrent_paused:
+            g_torrent_session.pause()
+            torrent_paused = True
+        time.sleep(0.1)
+    if torrent_paused and g_torrent_session is not None and not g_cancelled.is_set():
+        g_torrent_session.resume()
+
+def watch_controls():
+    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
+    last_request = None
+    last_heartbeat = time.monotonic()
+    while not g_cancelled.wait(0.1):
+        if time.monotonic() - last_heartbeat >= 1:
+            with g_status_lock:
+                if g_last_payload.get("phase") in ("completed", "error", "cancelled"):
+                    return
+                if g_last_payload:
+                    emit_json(dict(g_last_payload))
+            last_heartbeat = time.monotonic()
+        try:
+            control = json.loads(control_file.read_text(encoding="utf-8"))
+            if control.get("requestId") == last_request:
+                continue
+            last_request = control.get("requestId")
+            action = control.get("action")
+            if action == "cancel":
+                g_paused.clear()
+                g_cancelled.set()
+                if g_active_subprocess and g_active_subprocess.poll() is None:
+                    g_active_subprocess.terminate()
+                return
+            if action == "pause" and g_last_payload.get("phase") in ("downloading", "preparing"):
+                g_paused.set()
+                emit_json(dict(g_last_payload))
+            elif action == "resume" and g_paused.is_set():
+                g_paused.clear()
+                emit_json(dict(g_last_payload))
+        except (OSError, ValueError):
+            pass
+
 g_active_subprocess: Optional[subprocess.Popen] = None
 g_torrent_session = None
 g_temp_files: List[str] = []
 g_app_id: str = ""
 
 def emit_json(payload: dict):
+    global g_last_payload
+    with g_status_lock:
+        g_last_payload = dict(payload)
+        payload = dict(payload, workerPid=os.getpid())
+        if g_paused.is_set() and payload.get("phase") in ("preparing", "downloading"):
+            payload.update(phase="paused", statusText="Descarga pausada", speedBps=0, etaSeconds=0)
+        _write_status(payload)
+
+def _write_status(payload: dict):
     """Emits a single-line JSON event to stdout with immediate flush and updates cached status file."""
     try:
         line = json.dumps(payload, ensure_ascii=False)
@@ -98,7 +154,7 @@ def emit_error(app_id: str, error_message: str):
         "statusText": f"Error: {error_message}"
     })
 
-def cleanup_on_cancel(signum=None, frame=None):
+def cleanup_on_cancel(signum=None, frame=None, error_message=None):
     """Graceful cleanup handler for SIGINT/SIGTERM."""
     global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
@@ -132,8 +188,11 @@ def cleanup_on_cancel(signum=None, frame=None):
             except Exception:
                 pass
 
-    emit_error(g_app_id, "Proceso cancelado por el usuario")
-    sys.exit(130)
+    if error_message:
+        emit_error(g_app_id, error_message)
+    else:
+        emit_progress(g_app_id, "cancelled", 0, status_text="Descarga cancelada")
+    sys.exit(1 if error_message else 130)
 
 # Register signal handlers
 signal.signal(signal.SIGINT, cleanup_on_cancel)
@@ -276,6 +335,7 @@ def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int,
                 with open(filepath, "r+b") as f:
                     f.seek(start)
                     for chunk in r.iter_content(chunk_size=1024 * 64, decode_unicode=False):
+                        wait_if_paused()
                         if g_cancelled.is_set():
                             return
                         if chunk:
@@ -296,6 +356,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
     }
 
     head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=25)
+    head_resp.raise_for_status()
     final_url = head_resp.url
     headers_resp = head_resp.headers
 
@@ -306,9 +367,11 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         # Fallback to single stream
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
+            r.raise_for_status()
             downloaded = 0
             start_time = time.time()
             for chunk in r.iter_content(chunk_size=1024 * 64):
+                wait_if_paused()
                 if g_cancelled.is_set():
                     return False
                 if chunk:
@@ -335,7 +398,9 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         reporter = threading.Thread(target=tracker.monitor, args=(stop_event,), daemon=True)
         reporter.start()
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
+            r.raise_for_status()
             for chunk in r.iter_content(chunk_size=1024 * 64):
+                wait_if_paused()
                 if g_cancelled.is_set():
                     stop_event.set()
                     return False
@@ -559,18 +624,25 @@ def download_direct_torrent(
     else:
         raise ValueError(f"Fuente de descarga inválida: {torrent_source}")
 
-    # Wait for metadata if necessary
+    # Wait for metadata if necessary (timeout after 45 seconds if no peers/trackers answer)
     meta_start = time.time()
+    METADATA_TIMEOUT_SECONDS = 45.0
     while not handle.status().has_metadata:
+        wait_if_paused()
         if g_cancelled.is_set():
             ses.remove_torrent(handle)
             return ""
         elapsed = time.time() - meta_start
+        if elapsed > METADATA_TIMEOUT_SECONDS:
+            ses.remove_torrent(handle)
+            err_msg = f"No se pudo conectar con las fuentes de descarga para '{game_name}' (sin pares activos disponibles)."
+            emit_error(app_id, err_msg)
+            raise TimeoutError(err_msg)
         emit_progress(
             app_id=app_id,
             phase="preparing",
-            progress_percent=min(14.0 + (elapsed * 1.5), 35.0),
-            status_text="Obteniendo información del juego..."
+            progress_percent=min(14.0 + (elapsed * 0.4), 35.0),
+            status_text="Conectando con fuentes de descarga..."
         )
         time.sleep(1)
 
@@ -592,6 +664,7 @@ def download_direct_torrent(
 
     last_emit = 0
     while not g_cancelled.is_set():
+        wait_if_paused()
         s = handle.status()
         progress = s.progress * 100.0
         bytes_done = s.total_wanted_done
@@ -635,12 +708,83 @@ def download_direct_torrent(
 
 
 # --- Archive Extraction & Cleaner (Matching Hydra GameFilesManager) ---
+def request_archive_passwords():
+    """Request central passwords through the desktop bridge, then discard the reply file."""
+    reply = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.passwords.json"
+    emit_json({
+        "type": "progress", "appId": str(g_app_id), "phase": "decompressing",
+        "progressPercent": 0, "passwordsRequired": True,
+        "statusText": "Solicitando contraseñas al servidor..."
+    })
+    deadline = time.monotonic() + 30
+    while not g_cancelled.is_set() and time.monotonic() < deadline:
+        try:
+            payload = json.loads(reply.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            g_cancelled.wait(0.1)
+            continue
+        reply.unlink(missing_ok=True)
+        if payload.get("error"):
+            raise RuntimeError(str(payload["error"]))
+        passwords = payload.get("passwords")
+        if not isinstance(passwords, list) or any(not isinstance(value, str) for value in passwords):
+            raise RuntimeError("La lista de contraseñas del servidor es inválida.")
+        return list(dict.fromkeys(value for value in passwords if value))
+    if g_cancelled.is_set():
+        return []
+    raise RuntimeError("El cliente no recibió las contraseñas del servidor. La descarga se conserva.")
+
+
+def archive_member_names(archive: str, seven_zip: Optional[str], password: str) -> Optional[list[str]]:
+    """List incoming payload files without extracting or prompting."""
+    import zipfile, tarfile
+    names = []
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive) as zf:
+            names = [entry.filename for entry in zf.infolist() if not entry.is_dir()]
+    elif tarfile.is_tarfile(archive):
+        with tarfile.open(archive) as tf:
+            names = [entry.name for entry in tf.getmembers() if entry.isfile()]
+    elif seven_zip:
+        listed = subprocess.run(
+            [seven_zip, "l", "-slt", "-ba", os.path.abspath(archive), f"-p{password}"],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=30,
+            **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
+        )
+        if listed.returncode:
+            # An encrypted header will be listed again with the next password.
+            return None
+        for block in re.split(r"\n\s*\n", listed.stdout):
+            fields = dict(line.split(" = ", 1) for line in block.splitlines() if " = " in line)
+            if "Path" in fields and fields.get("Folder") != "+" and not fields.get("Attributes", "").startswith("D"):
+                names.append(fields["Path"])
+    return names
+
+
+def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: str) -> Optional[str]:
+    """Return the one enclosing folder, or an empty string for loose contents."""
+    names = archive_member_names(archive, seven_zip, password)
+    if names is None:
+        return None
+    if not names:
+        return ""
+    parts = [name.replace("\\", "/").strip("/").split("/") for name in names]
+    if any(".." in path or path[0].endswith(":") for path in parts):
+        raise RuntimeError("El archivo contiene rutas fuera de la carpeta del juego.")
+    first = parts[0][0]
+    return first if all(len(path) > 1 and path[0] == first for path in parts) else ""
+
+
 def extract_archives_in_path(
     target_path: str,
     dest_dir: str,
     host: Optional[str] = None,
     password: Optional[str] = None,
-    delete_archive: bool = True
+    delete_archive: bool = True,
+    game_name: Optional[str] = None,
+    retain_backup: bool = True,
+    auto_installed: bool = False
 ) -> bool:
     """
     Extracts archive files (or archives found inside target directory) using portable 7-Zip,
@@ -657,6 +801,8 @@ def extract_archives_in_path(
                 full_path = os.path.join(root, f)
                 if is_archive(full_path):
                     fn = f.lower()
+                    if (fn.startswith("backup for ") and fn.endswith(".zip")) or re.search(r"_backup(?:\.|$)", fn):
+                        continue
                     if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
                         continue
                     if re.search(r"\.(?!001\b)\d{3}$", fn):
@@ -665,24 +811,13 @@ def extract_archives_in_path(
                         continue
                     archives_to_extract.append(full_path)
 
-    # Also check dest_dir top-level for any loose archives
-    if os.path.isdir(dest_dir):
-        for f in os.listdir(dest_dir):
-            full_path = os.path.join(dest_dir, f)
-            if os.path.isfile(full_path) and is_archive(full_path):
-                fn = f.lower()
-                if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
-                    continue
-                if re.search(r"\.(?!001\b)\d{3}$", fn):
-                    continue
-                if re.search(r"\.z\d+$", fn):
-                    continue
-                if full_path not in archives_to_extract:
-                    archives_to_extract.append(full_path)
-
     if not archives_to_extract:
         return False
 
+    # Treat multipart volumes as one archive; only their first volume is extracted.
+    if not auto_installed:
+        archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
+    game_subfolder = os.path.abspath(dest_dir)
     seven_zip = find_portable_7z()
 
     # Determine password
@@ -692,6 +827,9 @@ def extract_archives_in_path(
         profile = HOST_PROFILES.get(host_key) or HOST_PROFILES.get(host_key.upper()) or HOST_PROFILES.get(host_key.lower())
         if profile and "password" in profile:
             effective_password = profile["password"]
+
+    passwords = [effective_password] if effective_password else ["-"]
+    server_passwords_requested = False
 
     total = len(archives_to_extract)
     for idx, arc in enumerate(archives_to_extract):
@@ -705,45 +843,100 @@ def extract_archives_in_path(
 
         success = False
         if seven_zip:
-            cmd = [
-                seven_zip,
-                "x",
-                os.path.abspath(arc),
-                f"-o{os.path.abspath(dest_dir)}",
-                "-y"
-            ]
-            if effective_password:
-                cmd.append(f"-p{effective_password}")
-
-            global g_active_subprocess
-            g_active_subprocess = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = g_active_subprocess.communicate()
-            if g_active_subprocess.returncode == 0:
-                success = True
-            else:
-                emit_error(g_app_id, f"Error al organizar {arc_name}: {stderr.strip() or stdout.strip()[-150:]}")
-                return False
+            attempt = 0
+            while attempt < len(passwords):
+                candidate_password = passwords[attempt]
+                if attempt:
+                    emit_progress(
+                        app_id=g_app_id, phase="decompressing",
+                        progress_percent=(idx / total) * 100,
+                        status_text=f"Probando contraseña {attempt+1}/{len(passwords)} para {arc_name}..."
+                    )
+                enclosing = archive_enclosing_folder(arc, seven_zip, candidate_password)
+                extraction_dir = game_subfolder if not auto_installed and idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if not auto_installed and enclosing and idx == 0 and total > 1:
+                    game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
+                cmd = [
+                    seven_zip, "x", os.path.abspath(arc),
+                    f"-o{extraction_dir}", "-y", "-aos" if auto_installed else "-aoa",
+                    "-bsp1", "-bso1", "-bse1",
+                    f"-p{candidate_password}",
+                ]
+                # Never allow a hidden password prompt to wait forever.
+                global g_active_subprocess
+                g_active_subprocess = subprocess.Popen(
+                    cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                    **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {})
+                )
+                output_tail = ""
+                token = ""
+                last_percent = -1
+                while True:
+                    character = g_active_subprocess.stdout.read(1)
+                    if not character:
+                        break
+                    output_tail = (output_tail + character)[-2000:]
+                    token = (token + character)[-100:]
+                    if character == "%":
+                        match = re.search(r"(\d{1,3})%$", token)
+                        if match:
+                            percent = min(int(match.group(1)), 100)
+                            if percent != last_percent:
+                                last_percent = percent
+                                emit_progress(
+                                    app_id=g_app_id, phase="decompressing",
+                                    progress_percent=((idx + percent / 100) / total) * 100,
+                                    status_text=f"Descomprimiendo {arc_name} ({idx+1}/{total}) · {percent}%"
+                                )
+                    if character in "\r\n":
+                        token = ""
+                g_active_subprocess.stdout.close()
+                returncode = g_active_subprocess.wait()
+                g_active_subprocess = None
+                if g_cancelled.is_set():
+                    return False
+                if returncode != 0:
+                    if re.search(r"password|encrypted|contrase", output_tail, re.I):
+                        if not server_passwords_requested:
+                            server_passwords_requested = True
+                            for value in request_archive_passwords():
+                                if value not in passwords:
+                                    passwords.append(value)
+                        if attempt + 1 < len(passwords):
+                            attempt += 1
+                            continue
+                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña del servidor funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
+                    raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
+                break
+            success = True
         else:
             import zipfile, tarfile
             try:
+                enclosing = archive_enclosing_folder(arc, None, effective_password or "-")
+                extraction_dir = game_subfolder if not auto_installed and idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)
+                if not auto_installed and enclosing and idx == 0 and total > 1:
+                    game_subfolder = os.path.join(os.path.abspath(dest_dir), enclosing)
                 if zipfile.is_zipfile(arc):
                     with zipfile.ZipFile(arc, 'r') as zf:
-                        zf.extractall(dest_dir, pwd=effective_password.encode() if effective_password else None)
+                        members = [entry for entry in zf.infolist() if not auto_installed or not os.path.exists(os.path.join(extraction_dir, entry.filename))]
+                        zf.extractall(extraction_dir, members=members, pwd=effective_password.encode() if effective_password else None)
                     success = True
                 elif tarfile.is_tarfile(arc):
                     with tarfile.open(arc, 'r') as tf:
-                        tf.extractall(dest_dir)
+                        members = [entry for entry in tf.getmembers() if not auto_installed or not os.path.exists(os.path.join(extraction_dir, entry.name))]
+                        tf.extractall(extraction_dir, members=members)
                     success = True
             except Exception as e:
-                emit_error(g_app_id, f"Error extrayendo {arc_name}: {e}")
-                return False
+                raise RuntimeError(f"Error extrayendo {arc_name}: {e}") from e
+            if not success:
+                raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
-        if success and delete_archive:
+        if success and idx == total - 1 and retain_backup and not auto_installed:
+            from digital_backup import DigitalArchiveBackup
+            DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
+                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")))
+        elif success and delete_archive:
             delete_archive_and_parts(arc)
             if arc in g_temp_files:
                 g_temp_files.remove(arc)
@@ -767,22 +960,36 @@ def main():
     parser.add_argument("--app-id", "--appId", dest="appId", required=True, help="Application/Game ID (e.g. 1091500)")
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
+    parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
-    parser.add_argument("--destination-dir", default="./games", help="Destination folder (default: ./games)")
+    parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
     parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
     parser.add_argument("--host", default=None, help="Host profile identifier (e.g. 'X' uses password 'zzzz')")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
     parser.add_argument("--connections", "-n", type=int, default=16, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")
     parser.add_argument("--keep-archive", action="store_true", help="Keep archive after decompressing")
+    parser.add_argument("--extract-only", default=None, help="Retry extraction of an already downloaded file or directory")
 
     args = parser.parse_args()
 
     app_id = str(args.appId)
     g_app_id = app_id
     game_name = args.name
-    dest_dir = os.path.abspath(args.destination_dir)
+    from digital_storage import DigitalGameStorage
+    dest_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(DigitalGameStorage().register(int(app_id), game_name))
     os.makedirs(dest_dir, exist_ok=True)
+
+    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.control.json"
+    threading.Thread(target=watch_controls, daemon=True).start()
+
+    # Clean any stale status file from previous runs
+    try:
+        old_status = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.json"
+        if old_status.is_file():
+            old_status.unlink()
+    except Exception:
+        pass
 
     # 1. PHASE: PREPARING
     emit_progress(
@@ -797,7 +1004,7 @@ def main():
     )
 
     download_source = (args.download_source or "").strip()
-    if not download_source or download_source.lower() == "auto":
+    if not args.extract_only and (not download_source or download_source.lower() == "auto"):
         emit_progress(
             app_id=app_id,
             phase="preparing",
@@ -824,7 +1031,7 @@ def main():
 
     download_url = None
     target_filename = None
-    target_content_path = None
+    target_content_path = os.path.abspath(args.extract_only) if args.extract_only else None
     is_torrent = (
         download_source.startswith("magnet:?") or
         download_source.endswith(".torrent") or
@@ -832,107 +1039,111 @@ def main():
     )
 
     try:
-        if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
-            torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
-            use_torbox = False
-
-            if torbox_key:
-                try:
-                    tb = TorboxClient(torbox_key)
-                    emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
-
-                    is_cached = tb.check_cached(download_source)
-                    if is_cached:
-                        emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
-
-                    # Submit package to high-speed cloud resolver
-                    torrent_id = tb.add_torrent(download_source)
-                    emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
-
-                    # Poll cloud status until completed/cached (up to 30 attempts)
-                    tb_attempts = 0
-                    while not g_cancelled.is_set() and tb_attempts < 30:
-                        tb_attempts += 1
-                        status = tb.get_status(torrent_id)
-                        if status:
-                            is_finished = status.get("download_finished", False)
-                            state = status.get("download_state", "unknown")
-                            progress = status.get("progress", 0.0)
-                            pct = progress if progress > 1.0 else progress * 100
-
-                            emit_progress(
-                                app_id=app_id,
-                                phase="preparing",
-                                progress_percent=min(pct * 0.25 + 22.0, 48.0),
-                                status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
-                            )
-
-                            if is_finished or state in ("completed", "cached") or pct >= 100.0:
-                                raw_files = status.get("files") or []
-                                files = [f for f in raw_files if isinstance(f, dict)]
-                                t_name = status.get("name", "game_package")
-
-                                if len(files) == 1:
-                                    f_obj = files[0]
-                                    target_filename = f_obj.get("name") or t_name
-                                    file_id = f_obj.get("id")
-                                    download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
-                                else:
-                                    target_filename = f"{t_name}.zip"
-                                    download_url = tb.request_link(torrent_id, zip_link=True)
-                                use_torbox = True
-                                break
-                        time.sleep(2)
-                except Exception as tb_err:
-                    emit_progress(
+        if args.extract_only:
+            if not os.path.exists(target_content_path):
+                raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
+        else:
+            if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
+                torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
+                use_torbox = False
+    
+                if torbox_key:
+                    try:
+                        tb = TorboxClient(torbox_key)
+                        emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
+    
+                        is_cached = tb.check_cached(download_source)
+                        if is_cached:
+                            emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
+    
+                        # Submit package to high-speed cloud resolver
+                        torrent_id = tb.add_torrent(download_source)
+                        emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
+    
+                        # Poll cloud status until completed/cached (up to 30 attempts)
+                        tb_attempts = 0
+                        while not g_cancelled.is_set() and tb_attempts < 30:
+                            tb_attempts += 1
+                            status = tb.get_status(torrent_id)
+                            if status:
+                                is_finished = status.get("download_finished", False)
+                                state = status.get("download_state", "unknown")
+                                progress = status.get("progress", 0.0)
+                                pct = progress if progress > 1.0 else progress * 100
+    
+                                emit_progress(
+                                    app_id=app_id,
+                                    phase="preparing",
+                                    progress_percent=min(pct * 0.25 + 22.0, 48.0),
+                                    status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
+                                )
+    
+                                if is_finished or state in ("completed", "cached") or pct >= 100.0:
+                                    raw_files = status.get("files") or []
+                                    files = [f for f in raw_files if isinstance(f, dict)]
+                                    t_name = status.get("name", "game_package")
+    
+                                    if len(files) == 1:
+                                        f_obj = files[0]
+                                        target_filename = f_obj.get("name") or t_name
+                                        file_id = f_obj.get("id")
+                                        download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
+                                    else:
+                                        target_filename = f"{t_name}.zip"
+                                        download_url = tb.request_link(torrent_id, zip_link=True)
+                                    use_torbox = True
+                                    break
+                            time.sleep(2)
+                    except Exception as tb_err:
+                        emit_progress(
+                            app_id=app_id,
+                            phase="preparing",
+                            progress_percent=15.0,
+                            status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
+                        )
+                        use_torbox = False
+    
+                # If TorBox is unavailable or has no key, fall back to direct torrent download
+                if not use_torbox or not download_url:
+                    target_content_path = download_direct_torrent(
+                        torrent_source=download_source,
+                        dest_dir=dest_dir,
                         app_id=app_id,
-                        phase="preparing",
-                        progress_percent=15.0,
-                        status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
+                        game_name=game_name
                     )
-                    use_torbox = False
-
-            # If TorBox is unavailable or has no key, fall back to direct torrent download
-            if not use_torbox or not download_url:
-                target_content_path = download_direct_torrent(
-                    torrent_source=download_source,
-                    dest_dir=dest_dir,
+                    if not target_content_path or g_cancelled.is_set():
+                        cleanup_on_cancel()
+                        return
+            else:
+                download_url = download_source
+                parsed = urlparse(download_url)
+                target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
+    
+            # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
+            if download_url:
+                out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
+                g_temp_files.append(out_filepath)
+                target_content_path = out_filepath
+    
+                emit_progress(
                     app_id=app_id,
-                    game_name=game_name
+                    phase="downloading",
+                    progress_percent=0.0,
+                    status_text="Iniciando descarga de alta velocidad..."
                 )
-                if not target_content_path or g_cancelled.is_set():
+    
+                ok = download_segmented(
+                    url=download_url,
+                    output_path=out_filepath,
+                    app_id=app_id,
+                    game_name=game_name,
+                    connections=args.connections
+                )
+    
+                if not ok or g_cancelled.is_set():
                     cleanup_on_cancel()
                     return
-        else:
-            download_url = download_source
-            parsed = urlparse(download_url)
-            target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
-
-        # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
-        if download_url:
-            out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
-            g_temp_files.append(out_filepath)
-            target_content_path = out_filepath
-
-            emit_progress(
-                app_id=app_id,
-                phase="downloading",
-                progress_percent=0.0,
-                status_text="Iniciando descarga de alta velocidad..."
-            )
-
-            ok = download_segmented(
-                url=download_url,
-                output_path=out_filepath,
-                app_id=app_id,
-                game_name=game_name,
-                connections=args.connections
-            )
-
-            if not ok or g_cancelled.is_set():
-                cleanup_on_cancel()
-                return
-
+    
         emit_progress(
             app_id=app_id,
             phase="downloading",
@@ -940,57 +1151,29 @@ def main():
             status_text="Descarga finalizada. Preparando instalación..."
         )
 
+        wait_if_paused()
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
+        # Completed downloads must survive extraction/installation errors or cancellation.
+        if target_content_path in g_temp_files:
+            g_temp_files.remove(target_content_path)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
-        should_delete_archive = not args.keep_archive
+        should_delete_archive = True  # Only the smallest original archive is retained.
         extracted = extract_archives_in_path(
             target_path=target_content_path or dest_dir,
             dest_dir=dest_dir,
             host=args.host,
             password=args.password,
-            delete_archive=should_delete_archive
+            delete_archive=should_delete_archive,
+            game_name=game_name,
+            auto_installed=args.auto_installed
         )
 
-        # 4. PHASE: INSTALLING (Optional post-download install command)
-        if args.install_process:
-            emit_progress(
-                app_id=app_id,
-                phase="installing",
-                progress_percent=0.0,
-                status_text=f"Instalando {game_name}..."
-            )
-
-            # Context variable substitution
-            seven_zip_path = find_portable_7z() or "7z"
-            cmd_rendered = args.install_process.format(
-                file=target_content_path or dest_dir,
-                dest=dest_dir,
-                dir=dest_dir,
-                appId=app_id,
-                name=game_name,
-                seven_zip=seven_zip_path,
-                _7z=seven_zip_path
-            )
-
-            g_active_subprocess = subprocess.Popen(
-                cmd_rendered,
-                shell=True,
-                cwd=dest_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = g_active_subprocess.communicate()
-
-            if g_active_subprocess.returncode != 0:
-                raise RuntimeError(f"El proceso de instalación falló con código {g_active_subprocess.returncode}: {stderr.strip()[:200]}")
-
-            emit_progress(
-                app_id=app_id,
-                phase="installing",
-                progress_percent=100.0,
-                status_text="Instalación completada"
-            )
-
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
+        # Digital is portable: extraction is the installation. Never execute installProcess.
+        if g_cancelled.is_set():
+            cleanup_on_cancel()
         # 5. PHASE: COMPLETED
         final_size = 0
         if target_content_path and os.path.exists(target_content_path):
@@ -1012,9 +1195,7 @@ def main():
         sys.exit(0)
 
     except Exception as e:
-        emit_error(app_id, str(e))
-        cleanup_on_cancel()
-        sys.exit(1)
+        cleanup_on_cancel(error_message=None if g_cancelled.is_set() else str(e))
 
 if __name__ == "__main__":
     main()

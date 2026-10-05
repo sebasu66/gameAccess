@@ -45,7 +45,31 @@ class MockSteamAdapter:
         }
 
 
-def test_load_digital_catalog_json() -> None:
+import pytest
+
+@pytest.fixture
+def mock_catalog_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    p = tmp_path / "digital_catalog_test.json"
+    data = [
+        {"id": 2592160, "name": "Custom Dispatch", "downloadSource": "auto"},
+        {"id": 47810, "name": "Dragon Age: Origins", "downloadSource": "auto"},
+        {"id": 2054970, "name": "Dragon's Dogma 2", "downloadSource": "auto"},
+        {"id": 2622380, "name": "Elden Ring Nightreign", "downloadSource": "auto"},
+    ]
+    # Add dummy entries to satisfy length checks
+    for i in range(10):
+        data.append({"id": 99000 + i, "name": f"Dummy {i}", "downloadSource": "auto"})
+    
+    p.write_text(json.dumps(data), encoding="utf-8")
+    
+    # Patch the function where it is defined
+    monkeypatch.setattr("app.digital_catalog.get_digital_catalog_path", lambda p_arg=None: p)
+    # Also patch where it might be imported in main or routes if necessary, but app.digital_catalog is the source
+    monkeypatch.setattr("app.digital_admin_routes.get_digital_catalog_path", lambda p_arg=None: p)
+    return p
+
+
+def test_load_digital_catalog_json(mock_catalog_file: Path) -> None:
     records = load_digital_catalog_json()
     assert len(records) >= 11
     ids = [r["id"] for r in records]
@@ -56,7 +80,7 @@ def test_load_digital_catalog_json() -> None:
     assert 2622380 in ids  # Elden Ring Nightreign
 
 
-def test_get_digital_catalog_endpoint() -> None:
+def test_get_digital_catalog_endpoint(mock_catalog_file: Path) -> None:
     with TestClient(app) as client:
         resp = client.get("/digital/catalog")
         assert resp.status_code == 200

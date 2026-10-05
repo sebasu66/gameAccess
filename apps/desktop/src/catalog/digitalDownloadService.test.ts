@@ -69,6 +69,7 @@ describe("DigitalDownloadService", () => {
 
   it("transitions to cancelled on cancel", async () => {
     const service = new DigitalDownloadService();
+    service.updateSnapshot({ gameId: 2592160, phase: "queued", progress: 0 });
     await service.cancel(2592160);
 
     const status = await service.getStatus(2592160);

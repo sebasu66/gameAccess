@@ -1,14 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
-import { uninstallGame } from "../gameStorage";
-import {
-  getSteamStoreMetadata,
-  openSteamInstall,
-  openSteamRun,
-  steamDownloadStatus,
-  steamInstalledAppIds,
-} from "../native";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
@@ -23,6 +14,7 @@ export interface DigitalGameRecord {
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
+  auto_installed?: boolean;
 }
 
 export interface DigitalCatalogOptions {
@@ -110,6 +102,7 @@ export class DigitalCatalog {
           installProcess: item.installProcess ?? (item as any).install_process ?? "",
           playProcess: item.playProcess ?? (item as any).play_process ?? "",
           uninstallProcess: item.uninstallProcess ?? (item as any).uninstall_process ?? "",
+          auto_installed: item.auto_installed === true,
         };
         this.rawRecords.set(id, rec);
         digitalRecords.push(rec);
@@ -133,20 +126,6 @@ export class DigitalCatalog {
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     if (game.app_id) {
-      try {
-        const raw = await getSteamStoreMetadata(game.app_id);
-        if (raw) {
-          const steam = normalizeSteamStoreMetadata(game, raw);
-          return applyBundledDetails({
-            ...game,
-            steam,
-            metadata_state: "steam-store",
-          });
-        }
-      } catch {
-        // Continue to server fallback
-      }
-
       try {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {
@@ -194,13 +173,7 @@ export class DigitalCatalog {
     if (this.options.isInstalledHandler) {
       return this.options.isInstalledHandler(game);
     }
-    if (!game.app_id) return false;
-    try {
-      const installedIds = await steamInstalledAppIds();
-      return installedIds.includes(game.app_id);
-    } catch {
-      return false;
-    }
+    return (await this.getStatus(game)).installed;
   }
 
   /**
@@ -210,47 +183,50 @@ export class DigitalCatalog {
     if (this.options.playHandler) {
       return this.options.playHandler(game);
     }
-    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    if (record?.playProcess && record.playProcess.trim()) {
-      await digitalProcessManager.executePlay(game, record);
-      return;
-    }
-    if (game.app_id) {
-      await openSteamRun(game.app_id);
-      return;
-    }
-    await digitalProcessManager.executePlay(game, record);
+    await digitalDownloadService.play(game);
   }
 
   /**
    * Initiates installation or download for the game.
    */
   async download(game: CatalogGame): Promise<void> {
+    console.log("[DigitalCatalog:download] Starting download for:", { id: game.id, app_id: game.app_id, name: game.name });
     if (this.options.downloadHandler) {
+      console.log("[DigitalCatalog:download] Using custom downloadHandler");
       return this.options.downloadHandler(game);
     }
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    console.log("[DigitalCatalog:download] Found local digital record:", record);
     let downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+    console.log("[DigitalCatalog:download] Initial downloadSource:", downloadSource);
 
-    if (!downloadSource) {
+    let autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
+    if (!downloadSource || downloadSource === "auto") {
       try {
         const apiUrl = await getApiBaseUrl();
+        console.log(`[DigitalCatalog:download] No local downloadSource. Querying API at ${apiUrl}/digital/source/${game.id}...`);
         if (apiUrl) {
           const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`);
           if (res.ok) {
             const data = await res.json();
+            console.log("[DigitalCatalog:download] API source response:", data);
             if (data?.uri) {
               downloadSource = data.uri;
+              autoInstalled = data.auto_installed === true;
             }
+          } else {
+            console.warn(`[DigitalCatalog:download] API returned status ${res.status}`);
           }
         }
-      } catch {
-        // Continue
+      } catch (srcErr) {
+        console.warn("[DigitalCatalog:download] Error querying digital source from API:", srcErr);
       }
     }
 
     if (!downloadSource) {
-      throw new Error(`El juego '${game.name}' no tiene fuentes de descarga configuradas.`);
+      const errMsg = `El juego '${game.name}' no tiene fuentes de descarga configuradas.`;
+      console.error("[DigitalCatalog:download] Failed: " + errMsg);
+      throw new Error(errMsg);
     }
 
     const effectiveRecord: DigitalGameRecord = {
@@ -262,7 +238,9 @@ export class DigitalCatalog {
         uninstallProcess: "",
       }),
       downloadSource,
+      auto_installed: autoInstalled,
     };
+    console.log("[DigitalCatalog:download] Calling digitalDownloadService.start with record:", effectiveRecord);
     return digitalDownloadService.start(game, { record: effectiveRecord });
   }
 
@@ -273,10 +251,7 @@ export class DigitalCatalog {
     if (this.options.uninstallHandler) {
       return this.options.uninstallHandler(game);
     }
-    if (!game.app_id) {
-      throw new Error(`El juego '${game.name}' no tiene configurado un AppID para desinstalar.`);
-    }
-    await uninstallGame(game.app_id);
+    await digitalDownloadService.uninstall(game);
   }
 
   /**
@@ -286,46 +261,19 @@ export class DigitalCatalog {
     if (this.options.openFolderHandler) {
       return this.options.openFolderHandler(game);
     }
-    if (!game.app_id) {
-      throw new Error(`El juego '${game.name}' no tiene configurado un AppID para abrir la carpeta.`);
-    }
-    await invoke<string>("open_game_install_folder", { appId: game.app_id });
+    await digitalProcessManager.openFolder(game);
   }
 
   /**
    * Resolves the current download and installation status for the game.
    */
   async getStatus(game: CatalogGame): Promise<ManagedDownloadStatus> {
-    const active = digitalDownloadService.getManagedStatus(game.id) ||
-      (game.app_id ? digitalDownloadService.getManagedStatus(game.app_id) : undefined);
-    if (active) {
-      return active;
-    }
-
-    if (!game.app_id) {
-      return {
-        app_id: 0,
-        state: "not-installed",
-        progress: null,
-        bytes_downloaded: null,
-        bytes_total: null,
-        installed: false,
-      };
-    }
-
-    const installed = await this.isInstalled(game);
-    if (installed) {
-      return {
-        app_id: game.app_id,
-        state: "installed",
-        progress: 100,
-        bytes_downloaded: null,
-        bytes_total: null,
-        installed: true,
-      };
-    }
-
-    return steamDownloadStatus(game.app_id);
+    const id = game.app_id ?? game.id;
+    const active = digitalDownloadService.getManagedStatus(game.id) || digitalDownloadService.getManagedStatus(id);
+    if (active && !["installed", "not-installed"].includes(active.state)) return active;
+    const status = await digitalProcessManager.status(game);
+    return { app_id: id, state: status.installed ? "installed" : "not-installed", progress: status.installed ? 100 : null,
+      bytes_downloaded: null, bytes_total: null, installed: Boolean(status.installed) };
   }
 
   private normalizeGames(list: Partial<CatalogGame & DigitalGameRecord>[]): CatalogGame[] {

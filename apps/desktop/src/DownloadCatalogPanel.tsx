@@ -105,7 +105,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, favorite, onS
       >
         <span className="library-room-card-art">
           <span className="library-room-card-cover-base"><SteamCover game={game} /></span>
-          {active ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
+          {active && progress > 0 ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
           {state.playButtonReady ? <StorageBadge /> : null}
           {favorite ? <span className="library-favorite-state" title="Favorito" aria-label="Favorito"><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
