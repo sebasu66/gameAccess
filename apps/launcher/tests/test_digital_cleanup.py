@@ -43,3 +43,47 @@ def test_file_cleanup_skips_digital_but_still_removes_unrelated_temp(monkeypatch
     assert not cleanup._remove_regular_file(protected)
     assert cleanup._remove_regular_file(disposable)
     assert protected.is_file()
+
+def test_runtime_refresh_preserves_game_folders_and_digital_registry(tmp_path):
+    import hashlib
+    import json
+    import shutil
+    import subprocess
+    shell = shutil.which("pwsh")
+    if not shell:
+        pytest.skip("PowerShell needed for runtime staging regression")
+    repository = Path(__file__).resolve().parents[2]
+    source_script = repository / "desktop" / "scripts" / "prepare-python-runtime.ps1"
+    # parents[2] is apps; fixture mirrors the real app layout.
+    fixture = tmp_path / "repo"
+    scripts = fixture / "apps" / "desktop" / "scripts"
+    scripts.mkdir(parents=True)
+    script = scripts / source_script.name
+    shutil.copyfile(source_script, script)
+    launcher = fixture / "apps" / "launcher"
+    launcher.mkdir(parents=True)
+    requirements = launcher / "requirements.txt"
+    requirements.write_bytes(b"fixture")
+    (launcher / "fixture.py").write_text("# refreshed runtime source")
+    runtime = fixture / "apps" / "desktop" / "src-tauri" / "runtime"
+    python = runtime / "python"
+    python.mkdir(parents=True)
+    (python / "python.exe").write_bytes(b"fixture")
+    (python / "gameaccess-runtime.json").write_text(json.dumps({
+        "python_version": "3.12.9", "requirements_sha256": hashlib.sha256(b"fixture").hexdigest().upper()}))
+    game = runtime / "launcher" / "games" / "Digital Fixture"
+    game.mkdir(parents=True)
+    payload = game / "game.exe"
+    payload.write_bytes(b"preserve")
+    game_cache = game / "__pycache__"
+    game_cache.mkdir()
+    (game_cache / "data").write_bytes(b"preserve game data")
+    registry = runtime / "launcher" / ".cache" / "digital_games"
+    registry.mkdir(parents=True)
+    (registry / "1.json").write_text("{}")
+    result = subprocess.run([shell, "-NoProfile", "-File", str(script)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert payload.read_bytes() == b"preserve"
+    assert (game_cache / "data").read_bytes() == b"preserve game data"
+    assert (registry / "1.json").is_file()
+    assert (runtime / "launcher" / "fixture.py").is_file()
