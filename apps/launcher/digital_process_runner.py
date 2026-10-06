@@ -113,6 +113,25 @@ class DigitalProcessRunner:
         logger.info(f"Se probaran {len(candidates)} ejecutables en orden: {[p.name for p in candidates]}")
         return [(c.resolve(), []) for c in candidates]
 
+    def patch_onlinefix_popup(self, folder: Path):
+        """Busca y parchea OnlineFix.ini para inyectar el hash de 'navegador ya abierto' y evitar el popup."""
+        target_hash = "defa34f9d4e76c16eeb47f057f337934d4e47da373fd5dced397e2db05370865c9a75a0314d14d7fc15f1da4cab85f769ea958825210af06be6c4e253abeaf73"
+        try:
+            for ini_path in folder.rglob("OnlineFix.ini"):
+                content = ini_path.read_text(encoding="utf-8", errors="ignore")
+                new_content = content
+                
+                if "1337=" in content:
+                    new_content = re.sub(r"(?im)^1337\s*=.*$", f"1337={target_hash}", content)
+                elif "[Hashes]" in content:
+                    new_content = content.replace("[Hashes]", f"[Hashes]\n1337={target_hash}")
+                
+                if new_content != content:
+                    ini_path.write_text(new_content, encoding="utf-8")
+                    logger.info(f"Parcheado OnlineFix.ini para bloquear popup web en: {ini_path}")
+        except Exception as e:
+            logger.warning(f"Error parcheando OnlineFix.ini: {e}")
+
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
@@ -140,6 +159,9 @@ class DigitalProcessRunner:
                 DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
+                
+            # Parchear OnlineFix antes de buscar el ejecutable
+            self.patch_onlinefix_popup(folder)
                 
             candidates = self.get_candidates(folder, name, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
@@ -176,9 +198,12 @@ class DigitalProcessRunner:
                     if executable.suffix.lower() != ".bat" and not command.strip():
                         play_bat = folder / "play.bat"
                         if not play_bat.exists():
-                            rel_path = executable.relative_to(folder)
+                            rel_dir = executable.parent.relative_to(folder)
+                            exe_name = executable.name
+                            # Ensure the path formatting handles the root case gracefully
+                            cd_cmd = f'cd /d "%~dp0{rel_dir}"' if str(rel_dir) != "." else 'cd /d "%~dp0"'
                             with open(play_bat, "w", encoding="utf-8") as f:
-                                f.write(f'@echo off\nstart "" "{rel_path}"\nexit\n')
+                                f.write(f'@echo off\n{cd_cmd}\nstart "" "{exe_name}"\nexit\n')
                             logger.info("Creado play.bat con la ruta exitosa para futuros lanzamientos.")
                             
                     return {**result, "ok": True, "pid": process.pid, "command": str(executable)}

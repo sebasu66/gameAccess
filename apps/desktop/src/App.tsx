@@ -736,6 +736,10 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   };
 
   const doLease = async (game: CatalogGame) => {
+    document.querySelectorAll("video").forEach(v => {
+      try { v.pause(); } catch(e) {}
+    });
+    setHeroPaused(true);
     const startedAt = performance.now();
     void narrate(`Play flow started for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "LAUNCH" });
     setSelected(null);
