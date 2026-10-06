@@ -16,7 +16,7 @@ from typing import Any
 
 import requests
 from provider_license_scan import persist_scan_result, scan_provider_licenses
-from provider_ownership_store import DEFAULT_STORE, ProviderOwnershipStore
+from provider_ownership_store import ProviderOwnershipStore
 from provider_roster import (
     ProviderCredential,
     configured_accounts_path,

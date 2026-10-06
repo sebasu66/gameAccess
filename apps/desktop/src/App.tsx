@@ -567,7 +567,9 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       catalogMode: getCatalogMode(),
       recovery,
     });
-    if (getCatalogMode() === "digital") {
+    // Default to Digital flow unless explicitly marked as a Game Access game
+    const isDigitalGame = !((game as any).use_game_access === true || (game as any).is_game_access === true);
+    if (isDigitalGame) {
       const downloadKey = game.app_id ?? game.id;
       console.log(`[DownloadUI:Digital] Mode is digital. DownloadKey=${downloadKey}`);
       try {
@@ -740,15 +742,17 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     rememberRecent(game);
     setLeaseBusy(true);
 
-    if (getCatalogMode() === "digital") {
-      setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Iniciando juego del catálogo Digital." });
+    // Default to Digital flow unless explicitly marked as a Game Access game
+    const isGameAccess = Boolean((game as any).use_game_access === true || (game as any).is_game_access === true);
+
+    if (!isGameAccess) {
+      setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Iniciando juego localmente..." });
       try {
         await digitalCatalogService.play(game);
         if (game.app_id) recordPlayed(game.app_id);
-        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició directamente sin reserva de licencia." });
+        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició directamente." });
       } catch (err) {
-        const copy = playErrorCopy(err);
-        setSession({ game, phase: "error", title: copy.title, detail: copy.detail });
+        setSession({ game, phase: "error", title: "Error de ejecución", detail: err instanceof Error ? err.message : String(err) });
       } finally {
         setLeaseBusy(false);
       }

@@ -37,7 +37,7 @@ export default function DigitalDownloadToast({ onOpen }: { onOpen: () => void })
       <span className="digital-download-toast-heading"><span>DESCARGAS · DIGITAL</span><ChevronRight size={16} /></span>
       <strong>{game.name}</strong>
       <span className="digital-download-toast-status">{status}{snapshot.phase === "downloading" ? ` · ${Math.round(percent)}% · ${formatDownloadBytes(snapshot.speedBps)} / s` : ""}{pending.length > 1 ? ` · ${pending.length - 1} más pendientes` : ""}</span>
-      {snapshot.phase !== "queued" && !terminal.has(snapshot.phase) ? <progress value={percent} max={100} aria-label={`Progreso de ${game.name}`} /> : null}
+      {snapshot.phase !== "queued" && snapshot.phase !== "preparing" && !terminal.has(snapshot.phase) ? <progress value={percent} max={100} aria-label={`Progreso de ${game.name}`} /> : null}
       <span className="digital-download-toast-link">Abrir gestor de descargas</span>
     </span>
   </button>;

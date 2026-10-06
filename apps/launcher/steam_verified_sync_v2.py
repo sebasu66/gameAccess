@@ -11,7 +11,6 @@ import argparse
 import json
 import os
 import time
-from pathlib import Path
 from typing import Any
 
 import steam_verified_sync as base

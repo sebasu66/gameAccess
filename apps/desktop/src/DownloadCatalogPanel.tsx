@@ -274,7 +274,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       {props.actionsTarget ? createPortal(backToTop, props.actionsTarget) : null}
       {contextMenu ? (
-        getCatalogMode() === "digital" ? (
+        !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />
         ) : (
           <GameStorageContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

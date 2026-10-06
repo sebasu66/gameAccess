@@ -144,16 +144,30 @@ def emit_progress(
     eta_seconds: int = 0,
     status_text: str = ""
 ):
+    reported_progress = float(progress_percent)
+    if phase == "preparing":
+        reported_progress = 0.0
+    elif phase == "downloading":
+        reported_progress = reported_progress * 0.5
+    elif phase == "decompressing":
+        reported_progress = 50.0 + (reported_progress * 0.5)
+
+    # Strip manually added percentages from status_text so UI can handle the scaled progress
+    clean_text = re.sub(r' \(\d+(\.\d+)?%\)', '', status_text)
+    clean_text = re.sub(r' — \d+(\.\d+)?%', '', clean_text)
+    clean_text = re.sub(r' - \d+(\.\d+)?%', '', clean_text)
+    clean_text = clean_text.strip()
+
     emit_json({
         "type": "progress",
         "appId": str(app_id),
         "phase": phase,
-        "progressPercent": round(float(progress_percent), 1),
+        "progressPercent": round(reported_progress, 1),
         "bytesDownloaded": int(bytes_downloaded),
         "totalBytes": int(total_bytes),
         "speedBps": int(speed_bps),
         "etaSeconds": int(eta_seconds),
-        "statusText": status_text
+        "statusText": clean_text
     })
 
 def emit_error(app_id: str, error_message: str):
@@ -377,7 +391,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
     if not content_length:
         # Fallback to single stream
         if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-            logger.info(f"El archivo ya existe. No se puede verificar tamaño (flujo único), se re-descargará.")
+            logger.info("El archivo ya existe. No se puede verificar tamaño (flujo único), se re-descargará.")
 
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
@@ -774,7 +788,8 @@ def request_archive_passwords():
 
 def archive_member_names(archive: str, seven_zip: Optional[str], password: str) -> Optional[list[str]]:
     """List incoming payload files without extracting or prompting."""
-    import zipfile, tarfile
+    import zipfile
+    import tarfile
     names = []
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as zf:
@@ -817,7 +832,7 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
         logger.info(f"Smart Hoisting: ZIP contiene una única carpeta raíz '{first}'. Extrayendo directo al destino.")
         return first
     else:
-        logger.info(f"Smart Hoisting: ZIP contiene archivos sueltos. No se ajustará la ruta de extracción.")
+        logger.info("Smart Hoisting: ZIP contiene archivos sueltos. No se ajustará la ruta de extracción.")
         return ""
 
 
@@ -961,7 +976,8 @@ def extract_archives_in_path(
                 break
             success = True
         else:
-            import zipfile, tarfile
+            import zipfile
+            import tarfile
             try:
                 enclosing = archive_enclosing_folder(arc, None, effective_password or "-")
                 extraction_dir = game_subfolder if not auto_installed and idx == total - 1 and total > 1 and enclosing == "" else os.path.abspath(dest_dir)

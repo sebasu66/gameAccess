@@ -309,7 +309,7 @@ def main() -> int:
         print("STATE=cancelled", flush=True)
         return 130
     except Exception as exc:
-        print(f"STATE=error", flush=True)
+        print("STATE=error", flush=True)
         print(f"ERROR={type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         return 1
     finally:

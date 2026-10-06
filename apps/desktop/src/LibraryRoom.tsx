@@ -139,8 +139,9 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
       if (pending) return;
       pending = true;
       try {
-        const status = getCatalogMode() === "digital" && selectedGame
-          ? await digitalCatalogService.getStatus(selectedGame)
+        const isDigitalGame = selectedGame && !((selectedGame as any).use_game_access === true || (selectedGame as any).is_game_access === true);
+        const status = isDigitalGame
+          ? await digitalCatalogService.getStatus(selectedGame!)
           : await steamDownloadStatus(selectedAppId);
         if (!cancelled && status.state !== "unknown") setManagedDownloads((current) => ({ ...current, [selectedAppId]: status }));
       } catch { /* Keep last known state until a successful probe. */ }

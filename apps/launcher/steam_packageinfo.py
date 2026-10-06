@@ -20,7 +20,6 @@ KeyValues1 binary reader. This module intentionally exposes only
 
 from __future__ import annotations
 
-import io
 import struct
 from pathlib import Path
 from typing import Any, BinaryIO

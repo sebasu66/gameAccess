@@ -1,4 +1,5 @@
 from __future__ import annotations
+from digital_backup import DigitalArchiveBackup
 import argparse
 import json
 import os
@@ -11,56 +12,106 @@ from digital_storage import DigitalGameStorage
 import logging
 from logging.handlers import RotatingFileHandler
 
-# Setup logger for execution matching downloader logs
 os.makedirs("logs", exist_ok=True)
 logger = logging.getLogger("DigitalExecution")
 logger.setLevel(logging.INFO)
 if not logger.handlers:
-    fh = RotatingFileHandler("logs/downloads.log", maxBytes=1024*1024, backupCount=0, encoding="utf-8")
+    fh = RotatingFileHandler("logs/execution.log", maxBytes=1024*1024, backupCount=0, encoding="utf-8")
     fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(fh)
+
+
+def check_error_dialog(pid: int) -> tuple[bool, str]:
+    if sys.platform != "win32":
+        return False, ""
+    
+    import ctypes
+    from ctypes import wintypes
+    
+    user32 = ctypes.windll.user32
+    error_found = False
+    reason = ""
+    
+    def enum_windows_proc(hwnd, lParam):
+        nonlocal error_found, reason
+        win_pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(win_pid))
+        if win_pid.value == pid:
+            if user32.IsWindowVisible(hwnd):
+                length = user32.GetWindowTextLengthW(hwnd)
+                buff = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buff, length + 1)
+                title = buff.value.lower()
+                
+                class_buff = ctypes.create_unicode_buffer(256)
+                user32.GetClassNameW(hwnd, class_buff, 256)
+                class_name = class_buff.value
+                
+                # Check for standard dialog box or error keywords in title
+                if class_name == "#32770" or any(k in title for k in ["error", "exception", "fail", "fatal", "missing", "message"]):
+                    error_found = True
+                    reason = f"Class '{class_name}', Title '{buff.value}'"
+                    return False # stop enum
+        return True
+        
+    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    user32.EnumWindows(EnumWindowsProc(enum_windows_proc), 0)
+    return error_found, reason
 
 class DigitalProcessRunner:
     def __init__(self, storage=None):
         self.storage = storage or DigitalGameStorage()
 
-    def executable(self, folder, command):
-        logger.info(f"Resolviendo ejecutable para carpeta: '{folder}' con comando inicial: '{command}'")
-        arguments = []
+    def rank_executable(self, exe_path: Path, game_name: str) -> float:
+        score = 0.0
+        exe_name = exe_path.stem.lower()
+        g_name = game_name.lower()
+        
+        if exe_name in g_name or g_name in exe_name:
+            score += 10.0
+            
+        g_words = re.findall(r'\w+', g_name)
+        for w in g_words:
+            if len(w) > 2 and w in exe_name:
+                score += 5.0
+                
+        if len(exe_path.parents) >= 2 and exe_path.parent == exe_path.parents[-2]:
+            score += 2.0
+            
+        return score
+
+    def get_candidates(self, folder: Path, name: str, command: str) -> list[tuple[Path, list[str]]]:
+        logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
+        
         if command.strip():
-            if re.search(r"[&|;<>\r\n]|steam:", command, re.I):
-                logger.error("Comando rechazado: contiene caracteres prohibidos o protocolos Steam.")
-                raise ValueError("Digital requiere un ejecutable local; no admite comandos de Steam ni scripts de instalación.")
+            if re.search(r"[&|<>\r\n]|steam:", command, re.I):
+                raise ValueError("Comando rechazado: contiene caracteres prohibidos.")
             parts = shlex.split(command, posix=False)
             candidate = folder / parts[0].strip('"')
             executable = candidate.resolve()
             arguments = [p.strip('"') for p in parts[1:]]
-            if not executable.is_relative_to(folder) or not executable.is_file():
-                logger.error(f"Ejecutable no válido o fuera de ruta: {executable}")
-                raise ValueError("El ejecutable configurado no se encuentra en la carpeta descargada.")
-            logger.info(f"Ejecutable resuelto vía playProcess directo: {executable} (args: {arguments})")
-        else:
-            logger.info("No hay playProcess definido. Iniciando escaneo heurístico de ejecutables...")
-            all_exes = list(folder.rglob("*.exe"))
-            logger.info(f"Se encontraron {len(all_exes)} ejecutables en total.")
-            candidates = [p for p in all_exes if not re.search(
-                r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp", str(p.relative_to(folder)), re.I)]
-            logger.info(f"Después de filtrar instaladores/redistribuibles, quedan {len(candidates)} candidatos.")
-            
-            root_candidates = [p for p in candidates if p.parent == folder]
-            if len(root_candidates) == 1:
-                logger.info(f"Se priorizó {root_candidates[0]} por estar en la raíz exclusiva.")
-                candidates = root_candidates
+            if executable.is_relative_to(folder) and executable.is_file():
+                logger.info(f"Candidato desde playProcess explicito: {executable}")
+                return [(executable, arguments)]
                 
-            if len(candidates) != 1:
-                logger.error(f"Heurística fallida. Múltiples ejecutables: {[p.name for p in candidates]}")
-                raise ValueError("No se pudo identificar un único ejecutable del juego en la carpeta descargada. Configure playProcess con su ruta relativa.")
-            executable = candidates[0].resolve()
-            logger.info(f"Ejecutable resuelto por heurística: {executable}")
+        play_bat = folder / "play.bat"
+        if play_bat.is_file():
+            logger.info("Encontrado play.bat en la carpeta, usandolo como candidato principal.")
+            return [(play_bat, [])]
             
-        if not executable.is_relative_to(folder):
-            raise ValueError("El ejecutable debe permanecer dentro de la carpeta Digital.")
-        return executable, arguments
+        logger.info("Iniciando descubrimiento heuristico de ejecutables...")
+        all_exes = list(folder.rglob("*.exe"))
+        
+        blacklist = r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq"
+        candidates = [p for p in all_exes if not re.search(blacklist, str(p.relative_to(folder)), re.I)]
+        
+        if not candidates:
+            raise ValueError("No se encontraron ejecutables validos en la carpeta.")
+            
+        candidates.sort(key=lambda p: self.rank_executable(p, name), reverse=True)
+        
+        logger.info(f"Se probaran {len(candidates)} ejecutables en orden: {[p.name for p in candidates]}")
+        return [(c.resolve(), []) for c in candidates]
 
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
@@ -84,20 +135,65 @@ class DigitalProcessRunner:
                 return {**result, "ok": True}
             if action != "play":
                 raise ValueError(f"Unknown action '{action}'")
+                
             if not auto_installed:
                 DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
-                raise ValueError("El juego no está descargado y descomprimido en su carpeta Digital.")
-            executable, arguments = self.executable(folder, command)
+                raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
+                
+            candidates = self.get_candidates(folder, name, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
-            process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent),
-                creationflags=flags, close_fds=True)
-            return {**result, "ok": True, "pid": process.pid, "command": str(executable)}
+            
+            last_error = None
+            for executable, arguments in candidates:
+                logger.info(f"Intentando ejecutar: {executable} {arguments}")
+                try:
+                    if executable.suffix.lower() == ".bat":
+                        process = subprocess.Popen(["cmd.exe", "/c", str(executable)], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                    else:
+                        process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                    
+                    try:
+                        # Wait a bit longer to allow dialogs to pop up
+                        process.wait(timeout=3.5)
+                        if process.returncode != 0:
+                            logger.warning(f"Ejecutable fallo rapido con codigo {process.returncode}: {executable}")
+                            last_error = f"El proceso cerro con codigo {process.returncode}"
+                            continue
+                    except subprocess.TimeoutExpired:
+                        is_err, err_msg = check_error_dialog(process.pid)
+                        if is_err:
+                            logger.warning(f"Se detecto un dialogo de error ({err_msg}). Matando proceso y descartando: {executable}")
+                            try:
+                                process.kill()
+                            except Exception:
+                                pass
+                            last_error = f"Mostro dialogo de error: {err_msg}"
+                            continue
+                            
+                    logger.info(f"Ejecucion exitosa confirmada: {executable}")
+                    
+                    if executable.suffix.lower() != ".bat" and not command.strip():
+                        play_bat = folder / "play.bat"
+                        if not play_bat.exists():
+                            rel_path = executable.relative_to(folder)
+                            with open(play_bat, "w", encoding="utf-8") as f:
+                                f.write(f'@echo off\nstart "" "{rel_path}"\nexit\n')
+                            logger.info("Creado play.bat con la ruta exitosa para futuros lanzamientos.")
+                            
+                    return {**result, "ok": True, "pid": process.pid, "command": str(executable)}
+                except Exception as e:
+                    logger.warning(f"Excepcion al intentar {executable}: {e}")
+                    last_error = str(e)
+                    continue
+                    
+            raise ValueError(f"Ningun ejecutable candidato funciono. Ultimo error: {last_error}")
+
         except Exception as error:
+            logger.error(f"Error general en run(): {error}")
             return {**result, "error": str(error)}
 
 def run_process(action, app_id, name, command="", working_dir=None, auto_installed=False):
-    # working_dir cannot redirect Digital execution away from its registered folder.
     return DigitalProcessRunner().run(action, app_id, name, command, auto_installed)
 
 def main():
