@@ -981,7 +981,6 @@ def get_sync_status() -> dict[str, Any]:
     return SYNC_STATUS
 
 
-@router.post("/catalog/populate-from-sources")
 def _populate_catalog_bg(deduped_cached: list[dict[str, Any]]) -> None:
     global SYNC_STATUS
     SYNC_STATUS["is_running"] = True

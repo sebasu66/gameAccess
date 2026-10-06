@@ -28,7 +28,18 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 import requests
 
+import logging
+from logging.handlers import RotatingFileHandler
+
 LAUNCHER_DIR = Path(__file__).resolve().parent
+
+log_dir = LAUNCHER_DIR / "logs"
+log_dir.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger("digital_downloader")
+logger.setLevel(logging.INFO)
+handler = RotatingFileHandler(log_dir / "downloads.log", maxBytes=1048576, backupCount=0, encoding="utf-8")
+handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+logger.addHandler(handler)
 
 # Ensure stdout uses UTF-8 and auto-flushes
 if sys.stdout.encoding.lower() != 'utf-8':
@@ -365,6 +376,9 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
 
     if not content_length:
         # Fallback to single stream
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            logger.info(f"El archivo ya existe. No se puede verificar tamaño (flujo único), se re-descargará.")
+
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
             r.raise_for_status()
@@ -382,6 +396,10 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         return True
 
     total_size = int(content_length)
+    if os.path.exists(output_path) and os.path.getsize(output_path) == total_size:
+        logger.info(f"El archivo ya está descargado al 100% ({total_size} bytes). Saltando descarga y pasando a extracción.")
+        emit_progress(app_id, "downloading", 100.0, total_size, total_size, 0, 0, f"{game_name} ya descargado.")
+        return True
 
     # Check Range support
     if 'bytes' not in accept_ranges and head_resp.status_code != 206:
@@ -560,7 +578,7 @@ def download_direct_torrent(
     )
 
     settings = {
-        'listen_interfaces': '0.0.0.0:6881,[::]:6881',
+        'listen_interfaces': '0.0.0.0:0,[::]:0',
         'enable_dht': True,
         'enable_lsd': True,
         'enable_upnp': True,
@@ -586,6 +604,9 @@ def download_direct_torrent(
         ("router.utorrent.com", 6881),
         ("dht.libtorrent.org", 25401)
     ]
+    
+    for host, port in dht_bootstrap:
+        ses.add_dht_node((host, port))
 
     temp_torrent_path = None
     if torrent_source.startswith("magnet:?"):
@@ -593,18 +614,18 @@ def download_direct_torrent(
         params.save_path = dest_dir
         existing_trackers = set(getattr(params, "trackers", []))
         for tr in default_trackers:
-            if tr not in existing_trackers:
-                existing_trackers.add(tr)
+            existing_trackers.add(tr)
         params.trackers = list(existing_trackers)
-        params.dht_nodes = dht_bootstrap
         handle = ses.add_torrent(params)
     elif os.path.isfile(torrent_source):
         info = lt.torrent_info(torrent_source)
         params = lt.add_torrent_params()
         params.ti = info
         params.save_path = dest_dir
-        params.trackers = default_trackers
-        params.dht_nodes = dht_bootstrap
+        existing = {t.url for t in info.trackers()} if hasattr(info, "trackers") else set()
+        for tr in default_trackers:
+            existing.add(tr)
+        params.trackers = list(existing)
         handle = ses.add_torrent(params)
     elif torrent_source.startswith("http://") or torrent_source.startswith("https://"):
         temp_torrent_path = os.path.join(dest_dir, f"{app_id}_temp.torrent")
@@ -618,17 +639,27 @@ def download_direct_torrent(
         params = lt.add_torrent_params()
         params.ti = info
         params.save_path = dest_dir
-        params.trackers = default_trackers
-        params.dht_nodes = dht_bootstrap
+        existing = {t.url for t in info.trackers()} if hasattr(info, "trackers") else set()
+        for tr in default_trackers:
+            existing.add(tr)
+        params.trackers = list(existing)
         handle = ses.add_torrent(params)
     else:
         raise ValueError(f"Fuente de descarga inválida: {torrent_source}")
+
+    def log_libtorrent_alerts(session):
+        for alert in session.pop_alerts():
+            if alert.category() & lt.alert.category_t.error_notification:
+                logger.error(f"[Libtorrent Error] {alert.message()}")
+            elif alert.category() & lt.alert.category_t.status_notification:
+                logger.info(f"[Libtorrent Status] {alert.message()}")
 
     # Wait for metadata if necessary (timeout after 45 seconds if no peers/trackers answer)
     meta_start = time.time()
     METADATA_TIMEOUT_SECONDS = 45.0
     while not handle.status().has_metadata:
         wait_if_paused()
+        log_libtorrent_alerts(ses)
         if g_cancelled.is_set():
             ses.remove_torrent(handle)
             return ""
@@ -665,6 +696,7 @@ def download_direct_torrent(
     last_emit = 0
     while not g_cancelled.is_set():
         wait_if_paused()
+        log_libtorrent_alerts(ses)
         s = handle.status()
         progress = s.progress * 100.0
         bytes_done = s.total_wanted_done
@@ -677,6 +709,11 @@ def download_direct_torrent(
         now = time.time()
         if now - last_emit >= 0.5:
             last_emit = now
+            if s.state == lt.torrent_status.checking_files:
+                status_text = f"Verificando archivos existentes ({progress:.1f}%)"
+            else:
+                status_text = f"Descargando {game_name} ({progress:.1f}%)"
+                
             emit_progress(
                 app_id=app_id,
                 phase="downloading",
@@ -685,7 +722,7 @@ def download_direct_torrent(
                 total_bytes=total_bytes,
                 speed_bps=speed,
                 eta_seconds=eta,
-                status_text=f"Descargando {game_name} ({progress:.1f}%)"
+                status_text=status_text
             )
 
         if s.is_finished or s.state in (lt.torrent_status.finished, lt.torrent_status.seeding) or progress >= 100.0:
@@ -766,6 +803,7 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
     """Return the one enclosing folder, or an empty string for loose contents."""
     names = archive_member_names(archive, seven_zip, password)
     if names is None:
+        logger.warning(f"No se pudieron leer los archivos dentro de {os.path.basename(archive)}")
         return None
     if not names:
         return ""
@@ -773,7 +811,14 @@ def archive_enclosing_folder(archive: str, seven_zip: Optional[str], password: s
     if any(".." in path or path[0].endswith(":") for path in parts):
         raise RuntimeError("El archivo contiene rutas fuera de la carpeta del juego.")
     first = parts[0][0]
-    return first if all(len(path) > 1 and path[0] == first for path in parts) else ""
+    is_hoisted = all(len(path) > 1 and path[0] == first for path in parts)
+    
+    if is_hoisted:
+        logger.info(f"Smart Hoisting: ZIP contiene una única carpeta raíz '{first}'. Extrayendo directo al destino.")
+        return first
+    else:
+        logger.info(f"Smart Hoisting: ZIP contiene archivos sueltos. No se ajustará la ruta de extracción.")
+        return ""
 
 
 def extract_archives_in_path(
@@ -817,6 +862,10 @@ def extract_archives_in_path(
     # Treat multipart volumes as one archive; only their first volume is extracted.
     if not auto_installed:
         archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
+        logger.info(f"Modo normal: Se ordenaron {len(archives_to_extract)} archivos por tamaño descendente.")
+    else:
+        logger.info(f"Modo auto_installed: Se respeta el orden natural de {len(archives_to_extract)} archivos.")
+        
     game_subfolder = os.path.abspath(dest_dir)
     seven_zip = find_portable_7z()
 
@@ -834,6 +883,7 @@ def extract_archives_in_path(
     total = len(archives_to_extract)
     for idx, arc in enumerate(archives_to_extract):
         arc_name = os.path.basename(arc)
+        logger.info(f"Iniciando extracción de: {arc_name} ({idx+1}/{total})")
         emit_progress(
             app_id=g_app_id,
             phase="decompressing",
@@ -976,6 +1026,9 @@ def main():
     app_id = str(args.appId)
     g_app_id = app_id
     game_name = args.name
+    
+    logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
+    
     from digital_storage import DigitalGameStorage
     dest_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(DigitalGameStorage().register(int(app_id), game_name))
     os.makedirs(dest_dir, exist_ok=True)
@@ -1026,8 +1079,14 @@ def main():
             else:
                 raise RuntimeError(f"No se encontraron servidores disponibles para '{game_name}'.")
         except Exception as err:
+            logger.error(f"Fallo resolviendo la fuente: {err}")
             emit_error(app_id, f"No se pudo resolver la fuente de instalación: {err}")
             sys.exit(1)
+
+    if args.extract_only:
+        logger.info(f"Modo: Solo extracción. Archivo: {args.extract_only}")
+    else:
+        logger.info(f"Fuente de descarga configurada: {download_source}")
 
     download_url = None
     target_filename = None
@@ -1048,6 +1107,7 @@ def main():
                 use_torbox = False
     
                 if torbox_key:
+                    logger.info("Tipo de descarga: Red P2P mediante servidor de alta velocidad (Torbox/Boxtop)")
                     try:
                         tb = TorboxClient(torbox_key)
                         emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
@@ -1095,6 +1155,7 @@ def main():
                                     break
                             time.sleep(2)
                     except Exception as tb_err:
+                        logger.warning(f"Error al conectar con servidor TorBox/Boxtop: {tb_err}")
                         emit_progress(
                             app_id=app_id,
                             phase="preparing",
@@ -1105,6 +1166,7 @@ def main():
     
                 # If TorBox is unavailable or has no key, fall back to direct torrent download
                 if not use_torbox or not download_url:
+                    logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
                     target_content_path = download_direct_torrent(
                         torrent_source=download_source,
                         dest_dir=dest_dir,
@@ -1115,6 +1177,7 @@ def main():
                         cleanup_on_cancel()
                         return
             else:
+                logger.info("Tipo de descarga: Descarga directa por HTTP/HTTPS")
                 download_url = download_source
                 parsed = urlparse(download_url)
                 target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
@@ -1192,9 +1255,14 @@ def main():
             eta_seconds=0,
             status_text=f"¡{game_name} listo para jugar!"
         )
+        logger.info(f"=== DESCARGA COMPLETADA EXITOSAMENTE: '{game_name}' ===")
         sys.exit(0)
 
     except Exception as e:
+        if not g_cancelled.is_set():
+            logger.error(f"Error fatal durante la descarga de '{game_name}': {e}", exc_info=True)
+        else:
+            logger.info(f"Descarga cancelada por el usuario: '{game_name}'")
         cleanup_on_cancel(error_message=None if g_cancelled.is_set() else str(e))
 
 if __name__ == "__main__":

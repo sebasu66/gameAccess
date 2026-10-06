@@ -8,32 +8,56 @@ import subprocess
 import sys
 from pathlib import Path
 from digital_storage import DigitalGameStorage
-from digital_backup import DigitalArchiveBackup
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Setup logger for execution matching downloader logs
+os.makedirs("logs", exist_ok=True)
+logger = logging.getLogger("DigitalExecution")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    fh = RotatingFileHandler("logs/downloads.log", maxBytes=1024*1024, backupCount=0, encoding="utf-8")
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(fh)
 
 class DigitalProcessRunner:
     def __init__(self, storage=None):
         self.storage = storage or DigitalGameStorage()
 
     def executable(self, folder, command):
+        logger.info(f"Resolviendo ejecutable para carpeta: '{folder}' con comando inicial: '{command}'")
         arguments = []
         if command.strip():
             if re.search(r"[&|;<>\r\n]|steam:", command, re.I):
+                logger.error("Comando rechazado: contiene caracteres prohibidos o protocolos Steam.")
                 raise ValueError("Digital requiere un ejecutable local; no admite comandos de Steam ni scripts de instalación.")
             parts = shlex.split(command, posix=False)
             candidate = folder / parts[0].strip('"')
             executable = candidate.resolve()
             arguments = [p.strip('"') for p in parts[1:]]
             if not executable.is_relative_to(folder) or not executable.is_file():
+                logger.error(f"Ejecutable no válido o fuera de ruta: {executable}")
                 raise ValueError("El ejecutable configurado no se encuentra en la carpeta descargada.")
+            logger.info(f"Ejecutable resuelto vía playProcess directo: {executable} (args: {arguments})")
         else:
-            candidates = [p for p in folder.rglob("*.exe") if not re.search(
+            logger.info("No hay playProcess definido. Iniciando escaneo heurístico de ejecutables...")
+            all_exes = list(folder.rglob("*.exe"))
+            logger.info(f"Se encontraron {len(all_exes)} ejecutables en total.")
+            candidates = [p for p in all_exes if not re.search(
                 r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp", str(p.relative_to(folder)), re.I)]
+            logger.info(f"Después de filtrar instaladores/redistribuibles, quedan {len(candidates)} candidatos.")
+            
             root_candidates = [p for p in candidates if p.parent == folder]
             if len(root_candidates) == 1:
+                logger.info(f"Se priorizó {root_candidates[0]} por estar en la raíz exclusiva.")
                 candidates = root_candidates
+                
             if len(candidates) != 1:
+                logger.error(f"Heurística fallida. Múltiples ejecutables: {[p.name for p in candidates]}")
                 raise ValueError("No se pudo identificar un único ejecutable del juego en la carpeta descargada. Configure playProcess con su ruta relativa.")
             executable = candidates[0].resolve()
+            logger.info(f"Ejecutable resuelto por heurística: {executable}")
+            
         if not executable.is_relative_to(folder):
             raise ValueError("El ejecutable debe permanecer dentro de la carpeta Digital.")
         return executable, arguments

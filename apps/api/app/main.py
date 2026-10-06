@@ -1397,9 +1397,44 @@ def get_digital_catalog(all: bool = Query(False, description="Include items with
     return [item for item in items if str(item.get("downloadSource") or "").strip()]
 
 
+@app.get("/digital/games/{app_id}/details")
+def digital_game_details(
+    request: Request,
+    app_id: int,
+    language: str = Query(default="spanish"),
+    country: str = Query(default="ar"),
+    session: Session = Depends(get_session)
+) -> dict:
+    """Return public Steam metadata for a digital game, enforcing an active session."""
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+        
+    language = language.casefold()
+    country = country.casefold()
+    # Use the injected session instead of opening a new one
+    game = session.exec(select(Game).where(Game.app_id == app_id)).first()
+    if not game:
+        raise HTTPException(404, "digital game metadata not found")
+    cached = get_cached_steam_metadata_locale(engine, int(game.id), language, country)
+    if cached:
+        return {"steam": cached, "metadata_state": "ready"}
+    general = get_cached_steam_metadata(engine, int(game.id))
+    if general:
+        return {"steam": general, "metadata_state": "ready"}
+    return {"steam": None, "metadata_state": "missing"}
+
+
 @app.get("/digital/source/{game_id}")
-def get_digital_game_source(game_id: int, name: Optional[str] = Query(None)) -> dict:
+def get_digital_game_source(
+    request: Request,
+    game_id: int,
+    name: Optional[str] = Query(None),
+    session: Session = Depends(get_session)
+) -> dict:
     """Find or resolve a download source for a specific digital game by ID or game name."""
+    if _activation_for_request(request, session) is None:
+        raise HTTPException(401, "GameAccess activation is required or has expired")
+    
     items = load_digital_catalog_json()
     for item in items:
         if item.get("id") == game_id:

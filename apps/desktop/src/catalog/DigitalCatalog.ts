@@ -6,6 +6,7 @@ import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
+import { activationHeaders, invalidateActivation } from "../activation";
 
 export interface DigitalGameRecord {
   name: string;
@@ -129,7 +130,9 @@ export class DigitalCatalog {
       try {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {
-          const res = await fetch(`${apiUrl}/games/${game.app_id}/details`);
+          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details`, {
+            headers: activationHeaders()
+          });
           if (res.ok) {
             const serverData = await res.json();
             if (serverData && serverData.steam) {
@@ -140,9 +143,13 @@ export class DigitalCatalog {
                 metadata_state: serverData.metadata_state || "ready",
               });
             }
+          } else if (res.status === 401) {
+            invalidateActivation();
+            throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
           }
         }
-      } catch {
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("tiempo de acceso")) throw e;
         // Continue to fallback
       }
     }
@@ -206,7 +213,9 @@ export class DigitalCatalog {
         const apiUrl = await getApiBaseUrl();
         console.log(`[DigitalCatalog:download] No local downloadSource. Querying API at ${apiUrl}/digital/source/${game.id}...`);
         if (apiUrl) {
-          const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`);
+          const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`, {
+            headers: activationHeaders()
+          });
           if (res.ok) {
             const data = await res.json();
             console.log("[DigitalCatalog:download] API source response:", data);
@@ -216,9 +225,14 @@ export class DigitalCatalog {
             }
           } else {
             console.warn(`[DigitalCatalog:download] API returned status ${res.status}`);
+            if (res.status === 401) {
+              invalidateActivation();
+              throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
+            }
           }
         }
       } catch (srcErr) {
+        if (srcErr instanceof Error && srcErr.message.includes("tiempo de acceso")) throw srcErr;
         console.warn("[DigitalCatalog:download] Error querying digital source from API:", srcErr);
       }
     }

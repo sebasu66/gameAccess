@@ -12,7 +12,7 @@ function stringList(value: unknown): string[] {
 
 function descriptions(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => String(record(item).description || "")).filter(Boolean);
+  return value.map((item) => typeof item === "string" ? item : String(record(item).description || "")).filter(Boolean);
 }
 
 function screenshots(value: unknown): SteamScreenshot[] {
@@ -21,8 +21,8 @@ function screenshots(value: unknown): SteamScreenshot[] {
     const shot = record(item);
     return {
       id: optionalNumber(shot.id),
-      thumbnail: optionalString(shot.path_thumbnail),
-      full: optionalString(shot.path_full),
+      thumbnail: optionalString(shot.thumbnail || shot.path_thumbnail),
+      full: optionalString(shot.full || shot.path_full),
     };
   });
 }
@@ -31,8 +31,9 @@ function movies(value: unknown): SteamMovie[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
     const movie = record(item);
-    const mp4 = record(movie.mp4);
-    const webm = record(movie.webm);
+    // Handle both pre-normalized (string) and raw (dict) for mp4/webm
+    const mp4 = typeof movie.mp4 === "string" ? { max: movie.mp4 } : record(movie.mp4);
+    const webm = typeof movie.webm === "string" ? { max: movie.webm } : record(movie.webm);
     return {
       id: optionalNumber(movie.id),
       name: optionalString(movie.name),

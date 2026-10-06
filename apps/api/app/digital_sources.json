@@ -1,3 +1,23 @@
 {
-  "sources": []
+  "sources": [
+    {
+      "url": "C:\\DEV\\Game Access Dev\\apps\\api\\data\\sources\\onlinefix_1791217771.json",
+      "label": "onlinefix",
+      "enabled": true,
+      "type": "hydra_source",
+      "added_at": "2026-10-05T16:29:31.873933+00:00",
+      "items_count": 2794,
+      "auto_installed": false,
+      "priority": 1
+    },
+    {
+      "url": "C:\\DEV\\Game Access Dev\\apps\\api\\data\\sources\\steamrip_1791244702.json",
+      "label": "SteamRip",
+      "enabled": true,
+      "type": "hydra_source",
+      "added_at": "2026-10-05T23:58:22.063807+00:00",
+      "items_count": 1537,
+      "auto_installed": false
+    }
+  ]
 }

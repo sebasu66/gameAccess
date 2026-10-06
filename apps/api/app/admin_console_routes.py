@@ -371,6 +371,20 @@ def dashboard(session: Session) -> dict:
                 }
             )
 
+    client_errors = session.exec(
+        select(core.ClientErrorReport).order_by(core.ClientErrorReport.id.desc()).limit(15)
+    ).all()
+    for err in client_errors:
+        diagnostics.append({
+            "level": "error",
+            "code": f"client_error_{err.area.lower()}",
+            "message": f"[{err.area}] Fallo del cliente: {err.message}",
+            "examples": [
+                f"Instalación: {err.installation_id}",
+                f"Fecha: {err.created_at.strftime('%Y-%m-%d %H:%M:%S')} (AppID: {err.app_id or 'N/A'})"
+            ]
+        })
+
     return {
         "generated_at": now_iso(),
         "stats": {
