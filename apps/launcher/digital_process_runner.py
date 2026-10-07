@@ -143,6 +143,47 @@ class DigitalProcessRunner:
         except Exception as e:
             logger.warning(f"Error parcheando OnlineFix.ini: {e}")
 
+    def patch_crack_language(self, folder: Path):
+        """Fuerza el idioma español en configuraciones de cracks conocidos (CODEX, FLT, OnlineFix, TENOKE, etc.)."""
+        crack_files = {
+            "steam_api.ini", "steam_api64.ini", "steam_emu.ini", 
+            "onlinefix.ini", "flt.ini", "tenoke.ini", "rune.ini", 
+            "codex.ini", "ali213.ini", "plaza.ini", "epic_emu.ini",
+            "language.ini", "goggame.ini", "anadius.ini"
+        }
+        try:
+            # 1. Parcheo de archivos INI de cracks
+            for ini_path in folder.rglob("*.ini"):
+                if ini_path.name.lower() in crack_files:
+                    try:
+                        content = ini_path.read_text(encoding="utf-8", errors="ignore")
+                        match = re.search(r"(?im)^Language\s*=\s*([a-zA-Z0-9_\-]+)", content)
+                        if match:
+                            current = match.group(1).lower()
+                            if current not in ("spanish", "latam", "es", "es-es", "es-mx", "es_es", "es_mx"):
+                                replacement = "es" if "epic" in ini_path.name.lower() else "spanish"
+                                new_content = re.sub(r"(?im)^Language\s*=\s*[a-zA-Z0-9_\-]+.*$", f"Language={replacement}", content)
+                                ini_path.write_text(new_content, encoding="utf-8")
+                                logger.info(f"Idioma cambiado de '{current}' a '{replacement}' en {ini_path.name}")
+                    except Exception as e:
+                        logger.warning(f"Error modificando idioma en {ini_path.name}: {e}")
+                        
+            # 2. Parcheo de emuladores tipo Goldberg (language.txt / force_language.txt)
+            for txt_path in folder.rglob("*.txt"):
+                name = txt_path.name.lower()
+                if name in ("language.txt", "force_language.txt"):
+                    path_str = str(txt_path).lower()
+                    if "steam_settings" in path_str or "goldberg" in path_str or "language" in name:
+                        try:
+                            content = txt_path.read_text(encoding="utf-8", errors="ignore").strip().lower()
+                            if content and content not in ("spanish", "latam", "es"):
+                                txt_path.write_text("spanish", encoding="utf-8")
+                                logger.info(f"Idioma cambiado de '{content}' a 'spanish' en {txt_path.name} (Emu)")
+                        except Exception:
+                            pass
+        except Exception as e:
+            logger.warning(f"Error general parcheando idioma: {e}")
+
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
@@ -173,6 +214,7 @@ class DigitalProcessRunner:
                 
             # Parchear OnlineFix antes de buscar el ejecutable
             self.patch_onlinefix_popup(folder)
+            self.patch_crack_language(folder)
                 
             candidates = self.get_candidates(folder, name, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
