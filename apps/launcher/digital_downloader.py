@@ -1197,6 +1197,32 @@ def main():
                 download_url = download_source
                 parsed = urlparse(download_url)
                 target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
+                
+                # Verificar si es un hoster que requiere navegador
+                browser_domains = [
+                    "gofile.io", "1fichier.com", "pixeldrain.com", "qiwi.gg", 
+                    "drive.google.com", "mediafire.com", "mega.nz", "krakenfiles.com", 
+                    "buzzheavier.com", "rapidgator.net", "multiup.org", 
+                    "uploadhaven.com", "megaup.net", "filemoon.sx", "dodi-repacks",
+                    "fitgirl-repacks", "rentry.co", "pastebin.com"
+                ]
+                
+                domain = parsed.netloc.lower()
+                if any(d in domain for d in browser_domains):
+                    logger.info(f"Hoster de navegador detectado: {domain}")
+                    import webbrowser
+                    webbrowser.open(download_url)
+                    
+                    emit_progress(
+                        app_id=app_id,
+                        phase="completed",
+                        progress_percent=100.0,
+                        bytes_downloaded=0,
+                        total_bytes=0,
+                        status_text="Descarga delegada al navegador web. Usa el botón de la página."
+                    )
+                    logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
+                    sys.exit(0)
     
             # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
             if download_url:
