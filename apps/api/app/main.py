@@ -959,6 +959,7 @@ def _start_steam_presence_monitor() -> None:
 
 
 _review_worker_started = False
+_sources_updater_started = False
 _catalog_logger = logging.getLogger("gameaccess.catalog")
 
 
@@ -984,6 +985,47 @@ def _steam_review_import_loop() -> None:
             _catalog_logger.warning("Steam review import deferred one title after an error: %s", exc)
         time.sleep(interval)
 
+
+def _sources_update_loop() -> None:
+    import time
+    import asyncio
+    import logging
+    from .digital_admin_routes import sync_sources, load_cached_downloads, deduplicate_download_items, load_sources_config, _populate_catalog_bg
+    
+    # Wait for server startup and DB restore
+    time.sleep(60)
+    
+    while True:
+        try:
+            logging.info("Running automatic background sources sync...")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(sync_sources())
+            
+            cached = load_cached_downloads()
+            if cached:
+                cfg = load_sources_config()
+                deduped_cached = deduplicate_download_items(cached, cfg)
+                # Parse and populate Steam IDs
+                _populate_catalog_bg(deduped_cached)
+            loop.close()
+            logging.info("Background sources sync completed.")
+        except Exception as e:
+            logging.error(f"Error in background sources update loop: {e}")
+        
+        # Fetch updates every 6 hours
+        time.sleep(21600)
+
+def _start_sources_updater() -> None:
+    global _sources_updater_started
+    if _sources_updater_started:
+        return
+    _sources_updater_started = True
+    threading.Thread(
+        target=_sources_update_loop,
+        name="gameaccess-sources-updater",
+        daemon=True,
+    ).start()
 
 def _start_steam_review_importer() -> None:
     global _review_worker_started
@@ -1386,15 +1428,39 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
 @app.get("/digital/catalog")
 @app.get("/digital-catalog.json")
 @app.get("/digital_catalog.json")
-def get_digital_catalog(all: bool = Query(False, description="Include items without download sources")) -> list[dict]:
+def get_digital_catalog(
+    all: bool = Query(False, description="Include items without download sources"),
+    session: Session = Depends(get_session),
+) -> list[dict]:
     """Return the digital game list JSON stored on the server.
     By default filters out entries with empty downloadSource to ensure only downloadable items are returned to clients.
     """
     from .digital_source_policy import annotate_source_policies
     items = annotate_source_policies(load_digital_catalog_json())
-    if all:
-        return items
-    return [item for item in items if str(item.get("downloadSource") or "").strip()]
+    if not all:
+        items = [item for item in items if str(item.get("downloadSource") or "").strip()]
+    # Digital IDs are Steam AppIDs; canonical metadata uses internal Game IDs.
+    # Reuse cached metadata in bounded batches, without per-game Steam requests.
+    game_ids_by_app = {
+        int(app_id): int(game_id)
+        for game_id, app_id in session.exec(select(Game.id, Game.app_id)).all()
+        if game_id is not None and app_id is not None
+    }
+    mapped = []
+    for item in items:
+        try:
+            app_id = int(item.get("app_id") or item.get("id") or 0)
+        except (ValueError, TypeError):
+            app_id = 0
+        mapped.append((item, game_ids_by_app.get(app_id)))
+    game_ids = sorted({game_id for _, game_id in mapped if game_id is not None})
+    metadata = {}
+    for offset in range(0, len(game_ids), 400):
+        metadata.update(catalog_metadata_for_games(
+            session.get_bind(), game_ids[offset:offset + 400], connection=session.connection(),
+        ))
+    # Never modify the source cache or override installation/download commands.
+    return [{**item, **metadata.get(game_id, {})} for item, game_id in mapped]
 
 
 @app.get("/digital/games/{app_id}/details")
