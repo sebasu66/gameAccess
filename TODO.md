@@ -2,7 +2,7 @@
 
 > **Cola autoritativa de trabajo pendiente**
 >
-> Última revisión: **2026-10-01**
+> Última revisión: **2026-10-06**
 >
 > Este archivo contiene solamente trabajo pendiente que sigue siendo compatible con la arquitectura actual. Las tareas completadas, reemplazadas o descartadas se eliminan de aquí; Git conserva su historial.
 >
@@ -91,6 +91,53 @@
 - [ ] Registrar compatibilidad por juego y excluir automatización cuando el save dependa de SteamID interno, cifrado por cuenta u otra condición no portable.
 - [ ] Verificar interacción con Steam Cloud: evitar carreras donde Cloud restaure una versión vieja o vuelva a subir una versión equivocada al cambiar de cuenta proveedora.
 - [ ] Diseñar una UI mínima de recuperación/historial para conflictos o restauración manual, sin exponer al usuario la complejidad de las cuentas proveedoras salvo que sea necesario.
+
+## P1 — Implementar el diseño Digital aprobado (2026-10-06)
+
+> Diseño de referencia aprobado; implementación pendiente. Alcance principal: presentación y navegación del cliente. Conservar descargas, ejecución, instalación, favoritos, cuenta, ajustes y demás servicios existentes.
+>
+> Mockup local: `C:/Users/Lorita/.codex/visualizations/2026/10/06/01a112be-080e-7792-981c-e5f4dd42e18f/gameaccess-mockup.html`. Referencias finales de la misma carpeta: `detail-wide-hero.jpg` y `overview-footer-type.jpg`. Los datos de muestra del HTML no deben convertirse en datos de producción.
+
+### Preparación y estilos mantenibles
+
+- [ ] Archivar la referencia visual aprobada en la documentación del proyecto y actualizar el contrato de detalle desktop/UX durante la implementación; el nuevo diseño reemplaza las disposiciones anteriores que entren en conflicto, manteniendo los comportamientos funcionales vigentes.
+- [ ] Trazar la integración en `LibraryRoom.tsx`, `DownloadCatalogPanel.tsx`, la ficha actual y las superficies existentes de toolbar/actions. Reutilizar controladores, caché de metadata, estado de instalación/descarga y servicios Digital; evitar otra implementación paralela de esas funciones.
+- [ ] **Centralizar todo el estilo de este diseño en un único archivo `apps/desktop/src/gameaccess-theme.css`, importado una sola vez.** Consolidar allí las reglas que afecten grilla, buscador, footer, ficha, menú y botones; retirar los overrides visuales reemplazados. Los componentes no deben duplicar colores, fuentes, espaciado ni animaciones mediante estilos inline.
+- [ ] Comentar el archivo CSS con un índice y secciones de tokens, tipografía, grilla, buscador/navegación, footer, overlay, medios, acciones/menú, animaciones, estados y adaptación a ventanas. Explicar usos, capas/z-index, límites de tamaño y motivos de reglas no obvias; definir colores, pesos, medidas y duraciones como variables CSS. Reservar valores calculados desde JS para geometría/estado mediante variables CSS, sin trasladar allí el tema visual.
+- [ ] Aplicar la paleta aprobada: grafito/vidrio oscuro, blanco legible y acento naranja intenso `#ff6a00`; acciones naranjas con texto/símbolos negros. Usar Manrope en la interfaz y Bebas Neue en títulos de ficha, con fuentes empaquetadas y fallback. Mantener el footer fino con Manrope en mayúsculas, blanco, peso 700, espaciado de letras y mayor separación entre controles.
+- [ ] Usar iconos rellenos y con mayor ocupación dentro de sus contenedores: referencia de escritorio de 30 px para lupa/Catálogo/Biblioteca y 22 px para footer, adaptados en ventanas estrechas. Mantener etiquetas accesibles y foco visible; el círculo del tráiler conserva unos 65 px, ampliando el **triángulo** (SVG de referencia 48 px), sin agrandar todo el botón.
+
+### Overview, navegación y búsqueda
+
+- [ ] Convertir la pantalla principal en una grilla de juegos a todo el espacio útil; mostrar la ficha únicamente después de clic o Enter. Conservar navegación por flechas, foco y posición de scroll.
+- [ ] Dejar Digital como modo inicial activo y ocultar/deshabilitar por ahora los accesos Propios/GameAccess. Mantener sus capacidades subyacentes para una reactivación futura, sin mezclar servicios Steam/proveedores con Digital.
+- [ ] Sustituir las pestañas Catálogo/Instalados/Favoritos por dos botones circulares externos al buscador: **Catálogo** y **Biblioteca** (instalados más favoritos). Revelar sus nombres al hover y al foco del teclado; mostrar claramente el seleccionado.
+- [ ] Situar el buscador redondeado, flotante sobre la base de la grilla, junto a esos dos botones. Llevar géneros, modo de juego, orden, descargas, actualizar, ajustes y cuenta al footer inferior, sin solapamientos. Preservar búsqueda por teclado y acceso a todos los controles en ventanas pequeñas.
+- [ ] Mantener búsqueda enriquecida por título, géneros, etiquetas y demás campos ya disponibles en la base canónica; diferenciar géneros de funciones Steam. No introducir datos de ejemplo ni asumir metadata ausente.
+- [ ] Implementar selección múltiple **inclusiva (OR)** para Un jugador, Co-op Local, Co-op LAN, Co-op Online, Multiplayer Local, Multiplayer LAN, Multiplayer Online y MMO. Combinar ese conjunto con búsqueda/géneros; sin modos marcados, no restringir por modalidad. Usar evidencia real de la base/Steam y conservar como desconocidos los casos sin clasificación suficiente.
+- [ ] Mostrar favoritos en ambas vistas, incluso si no están instalados, conservando su icono. Filtrar primero y ordenar siempre los favoritos coincidentes antes del resto, respetando el orden elegido dentro de cada grupo; no insertar favoritos ajenos a la búsqueda.
+- [ ] Mantener portadas sin esquinas redondeadas, borde fino de selección y reflejo de vidrio sutil. Ajustar su tamaño a cantidad de resultados, espacio real de ventana y escalado: referencia proporcional de 0,70× a 1,50×, con límites iniciales de 120–360 px CSS y ajuste por altura/columnas. Probar 50, 15 y 5 resultados sin añadir todavía información adicional a las tarjetas.
+- [ ] Mostrar hasta unos 50 juegos por bloque/vista mediante el mecanismo de paginación o virtualización apropiado, conservando acceso al resto del catálogo. Aplicar favoritos/orden sobre todos los resultados antes de paginar; no limitar la búsqueda a los primeros 50 registros.
+
+### Ficha de juego y menú de opciones
+
+- [ ] Abrir la ficha como overlay de vidrio oscuro semitransparente. Escape o X vuelve al overview restaurando foco/scroll; gestionar focus trap y cierre de submenús antes de cerrar la ficha. Cargar detalles de forma diferida desde la caché y evitar respuestas obsoletas al cambiar rápidamente de juego.
+- [ ] Mostrar **Library Hero ultrapanorámico de Steam a todo el ancho superior**, como imagen de cabecera, sin usar la portada ampliada de fondo ni la cápsula Header con título incrustado. Colocar el título debajo, en la columna izquierda; definir recorte adaptable y fallback si falta artwork.
+- [ ] Dejar información a la izquierda y tráiler/capturas a la derecha. Mostrar título, tamaño real en GB cuando exista, año, géneros y modalidades; alojar descripción completa, idiomas, etiquetas, datos adicionales, reseñas y valoración de usuarios en un panel vertical desplazable con texto blanco, mayor peso y tamaño legible.
+- [ ] Mostrar valoraciones reales (etiqueta positiva/mixta/negativa, porcentaje y cantidad cuando existan) sin forzar reseñas positivas; usar el estado explícito de datos no disponibles. Conservar las acciones de feedback existentes.
+- [ ] Mantener Descargar/Cancelar/Pausar/Reanudar/Jugar según el estado real, con acción principal accesible y visible dentro del viewport. Reutilizar la cola Digital, errores, progreso, reconciliación y ejecución actuales; el cambio visual no altera estos flujos.
+- [ ] Preservar reproducción de vídeo/capturas, inicio silenciado, controles, fallback y pausado/limpieza al cerrar la ficha o lanzar un juego. Evitar autoplay de múltiples vídeos durante la navegación.
+- [ ] **Añadir un botón “…” en la ficha**, con nombre accesible “Más opciones”, menú anclado y navegación por teclado. Incluir **Abrir carpeta del juego** y **Desinstalar**, habilitados según el estado real de instalación/descarga; cerrar con Escape/clic exterior y devolver el foco al botón.
+- [ ] Reutilizar las operaciones existentes: Digital mediante `DigitalCatalog.openInstallFolder/uninstall` y sus servicios; las acciones Steam conservan su ruta propia en `GameStorageContextMenu`/`gameStorage`. Pedir confirmación antes de desinstalar y refrescar estado tras completarlo; mostrar errores reales sin perder la instalación o la descarga.
+- [ ] Inventariar e incorporar al menú otras opciones útiles ya soportadas según juego/estado (favoritos, acciones de descarga y acceso a Steam cuando corresponda). No mostrar acciones ficticias ni introducir nuevas operaciones de almacenamiento dentro del cambio cosmético.
+- [ ] Aplicar iluminación de borde, reflejo breve y animación sutil de iconos al hover/foco de acciones, con una única definición en el CSS central y soporte de `prefers-reduced-motion`. Lottie/Lordicon queda como alternativa por evaluar, no una dependencia obligatoria del diseño aprobado.
+
+### Validación e integración
+
+- [ ] Probar favoritos y orden global con búsquedas y ambas vistas; combinaciones OR de modalidades, resultados vacíos y metadata incompleta. Validar con datos reales, no con las banderas ilustrativas del mockup.
+- [ ] Verificar tamaños de tarjetas y legibilidad con resoluciones, zoom/escalado DPI y ventanas reducidas, incluyendo títulos largos, 50/15/5 resultados, footer, submenú y acciones; sin controles cortados ni scroll horizontal accidental.
+- [ ] Verificar clic/Enter, flechas, Tab, Escape/X, apertura/cierre de “…” y restauración de foco/scroll; comprobar permisos/estado de las acciones de carpeta/desinstalación y ausencia de regresiones en descarga/Play.
+- [ ] Implementar por ramas/PR en GitHub, sincronizar los commits publicados a `C:/DEV/Game Access Dev`, ejecutar los checks/build y pruebas de Tauri correspondientes y registrar el commit exacto verificado. Realizar revisión visual final con el usuario sobre la aplicación real; eliminar de este TODO solo las tareas efectivamente completadas.
 
 ## P1 — UX pendiente del cliente
 
