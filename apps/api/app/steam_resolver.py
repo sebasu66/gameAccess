@@ -93,7 +93,7 @@ def normalize_title(title: str) -> str:
     text = text.replace("&", " and ").replace("+", " and ")
     for roman, arabic in ROMAN_NUMERALS.items():
         text = re.sub(roman, arabic, text)
-    text = re.sub(r"[:\-_,.'\"!/?(){}]", " ", text)
+    text = re.sub(r"[:\-_,.\'\"!/?(){}\u2122\u00ae\u00a9]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -280,11 +280,14 @@ def resolve_steam_app_id(
             )
 
             score = calculate_match_score(q, cand_name)
-            # If candidate matches clean base title or starts with query
             clean_norm = normalize_title(clean)
             cand_norm = normalize_title(cand_name)
-            if cand_norm == clean_norm or cand_norm.startswith(clean_norm) or clean_norm.startswith(cand_norm):
-                score = max(score, 0.95)
+            
+            if score > 0.0:
+                if cand_norm == clean_norm:
+                    score = max(score, 1.0)
+                elif cand_norm.startswith(clean_norm) or clean_norm.startswith(cand_norm):
+                    score = max(score, 0.85)
 
             if score >= 0.65:
                 if is_dlc:

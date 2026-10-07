@@ -79,7 +79,7 @@ def normalize_title(title: str) -> str:
         text = re.sub(roman, arabic, text)
 
     # Replace punctuation with spaces
-    text = re.sub(r"[:\-_,.'\"!/?(){}]", " ", text)
+    text = re.sub(r"[:\-_,.\'\"!/?(){}\u2122\u00ae\u00a9]", " ", text)
 
     # Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
