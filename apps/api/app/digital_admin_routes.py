@@ -1060,6 +1060,13 @@ def _populate_catalog_bg(deduped_cached: list[dict[str, Any]]) -> None:
 
         catalog = list(catalog_by_norm.values())
         save_catalog_json(catalog)
+        
+        if added_count > 0 or updated_count > 0:
+            SYNC_STATUS["message"] = "Sincronizando metadatos de Steam en la DB local (aditivo)..."
+            from .digital_catalog import sync_digital_catalog
+            from .database import engine as default_engine
+            sync_digital_catalog(engine=default_engine, fetch_steam=True, force=False)
+            
         SYNC_STATUS["message"] = f"Completado. {added_count} agregados, {updated_count} vinculados."
     except Exception as e:
         logger.error(f"Error en populate_catalog_bg: {e}")

@@ -990,14 +990,18 @@ def _sources_update_loop() -> None:
     import time
     import asyncio
     import logging
-    from .digital_admin_routes import sync_sources, load_cached_downloads, deduplicate_download_items, load_sources_config, _populate_catalog_bg
+    from .digital_admin_routes import sync_sources, load_cached_downloads, deduplicate_download_items, load_sources_config, _populate_catalog_bg, SYNC_STATUS
     
     # Wait for server startup and DB restore
     time.sleep(60)
     
     while True:
         try:
-            logging.info("Running automatic background sources sync...")
+            if SYNC_STATUS.get("is_running"):
+                time.sleep(60)
+                continue
+                
+            logging.info("Running automatic background sources sync (30-min interval)...")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(sync_sources())
@@ -1006,15 +1010,15 @@ def _sources_update_loop() -> None:
             if cached:
                 cfg = load_sources_config()
                 deduped_cached = deduplicate_download_items(cached, cfg)
-                # Parse and populate Steam IDs
+                # This naturally ignores duplicates, adds new ones, and invokes sync_digital_catalog for the DB
                 _populate_catalog_bg(deduped_cached)
             loop.close()
             logging.info("Background sources sync completed.")
         except Exception as e:
             logging.error(f"Error in background sources update loop: {e}")
         
-        # Fetch updates every 6 hours
-        time.sleep(21600)
+        # Fetch updates every 30 minutes
+        time.sleep(1800)
 
 def _start_sources_updater() -> None:
     global _sources_updater_started
