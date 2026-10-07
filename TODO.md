@@ -125,6 +125,7 @@
 - [ ] Mostrar **Library Hero ultrapanorámico de Steam a todo el ancho superior**, como imagen de cabecera, sin usar la portada ampliada de fondo ni la cápsula Header con título incrustado. Colocar el título debajo, en la columna izquierda; definir recorte adaptable y fallback si falta artwork.
 - [ ] Dejar información a la izquierda y tráiler/capturas a la derecha. Mostrar título, tamaño real en GB cuando exista, año, géneros y modalidades; alojar descripción completa, idiomas, etiquetas, datos adicionales, reseñas y valoración de usuarios en un panel vertical desplazable con texto blanco, mayor peso y tamaño legible.
 - [ ] Mostrar valoraciones reales (etiqueta positiva/mixta/negativa, porcentaje y cantidad cuando existan) sin forzar reseñas positivas; usar el estado explícito de datos no disponibles. Conservar las acciones de feedback existentes.
+- [ ] Mantener las descargas con una presentación similar al cliente actual: un toast compacto con estado/progreso y, al pulsarlo o activarlo con Enter, abrir un overlay grande con la cola y los controles existentes de pausa, reanudación y cancelación. Reutilizar el gestor Digital actual; cerrar con Escape/X, devolver foco al toast y mantener la descarga activa al cerrar el overlay.
 - [ ] Mantener Descargar/Cancelar/Pausar/Reanudar/Jugar según el estado real, con acción principal accesible y visible dentro del viewport. Reutilizar la cola Digital, errores, progreso, reconciliación y ejecución actuales; el cambio visual no altera estos flujos.
 - [ ] Preservar reproducción de vídeo/capturas, inicio silenciado, controles, fallback y pausado/limpieza al cerrar la ficha o lanzar un juego. Evitar autoplay de múltiples vídeos durante la navegación.
 - [ ] **Añadir un botón “…” en la ficha**, con nombre accesible “Más opciones”, menú anclado y navegación por teclado. Incluir **Abrir carpeta del juego** y **Desinstalar**, habilitados según el estado real de instalación/descarga; cerrar con Escape/clic exterior y devolver el foco al botón.
@@ -138,8 +139,6 @@
 - [ ] Verificar tamaños de tarjetas y legibilidad con resoluciones, zoom/escalado DPI y ventanas reducidas, incluyendo títulos largos, 50/15/5 resultados, footer, submenú y acciones; sin controles cortados ni scroll horizontal accidental.
 - [ ] Verificar clic/Enter, flechas, Tab, Escape/X, apertura/cierre de “…” y restauración de foco/scroll; comprobar permisos/estado de las acciones de carpeta/desinstalación y ausencia de regresiones en descarga/Play.
 - [ ] Implementar por ramas/PR en GitHub, sincronizar los commits publicados a `C:/DEV/Game Access Dev`, ejecutar los checks/build y pruebas de Tauri correspondientes y registrar el commit exacto verificado. Realizar revisión visual final con el usuario sobre la aplicación real; eliminar de este TODO solo las tareas efectivamente completadas.
-
-- [ ] Mantener las descargas con una presentación similar al cliente actual: un toast compacto con estado/progreso y, al pulsarlo o activarlo con Enter, abrir un overlay grande con la cola y los controles existentes de pausa, reanudación y cancelación. Reutilizar el gestor Digital actual; cerrar con Escape/X, devolver foco al toast y mantener la descarga activa al cerrar el overlay.
 
 ## P1 — UX pendiente del cliente
 
