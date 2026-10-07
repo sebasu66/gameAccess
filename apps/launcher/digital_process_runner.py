@@ -94,9 +94,20 @@ class DigitalProcessRunner:
                 logger.info(f"Candidato desde playProcess explicito: {executable}")
                 return [(executable, arguments)]
                 
+        exe_marker = folder / ".gameaccess_exe"
+        if exe_marker.is_file():
+            try:
+                rel_path = exe_marker.read_text(encoding="utf-8").strip()
+                exe_target = (folder / rel_path).resolve()
+                if exe_target.is_file():
+                    logger.info(f"Encontrado marcador .gameaccess_exe apuntando a: {exe_target}")
+                    return [(exe_target, [])]
+            except Exception:
+                pass
+
         play_bat = folder / "play.bat"
         if play_bat.is_file():
-            logger.info("Encontrado play.bat en la carpeta, usandolo como candidato principal.")
+            logger.info("Encontrado play.bat en la carpeta, usandolo como fallback.")
             return [(play_bat, [])]
             
         logger.info("Iniciando descubrimiento heuristico de ejecutables...")
@@ -197,14 +208,22 @@ class DigitalProcessRunner:
                     
                     if executable.suffix.lower() != ".bat" and not command.strip():
                         play_bat = folder / "play.bat"
-                        if not play_bat.exists():
-                            rel_dir = executable.parent.relative_to(folder)
-                            exe_name = executable.name
-                            # Ensure the path formatting handles the root case gracefully
-                            cd_cmd = f'cd /d "%~dp0{rel_dir}"' if str(rel_dir) != "." else 'cd /d "%~dp0"'
-                            with open(play_bat, "w", encoding="utf-8") as f:
-                                f.write(f'@echo off\n{cd_cmd}\nstart "" "{exe_name}"\nexit\n')
-                            logger.info("Creado play.bat con la ruta exitosa para futuros lanzamientos.")
+                        exe_marker = folder / ".gameaccess_exe"
+                        
+                        try:
+                            rel_path = executable.relative_to(folder)
+                            if not exe_marker.exists():
+                                exe_marker.write_text(str(rel_path), encoding="utf-8")
+                                
+                            if not play_bat.exists():
+                                rel_dir = executable.parent.relative_to(folder)
+                                exe_name = executable.name
+                                cd_cmd = f'cd /d "%~dp0{rel_dir}"' if str(rel_dir) != "." else 'cd /d "%~dp0"'
+                                with open(play_bat, "w", encoding="utf-8") as f:
+                                    f.write(f'@echo off\n{cd_cmd}\n"{exe_name}"\n')
+                                logger.info("Creado marcador .gameaccess_exe y play.bat para futuros lanzamientos.")
+                        except Exception as e:
+                            logger.error(f"Error guardando marcador de exe: {e}")
                             
                     return {**result, "ok": True, "pid": process.pid, "command": str(executable)}
                 except Exception as e:
