@@ -1209,20 +1209,45 @@ def main():
                 
                 domain = parsed.netloc.lower()
                 if any(d in domain for d in browser_domains):
-                    logger.info(f"Hoster de navegador detectado: {domain}")
-                    import webbrowser
-                    webbrowser.open(download_url)
+                    logger.info(f"Hoster web detectado ({domain}). Consultando API del servidor para link directo...")
+                    emit_progress(app_id, "downloading", 0, 0, 0, 0, 0, f"Resolviendo enlace de {domain} en servidor...")
                     
-                    emit_progress(
-                        app_id=app_id,
-                        phase="completed",
-                        progress_percent=100.0,
-                        bytes_downloaded=0,
-                        total_bytes=0,
-                        status_text="Descarga delegada al navegador web. Usa el botón de la página."
-                    )
-                    logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
-                    sys.exit(0)
+                    resolved = False
+                    try:
+                        api_url = os.environ.get("GAMEACCESS_API_URL", "https://game-access-api.onrender.com").rstrip("/")
+                        res = requests.post(
+                            f"{api_url}/resolve-download",
+                            json={"url": download_url},
+                            timeout=15
+                        )
+                        if res.status_code == 200:
+                            data = res.json()
+                            if data.get("ok") and data.get("direct_url"):
+                                download_url = data["direct_url"]
+                                if data.get("headers"):
+                                    headers.update(data["headers"])
+                                logger.info(f"Resuelto con éxito: {download_url}")
+                                resolved = True
+                            else:
+                                logger.error(f"Fallo al resolver en servidor: {data.get('message')}")
+                    except Exception as e:
+                        logger.error(f"Error consultando servidor resolver: {e}")
+                        
+                    if not resolved:
+                        logger.info(f"Fallback: Hoster de navegador ({domain}). Abriendo web...")
+                        import webbrowser
+                        webbrowser.open(download_source)
+                        
+                        emit_progress(
+                            app_id=app_id,
+                            phase="completed",
+                            progress_percent=100.0,
+                            bytes_downloaded=0,
+                            total_bytes=0,
+                            status_text="Abierto en navegador web. Usa el botón de la página (Servidor ocupado)."
+                        )
+                        logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
+                        sys.exit(0)
     
             # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
             if download_url:

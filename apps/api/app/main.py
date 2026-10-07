@@ -2416,6 +2416,7 @@ from .steam_search_routes import (  # noqa: E402 - routes import initialized app
 )
 
 app.include_router(steam_search_router)
+app.include_router(resolver_router)
 
 from .admin_console_routes import (  # noqa: E402 - routes import initialized app
     router as admin_console_router,
