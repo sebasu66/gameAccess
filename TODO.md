@@ -139,6 +139,8 @@
 - [ ] Verificar clic/Enter, flechas, Tab, Escape/X, apertura/cierre de “…” y restauración de foco/scroll; comprobar permisos/estado de las acciones de carpeta/desinstalación y ausencia de regresiones en descarga/Play.
 - [ ] Implementar por ramas/PR en GitHub, sincronizar los commits publicados a `C:/DEV/Game Access Dev`, ejecutar los checks/build y pruebas de Tauri correspondientes y registrar el commit exacto verificado. Realizar revisión visual final con el usuario sobre la aplicación real; eliminar de este TODO solo las tareas efectivamente completadas.
 
+- [ ] Mantener las descargas con una presentación similar al cliente actual: un toast compacto con estado/progreso y, al pulsarlo o activarlo con Enter, abrir un overlay grande con la cola y los controles existentes de pausa, reanudación y cancelación. Reutilizar el gestor Digital actual; cerrar con Escape/X, devolver foco al toast y mantener la descarga activa al cerrar el overlay.
+
 ## P1 — UX pendiente del cliente
 
 - [ ] Terminar auditoría de navegación por teclado/foco: retorno desde juego, Enter/Escape, búsqueda, modales y recuperación del foco sin clics.
