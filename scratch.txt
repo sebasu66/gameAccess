@@ -1,0 +1,14 @@
+﻿    const startedAt = performance.now();
+    void narrate(`Play flow started for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "LAUNCH" });
+    setSelected(null);
+    rememberRecent(game);
+    setLeaseBusy(true);
+
+    if (getCatalogMode() === "digital") {
+      setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Iniciando juego del catÃ¡logo Digital." });
+      try {
+        await digitalCatalogService.play(game);
+        if (game.app_id) recordPlayed(game.app_id);
+        setSession({ game, phase: "playing", title: "Â¡A jugar!", detail: "El juego se iniciÃ³ directamente sin reserva de licencia." });
+      } catch (err) {
+        const copy = playErrorCopy(err);

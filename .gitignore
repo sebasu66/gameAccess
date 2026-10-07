@@ -66,3 +66,15 @@ apps/launcher/.cache/
 *.exe
 *.psd
 *.log
+
+# Installed games and extracted local game content (keep on disk)
+/apps/launcher/games/
+/apps/launcher/Maverick/
+
+# Runtime logs in any logs directory, including non-.log files
+logs/
+/dll_strings.txt
+
+# Local runtime database and private source configuration
+/apps/api/app.db
+/apps/api/data/
