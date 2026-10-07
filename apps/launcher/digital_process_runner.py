@@ -149,7 +149,7 @@ class DigitalProcessRunner:
             "steam_api.ini", "steam_api64.ini", "steam_emu.ini", 
             "onlinefix.ini", "flt.ini", "tenoke.ini", "rune.ini", 
             "codex.ini", "ali213.ini", "plaza.ini", "epic_emu.ini",
-            "language.ini", "goggame.ini", "anadius.ini"
+            "language.ini", "goggame.ini", "anadius.ini", "cream_api.ini"
         }
         try:
             # 1. Parcheo de archivos INI de cracks
