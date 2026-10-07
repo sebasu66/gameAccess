@@ -96,11 +96,11 @@
 
 > Diseño de referencia aprobado; implementación pendiente. Alcance principal: presentación y navegación del cliente. Conservar descargas, ejecución, instalación, favoritos, cuenta, ajustes y demás servicios existentes.
 >
-> Mockup local: `C:/Users/Lorita/.codex/visualizations/2026/10/06/01a112be-080e-7792-981c-e5f4dd42e18f/gameaccess-mockup.html`. Referencias finales de la misma carpeta: `detail-wide-hero.jpg` y `overview-footer-type.jpg`. Los datos de muestra del HTML no deben convertirse en datos de producción.
+> Mockup aprobado: `docs/design/gameaccess-ui-2026-10-06/gameaccess-mockup.html`. Referencias finales en esa carpeta: `detail-wide-hero.jpg` y `overview-footer-type.jpg`. Los datos de muestra del HTML no deben convertirse en datos de producción.
 
 ### Preparación y estilos mantenibles
 
-- [ ] Archivar la referencia visual aprobada en la documentación del proyecto y actualizar el contrato de detalle desktop/UX durante la implementación; el nuevo diseño reemplaza las disposiciones anteriores que entren en conflicto, manteniendo los comportamientos funcionales vigentes.
+- [ ] Actualizar el contrato de detalle desktop/UX durante la implementación; el nuevo diseño reemplaza las disposiciones anteriores que entren en conflicto, manteniendo los comportamientos funcionales vigentes.
 - [ ] Trazar la integración en `LibraryRoom.tsx`, `DownloadCatalogPanel.tsx`, la ficha actual y las superficies existentes de toolbar/actions. Reutilizar controladores, caché de metadata, estado de instalación/descarga y servicios Digital; evitar otra implementación paralela de esas funciones.
 - [ ] **Centralizar todo el estilo de este diseño en un único archivo `apps/desktop/src/gameaccess-theme.css`, importado una sola vez.** Consolidar allí las reglas que afecten grilla, buscador, footer, ficha, menú y botones; retirar los overrides visuales reemplazados. Los componentes no deben duplicar colores, fuentes, espaciado ni animaciones mediante estilos inline.
 - [ ] Comentar el archivo CSS con un índice y secciones de tokens, tipografía, grilla, buscador/navegación, footer, overlay, medios, acciones/menú, animaciones, estados y adaptación a ventanas. Explicar usos, capas/z-index, límites de tamaño y motivos de reglas no obvias; definir colores, pesos, medidas y duraciones como variables CSS. Reservar valores calculados desde JS para geometría/estado mediante variables CSS, sin trasladar allí el tema visual.
