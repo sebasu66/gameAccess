@@ -116,6 +116,9 @@ function syncButtons(){
      const c=canvas.getContext('2d');if(!c)continue;
      o={button:b,canvas,c,s:null,width:0,height:0};targets.set(b,o);b.classList.add(b.matches('.global-search')?'ga-pixel-search':'ga-led-button');resize.observe(b);
    }
+   // React replaces className when switching tabs; restore only when missing.
+   const effectClass=b.matches('.global-search')?'ga-pixel-search':'ga-led-button';
+   if(!b.classList.contains(effectClass))b.classList.add(effectClass);
    if(!b.contains(o.canvas))b.prepend(o.canvas);
    b.dataset.pixelActive=String(selected(b));sizeButton(o);
  }
