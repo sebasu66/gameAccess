@@ -89,7 +89,7 @@ function setReactInput(input: HTMLInputElement, value: string) {
 
 async function setSearch(term: string) {
   const input = await waitFor(
-    () => document.querySelector<HTMLInputElement>('.global-search input[aria-label="Buscar en tu biblioteca"]'),
+    () => document.querySelector<HTMLInputElement>('.global-search input'),
     30_000,
     "Game Access search box",
   );
@@ -273,7 +273,7 @@ export async function startLocalAutomation(): Promise<void> {
       throw new Error("Automation script must use version 1 and contain a tasks array.");
     }
     await waitFor(
-      () => document.querySelector(".app-shell") || document.querySelector(".runtime-gate"),
+      () => document.querySelector(".app-shell") || document.querySelector(".runtime-gate") || document.querySelector(".gameaccess-splash"),
       45_000,
       "Game Access initial UI",
     );

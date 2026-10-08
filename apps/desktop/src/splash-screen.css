@@ -12,7 +12,7 @@
 .ga-application-reveal.is-revealing{animation:ga-opening-in 3s linear both}
 .ga-application-reveal.is-ready{opacity:1;animation:none}
 .ga-validation{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:520;min-height:0;background:none;display:flex;align-items:center;justify-content:flex-end;padding:28px clamp(28px,5vw,96px);pointer-events:none}
-.ga-validation .activation-card{pointer-events:auto;width:min(420px,34vw);max-height:calc(100vh - 130px);overflow:auto;padding:28px;border-color:#ff7a174d;background:linear-gradient(145deg,#23252af2,#111216f2);border-radius:18px;backdrop-filter:blur(20px)}
+.ga-validation .activation-card{pointer-events:auto;width:min(420px,30vw);max-height:calc(100vh - 130px);overflow:auto;padding:28px;border-color:#ff7a174d;background:linear-gradient(145deg,#23252af2,#111216f2);border-radius:18px;backdrop-filter:blur(20px)}
 .ga-validation h1{font-size:30px}.ga-validation .activation-form{margin-top:22px}.ga-validation .activation-form input{border-color:#ff7a1755;background:#101114}
 .ga-validation .activation-form input:focus{outline-color:#ff7a17}.ga-validation .activation-card p{font-size:13px}
 .ga-access-footer{position:fixed;z-index:530;bottom:0;left:0;right:0;min-height:50px;padding:12px 16px;display:flex;align-items:center;gap:18px;background:#111416cc}
