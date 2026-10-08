@@ -1,3 +1,4 @@
+import VoxelLogo from "./VoxelLogo";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, ArrowUpRight, KeyRound, Loader2, PlayCircle } from "lucide-react";
 import SplashScreen from "./SplashScreen";
@@ -47,6 +48,11 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#obtener-clave");
 
   const completeSplash = useCallback(() => setSplashComplete(true), []);
+  useEffect(() => {
+    const replay = () => setSplashComplete(false);
+    window.addEventListener("gameaccess:replay-logo", replay);
+    return () => window.removeEventListener("gameaccess:replay-logo", replay);
+  }, []);
 
   const verify = useCallback(async () => {
     setBusy(true);
@@ -136,7 +142,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     {status?.active ? <>
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
-    </> : <main className="runtime-gate activation-gate">
+    </> : <main className="runtime-gate activation-gate"><div className="ga-access-brand"><VoxelLogo /><span>gameAccess</span></div>
       <div className="activation-showcase" aria-hidden="true">
         <div className="activation-showcase-grid">
           {showcaseGames.map((game, index) => <div className="activation-showcase-cover" key={index}>

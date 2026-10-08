@@ -44,7 +44,10 @@
       "runtime/launcher": "runtime/launcher",
       "runtime/python": "runtime/python",
       "../../../deploy/catalog-cache": "runtime/catalog"
-    }
+    },
+    "icon": [
+      "icons/icon.ico"
+    ]
   },
   "mainBinaryName": "gameaccess-desktop"
 }

@@ -1,99 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "./i18n";
-
-type SplashScreenProps = { onComplete: () => void };
-type SplashPhase = "waiting" | "slide" | "reveal" | "idle" | "compact";
-
-const layers = ["/logo/fondo.png", "/logo/portal.png", "/logo/g.png", "/logo/a.png"];
-
-/** Reassembles the supplied layered logo, then leaves it in the access screen corner. */
-export default function SplashScreen({ onComplete }: SplashScreenProps) {
-  const { t } = useI18n();
-  const [phase, setPhase] = useState<SplashPhase>("waiting");
-  const [loaded, setLoaded] = useState(false);
-  const [started, setStarted] = useState(false);
-  const audioRef = useRef<AudioContext | null>(null);
-  const timersRef = useRef<number[]>([]);
-
-  const start = useCallback(() => {
-    if (started || !loaded) return;
-    setStarted(true);
-    const context = audioRef.current;
-    const begin = () => {
-      if (context) playSwell(context, 1.5);
-      setPhase("slide");
-      timersRef.current = [
-        window.setTimeout(() => setPhase("reveal"), 1500),
-        window.setTimeout(() => setPhase("idle"), 3000),
-        window.setTimeout(() => setPhase("compact"), 4000),
-        window.setTimeout(onComplete, 5500),
-      ];
-    };
-    if (context?.state === "suspended") void context.resume().then(begin).catch(begin);
-    else begin();
-  }, [loaded, onComplete, started]);
-
-  useEffect(() => {
-    try { audioRef.current = new AudioContext(); } catch { audioRef.current = null; }
-    let cancelled = false;
-    Promise.all(layers.map(src => new Promise<void>(resolve => {
-      const image = new Image();
-      image.onload = image.onerror = () => resolve();
-      image.src = src;
-    }))).then(() => { if (!cancelled) setLoaded(true); });
-    return () => {
-      cancelled = true;
-      timersRef.current.forEach(window.clearTimeout);
-      void audioRef.current?.close();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reducedMotion) {
-      setPhase("compact");
-      const timer = window.setTimeout(onComplete, 80);
-      return () => window.clearTimeout(timer);
-    }
-    if (audioRef.current?.state === "running") start();
-  }, [loaded, onComplete, start]);
-
-  return (
-    <div className={`gameaccess-splash${phase === "compact" ? " is-settled" : ""}`} aria-label={t("splashStarting")}>
-      <div className={`gameaccess-splash-stage phase-${phase}`} aria-hidden="true">
-        <img className="splash-layer splash-background" src="/logo/fondo.png" alt="" />
-        <img className="splash-layer splash-portal" src="/logo/portal.png" alt="" />
-        <img className="splash-layer splash-g" src="/logo/g.png" alt="" />
-        <img className="splash-layer splash-a" src="/logo/a.png" alt="" />
-      </div>
-      {phase === "waiting" ? <button type="button" className="gameaccess-splash-start" onClick={start} disabled={!loaded}>{t("splashTap")}</button> : null}
-      {started && phase !== "compact" ? <span className="gameaccess-splash-caption">{t("splashStarting").toUpperCase()}</span> : null}
-      <span className="gameaccess-splash-announcer" role="status">{loaded ? "" : t("splashLoading")}</span>
-    </div>
-  );
-}
-
-function playSwell(context: AudioContext, duration: number) {
-  const startAt = context.currentTime;
-  const master = context.createGain();
-  master.gain.setValueAtTime(0.0001, startAt);
-  master.gain.exponentialRampToValueAtTime(0.18, startAt + duration);
-  master.gain.exponentialRampToValueAtTime(0.0001, startAt + duration + 0.6);
-  const filter = context.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.Q.value = 6;
-  filter.frequency.setValueAtTime(200, startAt);
-  filter.frequency.exponentialRampToValueAtTime(4000, startAt + duration);
-  [["sawtooth", 110, 0], ["sawtooth", 110, 7], ["sine", 220, -5]].forEach(([type, frequency, detune]) => {
-    const oscillator = context.createOscillator();
-    oscillator.type = type as OscillatorType;
-    oscillator.detune.value = detune as number;
-    oscillator.frequency.setValueAtTime(frequency as number, startAt);
-    oscillator.frequency.exponentialRampToValueAtTime((frequency as number) * 2, startAt + duration);
-    oscillator.connect(filter);
-    oscillator.start(startAt);
-    oscillator.stop(startAt + duration + 0.7);
-  });
-  filter.connect(master).connect(context.destination);
+import { loadPixelStyle } from "./pixelStylePreferences";
+export default function SplashScreen({ onComplete }: { onComplete: () => void }) {
+ const { t } = useI18n();
+ const [phase, setPhase] = useState<"intro" | "dock">("intro");
+ const video = useRef<HTMLVideoElement>(null);
+ const finished = useRef(false);
+ const finish = useCallback(() => {
+  if (finished.current) return;
+  finished.current = true;
+  document.body.classList.remove("ga-splash-active");
+  window.dispatchEvent(new Event("gameaccess:logo-settled"));
+  onComplete();
+ }, [onComplete]);
+ useEffect(() => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !loadPixelStyle().animate) { finish(); return; }
+  document.body.classList.add("ga-splash-active");
+  // A decoding/network failure must never trap the user behind the splash.
+  const timeout = window.setTimeout(finish, 15000);
+  return () => { clearTimeout(timeout); document.body.classList.remove("ga-splash-active"); };
+ }, [finish]);
+ useEffect(() => {
+  const v = video.current;
+  if (v) void v.play().catch(finish);
+ }, [phase, finish]);
+ const dock = () => {
+  const v = video.current;
+  if (!v || phase !== "dock") return;
+  const target = document.querySelector(".ga-header-logo")?.getBoundingClientRect();
+  if (!target) { finish(); return; }
+  const scale = innerWidth / 1920;
+  const x = target.x + target.width / 2 - 64 * scale;
+  const y = target.y + target.height / 2 - 54 * scale;
+  const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
+  v.animate([{ transform: `translate(0px,${initialY}px)` }, { transform: `translate(${x}px,${y}px)` }], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
+ };
+ return <div className="gameaccess-splash" role="status" aria-label={t("splashStarting")}>
+  <video key={phase} ref={video} className="gameaccess-splash-film" src={phase === "intro" ? "/brand/logo-intro.webm" : "/brand/logo-to-header.webm"}
+   muted playsInline autoPlay preload="auto" onPlaying={dock} onError={finish} onEnded={() => phase === "intro" ? setPhase("dock") : finish()} aria-hidden="true" />
+ </div>;
 }

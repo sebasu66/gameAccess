@@ -6,7 +6,8 @@ import ActivationGate from "./ActivationGate";
 import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
-import SteamSessionSettings from "./SteamSessionSettings";
+import AppSettings from "./AppSettings";
+import PixelAppearance from "./PixelAppearance";
 import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
@@ -20,7 +21,7 @@ import "./polish.css";
 import "./library-room.css";
 import "./download-manager.css";
 import "./bootstrap.css";
-import "./steam-session-settings.css";
+
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
 import "./catalog-refresh.css";
@@ -29,6 +30,7 @@ import "./splash-screen.css";
 import "./library-sections.css";
 import "./i18n.css";
 import "./gameaccess-theme.css";
+import "./pixel-appearance.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.
@@ -94,8 +96,8 @@ if (!root) throw new Error("gameAccess root element is missing");
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome />
-    <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /><SteamSessionSettings /></RuntimeGate></ActivationGate></AppCrashBoundary>
+    <WindowChrome /><PixelAppearance />
+    <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /><AppSettings /></RuntimeGate></ActivationGate></AppCrashBoundary>
   </React.StrictMode>,
 );
 
