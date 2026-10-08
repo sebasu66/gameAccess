@@ -21,14 +21,19 @@ tiers, Sentry or provider changes.
 
 ## Generated artwork
 
-Built-in image generation produced three original image assets: an atmospheric
-fantasy adventure world, a standard admission-ticket texture, and a gold ticket
-with the same silhouette. The tickets have no embedded UI text, key, barcode or
-price. Their quiet centers and CSS shading preserve foreground readability.
+The entry background is a generated, Baldur's Gate-inspired coastal cityscape:
+a dense walled city, monumental stone bridge, harbor, storm-lit skyline and
+distant nautiloid-like silhouettes. It is original illustrative artwork, not
+official game art, and contains no logo or interface text. The BASE and PLUS
+textures are custom matching admission tickets. The tickets have no embedded
+UI text, key, barcode or price. Their quiet centers and CSS shading preserve
+foreground readability.
 
 Prompt summary:
-- World: floating islands, castle at dusk, seated explorer at upper right,
-  dark quiet forest at left, no UI/text.
+- World: Baldur's Gate 3-inspired harbor city at dusk, Wyrm's Crossing-like
+  stone bridge and crowded fortified skyline, storm clouds, warm city lights,
+  distant nautiloid silhouettes, atmospheric and readable behind UI; no
+  characters, logos, UI or text.
 - BASE: front-facing dark slate paper admission ticket, restrained silver
   engraving, castle/mountains at top, matching stub notches and perforation.
 - PLUS: preserve BASE geometry and engraving; replace slate/silver with dark
