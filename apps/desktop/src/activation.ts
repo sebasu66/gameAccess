@@ -88,9 +88,9 @@ async function activationUrl(path: string): Promise<string> {
   return `${base}${path}`;
 }
 
-export async function checkActivation(token: string, signal?: AbortSignal): Promise<ActivationStatus> {
+export async function checkActivation(token: string, signal?: AbortSignal, baseUrl?: string): Promise<ActivationStatus> {
   const id = await getInstallationId();
-  const response = await activationFetch(await activationUrl("/activation/status"), {
+  const response = await activationFetch(baseUrl ? `${baseUrl}/activation/status` : await activationUrl("/activation/status"), {
     headers: { Authorization: `Bearer ${token}`, "X-GameAccess-Installation": id },
     cache: "no-store",
   }, signal);
@@ -107,8 +107,9 @@ export async function checkActivation(token: string, signal?: AbortSignal): Prom
     }
     throw new ActivationConnectionError();
   }
-  sessionToken = token;
   const status = await response.json() as ActivationStatus;
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  sessionToken = token;
   rememberStatus(status);
   return status;
 }

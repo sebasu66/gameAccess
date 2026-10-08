@@ -539,6 +539,21 @@ def activation_status(request: Request, session: Session = Depends(get_session))
         )
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         detail = session_end_details(session, token, request.headers.get("X-GameAccess-Installation", ""))
+        if detail["reason"] == "unavailable" and token:
+            # Courtesy sessions can be expired even when their private issuer
+            # configuration no longer authorizes them. Only reveal a date to
+            # the token's own installation.
+            from .access_keys import digest
+            try:
+                installation = canonical_installation_id(request.headers.get("X-GameAccess-Installation", ""))
+            except ValueError:
+                installation = ""
+            previous = session.exec(select(CourtesySession).where(
+                CourtesySession.session_hash == digest(token),
+                CourtesySession.installation_id == installation,
+            )).first() if installation and len(token) <= 200 else None
+            if previous and utc(previous.expires_at) <= now_utc():
+                detail = {"reason": "expired", "expires_at": utc(previous.expires_at).isoformat()}
         raise HTTPException(401, detail)
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
 

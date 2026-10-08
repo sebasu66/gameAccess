@@ -10,7 +10,7 @@ import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, read
 import type { ActivationStatus, ActivationEnd } from "./activation";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
-import { getApiBaseUrl, boundedFetch } from "./settings";
+import { boundedFetch } from "./settings";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
 
@@ -19,7 +19,7 @@ const plusUrl = import.meta.env.VITE_PLUS_CHECKOUT_URL?.trim() || "";
 const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim() || "";
 
 export default function ActivationGate({ children }: { children: ReactNode }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [status, setStatus] = useState<ActivationStatus | null>(null);
   const [freePassUrl, setFreePassUrl] = useState(linkvertiseUrl);
   const [key, setKey] = useState("");
@@ -63,15 +63,14 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     try {
       const token = await readActivationSession();
       while (!signal.aborted) {
-        await waitForActivationConnection(signal, () => setConnecting(true));
+        const connection = await waitForActivationConnection(signal, () => setConnecting(true));
         try {
-          const result = token ? await checkActivation(token, signal) : null;
+          const result = token ? await checkActivation(token, signal, connection.url) : null;
           if (signal.aborted) return;
-          const base = await getApiBaseUrl();
-          const offers = await boundedFetch(fetch, signal)(`${base}/activation/free/config`, { cache: "no-store" })
-            .then(async response => response.ok ? await response.json() as { configured: boolean } : null).catch(() => null);
-          if (signal.aborted) return;
-          setFreePassUrl(offers?.configured ? `${base}/activation/free/start` : linkvertiseUrl);
+          void boundedFetch(fetch, signal)(`${connection.url}/activation/free/config`, { cache: "no-store" })
+            .then(async response => response.ok ? await response.json() as { configured: boolean } : null)
+            .then(offers => { if (!signal.aborted) setFreePassUrl(offers?.configured ? `${connection.url}/activation/free/start` : linkvertiseUrl); })
+            .catch(() => { if (!signal.aborted) setFreePassUrl(linkvertiseUrl); });
           setStatus(result);
           if (result) setEnded(null);
           setConnecting(false);
@@ -168,6 +167,12 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     };
   }, [status, t]);
 
+  useEffect(() => {
+    if (!helpOpen) return;
+    const frame = requestAnimationFrame(() => document.getElementById("obtener-clave")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    return () => cancelAnimationFrame(frame);
+  }, [helpOpen]);
+
   const activate = async (event: FormEvent) => {
     event.preventDefault();
     if (!key.trim() || busy || connecting) return;
@@ -200,14 +205,14 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             <KeyRound size={20} aria-hidden="true" />
             <div><strong>{ended.reason === "expired" ? t("activationTimeEndedTitle") : ended.reason === "revoked" ? t("activationRevokedTitle") : t("activationUnavailableTitle")}</strong>
               <p>{ended.reason === "expired" && ended.expires_at && Number.isFinite(Date.parse(ended.expires_at))
-                ? t("activationExpiredAt", { date: new Date(ended.expires_at).toLocaleString() })
+                ? t("activationExpiredAt", { date: new Date(ended.expires_at).toLocaleString(locale === "es" ? "es-AR" : "en-US", { dateStyle: "medium", timeStyle: "short" }) })
                 : ended.reason === "revoked" && ended.revoked_at && Number.isFinite(Date.parse(ended.revoked_at))
-                ? t("activationRevokedAt", { date: new Date(ended.revoked_at).toLocaleString() })
-                : t("activationTimeEnded")}</p>
+                ? t("activationRevokedAt", { date: new Date(ended.revoked_at).toLocaleString(locale === "es" ? "es-AR" : "en-US", { dateStyle: "medium", timeStyle: "short" }) })
+                : ended.reason === "expired" ? t("activationTimeEnded") : ended.reason === "revoked" ? t("activationRevokedBody") : t("activationUnavailableBody")}</p>
               <p>{t("activationAnotherKey")}</p>
             </div>
           </aside> : null}
-          <section className="activation-card" aria-labelledby="activation-title">
+          <section id="acceso" className="activation-card" aria-labelledby="activation-title">
             <div className="activation-card-heading"><span className="eyebrow">{t("activationBeta")}</span><KeyRound size={20} aria-hidden="true" /></div>
             <h1 id="activation-title">{t("activationEnter")}</h1>
             <p className="activation-lead">{t("activationLead")}</p>
@@ -247,7 +252,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
               </article>
             </div>
           </section>
-          {helpOpen ? <section className="activation-card activation-help" aria-labelledby="activation-help-title">
+          {helpOpen ? <section id="obtener-clave" className="activation-card activation-help" aria-labelledby="activation-help-title">
             <a className="activation-back" href="#acceso"><ArrowLeft size={16} /> {t("activationBack")}</a>
             <h2 id="activation-help-title">{t("activationHelpTitle")}</h2>
             <p>{t("activationHelpLead")}</p>
