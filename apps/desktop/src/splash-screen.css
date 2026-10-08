@@ -20,12 +20,8 @@
 @keyframes ga-opening-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.ga-opening-background.is-docking,.ga-application-reveal.is-revealing{animation:none}.ga-application-reveal.is-revealing{opacity:1}}
 
-/* Cinematic entry: original G/A film, live wordmark, matched admission tickets. */
+/* Activation entry: real app underlay, soft scrim, custom access cards. */
 @font-face{font-family:"Audiowide";src:url("/fonts/Audiowide-Regular.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap}
-.ga-entry-world{position:absolute;inset:0;background:#111820 url("/brand/entry-adventure.webp") center center/cover no-repeat;opacity:0;transition:opacity .45s ease}
-.ga-entry-world::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#03081042,#0710191a 58%,#0708090d),linear-gradient(to bottom,#02040708 15%,#04080d40 36%,#04080d5c 64%,#03060a70 100%)}
-.ga-opening-background[data-stage=validation] .ga-entry-world,.ga-opening-background[data-stage=holding] .ga-entry-world{opacity:1}
-.ga-opening-background[data-stage=validation] .activation-showcase,.ga-opening-background[data-stage=holding] .activation-showcase{opacity:0}
 .ga-application-reveal.is-entry-preview{position:fixed;inset:var(--window-chrome-height,34px) 0 0;overflow:hidden;opacity:1;filter:blur(4px) brightness(.48) saturate(.72);transform:scale(1.018);transform-origin:center;pointer-events:none;transition:filter .35s ease,transform .35s ease}
 .ga-entry-scrim{position:absolute;inset:0;background:#080b1168;backdrop-filter:blur(3px) brightness(.8);-webkit-backdrop-filter:blur(3px) brightness(.8)}
 .ga-validation{display:block;overflow:auto;bottom:64px;pointer-events:auto;align-content:center;padding:40px clamp(28px,4vw,80px);font-family:Manrope,"Segoe UI",sans-serif;color:#eef2f8}
@@ -122,4 +118,4 @@
  .activation-pass-copy{padding:26px clamp(34px,11%,44px)}.activation-pass-heading h3{font-size:32px}.activation-pass p.activation-pass-price{font-size:22px}.activation-pass ul{font-size:16px}.activation-passes-intro p{font-size:16px}.ga-access-footer{min-height:60px;padding:9px 20px}.ga-entry-languages{gap:8px}
 }
 @media(max-width:600px){.activation-pass-grid{grid-template-columns:1fr;gap:25px}.activation-pass{min-height:565px}.activation-pass-copy{padding:28px clamp(30px,10.4%,40px)}.activation-passes-intro h2{font-size:28px}.activation-pass-heading h3{font-size:37px}.activation-pass-heading{min-height:88px}.activation-pass-intro{min-height:124px;padding-top:28px}.activation-pass ul{font-size:17px}.ga-entry-wordmark{font-size:clamp(31px,8vw,42px)}}
-@media(prefers-reduced-motion:reduce){.ga-entry-world,.activation-pass,.activation-action,.activation-pass-link{transition:none}.activation-pass:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.activation-pass,.activation-action,.activation-pass-link{transition:none}.activation-pass:hover{transform:none}}

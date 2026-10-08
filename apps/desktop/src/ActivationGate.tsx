@@ -198,7 +198,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
     {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}>
-      {stage === "validation" || stage === "holding" ? <div className="ga-entry-scrim" aria-hidden="true" /> : <><GameCoverBackdrop /><div className="ga-entry-world" aria-hidden="true" /></>}
+      {stage === "validation" || stage === "holding" ? <div className="ga-entry-scrim" aria-hidden="true" /> : <GameCoverBackdrop />}
     </div> : null}
     {stage === "validation" || stage === "holding" ? <main className="activation-gate ga-validation">
       <div className="ga-entry-layout">
