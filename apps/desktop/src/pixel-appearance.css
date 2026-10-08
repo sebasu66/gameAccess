@@ -37,3 +37,5 @@ body.ga-pixel-style .app-shell{background:transparent}
 .library-catalog-tabs>.ga-led-button[aria-selected=true]{color:white!important}
 .library-catalog-filter-actions>.ga-led-button,.library-sort-dropdown>summary.ga-led-button,.digital-download-nav.ga-led-button{min-height:32px;padding:5px 9px!important}
 .steam-session-chip{position:fixed;left:22px;bottom:62px;z-index:145;max-width:min(520px,calc(100vw - 100px));display:flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid #ffffff24;border-radius:999px;background:#111216d1;color:#e6e6e8;backdrop-filter:blur(18px);font-size:13px}
+
+body.ga-pixel-style .ga-overview-label{left:calc(clamp(24px,3vw,48px) + clamp(60px,4.21875vw,96px) + 182px)}
