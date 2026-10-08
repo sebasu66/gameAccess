@@ -7,6 +7,7 @@ type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () =>
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
  const [formed, setFormed] = useState(stage !== "intro");
+ const [audioState, setAudioState] = useState("idle");
  const video = useRef<HTMLVideoElement>(null);
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
@@ -26,9 +27,12 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  }, []);
  useEffect(() => {
   const src = openingAudio.src as string | null;
-  // No old audio: this stays silent until the supplied sound is configured.
+  // The supplied opening sound follows formation playback, including replay.
   if (!src) return;
   const audio = new Audio(src); audio.preload = "auto"; sound.current = audio;
+  audio.onplaying = () => setAudioState("playing");
+  audio.onended = () => setAudioState("ended");
+  audio.onerror = () => setAudioState("error");
   return () => { audio.pause(); sound.current = null; };
  }, []);
  useEffect(() => {
@@ -47,7 +51,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   return () => clearTimeout(timer);
  }, [phase, reduced, onIntroReady, onDockStart, finishDock]);
  const play = () => {
-  if (phase === "intro") { if (!reduced) void sound.current?.play().catch(() => {}); return; }
+  if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
   if (phase !== "dock" || started.current) return;
   started.current = true;
   const v = video.current;
@@ -69,7 +73,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
   onDockStart();
  };
- return <div className={`gameaccess-splash phase-${phase}`} data-phase={phase} role="status" aria-label={t("splashStarting")}>
+ return <div className={`gameaccess-splash phase-${phase}`} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
   {phase === "hold" ? <img className="gameaccess-splash-film" src="/brand/logo-intro-hold.png" alt="" />
    : <video key={phase} ref={video} className="gameaccess-splash-film" src={phase === "intro" ? "/brand/logo-intro.webm" : "/brand/logo-to-header.webm"}
     muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => phase === "intro" ? setFormed(true) : finishDock()}
