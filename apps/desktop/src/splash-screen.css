@@ -11,10 +11,10 @@
 .ga-application-reveal{opacity:0}
 .ga-application-reveal.is-revealing{animation:ga-opening-in 3s linear both}
 .ga-application-reveal.is-ready{opacity:1;animation:none}
-.ga-validation{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:520;min-height:0;background:none;display:flex;align-items:center;justify-content:flex-end;padding:28px clamp(28px,5vw,96px);pointer-events:none}
-.ga-validation .activation-card{pointer-events:auto;width:min(420px,30vw);max-height:calc(100vh - 130px);overflow:auto;padding:28px;border-color:#ff7a174d;background:linear-gradient(145deg,#23252af2,#111216f2);border-radius:18px;backdrop-filter:blur(20px)}
-.ga-validation h1{font-size:30px}.ga-validation .activation-form{margin-top:22px}.ga-validation .activation-form input{border-color:#ff7a1755;background:#101114}
-.ga-validation .activation-form input:focus{outline-color:#ff7a17}.ga-validation .activation-card p{font-size:13px}
+.ga-validation{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:520;min-height:0;background:none}
+
+
+
 .ga-access-footer{position:fixed;z-index:530;bottom:0;left:0;right:0;min-height:50px;padding:12px 16px;display:flex;align-items:center;gap:18px;background:#111416cc}
 @keyframes ga-opening-out{from{opacity:1}to{opacity:0}}
 @keyframes ga-opening-in{from{opacity:0}to{opacity:1}}
@@ -60,9 +60,9 @@
 .activation-pass-plus .activation-pass-heading h3{color:#ff8530}
 .activation-pass-heading>span{font-size:11px;line-height:1.4;font-weight:750;letter-spacing:.04em;color:#bdbdb6}
 .activation-pass-plus .activation-pass-heading>span{color:#ffa05e}
-.activation-pass p{margin:6px 0;color:#d0d0c8;font-size:14px;line-height:1.55}
+.activation-pass p{margin:6px 0;color:#d0d0c8;font-size:15px;line-height:1.55}
 .activation-pass p.activation-pass-price{font-size:22px;font-weight:750;color:#f4f4f2;margin:14px 0 6px}
-.activation-pass ul{display:grid;gap:14px;list-style:none;margin:20px 0 26px;padding:0;color:#deded6;font-size:14px;line-height:1.55}
+.activation-pass ul{display:grid;gap:14px;list-style:none;margin:20px 0 26px;padding:0;color:#deded6;font-size:16px;line-height:1.55}
 .activation-pass li{display:flex;gap:8px;align-items:flex-start}
 .activation-pass li svg{flex:none;width:17px;height:17px;margin-top:2px;color:#bdbdb6}
 .activation-pass-plus li svg{color:#ff8530}
