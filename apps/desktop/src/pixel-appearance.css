@@ -76,3 +76,7 @@ body:has(.app-shell) .ga-access-brand{display:none}
 .ga-grid-zoom output{width:4ch;color:#cdd0cf;font-variant-numeric:tabular-nums;text-align:right}
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-shell{max-width:var(--ga-cover-floor,396px)}
 body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
+
+/* Search information remains readable where posters pass behind the dock. */
+.ga-search-meta{align-self:center;max-width:100%;padding:5px 12px;border-radius:5px;background:#0b0d10ed;backdrop-filter:blur(12px)}
+.ga-search-meta .ga-search-results,.ga-search-meta .ga-grid-zoom{color:#bcc3c8}
