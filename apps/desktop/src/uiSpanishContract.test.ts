@@ -8,7 +8,7 @@ import tabsSource from "./CatalogTabs.tsx?raw";
 import completeSource from "./DownloadCompleteDialog.tsx?raw";
 import storageSource from "./gameStorage.ts?raw";
 import libraryDetailSource from "./LibraryDetailPanel.tsx?raw";
-import steamSettingsSource from "./SteamSessionSettings.tsx?raw";
+import steamSettingsSource from "./AppSettings.tsx?raw";
 
 describe("Spanish desktop UI copy", () => {
   it("keeps primary labels and user-facing messages in Spanish", () => {

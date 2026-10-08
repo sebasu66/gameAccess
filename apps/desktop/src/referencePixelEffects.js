@@ -95,9 +95,9 @@ function fillOrange(c,s,t,bias){
 
 const targets=new Map();
 // Main application actions only: settings contents, dialogs and titlebar are excluded.
-const selector='.library-catalog-view-switch > button,.catalog-bottom-actions > button,.library-catalog-filter-actions > button,.library-sort-dropdown > summary,.digital-download-nav,.ga-settings-fab,.ga-big-screen-toggle';
+const selector='.library-catalog-tabs > button,.catalog-bottom-actions > button,.library-catalog-filter-actions > button,.library-sort-dropdown > summary,.digital-download-nav,.ga-settings-fab,.ga-big-screen-toggle';
 const excluded='[role="dialog"],[role="alertdialog"],.ga-settings-panel';
-function selected(b){return !b.matches('.library-catalog-view-button')||b.getAttribute('aria-pressed')==='true'||b.classList.contains('active')}
+function selected(b){return !b.matches('.library-catalog-tabs > button')||b.getAttribute('aria-selected')==='true'}
 function sizeButton(o){
  const w=o.button.clientWidth,h=o.button.clientHeight;if(!w||!h)return;
  if(w===o.width&&h===o.height)return;
@@ -153,7 +153,7 @@ const observer=new MutationObserver(()=>{syncButtons();dirty=true});
 const resizeField=()=>{build();dirty=true};
 const visibility=()=>{last=performance.now();dirty=true};
 build();syncButtons();updateStyle();
-observer.observe(document.getElementById('root'),{childList:true,subtree:true,attributes:true,attributeFilter:['aria-pressed','class']});
+observer.observe(document.getElementById('root'),{childList:true,subtree:true,attributes:true,attributeFilter:['aria-selected','aria-pressed','class']});
 window.addEventListener('resize',resizeField);window.addEventListener(PIXEL_STYLE_EVENT,updateStyle);
 window.addEventListener('storage',updateStyle);document.addEventListener('visibilitychange',visibility);media.addEventListener('change',visibility);
 frame=requestAnimationFrame(loop);

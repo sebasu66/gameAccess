@@ -12,7 +12,7 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .ga-led-button svg{position:relative;z-index:1;filter:drop-shadow(0 0 1px rgba(60,18,0,.95)) drop-shadow(0 1px 1.5px rgba(0,0,0,.6)) drop-shadow(0 3px 6px rgba(0,0,0,.5))}
 .ga-led-button[data-pixel-active=false]{background:#1b1c21!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.9)!important}
 .ga-led-button[data-pixel-active=false] canvas,.ga-led-button[data-pixel-active=false]::before,.ga-led-button[data-pixel-active=false]::after{display:none}
-.library-catalog-view-button.ga-led-button,.catalog-refresh-button.ga-led-button,.digital-download-nav.ga-led-button,.ga-settings-fab.ga-led-button{border-radius:50%!important}
+.library-catalog-tabs > .ga-led-button,.catalog-refresh-button.ga-led-button,.ga-settings-fab.ga-led-button{border-radius:50%!important}
 .topbar .brand{display:flex;align-items:center;gap:5px}
 .ga-header-logo{display:inline-flex;flex:0 0 auto;width:clamp(60px,4.21875vw,96px);height:clamp(60px,4.21875vw,96px);pointer-events:none}
 .ga-header-logo video,.ga-header-logo img{width:100%;height:100%;object-fit:contain;background:transparent}
@@ -31,3 +31,9 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .ga-style-toggle,.ga-session-options label{display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.6}.ga-style-toggle input,.ga-session-options input{accent-color:#ff7a17}
 .ga-settings-panel .ga-session-options{grid-template-columns:1fr;margin-top:24px;gap:8px}.ga-settings-panel footer{padding:20px 30px;border-top:1px solid #ffffff16;display:flex;align-items:center;justify-content:space-between;gap:18px}.ga-settings-panel footer>div{display:flex;gap:8px}
 @media(max-width:700px){.ga-settings-panel fieldset{grid-template-columns:1fr}.ga-settings-panel footer{align-items:flex-start;flex-direction:column}}
+
+body.ga-pixel-style .app-shell{background:transparent}
+.library-catalog-tabs>.ga-led-button,.library-catalog-filter-actions>.ga-led-button,.library-sort-dropdown>summary.ga-led-button{position:relative}
+.library-catalog-tabs>.ga-led-button[aria-selected=true]{color:white!important}
+.library-catalog-filter-actions>.ga-led-button,.library-sort-dropdown>summary.ga-led-button,.digital-download-nav.ga-led-button{min-height:32px;padding:5px 9px!important}
+.steam-session-chip{position:fixed;left:22px;bottom:62px;z-index:145;max-width:min(520px,calc(100vw - 100px));display:flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid #ffffff24;border-radius:999px;background:#111216d1;color:#e6e6e8;backdrop-filter:blur(18px);font-size:13px}
