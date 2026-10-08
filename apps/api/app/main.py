@@ -2444,3 +2444,6 @@ from .digital_admin_routes import (  # noqa: E402
 app.include_router(digital_admin_router)
 app.add_api_route("/admin/digital", get_digital_admin_page, methods=["GET"], include_in_schema=False)
 app.add_api_route("/admin/digital/", get_digital_admin_page, methods=["GET"], include_in_schema=False)
+
+from .linkvertise_access import router as linkvertise_access_router
+app.include_router(linkvertise_access_router)

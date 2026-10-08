@@ -10,6 +10,7 @@ import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, read
 import type { ActivationStatus, ActivationEnd } from "./activation";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
+import { getApiBaseUrl, boundedFetch } from "./settings";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
 
@@ -20,6 +21,7 @@ const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim()
 export default function ActivationGate({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<ActivationStatus | null>(null);
+  const [freePassUrl, setFreePassUrl] = useState(linkvertiseUrl);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -65,6 +67,11 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         try {
           const result = token ? await checkActivation(token, signal) : null;
           if (signal.aborted) return;
+          const base = await getApiBaseUrl();
+          const offers = await boundedFetch(fetch, signal)(`${base}/activation/free/config`, { cache: "no-store" })
+            .then(async response => response.ok ? await response.json() as { configured: boolean } : null).catch(() => null);
+          if (signal.aborted) return;
+          setFreePassUrl(offers?.configured ? `${base}/activation/free/start` : linkvertiseUrl);
           setStatus(result);
           if (result) setEnded(null);
           setConnecting(false);
@@ -234,7 +241,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
                 <p className="activation-pass-price">{t("activationPlusPrice")}</p>
                 <p>{t("activationPlusTrial")}</p>
                 <ul>{(["activationEverythingBase", "activationParallelDownloads", "activationFastDownloads"] as const).map(item =>
-                  <li key={item}><Check size={14} aria-hidden="true" />{t(item as "activationOneClick")}</li>)}</ul>
+                  <li key={item}><Check size={14} aria-hidden="true" />{t(item)}</li>)}</ul>
                 {plusUrl ? <a className="activation-pass-link" href={plusUrl} target="_blank" rel="noopener noreferrer">{t("activationGetPlus")} <ArrowUpRight size={16} /></a>
                   : <span className="activation-pass-pending">{t("activationPlusPending")}</span>}
               </article>
@@ -246,7 +253,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             <p>{t("activationHelpLead")}</p>
             {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} /> : null}
             <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
-            {linkvertiseUrl ? <a className="activation-provider-link" href={linkvertiseUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
+            {freePassUrl && !connecting ? <a className="activation-provider-link" href={freePassUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
               : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
           </section> : null}
         </div>

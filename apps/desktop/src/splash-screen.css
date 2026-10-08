@@ -21,7 +21,7 @@
 @media(prefers-reduced-motion:reduce){.ga-opening-background.is-docking,.ga-application-reveal.is-revealing{animation:none}.ga-application-reveal.is-revealing{opacity:1}}
 
 /* Entry screen: the frosted access form stays left of the existing G/A film. */
-.ga-opening-background[data-stage=validation]::after,.ga-opening-background[data-stage=holding]::after{
+.ga-opening-background[data-stage=validation] .activation-showcase::after,.ga-opening-background[data-stage=holding] .activation-showcase::after{
  background:linear-gradient(to bottom,rgba(7,9,13,.3) 0%,rgba(7,9,13,.4) 25%,rgba(7,9,13,.87) 36%,rgba(7,9,13,.87) 64%,rgba(7,9,13,.4) 75%,rgba(7,9,13,.45) 100%);
 }
 .ga-validation{display:block;overflow:auto;padding:32px max(28px,calc((100vw - 1200px)/2)) 36px;bottom:50px;pointer-events:auto;align-content:center}

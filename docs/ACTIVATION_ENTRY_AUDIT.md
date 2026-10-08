@@ -30,9 +30,11 @@ Frontend tests exercise automatic recovery after 90 seconds and cancellation.
 
 ## External integration gaps requiring live configuration
 
-Repository inspection found a configurable Linkvertise outbound URL and help content,
-but no verified ad-completion callback or automatic ad-to-key issuance endpoint.
-The existing generic admin key issuance is not proof of Linkvertise integration.
+Initial repository inspection found only a configurable Linkvertise outbound URL.
+A disabled-by-default callback now verifies the official single-use anti-bypass hash,
+claims each completion once and displays one 12-hour key. Focused mocked-provider
+tests cover valid, invalid, replayed and unconfigured flows. Live publisher validation
+is still pending; see LINKVERTISE_SETUP.md. Tests are not proof of real ad completion.
 
 Linkvertise anti-bypass validation accepts a single-use hash for only 10 seconds:
 https://publisher.linkvertise.com/documentations/Anti_Bypass_Documentation.pdf
@@ -50,7 +52,8 @@ Render free services may wake in about one minute and lose local SQLite changes 
 sleep/restart/redeploy:
 https://render.com/docs/free
 render.yaml requests GAMEACCESS_DATABASE_URL, but live database persistence must be
-verified from the service configuration. A free instance with local SQLite cannot
+verified from the service configuration. The inspected live /health response on
+2026-10-08 reports postgresql, so this service is not using local SQLite. A free instance with local SQLite cannot
 reliably preserve issued keys. Do not infer production persistence from local tests.
 
 ## Validation boundary
