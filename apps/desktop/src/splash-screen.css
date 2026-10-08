@@ -70,13 +70,13 @@
 .activation-pass::after{content:"";position:absolute;z-index:-1;inset:0;background:linear-gradient(#0a121b33 0%,#0a121ba6 29%,#0a121bc4 65%,#0a121b66 100%);pointer-events:none}
 .activation-pass-plus{background:#261a0c}
 .activation-pass-plus::after{background:linear-gradient(#180c0240 0%,#180c029e 29%,#110c07cc 65%,#180c0255 100%)}
-.activation-pass-copy{display:flex;flex-direction:column;width:100%;padding:28px 30px 25px}
-.activation-pass-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px}
-.activation-pass-heading h3{font:800 37px/1.05 Manrope,"Segoe UI",sans-serif;letter-spacing:.01em;margin:0 0 7px;color:#f4f6fa}
-.activation-pass-heading span{display:block;color:#b8c6d9;font-size:11px;font-weight:700;letter-spacing:.09em}
-.activation-pass-heading>svg{flex:none;color:#bccbde;opacity:.85}
-.activation-pass-plus .activation-pass-heading span,.activation-pass-plus .activation-pass-heading>svg{color:#e9bd67}
-.activation-pass-intro{min-height:130px;padding-top:20px}
+.activation-pass-copy{display:flex;flex-direction:column;width:100%;padding:28px clamp(40px,11%,56px) 25px}
+.activation-pass-heading{display:flex;align-items:center;justify-content:center;min-height:88px;text-align:center}
+.activation-pass-title{display:flex;align-items:center;justify-content:center;gap:11px}.activation-pass-heading h3{font:800 37px/1.05 Manrope,"Segoe UI",sans-serif;letter-spacing:.01em;margin:0;color:#f4f6fa}
+.activation-pass-heading span{display:block;margin-top:8px;color:#b8c6d9;font-size:11px;font-weight:700;letter-spacing:.09em}
+.activation-pass-title svg{flex:none;color:#bccbde;opacity:.9;stroke-width:1.9}
+.activation-pass-plus .activation-pass-heading span,.activation-pass-plus .activation-pass-title svg{color:#e9bd67}
+.activation-pass-intro{min-height:130px;padding-top:32px}
 .activation-pass p{margin:0;color:#dbe3ed;font-size:16px;line-height:1.55}
 .activation-pass p.activation-pass-price{font-size:24px;font-weight:800;line-height:1.35;color:#f4f6fa;margin:0 0 9px}
 .activation-pass-plus p.activation-pass-price{color:#ffac4d}
@@ -108,7 +108,7 @@
 @media(min-width:1181px) and (max-height:850px){
  .ga-validation{padding:24px 34px}.ga-entry-layout{gap:34px}.ga-entry-content{gap:20px}.ga-entry-brand video,.ga-entry-brand img{height:215px;width:250px}.ga-entry-wordmark{font-size:clamp(36px,3.7vw,52px);margin-top:-10px}.ga-entry-tagline{margin-top:8px;font-size:10px}
  .ga-validation .activation-card{padding:22px 26px 24px}.ga-validation .activation-card h1{font-size:30px}.ga-validation .activation-lead{font-size:16px}.ga-validation .activation-form{margin-top:21px}.ga-validation .activation-form input{min-height:52px}.ga-validation .activation-action{min-height:53px}
- .activation-pass{min-height:520px}.activation-pass-copy{padding:24px 26px 20px}.activation-pass-heading h3{font-size:32px}.activation-pass-intro{min-height:125px;padding-top:15px}.activation-pass ul{font-size:16px;gap:15px;margin:17px 0 20px}.activation-pass li{gap:12px}.activation-pass p.activation-pass-price{font-size:22px}.activation-passes-intro{margin-bottom:20px}.activation-passes-intro p{font-size:16px}.activation-pass-actions{min-height:72px}
+ .activation-pass{min-height:520px}.activation-pass-copy{padding:24px clamp(36px,10%,46px) 20px}.activation-pass-heading h3{font-size:32px}.activation-pass-heading{min-height:82px}.activation-pass-intro{min-height:125px;padding-top:15px}.activation-pass ul{font-size:16px;gap:15px;margin:17px 0 20px}.activation-pass li{gap:12px}.activation-pass p.activation-pass-price{font-size:22px}.activation-passes-intro{margin-bottom:20px}.activation-passes-intro p{font-size:16px}.activation-pass-actions{min-height:72px}
 }
 @media(max-width:1180px){
  .ga-entry-layout{grid-template-columns:minmax(0,1fr);max-width:850px;gap:38px}.ga-entry-content{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(320px,1.15fr);align-items:center;gap:26px}.ga-entry-brand{grid-column:1;grid-row:1}.ga-entry-brand video,.ga-entry-brand img{width:260px;height:245px}.ga-entry-wordmark{font-size:clamp(29px,3.8vw,42px)}.ga-entry-tagline{font-size:10px;letter-spacing:.12em}.ga-entry-content>.activation-card{grid-column:2;grid-row:1}.activation-ended{grid-column:1/-1}
@@ -116,7 +116,7 @@
 }
 @media(max-width:760px){
  .ga-entry-content{display:flex;gap:25px}.ga-entry-layout{max-width:640px;gap:34px}.ga-entry-brand video,.ga-entry-brand img{width:245px;height:215px}.ga-entry-wordmark{font-size:42px}.ga-entry-tagline{font-size:11px}.ga-validation{padding:24px 18px;bottom:60px}.ga-validation .activation-card{padding:24px}.ga-validation .activation-card h1{font-size:30px}.ga-validation .activation-lead{font-size:16px}
- .activation-pass-copy{padding:26px}.activation-pass-heading h3{font-size:32px}.activation-pass p.activation-pass-price{font-size:22px}.activation-pass ul{font-size:16px}.activation-passes-intro p{font-size:16px}.ga-access-footer{min-height:60px;padding:9px 20px}.ga-entry-languages{gap:8px}
+ .activation-pass-copy{padding:26px clamp(34px,11%,44px)}.activation-pass-heading h3{font-size:32px}.activation-pass p.activation-pass-price{font-size:22px}.activation-pass ul{font-size:16px}.activation-passes-intro p{font-size:16px}.ga-access-footer{min-height:60px;padding:9px 20px}.ga-entry-languages{gap:8px}
 }
-@media(max-width:600px){.activation-pass-grid{grid-template-columns:1fr;gap:25px}.activation-pass{min-height:565px}.activation-pass-copy{padding:28px 32px}.activation-passes-intro h2{font-size:28px}.activation-pass-heading h3{font-size:37px}.activation-pass-intro{min-height:124px}.activation-pass ul{font-size:17px}.ga-entry-wordmark{font-size:clamp(31px,8vw,42px)}}
+@media(max-width:600px){.activation-pass-grid{grid-template-columns:1fr;gap:25px}.activation-pass{min-height:565px}.activation-pass-copy{padding:28px clamp(30px,10.4%,40px)}.activation-passes-intro h2{font-size:28px}.activation-pass-heading h3{font-size:37px}.activation-pass-heading{min-height:88px}.activation-pass-intro{min-height:124px;padding-top:28px}.activation-pass ul{font-size:17px}.ga-entry-wordmark{font-size:clamp(31px,8vw,42px)}}
 @media(prefers-reduced-motion:reduce){.ga-entry-world,.activation-pass,.activation-action,.activation-pass-link{transition:none}.activation-pass:hover{transform:none}}

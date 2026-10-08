@@ -49,3 +49,12 @@ groups the brand and form above the comparison; mobile stacks them and, below
 above a persistent footer. Existing logo motion and startup behavior continue;
 ticket hover is subtle and removed for reduced motion. Keyboard focus remains
 visible and decorative images/icons are hidden from assistive technology.
+
+## Ticket border spacing and centered headings
+
+A fresh screenshot of the running desktop entry was checked against the actual
+transparent ticket image rails. Ticket copy now sits farther inside those rails
+with responsive horizontal padding. BASE and PLUS titles are centered inside
+the engraved upper arch with the gamepad or crown beside the name. The beta
+badge sits below, and the price line is lowered to open space after the heading.
+The same relationships continue at narrow card widths.

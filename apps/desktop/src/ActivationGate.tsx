@@ -250,7 +250,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             <article className="activation-pass">
               <img className="activation-ticket-art" src="/brand/access-ticket-base.webp" alt="" />
               <div className="activation-pass-copy">
-                <div className="activation-pass-heading"><div><h3>BASE</h3><span>{t("activationBetaShort")}</span></div><Gamepad2 size={38} aria-hidden="true" /></div>
+                <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>BASE</h3><Gamepad2 size={34} aria-hidden="true" /></div><span>{t("activationBetaShort")}</span></div></div>
                 <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationBasePrice")}</p><p>{t("activationBaseAds")}</p></div>
                 <ul>
                   <li><Download aria-hidden="true" /><span>{t("activationOneClick")}</span></li>
@@ -264,7 +264,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             <article className="activation-pass activation-pass-plus">
               <img className="activation-ticket-art" src="/brand/access-ticket-plus.webp" alt="" />
               <div className="activation-pass-copy">
-                <div className="activation-pass-heading"><div><h3>PLUS</h3><span>{t("activationBetaPromo")}</span></div><Crown size={38} aria-hidden="true" /></div>
+                <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>PLUS</h3><Crown size={34} aria-hidden="true" /></div><span>{t("activationBetaPromo")}</span></div></div>
                 <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationPlusPrice")}</p><p className="activation-pass-trial">{t("activationPlusTrial")}</p></div>
                 <ul>
                   <li><CheckCircle2 aria-hidden="true" /><span>{t("activationEverythingBase")}</span></li>
