@@ -277,8 +277,9 @@ export async function startLocalAutomation(): Promise<void> {
       45_000,
       "Game Access initial UI",
     );
-    const home = await loadHome();
-    const games = home.games;
+    // Opening/settings/search checks do not require fetching the protected catalog.
+    const needsCatalog = script.tasks.some(task => ["select", "install", "uninstall", "play"].includes(task.action) || Boolean(task.state));
+    const games = needsCatalog ? (await loadHome()).games : [];
 
     for (let index = 0; index < script.tasks.length; index += 1) {
       const task = script.tasks[index];
