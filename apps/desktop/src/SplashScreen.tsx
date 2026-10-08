@@ -42,14 +42,17 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
-   const timer = window.setTimeout(onIntroReady, reduced ? 80 : 700);
+   // Keep the formed logo large until the complete opening sound finishes.
+   const audio = sound.current;
+   const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
+   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.max(700, remaining));
    return () => clearTimeout(timer);
   }
   if (reduced) { onDockStart(); finishDock(); return; }
   // Decoder fallback advances the animation only; the gate still requires approval.
   const timer = window.setTimeout(finishDock, 8000);
   return () => clearTimeout(timer);
- }, [phase, reduced, onIntroReady, onDockStart, finishDock]);
+ }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
  const play = () => {
   if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
   if (phase !== "dock" || started.current) return;
