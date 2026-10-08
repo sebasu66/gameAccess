@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Minus, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import BuildStamp from "./BuildStamp";
-import LanguageSwitch from "./LanguageSwitch";
 import { useI18n } from "./i18n";
 
 const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -32,9 +30,7 @@ export default function WindowChrome() {
   const maximizeLabel = maximized ? t("restore") : t("maximize");
   return (
     <div role="toolbar" aria-label={t("windowControls")} className="window-chrome" data-tauri-drag-region onDoubleClick={() => void toggleMaximize()}>
-      <BuildStamp />
       <div className="window-drag-space" data-tauri-drag-region aria-hidden="true" onMouseDown={(event) => void startDragging(event)} />
-      <LanguageSwitch />
       <div className="window-controls">
         <button type="button" aria-label={t("minimize")} title={t("minimize")} onDoubleClick={(event) => event.stopPropagation()} onClick={() => void appWindow.minimize()}><Minus size={15} /></button>
         <button type="button" aria-label={maximizeLabel} title={maximizeLabel} onDoubleClick={(event) => event.stopPropagation()} onClick={() => void toggleMaximize()}><Square size={12} /></button>

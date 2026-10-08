@@ -8,8 +8,9 @@ import { hasTauriRuntime, steamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
 export type AutomationTask = {
-  action: "wait" | "search" | "select" | "install" | "uninstall" | "play" | "screenshot" | "assert" | "click";
+  action: "wait" | "search" | "select" | "install" | "uninstall" | "play" | "screenshot" | "assert" | "click" | "input";
   term?: string;
+  value?: string;
   game?: string;
   app_id?: number;
   id?: number;
@@ -89,7 +90,7 @@ function setReactInput(input: HTMLInputElement, value: string) {
 
 async function setSearch(term: string) {
   const input = await waitFor(
-    () => document.querySelector<HTMLInputElement>('.global-search input[aria-label="Buscar en tu biblioteca"]'),
+    () => document.querySelector<HTMLInputElement>('.global-search input'),
     30_000,
     "Game Access search box",
   );
@@ -172,6 +173,15 @@ async function executeTask(task: AutomationTask, games: CatalogGame[], current: 
     case "search":
       await setSearch(task.term ?? task.game ?? "");
       return { current, detail: { term: task.term ?? task.game ?? "" } };
+    case "input": {
+      if (!task.selector || task.value == null) throw new Error("input requires selector and value.");
+      const input = await waitFor(() => {
+        const candidate = document.querySelector<HTMLInputElement>(task.selector!);
+        return candidate instanceof HTMLInputElement && isVisible(candidate) ? candidate : null;
+      }, (task.timeout_seconds ?? 10) * 1000, `input selector ${task.selector}`);
+      input.focus(); setReactInput(input, task.value); await sleep(350);
+      return { current, detail: { selector: task.selector, value: task.value } };
+    }
     case "select": {
       const game = resolveGame(games, task, current);
       await selectGame(game);
@@ -273,12 +283,13 @@ export async function startLocalAutomation(): Promise<void> {
       throw new Error("Automation script must use version 1 and contain a tasks array.");
     }
     await waitFor(
-      () => document.querySelector(".app-shell") || document.querySelector(".runtime-gate"),
+      () => document.querySelector(".app-shell") || document.querySelector(".runtime-gate") || document.querySelector(".gameaccess-splash"),
       45_000,
       "Game Access initial UI",
     );
-    const home = await loadHome();
-    const games = home.games;
+    // Opening/settings/search checks do not require fetching the protected catalog.
+    const needsCatalog = script.tasks.some(task => ["select", "install", "uninstall", "play"].includes(task.action) || Boolean(task.state));
+    const games = needsCatalog ? (await loadHome()).games : [];
 
     for (let index = 0; index < script.tasks.length; index += 1) {
       const task = script.tasks[index];
