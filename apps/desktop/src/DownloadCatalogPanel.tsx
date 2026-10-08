@@ -1,4 +1,5 @@
 import FilledIcon from "./FilledIcon";
+import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog, { activeFilterTags } from "./LibraryFilterDialog";
@@ -151,6 +152,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
   const indexes = new Map(props.games.map((game, index) => [game.id, index]));
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
@@ -166,21 +168,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
-  // Size the grid from at most 50 matches, not the full catalog. At 50 results
-  // covers use 77% of the responsive baseline (10% above the former 70%);
-  // at 5 or fewer they top out
-  // 50% above it. Viewport width and height set the baseline; hard pixel bounds
-  // keep both small windows and sparse searches usable.
-  const resultCount = Math.max(1, Math.min(50, displaySection.games.length));
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
-  const gap = viewport.width < 760 ? 16 : 28;
-  const baseMinimum = viewport.width >= 1800 ? 210 : viewport.width <= 760 ? 138 : viewport.width <= 1100 ? 160 : 173;
-  const baseColumns = Math.max(1, Math.floor((availableWidth + gap) / (baseMinimum + gap)));
-  const baseline = (availableWidth - gap * (baseColumns - 1)) / baseColumns;
-  const scale = resultCount <= 5 ? 1.5 : resultCount <= 20 ? 1 + (20 - resultCount) / 30 : 1 - (resultCount - 20) * .23 / 30;
-  const maximum = Math.max(132, Math.min(360, baseline * 1.5, (viewport.height - 270) * 2 / 3));
-  const coverFloor = Math.max(132, Math.min(maximum, baseline * scale));
-  const coverColumns = Math.min(resultCount, Math.max(1, Math.floor((availableWidth + gap) / (coverFloor + gap))));
+  const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
+  const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
   const toggleFilter = (group: "genres" | "features", value: string) => {
     const current = searchFilters[group] as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
@@ -245,7 +235,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock"><SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {displaySection.games.filter(game => props.preferences?.[game.id] === 1).length} {locale === "es" ? "favoritos" : "favorites"}</output></div>
+          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {displaySection.games.filter(game => props.preferences?.[game.id] === 1).length} {locale === "es" ? "favoritos" : "favorites"}</output>
+          <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label></div></div>
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
           </div>
@@ -274,7 +265,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {filtersOpen ? <LibraryFilterDialog games={view === "installed" ? allGames.filter(game => { const status = game.app_id ? props.downloads[game.app_id] : undefined; const state = gameStateManager.resolve(status); return state.installed || state.prepared || props.preferences?.[game.id] === 1; }) : allGames} query={searchQuery} filters={searchFilters} genres={facets.genres} onApply={next => { onSearchFiltersChange(next); setFiltersOpen(false); setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }} /> : null}
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       <div className="ga-scroll-frame">
-      <div ref={props.gridRef} className="library-room-grid library-section-scroll" style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
+      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
         <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label="Desplazar juegos" /> : null}

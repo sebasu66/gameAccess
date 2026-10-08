@@ -39,8 +39,8 @@ body.ga-pixel-style .app-shell{background:transparent}
 .steam-session-chip{position:fixed;left:22px;bottom:62px;z-index:145;max-width:min(520px,calc(100vw - 100px));display:flex;align-items:center;gap:9px;padding:10px 14px;border:1px solid #ffffff24;border-radius:999px;background:#111216d1;color:#e6e6e8;backdrop-filter:blur(18px);font-size:13px}
 
 /* Corner mark: equal visible margins below the native titlebar. */
-:root{--ga-logo-frame:clamp(60px,4.21875vw,96px);--ga-logo-margin:16px}
-body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:calc(var(--ga-logo-margin) - var(--ga-logo-frame) * .2);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin) - var(--ga-logo-frame) * .2);width:var(--ga-logo-frame);height:var(--ga-logo-frame);padding:0;gap:0}
+:root{--ga-logo-frame:clamp(60px,4.21875vw,96px);--ga-logo-margin:20px}
+body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:var(--ga-logo-frame);height:var(--ga-logo-frame);padding:0;gap:0}
 .ga-header-logo{width:var(--ga-logo-frame);height:var(--ga-logo-frame)}
 body:has(.app-shell) .ga-access-brand{display:none}
 .library-catalog-toolbar .library-catalog-tabs .ga-led-button[aria-selected=true]{color:#fff!important}
@@ -66,3 +66,13 @@ body:has(.app-shell) .ga-access-brand{display:none}
 .ga-big-screen-toggle{left:230px}
 .ga-build-stamp{display:block;margin-top:24px;padding-top:18px;border-top:1px solid #ffffff16;color:#a5a7ad;font:500 11px Manrope,"Segoe UI",sans-serif;overflow-wrap:anywhere}
 @media(max-width:1250px){.ga-big-screen-toggle{left:220px;width:145px}.catalog-scroll-action,.library-catalog-filter-actions{gap:18px!important}}
+
+/* Calm overview controls: outline search and zoom layered over automatic sizing. */
+.library-catalog-toolbar .global-search-box>.ga-search-icon{fill:none;stroke-width:2}
+.ga-search-meta{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}
+.ga-grid-zoom{display:inline-flex;align-items:center;gap:9px;color:#a5a7ad;font:600 11px Manrope,"Segoe UI",sans-serif;white-space:nowrap}
+.ga-grid-zoom input{width:110px;height:16px;margin:0;padding:0;border:0;accent-color:var(--ga-orange);cursor:pointer}
+.ga-grid-zoom input:focus-visible{outline:2px solid var(--ga-orange);outline-offset:4px;border-radius:3px}
+.ga-grid-zoom output{width:4ch;color:#cdd0cf;font-variant-numeric:tabular-nums;text-align:right}
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-card-shell{max-width:var(--ga-cover-floor,396px)}
+body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}

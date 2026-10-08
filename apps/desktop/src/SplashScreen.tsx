@@ -63,8 +63,8 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   const scale = innerWidth / 1920;
   const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
   const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
-  const cx = target ? target.x + target.width / 2 : 16 + frame * .3;
-  const cy = target ? target.y + target.height / 2 : chrome + 16 + frame * .3;
+  const cx = target ? target.x + target.width / 2 : 20 + frame / 2;
+  const cy = target ? target.y + target.height / 2 : chrome + 20 + frame / 2;
   const x = cx - 64 * scale, y = cy - 54 * scale;
   const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
   const ratio = frame / (81 * scale);

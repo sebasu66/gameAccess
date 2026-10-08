@@ -8,8 +8,9 @@ import { hasTauriRuntime, steamDownloadStatus } from "./native";
 import type { CatalogGame } from "./types";
 
 export type AutomationTask = {
-  action: "wait" | "search" | "select" | "install" | "uninstall" | "play" | "screenshot" | "assert" | "click";
+  action: "wait" | "search" | "select" | "install" | "uninstall" | "play" | "screenshot" | "assert" | "click" | "input";
   term?: string;
+  value?: string;
   game?: string;
   app_id?: number;
   id?: number;
@@ -172,6 +173,15 @@ async function executeTask(task: AutomationTask, games: CatalogGame[], current: 
     case "search":
       await setSearch(task.term ?? task.game ?? "");
       return { current, detail: { term: task.term ?? task.game ?? "" } };
+    case "input": {
+      if (!task.selector || task.value == null) throw new Error("input requires selector and value.");
+      const input = await waitFor(() => {
+        const candidate = document.querySelector<HTMLInputElement>(task.selector!);
+        return candidate instanceof HTMLInputElement && isVisible(candidate) ? candidate : null;
+      }, (task.timeout_seconds ?? 10) * 1000, `input selector ${task.selector}`);
+      input.focus(); setReactInput(input, task.value); await sleep(350);
+      return { current, detail: { selector: task.selector, value: task.value } };
+    }
     case "select": {
       const game = resolveGame(games, task, current);
       await selectGame(game);

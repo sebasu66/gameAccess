@@ -1,6 +1,5 @@
-import FilledIcon from "./FilledIcon";
 import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
 
@@ -33,7 +32,7 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   return (
     <div className="global-search">
       <label className="search-box global-search-box">
-        <FilledIcon name="search" />
+        <Search className="ga-search-icon" size={28} strokeWidth={2} />
         <input
           ref={inputRef}
           value={query}
