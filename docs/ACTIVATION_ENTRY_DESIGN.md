@@ -6,12 +6,12 @@ preserved. Audiowide supplies the silver/orange live wordmark; Manrope supplies
 headings, forms, prices and feature text. Audiowide is self-hosted with its OFL
 license and FONTLOG, sourced from Google's official fonts repository.
 
-BASE and PLUS share the same grid width, row height, content padding, ticket
-silhouette, introductory text area and bottom action alignment. Their only
-material distinction is a standard slate/silver ticket versus a premium gold
-ticket. Distinct feature icons convey download, television, time, search,
-included features, parallel downloads and speed. The footer keeps connection
-status left and globe/language controls right. All live text remains localized.
+BASE and PLUS share the same grid width, row height, content padding, access
+card proportions, introductory text area and bottom action alignment. BASE uses
+graphite grey; PLUS uses brushed metallic titanium with a restrained warm rim.
+Distinct feature icons convey download, television, time, search, included
+features, parallel downloads and speed. The footer keeps connection status left
+and globe/language controls right. All live text remains localized.
 
 The form preserves single-button activation/retry behavior, bounded server
 attempts without a total wake deadline, and a separate previous-key notice.
@@ -19,32 +19,34 @@ The free-key tutorial opens below the main layout. PLUS stays pending until a
 real checkout is configured. These visuals do not add payment integrations,
 tiers, Sentry or provider changes.
 
-## Generated artwork
+## Entry backdrop and access card artwork
 
-The entry background is a generated, Baldur's Gate-inspired coastal cityscape:
-a dense walled city, monumental stone bridge, harbor, storm-lit skyline and
-distant nautiloid-like silhouettes. It is original illustrative artwork, not
-official game art, and contains no logo or interface text. The BASE and PLUS
-textures are custom matching admission tickets. The tickets have no embedded
-UI text, key, barcode or price. Their quiet centers and CSS shading preserve
-foreground readability.
+During activation, the actual GameAccess Digital interface is mounted beneath
+the foreground gate. A noninteractive layer dims and softly blurs that live
+application view; it is not a generated game scene or marketing illustration.
+The foreground retains the animated brand, activation form, BASE and PLUS plan
+comparison, and persistent footer. The normal application reveal continues
+after successful activation.
+
+BASE and PLUS use matching portrait access-card textures sized to the existing
+plan panels. BASE is graphite grey. PLUS is brushed metallic titanium with a
+subtle warm edge. Both leave the center and lower area matte and quiet for live
+localized headings, prices, benefits and buttons. The textures contain no
+words, numbers, labels, logos, codes or baked-in UI copy.
 
 Prompt summary:
-- World: Baldur's Gate 3-inspired harbor city at dusk, Wyrm's Crossing-like
-  stone bridge and crowded fortified skyline, storm clouds, warm city lights,
-  distant nautiloid silhouettes, atmospheric and readable behind UI; no
-  characters, logos, UI or text.
-- BASE: front-facing dark slate paper admission ticket, restrained silver
-  engraving, castle/mountains at top, matching stub notches and perforation.
-- PLUS: preserve BASE geometry and engraving; replace slate/silver with dark
-  bronze and gold foil; leave the center quiet for localized copy.
+- BASE: front-facing graphite-grey security access card with restrained
+  embossed perimeter detail and smooth dark text-safe center.
+- PLUS: matching portrait card in brushed titanium, with a subdued metallic
+  rim and the same smooth text-safe center.
 
-The selected assets are published to
-`apps/desktop/public/brand/entry-adventure.webp`,
-`access-ticket-base.webp` and `access-ticket-plus.webp` through the committed
+The selected card assets are published to
+`apps/desktop/public/brand/access-ticket-base.webp` and
+`access-ticket-plus.webp` through the committed
 `tools/brand/publish-entry-assets.py` helper, then synchronized from GitHub.
-WebP encoding preserves original pixel dimensions and alpha. Original generated
-PNGs remain in the Codex generated-images folder.
+WebP encoding preserves the generated image dimensions. Original generated
+PNGs remain in the Codex generated-images folder. The unused cinematic world
+asset is removed from the desktop build.
 
 ## Responsive behavior and motion
 
@@ -55,11 +57,9 @@ above a persistent footer. Existing logo motion and startup behavior continue;
 ticket hover is subtle and removed for reduced motion. Keyboard focus remains
 visible and decorative images/icons are hidden from assistive technology.
 
-## Ticket border spacing and centered headings
+## Access card spacing and centered headings
 
-A fresh screenshot of the running desktop entry was checked against the actual
-transparent ticket image rails. Ticket copy now sits farther inside those rails
-with responsive horizontal padding. BASE and PLUS titles are centered inside
-the engraved upper arch with the gamepad or crown beside the name. The beta
-badge sits below, and the price line is lowered to open space after the heading.
-The same relationships continue at narrow card widths.
+A fresh screenshot of the running desktop entry was checked against the access
+card edges. Card copy keeps responsive horizontal padding; BASE and PLUS titles
+remain centered with their gamepad or crown icon, with the beta label below and
+price separated from the heading. The same spacing continues at narrow widths.

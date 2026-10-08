@@ -12,7 +12,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--generated-root", type=Path, required=True)
 parser.add_argument("--branch", required=True)
 parser.add_argument("--expected-sha", required=True)
-parser.add_argument("--adventure-filename", default="exec-0ad76086-ac4c-4ff7-84d4-bf1f03791aba.png")
+parser.add_argument("--base-filename", required=True)
+parser.add_argument("--plus-filename", required=True)
 args = parser.parse_args()
 repo = "repos/sebasu66/gameAccess"
 
@@ -31,9 +32,8 @@ if ref != args.expected_sha:
     raise SystemExit("Remote branch moved; inspect before publishing")
 tree_sha = api(f"git/commits/{ref}")["tree"]["sha"]
 sources = [
-    (args.adventure_filename, "entry-adventure.webp"),
-    ("exec-d0d3a383-b104-4a59-86d4-1c918fdb4089.png", "access-ticket-base.webp"),
-    ("exec-3aeb9ad4-dcb5-48d9-a36e-7697d3deb043.png", "access-ticket-plus.webp"),
+    (args.base_filename, "access-ticket-base.webp"),
+    (args.plus_filename, "access-ticket-plus.webp"),
 ]
 entries = []
 for filename, asset in sources:

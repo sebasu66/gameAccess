@@ -192,12 +192,14 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   };
 
   return <>
-    {status?.active && (introReady || applicationStarted) ? <div className={`ga-application-reveal${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
-      <div className="ga-access-brand"><VoxelLogo /></div>
+    {(verificationReady || (status?.active && (introReady || applicationStarted))) ? <div className={`ga-application-reveal${!status?.active ? " is-entry-preview" : ""}${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
+      {status?.active && (introReady || applicationStarted) ? <div className="ga-access-brand"><VoxelLogo /></div> : null}
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
-    {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}><GameCoverBackdrop /><div className="ga-entry-world" aria-hidden="true" /></div> : null}
+    {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}>
+      {stage === "validation" || stage === "holding" ? <div className="ga-entry-scrim" aria-hidden="true" /> : <><GameCoverBackdrop /><div className="ga-entry-world" aria-hidden="true" /></>}
+    </div> : null}
     {stage === "validation" || stage === "holding" ? <main className="activation-gate ga-validation">
       <div className="ga-entry-layout">
         <div className="ga-entry-content">
@@ -248,7 +250,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
           </div>
           <div className="activation-pass-grid">
             <article className="activation-pass">
-              <img className="activation-ticket-art" src="/brand/access-ticket-base.webp" alt="" />
+              <img className="activation-access-card-art" src="/brand/access-ticket-base.webp" alt="" />
               <div className="activation-pass-copy">
                 <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>BASE</h3><Gamepad2 size={34} aria-hidden="true" /></div><span>{t("activationBetaShort")}</span></div></div>
                 <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationBasePrice")}</p><p>{t("activationBaseAds")}</p></div>
@@ -262,7 +264,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
               </div>
             </article>
             <article className="activation-pass activation-pass-plus">
-              <img className="activation-ticket-art" src="/brand/access-ticket-plus.webp" alt="" />
+              <img className="activation-access-card-art" src="/brand/access-ticket-plus.webp" alt="" />
               <div className="activation-pass-copy">
                 <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>PLUS</h3><Crown size={34} aria-hidden="true" /></div><span>{t("activationBetaPromo")}</span></div></div>
                 <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationPlusPrice")}</p><p className="activation-pass-trial">{t("activationPlusTrial")}</p></div>
