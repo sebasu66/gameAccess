@@ -24,6 +24,24 @@ const COLD_START_RETRY_MS = 2500;
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+
+// Bound individual network attempts, including settings resolvers. A sleeping
+// server is retried by the activation screen without an overall wake-up deadline.
+export function boundedFetch(fetcher: Fetcher = fetch, parentSignal?: AbortSignal): Fetcher {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const signals = [parentSignal, init?.signal].filter(Boolean) as AbortSignal[];
+    signals.forEach(signal => { if (signal.aborted) abort(); else signal.addEventListener("abort", abort, { once: true }); });
+    const timeout = globalThis.setTimeout(abort, REMOTE_HEALTH_TIMEOUT_MS);
+    try { return await fetcher(input, { ...init, signal: controller.signal }); }
+    finally {
+      globalThis.clearTimeout(timeout);
+      signals.forEach(signal => signal.removeEventListener("abort", abort));
+    }
+  };
+}
+
 function allowedUrl(value: unknown, preserveQuery: boolean): string | null {
   if (typeof value !== "string") return null;
   const raw = value.trim();
@@ -208,19 +226,19 @@ export function resetBackendConnectionCache(): void {
   connectionPromise = null;
 }
 
-export async function getBackendConnection(forceRefresh = false): Promise<BackendConnection> {
+export async function getBackendConnection(forceRefresh = false, signal?: AbortSignal): Promise<BackendConnection> {
   const now = Date.now();
   if (!forceRefresh && cachedConnection && now - cachedAt < BACKEND_CACHE_MS) return cachedConnection;
   if (!forceRefresh && connectionPromise) return connectionPromise;
 
   if (forceRefresh) {
-    const connection = await resolveRuntimeBackend(fetch);
+    const connection = await resolveRuntimeBackend(boundedFetch(fetch, signal));
     cachedConnection = connection;
     cachedAt = Date.now();
     return connection;
   }
 
-  connectionPromise = resolveRuntimeBackendWithColdStart(fetch).then((connection) => {
+  connectionPromise = resolveRuntimeBackendWithColdStart(boundedFetch(fetch, signal)).then((connection) => {
     cachedConnection = connection;
     cachedAt = Date.now();
     return connection;

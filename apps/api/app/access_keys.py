@@ -192,3 +192,24 @@ def valid_session(session: Session, token: str, installation_id: str) -> AccessK
     if row is None or row.expires_at is None or utc(row.expires_at) <= datetime.now(timezone.utc):
         return None
     return row
+
+def session_end_details(session: Session, token: str, installation_id: str) -> dict:
+    """Return dates only for a matching token and installation; never identify keys."""
+    try:
+        installation_id = canonical_installation_id(installation_id)
+    except ValueError:
+        return {"reason": "unavailable"}
+    if not token or len(token) > 200:
+        return {"reason": "unavailable"}
+    row = session.exec(select(AccessKey).where(
+        AccessKey.session_hash == digest(token),
+        AccessKey.installation_id == installation_id,
+    )).first()
+    if row is None:
+        return {"reason": "unavailable"}
+    if row.revoked_at is not None:
+        return {"reason": "revoked", "revoked_at": utc(row.revoked_at).isoformat(),
+                "expires_at": utc(row.expires_at).isoformat() if row.expires_at else None}
+    if row.expires_at is not None and utc(row.expires_at) <= datetime.now(timezone.utc):
+        return {"reason": "expired", "expires_at": utc(row.expires_at).isoformat()}
+    return {"reason": "unavailable"}
