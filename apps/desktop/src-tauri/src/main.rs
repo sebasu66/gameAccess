@@ -11,6 +11,7 @@ mod steam_artwork;
 mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
+use gameaccess_desktop::steam_metadata_worker;
 use native_core::{
     MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus,
 };
@@ -472,10 +473,28 @@ async fn switch_steam_account(account_label: String) -> Result<SteamAccountSwitc
 }
 
 #[tauri::command]
-async fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || native_core::steam_store_metadata(app_id))
+async fn steam_store_metadata(app_id: u32, force: Option<bool>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, force.unwrap_or(false)))
         .await
         .map_err(|err| format!("Steam metadata task failed: {err}"))?
+}
+
+#[tauri::command]
+async fn steam_metadata_worker_start(app_ids: Vec<u32>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let roots = find_launcher_dir().map(|path| vec![path.join("games")]).unwrap_or_default();
+        steam_metadata_worker::start(app_ids, roots);
+    }).await.map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn steam_metadata_worker_poll() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(steam_metadata_worker::poll).await.map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn steam_metadata_catalog_cache(app_ids: Vec<u32>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::steam_metadata_catalog_cache(&app_ids)).await.map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -937,6 +956,9 @@ fn main() {
             steam_download_metrics,
             installed_app_ids,
             steam_store_metadata,
+            steam_metadata_worker_start,
+            steam_metadata_worker_poll,
+            steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
             local_steam_pool,
             verify_local_steam_inventory,

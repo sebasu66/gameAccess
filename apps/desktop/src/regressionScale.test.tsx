@@ -18,13 +18,13 @@ const games: CatalogGame[] = Array.from({ length: 60 }, (_, index) => ({
 }));
 
 describe("desktop regression scale guard", () => {
-  it("previews a large catalog with an expansion control and the full count", () => {
+  it("renders an initial card batch, a scroll sentinel, and the full result count", () => {
     const markup = renderToStaticMarkup(
       <LibraryRoom games={games} downloads={{}} busy={false} onPlay={() => undefined} onDownload={() => undefined} />,
     );
     expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(16);
-    expect(markup).toContain("60 juegos");
-    expect(markup).toContain("Ver todos");
+    expect(markup).toContain(">60</small>");
+    expect(markup).toContain('class="library-section-sentinel"');
   });
 
   it("does not restore the old startup detail preload or 24-game installation cutoff", () => {

@@ -3,15 +3,15 @@ import AppDialog from "./AppDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { digitalErrorMessage } from "./digitalErrors";
 import { reportClientError } from "./narrationLog";
+import {useI18n} from "./i18n";
 
 export type DownloadProblem = { key: string; name: string; error: string; reportMessage: string; reported: boolean | null };
 
 export function DownloadProblemDialog({ problem, onClose }: { problem: DownloadProblem; onClose: () => void }) {
-  const support = problem.reported === null ? "Estamos enviando los detalles a nuestro soporte."
-    : problem.reported ? "Ya hemos enviado los detalles a nuestro soporte."
-    : "No pudimos enviar los detalles a nuestro soporte.";
-  return <AppDialog title={`Hubo un problema con ${problem.name}`} tone="error"
-    message={`${problem.error}\n\n${support} Disculpe las molestias.`} onClose={onClose} />;
+  const {t}=useI18n();
+  const support = t(problem.reported === null ? "downloadSupportSending" : problem.reported ? "downloadSupportSent" : "downloadSupportFailed");
+  return <AppDialog title={t("downloadProblemTitle",{name:problem.name})} tone="error"
+    message={`${problem.error}\n\n${support} ${t("downloadSupportSorry")}`} onClose={onClose} />;
 }
 
 export default function DigitalDownloadErrorDialog() {

@@ -94,6 +94,8 @@
 
 ## P1 — Implementar el diseño Digital aprobado (2026-10-06)
 
+> Revisión local 2026-10-07: corregida la composición de grilla, buscador y footer; ficha con estructura independiente de las reglas antiguas, hero panorámico, dos columnas y acciones ancladas. Fuentes empaquetadas y tema centralizado. Build y 206 tests verificados; overview comprobado en cliente Tauri y ficha/Enter/Escape en componentes reales con datos de prueba. Pendiente aceptación visual y validación completa de ficha/descargas con datos reales.
+
 > Diseño de referencia aprobado; implementación pendiente. Alcance principal: presentación y navegación del cliente. Conservar descargas, ejecución, instalación, favoritos, cuenta, ajustes y demás servicios existentes.
 >
 > Mockup aprobado: `docs/design/gameaccess-ui-2026-10-06/gameaccess-mockup.html`. Referencias finales en esa carpeta: `detail-wide-hero.jpg` y `overview-footer-type.jpg`. Los datos de muestra del HTML no deben convertirse en datos de producción.
@@ -175,6 +177,8 @@
 - [ ] Mantener investigación de proveedores/ofertas separada del launcher y someter cualquier automatización a los términos vigentes de las plataformas.
 
 ## Reglas para mantener este TODO
+
+- [ ] Validar con mando físico en el cliente Tauri el modo Pantalla grande: cruceta/stick, A/B, teclado de búsqueda, filtros, LB/RB, LT/RT, desconexión y regreso desde un juego. Implementación y pruebas del controlador simulado documentadas en `docs/BIG_SCREEN_CONTROLS.md`.
 
 - No volver a agregar Steam Family como scheduler/capacity gate salvo una decisión explícita posterior.
 - No volver a agregar `user_id=1`, IP o fingerprint como identidad de lease: usar `installation_id`.

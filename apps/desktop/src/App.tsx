@@ -1,3 +1,5 @@
+import FilledIcon from "./FilledIcon";
+import { useSteamMetadataWorker } from "./useSteamMetadataWorker";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +28,9 @@ import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DigitalDownloadToast from "./DigitalDownloadToast";
+import CatalogNewGameNotices from "./CatalogNewGameNotices";
+import { useCatalogUpdates } from "./useCatalogUpdates";
+import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
@@ -85,6 +90,7 @@ function playToastBeep(): void {
 }
 
 export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+  const {t}=useI18n();
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -98,6 +104,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     return () => { observer.disconnect(); document.documentElement.style.removeProperty("--catalog-header-height"); };
   }, []);
   const [games, setGames] = useState<CatalogGame[]>([]);
+  useSteamMetadataWorker(games, setGames);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -106,6 +113,8 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [leaseBusy, setLeaseBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
+    getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
   const [steamOk, setSteamOk] = useState(true);
   const [session, setSession] = useState<SessionView | null>(null);
   const [steamInstallFallback, setSteamInstallFallback] = useState<{ game: CatalogGame; error?: string | null } | null>(null);
@@ -556,7 +565,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     if (next[gameId] === undefined) delete next[gameId];
     setPreferences(next);
     localStorage.setItem("gameaccess:preferences", JSON.stringify(next));
-    setToast(value === 1 ? "Lo tendremos en cuenta para recomendarte juegos." : "Perfecto, veremos menos juegos de este estilo.");
+    setToast(value === 1 ? (next[gameId] === 1 ? "Añadido a favoritos." : "Quitado de favoritos.") : "Perfecto, veremos menos juegos de este estilo.");
   };
 
   const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
@@ -750,13 +759,13 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     const isGameAccess = Boolean((game as any).use_game_access === true || (game as any).is_game_access === true);
 
     if (!isGameAccess) {
-      setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Iniciando juego localmente..." });
+      setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate("launchDetail") });
       try {
         await digitalCatalogService.play(game);
         if (game.app_id) recordPlayed(game.app_id);
-        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició directamente." });
+        setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
       } catch (err) {
-        setSession({ game, phase: "error", title: "Error de ejecución", detail: err instanceof Error ? err.message : String(err) });
+        setSession({ game, phase: "error", title: translate("launchError"), detail: err instanceof Error ? err.message : String(err) });
       } finally {
         setLeaseBusy(false);
       }
@@ -881,14 +890,14 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   return (
     <div className="app-shell">
       <header ref={headerRef} className="topbar topbar-glass">
-        <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
+        <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="ga-wordmark">game<span>/</span>access</span></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
+      </header>
         <div className="topbar-actions">
-          {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}>Descargas</button> : null}
+          {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /> {t("downloadsTitle")}</button> : null}
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
-      </header>
 
       {!steamOk && getCatalogMode() !== "digital" ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
@@ -908,7 +917,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           </>}
         </div>
       </main>
-      {downloadsOpen ? <DigitalDownloadsScreen onClose={() => setDownloadsOpen(false)} /> : null}
+      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
 
       {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
@@ -928,6 +937,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         onClose={() => undefined}
       /> : null}
       <DigitalDownloadErrorDialog />
+      <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
       {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>

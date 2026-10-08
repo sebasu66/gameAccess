@@ -19,28 +19,7 @@ const contextMenuStyle = (x: number, y: number): CSSProperties => ({
   position: "fixed",
   left: Math.min(x, Math.max(8, (typeof window !== "undefined" ? window.innerWidth : 1920) - 250)),
   top: Math.min(y, Math.max(8, (typeof window !== "undefined" ? window.innerHeight : 1080) - 150)),
-  zIndex: 10000,
-  minWidth: 230,
-  padding: 6,
-  borderRadius: 8,
-  border: "1px solid rgba(255,255,255,.15)",
-  background: "rgba(16,18,24,.98)",
-  boxShadow: "0 14px 40px rgba(0,0,0,.45)",
 });
-
-const contextItemStyle: CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: 9,
-  padding: "9px 10px",
-  border: 0,
-  borderRadius: 6,
-  background: "transparent",
-  color: "inherit",
-  textAlign: "left",
-  font: "inherit",
-};
 
 interface Props {
   request: DigitalContextMenuRequest;
@@ -120,6 +99,7 @@ export default function DigitalGameContextMenu({
     <>
       {!dialog ? (
         <div
+          className="ga-game-options"
           role="menu"
           aria-label={`Opciones de ${request.game.name}`}
           style={contextMenuStyle(request.x, request.y)}
@@ -128,7 +108,6 @@ export default function DigitalGameContextMenu({
           <button
             type="button"
             role="menuitem"
-            style={{ ...contextItemStyle, opacity: canInstall ? 1 : 0.5 }}
             disabled={!canInstall}
             onClick={() => void install()}
           >
@@ -137,7 +116,6 @@ export default function DigitalGameContextMenu({
           <button
             type="button"
             role="menuitem"
-            style={{ ...contextItemStyle, opacity: canPlay ? 1 : 0.5 }}
             disabled={!canPlay}
             onClick={() => void play()}
           >
@@ -146,7 +124,6 @@ export default function DigitalGameContextMenu({
           <button
             type="button"
             role="menuitem"
-            style={{ ...contextItemStyle, opacity: canInstalledAction ? 1 : 0.5 }}
             disabled={!canInstalledAction}
             onClick={() => void openInstallFolder()}
           >
@@ -155,7 +132,6 @@ export default function DigitalGameContextMenu({
           <button
             type="button"
             role="menuitem"
-            style={{ ...contextItemStyle, opacity: state.canUninstall ? 1 : 0.5 }}
             disabled={!state.canUninstall}
             onClick={uninstallSelected}
           >

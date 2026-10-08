@@ -1440,7 +1440,9 @@ def get_digital_catalog(
     By default filters out entries with empty downloadSource to ensure only downloadable items are returned to clients.
     """
     from .digital_source_policy import annotate_source_policies
-    items = annotate_source_policies(load_digital_catalog_json())
+    from .digital_download_size import annotate_download_sizes
+    from .digital_admin_routes import load_cached_downloads
+    items = annotate_source_policies(annotate_download_sizes(load_digital_catalog_json(), load_cached_downloads()))
     if not all:
         items = [item for item in items if str(item.get("downloadSource") or "").strip()]
     # Digital IDs are Steam AppIDs; canonical metadata uses internal Game IDs.
@@ -1511,7 +1513,10 @@ def get_digital_game_source(
             src = str(item.get("downloadSource") or "").strip()
             if src:
                 from .digital_source_policy import annotate_source_policies
-                return annotate_source_policies([{"ok": True, "id": game_id, "name": item.get("name"), "uri": src}])[0]
+                from .digital_download_size import annotate_download_sizes
+                from .digital_admin_routes import load_cached_downloads
+                sized = annotate_download_sizes([item], load_cached_downloads())[0]
+                return annotate_source_policies([{"ok": True, "id": game_id, "name": item.get("name"), "uri": src, "size": sized["download_size"], "download_size": sized["download_size"], "download_size_bytes": sized["download_size_bytes"]}])[0]
             if not name:
                 name = item.get("name")
 
@@ -2416,6 +2421,7 @@ from .steam_search_routes import (  # noqa: E402 - routes import initialized app
 )
 
 app.include_router(steam_search_router)
+from .resolver_routes import router as resolver_router  # noqa: E402
 app.include_router(resolver_router)
 
 from .admin_console_routes import (  # noqa: E402 - routes import initialized app

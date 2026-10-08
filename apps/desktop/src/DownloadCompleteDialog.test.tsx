@@ -17,13 +17,13 @@ describe("download completion dialog", () => {
       <DownloadCompleteDialog game={game} busy={false} onPlay={() => undefined} onClose={() => undefined} />,
     );
 
-    expect(markup).toContain("DESCARGA TERMINADA");
+    expect(markup).toContain("DOWNLOAD COMPLETE");
     expect(markup).toContain(">Attack of the Labyrinth</h2>");
     expect(markup).not.toContain("Attack of the Labyrinth +</h2>");
-    expect(markup).toContain("Est\u00e1 listo para jugar.");
+    expect(markup).toContain("Ready to play.");
     expect(markup).not.toContain("Los archivos ya est\u00e1n preparados");
     expect(markup).toContain("library_hero.jpg");
-    expect(markup).toContain("Jugar ahora");
-    expect(markup).toContain("Ahora no");
+    expect(markup).toContain("Play now");
+    expect(markup).toContain("Not now");
   });
 });

@@ -1,6 +1,7 @@
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
+import { applySteamCatalogMetadata, cachedSteamCatalogMetadata } from "../useSteamMetadataWorker";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
@@ -44,7 +45,7 @@ export class DigitalCatalog {
   /**
    * Loads games from the JSON catalog file.
    */
-  async loadCatalog(): Promise<CatalogGame[]> {
+  async loadCatalog({ requireRemote = false }: { requireRemote?: boolean } = {}): Promise<CatalogGame[]> {
     let rawList: (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
 
     if (this.options.catalogLoader) {
@@ -59,13 +60,19 @@ export class DigitalCatalog {
             const response = await fetch(`${apiUrl}/digital/catalog`, { cache: "no-store" });
             if (response.ok) {
               raw = await response.json();
+            } else if (requireRemote) {
+              throw new Error(`No pudimos actualizar el catálogo (${response.status}).`);
             }
           }
-        } catch {
+        } catch (error) {
+          if (requireRemote) throw error;
           // Fall back to local or bundled JSON on network error or test environment.
         }
 
-        if (!Array.isArray(raw) || !raw.length) {
+        // Background refreshes must never replace a live catalog with a bundled
+        // fallback, or mistake those fallback entries for newly added games.
+        if (requireRemote && !Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
+        if (!requireRemote && (!Array.isArray(raw) || !raw.length)) {
           try {
             const response = await fetch("/digital_catalog.json", { cache: "no-store" });
             if (response.ok) {
@@ -77,7 +84,8 @@ export class DigitalCatalog {
         }
       }
 
-      if (!Array.isArray(raw) || !raw.length) {
+      if (requireRemote && !Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
+      if (!requireRemote && (!Array.isArray(raw) || !raw.length)) {
         raw = defaultCatalog;
       }
 
@@ -112,7 +120,8 @@ export class DigitalCatalog {
     digitalDownloadService.registerRecords(digitalRecords);
 
     const normalized = this.normalizeGames(validRecords);
-    const finalGames = await applyBundledCatalogArtwork(normalized);
+    const metadata = await cachedSteamCatalogMetadata(normalized.flatMap(game => game.app_id ? [game.app_id] : []));
+    const finalGames = await applyBundledCatalogArtwork(applySteamCatalogMetadata(normalized, metadata));
     this.cachedGames = finalGames;
     return finalGames;
   }

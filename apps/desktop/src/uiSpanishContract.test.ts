@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { translate } from "./i18n";
 
 import appSource from "./App.tsx?raw";
 import detailSource from "./AppDetailPanel.tsx?raw";
@@ -30,7 +31,8 @@ describe("Spanish desktop UI copy", () => {
     expect(steamSettingsSource).not.toContain("STEAM SESSION MANAGER");
     expect(steamSettingsSource).not.toContain("Configuraci?n");
     expect(steamSettingsSource).not.toContain("contrase?a");
-    expect(completeSource).toContain("Est\u00e1 listo para jugar.");
+    expect(completeSource).toContain('t("readyToPlay")');
+    expect(translate("readyToPlay", undefined, "es")).toBe("Está listo para jugar.");
     expect(completeSource).not.toContain("Los archivos ya est\u00e1n preparados");
   });
 });

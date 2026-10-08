@@ -1,6 +1,7 @@
 export type AvailabilityState = "ready" | "owned-busy" | "unavailable";
 
 export interface CatalogGame {
+  filter_match?: "confirmed" | "possible";
   id: number;
   slug: string;
   name: string;
@@ -15,6 +16,7 @@ export interface CatalogGame {
   steam_url?: string | null;
   genres?: string[];
   categories?: string[];
+  steam_category_ids?: number[];
   tags?: string[];
   developers?: string[];
   publishers?: string[];
@@ -44,6 +46,10 @@ export interface CatalogGame {
   local_inventory_verified?: boolean;
   local_inventory_verified_at?: string | null;
   downloadSource?: string;
+  /** Package size supplied by this game's selected server JSON source. */
+  download_size?: string | null;
+  download_size_bytes?: number | null;
+  download_size_source?: string | null;
   installProcess?: string;
   playProcess?: string;
   uninstallProcess?: string;

@@ -20,3 +20,25 @@ export function playUiSound(kind: UiSoundKind) {
     // Missing optional sound assets must never affect navigation.
   }
 }
+
+/** Quiet two-part bell, synthesized locally; no network or optional asset. */
+export function playCatalogBell() {
+  try {
+    const context = new AudioContext();
+    void context.resume().then(() => {
+      const now = context.currentTime;
+      [1046.5, 1568].forEach((frequency, index) => {
+        const oscillator = context.createOscillator(), gain = context.createGain();
+        const start = now + index * .08;
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(.0001, start);
+        gain.gain.exponentialRampToValueAtTime(index ? .025 : .045, start + .012);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + .75);
+        oscillator.connect(gain); gain.connect(context.destination);
+        oscillator.start(start); oscillator.stop(start + .8);
+      });
+      window.setTimeout(() => void context.close(), 1100);
+    }).catch(() => void context.close());
+  } catch { /* Notifications remain visible if audio is unavailable. */ }
+}

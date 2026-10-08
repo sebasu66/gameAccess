@@ -1,4 +1,37 @@
-import type { CatalogGame, SteamMetadata, SteamMovie, SteamScreenshot } from "./types";
+import type { CatalogGame, GameDetails, SteamMetadata, SteamMovie, SteamScreenshot } from "./types";
+
+/** Merge public local metadata without replacing catalog identity or install commands.
+ * Review percentage uses all-language/all-purchase positive reviews / total reviews.
+ * Missing review data preserves the server's score; zero reviews means unrated. */
+export function mergeLocalSteamDetails(details: GameDetails, raw: Record<string, unknown>): GameDetails {
+  const steam = normalizeSteamStoreMetadata(details, raw);
+  const summary = record(raw.gameaccess_reviews);
+  const total = summary.total_reviews;
+  const positive = summary.total_positive;
+  const validReviews = typeof total === "number" && Number.isInteger(total) && total >= 0
+    && typeof positive === "number" && Number.isInteger(positive) && positive >= 0 && positive <= total;
+  return {
+    ...details,
+    steam: { ...details.steam, ...Object.fromEntries(Object.entries(steam).filter(([, value]) => value !== undefined)), app_id: steam.app_id },
+    ...(validReviews ? { steam_review_count: total, steam_review_score: total ? positive / total * 100 : null } : {}),
+    metadata_state: "ready",
+  };
+}
+
+/** Compact worker updates enrich the grid without changing game IDs or commands. */
+export function mergeLocalCatalogMetadata(game: CatalogGame, raw: Record<string, unknown>): CatalogGame {
+  const details = mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready" }, raw);
+  const steam = details.steam!;
+  const hasCategories = Array.isArray(raw.categories);
+  return { ...game,
+    ...(Array.isArray(raw.genres) ? { genres: steam.genres } : {}),
+    ...(hasCategories ? { categories: steam.categories, steam_category_ids: (raw.categories as unknown[]).flatMap(item => typeof record(item).id === "number" ? [record(item).id as number] : []), single_player: null, multiplayer: null, coop: null, online_coop: null, local_coop: null, shared_split_screen: null, mmo: null, pvp: null } : {}),
+    ...(steam.release_date ? { release_date: steam.release_date } : {}),
+    ...(steam.short_description ? { short_description: steam.short_description } : {}),
+    ...(steam.recommendation_count != null ? { recommendation_count: steam.recommendation_count } : {}),
+    steam_review_count: details.steam_review_count, steam_review_score: details.steam_review_score,
+  };
+}
 
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};

@@ -1,22 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getAppLocale, translate, useI18n } from "./i18n";
+import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
+export {formatDownloadBytes} from "./downloadSize";
+import type { CatalogGame } from "./types";
 import { Download, Pause, Play, RotateCcw, X } from "lucide-react";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
 import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
 import { useDialogFocus } from "./dialogFocus";
+import { useOverlayClose } from "./useOverlayClose";
 
-export const downloadPhaseLabels: Record<DownloadPhase, string> = {
-  queued: "En cola", preparing: "Preparando", downloading: "Descargando", paused: "Pausada",
-  decompressing: "Descomprimiendo", installing: "Instalando", cancelling: "Cancelando",
-  cancelled: "Cancelada", interrupted: "Interrumpida", completed: "Listo para jugar", error: "Error",
-};
-export function formatDownloadBytes(value?: number): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = Math.max(value, 0), index = 0;
-  while (size >= 1024 && index < units.length - 1) { size /= 1024; index++; }
-  return `${size.toLocaleString("es-AR", { maximumFractionDigits: index ? 1 : 0 })} ${units[index]}`;
+const phaseKeys = {
+  queued: "downloadQueued", preparing: "downloadPreparing", downloading: "downloadDownloading", paused: "downloadPaused",
+  decompressing: "downloadDecompressing", installing: "downloadInstalling", cancelling: "downloadCancelling",
+  cancelled: "downloadCancelled", interrupted: "downloadInterrupted", completed: "downloadCompleted", error: "downloadError",
+} as const satisfies Record<DownloadPhase, Parameters<typeof translate>[0]>;
+export function downloadPhaseLabel(phase: DownloadPhase, locale = getAppLocale()) {
+  return translate(phaseKeys[phase], undefined, locale);
 }
 function eta(snapshot: DownloadProgressSnapshot): string {
   if (snapshot.phase !== "downloading" || !snapshot.speedBps || !snapshot.etaSeconds) return "—";
@@ -26,9 +27,12 @@ function eta(snapshot: DownloadProgressSnapshot): string {
 }
 type Entry = ReturnType<DigitalDownloadService["getDownloads"]>[number];
 const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrupted"].includes(entry.snapshot.phase);
-export default function DigitalDownloadsScreen({ onClose, service = digitalDownloadService }: {
-  onClose: () => void; service?: DigitalDownloadService;
+export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, catalogGames = [] }: {
+  onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[];
 }) {
+  const {t,locale} = useI18n();
+  const phaseLabel = (phase: DownloadPhase) => downloadPhaseLabel(phase,locale);
+  const {closing,close:onClose}=useOverlayClose(onClosed);
   const dialogRef = useDialogFocus(onClose);
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -38,6 +42,7 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
   const [entries, setEntries] = useState(() => service.getDownloads());
   const [busy, setBusy] = useState<number[]>([]);
   const [error, setError] = useState("");
+  const pendingActions = useRef(new Set<number>());
   useEffect(() => {
     const refresh = () => setEntries(service.getDownloads());
     const unsubscribe = service.onGlobalUpdate(refresh);
@@ -48,13 +53,16 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
   const queue = entries.filter(entry => ["queued", "paused"].includes(entry.snapshot.phase));
   const history = entries.filter(terminal);
   const run = async (id: number, action: () => Promise<void>) => {
-    if (busy.includes(id)) return;
+    if (pendingActions.current.has(id)) return;
+    pendingActions.current.add(id);
     setBusy(current => [...current, id]); setError("");
-    try { await action(); } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
-    finally { setBusy(current => current.filter(item => item !== id)); }
+    try { await action(); } catch (err) { setError(`${t("downloadsActionFailed")} ${err instanceof Error ? err.message : String(err)}`); }
+    finally { pendingActions.current.delete(id); setBusy(current => current.filter(item => item !== id)); }
   };
   const row = (entry: Entry, index: number, featured = false) => {
     const { game, snapshot } = entry;
+    const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
+    const sourceSize = sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
     const { phase, gameId } = snapshot;
     const percent = Number.isFinite(snapshot.progress) ? Math.max(0, Math.min(100, snapshot.progress)) : 0;
     const transfer = phase === "downloading";
@@ -62,36 +70,38 @@ export default function DigitalDownloadsScreen({ onClose, service = digitalDownl
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       <div className="digital-download-art"><DigitalDownloadArtwork game={game} /></div>
       <div className="digital-download-info">
-        <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · En cola` : downloadPhaseLabels[phase]}</span></div>
-        <p>{snapshot.error || snapshot.statusText || downloadPhaseLabels[phase]}</p>
+        <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
+        <p>{snapshot.error || phaseLabel(phase)}</p>
+        <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" ? <>
-          <div className="digital-download-progress-line"><span>{phase === "completed" ? "Instalación completada" : downloadPhaseLabels[phase]}</span><strong>{Math.round(percent)}%</strong></div>
-          <progress max={100} value={percent} aria-label={`Progreso de ${game.name} · ${downloadPhaseLabels[phase]}`} />
+          <div className="digital-download-progress-line"><span>{phase === "completed" ? t("downloadsInstalled") : phaseLabel(phase)}</span><strong>{Math.round(percent)}%</strong></div>
+          <progress max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:phaseLabel(phase)})} />
           <dl className="digital-download-metrics">
-            <div><dt>Descargado</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded)} / {snapshot.bytesTotal ? formatDownloadBytes(snapshot.bytesTotal) : "—"}</dd></div>
-            <div><dt>Velocidad</dt><dd>{transfer ? `${formatDownloadBytes(snapshot.speedBps)} / s` : "—"}</dd></div>
-            <div><dt>Tiempo restante</dt><dd>{eta(snapshot)}</dd></div>
+            <div><dt>{t("downloadsDownloaded")}</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded,locale)} / {sourceSize}</dd></div>
+            <div><dt>{t("downloadsSpeed")}</dt><dd>{transfer ? `${formatDownloadBytes(snapshot.speedBps,locale)} / s` : "—"}</dd></div>
+            <div><dt>{t("downloadsRemaining")}</dt><dd>{eta(snapshot)}</dd></div>
           </dl>
         </> : null}
       </div>
       <div className="digital-download-actions">
-        {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />Pausar</button> : null}
-        {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />Reanudar</button> : null}
-        {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />Reintentar</button> : null}
-        {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={`Abortar descarga de ${game.name}`} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />Abortar</button> : null}
-        {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={`Cancelar descarga de ${game.name}`} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />Cancelar</button> : null}
+        {phase === "completed" ? <button type="button" className="ga-download-play" disabled={busy.includes(gameId)} aria-label={t("downloadsPlayAria",{name:game.name})} onClick={() => void run(gameId, async () => { if(onPlay) await onPlay(game); else await service.play(game); })}><Play size={20} fill="currentColor"/>{busy.includes(gameId) ? t("downloadsLaunching") : t("downloadsPlay")}</button> : null}
+        {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
+        {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />{t("downloadsResume")}</button> : null}
+        {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}
+        {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsAbortAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsAbort")}</button> : null}
+        {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsCancel")}</button> : null}
       </div>
     </article>;
   };
-  return <section ref={dialogRef} className="digital-downloads-screen" role="dialog" aria-modal="true" aria-label="Gestor de descargas Digital">
+  return <section ref={dialogRef} className={`digital-downloads-screen${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label={t("downloadsManager")}>
     <header className="digital-downloads-heading">
-      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>Descargas</h1><p>{entries.filter(entry => !terminal(entry)).length} pendientes · {history.filter(entry => entry.snapshot.phase === "completed").length} completadas</p></div>
-      <button type="button" className="digital-download-back" data-dialog-initial onClick={onClose} aria-label="Cerrar descargas y volver a la pantalla principal"><X size={18} />Cerrar</button>
+      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length})}</p></div>
+      <button type="button" className="digital-download-back" data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")}><X size={18} />{t("close")}</button>
     </header>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
-    {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>No hay descargas</h2><p>Elegí un juego del catálogo Digital para comenzar.</p><button onClick={onClose}>Explorar catálogo</button></div> : null}
-    {active.length ? <section aria-label="Descarga activa"><h2 className="digital-download-section-label">EN CURSO</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
-    {queue.length ? <section aria-label="Cola de descargas"><h2 className="digital-download-section-label">COLA DE DESCARGAS · {queue.length}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
-    {history.length ? <section aria-label="Historial de descargas"><h2 className="digital-download-section-label">FINALIZADAS</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
+    {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
+    {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
+    {queue.length ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
+    {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsFinished")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
   </section>;
 }

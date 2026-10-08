@@ -1,5 +1,6 @@
+import FilledIcon from "./FilledIcon";
 import { useEffect, useRef } from "react";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
 
@@ -14,7 +15,7 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   useEffect(() => {
     const handleSearchShortcut = (event: KeyboardEvent) => {
       // gameaccess internal Ctrl+F: consume the browser/Tauri find shortcut globally.
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "f") return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !["f", "k"].includes(event.key.toLowerCase())) return;
       event.preventDefault();
       event.stopPropagation();
       inputRef.current?.focus({ preventScroll: true });
@@ -32,12 +33,12 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   return (
     <div className="global-search">
       <label className="search-box global-search-box">
-        <Search size={17} />
+        <FilledIcon name="search" />
         <input
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar juegos, géneros, funciones o estudios"
+          placeholder="Buscá tu próximo juego"
           autoComplete="off"
           aria-label="Buscar juegos por título o metadatos"
         />

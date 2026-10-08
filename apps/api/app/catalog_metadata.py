@@ -631,7 +631,7 @@ def catalog_metadata_for_games(
             SELECT game_id, short_description, developers_json, publishers_json,
                    recommendation_count, metacritic_score, single_player, multiplayer,
                    coop, online_coop, local_coop, shared_split_screen, mmo, pvp,
-                   steam_review_score, steam_review_count, steam_review_state
+                   steam_review_score, steam_review_count, steam_review_state, release_date
             FROM game_metadata WHERE game_id IN ({placeholders})
             """,
             tuple(ids),
@@ -663,6 +663,7 @@ def catalog_metadata_for_games(
                 "steam_review_score": row[14],
                 "steam_review_count": row[15],
                 "steam_review_state": row[16],
+                "release_date": row[17],
             }
         load_names(conn, "game_genre", "genres")
         load_names(conn, "game_category", "categories")

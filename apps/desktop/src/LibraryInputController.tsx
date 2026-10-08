@@ -72,7 +72,7 @@ function restoreMode(mode: CatalogMode): void {
       const requested = state.selectedGameId == null
         ? null
         : allCards.find((card) => gameIdOf(card) === state.selectedGameId) ?? null;
-      (requested ?? allCards[0])?.click();
+      (requested ?? allCards[0])?.focus({ preventScroll: true });
       if (libraryGrid()) libraryGrid()!.scrollTop = state.gridScrollTop;
       if (detailPanel()) detailPanel()!.scrollTop = state.detailScrollTop;
       focusGrid();
@@ -81,8 +81,7 @@ function restoreMode(mode: CatalogMode): void {
 }
 
 function enterDetail(): void {
-  const action = libraryRoot()?.querySelector<HTMLButtonElement>(".glass-action:not(:disabled)");
-  action?.focus({ preventScroll: true });
+  selectedCard()?.click();
 }
 
 function pageActivePanel(direction: 1 | -1): void {
@@ -115,10 +114,10 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!libraryRoot() || modal()) return;
-      if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button")) return;
+      if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
 
-      if (key === "tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (key === "tab" && modeRef.current !== "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {
         if (event.repeat) return;
         event.preventDefault();
         event.stopPropagation();

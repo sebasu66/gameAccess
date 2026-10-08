@@ -627,23 +627,28 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
 }
 
 const steamStoreMetadataCache = new Map<number, Record<string, unknown>>();
+const steamStoreMetadataCachedAt = new Map<number, number>();
 const steamStoreMetadataRequests = new Map<number, Promise<Record<string, unknown> | null>>();
 
-export async function getSteamStoreMetadata(appId: number): Promise<Record<string, unknown> | null> {
+export async function getSteamStoreMetadata(appId: number, force = false): Promise<Record<string, unknown> | null> {
   if (!appId) return null;
   const cached = steamStoreMetadataCache.get(appId);
-  if (cached) return cached;
+  const ttl = cached?.gameaccess_refresh_warning ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  if (cached && !force && Date.now() - (steamStoreMetadataCachedAt.get(appId) ?? 0) < ttl) return cached;
   const existing = steamStoreMetadataRequests.get(appId);
   if (existing) return existing;
   const request = (async () => {
-    if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId });
+    if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId, force });
     try { return await bridgeRequest<Record<string, unknown>>(`/steam-store-metadata/${appId}`); }
     catch { return null; }
   })();
   steamStoreMetadataRequests.set(appId, request);
   try {
     const value = await request;
-    if (value) steamStoreMetadataCache.set(appId, value);
+    if (value) {
+      steamStoreMetadataCache.set(appId, value);
+      steamStoreMetadataCachedAt.set(appId, Date.now());
+    }
     return value;
   } finally {
     steamStoreMetadataRequests.delete(appId);

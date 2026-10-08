@@ -66,6 +66,24 @@ describe("library text search", () => {
 });
 
 describe("useful catalog facets", () => {
+  it("filters category-only Digital records in English and Spanish", () => {
+    const records = [
+      { ...game(21, "Online English"), categories: ["Online Co-op", "Online PvP"] },
+      { ...game(22, "Local Spanish"), categories: ["Coop. a pantalla (com)partida"] },
+      { ...game(23, "LAN Spanish"), categories: ["Cooperativo en LAN"] },
+      { ...game(24, "Solo"), categories: ["Single-player", "Steam Cloud"] },
+      { ...game(25, "MMO"), categories: ["Massively Multiplayer"] },
+    ];
+    const matching = (features: NonNullable<Parameters<typeof filterLibraryGames>[2]>["features"]) => filterLibraryGames(records, "", { genres: [], categories: [], features, includeUncertain: false }).map(item => item.id);
+    expect(matching(["online_coop"])).toEqual([21]);
+    expect(matching(["local_coop"])).toEqual([22]);
+    expect(matching(["coop_lan"])).toEqual([23]);
+    expect(matching(["single_player"])).toEqual([24]);
+    expect(matching(["mmo"])).toEqual([25]);
+    expect(matching(["multiplayer"])).toEqual([21, 22, 23, 25]);
+    expect(matching(["online_coop", "local_coop"])).toEqual([21, 22]);
+    expect(gameMatchesLibraryFeature({ ...game(26, "Unknown"), tags: ["Co-op"], categories: ["Steam Cloud", "Remote Play Together"] }, "coop")).toBe(false);
+  });
   const games: CatalogGame[] = [
     {
       ...game(10, "Adventure"),
@@ -99,28 +117,32 @@ describe("useful catalog facets", () => {
     expect(facets.features).toContain("online_multiplayer");
     expect(facets.features).toContain("local_multiplayer");
     expect(facets.features).toContain("lan");
+    expect(facets.features).toContain("coop_lan");
+    expect(facets.features).toContain("multiplayer_lan");
   });
 
-  it("combines all selected genre and gameplay filters with OR", () => {
+  it("combines genre groups with gameplay groups instead of accepting unrelated genres", () => {
     const result = filterLibraryGames(games, "", {
       genres: ["Adventure"],
       categories: [],
       features: ["pvp", "local_coop"],
     });
-    expect(result.map((item) => item.id)).toEqual([10, 11, 12]);
+    expect(result.map((item) => item.id)).toEqual([]);
   });
 
   it("derives online/local/LAN modes from useful Steam categories", () => {
     expect(gameMatchesLibraryFeature(games[1], "online_multiplayer")).toBe(true);
     expect(gameMatchesLibraryFeature(games[2], "local_multiplayer")).toBe(true);
     expect(gameMatchesLibraryFeature(games[2], "lan")).toBe(true);
+    expect(gameMatchesLibraryFeature(games[2], "coop_lan")).toBe(true);
+    expect(gameMatchesLibraryFeature(games[2], "multiplayer_lan")).toBe(true);
   });
 
-  it("keeps text search restrictive even when filters are OR-based", () => {
+  it("keeps text search restrictive with grouped filters", () => {
     const result = filterLibraryGames(games, "Local", {
-      genres: ["Adventure"],
+      genres: ["Indie"],
       categories: [],
-      features: ["pvp", "local_coop"],
+      features: ["coop"],
     });
     expect(result.map((item) => item.id)).toEqual([12]);
   });

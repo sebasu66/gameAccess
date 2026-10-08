@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { calculateSelectionScrollTop, selectionItemTopInScrollContainer, tweenSelectionScroll } from "./libraryNavigation";
 import type { ReactNode, RefObject } from "react";
 import { SECTION_PREVIEW_SIZE } from "./librarySections";
 import { narrate } from "./narrationLog";
@@ -20,6 +21,17 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const selectionScrollPendingRef = useRef(false);
   const rootRef = useRef<HTMLElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const cancelTween = useRef<() => void>(() => {});
+  useEffect(() => {
+    const root=scrollRoot.current;
+    const stop=()=>cancelTween.current();
+    const key=(event: globalThis.KeyboardEvent)=>{if(!event.key.startsWith("Arrow")) stop();};
+    root?.addEventListener("wheel",stop,{passive:true});
+    root?.addEventListener("touchstart",stop,{passive:true});
+    root?.closest<HTMLElement>(".library-room")?.addEventListener("pointerdown",stop,{passive:true});
+    root?.closest<HTMLElement>(".library-room")?.addEventListener("keydown",key);
+    return()=>{stop();root?.removeEventListener("wheel",stop);root?.removeEventListener("touchstart",stop);root?.closest<HTMLElement>(".library-room")?.removeEventListener("pointerdown",stop);root?.closest<HTMLElement>(".library-room")?.removeEventListener("keydown",key);};
+  },[scrollRoot]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: The toolbar reset token intentionally restores this shelf preview.
   useEffect(() => { setVisibleCount(SECTION_PREVIEW_SIZE); }, [reset]);
@@ -52,7 +64,8 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   }, [reset, scrollRoot, section.games.length]);
 
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    cancelTween.current();
     selectionScrollPendingRef.current = true;
   }, [selectedId]);
 
@@ -82,13 +95,24 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   }, [scrollRoot, section.games.length, visibleCount, batchSize]);
 
   const visibleGames = section.games.slice(0, visibleCount);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!selectionScrollPendingRef.current) return;
     const selected = rootRef.current?.querySelector<HTMLElement>(".is-selected");
-    if (!selected) return;
-    selected.scrollIntoView({ block: "nearest" });
+    const root = scrollRoot.current;
+    if (!selected || !root) return;
+    // One scroll owner, keyed by game identity. Metadata/favorite reordering
+    // must not reveal the same selected game at its new sorted position.
+    const rect = selected.getBoundingClientRect();
+    const target = calculateSelectionScrollTop({ scrollTop: root.scrollTop,
+      viewportHeight: root.clientHeight,
+      itemTop: selectionItemTopInScrollContainer({ scrollTop: root.scrollTop, viewportTop: root.getBoundingClientRect().top, itemTop: rect.top }),
+      itemHeight: rect.height });
+    cancelTween.current = tweenSelectionScroll(root, target);
+    if (root.closest(".library-room")?.contains(document.activeElement) && !document.activeElement?.closest('[role="dialog"], input, select, textarea, .library-catalog-toolbar')) {
+      selected.focus({ preventScroll: true });
+    }
     selectionScrollPendingRef.current = false;
-  }, [selectedId, visibleCount]);
+  }, [selectedId, visibleCount, scrollRoot]);
 
   useEffect(() => {
     const previous = previousVisibleCountRef.current;

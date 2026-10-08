@@ -619,89 +619,112 @@ fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
     let Ok(body) = serde_json::to_vec(data) else {
         return;
     };
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(tmp, path);
     }
 }
 
-pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
-    const CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
-    if let Some(cached) = read_steam_media_cache(app_id, Some(CACHE_TTL_SECONDS)) {
-        return Ok(cached);
-    }
+pub fn steam_metadata_cache_fresh(app_id: u32) -> bool {
+    read_steam_media_cache(app_id, Some(24 * 60 * 60)).is_some_and(|data| cached_reviews_current(&data))
+}
 
-    #[cfg(target_os = "windows")]
-    {
-        let url = format!(
-            "https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish"
-        );
-        let script = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; $headers=@{{'User-Agent'='gameAccess/0.1'}}; $result=Invoke-RestMethod -Uri '{}' -Headers $headers -TimeoutSec 20; $result | ConvertTo-Json -Depth 32 -Compress", url);
-        let output = match Command::new("powershell.exe")
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                &script,
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-        {
-            Ok(output) => output,
-            Err(err) => {
-                if let Some(stale) = read_steam_media_cache(app_id, None) {
-                    return Ok(stale);
-                }
-                return Err(format!("Could not query Steam Store metadata: {err}"));
+fn cached_reviews_current(data: &serde_json::Value) -> bool {
+    let recent = data["gameaccess_reviews_updated_at"].as_str()
+        .and_then(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).ok())
+        .is_some_and(|stamp| { let age = chrono::Utc::now().signed_duration_since(stamp).num_seconds(); (0..24 * 60 * 60).contains(&age) });
+    data.get("gameaccess_reviews").is_some() && data.get("gameaccess_refresh_warning").is_none() && recent
+}
+
+// Lightweight catalog projection: avoid sending every full description/media list
+// across IPC when starting the worker or updating grid filters and sorting.
+pub fn steam_metadata_catalog_cache(app_ids: &[u32]) -> serde_json::Value {
+    let mut result = serde_json::Map::new();
+    for &app_id in app_ids {
+        if let Some(data) = read_steam_media_cache(app_id, None) {
+            let mut compact = serde_json::Map::new();
+            for key in ["genres", "categories", "release_date", "recommendations", "short_description", "gameaccess_reviews", "gameaccess_updated_at"] {
+                if let Some(value) = data.get(key) { compact.insert(key.into(), value.clone()); }
             }
-        };
-        if !output.status.success() {
-            if let Some(stale) = read_steam_media_cache(app_id, None) {
-                return Ok(stale);
-            }
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() {
-                "Steam Store metadata request failed".into()
-            } else {
-                stderr
-            });
+            result.insert(app_id.to_string(), compact.into());
         }
-        let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|err| format!("Steam Store returned invalid JSON: {err}"))?;
-        let key = app_id.to_string();
-        let entry = parsed.get(&key).ok_or_else(|| {
-            "Steam Store response did not contain the requested AppID".to_string()
-        })?;
-        if !entry
-            .get("success")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-        {
-            if let Some(stale) = read_steam_media_cache(app_id, None) {
-                return Ok(stale);
-            }
+    }
+    result.into()
+}
+
+// Opening a detail reads a one-day cache; an explicit refresh bypasses it.
+// Only public Store data is queried. Installation sizes still come from local manifests.
+pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    steam_store_metadata_refresh(app_id, false)
+}
+
+pub fn steam_store_metadata_refresh(app_id: u32, force: bool) -> Result<serde_json::Value, String> {
+    if app_id == 0 { return Err("Invalid Steam AppID".into()); }
+    if !force {
+        if let Some(cached) = read_steam_media_cache(app_id, Some(24 * 60 * 60)) {
+            if cached_reviews_current(&cached) { return Ok(cached); }
+        }
+    }
+    let stale = read_steam_media_cache(app_id, None);
+    let fetched = (|| -> Result<serde_json::Value, String> {
+        let client = reqwest::blocking::Client::builder()
+            .user_agent("gameAccess/0.1")
+            .timeout(std::time::Duration::from_secs(20))
+            .build().map_err(|err| err.to_string())?;
+        let response: serde_json::Value = client.get("https://store.steampowered.com/api/appdetails")
+            .query(&[("appids", app_id.to_string()), ("cc", "AR".into()), ("l", "spanish".into())])
+            .send().and_then(|res| res.error_for_status()).and_then(|res| res.json())
+            .map_err(|err| format!("Steam Store: {err}"))?;
+        let entry = &response[app_id.to_string()];
+        if entry["success"].as_bool() != Some(true) || !entry["data"].is_object() {
             return Err("Steam Store did not return metadata for this AppID".into());
         }
-        let data = entry
-            .get("data")
-            .cloned()
-            .ok_or_else(|| "Steam Store response did not contain game data".to_string())?;
+        let mut data = entry["data"].clone();
+        // Keep the previous review summary if Steam is unavailable or rate-limits us.
+        if let Some(previous) = stale.as_ref().and_then(|value| value.get("gameaccess_reviews")) {
+            data["gameaccess_reviews"] = previous.clone();
+        }
+        let reviews = client.get(format!("https://store.steampowered.com/appreviews/{app_id}"))
+            .query(&[("json", "1"), ("filter", "all"), ("language", "all"), ("purchase_type", "all"), ("num_per_page", "1")])
+            .send().and_then(|res| res.error_for_status()).and_then(|res| res.json::<serde_json::Value>());
+        match reviews {
+            Ok(value) if value["success"].as_u64() == Some(1) && value["query_summary"]["total_reviews"].is_u64() => {
+                data["gameaccess_reviews"] = value["query_summary"].clone();
+                data["gameaccess_reviews_updated_at"] = chrono::Utc::now().to_rfc3339().into();
+            }
+            _ => { data["gameaccess_refresh_warning"] = "Steam no pudo actualizar las valoraciones. Se conserva la información anterior.".into(); }
+        }
+        data["gameaccess_updated_at"] = chrono::Utc::now().to_rfc3339().into();
         write_steam_media_cache(app_id, &data);
         Ok(data)
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        read_steam_media_cache(app_id, None).ok_or_else(|| {
-            "Steam Store metadata bridge is currently implemented for Windows".into()
-        })
+    })();
+    match fetched {
+        Ok(data) => Ok(data),
+        Err(err) if force => Err(err),
+        Err(err) => stale.ok_or(err),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::read_local_steam_pool;
+
+    // Opt-in integration check: two public Steam requests for one game, then
+    // a cache-only read. Never run this against the entire catalog.
+    #[test]
+    #[ignore = "requires Steam network access"]
+    fn live_steam_metadata_refresh_caches_reviews() {
+        let fresh = super::steam_store_metadata_refresh(1174180, true).expect("Steam refresh");
+        assert_eq!(fresh["steam_appid"].as_u64(), Some(1174180));
+        let reviews = &fresh["gameaccess_reviews"];
+        let total = reviews["total_reviews"].as_u64().expect("review total");
+        let positive = reviews["total_positive"].as_u64().expect("positive reviews");
+        assert!(total > 0 && positive <= total);
+        assert!(fresh["gameaccess_reviews_updated_at"].is_string());
+        let cached = super::steam_store_metadata(1174180).expect("cached Steam data");
+        assert_eq!(cached["gameaccess_updated_at"], fresh["gameaccess_updated_at"]);
+        assert_eq!(cached["gameaccess_reviews"], fresh["gameaccess_reviews"]);
+    }
 
     #[test]
     fn local_steam_pool_contains_real_games_and_accounts() {
