@@ -77,8 +77,9 @@ def test_expired_key_denies_protected_requests(activation_db, monkeypatch, tmp_p
     assert response.status_code == 401
 
 
-def test_admin_issuance_activation_and_revocation_report_server_dates(activation_db, monkeypatch):
+def test_admin_issuance_activation_and_revocation_report_server_dates(activation_db, monkeypatch, tmp_path):
     from fastapi import HTTPException, Request
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
     monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "t" * 32)
     admin = Request({"type": "http", "headers": [(b"x-gameaccess-admin-token", b"t" * 32)]})
     installation = str(uuid4())
