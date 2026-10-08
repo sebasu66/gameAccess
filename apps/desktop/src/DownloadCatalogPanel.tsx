@@ -1,4 +1,5 @@
 import FilledIcon from "./FilledIcon";
+import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog, { activeFilterTags } from "./LibraryFilterDialog";
 import { createPortal } from "react-dom";
@@ -135,6 +136,7 @@ interface DownloadCatalogPanelProps {
 type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
+  const { locale } = useI18n();
   const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games };
   const view = props.view ?? "catalog";
   const displaySection = props.catalogUnavailable && view === "catalog"
@@ -240,9 +242,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   const toolbar = (
       <>
-      <span className="ga-overview-label">{view === "catalog" ? "Catálogo" : "Biblioteca"}</span><span className="ga-overview-count">{displaySection.games.length} juegos / {displaySection.games.filter(game => props.preferences?.[game.id] === 1).length} favoritos</span>
+      
       <div className="library-catalog-toolbar library-catalog-controls">
-        <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
+        <div className="ga-search-dock"><SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
+          <output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {displaySection.games.filter(game => props.preferences?.[game.id] === 1).length} {locale === "es" ? "favoritos" : "favorites"}</output></div>
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
           </div>

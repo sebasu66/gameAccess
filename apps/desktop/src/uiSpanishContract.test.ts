@@ -4,6 +4,7 @@ import { translate } from "./i18n";
 import appSource from "./App.tsx?raw";
 import detailSource from "./AppDetailPanel.tsx?raw";
 import buildSource from "./BuildStamp.tsx?raw";
+import backendSource from "./BackendStatus.tsx?raw";
 import tabsSource from "./CatalogTabs.tsx?raw";
 import completeSource from "./DownloadCompleteDialog.tsx?raw";
 import storageSource from "./gameStorage.ts?raw";
@@ -14,7 +15,8 @@ describe("Spanish desktop UI copy", () => {
   it("keeps primary labels and user-facing messages in Spanish", () => {
     expect(tabsSource).not.toContain('label: "Tienda"');
     expect(tabsSource).not.toContain('label: "Store"');
-    expect(buildSource).toContain("Servidor: Local");
+    expect(backendSource).toContain("Local");
+    expect(backendSource).toContain("Desconectado");
     expect(buildSource).toContain("Compilaci\u00f3n:");
     expect(buildSource).not.toContain("Server:");
     expect(buildSource).not.toContain("Compilation time");

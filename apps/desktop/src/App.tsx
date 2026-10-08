@@ -891,7 +891,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   return (
     <div className="app-shell">
       <header ref={headerRef} className="topbar topbar-glass">
-        <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /><span className="ga-wordmark">game<span>/</span>access</span></button>
+        <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
       </header>

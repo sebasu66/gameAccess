@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import BuildStamp from "./BuildStamp";
 import { Settings, X, RotateCcw, Play, Loader2 } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
@@ -25,6 +26,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
     <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
     <label className="ga-style-toggle"><input type="checkbox" checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>
     {hasTauriRuntime() ? <fieldset className="ga-session-options"><legend>{c.after}</legend>{modes.map(mode => <label key={mode}><input type="radio" name="ga-restore-mode" checked={session.restoreMode === mode} onChange={() => { const next = { ...session, restoreMode: mode }; setSession(next); saveSteamSessionPreferences(next); }} />{c[mode]}</label>)}</fieldset> : null}
+    <BuildStamp />
    </div>
    <footer><p>{c.saved}</p><div><button type="button" onClick={() => { const next = { ...DEFAULT_PIXEL_STYLE }; setStyle(next); savePixelStyle(next); }}><RotateCcw size={16} />{c.reset}</button><button type="button" onClick={() => { onClose(); window.dispatchEvent(new Event("gameaccess:replay-logo")); }}><Play size={16} />{c.replay}</button></div></footer>
   </section>

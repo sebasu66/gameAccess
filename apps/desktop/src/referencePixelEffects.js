@@ -95,7 +95,7 @@ function fillOrange(c,s,t,bias){
 
 const targets=new Map();
 // Main application actions only: settings contents, dialogs and titlebar are excluded.
-const selector='.library-catalog-tabs > button,.catalog-bottom-actions > button,.library-catalog-filter-actions > button,.library-sort-dropdown > summary,.digital-download-nav,.ga-settings-fab,.ga-big-screen-toggle';
+const selector='.library-catalog-tabs > button,.library-catalog-toolbar .global-search';
 const excluded='[role="dialog"],[role="alertdialog"],.ga-settings-panel';
 function selected(b){return !b.matches('.library-catalog-tabs > button')||b.getAttribute('aria-selected')==='true'}
 function sizeButton(o){
@@ -106,7 +106,7 @@ function sizeButton(o){
 const resize=new ResizeObserver(entries=>{for(const entry of entries){const o=targets.get(entry.target);if(o)sizeButton(o)}});
 function syncButtons(){
  for(const [b,o] of targets)if(!b.isConnected||b.closest(excluded)){
-   resize.unobserve(b);o.canvas.remove();b.classList.remove('ga-led-button');targets.delete(b);
+   resize.unobserve(b);o.canvas.remove();b.classList.remove('ga-led-button','ga-pixel-search');targets.delete(b);
  }
  for(const b of document.querySelectorAll(selector)){
    if(b.closest(excluded))continue;
@@ -114,7 +114,7 @@ function syncButtons(){
    if(!o){
      const canvas=document.createElement('canvas');canvas.setAttribute('aria-hidden','true');
      const c=canvas.getContext('2d');if(!c)continue;
-     o={button:b,canvas,c,s:null,width:0,height:0};targets.set(b,o);b.classList.add('ga-led-button');resize.observe(b);
+     o={button:b,canvas,c,s:null,width:0,height:0};targets.set(b,o);b.classList.add(b.matches('.global-search')?'ga-pixel-search':'ga-led-button');resize.observe(b);
    }
    if(!b.contains(o.canvas))b.prepend(o.canvas);
    b.dataset.pixelActive=String(selected(b));sizeButton(o);
@@ -161,7 +161,7 @@ return ()=>{
  cancelAnimationFrame(frame);observer.disconnect();resize.disconnect();fx.remove();
  window.removeEventListener('resize',resizeField);window.removeEventListener(PIXEL_STYLE_EVENT,updateStyle);window.removeEventListener('storage',updateStyle);
  document.removeEventListener('visibilitychange',visibility);media.removeEventListener('change',visibility);
- for(const [b,o] of targets){o.canvas.remove();b.classList.remove('ga-led-button');delete b.dataset.pixelActive;delete b.dataset.pixelSignature}
+ for(const [b,o] of targets){o.canvas.remove();b.classList.remove('ga-led-button','ga-pixel-search');delete b.dataset.pixelActive;delete b.dataset.pixelSignature}
  targets.clear();
 };
 }
