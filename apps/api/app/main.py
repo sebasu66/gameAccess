@@ -26,7 +26,7 @@ from .admin_auth import admin_authenticated, install_admin_auth
 from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
-from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, utc, valid_session
+from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, session_end_details, utc, valid_session
 from .access_overrides import CourtesySession, courtesy_access_configured, redeem_courtesy_key, valid_courtesy_session
 from .credential_transport import encrypt_provider_credential, encrypt_provider_download_credential
 from .steam_presence import fetch_player_summaries
@@ -453,7 +453,8 @@ def revoke_access_key(key_id: int, request: Request, session: Session = Depends(
     if row is None:
         raise HTTPException(404, "Activation key not found")
     row.revoked_at = now_utc()
-    row.session_hash = None
+    # Retain the digest for authenticated rejection metadata; revoked_at still
+    # denies all access through valid_session and redeem_key.
     session.add(row)
     session.commit()
     return {"ok": True}
@@ -536,7 +537,9 @@ def activation_status(request: Request, session: Session = Depends(get_session))
             reason="activation_missing_or_expired",
             commit=True,
         )
-        raise HTTPException(401, "GameAccess activation is required or has expired")
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        detail = session_end_details(session, token, request.headers.get("X-GameAccess-Installation", ""))
+        raise HTTPException(401, detail)
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
 
 

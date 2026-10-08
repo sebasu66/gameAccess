@@ -76,6 +76,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
   onDockStart();
  };
+ if (stage === "holding" || stage === "validation") return null;
  return <div className={`gameaccess-splash phase-${phase}`} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
   {phase === "hold" ? <img className="gameaccess-splash-film" src="/brand/logo-intro-hold.png" alt="" />
    : <video key={phase} ref={video} className="gameaccess-splash-film" src={phase === "intro" ? "/brand/logo-intro.webm" : "/brand/logo-to-header.webm"}

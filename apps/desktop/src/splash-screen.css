@@ -19,3 +19,59 @@
 @keyframes ga-opening-out{from{opacity:1}to{opacity:0}}
 @keyframes ga-opening-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.ga-opening-background.is-docking,.ga-application-reveal.is-revealing{animation:none}.ga-application-reveal.is-revealing{opacity:1}}
+
+/* Entry screen: the frosted access form stays left of the existing G/A film. */
+.ga-opening-background[data-stage=validation]::after,.ga-opening-background[data-stage=holding]::after{
+ background:linear-gradient(to bottom,rgba(7,9,13,.3) 0%,rgba(7,9,13,.4) 25%,rgba(7,9,13,.87) 36%,rgba(7,9,13,.87) 64%,rgba(7,9,13,.4) 75%,rgba(7,9,13,.45) 100%);
+}
+.ga-validation{display:block;overflow:auto;padding:32px max(28px,calc((100vw - 1200px)/2)) 36px;bottom:50px;pointer-events:auto;align-content:center}
+.ga-entry-layout{display:grid;grid-template-columns:minmax(480px,660px) minmax(240px,1fr);gap:48px;align-items:start;max-width:1200px;margin:auto}
+.ga-entry-content{display:grid;gap:22px;min-width:0}
+.ga-validation .activation-card{width:100%;max-height:none;overflow:visible;padding:26px 30px;background:linear-gradient(145deg,rgba(40,42,48,.74),rgba(16,17,20,.8));border:1px solid #ffffff35;box-shadow:0 24px 80px #0006,inset 0 1px 0 #ffffff22;backdrop-filter:blur(24px) saturate(130%);border-radius:18px;color:#f4f4f2}
+.ga-validation .activation-card-heading{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:12px;color:#ff9a50}
+.ga-validation .activation-card-heading .eyebrow{font-size:10px;letter-spacing:.15em}
+.ga-validation .activation-card h1{font-size:clamp(24px,2.4vw,32px);line-height:1.15;margin:0 0 8px}
+.ga-validation .activation-card h2{font-size:22px;margin:20px 0 10px}
+.ga-validation .activation-card p{line-height:1.5}
+.ga-validation .activation-lead{margin:0;color:#c5c7cd;font-size:14px}
+.ga-validation .activation-form{margin-top:22px;gap:10px}
+.ga-validation .activation-form label{font-size:12px;color:#dddfe5}
+.ga-validation .activation-form input{background:#0d101280;min-height:48px;border:1px solid #ffffff38;border-radius:9px;font-size:14px}
+.ga-validation .activation-form input:focus{outline:2px solid #ff9a50;outline-offset:2px;border-color:transparent}
+.ga-validation .activation-action{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;min-height:44px;width:100%;border-radius:9px;background:#ff8a35;color:#17110d;font-size:13px;font-weight:750;border:1px solid #ffae73;cursor:pointer}
+.ga-validation .activation-action:disabled{background:#33353c;border-color:#55565d;color:#bbbdc5;cursor:default;opacity:1}
+.ga-validation .activation-action:focus-visible,.ga-validation a:focus-visible{outline:2px solid #ffb376;outline-offset:4px}
+.ga-validation .activation-connection-note{display:flex;gap:10px;align-items:flex-start;margin:5px 0 0;color:#d5d7df;font-size:12px}
+.activation-connection-note svg{flex:none;margin-top:2px}
+.activation-ended{display:flex;gap:14px;padding:16px 20px;background:#272018d9;border:1px solid #f0ac5c70;border-radius:13px;backdrop-filter:blur(24px);color:#f5d7b3}
+.activation-ended>svg{flex:none;margin-top:2px}
+.activation-ended strong{font-size:14px}.activation-ended p{margin:5px 0 0;font-size:12px;line-height:1.5}
+.ga-entry-brand{position:sticky;top:80px;display:flex;align-items:center;flex-direction:column;padding-top:10px;gap:0;pointer-events:none}
+.ga-entry-brand video,.ga-entry-brand img{display:block;width:min(100%,420px);aspect-ratio:1;object-fit:contain;filter:drop-shadow(0 18px 28px #0006)}
+.ga-entry-brand>span{font:800 clamp(28px,3vw,46px) Manrope,"Segoe UI",sans-serif;letter-spacing:-.05em;color:#fafafa;text-shadow:0 4px 24px #000b}
+.activation-passes{color:#e8e9ed}
+.activation-passes>h2{margin:0 0 14px;font-size:16px;font-weight:700;text-shadow:0 2px 8px #000}
+.activation-pass-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.activation-pass{display:flex;flex-direction:column;padding:20px;background:linear-gradient(145deg,#23262cd4,#111216de);border:1px solid #ffffff30;border-radius:14px;backdrop-filter:blur(24px);box-shadow:inset 0 1px 0 #ffffff16}
+.activation-pass-plus{border-color:#ff9a5070;background:linear-gradient(145deg,#49301de0,#171616de)}
+.activation-pass-heading{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.activation-pass-heading h3{font-size:16px;letter-spacing:.05em;margin:0}
+.activation-pass-heading>span{font-size:8px;font-weight:750;letter-spacing:.06em;color:#d3d7df}
+.activation-pass-plus .activation-pass-heading>span{color:#ffc18e}
+.activation-pass p{margin:6px 0;color:#c6c8cf;font-size:11px;line-height:1.5}
+.activation-pass p.activation-pass-price{font-size:17px;font-weight:750;color:#fff;margin:14px 0 6px}
+.activation-pass ul{display:grid;gap:10px;list-style:none;margin:16px 0 22px;padding:0;color:#d9dbe1;font-size:11px;line-height:1.45}
+.activation-pass li{display:flex;gap:8px;align-items:flex-start}
+.activation-pass li svg{flex:none;margin-top:1px;color:#c7d3cc}
+.activation-pass-plus li svg{color:#ffb87e}
+.activation-pass-link{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:auto;padding:10px 6px;border:1px solid #ffffff40;background:#ffffff0b;border-radius:8px;color:#fff;font-size:11px;font-weight:700;text-decoration:none}
+.activation-pass-link:hover{border-color:#ff9a50;background:#ff9a501a}
+.activation-pass-pending{display:block;margin-top:auto;padding:10px 6px;text-align:center;font-size:11px;color:#eac8af;border-top:1px solid #ffffff20}
+.ga-validation .activation-help{scroll-margin:24px}
+.ga-validation .activation-help-steps{padding-left:20px;font-size:12px;color:#d3d5dc;line-height:1.8}
+.ga-validation .activation-help-video{width:100%;max-height:220px;border-radius:10px}
+.ga-validation .activation-back,.ga-validation .activation-provider-link{display:inline-flex;align-items:center;gap:8px;color:#ffb376;font-size:12px}
+.ga-access-footer{justify-content:space-between;padding:0 24px}
+@media(max-width:1000px){.ga-entry-layout{grid-template-columns:minmax(420px,1fr) minmax(200px,.6fr);gap:24px}.ga-validation{padding:24px}.activation-pass{padding:16px}.ga-entry-brand{top:100px}}
+@media(max-width:720px){.ga-entry-layout{grid-template-columns:minmax(0,1fr);gap:20px}.ga-entry-brand{position:static;grid-row:1;padding:0;flex-direction:row;justify-content:center;gap:12px}.ga-entry-brand video,.ga-entry-brand img{width:92px}.ga-entry-brand>span{font-size:28px}.ga-validation{padding:20px 16px}.ga-validation .activation-card{padding:22px}.activation-pass-heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:430px){.activation-pass-grid{grid-template-columns:1fr}.activation-pass-heading{flex-direction:row}}

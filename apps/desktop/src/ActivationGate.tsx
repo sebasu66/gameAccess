@@ -1,17 +1,20 @@
 import VoxelLogo from "./VoxelLogo";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, KeyRound, Loader2, PlayCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft, ArrowUpRight, Check, KeyRound, Loader2 } from "lucide-react";
 import SplashScreen from "./SplashScreen";
 import GameCoverBackdrop from "./GameCoverBackdrop";
 import BackendStatus from "./BackendStatus";
 import LanguageSwitch from "./LanguageSwitch";
 import { openingStage } from "./openingFlow";
-import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation } from "./activation";
-import type { ActivationStatus } from "./activation";
+import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
+import type { ActivationStatus, ActivationEnd } from "./activation";
 import { useI18n } from "./i18n";
+import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
+import { loadPixelStyle } from "./pixelStylePreferences";
 import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
 
 const linkvertiseUrl = import.meta.env.VITE_LINKVERTISE_URL?.trim() || "";
+const plusUrl = import.meta.env.VITE_PLUS_CHECKOUT_URL?.trim() || "";
 const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim() || "";
 
 export default function ActivationGate({ children }: { children: ReactNode }) {
@@ -20,6 +23,10 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [connecting, setConnecting] = useState(true);
+  const [ended, setEnded] = useState<ActivationEnd | null>(null);
+  const verification = useRef<AbortController | null>(null);
+  const redeeming = useRef(false);
   const [notice, setNotice] = useState("");
   const [introReady, setIntroReady] = useState(false);
   const [verificationReady, setVerificationReady] = useState(false);
@@ -43,19 +50,52 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   }, []);
 
   const verify = useCallback(async () => {
+    if (redeeming.current) return;
+    verification.current?.abort();
+    const controller = new AbortController();
+    verification.current = controller;
+    const { signal } = controller;
     setBusy(true);
+    setConnecting(true);
     setError("");
     try {
       const token = await readActivationSession();
-      if (!token) { setStatus(null); return; }
-      setStatus(await checkActivation(token));
+      while (!signal.aborted) {
+        await waitForActivationConnection(signal, () => setConnecting(true));
+        try {
+          const result = token ? await checkActivation(token, signal) : null;
+          if (signal.aborted) return;
+          setStatus(result);
+          if (result) setEnded(null);
+          setConnecting(false);
+          break;
+        } catch (reason) {
+          if (signal.aborted) return;
+          if (reason instanceof ActivationRejectedError) {
+            setStatus(null);
+            setEnded(reason.end);
+            setConnecting(false);
+            await clearActivationSession();
+            break;
+          }
+          setConnecting(true);
+          await activationRetryDelay(signal);
+        }
+      }
     } catch (reason) {
-      setStatus(null);
-      setError(reason instanceof Error ? reason.message : t("activationVerifyFailed"));
-    } finally { setBusy(false); setVerificationReady(true); }
+      if (!signal.aborted) {
+        setConnecting(false);
+        setError(reason instanceof Error ? reason.message : t("activationVerifyFailed"));
+      }
+    } finally {
+      if (!signal.aborted) { setBusy(false); setVerificationReady(true); }
+    }
   }, [t]);
 
-  useEffect(() => { void verify(); }, [verify]);
+  useEffect(() => {
+    void verify();
+    return () => verification.current?.abort();
+  }, [verify]);
   useEffect(() => {
     const syncHelpPage = () => setHelpOpen(window.location.hash === "#obtener-clave");
     window.addEventListener("hashchange", syncHelpPage);
@@ -63,9 +103,13 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     const invalid = () => {
+      verification.current?.abort();
+      setConnecting(false);
       setStatus(null);
       setNotice("");
-      setError(t("activationExpiredHelp"));
+      setEnded(lastActivationEnd());
+      setBusy(false);
+      setVerificationReady(true);
       void clearActivationSession();
     };
     window.addEventListener(ACTIVATION_INVALID_EVENT, invalid);
@@ -89,9 +133,13 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     const expire = () => {
+      verification.current?.abort();
+      setConnecting(false);
       setStatus(null);
       setNotice("");
-      setError(t("activationTimeEnded"));
+      setEnded({ reason: "expired", expires_at: status.expires_at });
+      setBusy(false);
+      setVerificationReady(true);
       void clearActivationSession();
     };
 
@@ -115,15 +163,20 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
 
   const activate = async (event: FormEvent) => {
     event.preventDefault();
-    if (!key.trim()) return;
+    if (!key.trim() || busy || connecting) return;
+    let reconnect = false;
+    redeeming.current = true;
+    verification.current?.abort();
     setBusy(true);
     setError("");
     try {
       setStatus(await redeemActivation(key));
       setKey("");
+      setEnded(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("activationKeyFailed"));
-    } finally { setBusy(false); setVerificationReady(true); }
+      if (reason instanceof ActivationConnectionError) { reconnect = true; setConnecting(true); }
+      else setError(reason instanceof Error ? reason.message : t("activationKeyFailed"));
+    } finally { redeeming.current = false; setBusy(false); setVerificationReady(true); if (reconnect) void verify(); }
   };
 
   return <>
@@ -133,34 +186,79 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
     {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}><GameCoverBackdrop /></div> : null}
-    {stage === "validation" ? <main className="runtime-gate activation-gate ga-validation">
-      {helpOpen ? <section className="runtime-gate-card activation-card activation-help" aria-labelledby="activation-help-title">
-        <a className="activation-back" href="#acceso"><ArrowLeft size={18} /> {t("activationBack")}</a>
-        <div className="activation-card-heading"><div className="activation-key-mark"><PlayCircle size={24} /></div><span className="eyebrow">{t("activationFree")}</span></div>
-        <h1 id="activation-help-title">{t("activationHelpTitle")}</h1>
-        <p>{t("activationHelpLead")}</p>
-        {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} />
-          : <div className="activation-video-pending"><PlayCircle size={38} /><span>{t("activationVideoPending")}</span></div>}
-        <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
-        {linkvertiseUrl ? <a className="activation-provider-link" href={linkvertiseUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
-          : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
-      </section> : <section className="runtime-gate-card activation-card">
-        <div className="activation-card-heading"><div className="activation-key-mark"><KeyRound size={24} /></div><span className="eyebrow">{t("activationBeta")}</span></div>
-        <h1>{busy ? t("activationChecking") : t("activationEnter")}</h1>
-        <p>{t("activationLead")}</p>
-        <form onSubmit={event => void activate(event)} className="activation-form">
-          <label htmlFor="activation-key">{t("activationKeyLabel")}</label>
-          <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} placeholder={t("activationKeyPlaceholder")} disabled={busy} />
-          {error ? <p role="alert" className="activation-error">{error}</p> : null}
-          {error && !key.trim() ? <button type="button" className="activation-retry" onClick={() => void verify()} disabled={busy}>{t("retryConnection")}</button> : null}
-          <div className="runtime-gate-actions">
-            <button type="submit" className="primary" disabled={busy || !key.trim()}>{busy ? <Loader2 className="spin" size={18} /> : <KeyRound size={18} />} {t("activationSubmit")}</button>
-          </div>
-        </form>
-        <a className="activation-free-link" href="#obtener-clave">{t("activationGetFree")} <ArrowUpRight size={18} /></a>
-      </section>}
+    {stage === "validation" || stage === "holding" ? <main className="activation-gate ga-validation">
+      <div className="ga-entry-layout">
+        <div className="ga-entry-content">
+          {ended ? <aside className="activation-ended" role="status">
+            <KeyRound size={20} aria-hidden="true" />
+            <div><strong>{ended.reason === "expired" ? t("activationTimeEndedTitle") : ended.reason === "revoked" ? t("activationRevokedTitle") : t("activationUnavailableTitle")}</strong>
+              <p>{ended.reason === "expired" && ended.expires_at && Number.isFinite(Date.parse(ended.expires_at))
+                ? t("activationExpiredAt", { date: new Date(ended.expires_at).toLocaleString() })
+                : ended.reason === "revoked" && ended.revoked_at && Number.isFinite(Date.parse(ended.revoked_at))
+                ? t("activationRevokedAt", { date: new Date(ended.revoked_at).toLocaleString() })
+                : t("activationTimeEnded")}</p>
+              <p>{t("activationAnotherKey")}</p>
+            </div>
+          </aside> : null}
+          <section className="activation-card" aria-labelledby="activation-title">
+            <div className="activation-card-heading"><span className="eyebrow">{t("activationBeta")}</span><KeyRound size={20} aria-hidden="true" /></div>
+            <h1 id="activation-title">{t("activationEnter")}</h1>
+            <p className="activation-lead">{t("activationLead")}</p>
+            <form onSubmit={event => void activate(event)} className="activation-form">
+              <label htmlFor="activation-key">{t("activationKeyLabel")}</label>
+              <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false}
+                placeholder={t("activationKeyPlaceholder")} disabled={busy && !connecting} aria-describedby={error ? "activation-error" : undefined} />
+              {error ? <p id="activation-error" role="alert" className="activation-error">{error}</p> : null}
+              {connecting ? <>
+                <p className="activation-connection-note" role="status"><Loader2 className="spin" size={18} aria-hidden="true" /><span>{t("activationServerWaking")}</span></p>
+                <button type="button" className="primary activation-action" onClick={() => void verify()}>{t("retryConnection")}</button>
+              </> : <button type="submit" className="primary activation-action" disabled={busy || !key.trim()}>
+                {busy ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <KeyRound size={18} aria-hidden="true" />}
+                {busy ? t("activationChecking") : t("activationSubmit")}
+              </button>}
+            </form>
+          </section>
+          <section className="activation-passes" aria-labelledby="activation-passes-title">
+            <h2 id="activation-passes-title">{t("activationChoosePass")}</h2>
+            <div className="activation-pass-grid">
+              <article className="activation-pass">
+                <div className="activation-pass-heading"><h3>BASE</h3><span>{t("activationBetaShort")}</span></div>
+                <p className="activation-pass-price">{t("activationBasePrice")}</p>
+                <p>{t("activationBaseAds")}</p>
+                <ul>{(["activationOneClick", "activationBigScreen", "activationRegularDownload", "activationEnhancedSearch"] as const).map(item =>
+                  <li key={item}><Check size={14} aria-hidden="true" />{t(item)}</li>)}</ul>
+                <a className="activation-pass-link" href="#obtener-clave">{t("activationGetBase")} <ArrowUpRight size={16} /></a>
+              </article>
+              <article className="activation-pass activation-pass-plus">
+                <div className="activation-pass-heading"><h3>PLUS</h3><span>{t("activationBetaPromo")}</span></div>
+                <p className="activation-pass-price">{t("activationPlusPrice")}</p>
+                <p>{t("activationPlusTrial")}</p>
+                <ul>{(["activationEverythingBase", "activationParallelDownloads", "activationFastDownloads"] as const).map(item =>
+                  <li key={item}><Check size={14} aria-hidden="true" />{t(item as "activationOneClick")}</li>)}</ul>
+                {plusUrl ? <a className="activation-pass-link" href={plusUrl} target="_blank" rel="noopener noreferrer">{t("activationGetPlus")} <ArrowUpRight size={16} /></a>
+                  : <span className="activation-pass-pending">{t("activationPlusPending")}</span>}
+              </article>
+            </div>
+          </section>
+          {helpOpen ? <section className="activation-card activation-help" aria-labelledby="activation-help-title">
+            <a className="activation-back" href="#acceso"><ArrowLeft size={16} /> {t("activationBack")}</a>
+            <h2 id="activation-help-title">{t("activationHelpTitle")}</h2>
+            <p>{t("activationHelpLead")}</p>
+            {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} /> : null}
+            <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
+            {linkvertiseUrl ? <a className="activation-provider-link" href={linkvertiseUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
+              : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
+          </section> : null}
+        </div>
+        <div className="ga-entry-brand" aria-hidden="true">
+          {loadPixelStyle().animate && !matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? <video src="/brand/logo-header-loop.webm" poster="/brand/logo-header-poster.png" autoPlay loop muted playsInline />
+            : <img src="/brand/logo-header-poster.png" alt="" />}
+          <span>GameAccess</span>
+        </div>
+      </div>
     </main> : null}
-    {stage === "validation" ? <footer className="ga-access-footer"><BackendStatus /><LanguageSwitch /></footer> : null}
+    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /><LanguageSwitch /></footer> : null}
     {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }
