@@ -264,13 +264,23 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         </div>
         <div className="ga-entry-brand" aria-hidden="true">
           {loadPixelStyle().animate && !matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? <video src="/brand/logo-header-loop.webm" poster="/brand/logo-header-poster.png" autoPlay loop muted playsInline />
-            : <img src="/brand/logo-header-poster.png" alt="" />}
-          <span>GameAccess</span>
+            ? <video src="/brand/logo-entry-loop.webm" poster="/brand/logo-entry-poster.png" autoPlay loop muted playsInline />
+            : <img src="/brand/logo-entry-poster.png" alt="" />}
+          <GameAccessWordmark />
         </div>
       </div>
     </main> : null}
     {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /><LanguageSwitch /></footer> : null}
     {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
+}
+
+// Squared, chamfered lettering echoes the sculpture without another display font.
+function GameAccessWordmark() {
+  return <svg className="ga-entry-wordmark" viewBox="-1 -1 37 20" focusable="false" aria-hidden="true">
+    <g transform="translate(0.65 0.65) scale(1)" fill="#000" opacity=".45"><path d="M2 0H7V2H2V7H5V5H4V3H7V9H2L0 7V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M0 9V0H2L3.5 3L5 0H7V9H5V3L3.5 6L2 3V9Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /></g>
+    <g transform="translate(0 0) scale(1)" fill="#e8e8e2"><path d="M2 0H7V2H2V7H5V5H4V3H7V9H2L0 7V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M0 9V0H2L3.5 3L5 0H7V9H5V3L3.5 6L2 3V9Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /></g>
+    <g transform="translate(0.65 12.65) scale(0.654)" fill="#000" opacity=".45"><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(36 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(45 0)" fillRule="evenodd" /></g>
+    <g transform="translate(0 12) scale(0.654)" fill="#ff6a00"><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(36 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(45 0)" fillRule="evenodd" /></g>
+  </svg>;
 }
