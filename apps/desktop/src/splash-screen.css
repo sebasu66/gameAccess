@@ -2,6 +2,7 @@
 .gameaccess-splash-film{position:absolute;left:0;top:0;width:100vw;height:auto;max-width:none;transform-origin:0 0;transform:translateY(calc((100vh - 56.25vw)/2));background:transparent}
 .ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
+.ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
 .activation-showcase{position:absolute;inset:-12%;overflow:hidden}
 .activation-showcase-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:20px;transform:rotate(-7deg);filter:saturate(.75)}
 .activation-showcase-cover{aspect-ratio:2/3;overflow:hidden;border-radius:8px;background:#111318}
