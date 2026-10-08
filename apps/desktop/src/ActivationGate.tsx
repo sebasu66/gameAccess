@@ -25,12 +25,17 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [verificationReady, setVerificationReady] = useState(false);
   const [docked, setDocked] = useState(false);
   const [dockStarted, setDockStarted] = useState(false);
+  const [applicationStarted, setApplicationStarted] = useState(false);
   const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#obtener-clave");
 
   const stage = openingStage({ introReady, verificationReady, approved: Boolean(status?.active), docked });
   const completeIntro = useCallback(() => setIntroReady(true), []);
   const startDock = useCallback(() => setDockStarted(true), []);
   const completeDock = useCallback(() => setDocked(true), []);
+  useEffect(() => {
+    if (!status?.active) { setDocked(false); setDockStarted(false); }
+    else if (introReady) setApplicationStarted(true);
+  }, [status?.active, introReady]);
   useEffect(() => {
     const replay = () => { setIntroReady(false); setDocked(false); setDockStarted(false); };
     window.addEventListener("gameaccess:replay-logo", replay);
@@ -122,7 +127,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   };
 
   return <>
-    {status?.active && introReady ? <div className={`ga-application-reveal${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
+    {status?.active && (introReady || applicationStarted) ? <div className={`ga-application-reveal${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
       <div className="ga-access-brand"><VoxelLogo /></div>
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
