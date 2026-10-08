@@ -23,8 +23,8 @@
 
 /* Activation entry: real app underlay, soft scrim, custom access cards. */
 @font-face{font-family:"Audiowide";src:url("/fonts/Audiowide-Regular.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap}
-.ga-application-reveal.is-entry-preview{position:fixed;inset:var(--window-chrome-height,34px) 0 0;overflow:hidden;opacity:1;filter:blur(4px) brightness(.48) saturate(.72);transform:scale(1.018);transform-origin:center;pointer-events:none;transition:filter .35s ease,transform .35s ease}
-.ga-entry-scrim{position:absolute;inset:0;background:#080b1168;backdrop-filter:blur(3px) brightness(.8);-webkit-backdrop-filter:blur(3px) brightness(.8)}
+.ga-application-reveal.is-entry-preview{position:fixed;inset:var(--window-chrome-height,34px) 0 0;overflow:hidden;opacity:1;filter:blur(4px) brightness(.68) saturate(.76);transform:scale(1.018);transform-origin:center;pointer-events:none;transition:filter .35s ease,transform .35s ease}
+.ga-entry-scrim{position:absolute;inset:0;background:#080b1130;backdrop-filter:blur(2px) brightness(.92);-webkit-backdrop-filter:blur(2px) brightness(.92)}
 .ga-validation{display:block;overflow:auto;bottom:64px;pointer-events:auto;align-content:center;padding:40px clamp(28px,4vw,80px);font-family:Manrope,"Segoe UI",sans-serif;color:#eef2f8}
 .ga-entry-layout{display:grid;grid-template-columns:minmax(420px,.95fr) minmax(640px,1.45fr);gap:52px;align-items:end;width:100%;max-width:1760px;margin:auto}
 .ga-entry-content{display:flex;flex-direction:column;gap:26px;min-width:0}
