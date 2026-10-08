@@ -83,3 +83,15 @@ def test_provider_protocol_accepts_only_true_and_fails_closed(monkeypatch, paylo
             return httpx.Response(200, text=payload)
     monkeypatch.setattr(flow.httpx, "AsyncClient", FakeClient)
     assert asyncio.run(flow.verify_completion("b" * 64, HASH)) is expected
+
+
+def test_provider_timeout_fails_closed(monkeypatch):
+    import asyncio
+    import httpx
+    class TimeoutClient:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return None
+        async def post(self, *args, **kwargs): raise httpx.ReadTimeout("synthetic timeout")
+    monkeypatch.setattr(flow.httpx, "AsyncClient", TimeoutClient)
+    assert asyncio.run(flow.verify_completion("b" * 64, HASH)) is False

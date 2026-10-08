@@ -75,3 +75,27 @@ def test_expired_key_denies_protected_requests(activation_db, monkeypatch, tmp_p
     client = TestClient(core.app)  # No lifespan: no runtime startup or live services.
     response = client.get(path, headers={"Authorization": f"Bearer {token}", "X-GameAccess-Installation": installation})
     assert response.status_code == 401
+
+
+def test_admin_issuance_activation_and_revocation_report_server_dates(activation_db, monkeypatch):
+    from fastapi import HTTPException, Request
+    monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "t" * 32)
+    admin = Request({"type": "http", "headers": [(b"x-gameaccess-admin-token", b"t" * 32)]})
+    installation = str(uuid4())
+    with Session(activation_db) as session:
+        issued = core.create_access_keys(core.AccessKeyIssueRequest(duration_hours=12), admin, session)
+        key = issued["keys"][0]
+        result = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key["key"], installation_id=installation), session)
+        request = Request({"type": "http", "headers": [
+            (b"authorization", f"Bearer {result['session_token']}".encode()),
+            (b"x-gameaccess-installation", installation.encode()),
+        ]})
+        assert core.activation_status(request, session)["active"] is True
+        core.revoke_access_key(key["id"], admin, session)
+        with pytest.raises(HTTPException) as rejected:
+            core.activation_status(request, session)
+        assert rejected.value.status_code == 401
+        assert rejected.value.detail["reason"] == "revoked"
+        assert rejected.value.detail["revoked_at"]
+        assert rejected.value.detail["expires_at"]
+        assert valid_session(session, result["session_token"], installation) is None
