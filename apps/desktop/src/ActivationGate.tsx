@@ -1,6 +1,6 @@
 import VoxelLogo from "./VoxelLogo";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, Check, KeyRound, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, Crown, Download, Gamepad2, Gauge, Globe2, KeyRound, Layers3, Loader2, LockKeyhole, Monitor, Play, Search } from "lucide-react";
 import SplashScreen from "./SplashScreen";
 import GameCoverBackdrop from "./GameCoverBackdrop";
 import BackendStatus from "./BackendStatus";
@@ -197,12 +197,19 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
-    {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}><GameCoverBackdrop /></div> : null}
+    {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}><GameCoverBackdrop /><div className="ga-entry-world" aria-hidden="true" /></div> : null}
     {stage === "validation" || stage === "holding" ? <main className="activation-gate ga-validation">
       <div className="ga-entry-layout">
         <div className="ga-entry-content">
+          <div className="ga-entry-brand" aria-hidden="true">
+            {loadPixelStyle().animate && !matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? <video src="/brand/logo-entry-loop.webm" poster="/brand/logo-entry-poster.png" autoPlay loop muted playsInline />
+              : <img src="/brand/logo-entry-poster.png" alt="" />}
+            <GameAccessWordmark />
+            <p className="ga-entry-tagline">{t("activationBrandTagline")}</p>
+          </div>
           {ended ? <aside className="activation-ended" role="status">
-            <KeyRound size={20} aria-hidden="true" />
+            <KeyRound size={24} aria-hidden="true" />
             <div><strong>{ended.reason === "expired" ? t("activationTimeEndedTitle") : ended.reason === "revoked" ? t("activationRevokedTitle") : t("activationUnavailableTitle")}</strong>
               <p>{ended.reason === "expired" && ended.expires_at && Number.isFinite(Date.parse(ended.expires_at))
                 ? t("activationExpiredAt", { date: new Date(ended.expires_at).toLocaleString(locale === "es" ? "es-AR" : "en-US", { dateStyle: "medium", timeStyle: "short" }) })
@@ -213,74 +220,80 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             </div>
           </aside> : null}
           <section id="acceso" className="activation-card" aria-labelledby="activation-title">
-            <div className="activation-card-heading"><span className="eyebrow">{t("activationBeta")}</span><KeyRound size={20} aria-hidden="true" /></div>
+            <div className="activation-card-heading"><span className="eyebrow">{t("activationBeta")}</span><KeyRound size={21} aria-hidden="true" /></div>
             <h1 id="activation-title">{t("activationEnter")}</h1>
             <p className="activation-lead">{t("activationLead")}</p>
             <form onSubmit={event => void activate(event)} className="activation-form">
               <label htmlFor="activation-key">{t("activationKeyLabel")}</label>
-              <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false}
-                placeholder={t("activationKeyPlaceholder")} disabled={busy && !connecting} aria-describedby={error ? "activation-error" : undefined} />
+              <div className="activation-key-control"><KeyRound size={23} aria-hidden="true" />
+                <input id="activation-key" value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false}
+                  placeholder={t("activationKeyPlaceholder")} disabled={busy && !connecting} aria-describedby={error ? "activation-error" : undefined} />
+              </div>
               {error ? <p id="activation-error" role="alert" className="activation-error">{error}</p> : null}
               {connecting ? <>
-                <p className="activation-connection-note" role="status"><Loader2 className="spin" size={18} aria-hidden="true" /><span>{t("activationServerWaking")}</span></p>
+                <p className="activation-connection-note" role="status"><Loader2 className="spin" size={20} aria-hidden="true" /><span>{t("activationServerWaking")}</span></p>
                 <button type="button" className="primary activation-action" onClick={() => void verify()}>{t("retryConnection")}</button>
               </> : <button type="submit" className="primary activation-action" disabled={busy || !key.trim()}>
-                {busy ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <KeyRound size={18} aria-hidden="true" />}
+                {busy ? <Loader2 className="spin" size={21} aria-hidden="true" /> : null}
                 {busy ? t("activationChecking") : t("activationSubmit")}
+                {!busy ? <ChevronRight size={22} aria-hidden="true" /> : null}
               </button>}
             </form>
           </section>
-          <section className="activation-passes" aria-labelledby="activation-passes-title">
+        </div>
+        <section className="activation-passes" aria-labelledby="activation-passes-title">
+          <div className="activation-passes-intro">
             <h2 id="activation-passes-title">{t("activationChoosePass")}</h2>
-            <div className="activation-pass-grid">
-              <article className="activation-pass">
-                <div className="activation-pass-heading"><h3>BASE</h3><span>{t("activationBetaShort")}</span></div>
-                <p className="activation-pass-price">{t("activationBasePrice")}</p>
-                <p>{t("activationBaseAds")}</p>
-                <ul>{(["activationOneClick", "activationBigScreen", "activationRegularDownload", "activationEnhancedSearch"] as const).map(item =>
-                  <li key={item}><Check size={14} aria-hidden="true" />{t(item)}</li>)}</ul>
-                <a className="activation-pass-link" href="#obtener-clave">{t("activationGetBase")} <ArrowUpRight size={16} /></a>
-              </article>
-              <article className="activation-pass activation-pass-plus">
-                <div className="activation-pass-heading"><h3>PLUS</h3><span>{t("activationBetaPromo")}</span></div>
-                <p className="activation-pass-price">{t("activationPlusPrice")}</p>
-                <p>{t("activationPlusTrial")}</p>
-                <ul>{(["activationEverythingBase", "activationParallelDownloads", "activationFastDownloads"] as const).map(item =>
-                  <li key={item}><Check size={14} aria-hidden="true" />{t(item)}</li>)}</ul>
-                {plusUrl ? <a className="activation-pass-link" href={plusUrl} target="_blank" rel="noopener noreferrer">{t("activationGetPlus")} <ArrowUpRight size={16} /></a>
-                  : <span className="activation-pass-pending">{t("activationPlusPending")}</span>}
-              </article>
-            </div>
-          </section>
-          {helpOpen ? <section id="obtener-clave" className="activation-card activation-help" aria-labelledby="activation-help-title">
-            <a className="activation-back" href="#acceso"><ArrowLeft size={16} /> {t("activationBack")}</a>
-            <h2 id="activation-help-title">{t("activationHelpTitle")}</h2>
-            <p>{t("activationHelpLead")}</p>
-            {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} /> : null}
-            <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
-            {freePassUrl && !connecting ? <a className="activation-provider-link" href={freePassUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={19} /></a>
-              : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
-          </section> : null}
-        </div>
-        <div className="ga-entry-brand" aria-hidden="true">
-          {loadPixelStyle().animate && !matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? <video src="/brand/logo-entry-loop.webm" poster="/brand/logo-entry-poster.png" autoPlay loop muted playsInline />
-            : <img src="/brand/logo-entry-poster.png" alt="" />}
-          <GameAccessWordmark />
-        </div>
+            <p>{t("activationPassLead")}</p>
+          </div>
+          <div className="activation-pass-grid">
+            <article className="activation-pass">
+              <img className="activation-ticket-art" src="/brand/access-ticket-base.webp" alt="" />
+              <div className="activation-pass-copy">
+                <div className="activation-pass-heading"><div><h3>BASE</h3><span>{t("activationBetaShort")}</span></div><Gamepad2 size={38} aria-hidden="true" /></div>
+                <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationBasePrice")}</p><p>{t("activationBaseAds")}</p></div>
+                <ul>
+                  <li><Download aria-hidden="true" /><span>{t("activationOneClick")}</span></li>
+                  <li><Monitor aria-hidden="true" /><span>{t("activationBigScreen")}</span></li>
+                  <li><Clock3 aria-hidden="true" /><span>{t("activationRegularDownload")}</span></li>
+                  <li><Search aria-hidden="true" /><span>{t("activationEnhancedSearch")}</span></li>
+                </ul>
+                <div className="activation-pass-actions"><a className="activation-pass-link" href="#obtener-clave"><Play size={20} aria-hidden="true" />{t("activationGetBase")}</a></div>
+              </div>
+            </article>
+            <article className="activation-pass activation-pass-plus">
+              <img className="activation-ticket-art" src="/brand/access-ticket-plus.webp" alt="" />
+              <div className="activation-pass-copy">
+                <div className="activation-pass-heading"><div><h3>PLUS</h3><span>{t("activationBetaPromo")}</span></div><Crown size={38} aria-hidden="true" /></div>
+                <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationPlusPrice")}</p><p className="activation-pass-trial">{t("activationPlusTrial")}</p></div>
+                <ul>
+                  <li><CheckCircle2 aria-hidden="true" /><span>{t("activationEverythingBase")}</span></li>
+                  <li><Layers3 aria-hidden="true" /><span>{t("activationParallelDownloads")}</span></li>
+                  <li><Gauge aria-hidden="true" /><span>{t("activationFastDownloads")}</span></li>
+                </ul>
+                <div className="activation-pass-actions">{plusUrl ? <a className="activation-pass-link" href={plusUrl} target="_blank" rel="noopener noreferrer">{t("activationGetPlus")} <ArrowUpRight size={20} aria-hidden="true" /></a>
+                  : <span className="activation-pass-pending"><LockKeyhole size={20} aria-hidden="true" />{t("activationPlusPending")}</span>}</div>
+              </div>
+            </article>
+          </div>
+        </section>
+        {helpOpen ? <section id="obtener-clave" className="activation-card activation-help" aria-labelledby="activation-help-title">
+          <a className="activation-back" href="#acceso"><ArrowLeft size={20} aria-hidden="true" /> {t("activationBack")}</a>
+          <h2 id="activation-help-title">{t("activationHelpTitle")}</h2>
+          <p>{t("activationHelpLead")}</p>
+          {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} /> : null}
+          <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
+          {freePassUrl && !connecting ? <a className="activation-provider-link" href={freePassUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={21} aria-hidden="true" /></a>
+            : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
+        </section> : null}
       </div>
     </main> : null}
-    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /><LanguageSwitch /></footer> : null}
+    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /><div className="ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div></footer> : null}
     {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }
 
-// Squared, chamfered lettering echoes the sculpture without another display font.
+// Typography stays live so the wordmark scales sharply alongside the real G/A film.
 function GameAccessWordmark() {
-  return <svg className="ga-entry-wordmark" viewBox="-1 -1 37 20" focusable="false" aria-hidden="true">
-    <g transform="translate(0.65 0.65) scale(1)" fill="#000" opacity=".45"><path d="M2 0H7V2H2V7H5V5H4V3H7V9H2L0 7V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M0 9V0H2L3.5 3L5 0H7V9H5V3L3.5 6L2 3V9Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /></g>
-    <g transform="translate(0 0) scale(1)" fill="#e8e8e2"><path d="M2 0H7V2H2V7H5V5H4V3H7V9H2L0 7V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M0 9V0H2L3.5 3L5 0H7V9H5V3L3.5 6L2 3V9Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /></g>
-    <g transform="translate(0.65 12.65) scale(0.654)" fill="#000" opacity=".45"><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(36 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(45 0)" fillRule="evenodd" /></g>
-    <g transform="translate(0 12) scale(0.654)" fill="#ff6a00"><path d="M2 0H5L7 2V9H5V6H2V9H0V2ZM2 2V4H5V2Z" transform="translate(0 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(9 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V7H7V9H2L0 7V2Z" transform="translate(18 0)" fillRule="evenodd" /><path d="M0 0H7V2H2V3.5H6V5.5H2V7H7V9H0Z" transform="translate(27 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(36 0)" fillRule="evenodd" /><path d="M2 0H7V2H2V3.5H5L7 5.5V7L5 9H0V7H5V5.5H2L0 3.5V2Z" transform="translate(45 0)" fillRule="evenodd" /></g>
-  </svg>;
+  return <div className="ga-entry-wordmark"><span>Game</span><span>Access</span></div>;
 }
