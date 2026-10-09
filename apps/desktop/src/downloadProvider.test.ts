@@ -85,6 +85,15 @@ describe("IDownloadProvider & compliance with visual components", () => {
     expect(label).toBe("Decompressing asset pack 2/3");
   });
 
+  it("maps browser handoff to an uninstalled state", () => {
+    const managed = snapshotToManagedStatus({
+      gameId: 101, phase: "external", progress: 0,
+      statusText: "Enlace abierto en el navegador; todavía no está instalado.",
+    });
+    expect(managed.installed).toBe(false);
+    expect(managed.state).toBe("not-installed");
+  });
+
   it("maps completed phase to installed state for the UI", () => {
     const completedSnapshot: DownloadProgressSnapshot = {
       gameId: 100,

@@ -23,6 +23,15 @@ class DigitalStorageTests(unittest.TestCase):
         self.runner = DigitalProcessRunner(self.storage)
     def tearDown(self):
         self.temp.cleanup()
+    def test_unresolved_browser_hoster_is_not_reported_as_installed(self):
+        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("digital_downloader.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
+            with self.assertRaises(SystemExit) as exit_code:
+                digital_downloader.main()
+        self.assertEqual(exit_code.exception.code, 0)
+        open_browser.assert_called_once_with("https://gofile.io/file/fixture")
+        self.assertTrue(any(call.kwargs.get("phase") == "external" for call in emit.call_args_list))
+        self.assertFalse(any(call.kwargs.get("phase") == "completed" for call in emit.call_args_list))
+
     def test_extract_play_delete_use_same_folder(self):
         folder = self.storage.register(1, "Fixture")
         archive = folder / "fixture.zip"

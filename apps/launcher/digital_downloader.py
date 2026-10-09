@@ -1240,11 +1240,11 @@ def main():
                         
                         emit_progress(
                             app_id=app_id,
-                            phase="completed",
-                            progress_percent=100.0,
+                            phase="external",
+                            progress_percent=0.0,
                             bytes_downloaded=0,
                             total_bytes=0,
-                            status_text="Abierto en navegador web. Usa el botón de la página (Servidor ocupado)."
+                            status_text="Enlace abierto en el navegador. Esta fuente requiere completar la descarga allí; todavía no está instalado en GameAccess."
                         )
                         logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
                         sys.exit(0)

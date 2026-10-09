@@ -39,15 +39,19 @@ export class DigitalDownloadService implements IDownloadProvider {
       for (const entry of saved.entries) {
         if (!entry?.game || !entry?.snapshot || typeof entry.snapshot.gameId !== "number") continue;
         if (entry.snapshot.phase === "cancelled") continue;
-        this.jobs.set(entry.snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
-        this.activeJobs.set(entry.snapshot.gameId, entry.snapshot);
-        this.reportFailure(entry.snapshot);
+        const snapshot: DownloadProgressSnapshot =
+          entry.snapshot.phase === "completed" && entry.snapshot.statusText?.startsWith("Abierto en navegador web.")
+            ? { ...entry.snapshot, phase: "external" }
+            : entry.snapshot;
+        this.jobs.set(snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
+        this.activeJobs.set(snapshot.gameId, snapshot);
+        this.reportFailure(snapshot);
       }
       this.queue = Array.isArray(saved.queue) ? saved.queue.filter((id: number) => this.activeJobs.get(id)?.phase === "queued") : [];
       const runningIds = Array.isArray(saved.running) ? saved.running : [saved.running];
       for (const id of runningIds) {
         const active = this.activeJobs.get(id);
-        if (active && !["queued", "completed", "error", "cancelled", "interrupted"].includes(active.phase)) this.running.add(id);
+        if (active && !["queued", "completed", "error", "cancelled", "interrupted", "external"].includes(active.phase)) this.running.add(id);
       }
       setTimeout(() => {
         if (!hasTauriRuntime()) return;
@@ -79,7 +83,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   async start(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
-    if (previous && !["error", "cancelled", "completed", "interrupted"].includes(previous.phase)) return;
+    if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
     this.jobs.set(id, { game, options });
     this.queue.push(id);
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: "En cola" });
@@ -277,7 +281,7 @@ export class DigitalDownloadService implements IDownloadProvider {
             error: raw.error,
           };
           this.updateSnapshot(snapshot);
-          if (["completed", "error", "cancelled"].includes(raw.phase)) {
+          if (["completed", "error", "cancelled", "external"].includes(raw.phase)) {
             console.log(`[DigitalDownloaderService:polling] Terminal phase reached (${raw.phase}), stopping polling.`);
             clearInterval(interval);
             this.pollingIntervals.delete(gameId);
@@ -324,7 +328,7 @@ export class DigitalDownloadService implements IDownloadProvider {
    */
   async cancel(gameId: number): Promise<void> {
     const previous = this.activeJobs.get(gameId);
-    if (!previous || ["completed", "cancelled"].includes(previous.phase) || this.controls.has(gameId)) return;
+    if (!previous || ["completed", "cancelled", "external"].includes(previous.phase) || this.controls.has(gameId)) return;
     this.controls.add(gameId);
     try {
       if (this.running.has(gameId)) {
@@ -427,7 +431,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.jobs.delete(snapshot.gameId);
       this.queue = this.queue.filter(id => id !== snapshot.gameId);
     }
-    if (["completed", "error", "cancelled", "interrupted"].includes(snapshot.phase) && this.running.has(snapshot.gameId)) {
+    if (["completed", "error", "cancelled", "interrupted", "external"].includes(snapshot.phase) && this.running.has(snapshot.gameId)) {
       clearInterval(this.pollingIntervals.get(snapshot.gameId));
       this.pollingIntervals.delete(snapshot.gameId);
       this.running.delete(snapshot.gameId);
