@@ -227,14 +227,7 @@ export class DigitalCatalog {
   async bulkCheckSources(games: CatalogGame[]): Promise<Record<number, number>> {
     const results: Record<number, number> = {};
     
-    // Check local fixed overrides first
-    for (const game of games) {
-      const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-      const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
-      if (downloadSource && downloadSource !== "auto" && !downloadSource.includes("127.0.0.1")) {
-         results[game.app_id ?? game.id] = 1;
-      }
-    }
+    
 
     try {
       const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
@@ -272,12 +265,7 @@ export class DigitalCatalog {
   async getSources(game: CatalogGame) {
     let allSources: any[] = [];
 
-    // Allow override from local record if it's explicitly set to a fixed non-auto url
-    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
-    if (downloadSource && downloadSource !== "auto" && !downloadSource.includes("127.0.0.1")) {
-       allSources.push({ title: "Fuente Local/Fija", url: downloadSource, type: "http", size: "", score: 100, pluginName: "Local" });
-    }
+    
 
     try {
       const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
