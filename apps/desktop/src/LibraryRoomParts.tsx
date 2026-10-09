@@ -168,10 +168,12 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
     return [{ label: "Verificando…", icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
+    const srcCount = (game as any).availableSourceCount ?? 0;
+  
   return [{
     label: "Descargar",
     icon: <Download size={23} />,
-    disabled: !game.app_id && !game.id,
+    disabled: (!game.app_id && !game.id) || srcCount === 0,
     kind: "download",
   }];
 }
