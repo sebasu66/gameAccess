@@ -15,6 +15,7 @@ export type DownloadPhase =
   | "paused"         // Temporarily halted by the user or network scheduler
   | "cancelling"     // In the process of aborting and cleaning up temporary staging files
   | "cancelled"      // Aborted and cleaned up
+  | "external"       // Source handed to a browser; no local installation occurred
   | "interrupted"    // Halted unexpectedly due to network failure, disk space, or process crash
   | "completed"      // Fully downloaded, extracted, and ready to launch
   | "error";         // Terminal error
@@ -157,6 +158,9 @@ export function snapshotToManagedStatus(snapshot: DownloadProgressSnapshot): Man
     case "completed":
       mappedState = "installed";
       installed = true;
+      break;
+    case "external":
+      mappedState = "not-installed";
       break;
     case "error":
       mappedState = "not-installed";

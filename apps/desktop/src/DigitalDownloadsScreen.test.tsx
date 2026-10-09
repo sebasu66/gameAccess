@@ -27,6 +27,18 @@ describe("Digital download screen", () => {
     expect(html).toContain("Reintentar");
     expect(html).toContain("Cerrar descargas y volver a la pantalla principal");
   });
+  it.each(["es","en"] as const)("labels browser handoffs without offering PLAY (%s)",locale=>{
+    language.locale=locale;
+    const service=new DigitalDownloadService();
+    const game={id:7,name:"Browser fixture"} as CatalogGame;
+    vi.spyOn(service,"getDownloads").mockReturnValue([
+      {game,snapshot:{gameId:7,phase:"external",progress:0,statusText:"Enlace abierto en el navegador; todavía no está instalado."}},
+    ]);
+    const html=renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={()=>{}}/>);
+    expect(html).not.toContain('class="ga-download-play"');
+    expect(html).toContain(locale==="es"?"Abrir enlace":"Open link");
+    expect(html).toContain("todavía no está instalado");
+  });
   it("formats missing and invalid metrics without invented values", () => {
     expect(formatDownloadBytes(undefined)).toBe("—");
     expect(formatDownloadBytes(NaN)).toBe("—");

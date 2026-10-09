@@ -76,6 +76,19 @@ describe("Digital download scheduling", () => {
     }), setItem: vi.fn() });
     expect(new DigitalDownloadService("old-state").getDownloads()).toEqual([]);
   });
+  it("migrates old browser handoffs out of the false completed state", () => {
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({
+      entries: [{ game: game(7), snapshot: {
+        gameId: 7, phase: "completed", progress: 100,
+        statusText: "Abierto en navegador web. Usa el botón de la página (Servidor ocupado).",
+      } }],
+      queue: [], running: [],
+    }), setItem: vi.fn() });
+    const service = new DigitalDownloadService("browser-handoff-migration");
+    expect(service.getDownloads()[0].snapshot.phase).toBe("external");
+    expect(service.getManagedStatus(7)?.installed).toBe(false);
+    expect(service.getManagedStatus(7)?.state).toBe("not-installed");
+  });
   it("refills a cancelled slot without restarting other workers", async () => {
     const service = new DigitalDownloadService();
     await Promise.all([1, 2, 3, 4, 5, 6].map(id => service.start(game(id))));
