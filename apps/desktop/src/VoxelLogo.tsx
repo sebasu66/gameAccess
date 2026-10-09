@@ -20,6 +20,6 @@ export default function VoxelLogo() {
   <span className="ga-header-logo">{failed
    ? <img src="/brand/logo-header-poster.png" alt="" />
    : <video ref={video} src="/brand/logo-header-loop.webm" poster="/brand/logo-header-poster.png" autoPlay muted loop playsInline preload="auto" onError={() => setFailed(true)} />}</span>
-  <span className="ga-entry-wordmark ga-header-wordmark"><span>Game</span><span>Access</span></span>
+  <span className="ga-header-wordmark"><span>Game</span><span>Access</span></span>
  </span>;
 }
