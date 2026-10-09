@@ -30,7 +30,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     <OverlayScreenDimmer panelRef={ref} />
     <section ref={ref} className="ga-filter-dialog" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
       <header><div><span className="ga-detail-eyebrow">ENCONTRÁ TU PRÓXIMO JUEGO</span><h2 id="ga-filter-title">Filtros</h2></div><button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button></header>
-      <p>Elegí cualquiera de las opciones de cada grupo. Los grupos se combinan para afinar la búsqueda.</p>
+      <p>Elegí cualquiera de las opciones de cada grupo.  Los grupos se combinan para afinar la búsqueda.</p>
       <div className="ga-scroll-frame ga-filter-scroll-frame"><div ref={scrollRef} className="ga-filter-groups">
         <fieldset><legend>Géneros</legend><small>Cualquiera de los seleccionados</small><div className="ga-filter-choices">{genres.map(genre => <label key={genre}><input type="checkbox" checked={draft.genres.includes(genre)} onChange={() => toggle("genres", genre)} />{genre}</label>)}</div></fieldset>
         {GAMEPLAY_FILTER_GROUPS.map(group => <fieldset key={group.id}><legend>{group.label}</legend><small>Sin selección: cualquiera</small><div className="ga-filter-choices">{group.options.map(key => <label key={key}><input type="checkbox" checked={draft.features.includes(key)} onChange={() => toggle("features", key)} />{featureLabel(key)}</label>)}</div></fieldset>)}
