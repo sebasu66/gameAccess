@@ -574,8 +574,13 @@ fn activation_read_session() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-fn activation_save_session(session_token: String) -> Result<(), String> {
-    access_activation::save_session(&session_token)
+fn activation_save_session(session_token: String, persistent: Option<bool>, access_key: Option<String>) -> Result<(), String> {
+    access_activation::save_session(&session_token, persistent.unwrap_or(false), access_key)
+}
+
+#[tauri::command]
+fn activation_read_key() -> Result<Option<String>, String> {
+    access_activation::read_key()
 }
 
 #[tauri::command]
@@ -931,6 +936,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             activation_installation_id,
             activation_read_session,
+            activation_read_key,
             activation_save_session,
             activation_clear_session,
             catalog_cache::catalog_cache_sync,

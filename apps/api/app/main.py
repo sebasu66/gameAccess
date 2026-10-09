@@ -498,7 +498,9 @@ def list_access_events(
 
 
 @app.post("/activation/redeem")
-def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session)) -> dict:
+def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session), response: Response = None) -> dict:
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store"
     installation_id = str(req.installation_id or "")
     try:
         installation_id = canonical_installation_id(installation_id)
@@ -522,11 +524,14 @@ def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(ge
         reason="activation_session_issued",
         commit=True,
     )
-    return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at}
+    return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at,
+            "cacheable": courtesy is None}
 
 
 @app.get("/activation/status")
-def activation_status(request: Request, session: Session = Depends(get_session)) -> dict:
+def activation_status(request: Request, session: Session = Depends(get_session), response: Response = None) -> dict:
+    if response is not None:
+        response.headers["Cache-Control"] = "no-store"
     row = _activation_for_request(request, session)
     if row is None:
         _record_access_event(
@@ -555,7 +560,8 @@ def activation_status(request: Request, session: Session = Depends(get_session))
             if previous and utc(previous.expires_at) <= now_utc():
                 detail = {"reason": "expired", "expires_at": utc(previous.expires_at).isoformat()}
         raise HTTPException(401, detail)
-    return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc()}
+    return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc(),
+            "cacheable": not isinstance(row, CourtesySession)}
 
 
 class ArchivePasswordsRequest(BaseModel):

@@ -91,7 +91,10 @@ def test_admin_issuance_activation_and_revocation_report_server_dates(activation
             (b"authorization", f"Bearer {result['session_token']}".encode()),
             (b"x-gameaccess-installation", installation.encode()),
         ]})
-        assert core.activation_status(request, session)["active"] is True
+        assert result["cacheable"] is True
+        status = core.activation_status(request, session)
+        assert status["active"] is True
+        assert status["cacheable"] is True
         core.revoke_access_key(key["id"], admin, session)
         with pytest.raises(HTTPException) as rejected:
             core.activation_status(request, session)
@@ -100,3 +103,23 @@ def test_admin_issuance_activation_and_revocation_report_server_dates(activation
         assert rejected.value.detail["revoked_at"]
         assert rejected.value.detail["expires_at"]
         assert valid_session(session, result["session_token"], installation) is None
+
+def test_courtesy_redemption_and_status_are_never_cacheable(activation_db, monkeypatch, tmp_path):
+    import json
+    from fastapi import Request
+    key = "GA-PRIVATE-FIXTURE-1234"
+    config = tmp_path / "courtesy-keys.json"
+    config.write_text(json.dumps({"keys": [{"name": "tester", "key": key, "duration_months": 1}]}))
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(config))
+    installation = str(uuid4())
+    with Session(activation_db) as session:
+        result = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key, installation_id=installation), session)
+        assert result["cacheable"] is False
+        request = Request({"type": "http", "headers": [
+            (b"authorization", f"Bearer {result['session_token']}".encode()),
+            (b"x-gameaccess-installation", installation.encode()),
+        ]})
+        status = core.activation_status(request, session)
+        assert status["active"] is True
+        assert status["cacheable"] is False
+        assert key not in repr(result) + repr(status)

@@ -8,6 +8,7 @@ import LibraryInputController, { captureLibraryUiState } from "./LibraryInputCon
 import RuntimeGate from "./RuntimeGate";
 import AppSettings from "./AppSettings";
 import BackendStatus from "./BackendStatus";
+import AccessPass from "./AccessPass";
 import LanguageSwitch from "./LanguageSwitch";
 import PixelAppearance from "./PixelAppearance";
 import WindowChrome from "./WindowChrome";
@@ -85,6 +86,7 @@ function CatalogShell() {
     window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST));
   }, [auxiliarySurface, mode]);
   return <>
+    {!auxiliarySurface ? <AccessPass /> : null}
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
     {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><LanguageSwitch /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><button type="button" className="catalog-refresh-button" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><span aria-hidden="true">↻</span><strong>{t("refreshGames")}</strong></button></div> : null}
     <App key={mode} actionsTarget={actionsTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} />
