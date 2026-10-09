@@ -8,7 +8,27 @@ export const ACTIVATION_INVALID_EVENT = "gameaccess:activation-invalid";
 const native = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 let installationId = "";
 let sessionToken = "";
-let browserToken = "";
+const REGULAR_CACHE = "gameaccess:regular-access";
+export const ACTIVATION_CHANGED_EVENT = "gameaccess:activation-changed";
+export type AccessTier = "base" | "plus";
+export interface RegularAccess { key: string | null; expires_at: string; access_tier: AccessTier; }
+let activationTier: AccessTier | null = null;
+export function getActivationTier(): AccessTier | null { return activationTier; }
+let currentAccess: RegularAccess | null = null;
+export function getRegularAccess(): RegularAccess | null { return currentAccess; }
+function publishAccess(access: RegularAccess | null): void {
+  currentAccess = access;
+  window.dispatchEvent(new Event(ACTIVATION_CHANGED_EVENT));
+}
+function browserCache(): { session_token?: string; key?: string } {
+  try {
+    const value = JSON.parse(localStorage.getItem(REGULAR_CACHE) || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch { return {}; }
+}
+async function cachedKey(): Promise<string | null> {
+  return native() ? invoke<string | null>("activation_read_key") : browserCache().key || null;
+}
 
 export async function getInstallationId(): Promise<string> {
   if (installationId) return installationId;
@@ -22,19 +42,22 @@ export async function getInstallationId(): Promise<string> {
 }
 
 export async function readActivationSession(): Promise<string | null> {
-  return native() ? invoke<string | null>("activation_read_session") : browserToken || null;
+  return sessionToken || (native() ? invoke<string | null>("activation_read_session") : browserCache().session_token || null);
 }
 
-export async function saveActivationSession(token: string): Promise<void> {
-  if (native()) await invoke("activation_save_session", { sessionToken: token });
-  else browserToken = token;
+export async function saveActivationSession(token: string, persistent = false, key: string | null = null): Promise<void> {
+  if (native()) await invoke("activation_save_session", { sessionToken: token, persistent, accessKey: persistent ? key : null });
+  else if (persistent) localStorage.setItem(REGULAR_CACHE, JSON.stringify({ session_token: token, key }));
+  else localStorage.removeItem(REGULAR_CACHE);
   sessionToken = token;
 }
 
 export async function clearActivationSession(): Promise<void> {
   sessionToken = "";
+  activationTier = null;
   if (native()) await invoke("activation_clear_session");
-  else browserToken = "";
+  localStorage.removeItem(REGULAR_CACHE);
+  publishAccess(null);
 }
 
 export function activationHeaders(): Record<string, string> {
@@ -45,6 +68,8 @@ export function activationHeaders(): Record<string, string> {
 
 export function invalidateActivation(): void {
   sessionToken = "";
+  activationTier = null;
+  publishAccess(null);
   window.dispatchEvent(new Event(ACTIVATION_INVALID_EVENT));
 }
 
@@ -52,6 +77,8 @@ export interface ActivationStatus {
   active: boolean;
   expires_at: string;
   server_time: string;
+  cacheable?: boolean;
+  access_tier?: AccessTier;
 }
 
 export interface ActivationEnd {
@@ -71,7 +98,10 @@ export class ActivationRejectedError extends Error {
   constructor(public end: ActivationEnd) { super(translate("activationExpired")); }
 }
 function rememberStatus(status: ActivationStatus) {
-  try { localStorage.setItem(LAST_STATUS, JSON.stringify({ expires_at: status.expires_at })); } catch { /* Optional display metadata only; never stores a key/token. */ }
+  try {
+    if (status.cacheable === true) localStorage.setItem(LAST_STATUS, JSON.stringify({ expires_at: status.expires_at }));
+    else localStorage.removeItem(LAST_STATUS);
+  } catch { /* Optional display metadata only. */ }
 }
 
 export class ActivationConnectionError extends Error {
@@ -103,13 +133,22 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
         ? { reason: detail.reason === "expired" || detail.reason === "revoked" ? detail.reason : fallback.reason,
             expires_at: detail.expires_at || fallback.expires_at, revoked_at: detail.revoked_at } as ActivationEnd
         : fallback;
+      await clearActivationSession();
       throw new ActivationRejectedError(end);
     }
     throw new ActivationConnectionError();
   }
   const status = await response.json() as ActivationStatus;
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  sessionToken = token;
+  activationTier = status.access_tier === "plus" ? "plus" : "base";
+  if (status.cacheable !== true) {
+    await saveActivationSession(token, false);
+    publishAccess(null);
+  } else {
+    const key = await cachedKey();
+    sessionToken = token;
+    publishAccess({ key, expires_at: status.expires_at, access_tier: activationTier });
+  }
   rememberStatus(status);
   return status;
 }
@@ -127,7 +166,10 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
     const body = await response.json().catch(() => ({})) as { detail?: string };
     throw new Error(body.detail ? translateServerDetail(body.detail) : translate("activationGenericFailed"));
   }
-  const result = await response.json() as { session_token: string; expires_at: string };
-  await saveActivationSession(result.session_token);
-  return checkActivation(result.session_token);
+  const result = await response.json() as { session_token: string; expires_at: string; cacheable?: boolean };
+  const status = await checkActivation(result.session_token);
+  const persistent = result.cacheable === true && status.cacheable === true;
+  await saveActivationSession(result.session_token, persistent, persistent ? key.trim() : null);
+  publishAccess(persistent ? { key: key.trim(), expires_at: status.expires_at, access_tier: activationTier || "base" } : null);
+  return status;
 }

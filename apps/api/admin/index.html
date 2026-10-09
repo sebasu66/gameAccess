@@ -98,14 +98,17 @@
           </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Generar claves de acceso</h2><span>Se muestra una sola vez</span></div><div class="panel-body">
             <form id="accessKeyForm" class="form">
-              <div class="field"><label>Duración del acceso</label><input name="access_duration" type="number" min="1" max="60" value="12" required></div>
-              <div class="field"><label>Unidad</label><select name="access_unit"><option value="hours">Horas</option><option value="months">Meses</option></select></div>
-              <div class="field"><label>Vence si no se usa</label><select name="key_ttl_hours"><option value="24" selected>1 día</option><option value="72">3 días</option><option value="168">7 días</option><option value="720">30 días</option></select></div>
+              <div class="field"><label for="accessTier">Nivel de acceso</label><select name="access_tier" id="accessTier"><option value="base">BASE</option><option value="plus">PLUS · pago confirmado manualmente</option></select></div>
+              <div class="field"><label for="accessExpiry">Fecha y hora de vencimiento</label><input id="accessExpiry" name="access_expires" type="datetime-local" required></div>
               <div class="field"><label>Cantidad de claves</label><input name="count" type="number" min="1" max="100" value="1" required></div>
               <div class="field full"><button class="btn primary" type="submit">Generar claves</button></div>
             </form>
-            <div class="credential"><strong>Claves fáciles de dictar</strong><small>Formato de palabra pronunciable + símbolo + número. El acceso empieza al canjearla; el vencimiento por falta de uso empieza al generarla.</small></div>
+            <div class="credential"><strong>Claves fáciles de dictar</strong><small>Formato de palabra pronunciable + símbolo + número. La fecha indicada es el fin del acceso, incluso si se canjea más tarde. Se muestra en tu zona horaria y se guarda en UTC.</small></div>
             <div id="accessKeyResults"></div>
+            <h3>Claves normales · pagos manuales</h3>
+            <p class="muted">Confirmá el pago fuera del sistema y elegí la nueva fecha para renovar la misma clave PLUS. La baja manual bloquea el acceso.</p>
+            <button type="button" class="btn" id="loadAccessKeys">Actualizar claves</button>
+            <div id="managedAccessKeys" aria-live="polite"></div>
           </div></div>
           <div class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>Agregar cuenta existente al pool</h2><span>SteamKit · sólo esta cuenta</span></div><div class="panel-body">
             <form id="providerForm" class="form">
@@ -210,9 +213,54 @@
       const response=await fetch(ACTIVATION_API+'/admin/access-keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body?.detail||response.status+' '+response.statusText);
-      $('accessKeyResults').innerHTML='<div class="credential"><strong>Claves generadas · copialas ahora</strong>'+ (body.keys||[]).map(item=>'<code>'+esc(item.key)+'</code>').join('')+'<small>No se guardan en el panel ni se pueden volver a consultar completas.</small><button class="btn" style="margin-top:10px" type="button" onclick="navigator.clipboard.writeText([...document.querySelectorAll(\'#accessKeyResults code\')].map(x=>x.textContent).join(\'\\n\')).then(()=>toast(\'Claves copiadas\')).catch(()=>toast(\'No se pudo copiar\',true))">Copiar todas</button></div>';
+      $('accessKeyResults').innerHTML='<div class="credential"><strong>Claves generadas · copialas ahora</strong>'+ (body.keys||[]).map(item=>'<small>Clave #'+esc(item.id)+' · '+esc(payload.access_tier.toUpperCase())+' · vence '+esc(new Date(payload.expires_at).toLocaleString())+'</small><code>'+esc(item.key)+'</code>').join('')+'<small>No se guardan en el panel ni se pueden volver a consultar completas.</small><button class="btn" style="margin-top:10px" type="button" onclick="navigator.clipboard.writeText([...document.querySelectorAll(\'#accessKeyResults code\')].map(x=>x.textContent).join(\'\\n\')).then(()=>toast(\'Claves copiadas\')).catch(()=>toast(\'No se pudo copiar\',true))">Copiar todas</button></div>';
       toast((body.keys?.length||0)+' clave(s) generada(s)');
     }catch(err){toast(err.message,true)}
+  };
+
+
+  async function accessKeysRequest(path, payload) {
+    const response = await fetch(ACTIVATION_API + '/admin/access-keys' + path, {
+      method: payload ? 'POST' : 'GET', cache: 'no-store',
+      headers: {'Content-Type':'application/json'}, ...(payload ? {body:JSON.stringify(payload)} : {})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'No se pudo actualizar la clave.');
+    return result;
+  }
+  async function loadManagedAccessKeys() {
+    const result = await accessKeysRequest('');
+    $('managedAccessKeys').innerHTML = (result.keys || []).map(row => {
+      const revoked = Boolean(row.revoked_at);
+      const expired = row.expires_at && Date.parse(row.expires_at) <= Date.now();
+      const expiry = row.expires_at ? new Date(row.expires_at).toLocaleString() : 'Se fija al canjear';
+      const state = revoked ? 'Revocada' : expired ? 'Vencida' : row.activated_at ? 'Activa' : 'Sin canjear';
+      return '<div class="credential"><strong>#'+esc(row.id)+' · '+esc((row.access_tier || 'base').toUpperCase())+' · '+esc(state)+'</strong><small>Vence: '+esc(expiry)+'</small>'+
+        (!revoked && row.access_tier === 'plus' ? '<form data-renew="'+esc(row.id)+'" class="form"><div class="field"><label>Nueva fecha y hora de vencimiento<input name="expires_at" type="datetime-local" required></label></div><button type="submit" class="btn primary">Confirmar pago y renovar</button></form>' : '')+
+        (!revoked ? '<button type="button" class="btn" data-revoke="'+esc(row.id)+'">Dar de baja</button>' : '')+'</div>';
+    }).join('') || '<p class="muted">Todavía no hay claves normales.</p>';
+  }
+  $('loadAccessKeys').onclick = () => loadManagedAccessKeys().catch(err => toast(err.message, true));
+  $('managedAccessKeys').onsubmit = async event => {
+    const form = event.target.closest('form[data-renew]');
+    if (!form) return;
+    event.preventDefault();
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+      await accessKeysRequest('/'+form.dataset.renew+'/renew', {expires_at:new Date(new FormData(form).get('expires_at')).toISOString()});
+      toast('Pago confirmado. Vencimiento actualizado.');
+      await loadManagedAccessKeys();
+    } catch (err) { toast(err.message, true); }
+    finally { button.disabled = false; }
+  };
+  $('managedAccessKeys').onclick = async event => {
+    const button = event.target.closest('button[data-revoke]');
+    if (!button || !confirm('¿Dar de baja la clave #'+button.dataset.revoke+'?')) return;
+    button.disabled = true;
+    try { await accessKeysRequest('/'+button.dataset.revoke+'/revoke', {}); toast('Clave dada de baja.'); await loadManagedAccessKeys(); }
+    catch (err) { toast(err.message, true); }
+    finally { button.disabled = false; }
   };
 
   async function archivePasswordsRequest(method){

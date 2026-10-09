@@ -21,6 +21,7 @@ class CourtesyKey:
     name: str
     value: str
     duration_months: int
+    access_tier: str = "base"
 
 
 class CourtesySession(SQLModel, table=True):
@@ -50,6 +51,7 @@ def _parse_local_file(data: object) -> list[CourtesyKey]:
         name = entry.get("name")
         value = entry.get("key")
         months = entry.get("duration_months", 1)
+        tier = entry.get("access_tier", "base")
         if (
             not isinstance(name, str)
             or not name.strip()
@@ -57,13 +59,14 @@ def _parse_local_file(data: object) -> list[CourtesyKey]:
             or not 8 <= len(value) <= 120
             or type(months) is not int
             or not 1 <= months <= 12
+            or tier not in ("base", "plus")
             or name in names
             or value in values
         ):
             raise ValueError("Invalid or duplicate courtesy key entry")
         names.add(name)
         values.add(value)
-        keys.append(CourtesyKey(name=name, value=value, duration_months=months))
+        keys.append(CourtesyKey(name=name, value=value, duration_months=months, access_tier=tier))
     return keys
 
 
@@ -135,3 +138,10 @@ def valid_courtesy_session(
         ):
             return row
     return None
+
+def courtesy_access_tier(row: CourtesySession) -> str:
+    """Only the private server configuration determines tester entitlements."""
+    for entry in _configured_keys():
+        if entry.name == row.key_name and secrets.compare_digest(digest(entry.value), row.key_fingerprint):
+            return entry.access_tier
+    return "base"

@@ -14,8 +14,13 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .ga-led-button[data-pixel-active=false] canvas,.ga-led-button[data-pixel-active=false]::before,.ga-led-button[data-pixel-active=false]::after{display:none}
 .library-catalog-tabs > .ga-led-button{position:relative;border-radius:31px!important;text-shadow:0 1px 2px #000,0 2px 6px #000,0 0 3px #000}
 .topbar .brand{display:flex;align-items:center;gap:5px}
-.ga-header-logo{display:inline-flex;flex:0 0 auto;width:clamp(60px,4.21875vw,96px);height:clamp(60px,4.21875vw,96px);pointer-events:none}
+.ga-brand-lockup{display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
+.ga-header-logo{display:inline-flex;flex:0 0 auto;width:clamp(60px,4.21875vw,96px);height:clamp(60px,4.21875vw,96px);pointer-events:none;transform-origin:center;backface-visibility:hidden;animation:ga-header-logo-spin 18s linear infinite}
+@keyframes ga-header-logo-spin{to{transform:rotate(1turn)}}
 .ga-header-logo video,.ga-header-logo img{width:100%;height:100%;object-fit:contain;background:transparent}
+.ga-header-wordmark{display:flex;justify-content:flex-start;white-space:nowrap;margin:0;padding-right:6px;font:400 clamp(19px,1.55vw,28px)/1.1 Audiowide,Manrope,sans-serif;letter-spacing:-.035em;filter:drop-shadow(0 3px 6px #0009)}
+.ga-header-wordmark span:first-child{color:#f0f2f5;background:linear-gradient(#fff 18%,#d9dde5 44%,#919bab 52%,#eef1f5 85%);background-clip:text;-webkit-text-fill-color:transparent}
+.ga-header-wordmark span:last-child{color:#ff861c;background:linear-gradient(#ffbb58 12%,#ff8b1b 45%,#d45806 58%,#ff9f3b 85%);background-clip:text;-webkit-text-fill-color:transparent}
 .ga-access-brand{position:fixed;top:calc(var(--window-chrome-height,34px) + 10px);left:28px;z-index:2;display:flex;align-items:center;color:#fff;font:800 23px Manrope,"Segoe UI",sans-serif;gap:5px}
 .ga-settings-fab{position:fixed;z-index:130;bottom:8px;right:82px;width:34px;height:34px;display:grid;place-items:center;padding:0;cursor:pointer}
 .ga-settings-backdrop{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:600;background:rgba(0,0,0,.72);backdrop-filter:blur(12px);display:grid;place-items:center;padding:28px}
@@ -40,7 +45,7 @@ body.ga-pixel-style .app-shell{background:transparent}
 
 /* Corner mark: equal visible margins below the native titlebar. */
 :root{--ga-logo-frame:clamp(60px,4.21875vw,96px);--ga-logo-margin:20px}
-body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:var(--ga-logo-frame);height:var(--ga-logo-frame);padding:0;gap:0}
+body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:max-content;height:var(--ga-logo-frame);padding:0;gap:0}
 .ga-header-logo{width:var(--ga-logo-frame);height:var(--ga-logo-frame)}
 body:has(.app-shell) .ga-access-brand{display:none}
 .library-catalog-toolbar .library-catalog-tabs .ga-led-button[aria-selected=true]{color:#fff!important}
@@ -80,3 +85,19 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 /* Search information remains readable where posters pass behind the dock. */
 .ga-search-meta{align-self:center;max-width:100%;padding:5px 12px;border-radius:5px;background:#0b0d10ed;backdrop-filter:blur(12px)}
 .ga-search-meta .ga-search-results,.ga-search-meta .ga-grid-zoom{color:#bcc3c8}
+
+/* Regular activation only; private courtesy access never creates this panel. */
+.ga-access-pass{position:fixed;right:20px;bottom:calc(var(--ga-footer,50px) + 18px);z-index:150;font-family:Manrope,"Segoe UI",sans-serif}
+.ga-access-pass-toggle{display:flex;align-items:center;gap:10px;padding:12px 18px;border:1px solid #ffffff35;border-radius:10px;background:#14181cea;backdrop-filter:blur(20px);color:#f4f4f2;font:700 15px Manrope,sans-serif;cursor:pointer}
+.ga-access-pass-toggle svg{color:#ff8a35}
+.ga-access-pass-panel{position:absolute;right:0;bottom:calc(100% + 12px);width:min(360px,calc(100vw - 40px));padding:22px;border:1px solid #ffffff35;border-radius:14px;background:linear-gradient(135deg,#30363cea,#111416f5);box-shadow:0 16px 50px #0007;backdrop-filter:blur(28px);color:#f4f4f2;display:flex;flex-direction:column;gap:12px}
+.ga-access-pass-panel header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ga-access-pass-panel h2{margin:0;font-size:20px}
+.ga-access-pass-panel header button{display:grid;place-items:center;border:0;background:transparent;color:#cdd0cf;padding:4px;cursor:pointer}
+.ga-access-pass-panel>span{font-size:13px;color:#aeb6bc}
+.ga-access-pass-panel code{font:600 17px/1.5 Consolas,monospace;overflow-wrap:anywhere;background:#0004;padding:12px;border-radius:6px}
+.ga-access-pass-panel p{margin:0;font-size:14px;line-height:1.5}
+.ga-access-pass-panel time{font-size:15px;font-weight:650}
+.ga-access-pass button:focus-visible{outline:2px solid #ff8a35;outline-offset:4px}
+
+.ga-access-pass-tier{align-self:flex-start;padding:5px 10px;border:1px solid #ffffff30;border-radius:5px;font-size:13px;letter-spacing:.08em}.ga-access-pass-tier[data-tier=plus]{border-color:#ff8a3566;color:#ffac57;background:#ff8a3510}

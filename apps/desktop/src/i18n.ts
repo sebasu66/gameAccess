@@ -7,6 +7,11 @@ const STORAGE_KEY = "gameaccess:language";
 const FALLBACK_LOCALE: AppLocale = "en";
 
 const es = {
+  accessPassTitle: "Mi pase",
+  accessPassClose: "Cerrar los detalles del pase",
+  accessPassExpires: "Vence",
+  accessPassLegacy: "Esta activación se guardó con una versión anterior. La clave original no está disponible.",
+
   activationUnavailableBody: "El servidor ya no acepta tu activación anterior.",
   activationRevokedBody: "El servidor confirmó que tu clave anterior fue revocada.",
   activationTimeEndedTitle: "Tu último pase venció",
@@ -196,6 +201,11 @@ const es = {
 type TranslationKey = keyof typeof es;
 
 const en: Record<TranslationKey, string> = {
+  accessPassTitle: "My pass",
+  accessPassClose: "Close pass details",
+  accessPassExpires: "Expires",
+  accessPassLegacy: "This activation was saved by an earlier version. The original key is unavailable.",
+
   activationUnavailableBody: "The server no longer accepts your previous activation.",
   activationRevokedBody: "The server confirmed that your previous key was revoked.",
   activationTimeEndedTitle: "Your last pass has expired",

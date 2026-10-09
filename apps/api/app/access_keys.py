@@ -24,6 +24,7 @@ class AccessKey(SQLModel, table=True):
     key_hash: str = SQLField(index=True, unique=True)
     duration_hours: Optional[int] = None
     duration_months: Optional[int] = None
+    access_tier: str = "base"
     created_at: datetime
     key_expires_at: datetime
     activated_at: Optional[datetime] = None
@@ -82,7 +83,16 @@ def issue_keys(
     months: int | None,
     count: int,
     key_ttl_hours: int = 24,
+    expires_at: datetime | None = None,
+    access_tier: str | None = None,
 ) -> list[tuple[int, str]]:
+    if sum(value is not None for value in (hours, months, expires_at)) != 1:
+        raise ValueError("Specify exactly one access expiry or duration")
+    if expires_at is not None and (expires_at.tzinfo is None or expires_at.utcoffset() is None or utc(expires_at) <= datetime.now(timezone.utc)):
+        raise ValueError("Expiry must be a future date with a timezone")
+    tier = access_tier or ("plus" if months is not None else "base")
+    if tier not in ("base", "plus"):
+        raise ValueError("Invalid access tier")
     issued: list[tuple[AccessKey, str]] = []
     for _ in range(count):
         for _attempt in range(10):
@@ -92,8 +102,10 @@ def issue_keys(
                 key_hash=digest(printable.upper()),
                 duration_hours=hours,
                 duration_months=months,
+                access_tier=tier,
                 created_at=created_at,
-                key_expires_at=created_at + timedelta(hours=key_ttl_hours),
+                expires_at=utc(expires_at) if expires_at is not None else None,
+                key_expires_at=utc(expires_at) if expires_at is not None else created_at + timedelta(hours=key_ttl_hours),
             )
             try:
                 # The database unique index is authoritative. Retry collisions
@@ -115,6 +127,10 @@ def issue_keys(
 def ensure_access_key_schema(engine) -> None:
     """Add pending-key expiry to existing databases without resetting them."""
     columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
+    if "access_tier" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE accesskey ADD COLUMN access_tier VARCHAR NOT NULL DEFAULT 'base'"))
+            connection.execute(text("UPDATE accesskey SET access_tier = 'plus' WHERE duration_months IS NOT NULL"))
     if "key_expires_at" in columns:
         return
     with engine.begin() as connection:
