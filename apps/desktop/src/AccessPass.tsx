@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { KeyRound, X } from "lucide-react";
-import { ACTIVATION_CHANGED_EVENT, getRegularAccess } from "./activation";
+import { ACTIVATION_CHANGED_EVENT, getActivationTier, getRegularAccess } from "./activation";
 import { useI18n } from "./i18n";
 
 const subscribe = (listener: () => void) => {
@@ -10,6 +10,7 @@ const subscribe = (listener: () => void) => {
 export default function AccessPass() {
   const { t, locale } = useI18n();
   const access = useSyncExternalStore(subscribe, getRegularAccess, () => null);
+  const tier = useSyncExternalStore(subscribe, getActivationTier, () => null);
   const [open, setOpen] = useState(false);
   const id = useId();
   useEffect(() => {
@@ -18,7 +19,10 @@ export default function AccessPass() {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [open]);
-  if (!access) return null;
+  if (!tier) return null;
+  if (!access) return <div className="ga-access-pass"><span className="ga-access-pass-toggle">
+    <KeyRound size={20} aria-hidden="true" />{tier.toUpperCase()}
+  </span></div>;
   const expiry = new Date(access.expires_at).toLocaleString(locale === "es" ? "es-AR" : "en-US",
     { dateStyle: "medium", timeStyle: "short" });
   return <div className="ga-access-pass">
