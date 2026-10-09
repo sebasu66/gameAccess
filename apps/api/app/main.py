@@ -1020,6 +1020,42 @@ def _start_steam_review_importer() -> None:
 
 
 
+
+def _seed_steam_catalog_if_empty():
+    from .digital_catalog import load_digital_catalog_json
+    import httpx
+    import logging
+    catalog = load_digital_catalog_json()
+    if len(catalog) < 10:
+        import threading
+        def _bg_seed():
+            try:
+                logging.info("Catalog is mostly empty. Fetching top Steam games from SteamSpy...")
+                resp = httpx.get("https://steamspy.com/api.php?request=top100in2weeks", timeout=30.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    existing_ids = {g.get("id") for g in catalog}
+                    added = 0
+                    for app_id_str, info in data.items():
+                        steam_id = int(app_id_str)
+                        if steam_id in existing_ids: continue
+                        catalog.append({
+                            "id": steam_id,
+                            "name": info.get("name", ""),
+                            "image": f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/header.jpg",
+                            "steam_id": steam_id,
+                            "type": "digital"
+                        })
+                        added += 1
+                    if added > 0:
+                        from .digital_catalog import save_catalog_json, sync_digital_catalog
+                        save_catalog_json(catalog)
+                        sync_digital_catalog(force=False)
+                        logging.info(f"Successfully seeded {added} popular Steam games.")
+            except Exception as e:
+                logging.error(f"Error auto-seeding catalog: {e}")
+        threading.Thread(target=_bg_seed, daemon=True).start()
+
 def seed_defaults(session: Session) -> None:
     if not session.exec(select(User)).first():
         session.add(User(username="demo", credits=1500))
@@ -1107,6 +1143,7 @@ def startup() -> None:
     ensure_catalog_schema(engine)
     with Session(engine) as session:
         seed_defaults(session)
+    _seed_steam_catalog_if_empty()
     seed_known_games(engine)
     if os.environ.get("GAMEACCESS_SYNC_DIGITAL_ON_STARTUP") == "1":
         try:

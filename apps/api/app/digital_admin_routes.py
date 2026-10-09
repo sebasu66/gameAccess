@@ -927,182 +927,10 @@ def get_sync_status() -> dict[str, Any]:
     return SYNC_STATUS
 
 
-def _populate_catalog_bg(deduped_cached: list[dict[str, Any]]) -> None:
-    global SYNC_STATUS
-    SYNC_STATUS["is_running"] = True
-    SYNC_STATUS["task_type"] = "populate"
-    SYNC_STATUS["total"] = len(deduped_cached)
-    SYNC_STATUS["processed"] = 0
-    SYNC_STATUS["message"] = "Iniciando poblamiento de fuentes..."
-
-    try:
-        raw_catalog = load_digital_catalog_json()
-        catalog_by_norm: dict[str, dict[str, Any]] = {}
-        for entry in raw_catalog:
-            c_norm = normalize_title(clean_user_friendly_title(entry.get("name", "")))
-            if not c_norm:
-                c_norm = normalize_title(entry.get("name", ""))
-            if not c_norm:
-                continue
-            if c_norm not in catalog_by_norm:
-                entry["name"] = clean_user_friendly_title(entry.get("name", ""))
-                catalog_by_norm[c_norm] = entry
-            else:
-                existing_id = catalog_by_norm[c_norm].get("id", 0)
-                candidate_id = entry.get("id", 0)
-                if existing_id >= 1_000_000 and 0 < candidate_id < 1_000_000:
-                    catalog_by_norm[c_norm]["id"] = candidate_id
-                if not catalog_by_norm[c_norm].get("downloadSource") and entry.get("downloadSource"):
-                    catalog_by_norm[c_norm]["downloadSource"] = entry.get("downloadSource")
-
-        existing_ids = {c.get("id") for c in catalog_by_norm.values() if "id" in c}
-        added_count = 0
-        updated_count = 0
-
-        for i, item in enumerate(deduped_cached):
-            SYNC_STATUS["processed"] = i + 1
-            title = item.get("clean_title") or clean_user_friendly_title(item.get("raw_title", ""))
-            norm = normalize_title(title)
-            if not norm:
-                continue
-            
-            SYNC_STATUS["current_item"] = title
-
-            if norm in catalog_by_norm:
-                existing_entry = catalog_by_norm[norm]
-                if not existing_entry.get("downloadSource") or existing_entry.get("downloadSource") == "auto":
-                    existing_entry["downloadSource"] = item["uri"]
-                    updated_count += 1
-                continue
-
-            game_id = item.get("id")
-            if not game_id:
-                resolved = resolve_steam_app_id(item.get("raw_title") or title)
-                if resolved:
-                    game_id, steam_name = resolved
-                    title = steam_name
-                else:
-                    logger.info("No official Steam AppID found for '%s', omitting fake ID", title)
-                    continue
-
-            if game_id in existing_ids:
-                for c in catalog_by_norm.values():
-                    if c.get("id") == game_id and (not c.get("downloadSource") or c.get("downloadSource") == "auto"):
-                        c["downloadSource"] = item["uri"]
-                        updated_count += 1
-                continue
-
-            new_entry = {
-                "name": title,
-                "id": game_id,
-                "downloadSource": item["uri"],
-                "installProcess": "",
-                "playProcess": "",
-                "uninstallProcess": "",
-            }
-            catalog_by_norm[norm] = new_entry
-            existing_ids.add(game_id)
-            added_count += 1
-
-        catalog = list(catalog_by_norm.values())
-        save_catalog_json(catalog)
-        
-        if added_count > 0 or updated_count > 0:
-            SYNC_STATUS["message"] = "Sincronizando metadatos de Steam en la DB local (aditivo)..."
-            from .digital_catalog import sync_digital_catalog
-            from .database import engine as default_engine
-            sync_digital_catalog(engine=default_engine, fetch_steam=True, force=False)
-            
-        SYNC_STATUS["message"] = f"Completado. {added_count} agregados, {updated_count} vinculados."
-    except Exception as e:
-        logger.error(f"Error en populate_catalog_bg: {e}")
-        SYNC_STATUS["message"] = f"Error: {str(e)}"
-    finally:
-        SYNC_STATUS["is_running"] = False
 
 
-@router.post("/catalog/populate-from-sources")
-async def populate_catalog_from_sources(background_tasks: BackgroundTasks) -> dict[str, Any]:
-    global SYNC_STATUS
-    if SYNC_STATUS["is_running"]:
-        return {"ok": False, "message": "Ya hay un proceso en ejecución."}
-
-    cached = load_cached_downloads()
-    if not cached:
-        sync_result = await sync_sources()
-        cached = load_cached_downloads()
-        if not cached:
-            return {
-                "ok": True,
-                "added_games": 0,
-                "updated_sources": 0,
-                "total_catalog_games": len(load_digital_catalog_json()),
-                "message": "No hay descargas indexadas en la caché. Agrega una fuente o sube un archivo JSON primero."
-            }
-
-    cfg = load_sources_config()
-    deduped_cached = deduplicate_download_items(cached, cfg)
-
-    background_tasks.add_task(_populate_catalog_bg, deduped_cached)
-
-    return {
-        "ok": True,
-        "message": "Actualización del catálogo iniciada en segundo plano.",
-    }
 
 
-@router.get("/resolve-options")
-def resolve_options_for_game(name: str = Query(..., min_length=1)) -> dict[str, Any]:
-    cached = load_cached_downloads()
-    cfg = load_sources_config()
-    sources_list = cfg.get("sources", [])
-    priority_map: dict[str, int] = {}
-    for idx, s in enumerate(sources_list):
-        p = s.get("priority")
-        if p is None:
-            p = idx + 1
-        if s.get("url"):
-            priority_map[s["url"]] = p
-        if s.get("label"):
-            priority_map[s["label"]] = p
-
-    scored = []
-    for item in cached:
-        score = calculate_match_score(name, item.get("raw_title", ""))
-        if score >= 0.55:
-            scored.append((score, item))
-
-    # Sort candidates by:
-    # 1. Match score (higher is better)
-    # 2. Source priority (lower number = user preference)
-    # 3. Version (highest version)
-    # 4. Upload date (most recent)
-    scored.sort(
-        key=lambda x: (
-            -round(x[0], 2),
-            rank_download_candidate(x[1], priority_map)
-        )
-    )
-
-    results = []
-    seen_uris = set()
-    for score, item in scored:
-        if item.get("uri") in seen_uris:
-            continue
-        seen_uris.add(item.get("uri"))
-        badge = "Recomendada" if len(results) == 0 else "Alternativa"
-        results.append({
-            "id": f"opt-{len(results) + 1}",
-            "title": item.get("clean_title") or clean_user_friendly_title(item.get("raw_title", "")),
-            "raw_title": item.get("raw_title", ""),
-            "source": item.get("source", "Fuente"),
-            "size": item.get("file_size", "Estándar"),
-            "badge": badge,
-            "uri": item["uri"],
-            "score": round(score, 2),
-        })
-
-    return {"ok": True, "game": name, "count": len(results), "options": results}
 
 
 @router.get("/source/{game_id}")
@@ -1329,3 +1157,81 @@ def restore_or_sync_digital_storage(engine_override: Any = None) -> None:
                         save_cached_downloads(disk_downloads)
     except Exception as e:
         logger.warning("Error syncing cached downloads on startup: %s", e)
+
+
+@router.post("/catalog/add-steam-game/{steam_id}")
+def add_steam_game(steam_id: int) -> dict[str, Any]:
+    """Agrega un juego de Steam al catálogo general descargando sus metadatos básicos."""
+    from .steam_catalog import SteamCatalogAdapter
+    
+    adapter = SteamCatalogAdapter()
+    details = adapter.fetch_game_details(steam_id)
+    if not details:
+        raise HTTPException(404, "No se pudo obtener información de Steam para este ID.")
+        
+    game_name = details.get("name", f"Steam Game {steam_id}")
+    
+    # Lo guardamos en el JSON del catálogo genérico
+    catalog = load_digital_catalog_json()
+    
+    # Check if exists
+    if any(g.get("id") == steam_id for g in catalog):
+        return {"ok": True, "message": "El juego ya estaba en el catálogo genérico", "game": game_name}
+        
+    new_game = {
+        "id": steam_id,
+        "name": game_name,
+        "image": details.get("header_image", ""),
+        "steam_id": steam_id,
+        "release_date": details.get("release_date", {}).get("date", ""),
+        "type": "digital"
+    }
+    catalog.append(new_game)
+    save_catalog_json(catalog)
+    
+    # Sincronizamos la base de datos local para que quede listo para las búsquedas
+    from .digital_catalog import sync_digital_catalog
+    sync_digital_catalog(force=True)
+    
+    return {"ok": True, "message": f"Agregado {game_name} al catálogo.", "game": new_game}
+
+
+@router.post("/catalog/seed-top-steam")
+def seed_top_steam_games() -> dict[str, Any]:
+    """Descarga los 100 juegos más populares de SteamSpy y los agrega al catálogo general."""
+    try:
+        # Usamos SteamSpy API que es pública y gratuita
+        resp = httpx.get("https://steamspy.com/api.php?request=top100in2weeks", timeout=30.0)
+        if resp.status_code != 200:
+            raise HTTPException(500, "Error contactando SteamSpy")
+            
+        data = resp.json()
+        catalog = load_digital_catalog_json()
+        existing_ids = {g.get("id") for g in catalog}
+        
+        added = 0
+        for app_id_str, info in data.items():
+            steam_id = int(app_id_str)
+            if steam_id in existing_ids:
+                continue
+                
+            new_game = {
+                "id": steam_id,
+                "name": info.get("name", ""),
+                "image": f"https://cdn.akamai.steamstatic.com/steam/apps/{steam_id}/header.jpg",
+                "steam_id": steam_id,
+                "type": "digital"
+            }
+            catalog.append(new_game)
+            added += 1
+            
+        if added > 0:
+            save_catalog_json(catalog)
+            from .digital_catalog import sync_digital_catalog
+            # Sync to SQLite without forcing heavy Steam Store updates yet
+            sync_digital_catalog(force=False)
+            
+        return {"ok": True, "added": added, "total": len(catalog)}
+    except Exception as e:
+        logger.error(f"Error seeding steam catalog: {e}")
+        raise HTTPException(500, str(e))
