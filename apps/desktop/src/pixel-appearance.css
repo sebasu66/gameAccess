@@ -14,8 +14,11 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .ga-led-button[data-pixel-active=false] canvas,.ga-led-button[data-pixel-active=false]::before,.ga-led-button[data-pixel-active=false]::after{display:none}
 .library-catalog-tabs > .ga-led-button{position:relative;border-radius:31px!important;text-shadow:0 1px 2px #000,0 2px 6px #000,0 0 3px #000}
 .topbar .brand{display:flex;align-items:center;gap:5px}
-.ga-header-logo{display:inline-flex;flex:0 0 auto;width:clamp(60px,4.21875vw,96px);height:clamp(60px,4.21875vw,96px);pointer-events:none}
+.ga-brand-lockup{display:inline-flex;align-items:center;gap:1px;white-space:nowrap}
+.ga-header-logo{display:inline-flex;flex:0 0 auto;width:clamp(60px,4.21875vw,96px);height:clamp(60px,4.21875vw,96px);pointer-events:none;transform-origin:center;backface-visibility:hidden;animation:ga-header-logo-spin 18s linear infinite}
+@keyframes ga-header-logo-spin{to{transform:rotate(1turn)}}
 .ga-header-logo video,.ga-header-logo img{width:100%;height:100%;object-fit:contain;background:transparent}
+.ga-header-wordmark{justify-content:flex-start;margin:0;padding-right:6px;font-size:clamp(19px,1.55vw,28px);line-height:1.1;filter:drop-shadow(0 3px 6px #0009)}
 .ga-access-brand{position:fixed;top:calc(var(--window-chrome-height,34px) + 10px);left:28px;z-index:2;display:flex;align-items:center;color:#fff;font:800 23px Manrope,"Segoe UI",sans-serif;gap:5px}
 .ga-settings-fab{position:fixed;z-index:130;bottom:8px;right:82px;width:34px;height:34px;display:grid;place-items:center;padding:0;cursor:pointer}
 .ga-settings-backdrop{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:600;background:rgba(0,0,0,.72);backdrop-filter:blur(12px);display:grid;place-items:center;padding:28px}
@@ -40,7 +43,7 @@ body.ga-pixel-style .app-shell{background:transparent}
 
 /* Corner mark: equal visible margins below the native titlebar. */
 :root{--ga-logo-frame:clamp(60px,4.21875vw,96px);--ga-logo-margin:20px}
-body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:var(--ga-logo-frame);height:var(--ga-logo-frame);padding:0;gap:0}
+body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:max-content;height:var(--ga-logo-frame);padding:0;gap:0}
 .ga-header-logo{width:var(--ga-logo-frame);height:var(--ga-logo-frame)}
 body:has(.app-shell) .ga-access-brand{display:none}
 .library-catalog-toolbar .library-catalog-tabs .ga-led-button[aria-selected=true]{color:#fff!important}
