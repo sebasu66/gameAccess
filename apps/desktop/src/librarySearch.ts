@@ -150,7 +150,7 @@ export const GAMEPLAY_FILTER_GROUPS: { id: string; label: string; options: Libra
   { id: "players", label: "Jugadores", options: ["single_player", "multiplayer"] },
   { id: "style", label: "Cómo se juega", options: ["coop", "pvp", "pve"] },
   { id: "connection", label: "Dónde se juega", options: ["local_multiplayer", "lan", "online_multiplayer"] },
-  { id: "features", label: "Características", options: ["shared_split_screen", "cross_platform", "mmo"] },
+  { id: "features", label: "Características", options: ["shared_split_screen", "cross_platform", "mmo", "has_downloads"] },
 ];
 export function featureLabel(key: LibraryFeatureKey): string {
   if (key === "local_multiplayer") return "Mismo PC";

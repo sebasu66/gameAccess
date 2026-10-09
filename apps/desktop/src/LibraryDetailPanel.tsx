@@ -1,5 +1,9 @@
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 import {downloadButtonLabel} from "./downloadSize";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { getCatalogMode } from "./catalogMode";
+
+
 import {useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
@@ -22,7 +26,6 @@ import {
   removeFailedDetailImage,
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
-import { getCatalogMode } from "./catalogMode";
 import { downloadManager } from "./downloadManager";
 import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import { steamDownloadMetrics } from "./nativeDownloadMetrics";

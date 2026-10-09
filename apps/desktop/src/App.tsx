@@ -118,6 +118,7 @@ useEffect(() => {
       // Mutate catalog objects in place to allow fast search filtering
       for (const game of games) {
         (game as any).has_downloads = (src[game.app_id ?? game.id] || 0) > 0;
+        (game as any).availableSourceCount = src[game.app_id ?? game.id] || 0;
       }
       setAvailableSources(src);
     });
