@@ -131,6 +131,11 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     };
   }, [verify]);
   useEffect(() => {
+    if (!status?.active) return;
+    const timer = window.setInterval(() => void verify(), 60000);
+    return () => window.clearInterval(timer);
+  }, [status?.active, verify]);
+  useEffect(() => {
     if (!status) return;
     setNotice("");
     const initialRemaining = Date.parse(status.expires_at) - Date.parse(status.server_time);

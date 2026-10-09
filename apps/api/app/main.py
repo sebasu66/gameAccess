@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +27,7 @@ from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, session_end_details, utc, valid_session
-from .access_overrides import CourtesySession, courtesy_access_configured, redeem_courtesy_key, valid_courtesy_session
+from .access_overrides import CourtesySession, courtesy_access_tier, courtesy_access_configured, redeem_courtesy_key, valid_courtesy_session
 from .credential_transport import encrypt_provider_credential, encrypt_provider_download_credential
 from .steam_presence import fetch_player_summaries
 from .catalog_metadata import (
@@ -222,10 +222,16 @@ class SeedGameRequest(BaseModel):
 
 
 class AccessKeyIssueRequest(BaseModel):
+    expires_at: Optional[datetime] = None
+    access_tier: Optional[Literal["base", "plus"]] = None
     duration_hours: Optional[int] = Field(default=None, ge=1, le=24 * 365 * 5)
     duration_months: Optional[int] = Field(default=None, ge=1, le=60)
     key_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
     count: int = Field(default=1, ge=1, le=100)
+
+
+class AccessKeyRenewRequest(BaseModel):
+    expires_at: datetime
 
 
 class AccessKeyRedeemRequest(BaseModel):
@@ -417,14 +423,18 @@ async def require_active_installation(request: Request, call_next):
 @app.post("/admin/access-keys")
 def create_access_keys(req: AccessKeyIssueRequest, request: Request, session: Session = Depends(get_session)) -> dict:
     _admin_activation_access(request)
-    if (req.duration_hours is None) == (req.duration_months is None):
-        raise HTTPException(422, "Specify either duration_hours or duration_months")
+    if sum(value is not None for value in (req.duration_hours, req.duration_months, req.expires_at)) != 1:
+        raise HTTPException(422, "Specify exactly one expires_at, duration_hours or duration_months")
+    if req.expires_at is not None and (req.expires_at.tzinfo is None or req.expires_at.utcoffset() is None or utc(req.expires_at) <= now_utc()):
+        raise HTTPException(422, "Expiry must be a future date with a timezone")
     keys = issue_keys(
         session,
         hours=req.duration_hours,
         months=req.duration_months,
         count=req.count,
         key_ttl_hours=req.key_ttl_hours,
+        expires_at=req.expires_at,
+        access_tier=req.access_tier,
     )
     return {"keys": [{"id": key_id, "key": key} for key_id, key in keys]}
 
@@ -437,6 +447,7 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "id": row.id,
         "duration_hours": row.duration_hours,
         "duration_months": row.duration_months,
+        "access_tier": row.access_tier,
         "created_at": row.created_at,
         "key_expires_at": row.key_expires_at,
         "activated_at": row.activated_at,
@@ -444,6 +455,29 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "revoked_at": row.revoked_at,
         "installation_id": row.installation_id,
     } for row in rows]}
+
+
+@app.post("/admin/access-keys/{key_id}/renew")
+def renew_access_key(key_id: int, req: AccessKeyRenewRequest, request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    if req.expires_at.tzinfo is None or req.expires_at.utcoffset() is None or utc(req.expires_at) <= now_utc():
+        raise HTTPException(422, "Expiry must be a future date with a timezone")
+    row = session.get(AccessKey, key_id)
+    if row is None:
+        raise HTTPException(404, "Activation key not found")
+    if row.revoked_at is not None:
+        raise HTTPException(409, "A revoked key cannot be renewed")
+    if row.access_tier != "plus":
+        raise HTTPException(409, "Manual payment renewal is only available for PLUS")
+    target = utc(req.expires_at)
+    if row.expires_at is not None and target <= utc(row.expires_at):
+        raise HTTPException(409, "Renewal must extend the current expiry")
+    row.expires_at = target
+    if row.activated_at is None:
+        row.key_expires_at = target
+    session.add(row)
+    session.commit()
+    return {"id": row.id, "access_tier": row.access_tier, "expires_at": utc(row.expires_at)}
 
 
 @app.post("/admin/access-keys/{key_id}/revoke")
@@ -524,8 +558,10 @@ def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(ge
         reason="activation_session_issued",
         commit=True,
     )
+    row = valid_courtesy_session(session, token, installation_id) if courtesy is not None else valid_session(session, token, installation_id)
     return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at,
-            "cacheable": courtesy is None}
+            "cacheable": courtesy is None,
+            "access_tier": courtesy_access_tier(row) if courtesy is not None else row.access_tier}
 
 
 @app.get("/activation/status")
@@ -561,7 +597,8 @@ def activation_status(request: Request, session: Session = Depends(get_session),
                 detail = {"reason": "expired", "expires_at": utc(previous.expires_at).isoformat()}
         raise HTTPException(401, detail)
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc(),
-            "cacheable": not isinstance(row, CourtesySession)}
+            "cacheable": not isinstance(row, CourtesySession),
+            "access_tier": courtesy_access_tier(row) if isinstance(row, CourtesySession) else row.access_tier}
 
 
 class ArchivePasswordsRequest(BaseModel):

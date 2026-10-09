@@ -127,3 +127,73 @@ def test_courtesy_redemption_and_status_are_never_cacheable(activation_db, monke
         assert status["active"] is True
         assert status["cacheable"] is False
         assert key not in repr(result) + repr(status)
+
+def test_absolute_plus_expiry_manual_renewal_and_revocation(activation_db, monkeypatch, tmp_path):
+    from fastapi import Request, HTTPException
+    monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "t" * 32)
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
+    admin = Request({"type": "http", "headers": [(b"x-gameaccess-admin-token", b"t" * 32)]})
+    installation = str(uuid4())
+    expiry = datetime.now(timezone.utc) + timedelta(days=30)
+    with Session(activation_db) as session:
+        result = core.create_access_keys(core.AccessKeyIssueRequest(expires_at=expiry, access_tier="plus"), admin, session)
+        key = result["keys"][0]
+        redeemed = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key["key"], installation_id=installation), session)
+        assert redeemed["access_tier"] == "plus"
+        assert utc(redeemed["expires_at"]) == expiry
+        request = Request({"type": "http", "headers": [
+            (b"authorization", f"Bearer {redeemed['session_token']}".encode()),
+            (b"x-gameaccess-installation", installation.encode()),
+        ]})
+        extended = expiry + timedelta(days=31)
+        core.renew_access_key(key["id"], core.AccessKeyRenewRequest(expires_at=extended), admin, session)
+        assert core.activation_status(request, session)["expires_at"] == extended
+        with pytest.raises(HTTPException) as denied:
+            core.renew_access_key(key["id"], core.AccessKeyRenewRequest(expires_at=expiry), admin, session)
+        assert denied.value.status_code == 409
+        core.revoke_access_key(key["id"], admin, session)
+        with pytest.raises(HTTPException):
+            core.renew_access_key(key["id"], core.AccessKeyRenewRequest(expires_at=extended + timedelta(days=31)), admin, session)
+        with pytest.raises(HTTPException):
+            core.activation_status(request, session)
+
+
+def test_expired_plus_can_be_renewed_but_base_and_unauthorized_cannot(activation_db, monkeypatch):
+    from fastapi import Request, HTTPException
+    monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "t" * 32)
+    admin = Request({"type": "http", "headers": [(b"x-gameaccess-admin-token", b"t" * 32)]})
+    stranger = Request({"type": "http", "headers": []})
+    with Session(activation_db) as session:
+        key_id, key = issue_keys(session, hours=None, months=1, count=1)[0]
+        row = session.get(AccessKey, key_id)
+        row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        session.add(row)
+        session.commit()
+        target = datetime.now(timezone.utc) + timedelta(days=30)
+        with pytest.raises(HTTPException) as denied:
+            core.renew_access_key(key_id, core.AccessKeyRenewRequest(expires_at=target), stranger, session)
+        assert denied.value.status_code == 403
+        core.renew_access_key(key_id, core.AccessKeyRenewRequest(expires_at=target), admin, session)
+        token, restored_expiry = redeem_key(session, key, str(uuid4()))
+        assert restored_expiry == target
+        assert valid_session(session, token, row.installation_id) is not None
+        base_id, _ = issue_keys(session, hours=12, months=None, count=1)[0]
+        with pytest.raises(HTTPException) as denied:
+            core.renew_access_key(base_id, core.AccessKeyRenewRequest(expires_at=target), admin, session)
+        assert denied.value.status_code == 409
+        with pytest.raises(HTTPException) as denied:
+            core.create_access_keys(core.AccessKeyIssueRequest(expires_at=datetime.now()), admin, session)
+        assert denied.value.status_code == 422
+
+def test_legacy_monthly_tier_migration_is_idempotent():
+    from sqlalchemy import text
+    from app.access_keys import ensure_access_key_schema
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE accesskey (id INTEGER PRIMARY KEY, duration_months INTEGER, key_expires_at TIMESTAMP)"))
+        connection.execute(text("INSERT INTO accesskey VALUES (1, 1, NULL), (2, NULL, NULL)"))
+    ensure_access_key_schema(engine)
+    ensure_access_key_schema(engine)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT access_tier FROM accesskey ORDER BY id")).scalars().all() == ["plus", "base"]
+    engine.dispose()

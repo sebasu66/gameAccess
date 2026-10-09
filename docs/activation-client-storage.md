@@ -10,3 +10,13 @@ The server returns `cacheable` on both activation redemption and status. It is t
 - Expiry/revocation clears the saved key and token and hides My pass. Expiry display metadata for ordinary passes remains available to the login screen.
 
 Deploy the updated API and rebuilt desktop client together. This policy cannot change storage behavior in already-installed older clients.
+
+## Access tier and manual PLUS payments
+
+Both redemption and status expose access_tier (base or plus), supplied by the server. The frontend exposes getActivationTier() and activation change notifications for future feature controls. Ordinary monthly legacy keys migrate to PLUS; hourly legacy keys migrate to BASE. Private JSON courtesy entries may explicitly include access_tier; omitted values default to BASE.
+
+The admin console issues keys with an explicit date/time and tier. Dates entered in the administrator's local timezone are sent as UTC instants. Existing duration-based API issuance remains compatible with the free ad flow; successful activation always has an absolute expiry.
+
+After confirming a payment outside GameAccess, use the PLUS renewal form to extend the same key's expiry. The authenticated POST /admin/access-keys/{id}/renew endpoint rejects revoked keys, BASE keys, naive/past timestamps and dates that shorten the existing expiry. Renewing an expired PLUS key permits its holder to activate again using the same key. No payment provider integration or automatic payment detection is implied.
+
+The active app rechecks status every minute, so renewals and tier changes reach the running client. Actual premium operations must enforce access_tier at their server boundary when those features are added.

@@ -25,11 +25,12 @@ export default function AccessPass() {
     {open ? <section id={id} className="ga-access-pass-panel" aria-labelledby={id + "-title"}>
       <header><h2 id={id + "-title"}>{t("accessPassTitle")}</h2>
         <button type="button" onClick={() => setOpen(false)} aria-label={t("accessPassClose")}><X size={20} /></button></header>
+      <strong className="ga-access-pass-tier" data-tier={access.access_tier}>{access.access_tier.toUpperCase()}</strong>
       <span>{t("activationKeyLabel")}</span>
       {access.key ? <code>{access.key}</code> : <p>{t("accessPassLegacy")}</p>}
       <span>{t("accessPassExpires")}</span><time dateTime={access.expires_at}>{expiry}</time>
     </section> : null}
     <button type="button" className="ga-access-pass-toggle" aria-expanded={open} aria-controls={open ? id : undefined}
-      onClick={() => setOpen(value => !value)}><KeyRound size={20} aria-hidden="true" />{t("accessPassTitle")}</button>
+      onClick={() => setOpen(value => !value)}><KeyRound size={20} aria-hidden="true" />{t("accessPassTitle")} · {access.access_tier.toUpperCase()}</button>
   </div>;
 }

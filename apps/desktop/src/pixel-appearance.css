@@ -99,3 +99,5 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-access-pass-panel p{margin:0;font-size:14px;line-height:1.5}
 .ga-access-pass-panel time{font-size:15px;font-weight:650}
 .ga-access-pass button:focus-visible{outline:2px solid #ff8a35;outline-offset:4px}
+
+.ga-access-pass-tier{align-self:flex-start;padding:5px 10px;border:1px solid #ffffff30;border-radius:5px;font-size:13px;letter-spacing:.08em}.ga-access-pass-tier[data-tier=plus]{border-color:#ff8a3566;color:#ffac57;background:#ff8a3510}

@@ -10,7 +10,10 @@ let installationId = "";
 let sessionToken = "";
 const REGULAR_CACHE = "gameaccess:regular-access";
 export const ACTIVATION_CHANGED_EVENT = "gameaccess:activation-changed";
-export interface RegularAccess { key: string | null; expires_at: string; }
+export type AccessTier = "base" | "plus";
+export interface RegularAccess { key: string | null; expires_at: string; access_tier: AccessTier; }
+let activationTier: AccessTier | null = null;
+export function getActivationTier(): AccessTier | null { return activationTier; }
 let currentAccess: RegularAccess | null = null;
 export function getRegularAccess(): RegularAccess | null { return currentAccess; }
 function publishAccess(access: RegularAccess | null): void {
@@ -51,6 +54,7 @@ export async function saveActivationSession(token: string, persistent = false, k
 
 export async function clearActivationSession(): Promise<void> {
   sessionToken = "";
+  activationTier = null;
   if (native()) await invoke("activation_clear_session");
   localStorage.removeItem(REGULAR_CACHE);
   publishAccess(null);
@@ -64,6 +68,7 @@ export function activationHeaders(): Record<string, string> {
 
 export function invalidateActivation(): void {
   sessionToken = "";
+  activationTier = null;
   publishAccess(null);
   window.dispatchEvent(new Event(ACTIVATION_INVALID_EVENT));
 }
@@ -73,6 +78,7 @@ export interface ActivationStatus {
   expires_at: string;
   server_time: string;
   cacheable?: boolean;
+  access_tier?: AccessTier;
 }
 
 export interface ActivationEnd {
@@ -134,13 +140,14 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
   }
   const status = await response.json() as ActivationStatus;
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  activationTier = status.access_tier === "plus" ? "plus" : "base";
   if (status.cacheable !== true) {
     await saveActivationSession(token, false);
     publishAccess(null);
   } else {
     const key = await cachedKey();
     sessionToken = token;
-    publishAccess({ key, expires_at: status.expires_at });
+    publishAccess({ key, expires_at: status.expires_at, access_tier: activationTier });
   }
   rememberStatus(status);
   return status;
@@ -163,6 +170,6 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   const status = await checkActivation(result.session_token);
   const persistent = result.cacheable === true && status.cacheable === true;
   await saveActivationSession(result.session_token, persistent, persistent ? key.trim() : null);
-  publishAccess(persistent ? { key: key.trim(), expires_at: status.expires_at } : null);
+  publishAccess(persistent ? { key: key.trim(), expires_at: status.expires_at, access_tier: activationTier || "base" } : null);
   return status;
 }

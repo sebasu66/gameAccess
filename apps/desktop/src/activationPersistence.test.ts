@@ -15,35 +15,39 @@ beforeEach(() => {
     setItem: (key: string, value: string) => storage.set(key, value),
     removeItem: (key: string) => storage.delete(key),
   });
-  vi.stubGlobal("window", new EventTarget());
+  vi.stubGlobal("window", Object.assign(new EventTarget(), { localStorage, navigator: { language: "en-US" } }));
 });
 afterEach(() => vi.unstubAllGlobals());
-function server(cacheable: boolean) {
+function server(cacheable: boolean, access_tier: "base" | "plus" = "base") {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(
     url.endsWith("/redeem")
-      ? { session_token: "test-session-token-long-enough", expires_at: "2030-01-01T00:00:00Z", cacheable }
-      : { active: true, expires_at: "2030-01-01T00:00:00Z", server_time: "2026-10-09T00:00:00Z", cacheable }
+      ? { session_token: "test-session-token-long-enough", expires_at: "2030-01-01T00:00:00Z", cacheable, access_tier }
+      : { active: true, expires_at: "2030-01-01T00:00:00Z", server_time: "2026-10-09T00:00:00Z", cacheable, access_tier }
   ), { status: 200 })));
 }
 describe("activation persistence policy", () => {
   it("stores a regular pass, restores it after restart and clears it on expiry", async () => {
-    server(true);
+    server(true, "plus");
     let activation = await import("./activation");
     await activation.redeemActivation("GA-REGULAR-TEST");
     expect(activation.getRegularAccess()?.key).toBe("GA-REGULAR-TEST");
+    expect(activation.getActivationTier()).toBe("plus");
+    expect(activation.getRegularAccess()?.access_tier).toBe("plus");
     vi.resetModules();
     activation = await import("./activation");
     const token = await activation.readActivationSession();
     expect(token).toBe("test-session-token-long-enough");
     await activation.checkActivation(token!);
     expect(activation.getRegularAccess()?.key).toBe("GA-REGULAR-TEST");
+    expect(activation.getActivationTier()).toBe("plus");
+    expect(activation.getRegularAccess()?.access_tier).toBe("plus");
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: { reason: "expired" } }), { status: 401 })));
     await expect(activation.checkActivation(token!)).rejects.toMatchObject({ end: { reason: "expired" } });
     expect(storage.has("gameaccess:regular-access")).toBe(false);
     expect(activation.getRegularAccess()).toBeNull();
   });
   it("removes old cached courtesy credentials, uses RAM while open, and asks again after restart", async () => {
-    server(false);
+    server(false, "plus");
     storage.set("gameaccess:regular-access", JSON.stringify({ session_token: "old-courtesy-token", key: "old-private-key" }));
     storage.set("gameaccess:last-activation-status", "{}");
     let activation = await import("./activation");
@@ -53,6 +57,7 @@ describe("activation persistence policy", () => {
     expect(storage.has("gameaccess:regular-access")).toBe(false);
     expect(storage.has("gameaccess:last-activation-status")).toBe(false);
     expect(activation.getRegularAccess()).toBeNull();
+    expect(activation.getActivationTier()).toBe("plus");
     await activation.redeemActivation("GA-PRIVATE-TEST");
     expect([...storage.values()].join(" ")).not.toContain("GA-PRIVATE-TEST");
     vi.resetModules();
