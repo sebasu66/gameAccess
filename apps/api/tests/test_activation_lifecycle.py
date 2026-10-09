@@ -106,20 +106,24 @@ def test_admin_issuance_activation_and_revocation_report_server_dates(activation
 
 def test_courtesy_redemption_and_status_are_never_cacheable(activation_db, monkeypatch, tmp_path):
     import json
-    from fastapi import Request
+    from fastapi import Request, Response
     key = "GA-PRIVATE-FIXTURE-1234"
     config = tmp_path / "courtesy-keys.json"
     config.write_text(json.dumps({"keys": [{"name": "tester", "key": key, "duration_months": 1}]}))
     monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(config))
     installation = str(uuid4())
     with Session(activation_db) as session:
-        result = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key, installation_id=installation), session)
+        reply = Response()
+        result = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key, installation_id=installation), session, reply)
+        assert reply.headers["cache-control"] == "no-store"
         assert result["cacheable"] is False
         request = Request({"type": "http", "headers": [
             (b"authorization", f"Bearer {result['session_token']}".encode()),
             (b"x-gameaccess-installation", installation.encode()),
         ]})
-        status = core.activation_status(request, session)
+        reply = Response()
+        status = core.activation_status(request, session, reply)
+        assert reply.headers["cache-control"] == "no-store"
         assert status["active"] is True
         assert status["cacheable"] is False
         assert key not in repr(result) + repr(status)
