@@ -135,7 +135,7 @@ describe("DigitalCatalog", () => {
       downloadSource: "",
     };
     await expect(service.download(gameNoSource)).rejects.toThrow(
-      "El juego 'Game Without Source' no tiene fuentes de descarga configuradas."
+      "No se encontró ninguna fuente de descarga activa para este juego."
     );
   });
 
