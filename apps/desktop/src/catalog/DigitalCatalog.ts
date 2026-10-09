@@ -11,6 +11,16 @@ import { getApiBaseUrl } from "../settings";
 import { activationHeaders, invalidateActivation } from "../activation";
 
 
+
+export interface PluginSource {
+  title: string;
+  url: string;
+  type: string;
+  size: string;
+  score: number;
+  pluginName?: string;
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -214,59 +224,123 @@ export class DigitalCatalog {
   /**
    * Initiates installation or download for the game.
    */
-  async download(game: CatalogGame): Promise<void> {
-    console.log("[DigitalCatalog:download] Starting download for:", { id: game.id, app_id: game.app_id, name: game.name });
+  async bulkCheckSources(games: CatalogGame[]): Promise<Record<number, number>> {
+    const results: Record<number, number> = {};
+    
+    // Check local fixed overrides first
+    for (const game of games) {
+      const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+      const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+      if (downloadSource && downloadSource !== "auto" && !downloadSource.includes("127.0.0.1")) {
+         results[game.app_id ?? game.id] = 1;
+      }
+    }
+
+    try {
+      const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
+      
+      const payload = games.map(g => ({ id: g.app_id ?? g.id, name: g.name }));
+      
+      const promises = plugins.map(async (plugin) => {
+        if (plugin.type === "source_provider") {
+          try {
+            const res = await fetch(`${plugin.endpoint}/api/bulk_check`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ games: payload }),
+              signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+              const pluginResults = await res.json() as Record<number, number>;
+              for (const [appId, count] of Object.entries(pluginResults)) {
+                results[Number(appId)] = (results[Number(appId)] || 0) + count;
+              }
+            }
+          } catch (err) {
+            console.warn(`[DigitalCatalog:bulkCheckSources] Plugin ${plugin.name} error:`, err);
+          }
+        }
+      });
+      await Promise.all(promises);
+    } catch (e) {
+      console.warn("[DigitalCatalog:bulkCheckSources] Failed to check plugins", e);
+    }
+    
+    return results;
+  }
+
+  async getSources(game: CatalogGame) {
+    let allSources: any[] = [];
+
+    // Allow override from local record if it's explicitly set to a fixed non-auto url
+    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+    if (downloadSource && downloadSource !== "auto" && !downloadSource.includes("127.0.0.1")) {
+       allSources.push({ title: "Fuente Local/Fija", url: downloadSource, type: "http", size: "", score: 100, pluginName: "Local" });
+    }
+
+    try {
+      const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
+      
+      const sourcePromises = plugins.map(async (plugin) => {
+        if (plugin.type === "source_provider") {
+          try {
+            const res = await fetch(`${plugin.endpoint}/api/sources?app_id=${game.id}&name=${encodeURIComponent(game.name)}`, { signal: AbortSignal.timeout(4000) });
+            if (res.ok) {
+              const data = await res.json() as PluginSource[];
+              return data.map(s => ({ ...s, pluginName: plugin.name }));
+            }
+          } catch (err) {
+            console.warn(`[DigitalCatalog:getSources] Plugin ${plugin.name} error:`, err);
+          }
+        }
+        return [];
+      });
+
+      const results = await Promise.all(sourcePromises);
+      for (const res of results) {
+        allSources = allSources.concat(res);
+      }
+      
+      // Sort by score
+      allSources.sort((a, b) => b.score - a.score);
+
+    } catch (e) {
+      console.warn("[DigitalCatalog:getSources] Failed to check plugins", e);
+    }
+    return allSources;
+  }
+
+  async download(game: CatalogGame, sourceUrl?: string): Promise<void> {
+    console.log("[DigitalCatalog:download] Starting download for:", { id: game.id, app_id: game.app_id, name: game.name, sourceUrl });
     if (this.options.downloadHandler) {
       console.log("[DigitalCatalog:download] Using custom downloadHandler");
       return this.options.downloadHandler(game);
     }
     const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    console.log("[DigitalCatalog:download] Found local digital record:", record);
-    let downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
-    console.log("[DigitalCatalog:download] Initial downloadSource:", downloadSource);
-
+    
+    let finalSourceUrl = sourceUrl;
     let autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
-    if (!downloadSource || downloadSource === "auto") {
-      try {
-        console.log(`[DigitalCatalog:download] No local downloadSource. Querying local plugins...`);
-        const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
-        
-        let foundSource = null;
-        for (const plugin of plugins) {
-          if (plugin.type === "source_provider") {
-            try {
-              const res = await fetch(`${plugin.endpoint}/api/sources?app_id=${game.id}&name=${encodeURIComponent(game.name)}`);
-              if (res.ok) {
-                const data = await res.json();
-                if (data && data.length > 0) {
-                  // Tomamos la primera mejor coincidencia
-                  foundSource = data[0].url;
-                  autoInstalled = false; // By default from plugins
-                  console.log(`[DigitalCatalog:download] Source found from plugin ${plugin.name}:`, foundSource);
-                  break;
-                }
-              }
-            } catch (err) {
-              console.warn(`[DigitalCatalog:download] Error asking plugin ${plugin.name}:`, err);
-            }
-          }
-        }
-        
-        if (foundSource) {
-          downloadSource = foundSource;
-        } else {
-          console.warn("[DigitalCatalog:download] No source returned from any registered plugins.");
-        }
-      } catch (srcErr) {
-        console.warn("[DigitalCatalog:download] Error querying digital source from plugins:", srcErr);
+
+    // Check fixed override
+    const fixedOverride = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
+    if (!finalSourceUrl && fixedOverride && fixedOverride !== "auto" && !fixedOverride.includes("127.0.0.1")) {
+      finalSourceUrl = fixedOverride;
+    }
+
+    if (!finalSourceUrl) {
+      const sources = await this.getSources(game);
+      if (sources.length > 0) {
+        finalSourceUrl = sources[0].url;
+        autoInstalled = false;
       }
     }
 
-    if (!downloadSource) {
-      const errMsg = `El juego '${game.name}' no tiene fuentes de descarga configuradas.`;
-      console.error("[DigitalCatalog:download] Failed: " + errMsg);
-      throw new Error(errMsg);
+    if (!finalSourceUrl) {
+      throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
     }
+
+    let downloadSource = finalSourceUrl;
 
     const effectiveRecord: DigitalGameRecord = {
       ...(record || {

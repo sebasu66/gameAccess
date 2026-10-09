@@ -35,6 +35,7 @@ import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
+import { PluginIndicator } from "./PluginIndicator";
 import { forgetProviderLease, PROVIDER_LEASE_RELEASED_EVENT, rememberProviderLease, startProviderLeaseMonitor } from "./leaseLifecycle";
 let visualDebugStarted = false;
 
@@ -109,6 +110,18 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [availableSources, setAvailableSources] = useState<Record<number, number>>({});
+
+useEffect(() => {
+    if (getCatalogMode() !== "digital" || games.length === 0) return;
+    digitalCatalogService.bulkCheckSources(games).then(src => {
+      // Mutate catalog objects in place to allow fast search filtering
+      for (const game of games) {
+        (game as any).has_downloads = (src[game.app_id ?? game.id] || 0) > 0;
+      }
+      setAvailableSources(src);
+    });
+  }, [games]);
   const [query, setQuery] = useState("");
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(EMPTY_LIBRARY_FILTERS);
   const [selected, setSelected] = useState<CatalogGame | null>(null);
@@ -569,7 +582,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     setToast(value === 1 ? (next[gameId] === 1 ? "Añadido a favoritos." : "Quitado de favoritos.") : "Perfecto, veremos menos juegos de este estilo.");
   };
 
-  const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null }) => {
+  const startDownload = async (game: CatalogGame, recovery?: { providerId?: string | null; libraryIndex?: number | null; sourceUrl?: string }) => {
     console.log("[DownloadUI:Start] User triggered download for game:", {
       id: game.id,
       app_id: game.app_id,
@@ -589,7 +602,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         }));
         rememberRecent(game);
         console.log(`[DownloadUI:Digital] Invoking digitalCatalogService.download for '${game.name}'...`);
-        await digitalCatalogService.download(game);
+        await digitalCatalogService.download(game, recovery?.sourceUrl);
         setSelected(null);
         console.log(`[DownloadUI:Digital] digitalCatalogService.download completed. Getting status...`);
         const status = await digitalCatalogService.getStatus(game);
@@ -896,6 +909,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         <div className="catalog-header-controls" ref={setToolbarTarget} />
       </header>
         <div className="topbar-actions">
+          <PluginIndicator />
           {getCatalogMode() === "digital" ? <button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /> {t("downloadsTitle")}</button> : null}
           <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
         </div>
@@ -920,7 +934,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       </main>
       {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
 
-      {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
+      {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} availableSourceCount={selected.app_id ? availableSources[selected.app_id] : 0} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       {steamInstallFallback ? <SteamInstallFallbackDialog game={steamInstallFallback.game} busy={steamInstallFallbackBusy} error={steamInstallFallback.error} onContinue={() => void continueSteamInstallFallback()} onClose={() => { if (!steamInstallFallbackBusy) { setSteamInstallFallback(null); setToast("La preinstalación falló. Podés volver a intentar Instalar cuando quieras."); } }} /> : null}

@@ -21,7 +21,8 @@ export type LibraryFeatureKey =
   | "mmo"
   | "pvp"
   | "pve"
-  | "cross_platform";
+  | "cross_platform"
+  | "has_downloads";
 
 export interface LibrarySearchFilters {
   genres: string[];
@@ -37,6 +38,7 @@ export const EMPTY_LIBRARY_FILTERS: LibrarySearchFilters = {
 };
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
+  { key: "has_downloads", label: "Descargables (Fuentes disponibles)" },
   { key: "single_player", label: "Un jugador" },
   { key: "multiplayer", label: "Multijugador" },
   { key: "online_multiplayer", label: "Multiplayer online" },
@@ -85,7 +87,8 @@ export function gameMatchesLibraryFeature(game: CatalogGame, feature: LibraryFea
   const onlineMulti = onlineCoop || has("jcj en linea", "online pvp", "multijugador en linea", "online multiplayer");
   const localMulti = localCoop || shared || has("local multiplayer", "multijugador local", "jcj de pantalla");
   const lan = hasLanCategory(game);
-  if (feature === "lan") return lan;
+  if (feature === "has_downloads") return (game as any).has_downloads === true;
+    if (feature === "lan") return lan;
   if (feature === "coop_lan") return has("lan co-op", "lan coop", "cooperativo en lan", "coop. en lan");
   if (feature === "multiplayer_lan") return lan;
   if (feature === "online_multiplayer") return onlineMulti;

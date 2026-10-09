@@ -37,6 +37,8 @@ function detailActionState(download?: ManagedDownloadStatus) {
   };
 }
 
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
+
 export function DetailPanel({
   game,
   machine,
@@ -46,6 +48,7 @@ export function DetailPanel({
   onDownload,
   busy,
   overLibrary = false,
+  availableSourceCount = 0,
 }: {
   game: CatalogGame;
   machine: MachineProfile | null;
@@ -55,6 +58,7 @@ export function DetailPanel({
   onDownload: (game: CatalogGame) => Promise<void>;
   busy: boolean;
   overLibrary?: boolean;
+  availableSourceCount?: number;
 }) {
   const { locale } = useI18n();
   const [details, setDetails] = useState<GameDetails | null>(null);
@@ -63,12 +67,29 @@ export function DetailPanel({
   const [activeShot, setActiveShot] = useState(0);
   const [closing, setClosing] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [showSourceSelector, setShowSourceSelector] = useState(false);
+  const [sources, setSources] = useState<any[]>([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+
+  const handleDownloadClick = () => {
+    if (availableSourceCount > 0 && !localState.installed && !localState.transferActive) {
+      setShowSourceSelector(true);
+      setLoadingSources(true);
+      digitalCatalogService.getSources(game).then(srcs => {
+        setSources(srcs);
+        setLoadingSources(false);
+      });
+    } else {
+      void onDownload(game);
+    }
+  };
 
   const closeWithAnimation = useCallback(() => {
     if (closing) return;
     setClosing(true);
     window.setTimeout(onClose, 220);
   }, [closing, onClose]);
+
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -174,9 +195,9 @@ export function DetailPanel({
               />
               <GlassActionButton
                 icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
-                label={downloadActionLabel(localState, download)}
-                tone="download" disabled={(!game.app_id && !game.id) || downloadBlocked}
-                onClick={() => void onDownload(game)}
+                label={availableSourceCount === 0 && !localState.installed ? "Fuentes no disponibles" : (downloadActionLabel(localState, download) + (availableSourceCount > 0 && !localState.installed && !localState.transferActive ? ` (${availableSourceCount} fuentes)` : ""))}
+                tone="download" disabled={(!game.app_id && !game.id) || downloadBlocked || (availableSourceCount === 0 && !localState.installed)}
+                onClick={handleDownloadClick}
               />
             </div>
             {activeDownload || download?.progress != null || download?.statusText ? (
