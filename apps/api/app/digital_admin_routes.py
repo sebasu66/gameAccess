@@ -631,61 +631,7 @@ def delete_source(req: DeleteSourceRequest) -> dict[str, Any]:
     }
 
 
-def extract_hydra_items(
-    raw_data: Any,
-    source_label: str = "Fuente",
-    source_url: str = "",
-    source_priority: int = 100,
-) -> list[dict[str, Any]]:
-    raw_list = []
-    if isinstance(raw_data, dict):
-        if "downloads" in raw_data and isinstance(raw_data["downloads"], list):
-            raw_list = raw_data["downloads"]
-        elif "items" in raw_data and isinstance(raw_data["items"], list):
-            raw_list = raw_data["items"]
-    elif isinstance(raw_data, list):
-        for entry in raw_data:
-            if isinstance(entry, dict) and "downloads" in entry:
-                raw_list.extend(entry["downloads"])
-            elif isinstance(entry, dict):
-                raw_list.append(entry)
 
-    items = []
-    for item in raw_list:
-        if not isinstance(item, dict):
-            continue
-        title = str(item.get("title") or item.get("name") or "").strip()
-        if not title:
-            continue
-        uris = item.get("uris") or item.get("urls") or []
-        if isinstance(uris, str):
-            uris = [uris]
-        elif not isinstance(uris, list):
-            uris = []
-        if not uris and item.get("uri"):
-            uris = [item["uri"]]
-        if not uris and item.get("url"):
-            uris = [item["url"]]
-
-        valid_uris = [str(u).strip() for u in uris if u and isinstance(u, (str, int)) and str(u).strip()]
-        if not valid_uris:
-            continue
-
-        raw_id = item.get("id") or item.get("app_id") or item.get("steam_app_id")
-
-        items.append({
-            "raw_title": title,
-            "clean_title": clean_user_friendly_title(title),
-            "uri": valid_uris[0],
-            "uris": valid_uris,
-            "file_size": str(item.get("fileSize") or item.get("file_size") or item.get("size") or "Estándar").strip(),
-            "upload_date": str(item.get("uploadDate") or item.get("date") or "").strip(),
-            "source": source_label,
-            "source_url": source_url,
-            "source_priority": source_priority,
-            "id": int(raw_id) if isinstance(raw_id, (int, str)) and str(raw_id).isdigit() else None,
-        })
-    return items
 
 
 @router.post("/sources/sync")

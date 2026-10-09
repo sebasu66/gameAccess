@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
@@ -8,6 +9,14 @@ import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
 import { activationHeaders, invalidateActivation } from "../activation";
+
+
+export interface PluginManifest {
+  id: string;
+  name: string;
+  endpoint: string;
+  type: string;
+}
 
 export interface DigitalGameRecord {
   name: string;
@@ -219,30 +228,37 @@ export class DigitalCatalog {
     let autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
     if (!downloadSource || downloadSource === "auto") {
       try {
-        const apiUrl = await getApiBaseUrl();
-        console.log(`[DigitalCatalog:download] No local downloadSource. Querying API at ${apiUrl}/digital/source/${game.id}...`);
-        if (apiUrl) {
-          const res = await fetch(`${apiUrl}/digital/source/${game.id}?name=${encodeURIComponent(game.name)}`, {
-            headers: activationHeaders()
-          });
-          if (res.ok) {
-            const data = await res.json();
-            console.log("[DigitalCatalog:download] API source response:", data);
-            if (data?.uri) {
-              downloadSource = data.uri;
-              autoInstalled = data.auto_installed === true;
-            }
-          } else {
-            console.warn(`[DigitalCatalog:download] API returned status ${res.status}`);
-            if (res.status === 401) {
-              invalidateActivation();
-              throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
+        console.log(`[DigitalCatalog:download] No local downloadSource. Querying local plugins...`);
+        const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
+        
+        let foundSource = null;
+        for (const plugin of plugins) {
+          if (plugin.type === "source_provider") {
+            try {
+              const res = await fetch(`${plugin.endpoint}/api/sources?app_id=${game.id}&name=${encodeURIComponent(game.name)}`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.length > 0) {
+                  // Tomamos la primera mejor coincidencia
+                  foundSource = data[0].url;
+                  autoInstalled = false; // By default from plugins
+                  console.log(`[DigitalCatalog:download] Source found from plugin ${plugin.name}:`, foundSource);
+                  break;
+                }
+              }
+            } catch (err) {
+              console.warn(`[DigitalCatalog:download] Error asking plugin ${plugin.name}:`, err);
             }
           }
         }
+        
+        if (foundSource) {
+          downloadSource = foundSource;
+        } else {
+          console.warn("[DigitalCatalog:download] No source returned from any registered plugins.");
+        }
       } catch (srcErr) {
-        if (srcErr instanceof Error && srcErr.message.includes("tiempo de acceso")) throw srcErr;
-        console.warn("[DigitalCatalog:download] Error querying digital source from API:", srcErr);
+        console.warn("[DigitalCatalog:download] Error querying digital source from plugins:", srcErr);
       }
     }
 

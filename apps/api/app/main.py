@@ -977,7 +977,6 @@ def _start_steam_presence_monitor() -> None:
 
 
 _review_worker_started = False
-_sources_updater_started = False
 _catalog_logger = logging.getLogger("gameaccess.catalog")
 
 
@@ -1004,50 +1003,9 @@ def _steam_review_import_loop() -> None:
         time.sleep(interval)
 
 
-def _sources_update_loop() -> None:
-    import time
-    import asyncio
-    import logging
-    from .digital_admin_routes import sync_sources, load_cached_downloads, deduplicate_download_items, load_sources_config, _populate_catalog_bg, SYNC_STATUS
-    
-    # Wait for server startup and DB restore
-    time.sleep(60)
-    
-    while True:
-        try:
-            if SYNC_STATUS.get("is_running"):
-                time.sleep(60)
-                continue
-                
-            logging.info("Running automatic background sources sync (30-min interval)...")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(sync_sources())
-            
-            cached = load_cached_downloads()
-            if cached:
-                cfg = load_sources_config()
-                deduped_cached = deduplicate_download_items(cached, cfg)
-                # This naturally ignores duplicates, adds new ones, and invokes sync_digital_catalog for the DB
-                _populate_catalog_bg(deduped_cached)
-            loop.close()
-            logging.info("Background sources sync completed.")
-        except Exception as e:
-            logging.error(f"Error in background sources update loop: {e}")
-        
-        # Fetch updates every 30 minutes
-        time.sleep(1800)
 
-def _start_sources_updater() -> None:
-    global _sources_updater_started
-    if _sources_updater_started:
-        return
-    _sources_updater_started = True
-    threading.Thread(
-        target=_sources_update_loop,
-        name="gameaccess-sources-updater",
-        daemon=True,
-    ).start()
+
+
 
 def _start_steam_review_importer() -> None:
     global _review_worker_started
@@ -1525,35 +1483,9 @@ def get_digital_game_source(
     if _activation_for_request(request, session) is None:
         raise HTTPException(401, "GameAccess activation is required or has expired")
     
-    items = load_digital_catalog_json()
-    for item in items:
-        if item.get("id") == game_id:
-            src = str(item.get("downloadSource") or "").strip()
-            if src:
-                from .digital_source_policy import annotate_source_policies
-                from .digital_download_size import annotate_download_sizes
-                from .digital_admin_routes import load_cached_downloads
-                sized = annotate_download_sizes([item], load_cached_downloads())[0]
-                return annotate_source_policies([{"ok": True, "id": game_id, "name": item.get("name"), "uri": src, "size": sized["download_size"], "download_size": sized["download_size"], "download_size_bytes": sized["download_size_bytes"]}])[0]
-            if not name:
-                name = item.get("name")
-
-    # If not directly defined on catalog item, attempt matching cached Hydra sources if name is known
-    if name:
-        from .digital_admin_routes import load_cached_downloads, calculate_match_score
-        cached = load_cached_downloads()
-        scored = []
-        for c in cached:
-            score = calculate_match_score(name, c.get("raw_title", ""))
-            if score >= 0.55:
-                scored.append((score, c))
-        if scored:
-            scored.sort(key=lambda x: (x[0], x[1].get("upload_date", "")), reverse=True)
-            best = scored[0][1]
-            from .digital_source_policy import annotate_source_policies
-            return annotate_source_policies([{"ok": True, "id": game_id, "name": name, "uri": best.get("uri"), "source_url": best.get("source_url"), "size": best.get("file_size")}])[0]
-
-    raise HTTPException(404, detail="No download source found for this game")
+    # La API centralizada ya no gestiona ni almacena fuentes de descargas comunitarias (JSONs).
+    # Este endpoint queda deprecated/vacío. El cliente de escritorio debe consultar sus plugins locales.
+    raise HTTPException(404, detail="El backend ya no provee fuentes directamente. El cliente debe consultar los plugins.")
 
 
 @app.post("/admin/catalog/digital/sync")
