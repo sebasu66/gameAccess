@@ -68,11 +68,16 @@ def collect(app_id, output):
         raise ValueError("Steam review request failed; do not invent a rating.")
     summary = reviews.get("query_summary", {})
     total = summary.get("total_reviews", 0)
+    requirements = data.get("pc_requirements")
+    if not isinstance(requirements, dict):
+        requirements = {}
     facts = {"app_id": app_id, "name": data["name"], "platform": "PC",
              "checked_at": datetime.now(timezone.utc).isoformat(),
              "short_description": clean_text(data.get("short_description")),
              "release": data.get("release_date"), "categories": data.get("categories", []),
              "genres": data.get("genres", []), "supported_languages": clean_text(data.get("supported_languages")),
+             "pc_requirements": {k: clean_text(v) for k, v in requirements.items()},
+             "age_ratings": data.get("ratings", {}),
              "reviews": {"positive_percent": round(summary["total_positive"] * 100 / total) if total else None,
                          "count": total, "label": summary.get("review_score_desc"),
                          "scope": "all languages; Steam purchases; all review types; overall"},
@@ -92,7 +97,7 @@ def validate_episode(episode):
     if not sections:
         raise ValueError("At least one narrated section is required.")
     seen = set()
-    for section in sections:
+    for section in sections + ([episode["closing"]] if episode.get("closing") else []):
         ident = section.get("id", "")
         if not IDS.fullmatch(ident) or ident in seen:
             raise ValueError("Section IDs must be unique safe slugs.")
@@ -221,6 +226,8 @@ def media_input(media, base, seconds):
         raise ValueError(f"Missing media file: {path}")
     if path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
         return ["-loop", "1", "-i", path]
+    if media.get("repeat_background"):
+        return ["-stream_loop", "-1", "-i", path]
     offset = float(media.get("start", 0))
     if offset < 0 or duration(path) + 0.05 < offset + seconds:
         raise ValueError(f"Clip {path.name} is too short. Select another clip; footage is not repeated to extend it.")
@@ -271,20 +278,71 @@ def trim_logo_sound(source, output):
     return duration(output)
 
 
-def brand_segment(output, target, vf, encoding):
+def brand_background(episode, base, width, height, start=0):
+    path = episode.get("brand", {}).get("background")
+    if path:
+        path = (base / path).resolve()
+        if not path.is_file():
+            raise ValueError(f"Missing supplied brand background: {path}")
+        return ["-stream_loop", "-1", "-ss", str(start), "-i", path]
+    return ["-f", "lavfi", "-i", f"color=c=0x111416:s={width}x{height}:r=30"]
+
+
+def brand_segment(output, target, vf, encoding, episode, base, height):
+    from design import brand_text
     intro = ROOT / "apps/desktop/public/brand/logo-intro.webm"
     config = read_json(ROOT / "apps/desktop/public/brand/opening-audio.json")
     sound = ROOT / "apps/desktop/public" / config["src"].lstrip("/")
     trimmed = output / "logo-sound.wav"
     seconds = math.ceil(trim_logo_sound(sound, trimmed) * 30) / 30
-    # Complete formation plus a held final frame; never speed up or cut the sonic signature.
-    run("ffmpeg", "-y", "-v", "error", "-i", intro, "-i", trimmed, "-t", str(seconds),
-        "-map", "0:v", "-map", "1:a", "-vf", vf + f",tpad=stop_mode=clone:stop_duration={seconds}",
+    width = height * 16 // 9
+    letters = output / "brand-center.png"
+    brand_text(letters, height, center=True)
+    graph = (f"[0:v]{vf},colorchannelmixer=rr=0.65:gg=0.65:bb=0.65[bg];"
+             f"[1:v]scale={width}:{height},format=rgba,tpad=stop_mode=clone:stop_duration={seconds}[logo];"
+             "[3:v]format=rgba,fade=t=in:st=2.4:d=0.5:alpha=1[letters];"
+             "[bg][logo]overlay=shortest=1[mark];[mark][letters]overlay=shortest=1[screen]")
+    # Force the VP9 decoder that preserves alpha; the default native decoder discards it.
+    run("ffmpeg", "-y", "-v", "error", *brand_background(episode, base, width, height),
+        "-c:v", "libvpx-vp9", "-i", intro, "-i", trimmed, "-loop", "1", "-i", letters,
+        "-t", str(seconds), "-filter_complex", graph, "-map", "[screen]", "-map", "2:a",
         "-af", "apad", *encoding, target)
     return duration(target)
 
 
-def mix_music(source, output, episode, start, end, total):
+def docking_segment(output, vf, encoding, episode, base, height, start):
+    from design import brand_text
+    width = height * 16 // 9
+    letters = output / "brand-corner.png"
+    brand_text(letters, height)
+    target = output / "000-docking.mp4"
+    graph = (f"[0:v]{vf},colorchannelmixer=rr=0.65:gg=0.65:bb=0.65[bg];"
+             f"[1:v]scale={width}:{height},format=rgba[logo];"
+             "[2:v]format=rgba,fade=t=in:st=1.9:d=0.7:alpha=1[letters];"
+             "[bg][logo]overlay=shortest=1[mark];[mark][letters]overlay=shortest=1[screen]")
+    run("ffmpeg", "-y", "-v", "error", *brand_background(episode, base, width, height, start),
+        "-c:v", "libvpx-vp9", "-i", ROOT / "apps/desktop/public/brand/logo-to-header.webm",
+        "-loop", "1", "-i", letters, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+        "-t", "3", "-filter_complex", graph, "-map", "[screen]", "-map", "3:a", *encoding, target)
+    return target
+
+
+def persistent_brand(source, output, height, start):
+    from design import brand_text
+    letters = output.parent / "brand-corner.png"
+    brand_text(letters, height)
+    size = round(60 * height / 1080)
+    x, y = 34 * height / 1080, 24 * height / 1080
+    graph = (f"[1:v]scale={size}:{size},format=rgba,setpts=PTS-STARTPTS+{start}/TB[logo];"
+             f"[0:v][logo]overlay=x={x}:y={y}:enable='gte(t,{start})':eof_action=repeat[mark];"
+             f"[mark][2:v]overlay=enable='gte(t,{start})':eof_action=repeat[screen]")
+    run("ffmpeg", "-y", "-v", "error", "-i", source, "-stream_loop", "-1", "-c:v", "libvpx-vp9",
+        "-i", ROOT / "apps/desktop/public/brand/logo-header-loop.webm", "-loop", "1", "-i", letters,
+        "-filter_complex", graph, "-map", "[screen]", "-map", "0:a", "-c:v", "libx264", "-preset", "fast",
+        "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-t", str(duration(source)), output)
+
+
+def mix_music(source, output, episode, windows, total):
     config = episode.get("music")
     if not config:
         return run("ffmpeg", "-y", "-v", "error", "-i", source, "-c", "copy", "-movflags", "+faststart", output)
@@ -296,12 +354,12 @@ def mix_music(source, output, episode, start, end, total):
     gain = float(config.get("gain_db", -8))
     if not -30 <= gain <= 0:
         raise ValueError("Music gain_db must be between -30 and 0.")
-    span = end - start
-    if span <= 0:
+    if any(end <= start for start, end in windows):
         raise ValueError("The music bed requires a positive narration span.")
+    envelope = "+".join(f"if(between(t,{start},{end}),min(1,min((t-{start})/0.7,({end}-t)/0.8)),0)"
+                        for start, end in windows)
     graph = (f"[0:a]asplit=2[voice][key];[1:a]loudnorm=I=-20:TP=-2:LRA=9,volume={gain}dB,"
-             f"atrim=duration={span},afade=t=in:d=0.7,afade=t=out:st={max(0, span - .8)}:d=0.8,"
-             f"adelay={round(start * 1000)}:all=1,apad[bed];"
+             f"atrim=duration={total},volume='{envelope}':eval=frame,apad[bed];"
              "[bed][key]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=250[ducked];"
              "[voice][ducked]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.94:level=false[mix]")
     run("ffmpeg", "-y", "-v", "error", "-i", source, "-stream_loop", "-1", "-i", music,
@@ -315,7 +373,8 @@ def render(episode_path, output, preview=False, height=1080):
     validate_episode(episode)
     if not preview and not episode.get("editorial_reviewed"):
         raise ValueError("Review sources, narration and media, then set editorial_reviewed=true.")
-    if not preview and any(not s.get("media", {}).get("path") for s in episode["sections"]):
+    all_sections = episode["sections"] + ([episode["closing"]] if episode.get("closing") else [])
+    if not preview and any(not s.get("media", {}).get("path") for s in all_sections):
         raise ValueError("Select a local image/clip for every section before production render.")
     key = operator_key()
     if not key:
@@ -330,12 +389,20 @@ def render(episode_path, output, preview=False, height=1080):
                 "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart"]
     segments, timeline, cues = [], [], []
     intro_out = output / "000-intro.mp4"
-    brand_segment(output, intro_out, vf, encoding)
+    brand_segment(output, intro_out, vf, encoding, episode, episode_path.parent, height)
     segments.append(intro_out)
     cursor = duration(intro_out)
     music_start = cursor
     timeline.append({"id": "brand", "title": "GameAccess", "start": 0, "end": cursor})
-    for index, section in enumerate(episode["sections"], 1):
+    dock = docking_segment(output, vf, encoding, episode, episode_path.parent, height, cursor)
+    actual = duration(dock)
+    timeline.append({"id": "brand-docking", "title": "GameAccess", "start": cursor, "end": cursor + actual})
+    segments.append(dock)
+    cursor += actual
+    corner_start = cursor
+
+    def append_narration(section, index):
+        nonlocal cursor
         wav = output / f"{section['id']}.wav"
         synthesize(section, episode, wav, key)
         speech = duration(wav)
@@ -366,7 +433,10 @@ def render(episode_path, output, preview=False, height=1080):
         cues.extend(captions(section["text"], cursor, speech))
         cursor += actual
         segments.append(target)
+    for index, section in enumerate(episode["sections"], 1):
+        append_narration(section, index)
     music_end = cursor
+    music_windows = [(music_start, music_end)]
     if episode.get("gameplay"):
         gameplay = episode["gameplay"]
         seconds = float(gameplay["duration"])
@@ -388,9 +458,13 @@ def render(episode_path, output, preview=False, height=1080):
         timeline.append({"id": "extended-gameplay", "title": "Gameplay extendido", "start": cursor, "end": cursor + actual})
         cursor += actual
         segments.append(target)
+    if episode.get("closing"):
+        closing_start = cursor
+        append_narration(episode["closing"], len(episode["sections"]) + 1)
+        music_windows.append((closing_start, cursor))
     if episode.get("outro"):
         target = output / "1000-outro.mp4"
-        brand_segment(output, target, vf, encoding)
+        brand_segment(output, target, vf, encoding, episode, episode_path.parent, height)
         actual = duration(target)
         timeline.append({"id": "brand-outro", "title": "GameAccess", "start": cursor, "end": cursor + actual})
         cursor += actual
@@ -402,10 +476,13 @@ def render(episode_path, output, preview=False, height=1080):
     run("ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "1", "-i", playlist, "-c", "copy", assembled)
     if episode.get("music", {}).get("path"):
         episode["music"]["path"] = str((episode_path.parent / episode["music"]["path"]).resolve())
-    mix_music(assembled, final, episode, music_start, music_end, duration(assembled))
+    branded = output / "branded.mp4"
+    persistent_brand(assembled, branded, height, corner_start)
+    mix_music(branded, final, episode, music_windows, duration(branded))
     write_json(output / "timeline.json", {"format_version": 1, "app_id": episode["app_id"], "locale": episode["locale"],
                                        "preview": preview, "demo": bool(episode.get("demo")),
                                        "music_window": [music_start, music_end] if episode.get("music") else None,
+                                       "music_windows": music_windows if episode.get("music") else [],
                                        "duration": duration(final), "sections": timeline})
     (output / "captions.vtt").write_text("WEBVTT\n\n" + "\n\n".join(
         f"{timestamp(a)} --> {timestamp(b)}\n{text}" for a, b, text in cues) + "\n", encoding="utf-8")

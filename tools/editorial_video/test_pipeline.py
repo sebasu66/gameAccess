@@ -95,6 +95,22 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pipeline.validate_episode(episode)
 
+    def test_closing_cannot_overwrite_a_presentation_voice(self):
+        episode = {"format_version": 1, "locale": "es", "app_id": 4078430,
+                   "sections": [{"id": "hook", "text": "Presentación"}],
+                   "closing": {"id": "hook", "text": "Despedida"}}
+        with self.assertRaises(ValueError):
+            pipeline.validate_episode(episode)
+
+    def test_explicit_background_can_repeat_but_gameplay_still_rejects_short_clips(self):
+        with tempfile.TemporaryDirectory() as temp:
+            Path(temp, "background.mp4").touch()
+            with patch.object(pipeline, "duration", return_value=10):
+                self.assertEqual(pipeline.media_input({"path": "background.mp4", "repeat_background": True},
+                                                     Path(temp), 20)[:2], ["-stream_loop", "-1"])
+                with self.assertRaises(ValueError):
+                    pipeline.media_input({"path": "background.mp4"}, Path(temp), 20)
+
 
 if __name__ == "__main__":
     unittest.main()
