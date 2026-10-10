@@ -7,6 +7,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { listenAvailable, isOrphan, removeOwnedFile } = require('./instance');
 const { SourceState } = require('./source-state');
+test('plugin main entry parses', () => { new (require('node:vm').Script)(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8')); });
 const quiet = { info() {}, warn() {} };
 const close = server => new Promise(resolve => server.close(resolve));
 test('an occupied port is preserved and an OS-assigned port is selected', async () => {
@@ -78,8 +79,11 @@ test('real Electron recovers an orphan, reuses a live instance and observes JSON
     GA_FIXTURE_STOP: path.join(root, 'stop'), NODE_PATH: path.resolve(path.dirname(electron), '..', '..') };
   delete env.ELECTRON_RUN_AS_NODE;
   const children = [];
+  const output = [];
   const launch = entry => {
     const child = spawn(electron, [entry], { cwd: root, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', value => output.push(String(value)));
+    child.stderr.on('data', value => output.push(String(value)));
     children.push(child); return child;
   };
   const waitFor = async (fn, timeout = 25000) => {
@@ -119,6 +123,9 @@ test('real Electron recovers an orphan, reuses a live instance and observes JSON
     fs.writeFileSync(path.join(root, 'stop'), 'close');
     await waitFor(() => first.exitCode !== null);
     assert.equal(fs.existsSync(manifest), false);
+  } catch (error) {
+    const logfile = path.join(root, 'userdata', 'logs', 'main.log');
+    throw new Error(error.message + '\nFixture processes: ' + children.map(child => child.pid + ':' + child.exitCode).join(',') + '\n' + output.join('').slice(-6000) + '\n' + (fs.existsSync(logfile) ? fs.readFileSync(logfile, 'utf8').slice(-6000) : 'No fixture log'), {cause:error});
   } finally {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill();
     await new Promise(resolve => setTimeout(resolve, 500));

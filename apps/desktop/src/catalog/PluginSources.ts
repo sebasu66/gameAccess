@@ -120,6 +120,17 @@ function bulkAvailability(raw: unknown, providerName: string): SourceAvailabilit
   const names = Array.isArray(object.sources) ? object.sources.filter((name): name is string => typeof name === "string") : [];
   return {count,names:names.length ? names : [providerName]};
 }
+
+function applyBulkBatch(batch: CatalogGame[], data: Record<string, unknown>, next: Map<number, SourceAvailability>, providerName: string): void {
+  for (const game of batch) {
+    const received = bulkAvailability(data[String(keyOf(game))], providerName);
+    const entry = next.get(keyOf(game))!;
+    entry.count += received.count;
+    entry.names.push(...received.names);
+    availability.set(keyOf(game), { count: entry.count, names: [...new Set(entry.names)] });
+  }
+}
+
 async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   const epoch = pluginGeneration();
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
@@ -144,13 +155,7 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
         }
         const data = await response.json() as Record<string, unknown>;
         if (epoch !== pluginGeneration()) return;
-        for (const game of batch) {
-          const raw = data[String(keyOf(game))];
-          const received = bulkAvailability(raw, plugin.name);
-          const entry = next.get(keyOf(game))!;
-          entry.count += received.count; entry.names.push(...received.names);
-          availability.set(keyOf(game), {count:entry.count,names:[...new Set(entry.names)]});
-        }
+        applyBulkBatch(batch, data, next, plugin.name);
         publish();
       } catch (error) {
         void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
