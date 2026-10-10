@@ -1,3 +1,6 @@
+import { getSteamStoreLanguage } from "../i18n";
+import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
+import { readCatalogCachedDetail } from "../catalogCache";
 import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
 export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
@@ -47,7 +50,7 @@ export class DigitalCatalog {
   }
 
   /**
-   * Loads games from the JSON catalog file.
+   * Loads installer metadata immediately, then refreshes the shared discovery snapshot.
    */
   async loadCatalog({ requireRemote = false }: { requireRemote?: boolean } = {}): Promise<CatalogGame[]> {
     let rawList: (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
@@ -56,42 +59,9 @@ export class DigitalCatalog {
       const loaded = await this.options.catalogLoader();
       rawList = (Array.isArray(loaded) ? loaded : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
     } else {
-      let raw: unknown = null;
-      if (typeof window !== "undefined" && typeof fetch !== "undefined") {
-        try {
-          const apiUrl = await getApiBaseUrl();
-          if (apiUrl) {
-            const response = await fetch(`${apiUrl}/library/catalog`, { cache: "no-store" });
-            if (response.ok) {
-              raw = await response.json();
-            } else if (requireRemote) {
-              throw new Error(`No pudimos actualizar el catálogo (${response.status}).`);
-            }
-          }
-        } catch (error) {
-          if (requireRemote) throw error;
-          // Fall back to local or bundled JSON on network error or test environment.
-        }
-
-        // Background refreshes must never replace a live catalog with a bundled
-        // fallback, or mistake those fallback entries for newly added games.
-        if (requireRemote && !Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
-        if (!requireRemote && (!Array.isArray(raw) || !raw.length)) {
-          try {
-            const response = await fetch("/digital_catalog.json", { cache: "no-store" });
-            if (response.ok) {
-              raw = await response.json();
-            }
-          } catch {
-            // Fall back to bundled JSON on network error or test environment.
-          }
-        }
-      }
-
-      if (requireRemote && !Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
-      if (!requireRemote && (!Array.isArray(raw) || !raw.length)) {
-        raw = defaultCatalog;
-      }
+      const discovery = await loadDiscoveryCatalog(requireRemote);
+      let raw: unknown = discovery;
+      if (!requireRemote && (!Array.isArray(raw) || !raw.length)) raw = defaultCatalog;
 
       rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
     }
@@ -133,6 +103,9 @@ export class DigitalCatalog {
     const games = this.cachedGames ?? (await this.loadCatalog());
     const game = games.find((item) => item.id === gameId || item.app_id === gameId);
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
+
+    const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
+    if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
 
     if (game.app_id) {
       try {

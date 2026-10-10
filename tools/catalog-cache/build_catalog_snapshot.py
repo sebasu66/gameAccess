@@ -18,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 API_ROOT = REPO_ROOT / "apps" / "api"
 DEFAULT_SQLITE = API_ROOT / "gameaccess.db"
 OUTPUT_DIR = REPO_ROOT / "deploy" / "catalog-cache"
+sys.path.insert(0, str(API_ROOT))
+from app.catalog_snapshot import write_snapshot
 
 
 def normalize_database_url(raw: str) -> str:
@@ -208,96 +210,6 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
     return write_snapshot(catalog_rows, detail_rows, output_dir, github_ref)
 
 
-def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows: dict[tuple[int, str, str], str], output_dir: Path, github_ref: str, coverage: dict | None = None) -> tuple[Path, Path]:
-    """Publish metadata only; consumers validate hash, schema and row count."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    content_hasher = hashlib.sha256()
-    for _, _, payload in sorted(catalog_rows):
-        content_hasher.update(payload.encode("utf-8"))
-    for key, payload in sorted(detail_rows.items()):
-        content_hasher.update(stable_json(key).encode("utf-8"))
-        content_hasher.update(payload.encode("utf-8"))
-    revision = content_hasher.hexdigest()[:16]
-    sqlite_name = f"catalog-cache-{revision}.sqlite"
-    gzip_name = f"{sqlite_name}.gz"
-    sqlite_path = output_dir / sqlite_name
-    gzip_path = output_dir / gzip_name
-    manifest_path = output_dir / "catalog-manifest.json"
-
-    if sqlite_path.exists():
-        sqlite_path.unlink()
-    db = sqlite3.connect(sqlite_path)
-    try:
-        db.executescript("""
-            PRAGMA journal_mode=OFF;
-            PRAGMA synchronous=OFF;
-            CREATE TABLE metadata (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE catalog_game (
-                id INTEGER PRIMARY KEY,
-                app_id INTEGER,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX ix_catalog_game_app_id ON catalog_game(app_id);
-            CREATE TABLE game_detail (
-                game_id INTEGER NOT NULL,
-                language TEXT NOT NULL,
-                country TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                PRIMARY KEY(game_id, language, country)
-            );
-        """)
-        db.executemany(
-            "INSERT INTO metadata(key,value) VALUES (?,?)",
-            [
-                ("schema_version", "1"),
-                ("revision", revision),
-                ("catalog_count", str(len(catalog_rows))),
-            ],
-        )
-        db.executemany(
-            "INSERT INTO catalog_game(id, app_id, payload) VALUES (?,?,?)",
-            catalog_rows,
-        )
-        db.executemany(
-            "INSERT INTO game_detail(game_id, language, country, payload) VALUES (?,?,?,?)",
-            [(game_id, language, country, payload) for (game_id, language, country), payload in detail_rows.items()],
-        )
-        db.commit()
-        db.execute("VACUUM")
-    finally:
-        db.close()
-
-    with sqlite_path.open("rb") as source, gzip.GzipFile(filename="", mode="wb", fileobj=gzip_path.open("wb"), mtime=0, compresslevel=9) as target:
-        while True:
-            chunk = source.read(1024 * 1024)
-            if not chunk:
-                break
-            target.write(chunk)
-
-    compressed = gzip_path.read_bytes()
-    compressed_sha = hashlib.sha256(compressed).hexdigest()
-    manifest = {
-        "schema_version": 1,
-        "revision": revision,
-        "artifact_url": (
-            "https://raw.githubusercontent.com/sebasu66/gameAccess/"
-            f"refs/heads/{github_ref}/deploy/catalog-cache/{gzip_name}"
-        ),
-        "sha256": compressed_sha,
-        "catalog_count": len(catalog_rows),
-        "detail_count": len(detail_rows),
-        "compressed_bytes": len(compressed),
-        "uncompressed_bytes": sqlite_path.stat().st_size,
-        **({"coverage": coverage} if coverage else {}),
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-    sqlite_path.unlink()
-    print(json.dumps(manifest, indent=2, ensure_ascii=False))
-    return gzip_path, manifest_path
 
 
 def main() -> int:

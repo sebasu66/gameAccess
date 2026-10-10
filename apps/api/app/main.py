@@ -1195,6 +1195,14 @@ def startup() -> None:
             logging.getLogger("gameaccess.digital_catalog").exception("Startup digital catalog sync failed")
     _start_steam_review_importer()
     _start_steam_presence_monitor()
+    from .discovery_service import start_maintenance
+    start_maintenance()
+
+
+@app.on_event("shutdown")
+def stop_discovery_worker():
+    from .discovery_service import stop_maintenance
+    stop_maintenance()
 
 
 @app.get("/health")
@@ -1501,12 +1509,21 @@ def library_catalog(session: Session = Depends(get_session)) -> list[dict]:
         metadata.update(catalog_metadata_for_games(
             engine, ids[start:start + 400], connection=session.connection(),
         ))
-    return [{
+    database_games = [{
         **metadata.get(int(game.id), {}),
         "id": game.app_id, "app_id": game.app_id,
         "name": game.name, "slug": game.slug,
         "credit_cost_per_hour": 0, "copies_total": 0, "copies_available": 0,
     } for game in games]
+    from .discovery_service import catalog_games
+    by_app = {row["app_id"]: row for row in catalog_games()}
+    for row in database_games:
+        base = by_app.get(row["app_id"], {})
+        merged = {**base, **{key: value for key, value in row.items() if value is not None and value != "" and value != []}}
+        for key in ("tags", "genres", "categories"):
+            merged[key] = sorted(set(base.get(key, [])) | set(row.get(key, [])))
+        by_app[row["app_id"]] = merged
+    return list(by_app.values())
 
 
 @app.get("/digital/catalog")
@@ -2498,3 +2515,8 @@ app.add_api_route("/admin/digital/", get_digital_admin_page, methods=["GET"], in
 
 from .linkvertise_access import router as linkvertise_access_router
 app.include_router(linkvertise_access_router)
+
+from .discovery_service import router as discovery_router
+from .cooptimus import router as cooptimus_router
+app.include_router(discovery_router)
+app.include_router(cooptimus_router)

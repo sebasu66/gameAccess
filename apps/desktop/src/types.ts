@@ -21,6 +21,15 @@ export interface CatalogGame {
   categories?: string[];
   steam_category_ids?: number[];
   tags?: string[];
+  catalog_cache_id?: number;
+  tag_sources?: Record<string, string[]>;
+  metadata_sources?: string[];
+  metadata_urls?: Record<string, string>;
+  min_players?: number | null;
+  max_players?: number | null;
+  local_players_max?: number | null;
+  online_players_max?: number | null;
+  players_source?: string | null;
   developers?: string[];
   publishers?: string[];
   short_description?: string;

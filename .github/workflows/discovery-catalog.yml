@@ -1,0 +1,37 @@
+name: Refresh installer discovery database
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 4 * * *"
+permissions:
+  contents: write
+concurrency:
+  group: discovery-catalog
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r apps/api/requirements.txt pytest
+      - name: Validate discovery boundary and package contract
+        env:
+          PYTHONPATH: apps/api
+          GAMEACCESS_DISCOVERY_SYNC: "0"
+        run: python -m pytest tools/catalog-cache/test_discovery_catalog.py apps/api/tests/test_discovery_service.py -q
+      - name: Refresh Steam metadata only
+        run: python tools/catalog-cache/refresh_discovery_catalog.py --github-ref dev
+      - name: Publish the validated installer seed
+        run: |
+          git add deploy/catalog-cache
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "gameAccess catalog updater"
+          git config user.email "catalog-updater@users.noreply.github.com"
+          git commit -m "Refresh Steam discovery installer database"
+          git push origin HEAD:dev

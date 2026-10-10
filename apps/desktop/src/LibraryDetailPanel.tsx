@@ -1,3 +1,4 @@
+import CooptimusDetails from "./CooptimusDetails";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
@@ -510,7 +511,7 @@ function DesktopFeature(props: FeaturePanelProps) {
             {detailState.refreshingSteam ? <small role="status">Actualizando datos de Steam…</small> : detailState.steamRefreshMessage ? <small role="status">{detailState.steamRefreshMessage}</small> : null}
             <div className="ga-detail-rating"><strong>{ratingGame.steam_review_score != null ? `${Math.round(ratingGame.steam_review_score)}%` : "—"}</strong><span>Valoración de usuarios en Steam<br />{ratingGame.steam_review_count ? `${ratingGame.steam_review_count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span></div>
             <ExtendedDetails details={details} />
-            <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
+            <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
             <ActiveDownloadFacts download={props.download} />
           </div>
           <CircularScrollbar targetRef={scrollRef} label="Desplazar información del juego" />

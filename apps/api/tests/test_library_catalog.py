@@ -4,7 +4,9 @@ from app import main
 from app.catalog_metadata import ensure_catalog_schema, seed_known_games, upsert_steam_metadata
 
 
-def test_library_metadata_does_not_require_licenses_or_download_sources():
+def test_library_metadata_does_not_require_licenses_or_download_sources(monkeypatch):
+    from app import discovery_service
+    monkeypatch.setattr(discovery_service, "catalog_games", lambda: [])
     engine = create_engine("sqlite://")
     main.Game.__table__.create(engine)
     ensure_catalog_schema(engine)
