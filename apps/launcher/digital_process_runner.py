@@ -189,7 +189,7 @@ class DigitalProcessRunner:
         try:
             if action == "snapshot":
                 games = json.loads(command)
-                return {"ok": True, "statuses": {str(g["id"]): self.storage.status(g["id"], g["name"]) for g in games}}
+                return {"ok": True, "statuses": self.storage.snapshot(games)}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
             if action == "status":
@@ -197,7 +197,9 @@ class DigitalProcessRunner:
                 return {**result, "ok": True, **self.storage.status(app_id, name),
                         "backup_requires_password": bool(not auto_installed and backup and backup["needs_password"])}
             if action == "uninstall":
+                logger.info("AppID %s: uninstall starting; validated folder=%s; removes partial files without installation or executable checks", app_id, folder)
                 self.storage.uninstall(app_id, name)
+                logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
             if action == "open-folder":
                 if not folder.is_dir():

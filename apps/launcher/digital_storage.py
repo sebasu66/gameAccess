@@ -54,6 +54,19 @@ class DigitalGameStorage:
         )
         return {"folder": str(folder), "installed": available}
 
+    def snapshot(self, games: list[dict]) -> dict:
+        # List local roots once. A remote catalog entry without a local folder
+        # never needs path resolution or a recursive filesystem scan.
+        folders = {entry.name for entry in self.root.iterdir()} if self.root.is_dir() else set()
+        records = {entry.name for entry in self.registry.iterdir()} if self.registry.is_dir() else set()
+        statuses = {}
+        for game in games:
+            app_id, name = int(game["id"]), game["name"]
+            title = self.folder_name(name)
+            if f"{app_id}.json" in records or title in folders or f"{app_id}-{title}" in folders:
+                statuses[str(app_id)] = self.status(app_id, name)
+        return statuses
+
     def uninstall(self, app_id: int, name: str) -> Path:
         folder = self.folder(app_id, name)
         if folder.exists():

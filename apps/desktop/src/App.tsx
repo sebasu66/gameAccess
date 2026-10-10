@@ -192,14 +192,19 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     return () => unsub();
   }, []);
 
+  // Source/metadata updates do not change the folders we need to check.
+  const digitalFolderKey = useMemo(() => JSON.stringify(games.map(game => [game.app_id ?? game.id, game.name])), [games]);
+  const digitalGamesRef = useRef(games);
+  digitalGamesRef.current = games;
   useEffect(() => {
-    if (getCatalogMode() !== "digital" || !games.length) return;
+    if (getCatalogMode() !== "digital" || !digitalGamesRef.current.length) return;
     let cancelled = false;
     let pending = false;
     const refreshDigital = async () => {
       if (pending) return;
       pending = true;
       try {
+        const games = digitalGamesRef.current;
         const result = await digitalProcessManager.snapshot(games);
         if (!cancelled) setDownloads(current => {
           const next = { ...current };
@@ -220,7 +225,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     const timer = window.setInterval(() => void refreshDigital(), 15000);
     window.addEventListener("focus", refreshDigital);
     return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
-  }, [games]);
+  }, [digitalFolderKey]);
 
   useEffect(() => {
     if (!toast) return;
@@ -535,7 +540,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           </>}
         </div>
       </main>
-      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
+      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
 
       {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}

@@ -27,8 +27,8 @@ function eta(snapshot: DownloadProgressSnapshot): string {
 }
 type Entry = ReturnType<DigitalDownloadService["getDownloads"]>[number];
 const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrupted", "external"].includes(entry.snapshot.phase);
-export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, catalogGames = [] }: {
-  onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[];
+export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [] }: {
+  onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[]; onOpenGame?: (game: CatalogGame) => void;
 }) {
   const {t,locale} = useI18n();
   const phaseLabel = (phase: DownloadPhase) => downloadPhaseLabel(phase,locale);
@@ -68,7 +68,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
-      <div className="digital-download-art"><DigitalDownloadArtwork game={game} /></div>
+      {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
         <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
         <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>

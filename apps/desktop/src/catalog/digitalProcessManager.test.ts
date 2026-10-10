@@ -63,3 +63,19 @@ it("propagates automatic source policy and skips backup passwords", async () => 
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
+
+it("shares an in-flight folder query and releases it after failure", async () => {
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+  let reject!: (reason: Error) => void;
+  const waiting = new Promise<never>((_, fail) => { reject = fail; });
+  vi.mocked(invoke).mockReturnValueOnce(waiting).mockResolvedValue({ok:true,statuses:{}});
+  const manager = new DigitalProcessManager();
+  const first = manager.snapshot([game]);
+  expect(manager.snapshot([{...game,name:"Updated metadata"}])).toBe(first);
+  expect(invoke).toHaveBeenCalledTimes(1);
+  reject(new Error("probe failed"));
+  await expect(first).rejects.toThrow("probe failed");
+  await manager.snapshot([game]);
+  expect(invoke).toHaveBeenCalledTimes(2);
+  vi.unstubAllGlobals(); vi.clearAllMocks();
+});

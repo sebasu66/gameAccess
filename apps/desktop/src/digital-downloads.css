@@ -11,6 +11,7 @@
 .digital-download-row { display:flex; align-items:center; gap:24px; padding:24px 0; border-top:1px solid #25333a; }
 .digital-download-featured { padding:32px 0; }
 .digital-download-art { width:160px; height:76px; display:grid; place-items:center; background:#18292c; border-radius:5px; overflow:hidden; flex-shrink:0; }
+.digital-downloads-screen button.digital-download-art { padding:0; display:grid; min-height:0; border:0; }
 .digital-download-art img { width:100%; height:100%; object-fit:cover; }
 .digital-download-featured .digital-download-art { width:240px; height:112px; }
 .digital-download-info { flex:1; min-width:0; }

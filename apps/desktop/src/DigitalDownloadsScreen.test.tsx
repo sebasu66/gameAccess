@@ -70,3 +70,17 @@ describe("Digital download screen", () => {
     expect(html).toContain(locale==="es"?"Pausar":"Pause");
   });
 });
+
+it.each(["es","en"] as const)("makes every download artwork a localized detail action (%s)", locale => {
+  language.locale=locale;
+  const service=new DigitalDownloadService();
+  const game={id:1,app_id:1,name:"Fixture"} as CatalogGame;
+  vi.spyOn(service,"getDownloads").mockReturnValue([
+    {game,snapshot:{gameId:1,phase:"completed",progress:100}},
+    {game:{...game,id:2,app_id:2,name:"Pending"},snapshot:{gameId:2,phase:"queued",progress:0}},
+    {game:{...game,id:3,app_id:3,name:"Failed"},snapshot:{gameId:3,phase:"error",progress:0}},
+  ]);
+  const html=renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={()=>{}} onOpenGame={()=>{}}/>);
+  expect(html.match(/class="digital-download-art"/g)).toHaveLength(3);
+  for(const name of ["Fixture","Pending","Failed"]) expect(html).toContain(`aria-label="${locale==="es"?"Ver ficha de":"View details for"} ${name}"`);
+});

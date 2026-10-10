@@ -30,6 +30,7 @@ const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNAL
  * by passing them to the Python process runner (`digital_process_runner.py`) via Tauri.
  */
 export class DigitalProcessManager {
+  private snapshotPending: Promise<ProcessExecutionResult> | null = null;
   executePlay(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
     return this.execute("play", game, record, workingDir);
   }
@@ -43,7 +44,13 @@ export class DigitalProcessManager {
   openFolder(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("open-folder", game); }
 
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {
-    return this.execute("snapshot", { id: 0, app_id: 0, name: "" } as CatalogGame, undefined, undefined, JSON.stringify(games.map(g => ({ id: g.app_id ?? g.id, name: g.name }))));
+    // Keep one native query even if callers change or a view is remounted.
+    if (this.snapshotPending) return this.snapshotPending;
+    const pending = this.execute("snapshot", { id: 0, app_id: 0, name: "" } as CatalogGame, undefined, undefined, JSON.stringify(games.map(g => ({ id: g.app_id ?? g.id, name: g.name }))));
+    this.snapshotPending = pending;
+    const clear = () => { if (this.snapshotPending === pending) this.snapshotPending = null; };
+    void pending.then(clear, clear);
+    return pending;
   }
 
   private async execute(action: ProcessExecutionResult["action"], game: CatalogGame, record?: DigitalGameRecord, workingDir?: string, payload?: string): Promise<ProcessExecutionResult> {

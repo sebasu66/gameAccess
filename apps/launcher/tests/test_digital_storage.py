@@ -117,6 +117,35 @@ class DigitalStorageTests(unittest.TestCase):
             result = self.runner.run("uninstall", 1, "Fixture")
             self.assertFalse(result["ok"])
             self.assertTrue(Path(self.temp.name).exists())
+    def test_snapshot_ignores_remote_only_entries_and_finds_registered_and_legacy_games(self):
+        folder = self.storage.register(1, "Renamed")
+        (folder / "game.exe").write_bytes(b"fixture")
+        legacy = self.storage.root / "Legacy"
+        legacy.mkdir()
+        (legacy / "game.exe").write_bytes(b"fixture")
+        games = [{"id": 1, "name": "Old name"}, {"id": 2, "name": "Legacy"}]
+        games.extend({"id": value, "name": f"Remote {value}"} for value in range(3, 12680))
+        with patch.object(self.storage, "status", wraps=self.storage.status) as status:
+            result = self.runner.run("snapshot", 0, "", json.dumps(games))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(set(result["statuses"]), {"1", "2"})
+        self.assertTrue(all(item["installed"] for item in result["statuses"].values()))
+        self.assertEqual(status.call_count, 2)
+
+    def test_uninstall_partial_or_missing_game_without_installation_checks(self):
+        folder = self.storage.register(1, "Incomplete")
+        (folder / "download.part").write_bytes(b"partial")
+        downloads = self.storage.launcher / ".cache" / "digital_downloads"
+        downloads.mkdir(parents=True)
+        (downloads / "1.json").write_text('{"phase":"error"}')
+        with patch.object(self.storage, "status", side_effect=AssertionError("No installation check")):
+            result = self.runner.run("uninstall", 1, "Incomplete")
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(folder.exists())
+        self.assertFalse((self.storage.registry / "1.json").exists())
+        self.assertFalse((downloads / "1.json").exists())
+        self.assertTrue(self.runner.run("uninstall", 1, "Incomplete")["ok"])
+
     def test_no_steam_or_external_launch(self):
         folder = self.storage.register(1, "Fixture")
         (folder / "game.exe").write_bytes(b"fixture")
