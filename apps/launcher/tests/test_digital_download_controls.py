@@ -23,6 +23,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(PAYLOAD)))
         self.end_headers()
     def do_GET(self):
+        if self.path == "/fail.bin":
+            self.send_error(500, "Fixture transfer failed")
+            return
         self.send_response(200)
         self.send_header("Content-Length", str(len(PAYLOAD)))
         self.end_headers()
