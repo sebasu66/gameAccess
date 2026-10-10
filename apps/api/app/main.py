@@ -23,7 +23,7 @@ from sqlmodel import Session, SQLModel, select
 
 from .admin_auth import admin_authenticated, install_admin_auth
 from .archive_passwords import read_archive_passwords, save_archive_passwords
-from .database import DB_PATH, engine
+from .database import DB_PATH, engine, database_project_ref, verify_shared_database
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, session_end_details, utc, valid_session
 from .access_overrides import CourtesySession, courtesy_access_tier, courtesy_access_configured, redeem_courtesy_key, valid_courtesy_session
@@ -709,6 +709,8 @@ def slugify(value: str, app_id: int) -> str:
 
 @app.on_event("startup")
 def startup() -> None:
+    if os.environ.get("GAMEACCESS_ALLOW_SQLITE_FOR_TESTS") != "1":
+        verify_shared_database(engine)
     SQLModel.metadata.create_all(engine)
     ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
@@ -741,6 +743,7 @@ def health() -> dict:
         "time": now_utc(),
         "version": app.version,
         "database": engine.dialect.name,
+        "database_project": database_project_ref(str(engine.url)),
         "courtesy_access_configured": courtesy_access_configured(),
     }
 

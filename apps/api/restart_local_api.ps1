@@ -5,6 +5,14 @@ $api = Join-Path $root 'apps/api'
 $python = Join-Path $api '.venv/Scripts/python.exe'
 if (-not (Test-Path $python)) { throw "API venv Python not found: $python" }
 
+if (-not $StopOnly) {
+  Push-Location $api
+  try {
+    & $python -m app.database --verify-shared
+    if ($LASTEXITCODE -ne 0) { throw 'Shared Supabase database verification failed; existing server was preserved.' }
+  } finally { Pop-Location }
+}
+
 $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 foreach ($listener in @($listeners)) {
   try { Stop-Process -Id $listener.OwningProcess -Force -ErrorAction Stop } catch {}

@@ -98,6 +98,13 @@ try {
 
     Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
     if ($useLocalServer) {
+        # Validate the shared database before stopping the current server or client.
+        $null = Ensure-ServerBuild
+        Push-Location $apiRoot
+        try {
+            & $apiPython -m app.database --verify-shared
+            if ($LASTEXITCODE -ne 0) { throw 'Shared Supabase database is not configured or reachable.' }
+        } finally { Pop-Location }
         Write-Host "Stopping any existing local GameAccess server on port $ServerPort before rebuild..."
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort -StopOnly
         if ($LASTEXITCODE -ne 0) { throw "Could not stop the local server before rebuild (exit $LASTEXITCODE)." }

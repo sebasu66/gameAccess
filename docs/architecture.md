@@ -23,7 +23,12 @@ files and database records are not purged by the source cleanup.
   launching. Existing launch fixes and execution logs remain part of that flow.
 
 The customer installs one Windows application. A localhost API is a development
-convenience; production connects to a central HTTPS service.
+convenience; production connects to a central HTTPS service. Both API processes
+must connect to the same GameAccess Supabase PostgreSQL project. Configure
+GAMEACCESS_DATABASE_URL in the server environment or ignored apps/api/.env;
+missing configuration must fail clearly instead of creating a separate SQLite DB.
+SQLite discovery packages remain client metadata caches, not the server database.
+Isolated API tests use GAMEACCESS_ALLOW_SQLITE_FOR_TESTS=1 and synthetic data.
 
 ## Discovery
 

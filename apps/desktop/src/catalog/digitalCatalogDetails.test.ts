@@ -9,7 +9,7 @@ vi.mock("../bundledArtwork", () => ({applyBundledDetails:async (value:unknown)=>
 vi.mock("../useSteamMetadataWorker", () => ({cachedSteamCatalogMetadata:async()=>({}), applySteamCatalogMetadata:(value:unknown)=>value}));
 vi.mock("../narrationLog", () => ({narrate:vi.fn()}));
 const game = {id:7, app_id:100, name:"Fixture", genres:["Action"]} as CatalogGame;
-afterEach(()=>{vi.resetAllMocks();vi.unstubAllGlobals();});
+afterEach(()=>{vi.clearAllMocks();vi.unstubAllGlobals();});
 describe("Game detail with an unavailable central API", () => {
   it("loads descriptions, requirements and media from public Steam before contacting the old server", async () => {
     mocks.native.mockReturnValue(true);
