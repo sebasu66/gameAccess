@@ -78,3 +78,6 @@ logs/
 # Local runtime database and private source configuration
 /apps/api/app.db
 /apps/api/data/
+
+# Private developer-key backups and atomic update files
+apps/api/courtesy-keys.json.*
