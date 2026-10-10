@@ -1,3 +1,6 @@
+import EditorialGameVideo from "./EditorialGameVideo";
+import { selectEditorialVideo } from "./editorialVideos";
+import { useI18n } from "./i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Download, ExternalLink, Loader2, ShoppingCart, X } from "lucide-react";
 
@@ -41,6 +44,8 @@ type Props = {
 };
 
 export default function SteamStoreDetail({ result, onClose }: Props) {
+  const { locale } = useI18n();
+  const editorial = selectEditorialVideo(result.app_id, locale);
   const [steam, setSteam] = useState<SteamMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +87,7 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
         <button className="close-detail" onClick={onClose} aria-label="Cerrar"><X size={22} /></button>
 
         <section className="steam-store-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
-          {trailer?.mp4 ? <video className="steam-store-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline /> : null}
+          {!editorial && trailer?.mp4 ? <video className="steam-store-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline /> : null}
           <div className="steam-store-shade" />
           <div className="steam-store-copy">
             <span className="eyebrow">CATÁLOGO STEAM</span>
@@ -115,6 +120,7 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
         </section>
 
         <div className="steam-store-body">
+          {editorial ? <EditorialGameVideo key={result.app_id} appId={result.app_id} /> : null}
           {loading ? <div className="steam-store-loading"><Loader2 className="spin" size={18} /> Cargando ficha completa desde Steam…</div> : null}
           {error ? <div className="steam-store-error">No pudimos completar la ficha: {error}</div> : null}
 
