@@ -178,7 +178,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   };
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: "Catálogo" },
-    { id: "installed", label: "Biblioteca" },
+    { id: getCatalogMode() === "digital" ? "library" : "installed", label: "Biblioteca" },
   ];
   const sortOptions: { id: CatalogSort; label: string }[] = [
     { id: "release-date", label: "Fecha de lanzamiento" },

@@ -1,3 +1,4 @@
+import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT } from "./activation";
 import VoxelLogo from "./VoxelLogo";
 import FilledIcon from "./FilledIcon";
@@ -78,6 +79,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     update();
     return () => { observer.disconnect(); document.documentElement.style.removeProperty("--catalog-header-height"); };
   }, []);
+  const libraryGames = useLibraryGames();
   const [games, setGames] = useState<CatalogGame[]>([]);
   useSteamMetadataWorker(games, setGames);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
@@ -206,6 +208,10 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       try {
         const games = digitalGamesRef.current;
         const result = await digitalProcessManager.snapshot(games);
+        if (!cancelled) libraryMembership.migrate([
+          ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
+          ...digitalDownloadService.getDownloads().map(entry => entry.game),
+        ]);
         if (!cancelled) setDownloads(current => {
           const next = { ...current };
           for (const game of games) {
@@ -272,13 +278,14 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
       return 1;
     };
-    return [...games].sort((left, right) => {
+    const combined = new Map([...libraryGames, ...games].map(game => [game.app_id ?? game.id, game]));
+    return [...combined.values()].sort((left, right) => {
       const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
       const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
       if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
       return left.name.localeCompare(right.name, "es");
     });
-  }, [games, recentIds, preferences, downloads]);
+  }, [games, libraryGames, recentIds, preferences, downloads]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;

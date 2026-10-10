@@ -1,3 +1,4 @@
+import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { digitalErrorMessage } from "../digitalErrors";
@@ -83,9 +84,11 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   async start(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
+    if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
+    libraryMembership.add(game);
     this.jobs.set(id, { game, options: options ?? this.jobs.get(id)?.options });
     this.queue.push(id);
     void narrate(`Digital AppID ${id} · queued at position ${this.queue.length}; active=${this.running.size}, limit=${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });
@@ -368,10 +371,14 @@ export class DigitalDownloadService implements IDownloadProvider {
     await digitalProcessManager.executePlay(game, record);
   }
 
+  hasActiveDownloads(): boolean {
+    return this.getDownloads().some(({snapshot}) => !["completed", "error", "interrupted", "cancelled", "external"].includes(snapshot.phase));
+  }
+
   async uninstall(game: CatalogGame): Promise<void> {
     const id = game.app_id ?? game.id;
     const snapshot = this.activeJobs.get(id);
-    if (snapshot && !["completed", "error", "interrupted", "cancelled"].includes(snapshot.phase)) {
+    if (snapshot && !["completed", "error", "interrupted", "cancelled", "external"].includes(snapshot.phase)) {
       throw new Error("Aborte la descarga antes de desinstalar el juego.");
     }
     await digitalProcessManager.executeUninstall(game);

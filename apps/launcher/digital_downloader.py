@@ -844,6 +844,7 @@ def extract_archives_in_path(
     delete_archive: bool = True,
     game_name: Optional[str] = None,
     retain_backup: bool = True,
+    source_root: Optional[str] = None,
     auto_installed: bool = False
 ) -> bool:
     """
@@ -1001,7 +1002,7 @@ def extract_archives_in_path(
         if success and idx == total - 1 and retain_backup and not auto_installed:
             from digital_backup import DigitalArchiveBackup
             DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
-                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")))
+                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")), source_root=source_root)
         elif success and delete_archive:
             delete_archive_and_parts(arc)
             if arc in g_temp_files:
@@ -1046,7 +1047,11 @@ def main():
     logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
     
     from digital_storage import DigitalGameStorage
-    dest_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(DigitalGameStorage().register(int(app_id), game_name))
+    storage = DigitalGameStorage()
+    game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
+    # Explicit destinations keep the established test/CLI contract.
+    dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
+    os.makedirs(game_dir, exist_ok=True)
     os.makedirs(dest_dir, exist_ok=True)
 
     control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.control.json"
@@ -1287,13 +1292,14 @@ def main():
         # Completed downloads must survive extraction/installation errors or cancellation.
         if target_content_path in g_temp_files:
             g_temp_files.remove(target_content_path)
-        logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, dest_dir)
+        logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
         should_delete_archive = True  # Only the smallest original archive is retained.
         logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
         extracted = extract_archives_in_path(
             target_path=target_content_path or dest_dir,
-            dest_dir=dest_dir,
+            dest_dir=game_dir,
+            source_root=dest_dir,
             host=args.host,
             password=args.password,
             delete_archive=should_delete_archive,
@@ -1303,6 +1309,15 @@ def main():
 
         if g_cancelled.is_set():
             cleanup_on_cancel()
+        if not extracted and dest_dir != game_dir:
+            # Non-archive payloads are moved to the game directory after transfer.
+            for item in Path(dest_dir).iterdir():
+                target = Path(game_dir) / item.name
+                if target.exists():
+                    raise RuntimeError(f"Ya existe el archivo de destino: {target.name}")
+                shutil.move(str(item), str(target))
+        if dest_dir != game_dir and Path(dest_dir).is_dir() and not any(Path(dest_dir).iterdir()):
+            Path(dest_dir).rmdir()
         logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
         # Digital is portable: extraction is the installation. Never execute installProcess.
         if g_cancelled.is_set():

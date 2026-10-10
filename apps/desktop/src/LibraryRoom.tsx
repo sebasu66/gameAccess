@@ -1,3 +1,4 @@
+import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { usePlayHistory } from "./recentGames";
@@ -122,6 +123,8 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   gamesByAppIdRef.current = new Map(games.flatMap((game) => game.app_id ? [[game.app_id, game] as const] : []));
 
   const history = usePlayHistory();
+  const members = useLibraryGames();
+  const libraryIds = useMemo(() => new Set(members.map(game => game.app_id ?? game.id)), [members]);
   const effectiveDownloads = useMemo(() => ({ ...downloads, ...managedDownloads }), [downloads, managedDownloads]);
   const hasInstalledGames = useMemo(() => games.some(game => { const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : undefined); return state.installed || state.prepared; }), [games, effectiveDownloads]);
   const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
@@ -136,8 +139,8 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
     return [...filtered].sort((left, right) => rank(left) - rank(right));
   }, [games, searchQuery, searchFilters, preferences, effectiveDownloads]);
   const catalogCollection = useMemo(
-    () => buildLibraryCollection(downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds), effectiveDownloads, preferences, history, libraryView, catalogSort),
-    [searchedGames, effectiveDownloads, trackedAppIds, preferences, history, libraryView, catalogSort],
+    () => buildLibraryCollection(downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds), effectiveDownloads, preferences, history, libraryView, catalogSort, libraryIds),
+    [searchedGames, effectiveDownloads, trackedAppIds, preferences, history, libraryView, catalogSort, libraryIds],
   );
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
@@ -682,7 +685,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
-      {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
+      {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
       {games.length > 0 ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}

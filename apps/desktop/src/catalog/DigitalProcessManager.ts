@@ -6,7 +6,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language";
   app_id: number;
   name?: string;
   pid?: number;
@@ -18,8 +18,17 @@ export interface ProcessExecutionResult {
   folder?: string;
   installed?: boolean;
   backup_requires_password?: boolean;
+  settings?: DigitalStorageSettings;
+  options?: DigitalLaunchOptions;
+  executables?: string[];
+  changed?: string[];
+  errors?: Array<{file: string; error: string}>;
+  games?: Array<{id: number; name: string}>;
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
+
+export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[] }
+export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string }
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -42,6 +51,13 @@ export class DigitalProcessManager {
   status(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("status", game); }
 
   openFolder(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("open-folder", game); }
+
+  settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
+  saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
+  localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
+  gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
+  saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
+  repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
 
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {
     // Keep one native query even if callers change or a view is remounted.

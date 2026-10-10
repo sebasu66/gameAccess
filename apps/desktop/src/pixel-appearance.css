@@ -100,3 +100,17 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-access-pass button:focus-visible{outline:2px solid #ff8a35;outline-offset:4px}
 
 .ga-access-pass-tier{align-self:flex-start;padding:5px 10px;border:1px solid #ffffff30;border-radius:5px;font-size:13px;letter-spacing:.08em}.ga-access-pass-tier[data-tier=plus]{border-color:#ff8a3566;color:#ffac57;background:#ff8a3510}
+
+.ga-settings-group{margin:22px 0;border-top:1px solid #ffffff20;padding-top:16px}
+.ga-settings-group>summary{cursor:pointer;font-size:14px;font-weight:700;padding:8px 0}
+.ga-settings-group[open]>summary{margin-bottom:12px}
+.ga-settings-panel .ga-path-control{display:grid;gap:7px;margin:14px 0;font-size:12px;font-weight:650}
+.ga-settings-panel .ga-path-control input,.ga-settings-panel .ga-path-control select{box-sizing:border-box;width:100%;min-width:0;padding:10px 12px;border:1px solid #ffffff35;border-radius:8px;background:#111416;color:#f4f4f2;font:inherit}
+.ga-settings-panel .ga-path-control input:focus-visible,.ga-settings-panel select:focus-visible,.ga-settings-group>summary:focus-visible{outline:2px solid #ff8a35;outline-offset:3px}
+.ga-settings-panel .ga-storage-settings p,.ga-game-config p{margin:10px 0;line-height:1.6}
+.ga-settings-panel button:disabled{opacity:.5;cursor:default}
+.ga-settings-panel .ga-danger-option,.ga-game-options .ga-danger-option{color:#ffc7c7;border:1px solid #f8717199;background:#7f1d1d55}
+.ga-settings-panel .ga-danger-option:hover,.ga-game-options .ga-danger-option:hover{background:#991b1b88;border-color:#fca5a5}
+.ga-settings-panel .ga-settings-error{color:#ffb4b4;white-space:pre-wrap}
+.ga-game-config{width:min(600px,100%)}
+.ga-game-options{max-height:calc(100vh - 80px);overflow:auto}

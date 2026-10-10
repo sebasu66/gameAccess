@@ -58,7 +58,7 @@ class DigitalStorageTests(unittest.TestCase):
     def test_http_worker_downloads_and_extracts_in_place_without_install_command(self):
         launcher = Path(self.temp.name)
         original = Path(__file__).resolve().parents[1]
-        for file in ["digital_downloader.py", "digital_storage.py", "digital_backup.py"]:
+        for file in ["digital_downloader.py", "digital_storage.py", "digital_backup.py", "digital_preferences.py"]:
             shutil.copyfile(original / file, launcher / file)
         source = launcher / "source"
         source.mkdir()

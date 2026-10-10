@@ -1094,6 +1094,7 @@ mod digital_controls_tests {
         fs::create_dir_all(&launcher).unwrap();
         fs::copy(original.join("digital_downloader.py"), launcher.join("digital_downloader.py")).unwrap();
         fs::copy(original.join("digital_storage.py"), launcher.join("digital_storage.py")).unwrap();
+        fs::copy(original.join("digital_preferences.py"), launcher.join("digital_preferences.py")).unwrap();
         fs::copy(original.join("digital_backup.py"), launcher.join("digital_backup.py")).unwrap();
         let fixture = Fixture { server, launcher: launcher.clone(), previous_launcher: env::var_os("GAMEACCESS_LAUNCHER_DIR") };
         env::set_var("GAMEACCESS_LAUNCHER_DIR", &launcher);

@@ -52,3 +52,10 @@ describe("overview sorting", () => {
   expect(releaseDateValue("Próximamente")).toBe(0);
  });
 });
+
+it("library includes saved uninstalled games and excludes unsaved installed games", () => {
+ const owned = {id:701,app_id:71,name:"Saved uninstalled"} as CatalogGame;
+ const unsaved = {id:702,app_id:72,name:"Installed only"} as CatalogGame;
+ const result = buildLibraryCollection([owned,unsaved],{72:{app_id:72,state:"installed",installed:true} as ManagedDownloadStatus},{},{},"library","name",new Set([71]));
+ expect(result.games).toEqual([owned]);
+});

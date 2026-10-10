@@ -244,7 +244,7 @@ export function DetailPanel({
 
           {renderRequirements()}
         </div>
-        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onPointerDown={() => setOptionsOpen(false)}><DigitalGameContextMenu request={{game,x:Math.max(8,window.innerWidth/2-120),y:Math.max(8,window.innerHeight/2-90),status:download}} onClose={() => setOptionsOpen(false)} onInstall={onDownload} onPlay={onLease} /></div> : null}
+        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onPointerDown={event => { if(event.target === event.currentTarget) setOptionsOpen(false); }}><DigitalGameContextMenu request={{game,x:Math.max(8,window.innerWidth/2-120),y:Math.max(8,window.innerHeight/2-90),status:download}} onClose={() => setOptionsOpen(false)} onInstall={onDownload} onPlay={onLease} /></div> : null}
       </article>
     </div>
   );

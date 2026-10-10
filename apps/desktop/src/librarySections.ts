@@ -5,7 +5,7 @@ export const SECTION_PREVIEW_SIZE = 16;
 export const SECTION_PAGE_SIZE = 40;
 export type SectionId = "installed" | "downloads" | "favorites" | "catalog";
 export type CatalogSort = "release-date" | "steam-popularity" | "steam-review-score" | "name";
-export type LibraryView = "catalog" | "latest" | "popular" | "top" | "installed" | "favorites";
+export type LibraryView = "library" | "catalog" | "latest" | "popular" | "top" | "installed" | "favorites";
 export interface LibrarySection { id: SectionId; title: string; description?: string; emptyMessage?: string; games: CatalogGame[] }
 const titleOrder = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
 
@@ -45,11 +45,13 @@ export function buildLibraryCollection(
   history: Record<number, number> = {},
   view: LibraryView = "popular",
   catalogSort: CatalogSort = "steam-popularity",
+  libraryIds: ReadonlySet<number> = new Set(),
 ): LibrarySection {
   const hasRecommendations = games.some(game => (game.recommendation_count ?? 0) > 0);
   const hasSteamReviewData = games.some(game => typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0);
   const effectiveSort = catalogSort === "steam-popularity" && !hasRecommendations ? "name" : catalogSort;
   const titles: Record<LibraryView, string> = {
+    library: "Biblioteca",
     catalog: catalogSort === "release-date"
       ? "Catálogo · lanzamientos recientes"
       : catalogSort === "steam-popularity"
@@ -64,6 +66,7 @@ export function buildLibraryCollection(
     favorites: "Favoritos",
   };
   const descriptions: Record<LibraryView, string> = {
+    library: "Tus juegos, instalados o sin instalar.",
     catalog: catalogSort === "release-date"
       ? "Todos los juegos ordenados por fecha de lanzamiento, del más reciente al más antiguo."
       : catalogSort === "steam-popularity"
@@ -80,6 +83,7 @@ export function buildLibraryCollection(
     favorites: "Tus juegos favoritos.",
   };
   const collection = games.filter(game => {
+    if (view === "library") return libraryIds.has(game.app_id ?? game.id);
     if (view === "installed") {
       const state = gameStateManager.resolve(game.app_id ? downloads[game.app_id] : undefined);
       return state.installed || state.prepared || preferences[game.id] === 1;
