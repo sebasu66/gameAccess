@@ -275,7 +275,7 @@ def apply_enrichment(game: dict, row: dict):
     tags = [str(tag).strip() for tag in row.get("tags", []) if str(tag).strip()]
     game["tags"] = sorted(set(game.get("tags", [])) | set(tags))
     game["tag_sources"] = {**game.get("tag_sources", {}), source: tags}
-    game["metadata_sources"] = sorted(set(game.get("metadata_sources", [])) | {source}
+    game["metadata_sources"] = sorted(set(game.get("metadata_sources", [])) | {source})
     for field in ("min_players", "max_players", "local_players_max", "online_players_max"):
         value = row.get(field)
         if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 256:
