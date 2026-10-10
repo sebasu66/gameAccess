@@ -1,3 +1,4 @@
+import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
@@ -243,7 +244,7 @@ export function DetailPanel({
 
           {renderRequirements()}
         </div>
-        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onPointerDown={() => setOptionsOpen(false)}><section className="game-options-dialog" onPointerDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Opciones del juego"><span className="eyebrow">ADMINISTRAR JUEGO</span><h2>{game.name}</h2><p>Opciones de instalación y mantenimiento.</p><button type="button" className="secondary-button" disabled>Desinstalar · próximamente</button><button type="button" className="secondary-button" onClick={() => setOptionsOpen(false)}>Volver</button></section></div> : null}
+        {optionsOpen ? <div role="presentation" className="game-options-backdrop" onPointerDown={() => setOptionsOpen(false)}><DigitalGameContextMenu request={{game,x:Math.max(8,window.innerWidth/2-120),y:Math.max(8,window.innerHeight/2-90),status:download}} onClose={() => setOptionsOpen(false)} onInstall={onDownload} onPlay={onLease} /></div> : null}
       </article>
     </div>
   );

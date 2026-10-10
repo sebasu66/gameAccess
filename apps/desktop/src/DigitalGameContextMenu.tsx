@@ -41,6 +41,8 @@ export default function DigitalGameContextMenu({
   const appId = request.game.app_id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
+  // Cleanup is valid for incomplete/missing installations too, after transfer stops.
+  const canUninstall = Boolean(appId) && !state.transferActive;
   const canPlay = Boolean(appId) && state.playButtonReady;
   const canInstall = Boolean(appId) && !state.playButtonReady;
 
@@ -132,7 +134,7 @@ export default function DigitalGameContextMenu({
           <button
             type="button"
             role="menuitem"
-            disabled={!state.canUninstall}
+            disabled={!canUninstall}
             onClick={uninstallSelected}
           >
             <Trash2 size={16} /> Desinstalar
