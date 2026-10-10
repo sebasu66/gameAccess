@@ -44,7 +44,8 @@ interface LibraryRoomProps {
   busy: boolean;
   onPlay: (game: CatalogGame) => void | Promise<void>;
   onDownload: (game: CatalogGame) => void | Promise<void>;
-  onOpenDetails?: (game: CatalogGame) => void;
+  externalDetailGame?: CatalogGame | null;
+  onDetailClose?: () => void;
   preferences?: Record<number, 1 | -1>;
   onPreference?: (gameId: number, value: 1 | -1) => void;
   loading?: boolean;
@@ -58,7 +59,7 @@ interface LibraryRoomProps {
 type DownloadEventDetail = { appId?: number; error?: string };
 type CompletionEntry = { record: DownloadJobRecord; game: CatalogGame };
 
-export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
@@ -81,7 +82,11 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   const [columns, setColumns] = useState(4);
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(Boolean(externalDetailGame));
+  useEffect(() => {
+    setDetailOpen(Boolean(externalDetailGame));
+    setDetailMenu(null);
+  }, [externalDetailGame?.id]);
   const [detailMenu, setDetailMenu] = useState<{ game: CatalogGame; x: number; y: number; status?: ManagedDownloadStatus } | null>(null);
   const detailCloseRef = useRef<HTMLButtonElement>(null);
   const detailDialogRef = useRef<HTMLDivElement>(null);
@@ -145,7 +150,10 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
-  const selectedGame = selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
+  // Downloads may refer to games outside the current search, collection or catalog.
+  const selectedGame = externalDetailGame
+    ? games.find(game => game.id === externalDetailGame.id) ?? externalDetailGame
+    : selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id ?? selectedGame?.id;
   const accountCount = useMemo(() => new Set(games.flatMap((game) => [...(game.local_account_labels ?? []), ...(game.local_access_labels ?? [])])).size, [games]);
@@ -495,6 +503,8 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
 
   const { closing: detailClosing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
+    setDetailMenu(null);
+    onDetailClose?.();
     window.requestAnimationFrame(() => {
       const selected = selectedGameIdResolved == null ? null : gridRef.current?.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
       (selected ?? rootRef.current)?.focus({ preventScroll: true });
@@ -686,7 +696,7 @@ export default function LibraryRoom({ toolbarTarget, actionsTarget, games, downl
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
-      {games.length > 0 ? (
+      {games.length > 0 || externalDetailGame ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}
           {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>

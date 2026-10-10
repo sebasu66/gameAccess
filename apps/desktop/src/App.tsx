@@ -23,7 +23,6 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
-import { DetailPanel } from "./AppDetailPanel";
 import { getCatalogMode } from "./catalogMode";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
@@ -163,7 +162,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         setOfflineDemo(home.offlineDemo);
         setSelected((current) => {
           if (!current) return null;
-          return home.games.find((game) => game.id === current.id) ?? null;
+          return home.games.find((game) => game.id === current.id) ?? current;
         });
       } catch {
         // Metadata enrichment is best-effort. Keep the current library visible.
@@ -348,10 +347,10 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
 
         setSelected(firstGame);
         await captureStep(profile, "game-detail", [
-          { selector: ".detail-panel", label: "Game details", minWidth: 600, minHeight: 500, mustFitWidth: true },
-          { selector: ".close-detail", label: "Details close", minWidth: 36, minHeight: 36 },
-          { selector: ".detail-gear", label: "Game options", minWidth: 36, minHeight: 36 },
-          { selector: ".detail-hero h1", label: "Game title", minWidth: 120, minHeight: 30 },
+          { selector: ".ga-detail-dialog", label: "Game details", minWidth: 600, minHeight: 500, mustFitWidth: true },
+          { selector: ".ga-detail-close", label: "Details close", minWidth: 36, minHeight: 36 },
+          { selector: ".ga-detail-more", label: "Game options", minWidth: 36, minHeight: 36 },
+          { selector: ".library-room-overview h1", label: "Game title", minWidth: 120, minHeight: 30 },
         ]);
 
         setSelected(null); setLibraryOpen(false);
@@ -396,27 +395,9 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
   const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
 
-  useEffect(() => {
-    const appId = selected?.app_id;
-    if (!appId) return;
-    let cancelled = false;
-    let pending = false;
-    const probe = async () => {
-      if (pending) return;
-      pending = true;
-      try {
-        const status = getCatalogMode() === "local" ? await steamDownloadStatus(appId) : await digitalCatalogService.getStatus(selected!);
-        if (!cancelled) setDownloads((current) => ({ ...current, [appId]: status }));
-      } catch { /* retain the last known installation state */ }
-      finally { pending = false; }
-    };
-    void probe();
-    const timer = window.setInterval(() => void probe(), 3000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [selected?.app_id]);
-
   const openGame = (game: CatalogGame) => {
     void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });
+    setLibraryOpen(false);
     setSelected(game);
   };
 
@@ -495,7 +476,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
               <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
                 <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || leaseBusy} onClick={() => void doLease(featured)} />
-                <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
+                <button type="button" className="secondary-button glass-info-button" onClick={() => openGame(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
             <section  className="hero-media-controls" aria-label="Controles del banner">
@@ -533,7 +514,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
+        <LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
@@ -549,7 +530,6 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       </main>
       {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
 
-      {selected ? <DetailPanel game={selected} machine={machine} download={(selected.app_id ? downloads[selected.app_id] : undefined) ?? downloads[selected.id]} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />

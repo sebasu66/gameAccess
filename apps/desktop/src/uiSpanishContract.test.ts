@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { translate } from "./i18n";
 
 import appSource from "./App.tsx?raw";
-import detailSource from "./AppDetailPanel.tsx?raw";
 import buildSource from "./BuildStamp.tsx?raw";
 import backendSource from "./BackendStatus.tsx?raw";
 import tabsSource from "./CatalogTabs.tsx?raw";
@@ -20,7 +19,7 @@ describe("Spanish desktop UI copy", () => {
     expect(buildSource).toContain("Compilaci\u00f3n:");
     expect(buildSource).not.toContain("Server:");
     expect(buildSource).not.toContain("Compilation time");
-    expect(detailSource).not.toContain(">Publisher<");
+    expect(libraryDetailSource).not.toContain(">Publisher<");
     expect(libraryDetailSource).not.toContain('["Publisher"');
     expect(libraryDetailSource).not.toContain('aria-label="First row"');
     expect(libraryDetailSource).not.toContain('aria-label="Second row"');
