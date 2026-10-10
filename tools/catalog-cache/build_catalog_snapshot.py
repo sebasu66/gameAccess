@@ -75,7 +75,6 @@ def load_names(conn, table: str) -> dict[int, list[str]]:
         FROM {table} n
         JOIN game g ON g.id=n.game_id
         WHERE g.active = true
-          AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
         ORDER BY n.game_id, lower(n.name), n.name
     """)).all()
     result: dict[int, list[str]] = {}
@@ -98,14 +97,14 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
                 m.local_coop, m.shared_split_screen, m.mmo, m.pvp,
                 m.steam_review_score, m.steam_review_count,
                 m.header_image, m.capsule_image, m.hero_image, m.steam_url,
-                m.steam_json
+                m.steam_json, m.min_players, m.max_players,
+                m.local_players_max, m.online_players_max, m.players_source
             FROM game g
             JOIN game_metadata m ON m.game_id=g.id
             WHERE g.active = true
               AND lower(coalesce(m.product_type, '')) = 'game'
               AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))
-              AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
-            ORDER BY g.id
+                ORDER BY g.id
         """)).mappings().all()
 
         genres = load_names(conn, "game_genre")
@@ -118,8 +117,7 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
                 FROM game_metadata_locale l
                 JOIN game g ON g.id=l.game_id
                 WHERE g.active = true
-                  AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
-                ORDER BY l.game_id, l.language, l.country
+                        ORDER BY l.game_id, l.language, l.country
             """)).mappings().all()
         except Exception:
             # Legacy/local SQLite databases predate localized metadata. The
@@ -166,6 +164,7 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
             "shared_split_screen": None if row["shared_split_screen"] is None else bool(row["shared_split_screen"]),
             "mmo": None if row["mmo"] is None else bool(row["mmo"]),
             "pvp": None if row["pvp"] is None else bool(row["pvp"]),
+            **{key: row[key] for key in ("min_players", "max_players", "local_players_max", "online_players_max", "players_source")},
         }
         encoded = stable_json(payload)
         content_hasher.update(encoded.encode("utf-8"))
@@ -206,6 +205,18 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
         detail_rows[key] = encoded
         content_hasher.update(encoded.encode("utf-8"))
 
+    return write_snapshot(catalog_rows, detail_rows, output_dir, github_ref)
+
+
+def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows: dict[tuple[int, str, str], str], output_dir: Path, github_ref: str, coverage: dict | None = None) -> tuple[Path, Path]:
+    """Publish metadata only; consumers validate hash, schema and row count."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    content_hasher = hashlib.sha256()
+    for _, _, payload in sorted(catalog_rows):
+        content_hasher.update(payload.encode("utf-8"))
+    for key, payload in sorted(detail_rows.items()):
+        content_hasher.update(stable_json(key).encode("utf-8"))
+        content_hasher.update(payload.encode("utf-8"))
     revision = content_hasher.hexdigest()[:16]
     sqlite_name = f"catalog-cache-{revision}.sqlite"
     gzip_name = f"{sqlite_name}.gz"
@@ -280,11 +291,11 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
         "detail_count": len(detail_rows),
         "compressed_bytes": len(compressed),
         "uncompressed_bytes": sqlite_path.stat().st_size,
+        **({"coverage": coverage} if coverage else {}),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     sqlite_path.unlink()
-    engine.dispose()
     print(json.dumps(manifest, indent=2, ensure_ascii=False))
     return gzip_path, manifest_path
 
