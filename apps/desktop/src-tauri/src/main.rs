@@ -1024,7 +1024,7 @@ mod digital_controls_tests {
     }
     #[test]
     fn native_digital_pause_resume_cancel() {
-        let original = find_launcher_dir().unwrap();
+        let original = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../launcher").canonicalize().unwrap();
         let python = find_launcher_python(&original);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
