@@ -16,6 +16,7 @@ let cachedDownloads = [];
 let downloadOptions = new Map();
 let titleIndex = new Map();
 let isSyncing = false;
+let retrySyncTimer;
 
 
 
@@ -164,11 +165,24 @@ async function syncSources() {
     isSyncing = true;
     log.info("Sincronizando fuentes comunitarias...");
     let allDownloads = [];
+    let failedSources = 0;
 
     for (const url of SOURCE_URLS) {
         try {
             log.info(`Descargando: ${url}`);
-            let rawData = await getJSONFromSource(url);
+            let rawData;
+            const { readFeedCache, writeFeedCache } = require('./feed-cache');
+            const cacheDir = path.join(app.getPath('userData'), 'source-cache');
+            try {
+                rawData = await getJSONFromSource(url);
+                if (!rawData || typeof rawData !== 'object') throw new Error('La fuente no devolvió un catálogo JSON.');
+                writeFeedCache(cacheDir, url, rawData);
+            } catch (error) {
+                failedSources++;
+                rawData = readFeedCache(cacheDir, url);
+                if (!rawData) { error.countedFeedFailure = true; throw error; }
+                log.warn('[Sources] Feed refresh failed; retaining last valid plugin cache: ' + url);
+            }
 
             let rawList = [];
             if (rawData.downloads && Array.isArray(rawData.downloads)) rawList = rawData.downloads;
@@ -198,6 +212,7 @@ async function syncSources() {
                 });
             }
         } catch (e) {
+            if (!e.countedFeedFailure) failedSources++;
             log.error(`Error sincronizando ${url}:`, e.message);
         }
     }
@@ -212,6 +227,8 @@ async function syncSources() {
     }
     titleIndex = newIndex;
     isSyncing = false;
+    clearTimeout(retrySyncTimer);
+    if (failedSources) retrySyncTimer = setTimeout(syncSources, 60000);
     log.info(`Sincronización completa. Fuentes en caché: ${cachedDownloads.length}`);
 }
 

@@ -84,3 +84,20 @@ test('game numbers and complete word boundaries distinguish sequels', () => {
   assert.equal(calculateScore('Out', 'Outlast'), 0);
   assert.ok(calculateScore("Marvel's Spider-Man", 'Marvels Spider-Man (v1.2)') > 0.8);
 });
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { readFeedCache, writeFeedCache } = require('./feed-cache');
+test('feed cache survives restart and does not replace valid data with an error page', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-cache-test-'));
+  try {
+    const url = 'https://example.test/source.json';
+    const data = { name: 'Fixture feed', downloads: [{ title: 'Fixture', uris: ['https://example.test/fixture.zip'] }] };
+    writeFeedCache(directory, url, data);
+    assert.deepEqual(readFeedCache(directory, url), data);
+    assert.throws(() => writeFeedCache(directory, url, { error: 'upstream unavailable' }), /lista/);
+    assert.deepEqual(readFeedCache(directory, url), data);
+    assert.equal(readFeedCache(directory, 'https://other.test/source.json'), null);
+  } finally { fs.rmSync(directory, { recursive: true }); }
+});
