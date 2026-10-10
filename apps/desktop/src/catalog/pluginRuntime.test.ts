@@ -1,0 +1,67 @@
+vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { pollPluginRuntime, getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
+import { getPluginSources, checkPluginSources, invalidatePluginSources, sourceAvailability } from "./PluginSources";
+const plugin = {id:"provider",name:"Provider",endpoint:"http://127.0.0.1:45000",type:"source_provider"};
+const game = {id:700,app_id:700,name:"Fixture",slug:"fixture",credit_cost_per_hour:0,copies_total:0,copies_available:0};
+const health = (revision:number,instanceId="live") => ({ok:true,status:200,json:async()=>({id:plugin.id,revision,instanceId,dirty:false})});
+afterEach(()=>{vi.unstubAllGlobals();vi.mocked(invoke).mockReset();});
+describe("Dynamic plugin communication",()=>{
+  it("discovers start, detects catalog revisions, ignores unchanged heartbeats and detects stop",async()=>{
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    const request=vi.fn().mockResolvedValue(health(1));
+    vi.stubGlobal("fetch",request);
+    await pollPluginRuntime();
+    expect(getPluginStatuses()[0].alive).toBe(true);
+    const first=pluginGeneration();
+    await pollPluginRuntime();
+    expect(pluginGeneration()).toBe(first);
+    request.mockResolvedValue(health(2));
+    await pollPluginRuntime();
+    expect(pluginGeneration()).toBe(first+1);
+    request.mockRejectedValue(new Error("stopped"));
+    await pollPluginRuntime();
+    expect(providerAvailable(plugin)).toBe(false);
+    expect(getPluginStatuses()[0].alive).toBe(false);
+    vi.mocked(invoke).mockResolvedValue([]);
+    await pollPluginRuntime();
+    expect(getPluginStatuses()).toEqual([]);
+  });
+  it("discovers an endpoint change after a fallback port and invalidates detail caches",async()=>{
+    const moved={...plugin,endpoint:"http://127.0.0.1:45123"};
+    vi.mocked(invoke).mockResolvedValue([moved]);
+    const fetcher=vi.fn().mockResolvedValue(health(1,"restart"));
+    vi.stubGlobal("fetch",fetcher);
+    await pollPluginRuntime();
+    expect(fetcher.mock.calls[0][0]).toBe(moved.endpoint+"/api/health");
+    fetcher.mockResolvedValue({ok:true,json:async()=>[{url:"https://example.test/fixture.zip",sourceName:"New feed",size:"6 GB"}]});
+    await getPluginSources(game);
+    expect(sourceAvailability(game).count).toBe(1);
+    invalidatePluginSources();
+    expect(sourceAvailability(game).count).toBe(0);
+  });
+  it("rejects an old availability reply after the plugin goes offline",async()=>{
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(health(3)));
+    await pollPluginRuntime();
+    let finish!: (value:unknown)=>void;
+    const old=new Promise(resolve=>{finish=resolve;});
+    vi.stubGlobal("fetch",vi.fn().mockReturnValue(old));
+    const checking=checkPluginSources([game]);
+    await vi.waitFor(()=>expect(vi.mocked(fetch)).toHaveBeenCalled());
+    vi.stubGlobal("fetch",vi.fn().mockRejectedValue(new Error("offline")));
+    await pollPluginRuntime();
+    invalidatePluginSources();
+    finish({ok:true,json:async()=>({700:{count:5,sources:["Stale feed"]}})});
+    await checking;
+    expect(sourceAvailability(game).count).toBe(0);
+  });
+  it("rejects a service whose identity differs from the registered plugin",async()=>{
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,status:200,json:async()=>({id:"another-program"})}));
+    await pollPluginRuntime();
+    expect(getPluginStatuses()[0].alive).toBe(false);
+  });
+});

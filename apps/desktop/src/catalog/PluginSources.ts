@@ -1,3 +1,4 @@
+import { pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
@@ -32,7 +33,7 @@ export function applySourceAvailability(games: CatalogGame[]): CatalogGame[] {
 async function plugins(): Promise<PluginManifest[]> {
   try {
     const result = await invoke<PluginManifest[]>("get_registered_plugins");
-    return result.filter(plugin => plugin.type === "source_provider" && /^https?:\/\//.test(plugin.endpoint));
+    return result.filter(plugin => plugin.type === "source_provider" && /^https?:\/\//.test(plugin.endpoint) && providerAvailable(plugin));
   } catch (error) {
     void narrate(`Plugin registry unavailable: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
     return [];
@@ -68,6 +69,7 @@ function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[]
   }];
 }
 export async function getPluginSources(game: CatalogGame): Promise<PluginSource[]> {
+  const epoch = pluginGeneration();
   const manifests = await plugins();
   void narrate(`AppID ${keyOf(game)} · source discovery started for '${game.name}' with ${manifests.length} registered provider(s).`, { area: "DOWNLOAD_SOURCES" });
   const results = await Promise.all(manifests.map(async plugin => {
@@ -87,6 +89,7 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
       return [];
     }
   }));
+  if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
   const sources = results.flat().sort((a,b) => b.score - a.score).filter(source => {
     if (seen.has(source.url)) return false;
@@ -102,7 +105,7 @@ export function suggestedSource(game: CatalogGame): PluginSource | undefined {
   return detailSources.get(keyOf(game))?.[0];
 }
 export async function checkPluginSources(games: CatalogGame[]): Promise<Record<number, number>> {
-  const key = JSON.stringify(games.map(game => [keyOf(game), game.name]));
+  const key = pluginGeneration() + ":" + JSON.stringify(games.map(game => [keyOf(game), game.name]));
   const existing = pending.get(key);
   if (existing) return existing;
   const request = check(games).finally(() => pending.delete(key));
@@ -118,13 +121,16 @@ function bulkAvailability(raw: unknown, providerName: string): SourceAvailabilit
   return {count,names:names.length ? names : [providerName]};
 }
 async function check(games: CatalogGame[]): Promise<Record<number, number>> {
+  const epoch = pluginGeneration();
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
   const manifests = await plugins();
   void narrate(`Source availability scan started: ${games.length} game(s), ${manifests.length} provider(s), batches of 100.`, { area: "DOWNLOAD_SOURCES" });
+  if (epoch !== pluginGeneration()) return {};
   for (const [id, entry] of next) availability.set(id, entry);
   publish();
   await Promise.all(manifests.map(async plugin => {
     for (let start = 0; start < games.length; start += 100) {
+      if (epoch !== pluginGeneration()) return;
       const batch = games.slice(start, start + 100);
       try {
         const response = await fetch(endpoint(plugin, "/api/bulk_check"), {
@@ -137,6 +143,7 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
           continue;
         }
         const data = await response.json() as Record<string, unknown>;
+        if (epoch !== pluginGeneration()) return;
         for (const game of batch) {
           const raw = data[String(keyOf(game))];
           const received = bulkAvailability(raw, plugin.name);
@@ -150,6 +157,7 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
       }
     }
   }));
+  if (epoch !== pluginGeneration()) return {};
   for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
   publish();
@@ -167,4 +175,10 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
   }
   void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
   return { ...source, url: result.url.trim() };
+}
+
+export function invalidatePluginSources(): void {
+  availability.clear();
+  detailSources.clear();
+  publish();
 }

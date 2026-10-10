@@ -13,3 +13,13 @@ To update the existing Electron plugin, execute the committed tools/windows/sync
 References:
 - https://github.com/hydralauncher/hydra/blob/main/src/main/services/hosters/vikingfile.ts
 - https://github.com/hydralauncher/hydra/blob/main/src/main/services/hosters/gofile.ts
+
+Startup uses Electron's single-instance lock. Duplicate launches focus the live window and exit. On Windows, the plugin inspects only processes with its exact executable and app identity; dot launches additionally require a renderer identifying the same app directory. Old windowless, failed or unresponsive main processes and detached children are rechecked with their creation time before termination. Fresh launches have a grace period. Healthy instances and unrelated port owners are preserved.
+
+The API binds the preferred localhost port 45000, retries its saved fallback port, then lets the OS assign an available port. The manifest is published atomically after listening and includes its owner; an exiting duplicate cannot remove another instance's registration. Closing the main window also stops hidden helper windows and background service work.
+
+GET /api/health exposes instance identity, source revision, dirty/syncing state and update time. Changed JSON or source configuration marks the catalog outdated; accepted content advances its revision only when the payload changes. Configured local JSON files are watched. Results produced for an older configuration are discarded and retried.
+
+GameAccess checks the registry and health roughly every three seconds and refreshes availability, named filters and open game details on start, stop, endpoint changes or source revisions. It ignores responses from earlier plugin generations. Legacy providers keep a 30-second fallback refresh. This does not cancel an already running transfer when metadata changes.
+
+Tests: node examples/source-provider/instance.test.js. Pass the existing Electron executable as a final argument for the isolated Windows/Electron lifecycle and JSON-watcher integration test.

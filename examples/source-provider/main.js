@@ -4,6 +4,10 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const http = require('node:http');
+const crypto = require('node:crypto');
+const { SourceState } = require('./source-state');
+const { recoverOrphans, listenAvailable, removeOwnedFile } = require('./instance');
 const log = require('electron-log');
 const { calculateScore } = require('./matcher');
 const { USER_AGENT, hoster, optionsFor, assertFileHeaders, createResolver } = require('./links');
@@ -11,7 +15,24 @@ const { USER_AGENT, hoster, optionsFor, assertFileHeaders, createResolver } = re
 log.transports.file.level = 'info';
 
 let server;
-const PORT = 45000;
+let PORT = 45000;
+const instanceId = crypto.randomUUID();
+let ownsInstanceLock = app.requestSingleInstanceLock();
+let mainWindow;
+let refreshTimer;
+const sourceState = new SourceState();
+const watchedSourceFiles = new Map();
+function markSourceDirty(reason) {
+    sourceState.markDirty();
+    log.info('[Sources] Catalog marked outdated: ' + reason + '; revision=' + sourceState.revision);
+}
+app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    }
+});
 let cachedDownloads = [];
 let downloadOptions = new Map();
 let titleIndex = new Map();
@@ -124,6 +145,7 @@ ipcMain.handle('add-source', async (event, url) => {
 
     SOURCE_URLS.push(url);
     saveConfig(SOURCE_URLS);
+    markSourceDirty('feed added');
     syncSources(); // Trigger async sync
     return SOURCE_URLS;
 });
@@ -150,24 +172,47 @@ function registerPlugin() {
         id: "ga-torrent-provider",
         name: "Torrent Source Provider",
         type: "source_provider",
+        instanceId,
+        pid: process.pid,
         endpoint: `http://127.0.0.1:${PORT}`
     };
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    const temporary = manifestPath + '.tmp';
+    fs.writeFileSync(temporary, JSON.stringify(manifest, null, 2));
+    fs.renameSync(temporary, manifestPath);
     return manifestPath;
 }
 
 function unregisterPlugin(manifestPath) {
-    if (fs.existsSync(manifestPath)) fs.unlinkSync(manifestPath);
+    removeOwnedFile(manifestPath, instanceId);
+}
+
+function updateSourceFileWatchers() {
+    for (const [file, listener] of watchedSourceFiles) {
+        if (!SOURCE_URLS.includes(file)) { fs.unwatchFile(file, listener); watchedSourceFiles.delete(file); }
+    }
+    for (const file of SOURCE_URLS) {
+        if (/^https?:\/\//i.test(file) || watchedSourceFiles.has(file)) continue;
+        const listener = (current, previous) => {
+            if (current.mtimeMs === previous.mtimeMs && current.size === previous.size) return;
+            markSourceDirty('configured JSON file changed');
+            void syncSources();
+        };
+        watchedSourceFiles.set(file, listener);
+        fs.watchFile(file, { interval: 2000, persistent: false }, listener);
+    }
 }
 
 async function syncSources() {
     if (isSyncing) return;
+    const configVersion = sourceState.configVersion;
+    const configuredUrls = [...SOURCE_URLS];
+    updateSourceFileWatchers();
     isSyncing = true;
     log.info("Sincronizando fuentes comunitarias...");
     let allDownloads = [];
     let failedSources = 0;
 
-    for (const url of SOURCE_URLS) {
+    for (const url of configuredUrls) {
         try {
             log.info(`Descargando: ${url}`);
             let rawData;
@@ -217,6 +262,14 @@ async function syncSources() {
         }
     }
 
+    if (configVersion !== sourceState.configVersion) {
+        isSyncing = false;
+        log.info('[Sources] Configuration changed during refresh; discarding old result and resyncing.');
+        void syncSources();
+        return;
+    }
+    sourceState.accept(allDownloads, failedSources > 0);
+    log.info('[Sources] Catalog revision=' + sourceState.revision + '; outdated=' + sourceState.dirty);
     cachedDownloads = allDownloads;
     downloadOptions = new Map(optionsFor(allDownloads, '', () => 1).map(item => [item.id, item]));
     const { cleanTitle } = require('./matcher');
@@ -256,10 +309,16 @@ async function websiteToken(account) {
     } finally { clearTimeout(timer); if (!win.isDestroyed()) win.destroy(); }
 }
 
-function startApiServer() {
+async function startApiServer() {
     const expressApp = express();
     expressApp.use(cors());
     expressApp.use(express.json({ limit: "50mb" }));
+    expressApp.get('/api/health', (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.json({ id: 'ga-torrent-provider', instanceId, pid: process.pid, revision: sourceState.revision,
+            dirty: sourceState.dirty, syncing: isSyncing, updatedAt: sourceState.updatedAt,
+            sourceCount: cachedDownloads.length, windowOpen: Boolean(mainWindow && !mainWindow.isDestroyed()) });
+    });
     const resolver = createResolver({ http: axios, websiteToken, log });
     const findOption = id => downloadOptions.get(id);
 
@@ -334,15 +393,29 @@ function startApiServer() {
         if (!known) return res.status(404).json({ error: 'Fuente no disponible.' });
         await proxyFile(uri, req, res);
     });
-    server = expressApp.listen(PORT, '127.0.0.1', () => log.info('Plugin API listening on 127.0.0.1:' + PORT));
-    syncSources();
-    setInterval(syncSources, 30 * 60 * 1000);
+    let previousPort;
+    try { previousPort = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'provider-port.json'), 'utf8')).port; } catch {}
+    server = await listenAvailable(() => http.createServer(expressApp), 45000, previousPort, log);
+    PORT = server.address().port;
+    fs.writeFileSync(path.join(app.getPath('userData'), 'provider-port.json'), JSON.stringify({ port: PORT }));
+    server.on('error', error => log.error('[Startup] API server error: ' + error.message));
+    fs.writeFileSync(path.join(app.getPath('userData'), 'provider-runtime.json'),
+        JSON.stringify({ instanceId, pid: process.pid, port: PORT }));
+    log.info('[Startup] Plugin API listening on 127.0.0.1:' + PORT);
+
 }
 
 let manifestPath;
 
-app.whenReady().then(() => {
-    startApiServer();
+app.whenReady().then(async () => {
+    await recoverOrphans({ app, log });
+    if (!ownsInstanceLock) ownsInstanceLock = app.requestSingleInstanceLock();
+    if (!ownsInstanceLock) {
+        log.info('[Startup] Existing plugin instance reused; duplicate launch exits.');
+        app.exit(0);
+        return;
+    }
+    await startApiServer();
     manifestPath = registerPlugin();
 
     const win = new BrowserWindow({
@@ -354,10 +427,22 @@ app.whenReady().then(() => {
             contextIsolation: false
         }
     });
-    win.loadFile('index.html');
+    mainWindow = win;
+    win.on('closed', () => { mainWindow = null; app.quit(); });
+    await win.loadFile(path.join(__dirname, 'index.html'));
+    void syncSources();
+    refreshTimer = setInterval(syncSources, 30 * 60 * 1000);
+}).catch(error => {
+    log.error('[Startup] Plugin initialization failed: ' + error.message);
+    dialog.showErrorBox('Game Access · Plugin', 'No se pudo iniciar el plugin. Revisa su registro para más detalles.');
+    app.exit(1);
 });
 
 app.on('will-quit', () => {
+    clearTimeout(retrySyncTimer);
+    clearInterval(refreshTimer);
+    for (const [file, listener] of watchedSourceFiles) fs.unwatchFile(file, listener);
+    removeOwnedFile(path.join(app.getPath('userData'), 'provider-runtime.json'), instanceId);
     if (manifestPath) unregisterPlugin(manifestPath);
     if (server) server.close();
 });

@@ -7,7 +7,7 @@ if ($target -ne 'C:\DEV\ga-torrent-plugin') { throw 'This deployment script only
 $electron = Join-Path $target 'node_modules/electron/dist/electron.exe'
 if (-not (Test-Path -LiteralPath $electron)) { throw 'Existing plugin Electron runtime not found.' }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$files = @('main.js', 'links.js', 'matcher.js', 'feed-cache.js')
+$files = @('main.js', 'links.js', 'matcher.js', 'feed-cache.js', 'instance.js', 'instance-processes.ps1', 'source-state.js')
 foreach ($file in $files) {
     $source = Join-Path $root "examples/source-provider/$file"
     $destination = Join-Path $target $file

@@ -5,6 +5,7 @@ import { downloadButtonLabel } from "./downloadSize";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
+import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
 import type { CatalogGame } from "./types";
 import "./plugin-sources.css";
 
@@ -25,13 +26,17 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     let cancelled = false;
     setOpen(false); setError(""); setStarting(false);
     setResult({ key, sources: [], loading: true });
+    let requestId = 0;
     const refresh = async () => {
+      const request = ++requestId;
       const sources = await getPluginSources(game);
-      if (!cancelled) setResult({ key, sources, loading: false });
+      if (!cancelled && request === requestId) setResult({ key, sources, loading: false });
     };
     void refresh();
+    const pluginChanged = () => { setResult({ key, sources: [], loading: true }); setOpen(false); setError(""); void refresh(); };
+    window.addEventListener(PLUGINS_CHANGED_EVENT, pluginChanged);
     const timer = window.setInterval(() => void refresh(), 30000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener(PLUGINS_CHANGED_EVENT, pluginChanged); };
   }, [key]);
   const start = async (source: PluginSource) => {
     if (starting || disabled) return;
