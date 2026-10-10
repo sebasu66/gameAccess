@@ -21,8 +21,8 @@ describe("External plugin sources", () => {
     expect(fetcher.mock.calls[0][0]).toContain("app_id=700");
     expect(result).toHaveLength(1);
     expect(sourceAvailability(game)).toEqual({ count: 1, names: ["Feed A"] });
-    expect(pluginDownloadLabel(game, result, "es")).toBe("Descargar (6 GB) [1 fuentes]");
-    expect(pluginDownloadLabel(game, result, "en")).toBe("Download (6 GB) [1 sources]");
+    expect(pluginDownloadLabel(game, result, "es")).toBe("Descargar (6 GB) [1 fuente]");
+    expect(pluginDownloadLabel(game, result, "en")).toBe("Download (6 GB) [1 source]");
   });
   it("supports named feeds and immutable catalog updates", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);

@@ -31,7 +31,10 @@ async function plugins(): Promise<PluginManifest[]> {
   try {
     const result = await invoke<PluginManifest[]>("get_registered_plugins");
     return result.filter(plugin => plugin.type === "source_provider" && /^https?:\/\//.test(plugin.endpoint));
-  } catch { return []; }
+  } catch (error) {
+    void narrate(`Plugin registry unavailable: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+    return [];
+  }
 }
 function endpoint(plugin: PluginManifest, path: string): string {
   return plugin.endpoint.replace(/\/+$/, "") + path;
@@ -109,7 +112,10 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
           body: JSON.stringify({ include_sources: true, games: batch.map(game => ({ id: keyOf(game), name: game.name })) }),
           signal: AbortSignal.timeout(15000),
         });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: HTTP ${response.status}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+          continue;
+        }
         const data = await response.json() as Record<string, unknown>;
         for (const game of batch) {
           const raw = data[String(keyOf(game))];
@@ -121,7 +127,9 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
           const names = Array.isArray(labels) ? labels.filter((name): name is string => typeof name === "string") : [];
           entry.count += count; entry.names.push(...(names.length ? names : [plugin.name]));
         }
-      } catch { /* An unavailable provider must not block other plugins or browsing. */ }
+      } catch (error) {
+        void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+      }
     }
   }));
   for (const [id, entry] of next) availability.set(id, entry);
