@@ -11,7 +11,7 @@ import "./plugin-sources.css";
 export function pluginDownloadLabel(game: CatalogGame, sources: PluginSource[], locale: "es" | "en"): string {
   const size = sources[0]?.size || "";
   const label = downloadButtonLabel({ ...game, download_size: size, download_size_bytes: null }, locale);
-  return label + " [" + sources.length + (locale === "es" ? (sources.length === 1 ? " fuente]" : " fuentes]") : (sources.length === 1 ? " source]" : " sources]"));
+  return label + " [" + sources.length + (locale === "es" ? (sources.length === 1 ? " fuente]" : " fuentes]") : (sources.length === 1 ? " source]" : " sources]")) + (sources[0]?.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : "");
 }
 export default function PluginDownloadButton({ game, disabled = false, buttonRef, onFocus, className }: { game: CatalogGame; disabled?: boolean; buttonRef?: Ref<HTMLButtonElement>; onFocus?: () => void; className?: string }) {
   const { t, locale } = useI18n();
@@ -55,7 +55,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
-        <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}</small>
+        <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>
         <span>{downloadButtonLabel({ ...game, download_size: source.size, download_size_bytes: null }, locale)}</span>
       </button>)}</div>
     </section>}

@@ -6,6 +6,8 @@ export interface PluginManifest { id: string; name: string; endpoint: string; ty
 export interface PluginSource {
   title: string; url: string; type: string; size: string; score: number;
   pluginName: string; sourceName: string;
+  resolverUrl?: string;
+  delivery?: "browser" | "download";
 }
 export interface SourceAvailability { count: number; names: string[]; }
 export const SOURCES_CHANGED_EVENT = "gameaccess:sources-changed";
@@ -49,7 +51,15 @@ function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[]
   if (!value || typeof value !== "object") return [];
   const item = value as Record<string, unknown>;
   if (!validUrl(item.url)) return [];
+  let resolverUrl: string | undefined;
+  if (typeof item.resolverUrl === "string") {
+    try {
+      const parsed = new URL(item.resolverUrl);
+      if (parsed.origin === new URL(plugin.endpoint).origin) resolverUrl = parsed.href;
+    } catch { /* Invalid provider metadata. */ }
+  }
   return [{
+    resolverUrl, delivery: item.delivery === "browser" ? "browser" : "download",
     title: typeof item.title === "string" ? item.title : plugin.name,
     url: item.url.trim(), type: typeof item.type === "string" ? item.type : "http",
     size: typeof item.size === "string" ? item.size : "",
@@ -144,4 +154,17 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
   publish();
   return Object.fromEntries([...next].map(([id, entry]) => [id, entry.count]));
+}
+
+/** Resolve only the chosen option through its own registered provider. */
+export async function preparePluginSource(source: PluginSource): Promise<PluginSource> {
+  if (!source.resolverUrl) return source;
+  void narrate("Preparing selected source '" + source.sourceName + "' · " + source.title + ".", { area: "DOWNLOAD_SOURCES" });
+  const response = await fetch(source.resolverUrl, { signal: AbortSignal.timeout(60000) });
+  const result = await response.json() as { url?: unknown; error?: unknown; mode?: unknown };
+  if (!response.ok || !validUrl(result.url)) {
+    throw new Error(typeof result.error === "string" ? result.error : "El plugin no pudo preparar el enlace de descarga.");
+  }
+  void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
+  return { ...source, url: result.url.trim() };
 }

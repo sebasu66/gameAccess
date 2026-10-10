@@ -345,6 +345,31 @@ class MultiSegmentTracker:
                 )
 
 
+
+def validate_http_file_response(response, inspect_body=False):
+    response.raise_for_status()
+    content_type = response.headers.get("content-type", "").lower()
+    if any(value in content_type for value in ("text/html", "application/xhtml", "application/json")):
+        detail = ""
+        if response.status_code >= 400:
+            detail = response.text[:200]
+        raise RuntimeError("La fuente devolvió una página web, no el archivo del juego. El plugin debe resolver el enlace." + detail)
+    if inspect_body:
+        # A small streaming probe catches landing pages mislabeled as binary.
+        prefix = next(response.iter_content(chunk_size=512), b"").lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+        if prefix.startswith((b"<!doctype html", b"<html", b"<head", b"<body")):
+            raise RuntimeError("La fuente devolvió contenido HTML, no el archivo del juego.")
+    logger.info("HTTP file validation: host=%s, content_type=%s, bytes=%s",
+                urlparse(response.url).hostname, content_type, response.headers.get("content-length", "?"))
+
+
+def validate_downloaded_file(filepath):
+    with open(filepath, "rb") as file:
+        prefix = file.read(512).lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+    if not prefix or prefix.startswith((b"<!doctype html", b"<html", b"<head", b"<body")):
+        raise RuntimeError("El archivo descargado está vacío o contiene una página web; se ha detenido la instalación.")
+
+
 def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int, tracker: MultiSegmentTracker, headers: dict, max_retries: int = 3):
     req_headers = dict(headers)
     req_headers['Range'] = f"bytes={start}-{end}"
@@ -357,6 +382,9 @@ def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int,
             with requests.get(url, headers=req_headers, stream=True, timeout=30) as r:
                 if r.status_code not in (200, 206):
                     r.raise_for_status()
+                validate_http_file_response(r)
+                if r.status_code != 206 or not r.headers.get('content-range', '').lower().startswith(f'bytes {start}-'):
+                    raise RuntimeError('El proveedor no respetó el rango solicitado; se ha detenido la descarga.')
                 with open(filepath, "r+b") as f:
                     f.seek(start)
                     for chunk in r.iter_content(chunk_size=1024 * 64, decode_unicode=False):
@@ -383,7 +411,10 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
     head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=25)
     head_resp.raise_for_status()
     final_url = head_resp.url
+    validate_http_file_response(head_resp)
     headers_resp = head_resp.headers
+    with requests.get(final_url, headers={**headers, 'Range': 'bytes=0-511'}, stream=True, timeout=15) as probe:
+        validate_http_file_response(probe, inspect_body=True)
 
     content_length = headers_resp.get('content-length')
     accept_ranges = headers_resp.get('accept-ranges', '').lower()
@@ -395,7 +426,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
 
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
-            r.raise_for_status()
+            validate_http_file_response(r)
             downloaded = 0
             start_time = time.time()
             for chunk in r.iter_content(chunk_size=1024 * 64):
@@ -420,8 +451,12 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         test_h = dict(headers)
         test_h['Range'] = 'bytes=0-0'
         t_resp = requests.get(final_url, headers=test_h, stream=True, timeout=10)
-        if t_resp.status_code != 206:
-            connections = 1
+        try:
+            validate_http_file_response(t_resp)
+            if t_resp.status_code != 206:
+                connections = 1
+        finally:
+            t_resp.close()
 
     tracker = MultiSegmentTracker(app_id, total_size, game_name)
 
@@ -430,7 +465,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         reporter = threading.Thread(target=tracker.monitor, args=(stop_event,), daemon=True)
         reporter.start()
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
-            r.raise_for_status()
+            validate_http_file_response(r)
             for chunk in r.iter_content(chunk_size=1024 * 64):
                 wait_if_paused()
                 if g_cancelled.is_set():
@@ -1212,47 +1247,18 @@ def main():
                     "fitgirl-repacks", "rentry.co", "pastebin.com"
                 ]
                 
-                domain = parsed.netloc.lower()
-                if any(d in domain for d in browser_domains):
-                    logger.info(f"Hoster web detectado ({domain}). Consultando API del servidor para link directo...")
-                    emit_progress(app_id, "downloading", 0, 0, 0, 0, 0, f"Resolviendo enlace de {domain} en servidor...")
-                    
-                    resolved = False
-                    try:
-                        api_url = os.environ.get("GAMEACCESS_API_URL", "https://game-access-api.onrender.com").rstrip("/")
-                        res = requests.post(
-                            f"{api_url}/resolve-download",
-                            json={"url": download_url},
-                            timeout=15
-                        )
-                        if res.status_code == 200:
-                            data = res.json()
-                            if data.get("ok") and data.get("direct_url"):
-                                download_url = data["direct_url"]
-                                if data.get("headers"):
-                                    headers.update(data["headers"])
-                                logger.info(f"Resuelto con éxito: {download_url}")
-                                resolved = True
-                            else:
-                                logger.error(f"Fallo al resolver en servidor: {data.get('message')}")
-                    except Exception as e:
-                        logger.error(f"Error consultando servidor resolver: {e}")
-                        
-                    if not resolved:
-                        logger.info(f"Fallback: Hoster de navegador ({domain}). Abriendo web...")
-                        import webbrowser
-                        webbrowser.open(download_source)
-                        
-                        emit_progress(
-                            app_id=app_id,
-                            phase="external",
-                            progress_percent=0.0,
-                            bytes_downloaded=0,
-                            total_bytes=0,
-                            status_text="Enlace abierto en el navegador. Esta fuente requiere completar la descarga allí; todavía no está instalado en GameAccess."
-                        )
-                        logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
-                        sys.exit(0)
+                domain = parsed.hostname or ""
+                browser_domains.append("vikingfile.com")
+                if any(domain == d or domain.endswith("." + d) for d in browser_domains):
+                    logger.info("AppID %s: plugin supplied a browser source (%s); automatic unlock unavailable.", app_id, domain)
+                    import webbrowser
+                    webbrowser.open(download_source)
+                    emit_progress(
+                        app_id=app_id, phase="external", progress_percent=0.0,
+                        bytes_downloaded=0, total_bytes=0,
+                        status_text="Esta fuente requiere descargar en el navegador. El desbloqueo de PLUS todavía no está disponible; el juego no está instalado."
+                    )
+                    sys.exit(0)
     
             # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
             if download_url:
@@ -1275,6 +1281,8 @@ def main():
                     connections=args.connections
                 )
     
+                if ok:
+                    validate_downloaded_file(out_filepath)
                 if not ok or g_cancelled.is_set():
                     cleanup_on_cancel()
                     return

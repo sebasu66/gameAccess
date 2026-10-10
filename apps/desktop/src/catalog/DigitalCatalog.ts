@@ -1,4 +1,4 @@
-import { checkPluginSources, getPluginSources, type PluginSource } from "./PluginSources";
+import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
 export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
@@ -213,9 +213,10 @@ export class DigitalCatalog {
       ? (await this.getSources(game)).find(item => item.url === source)
       : source ?? (await this.getSources(game))[0];
     if (!selected) throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
+    const prepared = await preparePluginSource(selected);
     const record = this.getRecord(game.id);
     const effectiveRecord: DigitalGameRecord = {
-      name: game.name, id: game.app_id ?? game.id, downloadSource: selected.url,
+      name: game.name, id: game.app_id ?? game.id, downloadSource: prepared.url,
       installProcess: "", playProcess: record?.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
     return digitalDownloadService.start({ ...game, download_size: selected.size, download_size_bytes: null,

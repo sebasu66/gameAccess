@@ -55,11 +55,22 @@ class DigitalGameStorage:
         temporary.replace(record)
         return folder
 
+    @staticmethod
+    def is_payload(path: Path) -> bool:
+        if path.suffix.lower() in ('.html', '.htm'):
+            return False
+        try:
+            with path.open('rb') as file:
+                prefix = file.read(512).lstrip(b'\xef\xbb\xbf \r\n\t').lower()
+            return bool(prefix) and not prefix.startswith((b'<!doctype html', b'<html', b'<head', b'<body'))
+        except OSError:
+            return False
+
     def status(self, app_id: int, name: str) -> dict:
         folder = self.folder(app_id, name)
         # Archives alone and empty/partial folders are not a runnable download.
         available = folder.is_dir() and any(
-            p.is_file() and p.name != ".digital-backup.json" and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I)
+            p.is_file() and p.name != ".digital-backup.json" and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
             for p in folder.rglob("*")
         )
         return {"folder": str(folder), "installed": available}

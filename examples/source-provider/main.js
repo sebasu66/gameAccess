@@ -6,12 +6,14 @@ const path = require('path');
 const axios = require('axios');
 const log = require('electron-log');
 const { calculateScore } = require('./matcher');
+const { USER_AGENT, hoster, optionsFor, assertFileHeaders, createResolver } = require('./links');
 
 log.transports.file.level = 'info';
 
 let server;
 const PORT = 45000;
 let cachedDownloads = [];
+let downloadOptions = new Map();
 let titleIndex = new Map();
 let isSyncing = false;
 
@@ -201,6 +203,7 @@ async function syncSources() {
     }
 
     cachedDownloads = allDownloads;
+    downloadOptions = new Map(optionsFor(allDownloads, '', () => 1).map(item => [item.id, item]));
     const { cleanTitle } = require('./matcher');
     const newIndex = new Map();
     for (const item of allDownloads) {
@@ -212,87 +215,109 @@ async function syncSources() {
     log.info(`Sincronización completa. Fuentes en caché: ${cachedDownloads.length}`);
 }
 
+// Run the host's own WT generator inside Electron's isolated renderer.
+const websiteTokens = new Map();
+async function websiteToken(account) {
+    const cached = websiteTokens.get(account);
+    if (cached && cached.expires > Date.now()) return cached.value;
+    const win = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    win.webContents.setUserAgent(USER_AGENT);
+    let timer;
+    try {
+        return await Promise.race([
+            (async () => {
+                await win.loadURL('https://gofile.io/');
+                const value = await win.webContents.executeJavaScript(
+                    '(async () => { if (typeof generateWT !== "function") throw new Error("Gofile token generator unavailable"); return await generateWT(' + JSON.stringify(account) + '); })()'
+                );
+                if (typeof value !== 'string' || !value) throw new Error('Gofile token generator returned no token.');
+                websiteTokens.set(account, { value, expires: Date.now() + 60000 });
+                return value;
+            })(),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Gofile no respondió al preparar la descarga.')), 15000); })
+        ]);
+    } finally { clearTimeout(timer); if (!win.isDestroyed()) win.destroy(); }
+}
+
 function startApiServer() {
     const expressApp = express();
     expressApp.use(cors());
     expressApp.use(express.json({ limit: "50mb" }));
+    const resolver = createResolver({ http: axios, websiteToken, log });
+    const findOption = id => downloadOptions.get(id);
 
-    
     expressApp.post('/api/bulk_check', (req, res) => {
-        const games = req.body.games || [];
-        const { calculateScore } = require('./matcher');
         const results = {};
-        for (const game of games) {
+        for (const game of req.body.games || []) {
             if (!game.name) continue;
-            let count = 0;
-            const sourceNames = new Set();
-            for (const item of cachedDownloads) {
-                if (calculateScore(game.name, item.raw_title) >= 0.55) {
-                    count++;
-                    sourceNames.add(item.source_name);
-                }
-            }
-            if (count > 0) {
-                results[game.id || game.app_id] = req.body.include_sources ? { count, sources: [...sourceNames] } : count;
-            }
+            const options = optionsFor(cachedDownloads, game.name, calculateScore);
+            if (options.length) results[game.id || game.app_id] = req.body.include_sources
+                ? { count: options.length, sources: [...new Set(options.map(item => item.source_name))] } : options.length;
         }
         res.json(results);
     });
-
     expressApp.get('/api/sources', (req, res) => {
-        const appId = req.query.app_id;
-        const name = req.query.name;
-        
-        if (!name) return res.json([]);
-
-        let scored = [];
-        for (const item of cachedDownloads) {
-            const score = calculateScore(name, item.raw_title);
-            if (score >= 0.55) {
-                scored.push({ score, item });
-            }
-        }
-
-        scored.sort((a, b) => b.score - a.score);
-
-        const results = scored.map(s => {
-            let finalUrl = s.item.uri;
-            if (finalUrl.includes('gofile.io')) {
-                finalUrl = `http://127.0.0.1:${PORT}/api/resolve?url=${encodeURIComponent(finalUrl)}`;
-            }
-            return {
-                title: s.item.raw_title,
-                url: finalUrl,
-                type: s.item.uri.startsWith("magnet") ? "torrent" : "http",
-                size: s.item.file_size,
-                score: s.score,
-                sourceName: s.item.source_name
-            };
-        });
-
-        res.json(results);
+        const options = req.query.name ? optionsFor(cachedDownloads, req.query.name, calculateScore) : [];
+        log.info('[Sources] AppID=' + req.query.app_id + '; matched download options=' + options.length);
+        res.json(options.map(item => ({
+            title: item.raw_title, url: item.uri, type: item.uri.startsWith('magnet:') || /\.torrent(?:$|\?)/i.test(item.uri) ? 'torrent' : 'http',
+            size: item.file_size, score: item.score, sourceName: item.source_name,
+            delivery: hoster(item.uri) === 'browser' ? 'browser' : 'download',
+            resolverUrl: 'http://127.0.0.1:' + PORT + '/api/prepare/' + item.id
+        })));
     });
-
+    expressApp.get('/api/prepare/:id', async (req, res) => {
+        const item = findOption(req.params.id);
+        if (!item) return res.status(404).json({ error: 'Esta fuente ya no está disponible; actualiza las fuentes del juego.' });
+        try {
+            log.info('[Sources] Preparing selected option; provider=' + item.source_name + '; title=' + item.raw_title);
+            const file = await resolver.prepare(item.uri);
+            const url = file.mode === 'proxy'
+                ? 'http://127.0.0.1:' + PORT + '/api/download/' + item.id + '/' + encodeURIComponent(file.name)
+                : file.url;
+            res.json({ url, mode: file.mode, size: item.file_size });
+        } catch (error) {
+            log.warn('[Sources] Selected option resolution failed: ' + error.message);
+            res.status(422).json({ error: error.message });
+        }
+    });
+    async function proxyFile(uri, req, res) {
+        try {
+            const file = await resolver.prepare(uri);
+            if (file.mode !== 'proxy') return res.status(422).json({ error: 'Esta fuente requiere descarga en el navegador; todavía no hay desbloqueo PLUS para este host.' });
+            const headers = { ...file.headers, 'Accept-Encoding': 'identity' };
+            if (req.headers.range) headers.Range = req.headers.range;
+            const upstream = await axios({ method: req.method === 'HEAD' ? 'HEAD' : 'GET', url: file.url, headers, responseType: 'stream', timeout: 30000 });
+            try { assertFileHeaders(upstream.headers); } catch (error) { upstream.data?.destroy?.(); throw error; }
+            res.status(upstream.status);
+            for (const name of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+                if (upstream.headers[name]) res.setHeader(name, upstream.headers[name]);
+            }
+            res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(path.basename(file.name)));
+            if (req.method === 'HEAD') { upstream.data?.destroy?.(); return res.end(); }
+            req.on('aborted', () => upstream.data.destroy());
+            res.on('close', () => { if (!res.writableFinished) upstream.data.destroy(); });
+            upstream.data.on('error', () => res.destroy());
+            upstream.data.pipe(res);
+        } catch (error) {
+            log.warn('[Sources] Download link processing failed: ' + error.message);
+            if (!res.headersSent) res.status(422).json({ error: error.message });
+            else res.destroy();
+        }
+    }
+    expressApp.get('/api/download/:id/:name', async (req, res) => {
+        const item = findOption(req.params.id);
+        if (!item) return res.status(404).json({ error: 'Fuente no disponible.' });
+        await proxyFile(item.uri, req, res);
+    });
+    // Legacy clients receive a file or an explicit failure, never a landing-page redirect.
     expressApp.get('/api/resolve', async (req, res) => {
-        const url = req.query.url;
-        if (!url) return res.status(400).json({ error: "Missing url parameter" });
-
-        if (url.includes('gofile.io')) {
-            const { resolveGofile } = require('./gofile');
-            const directLink = await resolveGofile(url);
-            if (directLink) {
-                return res.redirect(302, directLink);
-            }
-        }
-        
-        // If it's not a known hoster or resolution failed, just redirect to original
-        res.redirect(302, url);
+        const uri = req.query.url;
+        const known = cachedDownloads.some(item => (item.uris || [item.uri]).includes(uri));
+        if (!known) return res.status(404).json({ error: 'Fuente no disponible.' });
+        await proxyFile(uri, req, res);
     });
-
-    server = expressApp.listen(PORT, () => {
-        log.info(`Plugin API escuchando en http://127.0.0.1:${PORT}`);
-    });
-
+    server = expressApp.listen(PORT, '127.0.0.1', () => log.info('Plugin API listening on 127.0.0.1:' + PORT));
     syncSources();
     setInterval(syncSources, 30 * 60 * 1000);
 }

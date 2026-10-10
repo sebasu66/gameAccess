@@ -1,7 +1,7 @@
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { checkPluginSources, getPluginSources, sourceAvailability, applySourceAvailability } from "./PluginSources";
+import { checkPluginSources, getPluginSources, sourceAvailability, applySourceAvailability, preparePluginSource } from "./PluginSources";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -53,5 +53,29 @@ describe("External plugin sources", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     expect(await getPluginSources(game)).toEqual([]);
     expect(sourceAvailability(game).count).toBe(0);
+  });
+});
+
+describe("Plugin link preparation", () => {
+  it("prepares through the registered plugin and passes the actual file URL", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ok:true,json:async()=>[{title:"Fixture",url:"https://gofile.io/d/ABC",resolverUrl:plugin.endpoint+"api/prepare/abc",size:"6 GB"}]})
+      .mockResolvedValueOnce({ok:true,json:async()=>({url:plugin.endpoint+"api/download/abc/fixture.zip",mode:"proxy"})});
+    vi.stubGlobal("fetch", fetcher);
+    const [source] = await getPluginSources(game);
+    const prepared = await preparePluginSource(source);
+    expect(fetcher.mock.calls[1][0]).toBe(plugin.endpoint+"api/prepare/abc");
+    expect(prepared.url).toBe(plugin.endpoint+"api/download/abc/fixture.zip");
+  });
+  it("does not silently download a landing page when resolution fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false,json:async()=>({error:"Gofile: error-notFound"})}));
+    await expect(preparePluginSource({title:"Fixture",url:"https://gofile.io/d/missing",resolverUrl:plugin.endpoint+"api/prepare/missing",type:"http",size:"",score:1,pluginName:"Provider",sourceName:"Feed"})).rejects.toThrow("error-notFound");
+  });
+  it("ignores a resolver outside the registered provider origin", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:true,json:async()=>[{url:"https://example.test/fixture.zip",resolverUrl:"https://unexpected.test/resolve"}]}));
+    const [source] = await getPluginSources(game);
+    expect(source.resolverUrl).toBeUndefined();
   });
 });
