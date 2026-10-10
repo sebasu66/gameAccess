@@ -465,7 +465,6 @@ def next_steam_review_target(engine: Engine) -> tuple[int, int] | None:
               AND g.app_id IS NOT NULL
               AND lower(coalesce(m.product_type, '')) = 'game'
               AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))
-              AND EXISTS (SELECT 1 FROM accountgame AS ag WHERE ag.game_id = g.id)
               AND (
                   m.steam_review_state = 'pending'
                   OR (m.steam_review_state = 'failed'
