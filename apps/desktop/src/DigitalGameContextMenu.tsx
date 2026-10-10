@@ -111,7 +111,7 @@ export default function DigitalGameContextMenu({
   };
 
   return (
-    <>
+    <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
       {!dialog && !configuring ? (
         <div
           className="ga-game-options"
@@ -170,6 +170,6 @@ export default function DigitalGameContextMenu({
           cancelLabel="No, volver"
         />
       ) : null}
-    </>
+    </div>
   );
 }

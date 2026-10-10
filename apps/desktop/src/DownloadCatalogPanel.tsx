@@ -213,7 +213,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
+    const close = (event?: Event) => {
+      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root")) return;
+      setContextMenu(null);
+    };
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
