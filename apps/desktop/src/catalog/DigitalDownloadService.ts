@@ -52,15 +52,7 @@ export class DigitalDownloadService implements IDownloadProvider {
             ? { ...entry.snapshot, phase: "external" }
             : entry.snapshot;
         this.jobs.set(snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
-        if (snapshot.phase === "downloading" && Number.isFinite(snapshot.speedBps)) {
-      const time = Date.now();
-      const samples = (this.speeds.get(snapshot.gameId) ?? []).filter(sample => sample.time >= time - 60000);
-      const sample = { time, speedBps: Math.max(0, snapshot.speedBps ?? 0) };
-      if (samples.length && time - samples[samples.length - 1].time < 500) samples[samples.length - 1] = sample;
-      else samples.push(sample);
-      this.speeds.set(snapshot.gameId, samples.slice(-61));
-    }
-    this.activeJobs.set(snapshot.gameId, snapshot);
+        this.activeJobs.set(snapshot.gameId, snapshot);
         this.reportFailure(snapshot);
       }
       this.queue = Array.isArray(saved.queue) ? saved.queue.filter((id: number) => this.activeJobs.get(id)?.phase === "queued") : [];
@@ -472,6 +464,14 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (previous?.phase === "cancelling" && !["cancelled", "completed", "error"].includes(snapshot.phase)) return;
     if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
     if (previous?.phase !== snapshot.phase) void narrate(`Digital AppID ${snapshot.gameId} · phase ${previous?.phase ?? "new"} -> ${snapshot.phase}; bytes=${snapshot.bytesDownloaded ?? "unknown"}/${snapshot.bytesTotal ?? "unknown"}; ${snapshot.statusText ?? ""}.`, { area: "DIGITAL_DOWNLOAD" });
+    if (snapshot.phase === "downloading" && Number.isFinite(snapshot.speedBps)) {
+      const time = Date.now();
+      const samples = (this.speeds.get(snapshot.gameId) ?? []).filter(sample => sample.time >= time - 60000);
+      const sample = { time, speedBps: Math.max(0, snapshot.speedBps ?? 0) };
+      if (samples.length && time - samples[samples.length - 1].time < 500) samples[samples.length - 1] = sample;
+      else samples.push(sample);
+      this.speeds.set(snapshot.gameId, samples.slice(-61));
+    }
     this.activeJobs.set(snapshot.gameId, snapshot);
     if (snapshot.phase === "cancelled") {
       this.jobs.delete(snapshot.gameId);
