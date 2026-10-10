@@ -1,90 +1,46 @@
 [
   {
-    "name": "Dispatch",
     "id": 2592160,
-    "downloadSource": "",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dispatch"
   },
   {
-    "name": "Dragon Age: Origins",
     "id": 47810,
-    "downloadSource": "magnet:?xt=urn:btih:dao1234567890abcdef1234567890abcdef123456&dn=Dragon+Age+Origins",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dragon Age: Origins"
   },
   {
-    "name": "Dragon Age: Inquisition",
     "id": 1222690,
-    "downloadSource": "magnet:?xt=urn:btih:da1234567890abcdef1234567890abcdef123456&dn=Dragon+Age+Inquisition",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dragon Age: Inquisition"
   },
   {
-    "name": "Dragon Age: The Veilguard",
     "id": 1845910,
-    "downloadSource": "",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dragon Age: The Veilguard"
   },
   {
-    "name": "Dragon's Dogma: Dark Arisen",
     "id": 367500,
-    "downloadSource": "",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dragon's Dogma: Dark Arisen"
   },
   {
-    "name": "Dragon's Dogma 2",
     "id": 2054970,
-    "downloadSource": "magnet:?xt=urn:btih:dd21234567890abcdef1234567890abcdef123456&dn=Dragons+Dogma+2",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dragon's Dogma 2"
   },
   {
-    "name": "Dying Light: The Beast",
     "id": 3008130,
-    "downloadSource": "",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Dying Light: The Beast"
   },
   {
-    "name": "ELDEN RING NIGHTREIGN",
     "id": 2622380,
-    "downloadSource": "magnet:?xt=urn:btih:ern1234567890abcdef1234567890abcdef123456&dn=Elden+Ring+Nightreign",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "ELDEN RING NIGHTREIGN"
   },
   {
-    "name": "Heroes of Might & Magic V",
     "id": 15170,
-    "downloadSource": "magnet:?xt=urn:btih:homm5123456789abcdef123456789abcdef123456&dn=Heroes+5",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Heroes of Might & Magic V"
   },
   {
-    "name": "Might & Magic: Heroes VI",
     "id": 48220,
-    "downloadSource": "magnet:?xt=urn:btih:mmh6123456789abcdef123456789abcdef123456&dn=Heroes+6",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Might & Magic: Heroes VI"
   },
   {
-    "name": "Might & Magic Heroes VII",
     "id": 321960,
-    "downloadSource": "magnet:?xt=urn:btih:mmh7123456789abcdef123456789abcdef123456&dn=Heroes+7",
-    "installProcess": "",
-    "playProcess": "",
-    "uninstallProcess": ""
+    "name": "Might & Magic Heroes VII"
   }
 ]

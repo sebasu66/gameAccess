@@ -171,8 +171,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
   const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
   const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
-  const toggleFilter = (group: "genres" | "features", value: string) => {
-    const current = searchFilters[group] as string[];
+  const toggleFilter = (group: "genres" | "features" | "sources", value: string) => {
+    const current = (searchFilters[group] ?? []) as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
     onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
   };

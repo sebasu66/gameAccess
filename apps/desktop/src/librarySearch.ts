@@ -29,6 +29,7 @@ export interface LibrarySearchFilters {
   categories: string[];
   features: LibraryFeatureKey[];
   includeUncertain?: boolean;
+  sources?: string[];
 }
 
 export const EMPTY_LIBRARY_FILTERS: LibrarySearchFilters = {
@@ -129,7 +130,7 @@ export function filterLibraryGames(
   filters: LibrarySearchFilters = EMPTY_LIBRARY_FILTERS,
 ): CatalogGame[] {
   const terms = normalizeSearchText(query.trim()).split(/\s+/).filter(Boolean);
-  if (!terms.length && !filters.genres.length && !filters.features.length) return games;
+  if (!terms.length && !filters.genres.length && !filters.features.length && !filters.sources?.length) return games;
   return games.filter((game) => {
     if (terms.length) {
       const searchable = normalizeSearchText([
@@ -163,6 +164,8 @@ export type FilterMatch = "confirmed" | "possible" | "excluded";
  * proves absence. Tags can hint, but cannot confirm a Steam capability.
  * Multiple choices in a group are OR; separate groups narrow together. */
 export function classifyFilterMatch(game: CatalogGame, filters: LibrarySearchFilters): FilterMatch {
+  if (filters.sources?.length && !filters.sources.some(name => game.download_source_names?.includes(name))) return "excluded";
+  if (filters.features.includes("has_downloads") && !game.has_downloads) return "excluded";
   let possible = false;
   if (filters.genres.length && !filters.genres.some(genre => game.genres?.includes(genre))) {
     if (game.genres?.length) return "excluded";

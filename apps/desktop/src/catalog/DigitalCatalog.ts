@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { checkPluginSources, getPluginSources, type PluginSource } from "./PluginSources";
+export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { normalizeSteamStoreMetadata } from "../steamMetadata";
@@ -11,22 +12,6 @@ import { getApiBaseUrl } from "../settings";
 import { activationHeaders, invalidateActivation } from "../activation";
 
 
-
-export interface PluginSource {
-  title: string;
-  url: string;
-  type: string;
-  size: string;
-  score: number;
-  pluginName?: string;
-}
-
-export interface PluginManifest {
-  id: string;
-  name: string;
-  endpoint: string;
-  type: string;
-}
 
 export interface DigitalGameRecord {
   name: string;
@@ -76,7 +61,7 @@ export class DigitalCatalog {
         try {
           const apiUrl = await getApiBaseUrl();
           if (apiUrl) {
-            const response = await fetch(`${apiUrl}/digital/catalog`, { cache: "no-store" });
+            const response = await fetch(`${apiUrl}/library/catalog`, { cache: "no-store" });
             if (response.ok) {
               raw = await response.json();
             } else if (requireRemote) {
@@ -111,13 +96,8 @@ export class DigitalCatalog {
       rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
     }
 
-    // In Digital mode, games that have no download sources available must not be shown
-    // in the digital catalog (they count as invalid records).
-    const validRecords = rawList.filter((item) => {
-      const source = (item.downloadSource ?? (item as any).download_source ?? "").trim();
-      return Boolean(source);
-    });
-
+    // Catalog membership is independent of download availability.
+    const validRecords = rawList.filter(item => Number.isSafeInteger(item.id ?? item.app_id) && (item.id ?? item.app_id ?? 0) > 0);
     this.rawRecords.clear();
     const digitalRecords: DigitalGameRecord[] = [];
     for (const item of validRecords) {
@@ -126,7 +106,7 @@ export class DigitalCatalog {
         const rec: DigitalGameRecord = {
           name: item.name || `Juego ${id}`,
           id,
-          downloadSource: (item.downloadSource ?? (item as any).download_source ?? "").trim(),
+          downloadSource: "",
           installProcess: item.installProcess ?? (item as any).install_process ?? "",
           playProcess: item.playProcess ?? (item as any).play_process ?? "",
           uninstallProcess: item.uninstallProcess ?? (item as any).uninstall_process ?? "",
@@ -224,125 +204,22 @@ export class DigitalCatalog {
   /**
    * Initiates installation or download for the game.
    */
-  async bulkCheckSources(games: CatalogGame[]): Promise<Record<number, number>> {
-    const results: Record<number, number> = {};
-    
-    
+  async bulkCheckSources(games: CatalogGame[]): Promise<Record<number, number>> { return checkPluginSources(games); }
+  async getSources(game: CatalogGame): Promise<PluginSource[]> { return getPluginSources(game); }
 
-    try {
-      const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
-      
-      const payload = games.map(g => ({ id: g.app_id ?? g.id, name: g.name }));
-      
-      const promises = plugins.map(async (plugin) => {
-        if (plugin.type === "source_provider") {
-          try {
-            const res = await fetch(`${plugin.endpoint}/api/bulk_check`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ games: payload }),
-              signal: AbortSignal.timeout(5000)
-            });
-            if (res.ok) {
-              const pluginResults = await res.json() as Record<number, number>;
-              for (const [appId, count] of Object.entries(pluginResults)) {
-                results[Number(appId)] = (results[Number(appId)] || 0) + count;
-              }
-            }
-          } catch (err) {
-            console.warn(`[DigitalCatalog:bulkCheckSources] Plugin ${plugin.name} error:`, err);
-          }
-        }
-      });
-      await Promise.all(promises);
-    } catch (e) {
-      console.warn("[DigitalCatalog:bulkCheckSources] Failed to check plugins", e);
-    }
-    
-    return results;
-  }
-
-  async getSources(game: CatalogGame) {
-    let allSources: any[] = [];
-
-    
-
-    try {
-      const plugins = await invoke<PluginManifest[]>("get_registered_plugins");
-      
-      const sourcePromises = plugins.map(async (plugin) => {
-        if (plugin.type === "source_provider") {
-          try {
-            const res = await fetch(`${plugin.endpoint}/api/sources?app_id=${game.id}&name=${encodeURIComponent(game.name)}`, { signal: AbortSignal.timeout(4000) });
-            if (res.ok) {
-              const data = await res.json() as PluginSource[];
-              return data.map(s => ({ ...s, pluginName: plugin.name }));
-            }
-          } catch (err) {
-            console.warn(`[DigitalCatalog:getSources] Plugin ${plugin.name} error:`, err);
-          }
-        }
-        return [];
-      });
-
-      const results = await Promise.all(sourcePromises);
-      for (const res of results) {
-        allSources = allSources.concat(res);
-      }
-      
-      // Sort by score
-      allSources.sort((a, b) => b.score - a.score);
-
-    } catch (e) {
-      console.warn("[DigitalCatalog:getSources] Failed to check plugins", e);
-    }
-    return allSources;
-  }
-
-  async download(game: CatalogGame, sourceUrl?: string): Promise<void> {
-    console.log("[DigitalCatalog:download] Starting download for:", { id: game.id, app_id: game.app_id, name: game.name, sourceUrl });
-    if (this.options.downloadHandler) {
-      console.log("[DigitalCatalog:download] Using custom downloadHandler");
-      return this.options.downloadHandler(game);
-    }
-    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
-    
-    let finalSourceUrl = sourceUrl;
-    let autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
-
-    // Check fixed override
-    const fixedOverride = (record?.downloadSource ?? (game as any).downloadSource ?? (game as any).download_source ?? "").trim();
-    if (!finalSourceUrl && fixedOverride && fixedOverride !== "auto" && !fixedOverride.includes("127.0.0.1")) {
-      finalSourceUrl = fixedOverride;
-    }
-
-    if (!finalSourceUrl) {
-      const sources = await this.getSources(game);
-      if (sources.length > 0) {
-        finalSourceUrl = sources[0].url;
-        autoInstalled = false;
-      }
-    }
-
-    if (!finalSourceUrl) {
-      throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
-    }
-
-    let downloadSource = finalSourceUrl;
-
+  async download(game: CatalogGame, source?: PluginSource | string): Promise<void> {
+    if (this.options.downloadHandler) return this.options.downloadHandler(game);
+    const selected = typeof source === "string"
+      ? (await this.getSources(game)).find(item => item.url === source)
+      : source ?? (await this.getSources(game))[0];
+    if (!selected) throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
+    const record = this.getRecord(game.id);
     const effectiveRecord: DigitalGameRecord = {
-      ...(record || {
-        name: game.name,
-        id: game.id,
-        installProcess: "",
-        playProcess: "",
-        uninstallProcess: "",
-      }),
-      downloadSource,
-      auto_installed: autoInstalled,
+      name: game.name, id: game.app_id ?? game.id, downloadSource: selected.url,
+      installProcess: "", playProcess: record?.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
-    console.log("[DigitalCatalog:download] Calling digitalDownloadService.start with record:", effectiveRecord);
-    return digitalDownloadService.start(game, { record: effectiveRecord });
+    return digitalDownloadService.start({ ...game, download_size: selected.size, download_size_bytes: null,
+      download_size_source: selected.sourceName }, { record: effectiveRecord });
   }
 
   /**
@@ -383,6 +260,7 @@ export class DigitalCatalog {
       const appId = item.app_id ?? (typeof id === "number" && id > 0 ? id : null);
       return {
         ...item,
+        downloadSource: "", download_size: null, download_size_bytes: null, download_size_source: null,
         id,
         slug: item.slug || `digital-${id}`,
         name: item.name || `Juego ${id}`,

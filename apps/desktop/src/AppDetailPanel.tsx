@@ -1,3 +1,4 @@
+import PluginDownloadButton from "./PluginDownloadButton";
 import { useCallback, useEffect, useState } from "react";
 import { Download, Gauge, Loader2, MonitorCheck, Play, Settings, Star, Trophy, X } from "lucide-react";
 
@@ -67,23 +68,6 @@ export function DetailPanel({
   const [activeShot, setActiveShot] = useState(0);
   const [closing, setClosing] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [showSourceSelector, setShowSourceSelector] = useState(false);
-  const [sources, setSources] = useState<any[]>([]);
-  const [loadingSources, setLoadingSources] = useState(false);
-
-  const handleDownloadClick = () => {
-    if (availableSourceCount > 0 && !localState.installed && !localState.transferActive) {
-      setShowSourceSelector(true);
-      setLoadingSources(true);
-      digitalCatalogService.getSources(game).then(srcs => {
-        setSources(srcs);
-        setLoadingSources(false);
-      });
-    } else {
-      void onDownload(game);
-    }
-  };
-
   const closeWithAnimation = useCallback(() => {
     if (closing) return;
     setClosing(true);
@@ -193,12 +177,7 @@ export function DetailPanel({
                 disabled={!playReady || busy}
                 onClick={() => void onLease(game)}
               />
-              <GlassActionButton
-                icon={activeDownload ? <Loader2 size={23} className="spin" /> : <Download size={24} />}
-                label={availableSourceCount === 0 && !localState.installed ? "Fuentes no disponibles" : (downloadActionLabel(localState, download) + (availableSourceCount > 0 && !localState.installed && !localState.transferActive ? ` (${availableSourceCount} fuentes)` : ""))}
-                tone="download" disabled={(!game.app_id && !game.id) || downloadBlocked || (availableSourceCount === 0 && !localState.installed)}
-                onClick={handleDownloadClick}
-              />
+              <PluginDownloadButton game={game} disabled={busy || downloadBlocked} />
             </div>
             {activeDownload || download?.progress != null || download?.statusText ? (
               <div style={{ marginTop: "14px", width: "100%", maxWidth: "480px" }}>
@@ -208,7 +187,7 @@ export function DetailPanel({
           </>);
 
   const renderMetadata = () => (<><div className="detail-meta">
-              <span className={game.copies_available > 0 ? "meta-ready" : "meta-wait"}>{availabilityLabel(game)}</span>
+              
               {steam?.release_date ? <span>{steam.release_date}</span> : null}
               {steam?.metacritic?.score ? <span className="score"><Star size={13} fill="currentColor" /> {steam.metacritic.score}</span> : null}
               {weight ? <span className={`compatibility-pill ${weight.tone}`}><Gauge size={13} /> {weight.text}</span> : null}

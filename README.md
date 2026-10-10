@@ -1,5 +1,14 @@
 # Game Access
 
+## Current product contract (2026-10-09)
+
+GameAccess is a game library manager, searchable metadata catalog and generic torrent/file download manager. It does not supply Steam provider licenses or bundle/distribute third-party download lists. Users configure external source-provider plugins; those plugins own their source configuration and return download options. Legacy provider/lease code below is historical and does not define the current product.
+
+BASE allows one active download and PLUS up to four. Both have the same catalog, placements, actions and persistent download queue. PLUS accelerated downloads through an internal debrid service and a Viking Files cache remain unimplemented; do not advertise them as working.
+
+The default Download action uses the plugin's first ranked option. Its label retains that option's declared package size and shows the available option count in square brackets. More options (three dots) exposes alternative versions/sources. Source availability and named-source filters are derived from plugins, never embedded catalog links, Steam disk requirements or license capacity. Filter groups are collapsed by default.
+
+
 Game Access es una aplicación Windows construida con **React + Vite + Tauri 2** y un backend central **FastAPI**. El objetivo actual de la beta es permitir que un usuario active Game Access durante un período limitado, consulte el catálogo, descargue juegos y use cuentas Steam proveedoras de forma transparente, manteniendo la autoridad de disponibilidad y leases en el servidor.
 
 > **Estado de arquitectura: 2026-10-01.**

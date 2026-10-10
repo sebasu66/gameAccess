@@ -7,6 +7,12 @@ const STORAGE_KEY = "gameaccess:language";
 const FALLBACK_LOCALE: AppLocale = "en";
 
 const es = {
+  sourcesChecking: "Buscando fuentes…",
+  sourcesUnavailable: "Fuentes no disponibles",
+  sourcesChoose: "Versiones y fuentes",
+  sourcesOptions: "Más opciones de descarga",
+  sourcesFilter: "Fuentes de descarga",
+
   accessPassTitle: "Mi pase",
   accessPassClose: "Cerrar los detalles del pase",
   accessPassExpires: "Vence",
@@ -36,8 +42,8 @@ const es = {
   activationPlusPrice: "ARS 5.000 / USD 3 al mes",
   activationPlusTrial: "Suscripción mensual · 1 semana de prueba gratis.",
   activationEverythingBase: "Todo lo incluido en BASE",
-  activationParallelDownloads: "Descargas en paralelo",
-  activationFastDownloads: "Mayor velocidad de descarga",
+  activationParallelDownloads: "Hasta 4 descargas en paralelo",
+  activationFastDownloads: "Descargas aceleradas · próximamente",
   activationGetPlus: "Probar PLUS",
   activationPlusPending: "Suscripción disponible próximamente",
   language: "Idioma",
@@ -200,7 +206,13 @@ const es = {
 
 type TranslationKey = keyof typeof es;
 
-const en: Record<TranslationKey, string> = {
+const en: Record<keyof typeof es, string> = {
+  sourcesChecking: "Checking sources…",
+  sourcesUnavailable: "No sources available",
+  sourcesChoose: "Versions and sources",
+  sourcesOptions: "More download options",
+  sourcesFilter: "Download sources",
+
   accessPassTitle: "My pass",
   accessPassClose: "Close pass details",
   accessPassExpires: "Expires",

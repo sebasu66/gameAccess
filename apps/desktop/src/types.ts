@@ -1,6 +1,9 @@
 export type AvailabilityState = "ready" | "owned-busy" | "unavailable";
 
 export interface CatalogGame {
+  has_downloads?: boolean;
+  availableSourceCount?: number;
+  download_source_names?: string[];
   filter_match?: "confirmed" | "possible";
   id: number;
   slug: string;

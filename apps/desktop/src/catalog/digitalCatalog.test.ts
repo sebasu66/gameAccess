@@ -82,7 +82,7 @@ describe("DigitalCatalog", () => {
     expect(folderSpy).toHaveBeenCalledWith(sampleGame);
   });
 
-  it("filters out invalid records that lack download sources", async () => {
+  it("retains metadata entries regardless of external source availability", async () => {
     const gameWithSource = {
       ...sampleGame,
       id: 101,
@@ -120,7 +120,7 @@ describe("DigitalCatalog", () => {
       ],
     });
     const games = await service.loadCatalog();
-    expect(games.length).toBe(1);
+    expect(games.length).toBe(4);
     expect(games[0].id).toBe(101);
     expect(games[0].name).toBe("Valid Game");
   });
@@ -139,7 +139,7 @@ describe("DigitalCatalog", () => {
     );
   });
 
-  it("loads default bundled catalog filtering out games with empty download sources", async () => {
+  it("loads bundled metadata without distributing embedded source links", async () => {
     const service = new DigitalCatalog();
     const games = await service.loadCatalog();
     expect(games.length).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe("DigitalCatalog", () => {
     for (const g of games) {
       const rec = service.getRecord(g.id);
       expect(rec).toBeDefined();
-      expect(rec?.downloadSource.trim().length).toBeGreaterThan(0);
+      expect(rec?.downloadSource).toBe("");
     }
   });
 });

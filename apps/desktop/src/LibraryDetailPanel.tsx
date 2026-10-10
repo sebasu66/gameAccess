@@ -1,3 +1,4 @@
+import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 import {downloadButtonLabel} from "./downloadSize";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
@@ -187,104 +188,20 @@ function actionClass(action: LibraryAction, selected: boolean): string {
 }
 
 function ActionButtons(props: FeaturePanelProps) {
-  const {locale,t}=useI18n();
-  const [showSourceSelector, setShowSourceSelector] = useState(false);
-  const [sources, setSources] = useState<any[]>([]);
-  const [loadingSources, setLoadingSources] = useState(false);
-
-  // We check for sources on ALL games, ignoring catalog mode now
-  const srcCount = (props.game as any).availableSourceCount ?? 0;
-
-  const handleAction = (index: number, action: any) => {
-    if (action.kind === "download" && srcCount > 0) {
-      if (!showSourceSelector) {
-        setShowSourceSelector(true);
-        setLoadingSources(true);
-        digitalCatalogService.getSources(props.game).then(srcs => {
-          setSources(srcs);
-          setLoadingSources(false);
-        });
-      } else {
-        props.onAction(index);
-      }
-    } else {
-      props.onAction(index);
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%", zIndex: 10 }}>
-    <div className="library-room-actions glass-actions-row">
-        {props.actions.map((action, index) => (
-          <button
-            type="button"
-            key={`${action.kind}-${action.label}`}
-            ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
-            data-action={action.kind}
-            title={action.reason ?? undefined}
-            className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
-            onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
-            onClick={() => handleAction(index, action)}
-            disabled={action.disabled}
-          >
-            <span className="glass-action-icon">{action.icon}</span>
-            <span className="glass-action-label">{action.kind === "download" ? (srcCount > 0 ? (showSourceSelector ? downloadButtonLabel(props.game,locale) : `Descargar (${srcCount} fuentes)`) : "Fuentes no disponibles") : action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
-          </button>
-        ))}
-    </div>
-    {showSourceSelector && (
-        <div className="source-selector-panel" style={{ padding: "16px", background: "rgba(0,0,0,0.85)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.15)", backdropFilter: "blur(20px)", boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>
-          <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>Elige una versión</span>
-            <button onClick={() => setShowSourceSelector(false)} style={{ background: "none", border: "none", color: "#888", cursor: "pointer", padding: "4px" }}>X</button>
-          </h4>
-          {loadingSources ? (
-            <div style={{ color: "#888", fontSize: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Loader2 size={16} className="spin" /> Buscando opciones...
-            </div>
-          ) : sources.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="best-source" style={{ background: "rgba(255,106,0,0.1)", padding: "12px", borderRadius: "8px", border: "1px solid rgba(255,106,0,0.3)" }}>
-                <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#ff8c3a", fontWeight: "bold" }}>Recomendada (Mejor conectividad)</p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    <div style={{ fontSize: "14px", color: "#fff", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{sources[0].title}</div>
-                    <div style={{ fontSize: "11px", color: "#aaa", marginTop: "2px" }}>{sources[0].size} • {sources[0].pluginName}</div>
-                  </div>
-                  <button onClick={() => {
-                     digitalCatalogService.download(props.game, sources[0].url);
-                     setShowSourceSelector(false);
-                  }} style={{ background: "#ff6a00", color: "#111", border: "none", padding: "8px 16px", borderRadius: "20px", fontWeight: "bold", cursor: "pointer", fontSize: "12px", marginLeft: "12px" }}>Descargar</button>
-                </div>
-              </div>
-              
-              {sources.length > 1 && (
-                <details style={{ fontSize: "12px", color: "#bbb" }}>
-                  <summary style={{ cursor: "pointer", padding: "4px 0" }}>Ver otras {sources.length - 1} alternativas</summary>
-                  <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {sources.slice(1).map((s, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px", background: "rgba(255,255,255,0.03)", borderRadius: "6px" }}>
-                          <div style={{ flex: 1, overflow: "hidden", marginRight: "12px" }}>
-                            <div style={{ color: "#ddd", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{s.title}</div>
-                            <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>{s.size} • {s.pluginName}</div>
-                          </div>
-                          <button onClick={() => {
-                            digitalCatalogService.download(props.game, s.url);
-                            setShowSourceSelector(false);
-                          }} style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "none", padding: "4px 12px", borderRadius: "12px", cursor: "pointer", fontSize: "11px" }}>Bajar</button>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </div>
-          ) : (
-            <p style={{ color: "#888", fontSize: "12px" }}>No se encontraron fuentes estables.</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const { t } = useI18n();
+  return <div className="library-room-actions glass-actions-row">
+    {props.actions.map((action, index) => action.kind === "download"
+      ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} />
+      : <button type="button" key={action.kind}
+        ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
+        data-action={action.kind} title={action.reason ?? undefined}
+        className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
+        onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
+        onClick={() => props.onAction(index)} disabled={action.disabled}>
+        <span className="glass-action-icon">{action.icon}</span>
+        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
+      </button>)}
+  </div>;
 }
 
 function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {

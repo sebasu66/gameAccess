@@ -9,6 +9,8 @@ import type { ManagedDownloadStatus } from "../downloadTypes";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 
+import { getActivationTier } from "../activation";
+
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 /**
@@ -27,11 +29,11 @@ export class DigitalDownloadService implements IDownloadProvider {
   private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   private queue: number[] = [];
   private running = new Set<number>();
-  readonly maxParallelDownloads = 4;
+  get maxParallelDownloads(): number { return this.tier() === "plus" ? 4 : 1; }
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
   private controls = new Set<number>();
 
-  constructor(private storageKey?: string) {
+  constructor(private storageKey?: string, private readonly tier: () => "base" | "plus" | null = getActivationTier) {
     if (!storageKey || typeof localStorage === "undefined") return;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
@@ -89,6 +91,8 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: "En cola" });
     await this.pump();
   }
+
+  async refreshParallelLimit(): Promise<void> { await this.pump(); }
 
   private async pump(): Promise<void> {
     while (this.running.size < this.maxParallelDownloads && this.queue.length > 0) {

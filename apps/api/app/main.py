@@ -1485,6 +1485,30 @@ def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> d
     }
 
 
+@app.get("/library/catalog")
+def library_catalog(session: Session = Depends(get_session)) -> list[dict]:
+    """Public game metadata, independent of licenses and external download lists."""
+    games = session.exec(
+        select(Game).where(
+            Game.active == True,  # noqa: E712
+            Game.app_id.is_not(None),
+            CATALOG_PRODUCT_FILTER,
+        ).order_by(Game.id)
+    ).all()
+    metadata = {}
+    ids = [int(game.id) for game in games]
+    for start in range(0, len(ids), 400):
+        metadata.update(catalog_metadata_for_games(
+            engine, ids[start:start + 400], connection=session.connection(),
+        ))
+    return [{
+        **metadata.get(int(game.id), {}),
+        "id": game.app_id, "app_id": game.app_id,
+        "name": game.name, "slug": game.slug,
+        "credit_cost_per_hour": 0, "copies_total": 0, "copies_available": 0,
+    } for game in games]
+
+
 @app.get("/digital/catalog")
 @app.get("/digital-catalog.json")
 @app.get("/digital_catalog.json")
