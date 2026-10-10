@@ -218,6 +218,35 @@ def media_input(media, base, seconds):
     return ["-ss", str(offset), "-i", path]
 
 
+def operator_key():
+    """Prefer the operator's Windows vault entry; otherwise use configured environment."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        class Credential(ctypes.Structure):
+            _fields_ = [("Flags", wintypes.DWORD), ("Type", wintypes.DWORD),
+                        ("TargetName", wintypes.LPWSTR), ("Comment", wintypes.LPWSTR),
+                        ("LastWritten", wintypes.FILETIME), ("CredentialBlobSize", wintypes.DWORD),
+                        ("CredentialBlob", ctypes.POINTER(ctypes.c_ubyte)), ("Persist", wintypes.DWORD),
+                        ("AttributeCount", wintypes.DWORD), ("Attributes", ctypes.c_void_p),
+                        ("TargetAlias", wintypes.LPWSTR), ("UserName", wintypes.LPWSTR)]
+        api = ctypes.WinDLL("advapi32", use_last_error=True)
+        api.CredReadW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                 ctypes.POINTER(ctypes.POINTER(Credential))]
+        api.CredReadW.restype = wintypes.BOOL
+        api.CredFree.argtypes = [ctypes.c_void_p]
+        api.CredFree.restype = None
+        pointer = ctypes.POINTER(Credential)()
+        if api.CredReadW("GameAccess/GeminiAPIKey", 1, 0, ctypes.byref(pointer)):
+            try:
+                record = pointer.contents
+                return ctypes.string_at(record.CredentialBlob, record.CredentialBlobSize).decode("utf-8")
+            finally:
+                api.CredFree(pointer)
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
 def render(episode_path, output, preview=False, height=1080):
     episode_path = Path(episode_path).resolve()
     episode = read_json(episode_path)
@@ -226,19 +255,23 @@ def render(episode_path, output, preview=False, height=1080):
         raise ValueError("Review sources, narration and media, then set editorial_reviewed=true.")
     if not preview and any(not s.get("media", {}).get("path") for s in episode["sections"]):
         raise ValueError("Select a local image/clip for every section before production render.")
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    key = operator_key()
     if not key:
         raise ValueError("Configure GEMINI_API_KEY in the operator environment.")
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     width = height * 16 // 9
+    # Portable Windows FFmpeg builds often ship without Fontconfig configuration.
+    font = ":fontfile='C\\:/Windows/Fonts/segoeui.ttf'" if os.name == "nt" else ""
     vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=0x111416,setsar=1,fps=30"
     encoding = ["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart"]
     segments, timeline, cues = [], [], []
     intro = ROOT / "apps/desktop/public/brand/logo-intro.webm"
     intro_out = output / "000-intro.mp4"
-    run("ffmpeg", "-y", "-v", "error", "-i", intro, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+    # Use the recognisable end of the existing animation, rather than its particle prelude.
+    logo_start = max(0, duration(intro) - 2)
+    run("ffmpeg", "-y", "-v", "error", "-ss", str(logo_start), "-i", intro, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
         "-t", "2", "-map", "0:v", "-map", "1:a", "-vf", vf, *encoding, intro_out)
     segments.append(intro_out)
     cursor = duration(intro_out)
@@ -249,9 +282,12 @@ def render(episode_path, output, preview=False, height=1080):
         speech = duration(wav)
         seconds = math.ceil((speech + 0.25) * 30) / 30
         slate = output / f"{section['id']}.txt"
-        slate.write_text("\n".join(textwrap.wrap(section.get("title", section["id"]), 38)) +
-                         ("\n\nVISTA PREVIA DEL FORMATO" if preview else ""), encoding="utf-8")
-        overlay = vf + f",drawbox=x=0:y=ih-ih/4:w=iw:h=ih/4:color=black@0.7:t=fill,drawtext=textfile='{slate.name}':fontcolor=0xff6a00:fontsize={height//28}:x=40:y=h-h/5"
+        slate.write_text("\n".join(textwrap.wrap(section.get("title", section["id"]), 38)),
+                         encoding="utf-8", newline="\n")
+        if preview:
+            overlay = vf + f",drawbox=x=iw/12:y=ih/3:w=8:h=ih/3:color=0xff6a00:t=fill,drawtext=textfile='{slate.name}'{font}:fontcolor=white:fontsize={height//14}:x=w/8:y=(h-text_h)/2,drawtext=text='GAMEACCESS - MUESTRA DE FORMATO'{font}:fontcolor=0xff8c3a:fontsize={height//32}:x=w/8:y=h-h/8"
+        else:
+            overlay = vf + f",drawbox=x=0:y=ih-ih/4:w=iw:h=ih/4:color=black@0.7:t=fill,drawtext=textfile='{slate.name}'{font}:fontcolor=0xff6a00:fontsize={height//22}:x=40:y=h-h/6"
         inputs = (["-f", "lavfi", "-i", f"color=c=0x111416:s={width}x{height}:r=30"]
                   if preview and not section.get("media") else media_input(section["media"], episode_path.parent, seconds))
         target = output / f"{index:03}-{section['id']}.mp4"

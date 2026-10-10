@@ -30,7 +30,15 @@ Documentación técnica:
 
 ## Pipeline reproducible
 
-Herramientas: Python 3.10+ (biblioteca estándar), ffmpeg y ffprobe en PATH. La API key se configura sólo en el entorno del operador: GEMINI_API_KEY o GOOGLE_API_KEY. Nunca en Git, frontend, JSON del episodio ni logs.
+Herramientas: Python 3.10+ (biblioteca estándar), ffmpeg y ffprobe en PATH. En este PC usar py -3.11: el Python incluido en Inkscape falló en la validación de certificados HTTPS. No desactivar TLS.
+
+Para ingresar o cambiar la clave con un campo oculto:
+
+~~~powershell
+powershell -NoProfile -STA -ExecutionPolicy Bypass -File tools/editorial_video/configure-gemini-key.ps1
+~~~
+
+La clave se guarda en el Administrador de credenciales de Windows para el usuario actual, bajo GameAccess/GeminiAPIKey. La pipeline prioriza esa entrada y conserva GEMINI_API_KEY o GOOGLE_API_KEY como alternativa para otros entornos. Si la clave existente funciona, el formulario permite cerrar con “Usar actual”. Nunca guardar claves en Git, frontend, JSON del episodio ni logs.
 
 Desde la raíz del repositorio:
 
@@ -74,7 +82,7 @@ python tools/editorial_video/pipeline.py render tools/editorial_video/examples/f
 
 Gemini gemini-3.8-flash-tts recibe el texto literal; acento/ritmo van en speech_metadata.style. La REST Interactions API devuelve WAV completo en unary. La pipeline también convierte audio/l16 a un contenedor WAV válido si se devuelve ese MIME. Cada sección se sintetiza por separado y se reutiliza sólo cuando texto, modelo, voz y estilo coinciden.
 
-Se mide cada WAV con ffprobe. La duración real determina el corte visual, los inicios de sección y los capítulos; la velocidad de voz no se fuerza a una estimación previa. Se normaliza la voz aproximadamente a -16 LUFS, pico -1.5 dB. Render independiente por idioma: la traducción puede durar distinto.
+Se mide cada WAV con ffprobe. La duración real determina el corte visual, los inicios de sección y los capítulos; la velocidad de voz no se fuerza a una estimación previa. Se normaliza la voz aproximadamente a -16 LUFS, pico -1.5 dB. Render independiente por idioma: la traducción puede durar distinto. En Windows el montaje usa Segoe UI instalada, sin depender de Fontconfig.
 
 Salidas: AppID-es.mp4, WAV por sección, timeline.json, captions.vtt y youtube-description.txt. Los límites de sección son medidos; los tiempos de oraciones en VTT son aproximados y requieren revisión antes de publicar. Añadir subtítulos del gameplay sólo si existe diálogo que transcribir.
 
