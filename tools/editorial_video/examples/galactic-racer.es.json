@@ -1,0 +1,154 @@
+{
+  "format_version": 1,
+  "app_id": 4078430,
+  "name": "STAR WARS: Galactic Racer",
+  "locale": "es",
+  "demo": true,
+  "model": "gemini-3.8-flash-tts",
+  "voice": "Kore",
+  "style": "Spanish Latin American neutral accent. Bright, confident racing game presenter, lively conversational rhythm with crisp consonants. Energetic and excited, never shouting or sounding like an advertisement. Use natural emphasis and brief pauses. Read the transcript exactly without adding words.",
+  "facts_checked_at": "2026-10-10T10:27:24.716902+00:00",
+  "editorial_reviewed": true,
+  "music": { "preset": "racing", "bpm": 126, "gain_db": -8 },
+  "outro": false,
+  "brand": { "background": "media/brand-background.mp4" },
+  "sections": [
+    {
+      "id": "hook",
+      "eyebrow": "VELOCIDAD EN EL BORDE EXTERIOR",
+      "title": "STAR WARS:\nGalactic Racer",
+      "summary": "Carreras · Acción · PC",
+      "tags": ["6 OCT 2026", "FUSE GAMES"],
+      "text": "Velocidad, maniobras al límite y carreras en una galaxia muy, muy lejana. Esto es Star Wars: Galactic Racer. En Game Access te contamos qué ofrece y con quién podés jugarlo.",
+      "media": { "path": "media/official-launch.mp4", "start": 8 }
+    },
+    {
+      "id": "about",
+      "eyebrow": "QUÉ HACES EN EL JUEGO",
+      "title": "Tu lugar en la Liga Galáctica",
+      "summary": "Campaña con historia · Rivalidades · Carreras clandestinas",
+      "text": "En la campaña sos Shade, un piloto que busca gloria y revancha en la Liga Galáctica. Es un circuito clandestino donde conocer la pista y sobrevivir a tus rivales importa tanto como acelerar.",
+      "media": { "path": "media/official-launch.mp4", "start": 28 }
+    },
+    {
+      "id": "features",
+      "eyebrow": "QUÉ LO HACE DISTINTO",
+      "title": "Elige tu máquina. Busca tu ruta.",
+      "summary": "Vehículos con distinto manejo · Personalización · Riesgo y recompensa",
+      "tags": ["SPEEDERS", "MOTOS", "PODRACERS"],
+      "text": "Podés pilotar speeders, motos y podracers, con estilos de manejo diferentes. Personalizás tu vehículo y elegís rutas alternativas. Acá, un adelantamiento arriesgado puede darte la ventaja... o dejarte fuera de carrera.",
+      "media": { "path": "media/official-launch.mp4", "start": 48 }
+    },
+    {
+      "id": "reviews",
+      "eyebrow": "VALORACIÓN GENERAL EN STEAM",
+      "title": "¿Qué dicen los jugadores?",
+      "summary": "Fuente: Steam · Consulta: 10 de octubre de 2026",
+      "stat": "82%",
+      "stat_label": "RESEÑAS POSITIVAS",
+      "stat_detail": "2.754 reseñas",
+      "stat_note": "Compradores en Steam · Todos los idiomas · Valoración general",
+      "style": "Spanish Latin American neutral accent. Clear, trustworthy and interested presenter. Slightly calmer pace for the statistics, with precise numbers and natural warmth. Read the transcript exactly without adding words.",
+      "text": "Al diez de octubre, tiene un ochenta y dos por ciento de reseñas positivas sobre dos mil setecientas cincuenta y cuatro opiniones de compradores en Steam, contando todos los idiomas. Es la valoración general; puede cambiar con el tiempo.",
+      "media": { "path": "media/official-launch.mp4", "start": 70 }
+    },
+    {
+      "id": "player-opinions",
+      "eyebrow": "VOCES DE LA COMUNIDAD",
+      "title": "Lo que gusta, y lo que molesta",
+      "summary": "Muestra de 20 reseñas positivas y 20 negativas de Steam · 10 OCT 2026",
+      "tags": ["VELOCIDAD Y MANEJO", "CONTROLES Y SALAS PRIVADAS"],
+      "text": "En las reseñas de Steam que consultamos, se destacan la sensación de velocidad, el manejo y la ambientación. Del lado de las quejas aparecen la falta de reasignación de controles y de salas privadas. Son opiniones de jugadores; no todos valoran lo mismo.",
+      "media": { "path": "media/official-gameplay.mp4", "start": 17 }
+    },
+    {
+      "id": "critics",
+      "eyebrow": "OPINIONES DE LA PRENSA",
+      "title": "Buenas carreras, con matices",
+      "summary": "Análisis publicados el 2 de octubre de 2026 · Plataformas indicadas",
+      "scores": [
+        { "label": "Game Informer · análisis en PS5", "value": "8,5 / 10" },
+        { "label": "PC Gamer · análisis en PC", "value": "76 / 100" }
+      ],
+      "text": "La prensa también tiene matices. Game Informer le puso ocho coma cinco sobre diez: celebra las carreras, pero cuestiona la dificultad inicial y los eventos obligatorios con podracers. PC Gamer le dio setenta y seis sobre cien y valoró la estructura de torneos.",
+      "media": { "path": "media/official-gameplay.mp4", "start": 39 }
+    },
+    {
+      "id": "players",
+      "eyebrow": "CON QUIÉN JUGAR",
+      "title": "Solo, o contra tus amigos online",
+      "summary": "Campaña individual · PvP online · Multijugador multiplataforma",
+      "table_heading": "MODOS Y COMPATIBILIDAD · VERSIÓN PC",
+      "table": [
+        ["Campaña", "Individual · 1 jugador"],
+        ["Cooperativo", "No anunciado"],
+        ["Versus", "Online · modo separado de la campaña"],
+        ["Por carrera", "Hasta 12 speeders / 8 podracers"],
+        ["Grupo de amigos", "3 al lanzamiento · aumento a 6 anunciado"],
+        ["Local / pantalla dividida", "Sin pantalla dividida"],
+        ["Crossplay", "PC y consolas"],
+        ["Realidad virtual", "Sin compatibilidad anunciada en Steam"]
+      ],
+      "text": "¿Con quién jugarlo? La campaña es para uno. El versus online es un modo separado: hasta doce pilotos con speeders u ocho con podracers, con crossplay. No tiene pantalla dividida y no anuncia cooperativo. Ojo: al lanzamiento, el grupo de amigos era de tres; el equipo anunció que lo ampliará a seis. Steam tampoco anuncia compatibilidad con realidad virtual.",
+      "media": { "path": "media/game-art.jpg" }
+    },
+    {
+      "id": "age",
+      "eyebrow": "SI ES PARA TUS HIJOS",
+      "title": "La edad depende de la clasificación",
+      "summary": "Violencia y lenguaje · La clasificación de contenido no mide dificultad",
+      "scores": [
+        { "label": "PEGI · ficha de PC en Steam", "value": "12+" },
+        { "label": "ESRB · versiones de consola", "value": "E10+" }
+      ],
+      "text": "Para la edad, la ficha de PC indica PEGI doce. La ESRB clasifica las versiones de consola a partir de diez años, con violencia fantástica y lenguaje. Si es para tus hijos, mirá también la dificultad y las interacciones online.",
+      "media": { "path": "media/game-art-2.jpg" }
+    },
+    {
+      "id": "pc",
+      "eyebrow": "QUÉ TIPO DE PC NECESITAS",
+      "title": "Una PC gamer de gama media",
+      "summary": "Orientación editorial basada en los requisitos mínimos y recomendados de Steam",
+      "tags": ["GRÁFICA DEDICADA", "DISCO SSD", "GAMA MEDIA GAMER"],
+      "text": "Por sus requisitos publicados, lo ubicaría en una PC gamer de gama media, incluso de hace unos años, con tarjeta gráfica dedicada y disco sólido. Para calidad alta conviene una gama media más reciente. Es una orientación por requisitos; el rendimiento depende de tu equipo y los ajustes.",
+      "media": { "path": "media/game-art-3.jpg" }
+    },
+    {
+      "id": "transition",
+      "eyebrow": "MÍRALO EN MOVIMIENTO",
+      "title": "Ahora, a la pista",
+      "summary": "Imágenes del tráiler oficial de gameplay",
+      "style": "Spanish Latin American neutral accent. Excited, playful racing presenter. Smile in the voice and build momentum into the last sentence, without shouting. Read the transcript exactly without adding words.",
+      "text": "Hay interfaz y subtítulos en español latinoamericano. Ahora sí: mirá estas imágenes del tráiler oficial de gameplay y decidí si esta velocidad es para vos.",
+      "media": { "path": "media/official-launch.mp4", "start": 113 }
+    }
+  ],
+  "closing": {
+    "id": "closing",
+    "layout": "closing",
+    "title": "¿Qué te pareció Galactic Racer?",
+    "summary": "Contanos tu experiencia en los comentarios",
+    "text": "¿Y vos, qué pensás de Galactic Racer? ¿Te gusta esta propuesta, o ya lo probaste? Dejanos tu opinión en los comentarios. Suscribite a Game Access para conocer más juegos y próximos lanzamientos. ¡Gracias por acompañarnos y nos vemos en el próximo video!",
+    "style": "Spanish Latin American neutral accent. Warm, upbeat and friendly. Ask the questions with genuine curiosity, leave short natural pauses, and finish with a smiling farewell. Conversational, not salesy. Read the transcript exactly without adding words.",
+    "media": { "path": "media/brand-background.mp4", "repeat_background": true }
+  },
+  "gameplay": {
+    "path": "media/official-gameplay.mp4",
+    "start": 60,
+    "duration": 20,
+    "title": "Galactic Racer en movimiento",
+    "credit": "Imágenes: tráiler oficial de gameplay · STAR WARS / Fuse Games / Secret Mode"
+  },
+  "sources": [
+    { "label": "Steam Store", "url": "https://store.steampowered.com/app/4078430/STAR_WARS_Galactic_Racer/" },
+    { "label": "Steam reviews (todos los idiomas, compras Steam)", "url": "https://store.steampowered.com/appreviews/4078430?json=1&language=all&purchase_type=steam&review_type=all&filter=all&num_per_page=1" },
+    { "label": "Características oficiales", "url": "https://www.starwars.com/games-apps/star-wars-galactic-racer" },
+    { "label": "Official Gameplay Trailer", "url": "https://www.youtube.com/watch?v=2MtgIoToa7I" },
+    { "label": "Game Informer (PS5)", "url": "https://gameinformer.com/review/star-wars-galactic-racer/very-fast-very-dangerous-and-very-good" },
+    { "label": "PC Gamer (PC)", "url": "https://www.pcgamer.com/games/racing/star-wars-galactic-racer-review/" },
+    { "label": "ESRB (PS5 / Xbox Series)", "url": "https://www.esrb.org/ratings/41403/star-wars-galactic-racertm/" },
+    { "label": "Multijugador: prueba directa de PC Gamer", "url": "https://www.pcgamer.com/games/racing/star-wars-galactic-racers-multiplayer-tour-mode-is-a-chaotic-arcade-racer-spliced-with-a-moba-and-that-somehow-works-brilliantly/" },
+    { "label": "Comunicado del equipo sobre grupos (reproducido por Bespin Bulletin)", "url": "https://bespinbulletin.com/star-wars-galactic-racer-update-to-increase-multiplayer-party-size-private-lobbies-addressed/" }
+  ],
+  "production_note": "Demo local de diseño y sonido. Footage: trailers oficiales publicados en Steam. No es una partida grabada por GameAccess. Revalidar reseñas y autorización de publicación antes del master público. Música instrumental original generada por music.py, sin samples externos."
+}

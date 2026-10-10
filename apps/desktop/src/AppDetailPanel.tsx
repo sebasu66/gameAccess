@@ -1,3 +1,5 @@
+import EditorialGameVideo from "./EditorialGameVideo";
+import { selectEditorialVideo } from "./editorialVideos";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { useCallback, useEffect, useState } from "react";
@@ -125,6 +127,7 @@ export function DetailPanel({
 
   const steam = details?.steam;
   const {description, hero, trailer} = detailMedia(steam, game);
+  const editorial = selectEditorialVideo(game.app_id, locale);
   const weight = heavinessLabel(steam, machine);
   const {localState, activeDownload, playReady, downloadBlocked} = detailActionState(download);
   const currentShot = steam?.screenshots?.[activeShot];
@@ -203,7 +206,7 @@ export function DetailPanel({
           <button type="button" className="close-detail" onClick={closeWithAnimation} aria-label="Volver"><X size={22} /></button>
         </div>
         <div className="detail-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
-          {trailer?.mp4 ? (
+          {!editorial && trailer?.mp4 ? (
             <video className="detail-hero-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline />
           ) : null}
           <div className="detail-hero-shade" />
@@ -232,6 +235,7 @@ export function DetailPanel({
             </section>
           ) : null}
 
+          {editorial ? <EditorialGameVideo key={game.app_id} appId={game.app_id} /> : null}
           {renderGallery()}
         <div className="detail-grid detail-grid-rich">
             <section className="about-card">

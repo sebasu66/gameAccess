@@ -1,0 +1,9 @@
+.ga-editorial-video { width: 100%; color: #f3f3f3; background: #111416; border-radius: 14px; overflow: hidden; }
+.ga-editorial-video header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.ga-editorial-video strong { font-size: 14px; }
+.ga-editorial-video header span { font-size: 12px; color: #ccc; }
+.ga-editorial-video select { background: #202629; border: 1px solid #657078; color: #fff; border-radius: 6px; padding: 6px 8px; }
+.ga-editorial-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 200px; border: 0; }
+.ga-editorial-video a { display: inline-block; color: #ff8c3a; padding: 10px 16px; font-size: 13px; }
+.ga-editorial-video a:focus-visible, .ga-editorial-video select:focus-visible { outline: 2px solid #ff8c3a; outline-offset: -2px; }
+.ga-editorial-screenshot { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #111416; }

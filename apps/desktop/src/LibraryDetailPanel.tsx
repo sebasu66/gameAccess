@@ -1,3 +1,5 @@
+import EditorialGameVideo from "./EditorialGameVideo";
+import { selectEditorialVideo } from "./editorialVideos";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
@@ -338,7 +340,7 @@ function MediaControls({ model }: { model: MediaController }) {
   );
 }
 
-function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+function SteamDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
   const model = useDesktopMedia(game, details);
   return (
     <div className="library-detail-media">
@@ -356,6 +358,21 @@ function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: Gam
       <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{model.state.images.length} capturas</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>
     </div>
   );
+}
+
+function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const { locale } = useI18n();
+  const [shot, setShot] = useState<string | null>(null);
+  if (!selectEditorialVideo(game.app_id, locale)) return <SteamDetailMedia game={game} details={details} />;
+  const images = screenshotImages(details);
+  const english = locale === "en";
+  return <div className="library-detail-media">
+    {shot ? <img className="ga-editorial-screenshot" src={shot} alt={english ? `Screenshot of ${game.name}` : `Captura de ${game.name}`} /> : <EditorialGameVideo key={game.app_id} appId={game.app_id} />}
+    <div className="ga-media-thumbnails">
+      <button type="button" aria-pressed={!shot} onClick={() => setShot(null)}>Video</button>
+      {images.slice(0, 4).map((source, index) => <button type="button" key={source} aria-label={english ? `View screenshot ${index + 1}` : `Ver captura ${index + 1}`} aria-pressed={shot === source} onClick={() => setShot(source)}><img src={source} alt="" /></button>)}
+    </div>
+  </div>;
 }
 
 function SteamHeaderArtwork({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
@@ -517,7 +534,7 @@ function DesktopFeature(props: FeaturePanelProps) {
           </div>
           <div className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label="Me gusta" aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label="No me gusta" aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label="Videos y capturas"><DesktopDetailMedia game={props.game} details={details} /><p className="ga-gallery-note"><Gamepad2 aria-hidden="true" /><span>Videos y capturas del juego · Steam<br />Elegí una captura para explorar la galería.</span></p></section>
+        <section className="ga-detail-gallery" aria-label="Videos y capturas"><DesktopDetailMedia game={props.game} details={details} /><p className="ga-gallery-note"><Gamepad2 aria-hidden="true" /><span>Videos y capturas del juego<br />Elegí una captura para explorar la galería.</span></p></section>
       </div>
     </article>
   );

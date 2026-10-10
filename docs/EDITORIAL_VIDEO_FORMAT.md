@@ -1,0 +1,137 @@
+# Videos editoriales GameAccess — formato v1
+
+Fecha: 2026-10-10. Idioma inicial: español latinoamericano (es). Canal y fichas de juegos comparten el mismo video. Inglés (en) se produce después como versión independiente.
+
+## Identidad y estructura
+
+- Master horizontal 16:9, 1920×1080, 30 fps, H.264/AAC, MP4 con faststart.
+- Intro: formación completa del logo existente apps/desktop/public/brand/logo-intro.webm, junto al sonido que usa la aplicación según opening-audio.json. Mantener el último fotograma hasta acabar el sonido. Quitar sólo la cola silenciosa detectada a -50 dB, conservando 120 ms de decaimiento (activo actual: aproximadamente 4,8 s frente a 8,25 s original). No modificar el asset de la aplicación. Si hay outro animado, lleva la misma firma sonora.
+- Diseño: footage real a pantalla completa, degradados suaves para legibilidad, títulos grandes en blanco, acentos #ff6a00 y gris #111416. Tarjetas animadas de entrada, resumen breve, etiquetas de modos y una tarjeta destacada para porcentaje, número de reseñas y fecha. El wordmark discreto permanece; la firma sonora acompaña las apariciones animadas del logo.
+- Usar el wordmark real GameAccess en Audiowide, blanco metálico y naranja, como VoxelLogo.tsx. Tras la formación, reproducir los 3 s de logo-to-header.webm y dejar logo-header-loop.webm animado en la esquina. El logo sigue una única fase de reproducción durante todo el episodio, sin reiniciarse entre bloques. El contenedor queda fijo; se anima su contenido. FFmpeg debe decodificar estos WebM con libvpx-vp9 para conservar el canal alpha.
+- El fondo aportado por el operador se configura como "brand": { "background": "media/brand-background.mp4" }. Sólo se usa en las escenas de marca/cierre; descartar su audio para conservar el sonido original del logo y la mezcla del episodio. Los medios originales quedan en la carpeta local de producción.
+- Gancho: nombre del juego y una razón concreta para seguir mirando.
+- Presentación: qué hace el jugador, mecánicas distintivas, género y experiencia.
+- Steam: porcentaje positivo, número de reseñas, alcance de la consulta y fecha. Diferenciar valoración general de reciente; popularidad no equivale a calidad.
+- Opiniones: explicar 2–3 aspectos disfrutados y 1–2 críticas concretas. Separar muestra de reseñas de Steam de análisis de prensa; indicar medio, escala y plataforma del análisis. No convertir una muestra seleccionada en un supuesto consenso ni publicar una queja antigua como error confirmado actual. Revisar los hotfixes recientes. Guardar IDs/enlaces, fecha, filtro y tamaño de muestra en el expediente.
+- Con quién jugar: solo, amigos, hijos o pareja, cuando corresponda. Explicar jugadores, local/online, pantallas, equipos y crossplay con evidencia de la versión PC. No recomendar para niños sólo porque haya multijugador: revisar clasificación, dificultad y contenido.
+- Tabla de modos: campaña individual o cooperativa completa, modo cooperativo separado, versus, local/online/LAN, pantalla dividida, jugadores simultáneos por modo, tamaño de grupo de amigos, crossplay y VR nativa/VR requerida/VR opcional, según fuentes. Separar capacidad de la partida y del grupo; indicar planes anunciados como futuros. "No anunciado" o "no confirmado" no equivale a "no compatible". No mezclar mods VR con soporte nativo. Dividir información abundante entre tablas de hasta 8 filas legibles.
+- Edad: organismo, número, región y plataforma; resumir contenido relevante. No inventar "para todas las edades" por la estética. La clasificación de contenido no mide la dificultad; un rating de consola no debe presentarse como una certificación de PC.
+- PC: describir el mínimo como orientación editorial (PC básica, gamer de gama media o alta) basada en requisitos publicados y con fecha. Mantener modelos exactos en facts.json para auditar; en la narración usar términos prácticos como gráfica dedicada/SSD. No prometer FPS o ajustes máximos sin mediciones.
+- Una limitación útil: compras adicionales, requisitos, acceso anticipado o modos separados cuando ayude a decidir.
+- Transición a gameplay: footage que muestre una partida o situación representativa. Mantenerlo mientras aporte interés; sin límite obligatorio de un minuto.
+- Cierre después del gameplay: una pregunta concreta sobre el juego, invitación a contar si lo probaron/comentar, suscripción para juegos y próximos lanzamientos, agradecimiento y despedida. Adaptarlo al episodio para que no suene repetitivo. El master dura lo que requiera el contenido; el guion no necesita forzar todos los apartados en cada juego.
+
+Narración clara, cálida y práctica, sin afirmar que probamos personalmente un juego si no lo hicimos. Evitar repetir la ficha comercial literalmente: el borrador automático es materia prima, no el guion editorial final.
+
+## Fuentes y selección de juegos
+
+Empezar por lanzamientos ya disponibles que tengan actividad/ventas actuales; cruzar fecha de estreno con https://store.steampowered.com/charts/topselling/global y https://store.steampowered.com/charts/mostplayed. Las ventas incluyen ingresos y pueden incluir preventas/DLC: comprobar la ficha antes de recomendar.
+
+Steam Store + reseñas son la base. Co-Optimus amplía modos cooperativos y número de jugadores; contrastar con documentación del editor. El recolector no raspa Co-Optimus automáticamente: guardar su URL y la información comprobada en editorial.play_with y editorial.distinctive_features de facts.json. Otros sitios pueden aportar datos si quedan identificados en sources. Ante un conflicto, dejar el dato pendiente.
+
+Para Galactic Racer no se localizó una ficha verificable de Co-Optimus. La tabla usa Steam, la prueba directa de multijugador de PC Gamer y el comunicado del equipo sobre grupos reproducido por Bespin Bulletin. Para futuros juegos buscar la ficha específica de Co-Optimus; si falta, usar editor/FAQ y documentar la alternativa.
+
+Documentación técnica:
+- Steam reviews: https://partner.steamgames.com/doc/store/getreviews
+- Gemini TTS: https://ai.google.dev/gemini-api/docs/speech-generation
+- YouTube embeds: https://developers.google.com/youtube/player_parameters
+- YouTube rendimiento: https://support.google.com/youtube/answer/141805
+
+## Pipeline reproducible
+
+Herramientas: Python 3.10+, ffmpeg y ffprobe en PATH. Diseño y composición instrumental usan Pillow y NumPy: instalar con python -m pip install -r tools/editorial_video/requirements.txt. En este PC usar py -3.11: el Python incluido en Inkscape falló en la validación de certificados HTTPS. No desactivar TLS.
+
+Para ingresar o cambiar la clave con un campo oculto:
+
+~~~powershell
+powershell -NoProfile -STA -ExecutionPolicy Bypass -File tools/editorial_video/configure-gemini-key.ps1
+~~~
+
+La clave se guarda en el Administrador de credenciales de Windows para el usuario actual, bajo GameAccess/GeminiAPIKey. La pipeline prioriza esa entrada y conserva GEMINI_API_KEY o GOOGLE_API_KEY como alternativa para otros entornos. Si la clave existente funciona, el formulario permite cerrar con “Usar actual”. Nunca guardar claves en Git, frontend, JSON del episodio ni logs.
+
+Desde la raíz del repositorio:
+
+~~~powershell
+python tools/editorial_video/pipeline.py collect 4078430 --output debug/visual/editorial/4078430/facts.json
+python tools/editorial_video/pipeline.py draft debug/visual/editorial/4078430/facts.json --output debug/visual/editorial/4078430/episode.es.json
+~~~
+
+El recolector guarda título, descripción, modos declarados, requisitos PC, clasificaciones regionales declaradas, fuentes, fecha y valoración de compradores Steam en todos los idiomas. No confundir ese porcentaje con el filtro de reseñas en inglés que una página puede mostrar. Las etiquetas de Steam por sí solas no prueban el número de jugadores ni qué parte de una campaña permite cooperativo.
+
+Antes de renderizar, el agente/editor transforma el borrador en un guion conciso, agrega detalles contrastados de cooperativo y características, y elige imágenes/footage. Cada section contiene:
+
+~~~json
+{
+  "id": "about",
+  "title": "Qué ofrece",
+  "eyebrow": "QUÉ HACES EN EL JUEGO",
+  "summary": "Campaña individual · Carreras",
+  "tags": ["SOLO", "ONLINE"],
+  "text": "Narración literal en español latinoamericano.",
+  "style": "Warm, expressive game presenter. Match the mood of this section. Read the transcript exactly.",
+  "media": { "path": "media/official-trailer.mp4", "start": 12 }
+}
+~~~
+
+Las rutas de medios son relativas al JSON del episodio. Para una imagen local usar png/jpg/webp. Para footage, seleccionar un tramo que alcance la duración de la voz más 0.25 s; la pipeline falla si no alcanza, en vez de repetirlo para extender la duración. Un archivo largo puede alimentar varios tramos con offsets diferentes. El audio del tráiler se sustituye por la narración en la presentación. El gameplay extendido conserva su audio:
+
+~~~json
+"gameplay": { "path": "media/gameplay.mp4", "start": 15, "duration": 180 }
+~~~
+
+Registrar origen, crédito y permiso de reutilización del footage en el expediente/sources. Usar gameplay propio o material que el editor/autor permita reutilizar. Localizar un tráiler oficial no demuestra ese permiso. La pipeline consume archivos locales seleccionados; no descarga videos ajenos ni publica automáticamente.
+
+Revisar fuentes, narración, footage y recomendación; establecer editorial_reviewed=true. Ejecutar:
+
+~~~powershell
+python tools/editorial_video/pipeline.py render debug/visual/editorial/4078430/episode.es.json --output debug/visual/editorial/4078430/es
+~~~
+
+Para revisar el formato sin footage, la muestra sintética está identificada visiblemente y nunca representa gameplay:
+
+~~~powershell
+python tools/editorial_video/pipeline.py render tools/editorial_video/examples/format-preview.es.json --preview --height 720 --output debug/visual/editorial/format-preview
+~~~
+
+Gemini gemini-3.8-flash-tts recibe el texto literal; acento/ritmo van en speech_metadata.style. La REST Interactions API devuelve WAV completo en unary. La pipeline también convierte audio/l16 a un contenedor WAV válido si se devuelve ese MIME. Cada sección se sintetiza por separado y se reutiliza sólo cuando texto, modelo, voz y estilo coinciden.
+
+El style de cada sección tiene prioridad sobre el style general. Adaptar la interpretación al juego: carreras, ritmo vivo y entusiasmo; terror, tensión contenida y pausas; cozy, calidez y tranquilidad. Bajar la velocidad al explicar cifras o restricciones. La dirección de voz no se inserta en el texto hablado. No acelerar digitalmente el WAV para hacerlo encajar.
+
+Música opcional a nivel de episodio: "music": { "preset": "racing", "bpm": 126, "gain_db": -8 }. music.py compone una base electrónica instrumental original con bajo, percusión y arpegios, sin samples externos; el preset disponible es racing. También acepta "path" relativo al JSON para una pista propia/autorizada. La base continúa entre secciones, entra después del logo, se atenúa automáticamente por sidechain durante la voz y sale antes del gameplay con audio propio. No tapar la firma del logo ni apilar dos músicas en el gameplay. "outro": true añade cierre animado con su sonido.
+
+La propiedad closing contiene una sección narrada igual que sections, pero se renderiza después del gameplay. Puede usar layout="closing" para la tarjeta de pregunta/suscripción y media={"path":"media/brand-background.mp4","repeat_background":true} para repetir sólo el fondo abstracto aportado, no el gameplay. La música vuelve durante este cierre y se desvanece al terminar. Su WAV, subtítulos y capítulo forman parte de la misma línea de tiempo.
+
+Las tablas se definen con table=[["Campaña","Individual · 1 jugador"], ...] y table_heading. Las notas numéricas de prensa/edad usan scores=[{"label":"PC Gamer · PC","value":"76 / 100"}, ...]. Estos valores son editoriales comprobados, no inferencias automáticas de género. Mantener identificadas las fuentes y la fecha en pantalla.
+
+Tarjeta de reseñas: stat, stat_label, stat_detail y stat_note contienen los valores visibles. Revisarlos contra facts.json. "demo": true identifica visualmente una muestra con footage; es independiente de --preview, que sigue reservado para placas sintéticas sin footage.
+
+Se mide cada WAV con ffprobe. La duración real determina el corte visual, los inicios de sección y los capítulos; la velocidad de voz no se fuerza a una estimación previa. Se normaliza la voz aproximadamente a -16 LUFS, pico -1.5 dB. Render independiente por idioma: la traducción puede durar distinto. En Windows el montaje usa Segoe UI instalada, sin depender de Fontconfig.
+
+Salidas: AppID-es.mp4, WAV por sección, timeline.json, captions.vtt y youtube-description.txt. Los límites de sección son medidos; los tiempos de oraciones en VTT son aproximados y requieren revisión antes de publicar. Añadir subtítulos del gameplay sólo si existe diálogo que transcribir.
+
+## Publicación e integración
+
+1. Revisar visualmente imagen, voz, datos y créditos; comprobar subtítulos/capítulos.
+2. Publicar el master en el canal GameAccess y habilitar embedding. El operador aporta el video ID real.
+3. Registrar en apps/desktop/src/editorialVideos.ts, usando Steam AppID (no game.id), idioma, ID de YouTube, título y publishedAt.
+4. Seguir GitHub-first: cambio/commit en GitHub, sincronización con monigote, build/test.
+5. Las fichas priorizan el video publicado y conservan capturas. Sin registro, conservan su contenido de Steam. El registro inicial está vacío: ninguna URL inventada.
+6. Si existe en inglés, la UI ofrece Español/English. Si sólo hay español, se muestra español aunque la interfaz esté en inglés.
+7. El iframe permite controles, fullscreen, subtítulos y salida “Ver en YouTube”. Sin autoplay con sonido. La CSP nativa permite únicamente www.youtube-nocookie.com como frame externo.
+8. Verificar playback en la aplicación Tauri con un ID publicado real. WebViews pueden necesitar identificación/referrer aceptado por YouTube; el enlace externo queda disponible si el embed es rechazado. Compilar no prueba playback.
+
+No generar voces desde el cliente ni exponer la key. No integrar MP4 enormes, secretos o medios descargados en Git. No declarar publicado/integrado un episodio sólo porque exista un render local o un PR.
+
+## Validación y próximos episodios
+
+~~~powershell
+python -m unittest discover -s tools/editorial_video -p "test_*.py"
+npm --prefix apps/desktop test -- --run src/editorialVideos.test.tsx
+npm --prefix apps/desktop run build
+~~~
+
+QA por episodio: ver de principio a fin; comprobar textos/porcentajes/fechas; escuchar acento y pronunciación; comprobar cortes, silencio y clipping; probar idioma y reproducción en navegador/Tauri. Medir clics, tiempo visto y caída al pasar a gameplay para ajustar el formato.
+
+Demo editorial: tools/editorial_video/examples/galactic-racer.es.json (AppID 4078430). Guion y cifras son un snapshot del 10 de octubre de 2026; revalidarlos antes de publicar. Copiar el JSON a una carpeta de trabajo con media/official-launch.mp4 y media/official-gameplay.mp4, ambos tráileres oficiales obtenidos de la ficha de Steam. Renderizar con el comando habitual. La presentación usa el tráiler de lanzamiento; el tramo final usa imágenes del tráiler de gameplay y se identifica así, sin afirmar que sea una partida propia. Es una demo local; no se ha publicado ni registrado un ID de YouTube.
+
+La revisión ampliada requiere también media/game-art.jpg, game-art-2.jpg y game-art-3.jpg (capturas oficiales Steam), y media/brand-background.mp4 (Colorful_light_rays_shooting.mp4 aportado por el usuario). Incluye opiniones, tabla de modos/VR, edad y PC, más un cierre narrado. La muestra de opiniones usa 20 positivas y 20 negativas de compradores Steam, todos los idiomas, orden general; es una muestra seleccionada, no una encuesta representativa. El hotfix del 9 de octubre revisado afecta drivers y estabilidad DLSS; no anuncia rebinding ni salas privadas. El grupo era de 3 al lanzamiento y el aumento a 6 estaba anunciado; no se presenta ese aumento como implementado. El expediente tools/editorial_video/examples/galactic-racer.sources.md conserva los filtros, IDs de reseñas, requisitos y distinciones de plataforma para auditar la demo.

@@ -78,3 +78,7 @@ logs/
 # Local runtime database and private source configuration
 /apps/api/app.db
 /apps/api/data/
+
+# Operator editorial media, narration and renders
+/tools/editorial_video/.work/
+/tools/editorial_video/outputs/
