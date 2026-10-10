@@ -53,7 +53,6 @@ function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable 
       busy={false}
       onPlay={() => undefined}
       onDownload={() => undefined}
-      onOpenDetails={() => undefined}
     />,
   );
 }

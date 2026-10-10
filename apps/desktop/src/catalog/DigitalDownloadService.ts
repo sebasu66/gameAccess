@@ -12,6 +12,9 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 import { getActivationTier } from "../activation";
 
+export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
+export interface DownloadSpeedSample { time: number; speedBps: number; }
+
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 /**
@@ -33,6 +36,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   get maxParallelDownloads(): number { return this.tier() === "plus" ? 4 : 1; }
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
   private controls = new Set<number>();
+  private speeds = new Map<number, DownloadSpeedSample[]>();
+  getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
 
   constructor(private storageKey?: string, private readonly tier: () => "base" | "plus" | null = getActivationTier) {
     if (!storageKey || typeof localStorage === "undefined") return;
@@ -41,13 +46,21 @@ export class DigitalDownloadService implements IDownloadProvider {
       if (!saved || !Array.isArray(saved.entries)) return;
       for (const entry of saved.entries) {
         if (!entry?.game || !entry?.snapshot || typeof entry.snapshot.gameId !== "number") continue;
-        if (entry.snapshot.phase === "cancelled") continue;
+        if (isDownloadHistory(entry.snapshot.phase)) continue;
         const snapshot: DownloadProgressSnapshot =
           entry.snapshot.phase === "completed" && entry.snapshot.statusText?.startsWith("Abierto en navegador web.")
             ? { ...entry.snapshot, phase: "external" }
             : entry.snapshot;
         this.jobs.set(snapshot.gameId, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
-        this.activeJobs.set(snapshot.gameId, snapshot);
+        if (snapshot.phase === "downloading" && Number.isFinite(snapshot.speedBps)) {
+      const time = Date.now();
+      const samples = (this.speeds.get(snapshot.gameId) ?? []).filter(sample => sample.time >= time - 60000);
+      const sample = { time, speedBps: Math.max(0, snapshot.speedBps ?? 0) };
+      if (samples.length && time - samples[samples.length - 1].time < 500) samples[samples.length - 1] = sample;
+      else samples.push(sample);
+      this.speeds.set(snapshot.gameId, samples.slice(-61));
+    }
+    this.activeJobs.set(snapshot.gameId, snapshot);
         this.reportFailure(snapshot);
       }
       this.queue = Array.isArray(saved.queue) ? saved.queue.filter((id: number) => this.activeJobs.get(id)?.phase === "queued") : [];
@@ -56,6 +69,7 @@ export class DigitalDownloadService implements IDownloadProvider {
         const active = this.activeJobs.get(id);
         if (active && !["queued", "completed", "error", "cancelled", "interrupted", "external"].includes(active.phase)) this.running.add(id);
       }
+      this.persist();
       setTimeout(() => {
         if (!hasTauriRuntime()) return;
         for (const id of this.running) {
@@ -72,7 +86,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     try {
       localStorage.setItem(this.storageKey, JSON.stringify({
         queue: this.queue, running: [...this.running],
-        entries: this.getDownloads().map(entry => ({ ...entry, record: this.jobs.get(entry.snapshot.gameId)?.options?.record })),
+        entries: this.getDownloads().filter(entry => !isDownloadHistory(entry.snapshot.phase)).map(entry => ({ ...entry, record: this.jobs.get(entry.snapshot.gameId)?.options?.record })),
       }));
     } catch { /* Storage is best-effort; running jobs remain managed in memory. */ }
   }
@@ -83,12 +97,30 @@ export class DigitalDownloadService implements IDownloadProvider {
     }));
   }
 
+  /** Removing a row never removes library membership or an installed game. */
+  async remove(gameId: number): Promise<void> {
+    const previous = this.activeJobs.get(gameId);
+    if (!previous) return;
+    if (!isDownloadHistory(previous.phase)) await this.cancel(gameId);
+    const current = this.activeJobs.get(gameId);
+    if (this.running.has(gameId) || (current && !isDownloadHistory(current.phase))) {
+      throw new Error("Espera a que termine la cancelación de la descarga.");
+    }
+    this.jobs.delete(gameId);
+    this.activeJobs.delete(gameId);
+    this.speeds.delete(gameId);
+    this.queue = this.queue.filter(id => id !== gameId);
+    this.persist();
+    for (const listener of this.globalListeners) listener(current ?? previous);
+  }
+
   async start(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
     if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
     libraryMembership.add(game);
+    this.speeds.delete(id);
     this.jobs.set(id, { game, options: options ?? this.jobs.get(id)?.options });
     this.queue.push(id);
     void narrate(`Digital AppID ${id} · queued at position ${this.queue.length}; active=${this.running.size}, limit=${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });

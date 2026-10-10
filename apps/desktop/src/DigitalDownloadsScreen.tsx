@@ -8,6 +8,7 @@ import { digitalDownloadService, type DigitalDownloadService } from "./catalog/D
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
 import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
+import DownloadTelemetry from "./DownloadTelemetry";
 import { useDialogFocus } from "./dialogFocus";
 import { useOverlayClose } from "./useOverlayClose";
 
@@ -73,9 +74,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
         <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
+        {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" && phase !== "external" ? <>
           <div className="digital-download-progress-line"><span>{phase === "completed" ? t("downloadsInstalled") : phaseLabel(phase)}</span><strong>{Math.round(percent)}%</strong></div>
-          <progress max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:phaseLabel(phase)})} />
+          <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:phaseLabel(phase)})} />
           <dl className="digital-download-metrics">
             <div><dt>{t("downloadsDownloaded")}</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded,locale)} / {sourceSize}</dd></div>
             <div><dt>{t("downloadsSpeed")}</dt><dd>{transfer ? `${formatDownloadBytes(snapshot.speedBps,locale)} / s` : "—"}</dd></div>
@@ -84,6 +86,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         </> : null}
       </div>
       <div className="digital-download-actions">
+        <button type="button" className="digital-download-dismiss" disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t(terminal(entry) ? "downloadsRemoveAria" : "downloadsCancelAria", {name:game.name})} title={t(terminal(entry) ? "downloadsRemove" : "downloadsCancel")} onClick={() => void run(gameId, () => service.remove(gameId))}><X size={18} /></button>
         {phase === "external" ? <button type="button" disabled={busy.includes(gameId)} aria-label={t("downloadsOpenExternalLink")} onClick={() => void run(gameId, () => service.start(game))}><ExternalLink size={16} />{busy.includes(gameId) ? t("downloadsLaunching") : t("downloadsOpenExternalLink")}</button> : null}
         {phase === "completed" ? <button type="button" className="ga-download-play" disabled={busy.includes(gameId)} aria-label={t("downloadsPlayAria",{name:game.name})} onClick={() => void run(gameId, async () => { if(onPlay) await onPlay(game); else await service.play(game); })}><Play size={20} fill="currentColor"/>{busy.includes(gameId) ? t("downloadsLaunching") : t("downloadsPlay")}</button> : null}
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
@@ -103,6 +106,6 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
     {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
     {queue.length ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
-    {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsFinished")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
+    {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsSession")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
   </section>;
 }

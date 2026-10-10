@@ -98,18 +98,43 @@ describe("Digital download scheduling", () => {
     }), setItem: vi.fn() });
     expect(new DigitalDownloadService("old-state").getDownloads()).toEqual([]);
   });
-  it("migrates old browser handoffs out of the false completed state", () => {
-    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({
-      entries: [{ game: game(7), snapshot: {
-        gameId: 7, phase: "completed", progress: 100,
-        statusText: "Abierto en navegador web. Usa el botón de la página (Servidor ocupado).",
-      } }],
-      queue: [], running: [],
-    }), setItem: vi.fn() });
-    const service = new DigitalDownloadService("browser-handoff-migration");
-    expect(service.getDownloads()[0].snapshot.phase).toBe("external");
-    expect(service.getManagedStatus(7)?.installed).toBe(false);
-    expect(service.getManagedStatus(7)?.state).toBe("not-installed");
+  it("clears previous-session finished entries while retaining pending downloads", () => {
+    const phases = ["completed", "error", "interrupted", "external", "cancelled", "queued", "paused", "downloading"] as const;
+    const storage = new Map([["session-history", JSON.stringify({
+      entries: phases.map((phase,i) => ({ game: game(i + 1), snapshot: { gameId: i + 1, phase, progress: 10 } })),
+      queue: [6], running: [8],
+    })]]);
+    vi.stubGlobal("localStorage", { getItem: (key:string) => storage.get(key) ?? null, setItem: (key:string,value:string) => storage.set(key,value) });
+    const service = new DigitalDownloadService("session-history");
+    expect(service.getDownloads().map(entry => entry.snapshot.phase)).toEqual(["queued", "paused", "downloading"]);
+    expect(JSON.parse(storage.get("session-history")!).entries).toHaveLength(3);
+  });
+  it("dismisses a finished row without uninstalling or invoking worker cancellation", async () => {
+    const service = new DigitalDownloadService();
+    await service.start(game(1));
+    service.updateSnapshot({gameId:1,phase:"completed",progress:100});
+    mock.mockClear();
+    await service.remove(1);
+    expect(service.getDownloads()).toEqual([]);
+    expect(mock).not.toHaveBeenCalled();
+  });
+  it("does not remove an active row when cancellation fails", async () => {
+    const service = new DigitalDownloadService(); await service.start(game(1));
+    mock.mockRejectedValueOnce(new Error("still running"));
+    await expect(service.remove(1)).rejects.toThrow("still running");
+    expect(service.getDownloads()).toHaveLength(1);
+  });
+  it("records only actual speed samples and bounds their lifetime", async () => {
+    const service = new DigitalDownloadService(); service.recordFailure(game(1), "fixture");
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:1,speedBps:100});
+    await vi.advanceTimersByTimeAsync(600);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:2,speedBps:200});
+    expect(service.getSpeedSamples(1).map(sample=>sample.speedBps)).toEqual([100,200]);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:3,speedBps:NaN});
+    expect(service.getSpeedSamples(1)).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(61000);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:4,speedBps:300});
+    expect(service.getSpeedSamples(1).map(sample=>sample.speedBps)).toEqual([300]);
   });
   it("refills a cancelled slot without restarting other workers", async () => {
     const service = new DigitalDownloadService(undefined, () => "plus");
