@@ -726,6 +726,14 @@ def stop_discovery_worker():
     stop_maintenance()
 
 
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin-console/", response_class=HTMLResponse)
+def admin_home(request: Request):
+    _admin_browser_access(request)
+    page = Path(__file__).resolve().parents[1] / "admin" / "index.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/health")
 def health() -> dict:
     return {

@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::{
     collections::HashSet,
     env, fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
 };
 
