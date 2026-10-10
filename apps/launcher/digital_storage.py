@@ -55,16 +55,31 @@ class DigitalGameStorage:
         return {"folder": str(folder), "installed": available}
 
     def snapshot(self, games: list[dict]) -> dict:
-        # List local roots once. A remote catalog entry without a local folder
-        # never needs path resolution or a recursive filesystem scan.
-        folders = {entry.name for entry in self.root.iterdir()} if self.root.is_dir() else set()
-        records = {entry.name for entry in self.registry.iterdir()} if self.registry.is_dir() else set()
+        # The local game directory is authoritative. Build catalog lookups in
+        # memory, then inspect only the subfolders that actually exist.
+        if not self.root.is_dir():
+            return {}
+        games_by_id = {str(int(game["id"])): game for game in games}
+        games_by_folder = {}
+        for app_id, game in games_by_id.items():
+            title = self.folder_name(game["name"])
+            for key in (title, f"{app_id}-{title}"):
+                games_by_folder.setdefault(key, {})[app_id] = game
+        if self.registry.is_dir():
+            for record in self.registry.glob("*.json"):
+                game = games_by_id.get(record.stem)
+                if game is None:
+                    continue
+                folder = self.folder(int(record.stem), game["name"])
+                root_folder = folder.relative_to(self.root).parts[0]
+                games_by_folder.setdefault(root_folder, {})[record.stem] = game
         statuses = {}
-        for game in games:
-            app_id, name = int(game["id"]), game["name"]
-            title = self.folder_name(name)
-            if f"{app_id}.json" in records or title in folders or f"{app_id}-{title}" in folders:
-                statuses[str(app_id)] = self.status(app_id, name)
+        for folder in self.root.iterdir():
+            if not folder.is_dir():
+                continue
+            for app_id, game in games_by_folder.get(folder.name, {}).items():
+                if app_id not in statuses:
+                    statuses[app_id] = self.status(int(app_id), game["name"])
         return statuses
 
     def uninstall(self, app_id: int, name: str) -> Path:
