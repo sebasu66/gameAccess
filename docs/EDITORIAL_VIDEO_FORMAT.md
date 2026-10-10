@@ -5,7 +5,8 @@ Fecha: 2026-10-10. Idioma inicial: español latinoamericano (es). Canal y fichas
 ## Identidad y estructura
 
 - Master horizontal 16:9, 1920×1080, 30 fps, H.264/AAC, MP4 con faststart.
-- Intro: 2 segundos del logo existente apps/desktop/public/brand/logo-intro.webm; charcoal #111416 y naranja #ff6a00. Evitar una apertura larga antes del juego.
+- Intro: formación completa del logo existente apps/desktop/public/brand/logo-intro.webm, junto al sonido que usa la aplicación según opening-audio.json. Mantener el último fotograma hasta acabar el sonido. Quitar sólo la cola silenciosa detectada a -50 dB, conservando 120 ms de decaimiento (activo actual: aproximadamente 4,8 s frente a 8,25 s original). No modificar el asset de la aplicación. Si hay outro animado, lleva la misma firma sonora.
+- Diseño: footage real a pantalla completa, degradados suaves para legibilidad, títulos grandes en blanco, acentos #ff6a00 y gris #111416. Tarjetas animadas de entrada, resumen breve, etiquetas de modos y una tarjeta destacada para porcentaje, número de reseñas y fecha. El wordmark discreto permanece; la firma sonora acompaña las apariciones animadas del logo.
 - Gancho: nombre del juego y una razón concreta para seguir mirando.
 - Presentación: qué hace el jugador, mecánicas distintivas, género y experiencia.
 - Steam: porcentaje positivo, número de reseñas, alcance de la consulta y fecha. Diferenciar valoración general de reciente; popularidad no equivale a calidad.
@@ -30,7 +31,7 @@ Documentación técnica:
 
 ## Pipeline reproducible
 
-Herramientas: Python 3.10+ (biblioteca estándar), ffmpeg y ffprobe en PATH. En este PC usar py -3.11: el Python incluido en Inkscape falló en la validación de certificados HTTPS. No desactivar TLS.
+Herramientas: Python 3.10+, ffmpeg y ffprobe en PATH. Diseño y composición instrumental usan Pillow y NumPy: instalar con python -m pip install -r tools/editorial_video/requirements.txt. En este PC usar py -3.11: el Python incluido en Inkscape falló en la validación de certificados HTTPS. No desactivar TLS.
 
 Para ingresar o cambiar la clave con un campo oculto:
 
@@ -55,7 +56,11 @@ Antes de renderizar, el agente/editor transforma el borrador en un guion conciso
 {
   "id": "about",
   "title": "Qué ofrece",
+  "eyebrow": "QUÉ HACES EN EL JUEGO",
+  "summary": "Campaña individual · Carreras",
+  "tags": ["SOLO", "ONLINE"],
   "text": "Narración literal en español latinoamericano.",
+  "style": "Warm, expressive game presenter. Match the mood of this section. Read the transcript exactly.",
   "media": { "path": "media/official-trailer.mp4", "start": 12 }
 }
 ~~~
@@ -81,6 +86,12 @@ python tools/editorial_video/pipeline.py render tools/editorial_video/examples/f
 ~~~
 
 Gemini gemini-3.8-flash-tts recibe el texto literal; acento/ritmo van en speech_metadata.style. La REST Interactions API devuelve WAV completo en unary. La pipeline también convierte audio/l16 a un contenedor WAV válido si se devuelve ese MIME. Cada sección se sintetiza por separado y se reutiliza sólo cuando texto, modelo, voz y estilo coinciden.
+
+El style de cada sección tiene prioridad sobre el style general. Adaptar la interpretación al juego: carreras, ritmo vivo y entusiasmo; terror, tensión contenida y pausas; cozy, calidez y tranquilidad. Bajar la velocidad al explicar cifras o restricciones. La dirección de voz no se inserta en el texto hablado. No acelerar digitalmente el WAV para hacerlo encajar.
+
+Música opcional a nivel de episodio: "music": { "preset": "racing", "bpm": 126, "gain_db": -8 }. music.py compone una base electrónica instrumental original con bajo, percusión y arpegios, sin samples externos; el preset disponible es racing. También acepta "path" relativo al JSON para una pista propia/autorizada. La base continúa entre secciones, entra después del logo, se atenúa automáticamente por sidechain durante la voz y sale antes del gameplay con audio propio. No tapar la firma del logo ni apilar dos músicas en el gameplay. "outro": true añade cierre animado con su sonido.
+
+Tarjeta de reseñas: stat, stat_label, stat_detail y stat_note contienen los valores visibles. Revisarlos contra facts.json. "demo": true identifica visualmente una muestra con footage; es independiente de --preview, que sigue reservado para placas sintéticas sin footage.
 
 Se mide cada WAV con ffprobe. La duración real determina el corte visual, los inicios de sección y los capítulos; la velocidad de voz no se fuerza a una estimación previa. Se normaliza la voz aproximadamente a -16 LUFS, pico -1.5 dB. Render independiente por idioma: la traducción puede durar distinto. En Windows el montaje usa Segoe UI instalada, sin depender de Fontconfig.
 
@@ -109,4 +120,4 @@ npm --prefix apps/desktop run build
 
 QA por episodio: ver de principio a fin; comprobar textos/porcentajes/fechas; escuchar acento y pronunciación; comprobar cortes, silencio y clipping; probar idioma y reproducción en navegador/Tauri. Medir clics, tiempo visto y caída al pasar a gameplay para ajustar el formato.
 
-Primer candidato editorial: STAR WARS: Galactic Racer (AppID 4078430). La muestra incluida sólo valida el formato; no es su video final ni lleva footage de ese juego.
+Demo editorial: tools/editorial_video/examples/galactic-racer.es.json (AppID 4078430). Guion y cifras son un snapshot del 10 de octubre de 2026; revalidarlos antes de publicar. Copiar el JSON a una carpeta de trabajo con media/official-launch.mp4 y media/official-gameplay.mp4, ambos tráileres oficiales obtenidos de la ficha de Steam. Renderizar con el comando habitual. La presentación usa el tráiler de lanzamiento; el tramo final usa imágenes del tráiler de gameplay y se identifica así, sin afirmar que sea una partida propia. Es una demo local; no se ha publicado ni registrado un ID de YouTube.

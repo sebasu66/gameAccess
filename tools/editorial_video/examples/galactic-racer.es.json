@@ -1,0 +1,87 @@
+{
+  "format_version": 1,
+  "app_id": 4078430,
+  "name": "STAR WARS: Galactic Racer",
+  "locale": "es",
+  "demo": true,
+  "model": "gemini-3.8-flash-tts",
+  "voice": "Kore",
+  "style": "Spanish Latin American neutral accent. Bright, confident racing game presenter, lively conversational rhythm with crisp consonants. Energetic and excited, never shouting or sounding like an advertisement. Use natural emphasis and brief pauses. Read the transcript exactly without adding words.",
+  "facts_checked_at": "2026-10-10T10:27:24.716902+00:00",
+  "editorial_reviewed": true,
+  "music": { "preset": "racing", "bpm": 126, "gain_db": -8 },
+  "outro": true,
+  "sections": [
+    {
+      "id": "hook",
+      "eyebrow": "VELOCIDAD EN EL BORDE EXTERIOR",
+      "title": "STAR WARS:\nGalactic Racer",
+      "summary": "Carreras · Acción · PC",
+      "tags": ["6 OCT 2026", "FUSE GAMES"],
+      "text": "Velocidad, maniobras al límite y carreras en una galaxia muy, muy lejana. Esto es Star Wars: Galactic Racer. En Game Access te contamos qué ofrece y con quién podés jugarlo.",
+      "media": { "path": "media/official-launch.mp4", "start": 8 }
+    },
+    {
+      "id": "about",
+      "eyebrow": "QUÉ HACES EN EL JUEGO",
+      "title": "Tu lugar en la Liga Galáctica",
+      "summary": "Campaña con historia · Rivalidades · Carreras clandestinas",
+      "text": "En la campaña sos Shade, un piloto que busca gloria y revancha en la Liga Galáctica. Es un circuito clandestino donde conocer la pista y sobrevivir a tus rivales importa tanto como acelerar.",
+      "media": { "path": "media/official-launch.mp4", "start": 28 }
+    },
+    {
+      "id": "features",
+      "eyebrow": "QUÉ LO HACE DISTINTO",
+      "title": "Elige tu máquina. Busca tu ruta.",
+      "summary": "Vehículos con distinto manejo · Personalización · Riesgo y recompensa",
+      "tags": ["SPEEDERS", "MOTOS", "PODRACERS"],
+      "text": "Podés pilotar speeders, motos y podracers, con estilos de manejo diferentes. Personalizás tu vehículo y elegís rutas alternativas. Acá, un adelantamiento arriesgado puede darte la ventaja... o dejarte fuera de carrera.",
+      "media": { "path": "media/official-launch.mp4", "start": 48 }
+    },
+    {
+      "id": "reviews",
+      "eyebrow": "VALORACIÓN GENERAL EN STEAM",
+      "title": "¿Qué dicen los jugadores?",
+      "summary": "Fuente: Steam · Consulta: 10 de octubre de 2026",
+      "stat": "82%",
+      "stat_label": "RESEÑAS POSITIVAS",
+      "stat_detail": "2.754 reseñas",
+      "stat_note": "Compradores en Steam · Todos los idiomas · Valoración general",
+      "style": "Spanish Latin American neutral accent. Clear, trustworthy and interested presenter. Slightly calmer pace for the statistics, with precise numbers and natural warmth. Read the transcript exactly without adding words.",
+      "text": "Al diez de octubre, tiene un ochenta y dos por ciento de reseñas positivas sobre dos mil setecientas cincuenta y cuatro opiniones de compradores en Steam, contando todos los idiomas. Es la valoración general; puede cambiar con el tiempo.",
+      "media": { "path": "media/official-launch.mp4", "start": 70 }
+    },
+    {
+      "id": "players",
+      "eyebrow": "CON QUIÉN JUGAR",
+      "title": "Solo, o contra tus amigos online",
+      "summary": "Campaña individual · PvP online · Multijugador multiplataforma",
+      "tags": ["SOLO", "COMPETITIVO ONLINE", "CROSSPLAY"],
+      "text": "¿Con quién jugarlo? Solo, para seguir la campaña, o con amigos para competir online. Steam indica multijugador multiplataforma. Si pensás jugar con tu pareja, tené en cuenta que la ficha no anuncia cooperativo local ni pantalla dividida.",
+      "media": { "path": "media/official-launch.mp4", "start": 91 }
+    },
+    {
+      "id": "transition",
+      "eyebrow": "MÍRALO EN MOVIMIENTO",
+      "title": "Ahora, a la pista",
+      "summary": "Imágenes del tráiler oficial de gameplay",
+      "style": "Spanish Latin American neutral accent. Excited, playful racing presenter. Smile in the voice and build momentum into the last sentence, without shouting. Read the transcript exactly without adding words.",
+      "text": "Hay interfaz y subtítulos en español latinoamericano. Ahora sí: mirá estas imágenes del tráiler oficial de gameplay y decidí si esta velocidad es para vos.",
+      "media": { "path": "media/official-launch.mp4", "start": 113 }
+    }
+  ],
+  "gameplay": {
+    "path": "media/official-gameplay.mp4",
+    "start": 60,
+    "duration": 20,
+    "title": "Galactic Racer en movimiento",
+    "credit": "Imágenes: tráiler oficial de gameplay · STAR WARS / Fuse Games / Secret Mode"
+  },
+  "sources": [
+    { "label": "Steam Store", "url": "https://store.steampowered.com/app/4078430/STAR_WARS_Galactic_Racer/" },
+    { "label": "Steam reviews (todos los idiomas, compras Steam)", "url": "https://store.steampowered.com/appreviews/4078430?json=1&language=all&purchase_type=steam&review_type=all&filter=all&num_per_page=1" },
+    { "label": "Características oficiales", "url": "https://www.starwars.com/games-apps/star-wars-galactic-racer" },
+    { "label": "Official Gameplay Trailer", "url": "https://www.youtube.com/watch?v=2MtgIoToa7I" }
+  ],
+  "production_note": "Demo local de diseño y sonido. Footage: trailers oficiales publicados en Steam. No es una partida grabada por GameAccess. Revalidar reseñas y autorización de publicación antes del master público. Música instrumental original generada por music.py, sin samples externos."
+}

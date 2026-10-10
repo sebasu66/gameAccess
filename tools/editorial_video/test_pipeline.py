@@ -3,6 +3,7 @@ import io
 import tempfile
 import unittest
 import wave
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,6 +53,24 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("annotations", body["input"][0]["content"][0])
             pipeline.synthesize({**section, "text": "Texto diferente."}, episode, path, "never_logged")
             self.assertEqual(api.call_count, 2)
+            expressive = {**section, "style": "Excited racing presenter."}
+            pipeline.synthesize(expressive, episode, path, "never_logged")
+            self.assertEqual(api.call_count, 3)
+            self.assertEqual(api.call_args.args[1]["input"][0]["content"][0]["annotations"][0]["style"], expressive["style"])
+            pipeline.synthesize(expressive, episode, path, "never_logged")
+            self.assertEqual(api.call_count, 3)
+
+    def test_logo_trims_only_silence_at_end_not_internal_pauses(self):
+        with patch.object(pipeline, "duration", side_effect=[8.25, 4.8]), patch.object(pipeline, "run") as tool:
+            tool.return_value = SimpleNamespace(stderr="silence_start: 1.2\nsilence_end: 1.6\nsilence_start: 4.68\nsilence_end: 8.25")
+            self.assertEqual(pipeline.trim_logo_sound(Path("original.mp3"), Path("trimmed.wav")), 4.8)
+            command = tool.call_args.args
+            self.assertAlmostEqual(float(command[command.index("-t") + 1]), 4.8)
+        with patch.object(pipeline, "duration", side_effect=[8.25, 8.25]), patch.object(pipeline, "run") as tool:
+            tool.return_value = SimpleNamespace(stderr="silence_start: 1.2\nsilence_end: 1.6")
+            pipeline.trim_logo_sound(Path("original.mp3"), Path("trimmed.wav"))
+            command = tool.call_args.args
+            self.assertEqual(float(command[command.index("-t") + 1]), 8.25)
 
     def test_caption_estimates_stay_inside_actual_audio(self):
         cues = pipeline.captions("Primera oración. Segunda oración más larga.", 2.0, 8.5)

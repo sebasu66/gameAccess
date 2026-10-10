@@ -101,6 +101,15 @@ def validate_episode(episode):
             raise ValueError(f"Missing literal narration for {ident}.")
     if episode.get("gameplay") and float(episode["gameplay"].get("duration", 0)) <= 0:
         raise ValueError("Gameplay must have a positive duration.")
+    music = episode.get("music")
+    if music:
+        if not isinstance(music, dict):
+            raise ValueError("Music must be an object with a path or preset.")
+        if not music.get("path") and music.get("preset", "racing") != "racing":
+            raise ValueError("Unknown music preset; use racing or a local music path.")
+        bpm = float(music.get("bpm", 126))
+        if not math.isfinite(bpm) or not 60 <= bpm <= 180:
+            raise ValueError("Music bpm must be between 60 and 180.")
 
 
 def draft(facts, output):
@@ -154,7 +163,7 @@ def decode_audio(response):
 
 
 def synthesize(section, episode, path, key):
-    style = episode.get("style") or (STYLE if episode["locale"] == "es" else "Warm, clear game presenter. Natural medium pace. Read the transcript exactly.")
+    style = section.get("style") or episode.get("style") or (STYLE if episode["locale"] == "es" else "Warm, clear game presenter. Natural medium pace. Read the transcript exactly.")
     body = {"model": episode.get("model", MODEL), "input": [{"type": "user_input", "content": [
         {"type": "text", "text": section["text"], "annotations": [{"type": "speech_metadata", "style": style}]}]}],
         "response_format": {"type": "audio", "mime_type": "audio/wav"},
@@ -247,6 +256,59 @@ def operator_key():
     return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
 
+def trim_logo_sound(source, output):
+    """Remove only detected trailing silence, retaining a short natural decay."""
+    seconds = duration(source)
+    detection = run("ffmpeg", "-hide_banner", "-i", source, "-af",
+                    "silencedetect=noise=-50dB:d=0.3", "-f", "null", "-")
+    starts = re.findall(r"silence_start: ([\d.]+)", detection.stderr)
+    ends = re.findall(r"silence_end: ([\d.]+)", detection.stderr)
+    if starts and ends and float(ends[-1]) >= seconds - .05:
+        seconds = min(seconds, float(starts[-1]) + .12)
+    run("ffmpeg", "-y", "-v", "error", "-i", source, "-t", str(seconds),
+        "-af", f"afade=t=out:st={max(0, seconds - .08)}:d=0.08,loudnorm=I=-18:TP=-2:LRA=11",
+        "-ar", "48000", "-ac", "2", output)
+    return duration(output)
+
+
+def brand_segment(output, target, vf, encoding):
+    intro = ROOT / "apps/desktop/public/brand/logo-intro.webm"
+    config = read_json(ROOT / "apps/desktop/public/brand/opening-audio.json")
+    sound = ROOT / "apps/desktop/public" / config["src"].lstrip("/")
+    trimmed = output / "logo-sound.wav"
+    seconds = math.ceil(trim_logo_sound(sound, trimmed) * 30) / 30
+    # Complete formation plus a held final frame; never speed up or cut the sonic signature.
+    run("ffmpeg", "-y", "-v", "error", "-i", intro, "-i", trimmed, "-t", str(seconds),
+        "-map", "0:v", "-map", "1:a", "-vf", vf + f",tpad=stop_mode=clone:stop_duration={seconds}",
+        "-af", "apad", *encoding, target)
+    return duration(target)
+
+
+def mix_music(source, output, episode, start, end, total):
+    config = episode.get("music")
+    if not config:
+        return run("ffmpeg", "-y", "-v", "error", "-i", source, "-c", "copy", "-movflags", "+faststart", output)
+    if config.get("path"):
+        music = Path(config["path"])
+    else:
+        from music import compose
+        music = compose(output.parent / "original-racing-bed.wav", bpm=float(config.get("bpm", 126)))
+    gain = float(config.get("gain_db", -8))
+    if not -30 <= gain <= 0:
+        raise ValueError("Music gain_db must be between -30 and 0.")
+    span = end - start
+    if span <= 0:
+        raise ValueError("The music bed requires a positive narration span.")
+    graph = (f"[0:a]asplit=2[voice][key];[1:a]loudnorm=I=-20:TP=-2:LRA=9,volume={gain}dB,"
+             f"atrim=duration={span},afade=t=in:d=0.7,afade=t=out:st={max(0, span - .8)}:d=0.8,"
+             f"adelay={round(start * 1000)}:all=1,apad[bed];"
+             "[bed][key]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=250[ducked];"
+             "[voice][ducked]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.94:level=false[mix]")
+    run("ffmpeg", "-y", "-v", "error", "-i", source, "-stream_loop", "-1", "-i", music,
+        "-filter_complex", graph, "-map", "0:v", "-map", "[mix]", "-c:v", "copy", "-c:a", "aac",
+        "-ar", "48000", "-ac", "2", "-t", str(total), "-movflags", "+faststart", output)
+
+
 def render(episode_path, output, preview=False, height=1080):
     episode_path = Path(episode_path).resolve()
     episode = read_json(episode_path)
@@ -267,14 +329,11 @@ def render(episode_path, output, preview=False, height=1080):
     encoding = ["-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-ar", "48000", "-ac", "2", "-movflags", "+faststart"]
     segments, timeline, cues = [], [], []
-    intro = ROOT / "apps/desktop/public/brand/logo-intro.webm"
     intro_out = output / "000-intro.mp4"
-    # Use the recognisable end of the existing animation, rather than its particle prelude.
-    logo_start = max(0, duration(intro) - 2)
-    run("ffmpeg", "-y", "-v", "error", "-ss", str(logo_start), "-i", intro, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-        "-t", "2", "-map", "0:v", "-map", "1:a", "-vf", vf, *encoding, intro_out)
+    brand_segment(output, intro_out, vf, encoding)
     segments.append(intro_out)
     cursor = duration(intro_out)
+    music_start = cursor
     timeline.append({"id": "brand", "title": "GameAccess", "start": 0, "end": cursor})
     for index, section in enumerate(episode["sections"], 1):
         wav = output / f"{section['id']}.wav"
@@ -286,13 +345,20 @@ def render(episode_path, output, preview=False, height=1080):
                          encoding="utf-8", newline="\n")
         if preview:
             overlay = vf + f",drawbox=x=iw/12:y=ih/3:w=8:h=ih/3:color=0xff6a00:t=fill,drawtext=textfile='{slate.name}'{font}:fontcolor=white:fontsize={height//14}:x=w/8:y=(h-text_h)/2,drawtext=text='GAMEACCESS - MUESTRA DE FORMATO'{font}:fontcolor=0xff8c3a:fontsize={height//32}:x=w/8:y=h-h/8"
-        else:
-            overlay = vf + f",drawbox=x=0:y=ih-ih/4:w=iw:h=ih/4:color=black@0.7:t=fill,drawtext=textfile='{slate.name}'{font}:fontcolor=0xff6a00:fontsize={height//22}:x=40:y=h-h/6"
         inputs = (["-f", "lavfi", "-i", f"color=c=0x111416:s={width}x{height}:r=30"]
                   if preview and not section.get("media") else media_input(section["media"], episode_path.parent, seconds))
         target = output / f"{index:03}-{section['id']}.mp4"
-        run("ffmpeg", "-y", "-v", "error", *inputs, "-i", wav, "-t", str(seconds),
-            "-map", "0:v", "-map", "1:a", "-vf", overlay, "-af", "apad,loudnorm=I=-16:TP=-1.5:LRA=11",
+        if preview:
+            art_input, visual = [], ["-map", "0:v", "-vf", overlay]
+        else:
+            from design import card
+            artwork = output / f"{section['id']}-card.png"
+            card(episode, section, index, artwork, height)
+            art_input = ["-loop", "1", "-framerate", "30", "-i", artwork]
+            graph = f"[0:v]{vf}[base];[2:v]format=rgba,fade=t=in:d=0.35:alpha=1[card];[base][card]overlay=x='48*(1-min(t/0.35,1))':y=0:shortest=1[screen]"
+            visual = ["-filter_complex", graph, "-map", "[screen]"]
+        run("ffmpeg", "-y", "-v", "error", *inputs, "-i", wav, *art_input, "-t", str(seconds),
+            *visual, "-map", "1:a", "-af", "apad,loudnorm=I=-16:TP=-1.5:LRA=11",
             *encoding, target.name, cwd=output)
         actual = duration(target)
         timeline.append({"id": section["id"], "title": section.get("title", section["id"]),
@@ -300,6 +366,7 @@ def render(episode_path, output, preview=False, height=1080):
         cues.extend(captions(section["text"], cursor, speech))
         cursor += actual
         segments.append(target)
+    music_end = cursor
     if episode.get("gameplay"):
         gameplay = episode["gameplay"]
         seconds = float(gameplay["duration"])
@@ -308,25 +375,46 @@ def render(episode_path, output, preview=False, height=1080):
         audio = json.loads(run("ffprobe", "-v", "error", "-select_streams", "a", "-show_entries",
                               "stream=index", "-of", "json", (episode_path.parent / gameplay["path"]).resolve()).stdout)["streams"]
         extra = [] if audio else ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
-        run("ffmpeg", "-y", "-v", "error", *inputs, *extra, "-t", str(seconds), "-map", "0:v", "-map", "0:a" if audio else "1:a",
-            "-vf", vf, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", *encoding, target)
+        from design import card
+        artwork = output / "extended-card.png"
+        card(episode, {"title": gameplay.get("title", "Gameplay"),
+                       "eyebrow": gameplay.get("credit", "")}, 0, artwork, height, extended=True)
+        art_index = 1 if audio else 2
+        graph = f"[0:v]{vf}[base];[{art_index}:v]format=rgba[card];[base][card]overlay=shortest=1[screen]"
+        run("ffmpeg", "-y", "-v", "error", *inputs, *extra, "-loop", "1", "-framerate", "30", "-i", artwork,
+            "-t", str(seconds), "-filter_complex", graph, "-map", "[screen]", "-map", "0:a" if audio else "1:a",
+            "-af", "loudnorm=I=-18:TP=-2:LRA=11", *encoding, target)
         actual = duration(target)
         timeline.append({"id": "extended-gameplay", "title": "Gameplay extendido", "start": cursor, "end": cursor + actual})
+        cursor += actual
+        segments.append(target)
+    if episode.get("outro"):
+        target = output / "1000-outro.mp4"
+        brand_segment(output, target, vf, encoding)
+        actual = duration(target)
+        timeline.append({"id": "brand-outro", "title": "GameAccess", "start": cursor, "end": cursor + actual})
         cursor += actual
         segments.append(target)
     playlist = output / "concat.txt"
     playlist.write_text("\n".join(f"file '{p.name}'" for p in segments), encoding="utf-8")
     final = output / f"{episode['app_id']}-{episode['locale']}{'-preview' if preview else ''}.mp4"
-    run("ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "1", "-i", playlist, "-c", "copy", "-movflags", "+faststart", final)
+    assembled = output / "assembled.mp4"
+    run("ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "1", "-i", playlist, "-c", "copy", assembled)
+    if episode.get("music", {}).get("path"):
+        episode["music"]["path"] = str((episode_path.parent / episode["music"]["path"]).resolve())
+    mix_music(assembled, final, episode, music_start, music_end, duration(assembled))
     write_json(output / "timeline.json", {"format_version": 1, "app_id": episode["app_id"], "locale": episode["locale"],
-                                       "preview": preview, "duration": duration(final), "sections": timeline})
+                                       "preview": preview, "demo": bool(episode.get("demo")),
+                                       "music_window": [music_start, music_end] if episode.get("music") else None,
+                                       "duration": duration(final), "sections": timeline})
     (output / "captions.vtt").write_text("WEBVTT\n\n" + "\n\n".join(
         f"{timestamp(a)} --> {timestamp(b)}\n{text}" for a, b, text in cues) + "\n", encoding="utf-8")
-    chapters = "\n".join(f"{int(s['start'])//60:02}:{int(s['start'])%60:02} {s['title']}" for s in timeline)
+    chapters = "\n".join(f"{int(s['start'])//60:02}:{int(s['start'])%60:02} {clean_text(s['title'])}" for s in timeline)
     sources = "\n".join(f"{s['label']}: {s['url']}" for s in episode.get("sources", []))
     (output / "youtube-description.txt").write_text(
         f"{episode['name']} | Qué ofrece y cómo se juega | GameAccess\n\n{chapters}\n\n"
         f"Datos consultados: {episode.get('facts_checked_at', 'Muestra de formato')}\n{sources}\n"
+        f"\n{episode.get('production_note', '')}\n"
         "\nSubtítulos: revisar tiempos aproximados de cada oración antes de publicar.\n", encoding="utf-8")
     print(json.dumps({"video": str(final), "duration": duration(final), "preview": preview}, ensure_ascii=False))
 
