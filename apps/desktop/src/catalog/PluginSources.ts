@@ -111,6 +111,8 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
   const manifests = await plugins();
   void narrate(`Source availability scan started: ${games.length} game(s), ${manifests.length} provider(s), batches of 100.`, { area: "DOWNLOAD_SOURCES" });
+  for (const [id, entry] of next) availability.set(id, entry);
+  publish();
   await Promise.all(manifests.map(async plugin => {
     for (let start = 0; start < games.length; start += 100) {
       const batch = games.slice(start, start + 100);
@@ -130,13 +132,15 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
           const received = bulkAvailability(raw, plugin.name);
           const entry = next.get(keyOf(game))!;
           entry.count += received.count; entry.names.push(...received.names);
+          availability.set(keyOf(game), {count:entry.count,names:[...new Set(entry.names)]});
         }
+        publish();
       } catch (error) {
         void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
       }
     }
   }));
-  for (const [id, entry] of next) availability.set(id, entry);
+  for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
   publish();
   return Object.fromEntries([...next].map(([id, entry]) => [id, entry.count]));

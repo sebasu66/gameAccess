@@ -34,6 +34,20 @@ describe("External plugin sources", () => {
     expect(next[0].download_source_names).toEqual(["Feed A", "Feed B"]);
     expect(applySourceAvailability(next)).toBe(next);
   });
+  it("publishes the first batch before the full catalog scan finishes", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    let resolveLast!: (value: unknown) => void;
+    const last = new Promise(resolve => { resolveLast = resolve; });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ok:true,json:async()=>({800:{count:2,sources:["Feed A"]}})})
+      .mockImplementationOnce(()=>last));
+    const games = Array.from({length:101},(_,index)=>({...game,id:800+index,app_id:800+index,name:"Game "+index}));
+    const request = checkPluginSources(games);
+    await vi.waitFor(()=>expect(sourceAvailability(games[0]).count).toBe(2));
+    resolveLast({ok:true,json:async()=>({900:{count:1,sources:["Feed B"]}})});
+    await request;
+    expect(sourceAvailability(games[100]).names).toEqual(["Feed B"]);
+  });
   it("a failed provider disables current availability", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));

@@ -18,3 +18,5 @@ The UI refreshes sources periodically and on focus, updates React state immutabl
 Changing tiers changes admission of queued jobs. Already running jobs are preserved when the limit decreases; no new job starts until the active count fits the new limit.
 
 Source discovery, provider HTTP outcomes, usable options, queue admission, phase transitions and terminal slot release use the existing narration log. Extraction and executable selection add AppID context to the existing worker logs. These logging additions do not change installation or launch policy, and do not record source URL query tokens or passwords.
+
+Bulk availability is published after each batch so named-source filters and download indicators become useful before the entire metadata catalog has been scanned.
