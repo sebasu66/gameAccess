@@ -59,6 +59,8 @@ const electron = process.argv[2];
 test('real Electron recovers an orphan, reuses a live instance and observes JSON edits', { skip: !electron, timeout: 90000 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'provider-native-test-'));
   const appData = path.join(root, 'appdata');
+  const dependencyLink = path.join(root, 'node_modules');
+  fs.symlinkSync(path.resolve(path.dirname(electron), '..', '..'), dependencyLink, 'junction');
   const settings = path.join(appData, 'GameAccess', 'plugins');
   const feed = path.join(root, 'feed.json');
   const manifest = path.join(settings, 'torrent_provider.json');
@@ -129,6 +131,10 @@ test('real Electron recovers an orphan, reuses a live instance and observes JSON
   } finally {
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill();
     await new Promise(resolve => setTimeout(resolve, 500));
-    try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* Keep a locked fixture for inspection. */ }
+    try {
+      if (!fs.lstatSync(dependencyLink).isSymbolicLink()) throw new Error('Fixture dependency path must stay a junction.');
+      fs.unlinkSync(dependencyLink);
+      fs.rmSync(root, { recursive: true, force: true });
+    } catch { /* Keep a locked fixture for inspection. */ }
   }
 });
