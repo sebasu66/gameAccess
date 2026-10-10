@@ -43,7 +43,7 @@ def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows:
     if existing_manifest.exists():
         previous = json.loads(existing_manifest.read_text(encoding="utf-8"))
         artifact = output_dir / f"catalog-cache-{revision}.sqlite.gz"
-        if previous.get("revision") == revision and artifact.exists() and hashlib.sha256(artifact.read_bytes()).hexdigest() == previous.get("sha256"):
+        if previous.get("generated_at") and previous.get("revision") == revision and artifact.exists() and hashlib.sha256(artifact.read_bytes()).hexdigest() == previous.get("sha256"):
             print(json.dumps(previous, indent=2, ensure_ascii=False))
             return artifact, existing_manifest
     sqlite_name = f"catalog-cache-{revision}.sqlite"
