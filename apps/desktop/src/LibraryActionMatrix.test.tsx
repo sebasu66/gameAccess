@@ -52,8 +52,8 @@ describe("exclusive primary library action", () => {
     expect(actions[0]?.disabled).toBe(true);
   });
 
-  it("uses installed state for Play while launch resolves the license", () => {
-    const actions = buildActions({ ...game, copies_available: 0, local_primary_account_label: undefined }, status("installed", true), false);
+  it("uses installed state for Play independently of legacy copy counts", () => {
+    const actions = buildActions({ ...game, copies_available: 0 }, status("installed", true), false);
     expect(actions.map((action) => action.kind)).toEqual(["play"]);
     expect(actions[0]?.disabled).toBe(false);
   });
