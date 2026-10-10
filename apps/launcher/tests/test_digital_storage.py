@@ -132,6 +132,24 @@ class DigitalStorageTests(unittest.TestCase):
         self.assertTrue(all(item["installed"] for item in result["statuses"].values()))
         self.assertEqual(status.call_count, 2)
 
+    def test_app_id_identifies_unregistered_folder_after_catalog_title_changes(self):
+        folder = self.storage.root / "1664220-Old Title"
+        folder.mkdir(parents=True)
+        (folder / "game.exe").write_bytes(b"fixture")
+        result = self.runner.run("snapshot", 0, "", json.dumps([{"id": 1664220, "name": "Renamed Title"}]))
+        self.assertTrue(result["statuses"]["1664220"]["installed"])
+        self.assertEqual(self.storage.folder(1664220, "Another Title"), folder)
+        self.assertTrue(self.runner.run("uninstall", 1664220, "Renamed Title")["ok"])
+        self.assertFalse(folder.exists())
+
+    def test_uninstall_refuses_ambiguous_app_id_folders(self):
+        for name in ["1-First", "1-Second"]:
+            (self.storage.root / name).mkdir(parents=True)
+        result = self.runner.run("uninstall", 1, "First")
+        self.assertFalse(result["ok"])
+        self.assertTrue((self.storage.root / "1-First").exists())
+        self.assertTrue((self.storage.root / "1-Second").exists())
+
     def test_uninstall_partial_or_missing_game_without_installation_checks(self):
         folder = self.storage.register(1, "Incomplete")
         (folder / "download.part").write_bytes(b"partial")

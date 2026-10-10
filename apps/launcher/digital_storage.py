@@ -22,6 +22,12 @@ class DigitalGameStorage:
         if record.is_file():
             data = json.loads(record.read_text(encoding="utf-8"))
             return self.checked(Path(data["folder"]))
+        # Identity comes from the Steam AppID prefix, even after a title rename.
+        matches = list(self.root.glob(f"{int(app_id)}-*")) if self.root.is_dir() else []
+        if len(matches) > 1:
+            raise ValueError("Hay varias carpetas para este AppID; se necesita un registro de instalación.")
+        if matches:
+            return self.checked(matches[0])
         legacy = self.root / self.folder_name(name)
         return self.checked(legacy if legacy.is_dir() else self.root / f"{int(app_id)}-{self.folder_name(name)}")
 
@@ -55,30 +61,38 @@ class DigitalGameStorage:
         return {"folder": str(folder), "installed": available}
 
     def snapshot(self, games: list[dict]) -> dict:
-        # The local game directory is authoritative. Build catalog lookups in
-        # memory, then inspect only the subfolders that actually exist.
+        # Actual local folders are authoritative; their Steam AppID prefix is
+        # the lookup key. Names are only display labels, never fuzzy matches.
         if not self.root.is_dir():
             return {}
         games_by_id = {str(int(game["id"])): game for game in games}
-        games_by_folder = {}
-        for app_id, game in games_by_id.items():
-            title = self.folder_name(game["name"])
-            for key in (title, f"{app_id}-{title}"):
-                games_by_folder.setdefault(key, {})[app_id] = game
+        registered = {}
         if self.registry.is_dir():
             for record in self.registry.glob("*.json"):
                 game = games_by_id.get(record.stem)
-                if game is None:
-                    continue
-                folder = self.folder(int(record.stem), game["name"])
-                root_folder = folder.relative_to(self.root).parts[0]
-                games_by_folder.setdefault(root_folder, {})[record.stem] = game
+                if game is not None:
+                    folder = self.folder(int(record.stem), game["name"])
+                    root_folder = folder.relative_to(self.root).parts[0]
+                    registered.setdefault(root_folder, set()).add(record.stem)
         statuses = {}
+        legacy_names = None
         for folder in self.root.iterdir():
             if not folder.is_dir():
                 continue
-            for app_id, game in games_by_folder.get(folder.name, {}).items():
-                if app_id not in statuses:
+            app_ids = set(registered.get(folder.name, ()))
+            prefix = re.match(r"^(\d+)-", folder.name)
+            if prefix:
+                app_ids.add(prefix.group(1))
+            elif not app_ids:
+                # Compatibility for old unregistered folders: exact names only.
+                if legacy_names is None:
+                    legacy_names = {}
+                    for app_id, game in games_by_id.items():
+                        legacy_names.setdefault(self.folder_name(game["name"]), set()).add(app_id)
+                app_ids.update(legacy_names.get(folder.name, ()))
+            for app_id in app_ids:
+                game = games_by_id.get(app_id)
+                if game is not None and app_id not in statuses:
                     statuses[app_id] = self.status(int(app_id), game["name"])
         return statuses
 
