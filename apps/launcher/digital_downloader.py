@@ -23,7 +23,8 @@ import signal
 import argparse
 import threading
 import subprocess
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, parse_qs
+from html import unescape
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import requests
@@ -346,6 +347,25 @@ class MultiSegmentTracker:
 
 
 
+def normalize_download_source(source):
+    source = source.strip()
+    if source.lower().startswith("magnet:"):
+        source = unescape("magnet:" + source.split(":", 1)[1])
+        topics = parse_qs(urlparse(source).query).get("xt", [])
+        if not any(re.fullmatch(r"urn:btih:(?:[a-f0-9]{40}|[a-z2-7]{32})", topic, re.I)
+                   or re.fullmatch(r"urn:btmh:1220[a-f0-9]{64}", topic, re.I) for topic in topics):
+            raise ValueError("El magnet no contiene un identificador torrent válido.")
+        return source
+    parsed = urlparse(source)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("La fuente debe ser un magnet válido o un enlace HTTP/HTTPS.")
+    return parsed.scheme.lower() + source[len(parsed.scheme):]
+
+
+def is_torrent_source(source):
+    return source.lower().startswith("magnet:?") or urlparse(source).path.lower().endswith(".torrent")
+
+
 def validate_http_file_response(response, inspect_body=False):
     response.raise_for_status()
     content_type = response.headers.get("content-type", "").lower()
@@ -408,16 +428,21 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         'Accept-Encoding': 'identity'
     }
 
-    head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=25)
-    head_resp.raise_for_status()
-    final_url = head_resp.url
-    validate_http_file_response(head_resp)
-    headers_resp = head_resp.headers
-    with requests.get(final_url, headers={**headers, 'Range': 'bytes=0-511'}, stream=True, timeout=15) as probe:
+    # GET is authoritative: several file hosts reject HEAD or return an HTML page for it.
+    with requests.get(url, headers={**headers, 'Range': 'bytes=0-511'}, stream=True, timeout=25) as probe:
         validate_http_file_response(probe, inspect_body=True)
-
-    content_length = headers_resp.get('content-length')
-    accept_ranges = headers_resp.get('accept-ranges', '').lower()
+        final_url = probe.url
+        headers_resp = probe.headers
+        content_range = headers_resp.get('content-range', '')
+        if probe.status_code == 206:
+            match = re.fullmatch(r'bytes 0-\d+/(\d+)', content_range, re.I)
+            if not match:
+                raise RuntimeError("El proveedor devolvió un rango de archivo inválido.")
+            content_length = match.group(1)
+            accept_ranges = 'bytes'
+        else:
+            content_length = headers_resp.get('content-length')
+            accept_ranges = headers_resp.get('accept-ranges', '').lower()
 
     if not content_length:
         # Fallback to single stream
@@ -1061,6 +1086,7 @@ def main():
     )
     parser.add_argument("--app-id", "--appId", dest="appId", required=True, help="Application/Game ID (e.g. 1091500)")
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
+    parser.add_argument("--source-delivery", choices=("download", "browser"), default="download")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
@@ -1147,18 +1173,26 @@ def main():
     download_url = None
     target_filename = None
     target_content_path = os.path.abspath(args.extract_only) if args.extract_only else None
-    is_torrent = (
-        download_source.startswith("magnet:?") or
-        download_source.endswith(".torrent") or
-        "torrent" in download_source.lower()
-    )
+    if not args.extract_only:
+        try:
+            download_source = normalize_download_source(download_source)
+        except ValueError as error:
+            emit_error(app_id, str(error))
+            return
+    is_torrent = is_torrent_source(download_source)
 
     try:
         if args.extract_only:
             if not os.path.exists(target_content_path):
                 raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
         else:
-            if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
+            if args.source_delivery == "browser":
+                import webbrowser
+                webbrowser.open(download_source)
+                logger.info("AppID %s: selected plugin source requires browser download.", app_id)
+                emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
+                return
+            if is_torrent:
                 torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
                 use_torbox = False
     

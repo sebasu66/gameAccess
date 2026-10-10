@@ -257,6 +257,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           appId,
           name,
           downloadSource,
+          sourceDelivery: record?.sourceDelivery,
           installProcess,
           autoInstalled: record?.auto_installed === true,
           torboxKey: options?.torboxKey,

@@ -79,3 +79,19 @@ describe("Plugin link preparation", () => {
     expect(source.resolverUrl).toBeUndefined();
   });
 });
+
+describe("Download source transport", () => {
+  it("rejects incomplete magnets and accepts hexadecimal, base32 and v2 identities", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    const urls = ["magnet:?dn=missing", "magnet:?xt=urn:btih:bad",
+      "magnet:?xt=urn:btih:" + "a".repeat(40), "magnet:?xt=urn:btih:" + "A".repeat(32),
+      "magnet:?xt=urn:btmh:1220" + "b".repeat(64)];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:true,json:async()=>urls.map(url=>({url}))}));
+    expect((await getPluginSources(game)).map(source=>source.url)).toEqual(urls.slice(2));
+  });
+  it("preserves browser delivery returned by the resolver", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:true,json:async()=>({url:"https://example.test/page",mode:"browser"})}));
+    const source = {title:"Fixture",url:"https://example.test/page",resolverUrl:plugin.endpoint+"api/prepare/page",type:"http",size:"",score:1,pluginName:"Provider",sourceName:"Feed"};
+    expect((await preparePluginSource(source)).delivery).toBe("browser");
+  });
+});

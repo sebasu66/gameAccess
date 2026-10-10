@@ -20,6 +20,7 @@ export interface DigitalGameRecord {
   name: string;
   id: number;
   downloadSource: string;
+  sourceDelivery?: "browser" | "download";
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
@@ -189,7 +190,7 @@ export class DigitalCatalog {
     const prepared = await preparePluginSource(selected);
     const record = this.getRecord(game.id);
     const effectiveRecord: DigitalGameRecord = {
-      name: game.name, id: game.app_id ?? game.id, downloadSource: prepared.url,
+      name: game.name, id: game.app_id ?? game.id, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
       installProcess: "", playProcess: record?.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
     return digitalDownloadService.start({ ...game, download_size: selected.size, download_size_bytes: null,

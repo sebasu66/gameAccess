@@ -557,6 +557,12 @@ fn find_launcher_python(launcher: &std::path::Path) -> PathBuf {
     }
 }
 
+fn launcher_below(root: &std::path::Path) -> Option<PathBuf> {
+    ["runtime/launcher", "apps/launcher", "launcher"].iter()
+        .map(|relative| root.join(relative))
+        .find(|path| path.join("digital_downloader.py").is_file())
+}
+
 fn find_launcher_dir() -> Option<PathBuf> {
     if let Ok(path) = env::var("GAMEACCESS_LAUNCHER_DIR") {
         let candidate = PathBuf::from(path);
@@ -566,22 +572,12 @@ fn find_launcher_dir() -> Option<PathBuf> {
     }
     if let Ok(exe) = env::current_exe() {
         for ancestor in exe.ancestors() {
-            let candidate = ancestor.join("apps").join("launcher");
-            if candidate.is_dir() {
-                return Some(candidate);
-            }
-            let candidate2 = ancestor.join("launcher");
-            if candidate2.is_dir() {
-                return Some(candidate2);
-            }
+            if let Some(candidate) = launcher_below(ancestor) { return Some(candidate); }
         }
     }
     env::current_dir().ok().and_then(|cwd| {
         for ancestor in cwd.ancestors() {
-            let candidate = ancestor.join("apps").join("launcher");
-            if candidate.is_dir() {
-                return Some(candidate);
-            }
+            if let Some(candidate) = launcher_below(ancestor) { return Some(candidate); }
         }
         None
     })
@@ -655,6 +651,7 @@ async fn start_digital_download(
     app_id: u32,
     name: String,
     download_source: String,
+    source_delivery: Option<String>,
     install_process: String,
     torbox_key: Option<String>,
     keep_archive: Option<bool>,
@@ -699,6 +696,7 @@ async fn start_digital_download(
             download_source
         };
         cmd.arg("--source").arg(&src);
+        if source_delivery.as_deref() == Some("browser") { cmd.arg("--source-delivery").arg("browser"); }
 
         // Digital archives are extracted in place; catalog installation commands are ignored.
         let _ = install_process;
@@ -1013,6 +1011,18 @@ mod digital_controls_tests {
         panic!("Digital worker did not reach expected status");
     }
     #[test]
+    fn installed_runtime_resolves_without_repository_or_python_on_path() {
+        let root = env::temp_dir().join(format!("gameaccess-runtime-locator-{}", uuid::Uuid::new_v4()));
+        let launcher = root.join("runtime/launcher");
+        fs::create_dir_all(&launcher).unwrap();
+        fs::create_dir_all(root.join("runtime/python")).unwrap();
+        fs::write(launcher.join("digital_downloader.py"), "").unwrap();
+        fs::write(root.join("runtime/python/python.exe"), "").unwrap();
+        assert_eq!(launcher_below(&root), Some(launcher.clone()));
+        assert_eq!(find_launcher_python(&launcher), root.join("runtime/python/python.exe"));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn native_digital_pause_resume_cancel() {
         let original = find_launcher_dir().unwrap();
         let python = find_launcher_python(&original);
@@ -1042,7 +1052,7 @@ mod digital_controls_tests {
         }
         assert!(ready, "Local fixture HTTP server did not start");
         let app_id = 987654321;
-        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, "".into(), None, Some(true), None)).unwrap();
+        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, None, "".into(), None, Some(true), None)).unwrap();
         wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
         let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();
         assert_eq!(paused["phase"], "paused");

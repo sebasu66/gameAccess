@@ -46,7 +46,13 @@ function publish(): void {
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(SOURCES_CHANGED_EVENT));
 }
 function validUrl(value: unknown): value is string {
-  return typeof value === "string" && /^(magnet:\?|https?:\/\/)/i.test(value.trim());
+  if (typeof value !== "string") return false;
+  const uri = value.trim().replace(/&amp;/gi, "&");
+  if (/^magnet:/i.test(uri)) {
+    const topics = new URLSearchParams(uri.slice(uri.indexOf("?") + 1)).getAll("xt");
+    return topics.some(topic => /^urn:btih:(?:[a-f0-9]{40}|[a-z2-7]{32})$/i.test(topic) || /^urn:btmh:1220[a-f0-9]{64}$/i.test(topic));
+  }
+  try { return ["http:", "https:"].includes(new URL(uri).protocol); } catch { return false; }
 }
 function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[] {
   if (!value || typeof value !== "object") return [];
@@ -179,7 +185,7 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
     throw new Error(typeof result.error === "string" ? result.error : "El plugin no pudo preparar el enlace de descarga.");
   }
   void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
-  return { ...source, url: result.url.trim() };
+  return { ...source, url: result.url.trim(), delivery: result.mode === "browser" ? "browser" : source.delivery };
 }
 
 export function invalidatePluginSources(): void {

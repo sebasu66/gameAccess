@@ -14,7 +14,7 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
     def respond(self, head=False):
-        body = b"<!DOCTYPE html><html>Download page</html>" if self.path != "/fixture.zip" else b"PK\x03\x04fixture" * 100
+        body = b"<!DOCTYPE html><html>Download page</html>" if self.path not in ("/fixture.zip", "/head-html.zip", "/head-405.zip") else b"PK\x03\x04fixture" * 100
         content_type = "text/html" if self.path == "/html" else "application/octet-stream"
         start, end = 0, len(body) - 1
         requested = self.headers.get("Range")
@@ -32,7 +32,14 @@ class FixtureHandler(http.server.BaseHTTPRequestHandler):
         if not head:
             self.wfile.write(body[start:end+1])
     def do_HEAD(self):
-        self.respond(True)
+        if self.path == "/head-405.zip":
+            self.send_error(405)
+        elif self.path == "/head-html.zip":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+        else:
+            self.respond(True)
     def do_GET(self):
         self.respond()
 
@@ -73,3 +80,29 @@ def test_final_payload_validation_catches_empty_or_html(tmp_path):
         output.write_bytes(body)
         with pytest.raises(RuntimeError):
             downloader.validate_downloaded_file(str(output))
+
+@pytest.mark.parametrize("path", ["/head-html.zip", "/head-405.zip"])
+def test_get_file_works_when_head_is_html_or_unsupported(server, tmp_path, path):
+    output = tmp_path / "fixture.zip"
+    with patch.object(downloader, "emit_progress"):
+        assert downloader.download_segmented(server + path, str(output), "7", "Fixture", connections=2)
+    assert output.read_bytes() == b"PK\x03\x04fixture" * 100
+
+@pytest.mark.parametrize("topic", ["urn:btih:" + "a" * 40, "urn:btih:" + "A" * 32, "urn:btmh:1220" + "b" * 64])
+def test_valid_magnets_are_normalized_and_use_torrent_engine(topic):
+    source = downloader.normalize_download_source(" MAGNET:?xt=" + topic + "&amp;dn=Fixture ")
+    assert source.startswith("magnet:?")
+    assert "&amp;" not in source
+    assert downloader.is_torrent_source(source)
+    import libtorrent as lt
+    params = lt.parse_magnet_uri(source)
+    assert params.info_hashes.has_v1() or params.info_hashes.has_v2()
+
+@pytest.mark.parametrize("source", ["magnet:?dn=missing", "magnet:?xt=urn:btih:bad", "javascript:bad"])
+def test_invalid_sources_rejected_before_network(source):
+    with pytest.raises(ValueError):
+        downloader.normalize_download_source(source)
+
+def test_torrent_word_in_provider_host_does_not_change_http_transport():
+    assert not downloader.is_torrent_source("https://torrent-provider.test/api/download/fixture.zip")
+    assert downloader.is_torrent_source("https://example.test/fixture.torrent?token=123")
