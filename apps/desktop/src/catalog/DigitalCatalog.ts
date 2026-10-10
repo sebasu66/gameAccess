@@ -115,7 +115,7 @@ export class DigitalCatalog {
       try {
         const raw = await getSteamStoreMetadata(game.app_id);
         if (raw) {
-          const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null }, raw));
+          const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready" }, raw));
           void storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
           return detail;
         }
