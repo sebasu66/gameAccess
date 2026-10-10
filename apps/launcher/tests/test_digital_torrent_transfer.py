@@ -34,8 +34,12 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
     while not seed_handle.status().is_seeding:
         assert time.monotonic() < deadline, "Local seed did not become ready"
         time.sleep(0.05)
+    # Torrent checking and asynchronous socket binding have separate readiness.
+    deadline = time.monotonic() + 15
+    while seed.listen_port() == 0:
+        assert time.monotonic() < deadline, [alert.message() for alert in seed.pop_alerts()]
+        time.sleep(0.05)
     peer_port = seed.listen_port()
-    assert peer_port > 0
 
     class LocalSession:
         def __init__(self, ignored_settings):
