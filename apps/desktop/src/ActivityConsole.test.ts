@@ -3,10 +3,9 @@ import {consoleShortcut,redactConsoleLine} from "./ActivityConsole";
 import {sanitizedRemoteError} from "./narrationLog";
 describe("activity console",()=>{
  it("uses the physical Spanish/English key and leaves text editing alone",()=>{
-  expect(consoleShortcut(new KeyboardEvent("keydown",{code:"Backquote",key:"º"}))).toBe(true);
-  expect(consoleShortcut(new KeyboardEvent("keydown",{code:"Digit1"}))).toBe(false);
-  const event=new KeyboardEvent("keydown",{code:"Backquote"});
-  Object.defineProperty(event,"target",{value:document.createElement("input")});
+  expect(consoleShortcut(({code:"Backquote",key:"º"} as KeyboardEvent))).toBe(true);
+  expect(consoleShortcut(({code:"Digit1"} as KeyboardEvent))).toBe(false);
+  const event={code:"Backquote",target:{closest:()=>({})}} as unknown as KeyboardEvent;
   expect(consoleShortcut(event)).toBe(false);
  });
  it("never exposes passwords, auth tokens or database connections",()=>{

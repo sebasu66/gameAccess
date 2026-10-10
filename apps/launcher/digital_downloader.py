@@ -1002,7 +1002,7 @@ def extract_archives_in_path(
                         if attempt + 1 < len(passwords):
                             attempt += 1
                             continue
-                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña del servidor funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
+                        raise RuntimeError(f"No se pudo descomprimir {arc_name}: ninguna contraseña del perfil funcionó. El archivo requiere una contraseña válida. La descarga se conserva.")
                     raise RuntimeError(f"Error al descomprimir {arc_name}: {output_tail.strip()[-300:]}")
                 break
             success = True
@@ -1137,7 +1137,7 @@ def main():
     if args.extract_only:
         logger.info(f"Modo: Solo extracción. Archivo: {args.extract_only}")
     else:
-        logger.info(f"Fuente de descarga configurada: {download_source}")
+        logger.info("Fuente manual o de plugin recibida; tipo=%s", "magnet" if download_source.lower().startswith("magnet:") else "archivo")
 
     download_url = None
     target_filename = None

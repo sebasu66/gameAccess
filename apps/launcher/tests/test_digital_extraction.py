@@ -42,7 +42,7 @@ class ExtractionTest(unittest.TestCase):
         arc = self.archive(password="fixture-password")
         result = self.extract(arc)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("requiere una contraseña válida", result.stdout)
+        self.assertIn("no hay contraseñas en el perfil", result.stdout)
         self.assertNotIn('"phase": "completed"', result.stdout)
         self.assertTrue(arc.exists())
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
@@ -62,25 +62,25 @@ class ExtractionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(unrelated.read_bytes(), b"invalid archive belonging to another download")
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
-    def test_tries_server_passwords_in_order_until_success(self):
+    def test_tries_profile_passwords_in_order_until_success(self):
         arc = self.archive(password="fixture-password")
         output = self.root / "output"
         output.mkdir()
-        (output / "server-reply.json").write_text(json.dumps({"passwords": ["wrong-password", "fixture-password"]}), encoding="utf-8")
+        (output / "profile-fixture.json").write_text(json.dumps({"archivePasswords": ["wrong-password", "fixture-password"]}), encoding="utf-8")
         result = self.extract(arc)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Probando contraseña 3/3", result.stdout)
         self.assertNotIn("wrong-password", result.stdout)
         self.assertEqual((output / "fixture.bin").read_bytes(), self.source.read_bytes())
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
-    def test_exhausted_server_passwords_report_error_and_preserve_archive(self):
+    def test_exhausted_profile_passwords_report_error_and_preserve_archive(self):
         arc = self.archive(password="fixture-password")
         output = self.root / "output"
         output.mkdir()
-        (output / "server-reply.json").write_text(json.dumps({"passwords": ["wrong-one", "wrong-two"]}), encoding="utf-8")
+        (output / "profile-fixture.json").write_text(json.dumps({"archivePasswords": ["wrong-one", "wrong-two"]}), encoding="utf-8")
         result = self.extract(arc)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ninguna contraseña del servidor funcionó", result.stdout)
+        self.assertIn("ninguna contraseña del perfil funcionó", result.stdout)
         self.assertTrue(arc.exists())
     def test_smallest_flat_archive_is_last_and_goes_inside_game_folder(self):
         import zipfile
@@ -171,11 +171,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--extract":
         worker = load_worker()
         worker.LAUNCHER_DIR = Path(sys.argv[3])
-        worker.g_app_id = "fixture"
-        reply = worker.LAUNCHER_DIR / ".cache" / "digital_downloads" / "fixture.passwords.json"
+        worker.g_app_id = "1"
+        reply = worker.LAUNCHER_DIR / ".cache" / "execution_profiles" / "1.json"
         reply.parent.mkdir(parents=True, exist_ok=True)
-        server_reply = worker.LAUNCHER_DIR / "server-reply.json"
-        reply.write_text(server_reply.read_text(encoding="utf-8") if server_reply.exists() else '{"passwords": []}', encoding="utf-8")
+        server_reply = worker.LAUNCHER_DIR / "profile-fixture.json"
+        reply.write_text(server_reply.read_text(encoding="utf-8") if server_reply.exists() else '{"archivePasswords": []}', encoding="utf-8")
         worker.find_portable_7z = lambda: str(SEVEN_ZIP)
         try:
             worker.extract_archives_in_path(sys.argv[2], sys.argv[3], password=sys.argv[4] or None, delete_archive=False, retain_backup=False)

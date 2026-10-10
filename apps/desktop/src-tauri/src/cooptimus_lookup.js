@@ -16,7 +16,7 @@
     if(match)data[key]=match[1]?Number(match[1]):0;
    }
    for(const [label,key] of [["Co-Op Campaign","coop_campaign"],["Co-Op Modes","coop_modes"],["Splitscreen","shared_split_screen"],["Drop In/Drop Out","drop_in_out"]])data[key]=text.includes(label);
-   if(Object.keys(data).length>3)send(data);
+   if(data.local_players_max!=null||data.online_players_max!=null)send(data);
   } else if(location.pathname==="/games.php") {
    const links=Array.from(document.querySelectorAll('#search_table a[href*="/game/"]'));
    const matches=links.filter(a=>a.href.includes("/pc/")&&normalize(a.closest(".result_row")?.getAttribute("title")||a.textContent||a.querySelector("img")?.alt||"")===normalize(expected));
@@ -24,6 +24,6 @@
    else if(links.length || /No games matched/i.test(document.querySelector("#search_table")?.textContent||""))send({state:"unverified"});
   }
  };
- new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+
  document.addEventListener("DOMContentLoaded",scan);setInterval(scan,500);scan();
 })();

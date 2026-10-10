@@ -1,27 +1,24 @@
 import {beforeEach,describe,it,expect,vi} from "vitest";
-import {render,screen,waitFor,cleanup} from "@testing-library/react";
+import {renderToStaticMarkup} from "react-dom/server";
 const invoke=vi.hoisted(()=>vi.fn());
 vi.mock("@tauri-apps/api/core",()=>({invoke}));
 vi.mock("./native",()=>({hasTauriRuntime:()=>true}));
 vi.mock("./settings",()=>({getApiBaseUrl:async()=>"http://fixture"}));
 vi.mock("./narrationLog",()=>({narrate:vi.fn()}));
 vi.mock("./i18n",()=>({useI18n:()=>({locale:"es"})}));
-import CooptimusDetails from "./CooptimusDetails";
+import CooptimusDetails,{loadCooptimusDetails,CoopFacts} from "./CooptimusDetails";
 describe("cooperative detail enrichment",()=>{
- beforeEach(()=>{cleanup();vi.clearAllMocks();});
- it("renders verified player numbers without replacing Steam information",async()=>{
-  invoke.mockResolvedValue({app_id:123,state:"ready",local_players_max:2,online_players_max:4,coop_campaign:true});
-  render(<><p>Información de Steam preservada</p><CooptimusDetails appId={123} name="Fixture"/></>);
-  expect(screen.getByRole("status").textContent).toContain("Consultando");
-  await waitFor(()=>expect(screen.getByText("4 jugadores")).toBeTruthy());
-  expect(screen.getByText("2 jugadores")).toBeTruthy();
-  expect(screen.getByText("Información de Steam preservada")).toBeTruthy();
-  expect(invoke).toHaveBeenCalledWith("query_cooptimus",{appId:123,gameName:"Fixture"});
+ beforeEach(()=>{vi.clearAllMocks();});
+ it("renders verified player numbers in compact fields",()=>{
+  const html=renderToStaticMarkup(<CoopFacts es data={{app_id:123,state:"ready",local_players_max:2,online_players_max:4,coop_campaign:true}}/>);
+  expect(html).toContain("4 jugadores");expect(html).toContain("2 jugadores");expect(html).toContain("Campaña cooperativa");
  });
- it("rejects metadata from a different Steam game",async()=>{
+ it("requests the public browser lookup and rejects another Steam game",async()=>{
   invoke.mockResolvedValue({app_id:999,state:"ready",online_players_max:99});
-  render(<CooptimusDetails appId={124} name="Another"/>);
-  await waitFor(()=>expect(screen.getByRole("button",{name:"Volver a consultar"})).toBeTruthy());
-  expect(screen.queryByText("99 jugadores")).toBeNull();
+  expect(await loadCooptimusDetails(124,"Another")).toBeNull();
+  expect(invoke).toHaveBeenCalledWith("query_cooptimus",{appId:124,gameName:"Another"});
+ });
+ it("shows loading instead of pretending that failed metadata is ready",()=>{
+  expect(renderToStaticMarkup(<CooptimusDetails appId={125} name="Fixture"/>)).toContain("Consultando detalles");
  });
 });

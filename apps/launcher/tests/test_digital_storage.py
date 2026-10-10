@@ -24,7 +24,7 @@ class DigitalStorageTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
     def test_unresolved_browser_hoster_is_not_reported_as_installed(self):
-        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("digital_downloader.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
+        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("digital_downloader.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--source-delivery", "browser", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
             with self.assertRaises(SystemExit) as exit_code:
                 digital_downloader.main()
         self.assertEqual(exit_code.exception.code, 0)

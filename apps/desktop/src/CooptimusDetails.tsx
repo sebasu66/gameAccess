@@ -33,14 +33,19 @@ export default function CooptimusDetails({appId,name="",enabled=true}:{appId:num
  const {locale}=useI18n();const es=locale==="es";const [data,setData]=useState<CoopDetails|null>(null);const [loading,setLoading]=useState(true);const [revision,setRevision]=useState(0);
  useEffect(()=>{setData(null);if(!enabled||!appId)return;let active=true;setLoading(true);void loadCooptimusDetails(appId,name,revision>0).then(value=>{if(active){setData(value);setLoading(false);}});return()=>{active=false;};},[appId,name,enabled,revision]);
  if(!enabled||!appId)return null;
- const rows: Array<[string,number|undefined]>=[[es?"En el mismo equipo":"Couch co-op",data?.local_players_max],[es?"En línea":"Online co-op",data?.online_players_max],[es?"Red local":"LAN",data?.lan_players_max],[es?"Local + en línea":"Local + online",data?.combo_players_max]];
  return <section className="ga-detail-coop" aria-label={es?"Juego cooperativo":"Co-op play"}>
   <div className="ga-detail-section-heading"><h3>{es?"Juego cooperativo":"Co-op play"}</h3><a href={data?.source_url?.startsWith("https://www.co-optimus.com/")?data.source_url:"https://www.co-optimus.com/games.php?system=4&game-title-filter="+encodeURIComponent(name)} target="_blank" rel="noreferrer">Co-Optimus ↗</a></div>
   {loading?<p role="status">{es?"Consultando detalles cooperativos…":"Loading co-op details…"}</p>:data?.state==="ready"?<>
-   <dl className="ga-coop-facts">{rows.filter(([,v])=>v!=null).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value===0?(es?"No disponible":"Not supported"):value+" "+(es?"jugadores":"players")}</dd></div>)}</dl>
-   <div className="ga-detail-tags">{[[data.coop_campaign,es?"Campaña cooperativa":"Co-op campaign"],[data.coop_modes,es?"Modos cooperativos":"Co-op modes"],[data.shared_split_screen,es?"Pantalla dividida":"Split screen"],[data.drop_in_out,es?"Entrada y salida libre":"Drop-in / drop-out"]].filter(([show])=>show).map(([,label])=><span key={String(label)}>{label}</span>)}</div>
+   <CoopFacts data={data} es={es}/>
    {data.stale&&<small>{es?"Última consulta verificada; el sitio no respondió.":"Last verified result; site unavailable."}</small>}
   </>:<p role="status">{es?(data?.state==="unverified"?"No se encontró una ficha verificada para este juego.":"Co-Optimus no respondió. La información de Steam sigue disponible."):"Co-Optimus details unavailable. Steam information remains available."}</p>}
   {!loading&&<button className="ga-detail-text-action" type="button" onClick={()=>setRevision(v=>v+1)}>{es?"Volver a consultar":"Retry lookup"}</button>}
  </section>;
+}
+
+export function CoopFacts({data,es}:{data:CoopDetails;es:boolean}){
+ const rows: Array<[string,number|undefined]>=[[es?"En el mismo equipo":"Couch co-op",data?.local_players_max],[es?"En línea":"Online co-op",data?.online_players_max],[es?"Red local":"LAN",data?.lan_players_max],[es?"Local + en línea":"Local + online",data?.combo_players_max]];
+
+ return <>   <dl className="ga-coop-facts">{rows.filter(([,v])=>v!=null).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value===0?(es?"No disponible":"Not supported"):value+" "+(es?"jugadores":"players")}</dd></div>)}</dl>
+   <div className="ga-detail-tags">{[[data.coop_campaign,es?"Campaña cooperativa":"Co-op campaign"],[data.coop_modes,es?"Modos cooperativos":"Co-op modes"],[data.shared_split_screen,es?"Pantalla dividida":"Split screen"],[data.drop_in_out,es?"Entrada y salida libre":"Drop-in / drop-out"]].filter(([show])=>show).map(([,label])=><span key={String(label)}>{label}</span>)}</div></>;
 }

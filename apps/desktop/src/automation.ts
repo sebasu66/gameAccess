@@ -132,14 +132,14 @@ async function selectGame(game: CatalogGame) {
   }, 15_000, `selectable card for ${game.name}`);
   target.click();
   await waitFor(() => {
-    const heading = document.querySelector<HTMLElement>(".detail-panel .detail-hero h1");
+    const heading = document.querySelector<HTMLElement>(".ga-detail-overlay .ga-detail-info h1");
     return heading && normalize(heading.textContent ?? "").includes(normalize(game.name)) && isVisible(heading) ? heading : null;
   }, 15_000, `detail panel for ${game.name}`);
   await sleep(250);
 }
 
 function detailButton(pattern: RegExp) {
-  return Array.from(document.querySelectorAll<HTMLButtonElement>(".detail-primary-actions button"))
+  return Array.from(document.querySelectorAll<HTMLButtonElement>(".ga-detail-actions button"))
     .find((button) => pattern.test(button.textContent ?? "") && isVisible(button));
 }
 

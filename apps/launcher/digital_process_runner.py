@@ -129,7 +129,7 @@ class DigitalProcessRunner:
 
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
-        return repair_language(folder, language, logger, known_only=False)
+        return repair_language(folder, language, logger, known_only=True)
 
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
@@ -181,7 +181,7 @@ class DigitalProcessRunner:
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
                 
-            # Parchear OnlineFix antes de buscar el ejecutable
+            # Apply optional local profile before executable discovery.
             profile = load_profile(self.storage.launcher, app_id)
             logger.info("AppID %s: applying optional execution profile; steps=%s", app_id, len(profile["beforePlay"]))
             apply_before_play(folder, profile)

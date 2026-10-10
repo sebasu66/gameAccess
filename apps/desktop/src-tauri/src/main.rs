@@ -658,7 +658,7 @@ async fn start_digital_download(
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        println!("[Rust:start_digital_download] Received request: app_id={app_id}, name='{name}', source='{download_source}'");
+        let _ = append_narration_lines(vec![format!("AppID {app_id}: starting generic download for {name}")], "DOWNLOAD".into(), "INFO".into());
         let launcher = find_launcher_dir().ok_or_else(|| {
             let err = "Could not locate launcher directory".to_string();
             eprintln!("[Rust:start_digital_download:Error] {err}");
@@ -715,7 +715,7 @@ async fn start_digital_download(
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        println!("[Rust:start_digital_download] Spawning child process: {cmd:?}");
+        let _ = append_narration_lines(vec![format!("AppID {app_id}: download worker starting")], "DOWNLOAD".into(), "INFO".into());
         let child = cmd.spawn().map_err(|err| {
             let err_str = format!("Failed to spawn digital downloader: {err}");
             eprintln!("[Rust:start_digital_download:Error] {err_str}");
@@ -824,20 +824,8 @@ fn read_activity_console() -> Result<Vec<String>, String> {
             lines.extend(read_log_tail(launcher.join("logs").join(name), area));
         }
     }
+    lines.sort_by_key(|line| line.split("] ").nth(1).unwrap_or("").chars().take(19).collect::<String>());
     Ok(lines)
-}
-
-#[tauri::command]
-async fn supply_digital_archive_passwords(app_id: u32, passwords: Vec<String>, error: Option<String>) -> Result<(), String> {
-    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
-    let dir = launcher.join(".cache").join("digital_downloads");
-    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
-    let path = dir.join(format!("{app_id}.passwords.json"));
-    let temporary = dir.join(format!("{app_id}.passwords.tmp"));
-    let payload = serde_json::json!({ "passwords": passwords, "error": error });
-    fs::write(&temporary, payload.to_string()).map_err(|err| err.to_string())?;
-    fs::rename(temporary, path).map_err(|err| err.to_string())?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -1121,6 +1109,7 @@ mod digital_controls_tests {
         fs::copy(original.join("digital_storage.py"), launcher.join("digital_storage.py")).unwrap();
         fs::copy(original.join("digital_preferences.py"), launcher.join("digital_preferences.py")).unwrap();
         fs::copy(original.join("digital_backup.py"), launcher.join("digital_backup.py")).unwrap();
+        fs::copy(original.join("execution_profile.py"), launcher.join("execution_profile.py")).unwrap();
         let fixture = Fixture { server, launcher: launcher.clone(), previous_launcher: env::var_os("GAMEACCESS_LAUNCHER_DIR") };
         env::set_var("GAMEACCESS_LAUNCHER_DIR", &launcher);
         let url = format!("http://127.0.0.1:{port}/fixture.bin");

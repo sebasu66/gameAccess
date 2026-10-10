@@ -67,7 +67,7 @@ class DigitalOptionsTests(unittest.TestCase):
         options.save(12,"Game",{"executable":"bin/custom.exe","arguments":'-name "Two Words" -windowed',"language":"english"})
         runner = DigitalProcessRunner(self.storage)
         with patch("digital_process_runner.DigitalArchiveBackup.restore") as restore, \
-             patch.object(runner,"patch_onlinefix_popup") as popup, \
+             patch("digital_process_runner.apply_before_play") as profile, \
              patch.object(runner,"patch_crack_language") as language, \
              patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid=123
@@ -75,7 +75,7 @@ class DigitalOptionsTests(unittest.TestCase):
             result=runner.run("play",12,"Game")
             self.assertTrue(result["ok"],result)
             restore.assert_called_once()
-            popup.assert_called_once_with(self.folder)
+            profile.assert_called_once()
             language.assert_called_once_with(self.folder,"english")
             self.assertEqual(spawn.call_args.args[0], [str(exe),"-name","Two Words","-windowed"])
 
