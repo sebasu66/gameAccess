@@ -123,7 +123,6 @@ interface DownloadCatalogPanelProps {
   hasFavorites?: boolean;
   catalogUnavailable?: boolean;
   downloads: DownloadMap;
-  accountCount: number;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
   pinnedAppIds: Set<number>;

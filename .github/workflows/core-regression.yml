@@ -28,6 +28,7 @@ jobs:
       - name: Run complete API regression suite
         env:
           PYTHONPATH: apps/api
+          GAMEACCESS_DISCOVERY_SYNC: "0"
         run: pytest -q apps/api/tests
 
   desktop-core:
@@ -45,8 +46,8 @@ jobs:
           cache-dependency-path: apps/desktop/package-lock.json
       - name: Install desktop dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run critical activation and lease regressions
-        run: npx vitest run src/leaseGuard.test.ts src/activationExpiry.test.ts src/providerCredentialPolicy.test.ts
+      - name: Run current activation and library regressions
+        run: npx vitest run src/activationExpiry.test.ts src/libraryMembership.test.ts src/catalog/digitalDownloadService.test.ts
       - name: Type-check desktop
         run: npx tsc --noEmit
 
@@ -65,8 +66,8 @@ jobs:
           PYTHONPATH: apps/launcher
         run: python -m pytest -q apps/launcher/tests
 
-  native-login-core:
-    name: native-login-core
+  native-core:
+    name: native-core
     runs-on: windows-latest
     defaults:
       run:
@@ -89,13 +90,13 @@ jobs:
           npm run prepare-icons
           New-Item -ItemType Directory -Path "src-tauri/runtime/launcher", "src-tauri/runtime/python" -Force | Out-Null
           New-Item -ItemType Directory -Path "../../deploy/catalog-cache" -Force | Out-Null
-      - name: Run Steam provider login regressions
-        run: cargo test --manifest-path src-tauri/Cargo.toml provider_login_tests --quiet
+      - name: Run native game and cache regressions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --quiet
 
   core-regression:
     name: core-regression
     if: always()
-    needs: [api-core, desktop-core, launcher-core, native-login-core]
+    needs: [api-core, desktop-core, launcher-core, native-core]
     runs-on: ubuntu-latest
     steps:
       - name: Require every core lane to pass
@@ -103,7 +104,7 @@ jobs:
           API: ${{ needs.api-core.result }}
           DESKTOP: ${{ needs.desktop-core.result }}
           LAUNCHER: ${{ needs.launcher-core.result }}
-          NATIVE: ${{ needs.native-login-core.result }}
+          NATIVE: ${{ needs.native-core.result }}
         run: |
           echo "api=$API desktop=$DESKTOP launcher=$LAUNCHER native=$NATIVE"
           test "$API" = success

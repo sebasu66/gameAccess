@@ -88,7 +88,6 @@ describe("LibraryRoom grid presentation", () => {
     const panel = CatalogPanel({
       games: [game],
       downloads: {},
-      accountCount: 1,
       selectedIndex: 0,
       gridRef: createRef<HTMLDivElement>(),
       onSelect: (index) => selections.push(index),

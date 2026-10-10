@@ -39,10 +39,6 @@ export interface CatalogGame {
   steam_review_count?: number | null;
   metacritic_score?: number | null;
   request_count_total?: number;
-  successful_leases?: number;
-  demand_value?: number;
-  price_factor?: number;
-  pool_value?: number;
   single_player?: boolean | null;
   multiplayer?: boolean | null;
   coop?: boolean | null;
@@ -51,14 +47,8 @@ export interface CatalogGame {
   shared_split_screen?: boolean | null;
   mmo?: boolean | null;
   pvp?: boolean | null;
-  local_account_labels?: string[];
-  local_access_labels?: string[];
-  local_primary_account_label?: string;
-  local_owner_steam_ids?: string[];
-  local_inventory_verified?: boolean;
-  local_inventory_verified_at?: string | null;
   downloadSource?: string;
-  /** Package size supplied by this game's selected server JSON source. */
+  /** Package size supplied by this game's selected plugin source. */
   download_size?: string | null;
   download_size_bytes?: number | null;
   download_size_source?: string | null;

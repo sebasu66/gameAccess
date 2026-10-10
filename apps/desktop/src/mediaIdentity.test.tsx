@@ -17,7 +17,7 @@ describe("media identity across selection and game state", () => {
     for (const state of ["not-installed", "downloading", "prepared", "installed", "frozen", "paused"] as const) {
       const status = { app_id: 42, state, progress: 50, installed: state === "installed" } as ManagedDownloadStatus;
       for (const copies_available of [0, 1]) {
-        const markup = renderToStaticMarkup(<DownloadCatalogPanel games={[{ ...game, copies_available }]} downloads={{ 42: status }} accountCount={1} selectedIndex={0} gridRef={createRef<HTMLDivElement>()} pinnedAppIds={new Set()} onSelect={() => {}} />);
+        const markup = renderToStaticMarkup(<DownloadCatalogPanel games={[{ ...game, copies_available }]} downloads={{ 42: status }} selectedIndex={0} gridRef={createRef<HTMLDivElement>()} pinnedAppIds={new Set()} onSelect={() => {}} />);
         const images = [...markup.matchAll(/<img[^>]+src="([^"]+)"/g)];
         expect(images.length).toBeGreaterThan(0);
         expect(images.every(image => image[1] === url)).toBe(true);

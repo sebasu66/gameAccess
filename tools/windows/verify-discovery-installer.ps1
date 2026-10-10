@@ -25,7 +25,7 @@ $modules = Get-ChildItem -LiteralPath $destination -Recurse -File -Filter '*.py'
 foreach ($forbidden in @('provider_download.py','provider_login.py','steam_pool.py','steam_switch.py','launcher.py')) {
     if ($modules.Name -contains $forbidden) { throw "Legacy account module bundled: $forbidden" }
 }
-foreach ($required in @('digital_downloader.py','digital_process_runner.py','digital_library.py')) {
+foreach ($required in @('digital_downloader.py','digital_process_runner.py','digital_storage.py')) {
     if ($modules.Name -notcontains $required) { throw "Missing game runtime module: $required" }
 }
 @{ installer=$Installer; catalog_count=$manifest.catalog_count; revision=$manifest.revision; payload_verified=$true; extracted_to=$destination } | ConvertTo-Json

@@ -267,7 +267,7 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         <div className="library-room-feature-copy">
           <span className="eyebrow">TU BIBLIOTECA</span>
           <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
-          <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
+          <p>{loading ? "GameAccess está cargando el catálogo y tu biblioteca." : "No hay juegos en esta vista. Buscá un juego en el catálogo y agregalo a tu biblioteca."}</p>
           {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
         </div>
       </aside>
@@ -290,7 +290,6 @@ export { FeaturePanel } from "./LibraryDetailPanel";
 interface CatalogPanelProps {
   games: CatalogGame[];
   downloads: DownloadMap;
-  accountCount: number;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
   onSelect: (index: number) => void;
