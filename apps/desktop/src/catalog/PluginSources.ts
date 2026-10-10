@@ -99,6 +99,14 @@ export async function checkPluginSources(games: CatalogGame[]): Promise<Record<n
   pending.set(key, request);
   return request;
 }
+function bulkAvailability(raw: unknown, providerName: string): SourceAvailability {
+  const object = raw && typeof raw === "object" ? raw as {count?: unknown; sources?: unknown} : {};
+  const value = typeof raw === "number" ? raw : object.count;
+  const count = typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  if (!count) return {count:0,names:[]};
+  const names = Array.isArray(object.sources) ? object.sources.filter((name): name is string => typeof name === "string") : [];
+  return {count,names:names.length ? names : [providerName]};
+}
 async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
   const manifests = await plugins();
@@ -119,13 +127,9 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
         const data = await response.json() as Record<string, unknown>;
         for (const game of batch) {
           const raw = data[String(keyOf(game))];
-          const value = typeof raw === "number" ? raw : raw && typeof raw === "object" ? (raw as { count?: unknown }).count : 0;
-          const count = typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-          if (!count) continue;
+          const received = bulkAvailability(raw, plugin.name);
           const entry = next.get(keyOf(game))!;
-          const labels = raw && typeof raw === "object" ? (raw as { sources?: unknown }).sources : null;
-          const names = Array.isArray(labels) ? labels.filter((name): name is string => typeof name === "string") : [];
-          entry.count += count; entry.names.push(...(names.length ? names : [plugin.name]));
+          entry.count += received.count; entry.names.push(...received.names);
         }
       } catch (error) {
         void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
