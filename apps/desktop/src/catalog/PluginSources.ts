@@ -1,3 +1,4 @@
+import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
 
@@ -55,20 +56,30 @@ function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[]
 }
 export async function getPluginSources(game: CatalogGame): Promise<PluginSource[]> {
   const manifests = await plugins();
+  void narrate(`AppID ${keyOf(game)} · source discovery started for '${game.name}' with ${manifests.length} registered provider(s).`, { area: "DOWNLOAD_SOURCES" });
   const results = await Promise.all(manifests.map(async plugin => {
     try {
       const params = new URLSearchParams({ app_id: String(keyOf(game)), name: game.name });
       const response = await fetch(endpoint(plugin, "/api/sources?" + params), { signal: AbortSignal.timeout(8000) });
-      if (!response.ok) return [];
+      if (!response.ok) {
+        void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' replied HTTP ${response.status}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+        return [];
+      }
       const data: unknown = await response.json();
-      return Array.isArray(data) ? data.flatMap(value => normalizeSource(value, plugin)) : [];
-    } catch { return []; }
+      const received = Array.isArray(data) ? data.flatMap(value => normalizeSource(value, plugin)) : [];
+      void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' returned ${received.length} usable option(s).`, { area: "DOWNLOAD_SOURCES" });
+      return received;
+    } catch (error) {
+      void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' source request failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+      return [];
+    }
   }));
   const seen = new Set<string>();
   const sources = results.flat().sort((a,b) => b.score - a.score).filter(source => {
     if (seen.has(source.url)) return false;
     seen.add(source.url); return true;
   });
+  void narrate(`AppID ${keyOf(game)} · source discovery complete: ${sources.length} distinct option(s); download button ${sources.length ? "available" : "unavailable"}.`, { area: "DOWNLOAD_SOURCES" });
   detailSources.set(keyOf(game), sources);
   availability.set(keyOf(game), { count: sources.length, names: [...new Set(sources.map(source => source.sourceName))] });
   publish();
@@ -88,6 +99,7 @@ export async function checkPluginSources(games: CatalogGame[]): Promise<Record<n
 async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
   const manifests = await plugins();
+  void narrate(`Source availability scan started: ${games.length} game(s), ${manifests.length} provider(s), batches of 100.`, { area: "DOWNLOAD_SOURCES" });
   await Promise.all(manifests.map(async plugin => {
     for (let start = 0; start < games.length; start += 100) {
       const batch = games.slice(start, start + 100);
@@ -113,6 +125,7 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
     }
   }));
   for (const [id, entry] of next) availability.set(id, entry);
+  void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
   publish();
   return Object.fromEntries([...next].map(([id, entry]) => [id, entry.count]));
 }

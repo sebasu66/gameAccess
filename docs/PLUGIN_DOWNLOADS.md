@@ -16,3 +16,5 @@ The server's /library/catalog endpoint supplies metadata without leases, source 
 
 The UI refreshes sources periodically and on focus, updates React state immutably, and rejects stale detail results. A failed plugin contributes no current availability. Source choice is explicit in the queued record; default and alternative downloads use the same durable service.
 Changing tiers changes admission of queued jobs. Already running jobs are preserved when the limit decreases; no new job starts until the active count fits the new limit.
+
+Source discovery, provider HTTP outcomes, usable options, queue admission, phase transitions and terminal slot release use the existing narration log. Extraction and executable selection add AppID context to the existing worker logs. These logging additions do not change installation or launch policy, and do not record source URL query tokens or passwords.

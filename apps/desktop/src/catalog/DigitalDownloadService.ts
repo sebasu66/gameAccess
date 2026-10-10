@@ -88,6 +88,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
     this.jobs.set(id, { game, options });
     this.queue.push(id);
+    void narrate(`Digital AppID ${id} · queued at position ${this.queue.length}; active=${this.running.size}, limit=${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: "En cola" });
     await this.pump();
   }
@@ -101,6 +102,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       if (!job) continue;
       // Reserve before awaiting native startup so concurrent callers share the limit.
       this.running.add(id);
+      void narrate(`Digital AppID ${id} · starting queued job; active=${this.running.size}/${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });
       try {
         await this.launch(job.game, job.options);
       } catch (error) {
@@ -430,6 +432,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const previous = this.activeJobs.get(snapshot.gameId);
     if (previous?.phase === "cancelling" && !["cancelled", "completed", "error"].includes(snapshot.phase)) return;
     if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
+    if (previous?.phase !== snapshot.phase) void narrate(`Digital AppID ${snapshot.gameId} · phase ${previous?.phase ?? "new"} -> ${snapshot.phase}; bytes=${snapshot.bytesDownloaded ?? "unknown"}/${snapshot.bytesTotal ?? "unknown"}; ${snapshot.statusText ?? ""}.`, { area: "DIGITAL_DOWNLOAD" });
     this.activeJobs.set(snapshot.gameId, snapshot);
     if (snapshot.phase === "cancelled") {
       this.jobs.delete(snapshot.gameId);
@@ -439,6 +442,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       clearInterval(this.pollingIntervals.get(snapshot.gameId));
       this.pollingIntervals.delete(snapshot.gameId);
       this.running.delete(snapshot.gameId);
+      void narrate(`Digital AppID ${snapshot.gameId} · job ended (${snapshot.phase}); active=${this.running.size}, queued=${this.queue.length}; scheduler checking the next job.`, { area: "DIGITAL_DOWNLOAD" });
       queueMicrotask(() => { void this.pump(); });
     }
     this.persist();

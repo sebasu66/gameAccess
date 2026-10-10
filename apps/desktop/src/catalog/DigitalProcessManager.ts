@@ -51,9 +51,11 @@ export class DigitalProcessManager {
     const name = record?.name ?? game.name;
     const autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
     const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
+    if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} requested for '${name}'; auto-installed=${autoInstalled}; executable selection=${command ? "configured" : "discovery"}.`, { area: "DIGITAL_EXECUTION" });
     try {
       if (hasTauriRuntime()) {
         if (action === "play") {
+          void narrate(`Digital AppID ${appId} · checking game folder and backup requirements before launch.`, { area: "DIGITAL_EXECUTION" });
           const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null, autoInstalled });
           if (!backup.ok) throw new Error(backup.error || "No se pudo verificar el respaldo Digital.");
           if (!autoInstalled && backup.backup_requires_password) await supplyArchivePasswords(appId);
@@ -62,6 +64,7 @@ export class DigitalProcessManager {
           action, appId, name, command, workingDir: null, autoInstalled,
         });
         if (!result.ok) throw new Error(result.error || result.stderr || `El proceso terminó con código ${result.exit_code ?? "desconocido"}`);
+        if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} completed; ok=${result.ok}, pid=${result.pid ?? "none"}, exit=${result.exit_code ?? "running"}; folder=${result.folder ?? "unknown"}.`, { area: "DIGITAL_EXECUTION" });
         return result;
       }
       return { ok: true, action, app_id: appId, name, command, installed: false, statuses: {}, ...(action === "play" ? { pid: 12345 } : { exit_code: 0 }) };

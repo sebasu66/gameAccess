@@ -1287,8 +1287,10 @@ def main():
         # Completed downloads must survive extraction/installation errors or cancellation.
         if target_content_path in g_temp_files:
             g_temp_files.remove(target_content_path)
+        logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, dest_dir)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
         should_delete_archive = True  # Only the smallest original archive is retained.
+        logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
         extracted = extract_archives_in_path(
             target_path=target_content_path or dest_dir,
             dest_dir=dest_dir,
@@ -1301,6 +1303,7 @@ def main():
 
         if g_cancelled.is_set():
             cleanup_on_cancel()
+        logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
         # Digital is portable: extraction is the installation. Never execute installProcess.
         if g_cancelled.is_set():
             cleanup_on_cancel()

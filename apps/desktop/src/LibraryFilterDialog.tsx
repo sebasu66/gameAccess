@@ -45,7 +45,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   </div>, document.body);
 }
 
-export function activeFilterTags(filters: LibrarySearchFilters): { group: "genres" | "features"; value: string; label: string }[] {
+export function activeFilterTags(filters: LibrarySearchFilters): { group: "genres" | "features" | "sources"; value: string; label: string }[] {
   return [...filters.genres.map(value => ({ group: "genres" as const, value, label: value })),
     ...(filters.sources ?? []).map(value => ({ group: "sources" as const, value, label: value })),
     ...filters.features.map(value => ({ group: "features" as const, value, label: featureLabel(value as LibraryFeatureKey) }))];

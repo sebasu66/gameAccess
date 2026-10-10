@@ -207,7 +207,9 @@ class DigitalProcessRunner:
             if action != "play":
                 raise ValueError(f"Unknown action '{action}'")
                 
+            logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
             if not auto_installed:
+                logger.info("AppID %s: restoring retained archive before executable discovery", app_id)
                 DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
@@ -216,6 +218,7 @@ class DigitalProcessRunner:
             self.patch_onlinefix_popup(folder)
             self.patch_crack_language(folder)
                 
+            logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
             candidates = self.get_candidates(folder, name, command)
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             
@@ -246,6 +249,7 @@ class DigitalProcessRunner:
                             last_error = f"Mostro dialogo de error: {err_msg}"
                             continue
                             
+                    logger.info("AppID %s: launch accepted; pid=%s; executable=%s; cwd=%s", app_id, process.pid, executable, executable.parent)
                     logger.info(f"Ejecucion exitosa confirmada: {executable}")
                     
                     if executable.suffix.lower() != ".bat" and not command.strip():
