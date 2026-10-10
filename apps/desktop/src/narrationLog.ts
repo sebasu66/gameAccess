@@ -19,8 +19,9 @@ let writeQueue: Promise<void> = Promise.resolve();
 let logPathPromise: Promise<string | null> | null = null;
 
 
-function sanitizedRemoteError(value: string): string {
+export function sanitizedRemoteError(value: string): string {
   return value
+    .replace(/(?:https?:\/\/|magnet:\?|postgres(?:ql)?:\/\/)[^\s]+/gi, "[link]")
     .replace(/bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(/(password|session[_ -]?token|activation[_ -]?key|authorization|client_public_key)\s*[:=]\s*[^\s,;]+/gi, "[redacted]")
     .replace(/C:\\Users\\[^\\\s]+/gi, "C:\\Users\\[user]")

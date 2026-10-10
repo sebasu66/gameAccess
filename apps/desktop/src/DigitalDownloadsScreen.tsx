@@ -1,3 +1,4 @@
+import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
 import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
@@ -102,6 +103,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length})}</p></div>
       <button type="button" className="digital-download-back" data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")}><X size={18} />{t("close")}</button>
     </header>
+    <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
     {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}

@@ -80,7 +80,7 @@ def test_preserves_multipart_set_when_retaining_original_backup(tmp_path):
     assert result.name == "Fixture Game_backup.part1.rar"
     assert (root / "Fixture Game_backup.part2.rar").read_bytes() == b"second"
 
-def test_encrypted_original_backup_uses_server_passwords_before_restoration(tmp_path):
+def test_encrypted_original_backup_uses_local_profile_passwords_before_restoration(tmp_path):
     import subprocess
     seven_zip = Path(worker.__file__).parent / "bin" / "7z" / "7z.exe"
     if not seven_zip.is_file():
@@ -99,14 +99,16 @@ def test_encrypted_original_backup_uses_server_passwords_before_restoration(tmp_
     payload.write_bytes(b"changed")
     replies = tmp_path / ".cache" / "digital_downloads"
     replies.mkdir(parents=True)
-    reply = replies / "1.passwords.json"
-    reply.write_text(json.dumps({"passwords": ["wrong", "fixture-password"]}))
+    profile = tmp_path / ".cache" / "execution_profiles" / "1.json"
+    profile.parent.mkdir(parents=True)
+    reply = profile
+    reply.write_text(json.dumps({"archivePasswords": ["wrong", "fixture-password"], "beforePlay": []}))
     completed = replies / "1.json"
     completed.write_text(json.dumps({"phase": "completed"}))
     with patch.object(worker, "find_portable_7z", return_value=str(seven_zip)):
         assert DigitalArchiveBackup.restore(folder, "Fixture Game", 1, tmp_path)
     assert payload.read_bytes() == b"encrypted incoming"
-    assert not reply.exists()
+    assert reply.exists()
     assert json.loads(completed.read_text())["phase"] == "completed"
 
 def test_automatic_source_skips_patch_rules_and_preserves_existing_files(tmp_path):

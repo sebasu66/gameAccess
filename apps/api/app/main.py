@@ -22,7 +22,6 @@ from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
 
 from .admin_auth import admin_authenticated, install_admin_auth
-from .archive_passwords import read_archive_passwords, save_archive_passwords
 from .database import DB_PATH, engine, database_project_ref, verify_shared_database
 from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, SteamReviewRateLimited, steam_assets
 from .access_keys import AccessKey, canonical_installation_id, ensure_access_key_schema, issue_keys, redeem_key, session_end_details, utc, valid_session
@@ -185,6 +184,7 @@ def _admin_browser_access(request: Request) -> None:
 
 
 _CLIENT_ERROR_SECRET_PATTERNS = (
+    re.compile(r"(?i)(?:https?://|magnet:\?|postgres(?:ql)?://)[^\s]+"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),
     re.compile(r"(?i)(password|session[_ -]?token|activation[_ -]?key|authorization)\s*[:=]\s*[^\s,;]+"),
     re.compile(r"(?i)(client_public_key)\s*[:=]\s*[^\s,;]+"),
@@ -482,37 +482,6 @@ def activation_status(request: Request, session: Session = Depends(get_session),
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc(),
             "cacheable": not isinstance(row, CourtesySession),
             "access_tier": courtesy_access_tier(row) if isinstance(row, CourtesySession) else row.access_tier}
-
-
-class ArchivePasswordsRequest(BaseModel):
-    passwords: str = Field(max_length=100000)
-
-
-@app.get("/admin/archive-passwords")
-def admin_archive_passwords(request: Request, response: Response) -> dict:
-    _admin_activation_access(request)
-    response.headers["Cache-Control"] = "no-store"
-    passwords = read_archive_passwords()
-    return {"passwords": "\n".join(passwords), "count": len(passwords)}
-
-
-@app.put("/admin/archive-passwords")
-def admin_save_archive_passwords(req: ArchivePasswordsRequest, request: Request, response: Response) -> dict:
-    _admin_activation_access(request)
-    response.headers["Cache-Control"] = "no-store"
-    try:
-        passwords = save_archive_passwords(req.passwords)
-    except ValueError as error:
-        raise HTTPException(422, str(error)) from error
-    return {"ok": True, "count": len(passwords)}
-
-
-@app.get("/digital/archive-passwords")
-def client_archive_passwords(request: Request, response: Response, session: Session = Depends(get_session)) -> dict:
-    if _activation_for_request(request, session) is None:
-        raise HTTPException(401, "GameAccess activation is required or has expired")
-    response.headers["Cache-Control"] = "no-store"
-    return {"passwords": read_archive_passwords()}
 
 
 @app.post("/client-errors")

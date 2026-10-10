@@ -1,3 +1,4 @@
+import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -54,10 +55,11 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       <span className="glass-action-icon">{current.loading || starting ? <Loader2 size={23} className="spin" /> : <Download size={23} />}</span>
       <span className="glass-action-label">{current.loading ? t("sourcesChecking") : current.sources.length ? pluginDownloadLabel(game, current.sources, locale) : t("sourcesUnavailable")}</span>
     </button>
-    <button type="button" className="source-options-toggle" disabled={!current.sources.length || disabled || starting}
+    <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
     {open && <section className="source-selector-panel" aria-label={t("sourcesChoose")}>
       <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
+      <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</summary><ManualDownloadForm game={game} onDone={() => setOpen(false)} /></details>
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
         <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>

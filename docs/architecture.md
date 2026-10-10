@@ -62,3 +62,31 @@ not log into Steam or switch its current account.
 GitHub is authoritative. Make code/documentation changes on the backed branch/PR,
 push, synchronize through AI_Local_Access, and test the exact pushed checkout.
 Keep unrelated local changes and private runtime configuration untouched.
+
+## Optional source and execution boundary
+
+The discovery/access API owns catalog packages and GameAccess access keys only.
+Provider feeds, archive passwords and provider-specific game preparation belong to
+independent optional plugins. Retired provider administration modules are archived
+in Git history and are not imported or shipped by the active API.
+
+A plugin's /api/prepare reply may include executionProfile; /api/execution-profile
+can supply a profile for an existing installation. The profile is a versioned JSON
+object with archivePasswords and beforePlay. Supported steps are ini-set (glob,
+section, key, value) and run (an executable and argument list within the game's
+folder). The generic runner preserves backup restoration, executable detection,
+language repair and user launch preferences. It applies the selected optional
+profile before Play. No extraction or Play request fetches provider data from the
+GameAccess server. Locally saved per-game profiles remain usable with the plugin off.
+
+Downloads has an Add manual download form. A detail's three-dot source chooser
+also accepts a manual link. Only name/link are required; Steam identity, size,
+archive passwords and a JSON profile stay behind Advanced options. Manual profiles
+are never replaced automatically by provider defaults.
+
+The activity console opens with the physical key to the left of 1 (Backquote) or
+its Console button. It tails bounded application, download and execution logs only
+while open; it can expand or pause. It masks credentials, and remote error reports
+strip all download links and connection strings. Provider secrets never appear in
+central logs. Co-Optimus uses an on-demand public-browser lookup in the desktop
+with an exact Steam-link identity check, and a cached server lookup as fallback.

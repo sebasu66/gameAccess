@@ -1,3 +1,4 @@
+import ActivityConsole from "./ActivityConsole";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { isTauri } from "@tauri-apps/api/core";
@@ -100,7 +101,7 @@ if (!root) throw new Error("gameAccess root element is missing");
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance />
+    <WindowChrome /><PixelAppearance /><ActivityConsole />
     <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /><AppSettings /></RuntimeGate></ActivationGate></AppCrashBoundary>
   </React.StrictMode>,
 );

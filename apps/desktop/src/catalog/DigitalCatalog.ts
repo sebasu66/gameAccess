@@ -1,3 +1,4 @@
+import { saveExecutionProfile, ensureExecutionProfile } from "./ExecutionProfiles";
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
 import { readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
@@ -204,6 +205,9 @@ export class DigitalCatalog {
       : source ?? (await this.getSources(game))[0];
     if (!selected) throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
     const prepared = await preparePluginSource(selected);
+    const appId = game.app_id ?? game.id;
+    if (prepared.executionProfile) await saveExecutionProfile(appId, prepared.executionProfile);
+    else await ensureExecutionProfile(appId);
     const record = this.getRecord(game.id);
     const effectiveRecord: DigitalGameRecord = {
       name: game.name, id: game.app_id ?? game.id, downloadSource: prepared.url, sourceDelivery: prepared.delivery,

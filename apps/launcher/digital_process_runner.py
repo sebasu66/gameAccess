@@ -1,5 +1,6 @@
 from __future__ import annotations
 from digital_backup import DigitalArchiveBackup
+from execution_profile import load_profile, apply_before_play
 import argparse
 import json
 import os
@@ -126,28 +127,9 @@ class DigitalProcessRunner:
         logger.info(f"Se probaran {len(candidates)} ejecutables en orden: {[p.name for p in candidates]}")
         return [(c.resolve(), []) for c in candidates]
 
-    def patch_onlinefix_popup(self, folder: Path):
-        """Busca y parchea OnlineFix.ini para inyectar el hash de 'navegador ya abierto' y evitar el popup."""
-        target_hash = "defa34f9d4e76c16eeb47f057f337934d4e47da373fd5dced397e2db05370865c9a75a0314d14d7fc15f1da4cab85f769ea958825210af06be6c4e253abeaf73"
-        try:
-            for ini_path in folder.rglob("OnlineFix.ini"):
-                content = ini_path.read_text(encoding="utf-8", errors="ignore")
-                new_content = content
-                
-                if "1337=" in content:
-                    new_content = re.sub(r"(?im)^1337\s*=.*$", f"1337={target_hash}", content)
-                elif "[Hashes]" in content:
-                    new_content = content.replace("[Hashes]", f"[Hashes]\n1337={target_hash}")
-                
-                if new_content != content:
-                    ini_path.write_text(new_content, encoding="utf-8")
-                    logger.info(f"Parcheado OnlineFix.ini para bloquear popup web en: {ini_path}")
-        except Exception as e:
-            logger.warning(f"Error parcheando OnlineFix.ini: {e}")
-
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
-        return repair_language(folder, language, logger, known_only=True)
+        return repair_language(folder, language, logger, known_only=False)
 
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
@@ -200,7 +182,9 @@ class DigitalProcessRunner:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
                 
             # Parchear OnlineFix antes de buscar el ejecutable
-            self.patch_onlinefix_popup(folder)
+            profile = load_profile(self.storage.launcher, app_id)
+            logger.info("AppID %s: applying optional execution profile; steps=%s", app_id, len(profile["beforePlay"]))
+            apply_before_play(folder, profile)
             options = game_options.load(app_id)
             self.patch_crack_language(folder, options["language"])
                 

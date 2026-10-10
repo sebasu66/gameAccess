@@ -2,7 +2,6 @@ import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { digitalErrorMessage } from "../digitalErrors";
-import { supplyArchivePasswords } from "./archivePasswords";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
 import { snapshotToManagedStatus } from "../downloadProvider";
@@ -219,7 +218,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   private async launch(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
     const gameId = game.app_id ?? game.id;
     const record = options?.record || this.getRecord(game.id) || this.getRecord(gameId);
-    console.log(`[DigitalDownloaderService:start] Starting for gameId=${gameId}, record=`, record);
+    console.log(`[DigitalDownloaderService:start] Starting for gameId=${gameId}`);
 
     const initialSnapshot: DownloadProgressSnapshot = {
       gameId,
@@ -235,7 +234,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const name = record?.name ?? game.name;
     const downloadSource = (record?.downloadSource ?? (game as any).downloadSource ?? "").trim();
     const installProcess = "";
-    console.log(`[DigitalDownloaderService:start] Params: appId=${appId}, name='${name}', source='${downloadSource}'`);
+    console.log(`[DigitalDownloaderService:start] Params: appId=${appId}, name='${name}', source configured`);
 
     if (!downloadSource) {
       const errorMsg = `El juego '${name}' no posee fuentes de descarga disponibles.`;
@@ -290,7 +289,6 @@ export class DigitalDownloadService implements IDownloadProvider {
       clearInterval(this.pollingIntervals.get(gameId));
     }
     let pending = false;
-    let passwordsSupplied = false;
     const interval = setInterval(async () => {
       if (!hasTauriRuntime() || pending || !this.running.has(gameId)) return;
       pending = true;
@@ -298,10 +296,6 @@ export class DigitalDownloadService implements IDownloadProvider {
         const raw = await invoke<any>("digital_download_status", { appId });
         console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
         if (!this.running.has(gameId)) return;
-        if (raw?.passwordsRequired && !passwordsSupplied) {
-          passwordsSupplied = true;
-          await supplyArchivePasswords(appId);
-        }
         if (raw && raw.phase) {
           const snapshot: DownloadProgressSnapshot = {
             gameId,

@@ -7,3 +7,6 @@
 .plugin-download-action>.source-options-toggle{margin-left:0;flex:none;min-height:40px}
 .plugin-download-action>.source-selector-panel{bottom:calc(100% + 12px);left:0;margin-top:0}
 .plugin-download-action>p[role=alert]{position:absolute;top:100%;font-size:12px}
+
+.ga-detail-actions .plugin-download-action>.source-options-toggle{height:54px;min-height:54px;width:48px;min-width:48px;padding:0;display:grid;place-items:center;border-radius:5px;align-self:stretch}
+.source-selector-panel .manual-download-form{max-height:240px;overflow:auto}

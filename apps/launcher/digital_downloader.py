@@ -7,7 +7,7 @@ Communicates via newline-delimited JSON (ndjson) over stdout with autoflush.
 Supports:
   - Multi-threaded segmented downloading (HTTP Range)
   - TorBox torrent/magnet resolution and caching
-  - Extraction via bundled portable 7-Zip with host/password adaptation
+  - Extraction via bundled portable 7-Zip with optional local execution profiles
   - Custom post-download installation commands
   - Clean cancellation (SIGINT / SIGTERM) with process and temp file cleanup
 """
@@ -228,12 +228,6 @@ if hasattr(signal, "SIGBREAK"):
 
 
 # --- 7-Zip & Extraction Helpers ---
-HOST_PROFILES: Dict[str, Dict[str, Any]] = {
-    "X": {
-        "password": "zzzz",
-        "description": "Host X profile",
-    },
-}
 
 ARCHIVE_EXTENSIONS = (
     ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
@@ -820,31 +814,13 @@ def download_direct_torrent(
 
 # --- Archive Extraction & Cleaner (Matching Hydra GameFilesManager) ---
 def request_archive_passwords():
-    """Request central passwords through the desktop bridge, then discard the reply file."""
-    reply = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.passwords.json"
-    emit_json({
-        "type": "progress", "appId": str(g_app_id), "phase": "decompressing",
-        "progressPercent": 0, "passwordsRequired": True,
-        "statusText": "Solicitando contraseñas al servidor..."
-    })
-    deadline = time.monotonic() + 30
-    while not g_cancelled.is_set() and time.monotonic() < deadline:
-        try:
-            payload = json.loads(reply.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            g_cancelled.wait(0.1)
-            continue
-        reply.unlink(missing_ok=True)
-        if payload.get("error"):
-            raise RuntimeError(str(payload["error"]))
-        passwords = payload.get("passwords")
-        if not isinstance(passwords, list) or any(not isinstance(value, str) for value in passwords):
-            raise RuntimeError("La lista de contraseñas del servidor es inválida.")
-        return list(dict.fromkeys(value for value in passwords if value))
-    if g_cancelled.is_set():
-        return []
-    raise RuntimeError("El cliente no recibió las contraseñas del servidor. La descarga se conserva.")
-
+    """Use only the local user/plugin profile; never contact the central server."""
+    from execution_profile import load_profile
+    passwords = load_profile(LAUNCHER_DIR, g_app_id)["archivePasswords"]
+    logger.info("AppID %s: archive extraction using optional local profile; credentials are not logged", g_app_id)
+    if not passwords:
+        raise RuntimeError("El archivo requiere contraseña. Añade un perfil o contraseña en las opciones de descarga.")
+    return list(dict.fromkeys(p for p in passwords if p))
 
 def archive_member_names(archive: str, seven_zip: Optional[str], password: str) -> Optional[list[str]]:
     """List incoming payload files without extracting or prompting."""
@@ -947,14 +923,8 @@ def extract_archives_in_path(
 
     # Determine password
     effective_password = password
-    if not effective_password and host:
-        host_key = host.strip()
-        profile = HOST_PROFILES.get(host_key) or HOST_PROFILES.get(host_key.upper()) or HOST_PROFILES.get(host_key.lower())
-        if profile and "password" in profile:
-            effective_password = profile["password"]
-
     passwords = [effective_password] if effective_password else ["-"]
-    server_passwords_requested = False
+    profile_passwords_loaded = False
 
     total = len(archives_to_extract)
     for idx, arc in enumerate(archives_to_extract):
@@ -1024,8 +994,8 @@ def extract_archives_in_path(
                     return False
                 if returncode != 0:
                     if re.search(r"password|encrypted|contrase", output_tail, re.I):
-                        if not server_passwords_requested:
-                            server_passwords_requested = True
+                        if not profile_passwords_loaded:
+                            profile_passwords_loaded = True
                             for value in request_archive_passwords():
                                 if value not in passwords:
                                     passwords.append(value)
@@ -1092,7 +1062,6 @@ def main():
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
     parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
-    parser.add_argument("--host", default=None, help="Host profile identifier (e.g. 'X' uses password 'zzzz')")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
     parser.add_argument("--connections", "-n", type=int, default=16, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")
@@ -1272,28 +1241,7 @@ def main():
                 parsed = urlparse(download_url)
                 target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
                 
-                # Verificar si es un hoster que requiere navegador
-                browser_domains = [
-                    "gofile.io", "1fichier.com", "pixeldrain.com", "qiwi.gg", 
-                    "drive.google.com", "mediafire.com", "mega.nz", "krakenfiles.com", 
-                    "buzzheavier.com", "rapidgator.net", "multiup.org", 
-                    "uploadhaven.com", "megaup.net", "filemoon.sx", "dodi-repacks",
-                    "fitgirl-repacks", "rentry.co", "pastebin.com"
-                ]
-                
-                domain = parsed.hostname or ""
-                browser_domains.append("vikingfile.com")
-                if any(domain == d or domain.endswith("." + d) for d in browser_domains):
-                    logger.info("AppID %s: plugin supplied a browser source (%s); automatic unlock unavailable.", app_id, domain)
-                    import webbrowser
-                    webbrowser.open(download_source)
-                    emit_progress(
-                        app_id=app_id, phase="external", progress_percent=0.0,
-                        bytes_downloaded=0, total_bytes=0,
-                        status_text="Esta fuente requiere descargar en el navegador. El desbloqueo de PLUS todavía no está disponible; el juego no está instalado."
-                    )
-                    sys.exit(0)
-    
+
             # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
             if download_url:
                 out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
@@ -1342,7 +1290,6 @@ def main():
             target_path=target_content_path or dest_dir,
             dest_dir=game_dir,
             source_root=dest_dir,
-            host=args.host,
             password=args.password,
             delete_archive=should_delete_archive,
             game_name=game_name,

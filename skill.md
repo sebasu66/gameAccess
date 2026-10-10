@@ -15,7 +15,9 @@ BASE permits one active download and PLUS four. Both share the same catalog,
 placements, actions and persistent queue. Debrid acceleration and Viking Files
 cache remain unimplemented.
 
-Plugins exclusively provide download sources. The default Download action selects
+Optional independent plugins provide download sources, archive passwords and execution profiles.
+Manual links and profiles are user inputs and work without a plugin.
+The GameAccess server never stores or distributes provider feeds, passwords or preparation procedures. The default Download action selects
 their first ranked source. Keep its size in the label and show the available source
 count in brackets. Advanced source choices belong behind the three-dot menu.
 Source-name filters come from live plugins; source availability must not come from

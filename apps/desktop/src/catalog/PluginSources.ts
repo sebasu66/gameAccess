@@ -1,3 +1,4 @@
+import type { ExecutionProfile } from "./ExecutionProfiles";
 import { pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
@@ -7,6 +8,7 @@ export interface PluginManifest { id: string; name: string; endpoint: string; ty
 export interface PluginSource {
   title: string; url: string; type: string; size: string; score: number;
   pluginName: string; sourceName: string;
+  executionProfile?: ExecutionProfile;
   resolverUrl?: string;
   delivery?: "browser" | "download";
 }
@@ -180,12 +182,12 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
   if (!source.resolverUrl) return source;
   void narrate("Preparing selected source '" + source.sourceName + "' · " + source.title + ".", { area: "DOWNLOAD_SOURCES" });
   const response = await fetch(source.resolverUrl, { signal: AbortSignal.timeout(60000) });
-  const result = await response.json() as { url?: unknown; error?: unknown; mode?: unknown };
+  const result = await response.json() as { url?: unknown; error?: unknown; mode?: unknown; executionProfile?: ExecutionProfile };
   if (!response.ok || !validUrl(result.url)) {
     throw new Error(typeof result.error === "string" ? result.error : "El plugin no pudo preparar el enlace de descarga.");
   }
   void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
-  return { ...source, url: result.url.trim(), delivery: result.mode === "browser" ? "browser" : source.delivery };
+  return { ...source, executionProfile: result.executionProfile ?? source.executionProfile, url: result.url.trim(), delivery: result.mode === "browser" ? "browser" : source.delivery };
 }
 
 export function invalidatePluginSources(): void {
