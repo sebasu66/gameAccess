@@ -1,6 +1,9 @@
 export type AvailabilityState = "ready" | "owned-busy" | "unavailable";
 
 export interface CatalogGame {
+  has_downloads?: boolean;
+  availableSourceCount?: number;
+  download_source_names?: string[];
   filter_match?: "confirmed" | "possible";
   id: number;
   slug: string;
@@ -18,6 +21,15 @@ export interface CatalogGame {
   categories?: string[];
   steam_category_ids?: number[];
   tags?: string[];
+  catalog_cache_id?: number;
+  tag_sources?: Record<string, string[]>;
+  metadata_sources?: string[];
+  metadata_urls?: Record<string, string>;
+  min_players?: number | null;
+  max_players?: number | null;
+  local_players_max?: number | null;
+  online_players_max?: number | null;
+  players_source?: string | null;
   developers?: string[];
   publishers?: string[];
   short_description?: string;
@@ -27,10 +39,6 @@ export interface CatalogGame {
   steam_review_count?: number | null;
   metacritic_score?: number | null;
   request_count_total?: number;
-  successful_leases?: number;
-  demand_value?: number;
-  price_factor?: number;
-  pool_value?: number;
   single_player?: boolean | null;
   multiplayer?: boolean | null;
   coop?: boolean | null;
@@ -39,14 +47,8 @@ export interface CatalogGame {
   shared_split_screen?: boolean | null;
   mmo?: boolean | null;
   pvp?: boolean | null;
-  local_account_labels?: string[];
-  local_access_labels?: string[];
-  local_primary_account_label?: string;
-  local_owner_steam_ids?: string[];
-  local_inventory_verified?: boolean;
-  local_inventory_verified_at?: string | null;
   downloadSource?: string;
-  /** Package size supplied by this game's selected server JSON source. */
+  /** Package size supplied by this game's selected plugin source. */
   download_size?: string | null;
   download_size_bytes?: number | null;
   download_size_source?: string | null;
@@ -69,7 +71,7 @@ export interface SteamSearchResult {
   price?: SteamSearchPrice | null;
   platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
   catalog_game?: CatalogGame | null;
-  access_state: "available" | "busy" | "not-in-pool";
+  access_state: "metadata-only" | "available" | "busy" | "not-in-pool";
   steam_url?: string;
 }
 
@@ -148,14 +150,3 @@ export interface UserSummary {
   credits: number;
 }
 
-export interface LeaseResponse {
-  lease_id: number;
-  user_id?: number;
-  game: { id: number; name: string; app_id: number | null };
-  account: { id: number; label: string; provider: string };
-  credits_spent: number;
-  credits_remaining: number;
-  starts_at: string;
-  expires_at: string;
-  session_action: string;
-}

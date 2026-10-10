@@ -139,3 +139,9 @@ def test_wrong_courtesy_key_is_rejected(monkeypatch, tmp_path) -> None:
         assert access_overrides.redeem_courtesy_key(
             session, "GA-WRONG-COURTESY-1234", str(uuid4())
         ) is None
+
+def test_legacy_developer_key_defaults_to_plus_and_explicit_tier_wins() -> None:
+    entry = {"name": "developer", "key": "GA-DEVELOPER-FIXTURE", "duration_months": 1}
+    assert access_overrides._parse_local_file({"keys": [entry]})[0].access_tier == "plus"
+    assert access_overrides._parse_local_file({"keys": [{**entry, "access_tier": "base"}]})[0].access_tier == "base"
+    assert access_overrides._parse_local_file({"keys": [{**entry, "name": "tester"}]})[0].access_tier == "base"

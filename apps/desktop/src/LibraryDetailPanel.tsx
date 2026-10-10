@@ -1,5 +1,8 @@
+import CooptimusDetails from "./CooptimusDetails";
+import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
-import {downloadButtonLabel} from "./downloadSize";
+
+
 import {useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
@@ -22,7 +25,6 @@ import {
   removeFailedDetailImage,
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
-import { getCatalogMode } from "./catalogMode";
 import { downloadManager } from "./downloadManager";
 import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import { steamDownloadMetrics } from "./nativeDownloadMetrics";
@@ -184,27 +186,20 @@ function actionClass(action: LibraryAction, selected: boolean): string {
 }
 
 function ActionButtons(props: FeaturePanelProps) {
-  const {locale,t}=useI18n();
-  return (
-    <div className="library-room-actions glass-actions-row">
-      {props.actions.map((action, index) => (
-        <button
-          type="button"
-          key={`${action.kind}-${action.label}`}
-          ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
-          data-action={action.kind}
-          title={action.reason ?? undefined}
-          className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
-          onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
-          onClick={() => props.onAction(index)}
-          disabled={action.disabled}
-        >
-          <span className="glass-action-icon">{action.icon}</span>
-          <span className="glass-action-label">{action.kind === "download" ? downloadButtonLabel(props.game,locale) : action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
-        </button>
-      ))}
-    </div>
-  );
+  const { t } = useI18n();
+  return <div className="library-room-actions glass-actions-row">
+    {props.actions.map((action, index) => action.kind === "download"
+      ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : <button type="button" key={action.kind}
+        ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
+        data-action={action.kind} title={action.reason ?? undefined}
+        className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
+        onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
+        onClick={() => props.onAction(index)} disabled={action.disabled}>
+        <span className="glass-action-icon">{action.icon}</span>
+        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
+      </button>)}
+  </div>;
 }
 
 function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
@@ -516,7 +511,7 @@ function DesktopFeature(props: FeaturePanelProps) {
             {detailState.refreshingSteam ? <small role="status">Actualizando datos de Steam…</small> : detailState.steamRefreshMessage ? <small role="status">{detailState.steamRefreshMessage}</small> : null}
             <div className="ga-detail-rating"><strong>{ratingGame.steam_review_score != null ? `${Math.round(ratingGame.steam_review_score)}%` : "—"}</strong><span>Valoración de usuarios en Steam<br />{ratingGame.steam_review_count ? `${ratingGame.steam_review_count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span></div>
             <ExtendedDetails details={details} />
-            <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
+            <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
             <ActiveDownloadFacts download={props.download} />
           </div>
           <CircularScrollbar targetRef={scrollRef} label="Desplazar información del juego" />

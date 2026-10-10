@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 from digital_storage import DigitalGameStorage
+from digital_preferences import DigitalPreferences
+from digital_game_options import DigitalGameOptions, checked_executable, parse_arguments, repair_language, launch_as_administrator
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -99,7 +101,7 @@ class DigitalProcessRunner:
             try:
                 rel_path = exe_marker.read_text(encoding="utf-8").strip()
                 exe_target = (folder / rel_path).resolve()
-                if exe_target.is_file():
+                if exe_target.is_file() and exe_target.is_relative_to(folder.resolve()):
                     logger.info(f"Encontrado marcador .gameaccess_exe apuntando a: {exe_target}")
                     return [(exe_target, [])]
             except Exception:
@@ -143,61 +145,44 @@ class DigitalProcessRunner:
         except Exception as e:
             logger.warning(f"Error parcheando OnlineFix.ini: {e}")
 
-    def patch_crack_language(self, folder: Path):
-        """Fuerza el idioma español en configuraciones de cracks conocidos (CODEX, FLT, OnlineFix, TENOKE, etc.)."""
-        crack_files = {
-            "steam_api.ini", "steam_api64.ini", "steam_emu.ini", 
-            "onlinefix.ini", "flt.ini", "tenoke.ini", "rune.ini", 
-            "codex.ini", "ali213.ini", "plaza.ini", "epic_emu.ini",
-            "language.ini", "goggame.ini", "anadius.ini", "cream_api.ini"
-        }
-        try:
-            # 1. Parcheo de archivos INI de cracks
-            for ini_path in folder.rglob("*.ini"):
-                if ini_path.name.lower() in crack_files:
-                    try:
-                        content = ini_path.read_text(encoding="utf-8", errors="ignore")
-                        match = re.search(r"(?im)^Language\s*=\s*([a-zA-Z0-9_\-]+)", content)
-                        if match:
-                            current = match.group(1).lower()
-                            if current not in ("spanish", "latam", "es", "es-es", "es-mx", "es_es", "es_mx"):
-                                replacement = "es" if "epic" in ini_path.name.lower() else "spanish"
-                                new_content = re.sub(r"(?im)^Language\s*=\s*[a-zA-Z0-9_\-]+.*$", f"Language={replacement}", content)
-                                ini_path.write_text(new_content, encoding="utf-8")
-                                logger.info(f"Idioma cambiado de '{current}' a '{replacement}' en {ini_path.name}")
-                    except Exception as e:
-                        logger.warning(f"Error modificando idioma en {ini_path.name}: {e}")
-                        
-            # 2. Parcheo de emuladores tipo Goldberg (language.txt / force_language.txt)
-            for txt_path in folder.rglob("*.txt"):
-                name = txt_path.name.lower()
-                if name in ("language.txt", "force_language.txt"):
-                    path_str = str(txt_path).lower()
-                    if "steam_settings" in path_str or "goldberg" in path_str or "language" in name:
-                        try:
-                            content = txt_path.read_text(encoding="utf-8", errors="ignore").strip().lower()
-                            if content and content not in ("spanish", "latam", "es"):
-                                txt_path.write_text("spanish", encoding="utf-8")
-                                logger.info(f"Idioma cambiado de '{content}' a 'spanish' en {txt_path.name} (Emu)")
-                        except Exception:
-                            pass
-        except Exception as e:
-            logger.warning(f"Error general parcheando idioma: {e}")
+    def patch_crack_language(self, folder: Path, language="spanish"):
+        # Keep the established automatic preparation, honoring the user's choice.
+        return repair_language(folder, language, logger, known_only=True)
 
     def run(self, action, app_id, name, command="", auto_installed=False):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
+            if action == "settings":
+                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).load()}
+            if action == "save-settings":
+                values = json.loads(command)
+                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).save(values)}
+            if action == "local-games":
+                return {**result, "ok": True, "games": self.storage.local_games()}
             if action == "snapshot":
                 games = json.loads(command)
-                return {"ok": True, "statuses": {str(g["id"]): self.storage.status(g["id"], g["name"]) for g in games}}
+                return {"ok": True, "statuses": self.storage.snapshot(games)}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
+            game_options = DigitalGameOptions(self.storage)
+            if action == "game-options":
+                return {**result, "ok": True, **game_options.inspect(app_id, name)}
+            if action == "save-game-options":
+                options = game_options.save(app_id, name, json.loads(command))
+                logger.info("AppID %s: launch options saved; executable=%s; administrator=%s; language=%s", app_id, options["executable"] or "automatic", options["administrator"], options["language"])
+                return {**result, "ok": True, "options": options}
+            if action == "repair-language":
+                options = game_options.load(app_id)
+                repaired = repair_language(folder, options["language"], logger)
+                return {**result, "ok": True, **repaired}
             if action == "status":
                 backup = None if auto_installed else DigitalArchiveBackup.info(folder, name)
                 return {**result, "ok": True, **self.storage.status(app_id, name),
                         "backup_requires_password": bool(not auto_installed and backup and backup["needs_password"])}
             if action == "uninstall":
+                logger.info("AppID %s: uninstall starting; validated folder=%s; removes partial files without installation or executable checks", app_id, folder)
                 self.storage.uninstall(app_id, name)
+                logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
             if action == "open-folder":
                 if not folder.is_dir():
@@ -207,16 +192,32 @@ class DigitalProcessRunner:
             if action != "play":
                 raise ValueError(f"Unknown action '{action}'")
                 
+            logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
             if not auto_installed:
+                logger.info("AppID %s: restoring retained archive before executable discovery", app_id)
                 DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
                 
             # Parchear OnlineFix antes de buscar el ejecutable
             self.patch_onlinefix_popup(folder)
-            self.patch_crack_language(folder)
+            options = game_options.load(app_id)
+            self.patch_crack_language(folder, options["language"])
                 
-            candidates = self.get_candidates(folder, name, command)
+            logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
+            if options["executable"]:
+                candidates = [(checked_executable(folder, options["executable"]), parse_arguments(options["arguments"]))]
+            else:
+                candidates = self.get_candidates(folder, name, command)
+                extra = parse_arguments(options["arguments"])
+                candidates = [(exe, [*arguments, *extra]) for exe, arguments in candidates]
+            if options["administrator"]:
+                executable, arguments = candidates[0]
+                if executable.suffix.lower() != ".exe":
+                    raise ValueError("Selecciona el archivo .exe del juego para ejecutar como administrador.")
+                pid = launch_as_administrator(executable, arguments, executable.parent)
+                logger.info("AppID %s: Windows accepted administrator launch; pid=%s; executable=%s", app_id, pid, executable)
+                return {**result, "ok": True, "pid": pid, "command": str(executable), "administrator": True}
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             
             last_error = None
@@ -224,7 +225,7 @@ class DigitalProcessRunner:
                 logger.info(f"Intentando ejecutar: {executable} {arguments}")
                 try:
                     if executable.suffix.lower() == ".bat":
-                        process = subprocess.Popen(["cmd.exe", "/c", str(executable)], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                        process = subprocess.Popen(["cmd.exe", "/c", str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
                     else:
                         process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
                     
@@ -246,6 +247,7 @@ class DigitalProcessRunner:
                             last_error = f"Mostro dialogo de error: {err_msg}"
                             continue
                             
+                    logger.info("AppID %s: launch accepted; pid=%s; executable=%s; cwd=%s", app_id, process.pid, executable, executable.parent)
                     logger.info(f"Ejecucion exitosa confirmada: {executable}")
                     
                     if executable.suffix.lower() != ".bat" and not command.strip():
@@ -284,7 +286,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

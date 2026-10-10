@@ -9,6 +9,7 @@ on:
       - "gameaccess-v*"
     paths:
       - "apps/desktop/**"
+      - "deploy/catalog-cache/**"
       - ".github/workflows/windows-installer.yml"
 
 permissions:
@@ -84,8 +85,8 @@ jobs:
           $required = @(
             "gameaccess-desktop.exe",
             "runtime/python/python.exe",
-            "runtime/launcher/provider_download_manager.py",
-            "runtime/launcher/steam_pool.py",
+            "runtime/launcher/digital_downloader.py",
+            "runtime/launcher/digital_process_runner.py",
             "runtime/catalog/catalog-manifest.json"
           )
           foreach ($relative in $required) {
@@ -94,10 +95,11 @@ jobs:
               throw "Installer payload is missing $relative"
             }
           }
-          $catalogArtifact = Get-ChildItem (Join-Path $extract "runtime/catalog/catalog-cache-*.sqlite.gz") -File | Select-Object -First 1
-          if (-not $catalogArtifact) {
-            throw "Installer payload is missing the bundled catalog SQLite snapshot."
-          }
+          $catalogManifest = Get-Content (Join-Path $extract "runtime/catalog/catalog-manifest.json") -Raw | ConvertFrom-Json
+          $catalogArtifact = Join-Path $extract "runtime/catalog/catalog-cache-$($catalogManifest.revision).sqlite.gz"
+          if (-not (Test-Path -LiteralPath $catalogArtifact -PathType Leaf)) { throw "Installer is missing its manifest's database." }
+          if ((Get-FileHash -LiteralPath $catalogArtifact -Algorithm SHA256).Hash -ne $catalogManifest.sha256) { throw "Installer database hash mismatch." }
+          if (-not $catalogManifest.coverage.recent_complete) { throw "Installer catalog has incomplete recent-release coverage." }
 
           $forbidden = Get-ChildItem $extract -Recurse -Force | Where-Object {
             $_.FullName -match '[\\/]\.venv([\\/]|$)' -or

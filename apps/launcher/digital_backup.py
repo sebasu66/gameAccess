@@ -5,17 +5,19 @@ import io
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 class DigitalArchiveBackup:
     METADATA = ".digital-backup.json"
 
     @staticmethod
-    def retain(archive, download_dir, extraction_dir, game_name, needs_password=False):
+    def retain(archive, download_dir, extraction_dir, game_name, needs_password=False, source_root=None):
         root = Path(download_dir).resolve()
         source = Path(archive).resolve()
         destination = Path(extraction_dir).resolve()
-        if not source.is_relative_to(root) or not destination.is_relative_to(root):
+        transfer_root = Path(source_root).resolve() if source_root else root
+        if not source.is_relative_to(transfer_root) or not destination.is_relative_to(root):
             raise RuntimeError("El respaldo debe permanecer en la carpeta descargada.")
         title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", game_name or root.name).strip(" .") or "game"
         # Keep all volumes when the smallest logical archive is multipart.
@@ -28,18 +30,18 @@ class DigitalArchiveBackup:
             suffix = part.group(2)
         else:
             suffix = "".join(source.suffixes) if source.name.lower().endswith((".tar.gz", ".tar.bz2", ".tar.xz")) else source.suffix
-        output = source.parent / f"{title}_backup{suffix}"
+        output = root / f"{title}_backup{suffix}"
         moves = []
         for member in files:
             member_suffix = member.name[len(part.group(1)):] if part else suffix
-            moves.append((member, member.parent / f"{title}_backup{member_suffix}"))
+            moves.append((member, root / f"{title}_backup{member_suffix}"))
         if not part and source.suffix.lower() == ".zip":
             for member in source.parent.iterdir():
                 if re.fullmatch(re.escape(source.stem) + r"\.z\d+", member.name, re.I):
                     moves.append((member, member.parent / f"{title}_backup{member.suffix}"))
         for member, target in moves:
             if member != target:
-                os.replace(member, target)
+                shutil.move(str(member), str(target))
         record = {"archive": str(output.relative_to(root)), "destination": str(destination.relative_to(root)),
                   "needs_password": bool(needs_password)}
         metadata = root / DigitalArchiveBackup.METADATA

@@ -5,12 +5,13 @@
 .digital-download-eyebrow,.digital-download-section-label { color:#a8c0bd; font-size:11px; font-weight:700; letter-spacing:1.8px; }
 .digital-download-section-label { margin:34px 0 14px; }
 .digital-downloads-screen button,.digital-download-nav { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:38px; padding:8px 14px; border:1px solid #34454b; border-radius:6px; background:#162229; color:#eef6f5; cursor:pointer; font:inherit; font-size:13px; }
-.digital-downloads-screen button:hover,.digital-download-nav:hover { background:#25383f; border-color:#8fe545; }
-.digital-downloads-screen button:focus-visible,.digital-download-nav:focus-visible { outline:2px solid #9cef60; outline-offset:3px; }
+.digital-downloads-screen button:hover,.digital-download-nav:hover { background:#25383f; border-color:#ff8a38; }
+.digital-downloads-screen button:focus-visible,.digital-download-nav:focus-visible { outline:2px solid #ff8a38; outline-offset:3px; }
 .digital-downloads-screen button:disabled { opacity:.5; cursor:wait; }
 .digital-download-row { display:flex; align-items:center; gap:24px; padding:24px 0; border-top:1px solid #25333a; }
 .digital-download-featured { padding:32px 0; }
 .digital-download-art { width:160px; height:76px; display:grid; place-items:center; background:#18292c; border-radius:5px; overflow:hidden; flex-shrink:0; }
+.digital-downloads-screen button.digital-download-art { padding:0; display:grid; min-height:0; border:0; }
 .digital-download-art img { width:100%; height:100%; object-fit:cover; }
 .digital-download-featured .digital-download-art { width:240px; height:112px; }
 .digital-download-info { flex:1; min-width:0; }
@@ -18,12 +19,12 @@
 .digital-download-title h2 { font-size:18px; margin:0; overflow-wrap:anywhere; }
 .digital-download-featured .digital-download-title h2 { font-size:25px; }
 .digital-download-state { font-size:12px; color:#c2d1d5; flex-shrink:0; }
-.state-downloading,.state-completed { color:#abf069; }
+.state-downloading,.state-completed { color:#ff9b56; }
 .state-error,.digital-download-error { color:#ffb5ab; }
 .digital-download-progress-line { display:flex; justify-content:space-between; margin:20px 0 6px; font-size:12px; }
-.digital-download-info progress { display:block; appearance:none; width:100%; height:5px; border:0; border-radius:2px; background:#29363d; accent-color:#94ea4d; }
+.digital-download-info progress { display:block; appearance:none; width:100%; height:5px; border:0; border-radius:2px; background:#29363d; accent-color:#ff6a00; }
 .digital-download-info progress::-webkit-progress-bar { background:#29363d; border-radius:2px; }
-.digital-download-info progress::-webkit-progress-value { background:#94ea4d; border-radius:2px; transition:width .3s; }
+.digital-download-info progress::-webkit-progress-value { background:#ff6a00; border-radius:2px; transition:width .3s; }
 .digital-download-metrics { display:flex; gap:32px; margin:16px 0 0; }
 .digital-download-metrics dt { color:#94a8af; font-size:11px; margin-bottom:5px; }
 .digital-download-metrics dd { margin:0; font-size:14px; font-variant-numeric:tabular-nums; }
@@ -33,3 +34,27 @@
 .digital-download-empty button { margin-top:20px; }
 @media(max-width:800px) { .digital-download-row { flex-wrap:wrap; gap:16px; } .digital-download-art,.digital-download-featured .digital-download-art { width:120px; height:60px; } .digital-download-actions { max-width:none; width:100%; } .digital-download-title { flex-direction:column; gap:6px; } .digital-download-metrics { gap:16px; flex-wrap:wrap; } .digital-downloads-heading { align-items:flex-start; flex-direction:column; gap:20px; } }
 @media(prefers-reduced-motion:reduce) { .digital-download-info progress::-webkit-progress-value { transition:none; } }
+
+.digital-download-row { position:relative; align-items:flex-start; padding-right:42px; }
+.digital-download-actions .digital-download-dismiss { position:absolute; right:0; top:24px; min-height:30px; padding:5px; border:0; background:transparent; color:#a7b6bb; }
+.digital-download-actions .digital-download-dismiss:hover { color:#fff; background:#2b3034; }
+.ga-download-telemetry { display:flex; gap:24px; align-items:center; margin-top:20px; }
+.ga-download-dial { position:relative; width:100px; height:100px; flex-shrink:0; display:grid; place-items:center; }
+.ga-download-dial svg { position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+.ga-download-dial circle { fill:none; stroke-width:6; }
+.ga-download-dial-track { stroke:#29363d; }
+.ga-download-dial-fill { stroke:#ff6a00; stroke-linecap:round; }
+.ga-download-dial strong { font-size:25px; font-variant-numeric:tabular-nums; }
+.ga-download-dial small { font-size:12px; color:#a7b6bb; margin-left:2px; }
+.ga-download-speed { flex:1; min-width:0; }
+.ga-download-speed-heading { display:flex; justify-content:space-between; gap:16px; }
+.ga-download-speed-heading span { display:block; font-size:11px; color:#a7b6bb; margin-bottom:5px; }
+.ga-download-speed-heading strong { font-size:18px; font-variant-numeric:tabular-nums; }
+.ga-download-speed-heading > div:last-child { text-align:right; }
+.ga-download-speed-heading > div:last-child strong { font-size:13px; font-weight:500; }
+.ga-download-speed-chart { width:100%; height:70px; display:block; margin-top:8px; }
+.ga-download-speed-grid { stroke:#29363d; stroke-width:1; fill:none; }
+.ga-download-speed-area { fill:#ff6a00; fill-opacity:.12; }
+.ga-download-speed-line { stroke:#ff8a38; stroke-width:2; fill:none; vector-effect:non-scaling-stroke; }
+.ga-download-speed-empty { height:78px; display:flex; align-items:center; color:#a7b6bb; font-size:12px; }
+@media(max-width:800px) { .ga-download-telemetry { gap:12px; } .ga-download-dial { width:75px; height:75px; } .ga-download-speed-heading strong { font-size:14px; } .digital-download-info { min-width:min(260px,100%); } }

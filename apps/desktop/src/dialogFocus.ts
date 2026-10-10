@@ -2,8 +2,12 @@ import { useEffect, useRef } from "react";
 
 export function focusableDialogElements(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(
-    "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])",
-  )).filter((element) => !element.hasAttribute("hidden") && element.getAttribute("aria-hidden") !== "true");
+    "summary, button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])",
+  )).filter((element) => {
+    const closed = element.closest("details:not([open])");
+    return !element.hasAttribute("hidden") && element.getAttribute("aria-hidden") !== "true"
+      && (!closed || (element.tagName === "SUMMARY" && element.parentElement === closed));
+  });
 }
 
 export function nextDialogFocusIndex(current: number, count: number, backwards: boolean): number {

@@ -1,3 +1,7 @@
+import DigitalGameOptions from "./DigitalGameOptions";
+import { useI18n } from "./i18n";
+import { libraryMembership, useLibraryBusy, useLibraryGames } from "./libraryMembership";
+import { removeLibraryGame } from "./libraryActions";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
@@ -36,11 +40,20 @@ export default function DigitalGameContextMenu({
   onInstall,
   onPlay,
 }: Props) {
+  const {locale} = useI18n();
+  useLibraryGames();
+  const libraryBusy = useLibraryBusy();
+  const inLibrary = libraryMembership.has(request.game);
+  const [configuring, setConfiguring] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
-  const appId = request.game.app_id;
+  const appId = request.game.app_id ?? request.game.id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
+  // Cleanup is valid for incomplete/missing installations too, after transfer stops.
+  const canUninstall = Boolean(appId) && !state.transferActive && !libraryBusy;
   const canPlay = Boolean(appId) && state.playButtonReady;
   const canInstall = Boolean(appId) && !state.playButtonReady;
 
@@ -74,7 +87,8 @@ export default function DigitalGameContextMenu({
   };
 
   const uninstallSelected = () => {
-    if (!state.canUninstall) return;
+    if (!canUninstall) return;
+    setRemoving(false);
     setDialog({
       title: `¿Desinstalar ${request.game.name}?`,
       message: "Se administrará la eliminación de los archivos del juego en este equipo.",
@@ -85,19 +99,20 @@ export default function DigitalGameContextMenu({
   const confirmUninstall = async () => {
     setUninstalling(true);
     try {
-      await service.uninstall(request.game);
+      if (removing) await removeLibraryGame(request.game);
+      else await service.uninstall(request.game);
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDialog({ title: "No se pudo iniciar la desinstalación", message, tone: "error" });
+      setDialog({ title: removing ? label.removed : "No se pudo iniciar la desinstalación", message, tone: "error" });
     } finally {
       setUninstalling(false);
     }
   };
 
   return (
-    <>
-      {!dialog ? (
+    <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
+      {!dialog && !configuring ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -129,28 +144,32 @@ export default function DigitalGameContextMenu({
           >
             <FolderOpen size={16} /> Abrir carpeta de instalación
           </button>
+          <button type="button" role="menuitem" disabled={!canUninstall} onClick={() => setConfiguring(true)}>{label.options}</button>
+          {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canUninstall} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
+            : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { libraryMembership.add(request.game); onClose(); }}>{label.add}</button>}
           <button
             type="button"
             role="menuitem"
-            disabled={!state.canUninstall}
+            disabled={!canUninstall}
             onClick={uninstallSelected}
           >
             <Trash2 size={16} /> Desinstalar
           </button>
         </div>
       ) : null}
+      {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}
       {dialog ? (
         <AppDialog
           title={dialog.title}
           message={dialog.message}
           tone={dialog.tone}
           onClose={onClose}
-          onConfirm={dialog.title.startsWith("¿Desinstalar") ? () => void confirmUninstall() : undefined}
+          onConfirm={dialog.tone === "warning" ? () => void confirmUninstall() : undefined}
           confirmDisabled={uninstalling}
-          confirmLabel="Desinstalar"
+          confirmLabel={removing ? label.remove : "Desinstalar"}
           cancelLabel="No, volver"
         />
       ) : null}
-    </>
+    </div>
   );
 }

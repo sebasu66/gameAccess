@@ -24,6 +24,8 @@ struct CatalogManifest {
     artifact_url: String,
     sha256: String,
     catalog_count: usize,
+    #[serde(default)]
+    generated_at: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,9 +71,6 @@ fn bundled_catalog_dir() -> Option<PathBuf> {
 }
 
 fn install_bundled_seed(target: &Path) -> Result<bool, String> {
-    if target.exists() {
-        return Ok(false);
-    }
     let Some(seed_dir) = bundled_catalog_dir() else {
         return Ok(false);
     };
@@ -85,6 +84,14 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
             .map_err(|err| format!("Could not read bundled catalog manifest: {err}"))?,
     )
     .map_err(|err| format!("Bundled catalog manifest is invalid: {err}"))?;
+    if target.exists() {
+        let conn = Connection::open(target).map_err(|err| err.to_string())?;
+        let revision = read_meta(&conn, "revision")?.unwrap_or_default();
+        let generated_at = read_meta(&conn, "generated_at")?.unwrap_or_default();
+        if revision == manifest.revision || manifest.generated_at.is_empty() || generated_at >= manifest.generated_at {
+            return Ok(false);
+        }
+    }
     if manifest.schema_version != CACHE_SCHEMA_VERSION {
         return Err(format!(
             "Bundled catalog schema {} is unsupported; expected {}",
@@ -117,12 +124,25 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
     fs::write(&next, sqlite_bytes)
         .map_err(|err| format!("Could not stage bundled catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
-    fs::rename(&next, target)
-        .map_err(|err| format!("Could not activate bundled catalog cache: {err}"))?;
+    let backup = target.with_extension("sqlite.bak");
+    if target.exists() {
+        fs::rename(target, &backup).map_err(|err| err.to_string())?;
+    }
+    if let Err(err) = fs::rename(&next, target) {
+        if backup.exists() { let _ = fs::rename(&backup, target); }
+        return Err(format!("Could not activate bundled catalog cache: {err}"));
+    }
+    if backup.exists() { let _ = fs::remove_file(&backup); }
     Ok(true)
 }
 
 fn ready_cache_db_path() -> Result<PathBuf, String> {
+    let _guard = CATALOG_CACHE_SYNC_LOCK.get_or_init(|| Mutex::new(())).lock()
+        .map_err(|_| "Catalog cache lock was poisoned".to_string())?;
+    ready_cache_db_path_unlocked()
+}
+
+fn ready_cache_db_path_unlocked() -> Result<PathBuf, String> {
     let target = cache_db_path()?;
     reconcile_cache_sidecars(&target)?;
     let _ = install_bundled_seed(&target)?;
@@ -150,17 +170,13 @@ fn reconcile_cache_sidecars(target: &Path) -> Result<(), String> {
 }
 
 fn validate_github_https_url(raw: &str) -> Result<(), String> {
-    let parsed = reqwest::Url::parse(raw).map_err(|err| format!("Invalid catalog cache URL: {err}"))?;
-    if parsed.scheme() != "https" {
-        return Err("Catalog cache URL must use HTTPS".into());
+    let parsed = reqwest::Url::parse(raw).map_err(|err| format!("Invalid catalog URL: {err}"))?;
+    let loopback = matches!(parsed.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    if parsed.scheme() != "https" && !(parsed.scheme() == "http" && loopback) {
+        return Err("Catalog update URLs must use HTTPS (or local development HTTP)".into());
     }
-    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
-    let allowed = host == "raw.githubusercontent.com"
-        || host == "api.github.com"
-        || host == "github.com"
-        || host.ends_with(".githubusercontent.com");
-    if !allowed {
-        return Err(format!("Catalog cache URL host is not allowed: {host}"));
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Catalog URLs cannot contain credentials".into());
     }
     Ok(())
 }
@@ -252,7 +268,7 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     }
     validate_github_https_url(&manifest.artifact_url)?;
 
-    let target = ready_cache_db_path()?;
+    let target = ready_cache_db_path_unlocked()?;
     if let Some((revision, count)) = current_cache_info(&target)? {
         if revision == manifest.revision {
             return Ok(CatalogCacheSyncResult {

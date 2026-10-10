@@ -1,56 +1,9 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-
-export interface PluginManifest {
-  id: string;
-  name: string;
-  endpoint: string;
-  type: string;
-}
-
-export interface PluginStatus extends PluginManifest {
-  alive: boolean;
-}
+import { useEffect, useSyncExternalStore } from "react";
+import { getPluginStatuses, subscribePluginStatuses, monitorPluginRuntime } from "./catalog/PluginRuntime";
 
 export function PluginIndicator() {
-  const [plugins, setPlugins] = useState<PluginStatus[]>([]);
-
-  useEffect(() => {
-    let active = true;
-
-    async function checkPlugins() {
-      try {
-        const manifests = await invoke<PluginManifest[]>("get_registered_plugins");
-        
-        // Heartbeat check for each installed plugin
-        const statusPromises = manifests.map(async (plugin) => {
-          let alive = false;
-          if (plugin.endpoint) {
-            try {
-              const res = await fetch(`${plugin.endpoint}/api/sources`, { signal: AbortSignal.timeout(2000) });
-              alive = res.ok;
-            } catch (err) {
-              alive = false; // Network error or timeout
-            }
-          }
-          return { ...plugin, alive };
-        });
-
-        const statuses = await Promise.all(statusPromises);
-        if (active) setPlugins(statuses);
-      } catch (err) {
-        console.warn("[PluginIndicator] Failed to read plugins:", err);
-      }
-    }
-
-    void checkPlugins();
-    const interval = setInterval(checkPlugins, 10000);
-    
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
+  const plugins = useSyncExternalStore(subscribePluginStatuses, getPluginStatuses, getPluginStatuses);
+  useEffect(() => monitorPluginRuntime(), []);
 
   if (plugins.length === 0) return null;
 

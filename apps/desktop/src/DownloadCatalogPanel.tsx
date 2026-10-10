@@ -123,7 +123,6 @@ interface DownloadCatalogPanelProps {
   hasFavorites?: boolean;
   catalogUnavailable?: boolean;
   downloads: DownloadMap;
-  accountCount: number;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
   pinnedAppIds: Set<number>;
@@ -171,14 +170,14 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
   const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
   const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
-  const toggleFilter = (group: "genres" | "features", value: string) => {
-    const current = searchFilters[group] as string[];
+  const toggleFilter = (group: "genres" | "features" | "sources", value: string) => {
+    const current = (searchFilters[group] ?? []) as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
     onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
   };
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: "Catálogo" },
-    { id: "installed", label: "Biblioteca" },
+    { id: getCatalogMode() === "digital" ? "library" : "installed", label: "Biblioteca" },
   ];
   const sortOptions: { id: CatalogSort; label: string }[] = [
     { id: "release-date", label: "Fecha de lanzamiento" },
@@ -213,7 +212,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
+    const close = (event?: Event) => {
+      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root")) return;
+      setContextMenu(null);
+    };
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };

@@ -80,17 +80,12 @@ def test_load_digital_catalog_json(mock_catalog_file: Path) -> None:
     assert 2622380 in ids  # Elden Ring Nightreign
 
 
-def test_get_digital_catalog_endpoint(mock_catalog_file: Path) -> None:
-    with TestClient(app) as client:
-        resp = client.get("/digital/catalog")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, list)
-        assert len(data) >= 11
-
-        resp_json = client.get("/digital-catalog.json")
-        assert resp_json.status_code == 200
-        assert resp_json.json() == data
+def test_source_catalog_is_not_exposed_by_current_product(mock_catalog_file: Path) -> None:
+    # Sources belong to plugins. Helpers remain available for data migration.
+    paths = {route.path for route in app.routes}
+    assert "/digital/catalog" not in paths
+    assert "/digital-catalog.json" not in paths
+    assert "/library/catalog" in paths
 
 
 def test_sync_digital_catalog_upserts_games_and_metadata(tmp_path: Path) -> None:

@@ -29,12 +29,7 @@ def search_steam(
     limit: int = Query(default=20, ge=1, le=50),
     session: Session = Depends(core.get_session),
 ) -> dict:
-    """Search the public Steam Store, then overlay GameAccess license state.
-
-    This intentionally searches beyond the GameAccess pool. Results that exist
-    in our active catalog include their current license/capacity summary; other
-    Steam games remain discoverable with `catalog_game=None`.
-    """
+    """Search Steam metadata independently of accounts and licenses."""
     try:
         with httpx.Client(timeout=8.0, follow_redirects=True) as client:
             response = client.get(
@@ -83,23 +78,10 @@ def search_steam(
                     "linux": bool(platforms.get("linux")),
                 },
                 "catalog_game": catalog_game,
-                "access_state": (
-                    "available"
-                    if catalog_game and catalog_game.get("copies_available", 0) > 0
-                    else "busy"
-                    if catalog_game and catalog_game.get("copies_total", 0) > 0
-                    else "not-in-pool"
-                ),
+                "access_state": "metadata-only",
                 "steam_url": f"https://store.steampowered.com/app/{app_id}/",
             }
         )
 
     return {"query": q.strip(), "count": len(results), "results": results}
 
-
-# main.py imports this module after the FastAPI app exists. Keep provider app
-# registration isolated while exposing it on that same app without coupling it
-# to Store search behavior.
-from .provider_app_routes import router as provider_app_router  # noqa: E402
-
-core.app.include_router(provider_app_router)

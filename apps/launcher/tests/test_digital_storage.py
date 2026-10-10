@@ -43,6 +43,7 @@ class DigitalStorageTests(unittest.TestCase):
         self.assertTrue(self.storage.status(1, "Fixture")["installed"])
         with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
             self.assertEqual(spawn.call_args.args[0], [str(folder / "bin" / "game.exe")])
@@ -57,7 +58,7 @@ class DigitalStorageTests(unittest.TestCase):
     def test_http_worker_downloads_and_extracts_in_place_without_install_command(self):
         launcher = Path(self.temp.name)
         original = Path(__file__).resolve().parents[1]
-        for file in ["digital_downloader.py", "digital_storage.py", "digital_backup.py"]:
+        for file in ["digital_downloader.py", "digital_storage.py", "digital_backup.py", "digital_preferences.py"]:
             shutil.copyfile(original / file, launcher / file)
         source = launcher / "source"
         source.mkdir()
@@ -77,6 +78,9 @@ class DigitalStorageTests(unittest.TestCase):
             self.assertTrue((folder / "game.exe").is_file())
             status = json.loads((launcher / ".cache" / "digital_downloads" / "1.json").read_text())
             self.assertEqual(status["phase"], "completed")
+            log = (launcher / "logs" / "downloads.log").read_text(encoding="utf-8")
+            for expected in ["transfer complete", "extraction starting", "extraction finished", "DESCARGA COMPLETADA"]:
+                self.assertIn(expected, log)
         finally:
             server.shutdown()
             server.server_close()
@@ -90,6 +94,7 @@ class DigitalStorageTests(unittest.TestCase):
         (nested / "Dungeons-Win64-Shipping.exe").write_bytes(b"fixture")
         with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
             self.assertEqual(spawn.call_args.args[0], [str(folder / "Dungeons.exe")])
@@ -112,6 +117,53 @@ class DigitalStorageTests(unittest.TestCase):
             result = self.runner.run("uninstall", 1, "Fixture")
             self.assertFalse(result["ok"])
             self.assertTrue(Path(self.temp.name).exists())
+    def test_snapshot_ignores_remote_only_entries_and_finds_registered_and_legacy_games(self):
+        folder = self.storage.register(1, "Renamed")
+        (folder / "game.exe").write_bytes(b"fixture")
+        legacy = self.storage.root / "Legacy"
+        legacy.mkdir()
+        (legacy / "game.exe").write_bytes(b"fixture")
+        games = [{"id": 1, "name": "Old name"}, {"id": 2, "name": "Legacy"}]
+        games.extend({"id": value, "name": f"Remote {value}"} for value in range(3, 12680))
+        with patch.object(self.storage, "status", wraps=self.storage.status) as status:
+            result = self.runner.run("snapshot", 0, "", json.dumps(games))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(set(result["statuses"]), {"1", "2"})
+        self.assertTrue(all(item["installed"] for item in result["statuses"].values()))
+        self.assertEqual(status.call_count, 2)
+
+    def test_app_id_identifies_unregistered_folder_after_catalog_title_changes(self):
+        folder = self.storage.root / "1664220-Old Title"
+        folder.mkdir(parents=True)
+        (folder / "game.exe").write_bytes(b"fixture")
+        result = self.runner.run("snapshot", 0, "", json.dumps([{"id": 1664220, "name": "Renamed Title"}]))
+        self.assertTrue(result["statuses"]["1664220"]["installed"])
+        self.assertEqual(self.storage.folder(1664220, "Another Title"), folder)
+        self.assertTrue(self.runner.run("uninstall", 1664220, "Renamed Title")["ok"])
+        self.assertFalse(folder.exists())
+
+    def test_uninstall_refuses_ambiguous_app_id_folders(self):
+        for name in ["1-First", "1-Second"]:
+            (self.storage.root / name).mkdir(parents=True)
+        result = self.runner.run("uninstall", 1, "First")
+        self.assertFalse(result["ok"])
+        self.assertTrue((self.storage.root / "1-First").exists())
+        self.assertTrue((self.storage.root / "1-Second").exists())
+
+    def test_uninstall_partial_or_missing_game_without_installation_checks(self):
+        folder = self.storage.register(1, "Incomplete")
+        (folder / "download.part").write_bytes(b"partial")
+        downloads = self.storage.launcher / ".cache" / "digital_downloads"
+        downloads.mkdir(parents=True)
+        (downloads / "1.json").write_text('{"phase":"error"}')
+        with patch.object(self.storage, "status", side_effect=AssertionError("No installation check")):
+            result = self.runner.run("uninstall", 1, "Incomplete")
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(folder.exists())
+        self.assertFalse((self.storage.registry / "1.json").exists())
+        self.assertFalse((downloads / "1.json").exists())
+        self.assertTrue(self.runner.run("uninstall", 1, "Incomplete")["ok"])
+
     def test_no_steam_or_external_launch(self):
         folder = self.storage.register(1, "Fixture")
         (folder / "game.exe").write_bytes(b"fixture")

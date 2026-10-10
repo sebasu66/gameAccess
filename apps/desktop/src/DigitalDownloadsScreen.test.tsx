@@ -39,6 +39,14 @@ describe("Digital download screen", () => {
     expect(html).toContain(locale==="es"?"Abrir enlace":"Open link");
     expect(html).toContain("todavía no está instalado");
   });
+  it("retains the selected package size after a metadata-only catalog refresh", () => {
+    const service = new DigitalDownloadService();
+    const game = {id:42, app_id:42, name:"Fixture", download_size:"6 GB"} as CatalogGame;
+    vi.spyOn(service,"getDownloads").mockReturnValue([{game,snapshot:{gameId:42,phase:"queued",progress:0}}]);
+    const metadata = {...game,download_size:null,download_size_bytes:null};
+    const html = renderToStaticMarkup(<DigitalDownloadsScreen service={service} catalogGames={[metadata]} onClose={()=>{}} />);
+    expect(html).toContain("6 GB");
+  });
   it("formats missing and invalid metrics without invented values", () => {
     expect(formatDownloadBytes(undefined)).toBe("—");
     expect(formatDownloadBytes(NaN)).toBe("—");
@@ -61,4 +69,18 @@ describe("Digital download screen", () => {
     expect(html).toContain("6 GB");
     expect(html).toContain(locale==="es"?"Pausar":"Pause");
   });
+});
+
+it.each(["es","en"] as const)("makes every download artwork a localized detail action (%s)", locale => {
+  language.locale=locale;
+  const service=new DigitalDownloadService();
+  const game={id:1,app_id:1,name:"Fixture"} as CatalogGame;
+  vi.spyOn(service,"getDownloads").mockReturnValue([
+    {game,snapshot:{gameId:1,phase:"completed",progress:100}},
+    {game:{...game,id:2,app_id:2,name:"Pending"},snapshot:{gameId:2,phase:"queued",progress:0}},
+    {game:{...game,id:3,app_id:3,name:"Failed"},snapshot:{gameId:3,phase:"error",progress:0}},
+  ]);
+  const html=renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={()=>{}} onOpenGame={()=>{}}/>);
+  expect(html.match(/class="digital-download-art"/g)).toHaveLength(3);
+  for(const name of ["Fixture","Pending","Failed"]) expect(html).toContain(`aria-label="${locale==="es"?"Ver ficha de":"View details for"} ${name}"`);
 });

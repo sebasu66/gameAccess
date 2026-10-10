@@ -6,7 +6,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language";
   app_id: number;
   name?: string;
   pid?: number;
@@ -18,8 +18,17 @@ export interface ProcessExecutionResult {
   folder?: string;
   installed?: boolean;
   backup_requires_password?: boolean;
+  settings?: DigitalStorageSettings;
+  options?: DigitalLaunchOptions;
+  executables?: string[];
+  changed?: string[];
+  errors?: Array<{file: string; error: string}>;
+  games?: Array<{id: number; name: string}>;
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
+
+export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[] }
+export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string }
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -30,6 +39,7 @@ const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNAL
  * by passing them to the Python process runner (`digital_process_runner.py`) via Tauri.
  */
 export class DigitalProcessManager {
+  private snapshotPending: Promise<ProcessExecutionResult> | null = null;
   executePlay(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
     return this.execute("play", game, record, workingDir);
   }
@@ -42,8 +52,21 @@ export class DigitalProcessManager {
 
   openFolder(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("open-folder", game); }
 
+  settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
+  saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
+  localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
+  gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
+  saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
+  repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
+
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {
-    return this.execute("snapshot", { id: 0, app_id: 0, name: "" } as CatalogGame, undefined, undefined, JSON.stringify(games.map(g => ({ id: g.app_id ?? g.id, name: g.name }))));
+    // Keep one native query even if callers change or a view is remounted.
+    if (this.snapshotPending) return this.snapshotPending;
+    const pending = this.execute("snapshot", { id: 0, app_id: 0, name: "" } as CatalogGame, undefined, undefined, JSON.stringify(games.map(g => ({ id: g.app_id ?? g.id, name: g.name }))));
+    this.snapshotPending = pending;
+    const clear = () => { if (this.snapshotPending === pending) this.snapshotPending = null; };
+    void pending.then(clear, clear);
+    return pending;
   }
 
   private async execute(action: ProcessExecutionResult["action"], game: CatalogGame, record?: DigitalGameRecord, workingDir?: string, payload?: string): Promise<ProcessExecutionResult> {
@@ -51,9 +74,11 @@ export class DigitalProcessManager {
     const name = record?.name ?? game.name;
     const autoInstalled = record?.auto_installed ?? (game as any).auto_installed ?? false;
     const command = payload ?? (action === "play" ? record?.playProcess || "" : "");
+    if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} requested for '${name}'; auto-installed=${autoInstalled}; executable selection=${command ? "configured" : "discovery"}.`, { area: "DIGITAL_EXECUTION" });
     try {
       if (hasTauriRuntime()) {
         if (action === "play") {
+          void narrate(`Digital AppID ${appId} · checking game folder and backup requirements before launch.`, { area: "DIGITAL_EXECUTION" });
           const backup = await invoke<ProcessExecutionResult>("run_digital_process", { action: "status", appId, name, command: "", workingDir: null, autoInstalled });
           if (!backup.ok) throw new Error(backup.error || "No se pudo verificar el respaldo Digital.");
           if (!autoInstalled && backup.backup_requires_password) await supplyArchivePasswords(appId);
@@ -62,6 +87,7 @@ export class DigitalProcessManager {
           action, appId, name, command, workingDir: null, autoInstalled,
         });
         if (!result.ok) throw new Error(result.error || result.stderr || `El proceso terminó con código ${result.exit_code ?? "desconocido"}`);
+        if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} completed; ok=${result.ok}, pid=${result.pid ?? "none"}, exit=${result.exit_code ?? "running"}; folder=${result.folder ?? "unknown"}.`, { area: "DIGITAL_EXECUTION" });
         return result;
       }
       return { ok: true, action, app_id: appId, name, command, installed: false, statuses: {}, ...(action === "play" ? { pid: 12345 } : { exit_code: 0 }) };

@@ -1,10 +1,26 @@
 {
   "schema_version": 1,
-  "revision": "7e4c8f4ceb332b28",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-7e4c8f4ceb332b28.sqlite.gz",
-  "sha256": "3e7ec8dd30e7646a7f910310a84ef2a7a3fccc13a1d3569511a638e7bb0e725c",
-  "catalog_count": 10632,
+  "revision": "b82d4a41972f55d6",
+  "generated_at": "2026-10-10T14:07:48.172914+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/codex/plugin-download-flow-20261009/deploy/catalog-cache/catalog-cache-b82d4a41972f55d6.sqlite.gz",
+  "sha256": "aae72aacbe740b4d0d44120f8ee6a0a50c4473f6dce665ea64f26a4afd0ccc32",
+  "catalog_count": 41729,
   "detail_count": 677,
-  "compressed_bytes": 2776588,
-  "uncompressed_bytes": 21938176
+  "compressed_bytes": 7128212,
+  "uncompressed_bytes": 54444032,
+  "coverage": {
+    "released_since": "2025-10-10",
+    "through": "2026-10-10",
+    "recent_complete": true,
+    "recent_count": 27681,
+    "popular_limit": 5000,
+    "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
+    "cooptimus": {
+      "processed": 0,
+      "matched": 0,
+      "state": "not-requested"
+    },
+    "updated_at": "2026-10-10T14:07:47.108642+00:00",
+    "tagged_count": 34622
+  }
 }

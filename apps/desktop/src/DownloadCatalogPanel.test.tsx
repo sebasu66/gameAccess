@@ -16,7 +16,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       <DownloadCatalogPanel
         games={[game]}
         downloads={{ 42: installed }}
-        accountCount={1}
+       
         selectedIndex={0}
         gridRef={createRef<HTMLDivElement>()}
         pinnedAppIds={new Set()}
@@ -34,7 +34,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       <DownloadCatalogPanel
         games={[game]}
         downloads={{ 42: frozen }}
-        accountCount={1}
+       
         selectedIndex={0}
         gridRef={createRef<HTMLDivElement>()}
         pinnedAppIds={new Set()}
@@ -50,7 +50,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       <DownloadCatalogPanel
         games={[{ ...game, copies_total: 0, copies_available: 0 }]}
         downloads={{ 42: installed }}
-        accountCount={1}
+       
         selectedIndex={0}
         gridRef={createRef<HTMLDivElement>()}
         pinnedAppIds={new Set()}
@@ -66,7 +66,7 @@ describe("DownloadCatalogPanel grid contract", () => {
       <DownloadCatalogPanel
         games={[game]}
         downloads={{}}
-        accountCount={1}
+       
         selectedIndex={0}
         gridRef={createRef<HTMLDivElement>()}
         pinnedAppIds={new Set()}

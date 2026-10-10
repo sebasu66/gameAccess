@@ -58,7 +58,7 @@ def test_pending_key_expires_and_revocation_blocks_redemption_and_session(activa
             redeem_key(session, key, installation)
 
 
-@pytest.mark.parametrize("path", ["/catalog", "/games/1/play", "/leases", "/downloads"])
+@pytest.mark.parametrize("path", ["/catalog", "/digital/games/1/details", "/steam/apps/1", "/digital/archive-passwords"])
 def test_expired_key_denies_protected_requests(activation_db, monkeypatch, tmp_path, path):
     monkeypatch.setattr(core, "engine", activation_db)
     monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))

@@ -5,15 +5,12 @@ mod access_activation;
 mod catalog_cache;
 mod download_lifecycle;
 mod game_uninstall;
-mod provider_download;
-mod provider_transport;
 mod steam_artwork;
-mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
 use gameaccess_desktop::steam_metadata_worker;
 use native_core::{
-    MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus,
+    MachineProfile, RuntimePrerequisites, SteamDownloadStatus,
 };
 
 use serde::Serialize;
@@ -348,24 +345,8 @@ fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
     Ok(roots)
 }
 
-fn provider_prepared_game_folder(app_id: u32) -> Option<PathBuf> {
-    let status = provider_download::provider_download_status(app_id)
-        .ok()
-        .flatten()?;
-    if !(status.installed || matches!(status.state.as_str(), "installed" | "prepared")) {
-        return None;
-    }
-    let target = PathBuf::from(status.prepared_target?);
-    if !target.is_dir() {
-        return None;
-    }
-    Some(fs::canonicalize(&target).unwrap_or(target))
-}
 
 fn installed_game_folder(app_id: u32) -> Result<PathBuf, String> {
-    if let Some(folder) = provider_prepared_game_folder(app_id) {
-        return Ok(folder);
-    }
     for root in steam_library_roots_for_folder_open()? {
         let manifest = root
             .join("steamapps")
@@ -451,26 +432,8 @@ async fn machine_profile() -> Result<MachineProfile, String> {
         .map_err(|err| format!("Machine-profile task failed: {err}"))
 }
 
-#[tauri::command]
-async fn local_steam_pool() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(native_core::read_local_steam_pool)
-        .await
-        .map_err(|err| format!("Local Steam pool task failed: {err}"))?
-}
 
-#[tauri::command]
-async fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(native_core::verify_local_steam_inventory)
-        .await
-        .map_err(|err| format!("Steam inventory verification task failed: {err}"))?
-}
 
-#[tauri::command]
-async fn switch_steam_account(account_label: String) -> Result<SteamAccountSwitchResult, String> {
-    tauri::async_runtime::spawn_blocking(move || native_core::switch_steam_account(account_label))
-        .await
-        .map_err(|err| format!("Steam account-switch task failed: {err}"))
-}
 
 #[tauri::command]
 async fn steam_store_metadata(app_id: u32, force: Option<bool>) -> Result<serde_json::Value, String> {
@@ -547,16 +510,7 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
             if steam.installed || steam.state == "installed" {
                 return true;
             }
-            provider_download::provider_download_status(app_id)
-                .ok()
-                .flatten()
-                .is_some_and(|status| {
-                    (status.installed || matches!(status.state.as_str(), "installed" | "prepared"))
-                        && status
-                            .prepared_target
-                            .as_ref()
-                            .is_some_and(|target| std::path::Path::new(target).exists())
-                })
+            false
         })
     })
     .await
@@ -603,6 +557,12 @@ fn find_launcher_python(launcher: &std::path::Path) -> PathBuf {
     }
 }
 
+fn launcher_below(root: &std::path::Path) -> Option<PathBuf> {
+    ["runtime/launcher", "apps/launcher", "launcher"].iter()
+        .map(|relative| root.join(relative))
+        .find(|path| path.join("digital_downloader.py").is_file())
+}
+
 fn find_launcher_dir() -> Option<PathBuf> {
     if let Ok(path) = env::var("GAMEACCESS_LAUNCHER_DIR") {
         let candidate = PathBuf::from(path);
@@ -612,22 +572,12 @@ fn find_launcher_dir() -> Option<PathBuf> {
     }
     if let Ok(exe) = env::current_exe() {
         for ancestor in exe.ancestors() {
-            let candidate = ancestor.join("apps").join("launcher");
-            if candidate.is_dir() {
-                return Some(candidate);
-            }
-            let candidate2 = ancestor.join("launcher");
-            if candidate2.is_dir() {
-                return Some(candidate2);
-            }
+            if let Some(candidate) = launcher_below(ancestor) { return Some(candidate); }
         }
     }
     env::current_dir().ok().and_then(|cwd| {
         for ancestor in cwd.ancestors() {
-            let candidate = ancestor.join("apps").join("launcher");
-            if candidate.is_dir() {
-                return Some(candidate);
-            }
+            if let Some(candidate) = launcher_below(ancestor) { return Some(candidate); }
         }
         None
     })
@@ -701,6 +651,7 @@ async fn start_digital_download(
     app_id: u32,
     name: String,
     download_source: String,
+    source_delivery: Option<String>,
     install_process: String,
     torbox_key: Option<String>,
     keep_archive: Option<bool>,
@@ -745,6 +696,7 @@ async fn start_digital_download(
             download_source
         };
         cmd.arg("--source").arg(&src);
+        if source_delivery.as_deref() == Some("browser") { cmd.arg("--source-delivery").arg("browser"); }
 
         // Digital archives are extracted in place; catalog installation commands are ignored.
         let _ = install_process;
@@ -972,7 +924,6 @@ fn main() {
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
         })
-        .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
             get_registered_plugins,
             activation_installation_id,
@@ -1007,30 +958,12 @@ fn main() {
             steam_metadata_worker_poll,
             steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
-            local_steam_pool,
-            verify_local_steam_inventory,
             machine_profile,
-            switch_steam_account,
             register_download_job,
             record_download_completion,
             pending_download_completions,
             acknowledge_download_completion,
             cancel_download_lifecycle,
-            provider_download::start_provider_download,
-            provider_download::cancel_provider_download,
-            provider_download::provider_download_status,
-            provider_download::provider_download_statuses,
-            provider_download::reconcile_download_staging,
-            provider_download::discard_interrupted_download,
-            provider_download::provider_download_estimate,
-            steam_session::save_steam_credential,
-            steam_session::remove_steam_credential,
-            steam_session::has_steam_credential,
-            steam_session::direct_switch_steam_account,
-            provider_transport::login_provider_steam_for_lease,
-            steam_session::start_steam_game_session,
-            steam_session::steam_session_status,
-            steam_session::steam_app_is_running,
             visual_debug_config,
             capture_visual_debug,
             finish_visual_debug,
@@ -1078,8 +1011,20 @@ mod digital_controls_tests {
         panic!("Digital worker did not reach expected status");
     }
     #[test]
+    fn installed_runtime_resolves_without_repository_or_python_on_path() {
+        let root = env::temp_dir().join(format!("gameaccess-runtime-locator-{}", uuid::Uuid::new_v4()));
+        let launcher = root.join("runtime/launcher");
+        fs::create_dir_all(&launcher).unwrap();
+        fs::create_dir_all(root.join("runtime/python")).unwrap();
+        fs::write(launcher.join("digital_downloader.py"), "").unwrap();
+        fs::write(root.join("runtime/python/python.exe"), "").unwrap();
+        assert_eq!(launcher_below(&root), Some(launcher.clone()));
+        assert_eq!(find_launcher_python(&launcher), root.join("runtime/python/python.exe"));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn native_digital_pause_resume_cancel() {
-        let original = find_launcher_dir().unwrap();
+        let original = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../launcher").canonicalize().unwrap();
         let python = find_launcher_python(&original);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -1094,6 +1039,7 @@ mod digital_controls_tests {
         fs::create_dir_all(&launcher).unwrap();
         fs::copy(original.join("digital_downloader.py"), launcher.join("digital_downloader.py")).unwrap();
         fs::copy(original.join("digital_storage.py"), launcher.join("digital_storage.py")).unwrap();
+        fs::copy(original.join("digital_preferences.py"), launcher.join("digital_preferences.py")).unwrap();
         fs::copy(original.join("digital_backup.py"), launcher.join("digital_backup.py")).unwrap();
         let fixture = Fixture { server, launcher: launcher.clone(), previous_launcher: env::var_os("GAMEACCESS_LAUNCHER_DIR") };
         env::set_var("GAMEACCESS_LAUNCHER_DIR", &launcher);
@@ -1106,7 +1052,7 @@ mod digital_controls_tests {
         }
         assert!(ready, "Local fixture HTTP server did not start");
         let app_id = 987654321;
-        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, "".into(), None, Some(true), None)).unwrap();
+        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, None, "".into(), None, Some(true), None)).unwrap();
         wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
         let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();
         assert_eq!(paused["phase"], "paused");

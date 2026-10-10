@@ -23,7 +23,8 @@ import signal
 import argparse
 import threading
 import subprocess
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, parse_qs
+from html import unescape
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import requests
@@ -345,6 +346,50 @@ class MultiSegmentTracker:
                 )
 
 
+
+def normalize_download_source(source):
+    source = source.strip()
+    if source.lower().startswith("magnet:"):
+        source = unescape("magnet:" + source.split(":", 1)[1])
+        topics = parse_qs(urlparse(source).query).get("xt", [])
+        if not any(re.fullmatch(r"urn:btih:(?:[a-f0-9]{40}|[a-z2-7]{32})", topic, re.I)
+                   or re.fullmatch(r"urn:btmh:1220[a-f0-9]{64}", topic, re.I) for topic in topics):
+            raise ValueError("El magnet no contiene un identificador torrent válido.")
+        return source
+    parsed = urlparse(source)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("La fuente debe ser un magnet válido o un enlace HTTP/HTTPS.")
+    return parsed.scheme.lower() + source[len(parsed.scheme):]
+
+
+def is_torrent_source(source):
+    return source.lower().startswith("magnet:?") or urlparse(source).path.lower().endswith(".torrent")
+
+
+def validate_http_file_response(response, inspect_body=False):
+    response.raise_for_status()
+    content_type = response.headers.get("content-type", "").lower()
+    if any(value in content_type for value in ("text/html", "application/xhtml", "application/json")):
+        detail = ""
+        if response.status_code >= 400:
+            detail = response.text[:200]
+        raise RuntimeError("La fuente devolvió una página web, no el archivo del juego. El plugin debe resolver el enlace." + detail)
+    if inspect_body:
+        # A small streaming probe catches landing pages mislabeled as binary.
+        prefix = next(response.iter_content(chunk_size=512), b"").lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+        if prefix.startswith((b"<!doctype html", b"<html", b"<head", b"<body")):
+            raise RuntimeError("La fuente devolvió contenido HTML, no el archivo del juego.")
+    logger.info("HTTP file validation: host=%s, content_type=%s, bytes=%s",
+                urlparse(response.url).hostname, content_type, response.headers.get("content-length", "?"))
+
+
+def validate_downloaded_file(filepath):
+    with open(filepath, "rb") as file:
+        prefix = file.read(512).lstrip(b"\xef\xbb\xbf \r\n\t").lower()
+    if not prefix or prefix.startswith((b"<!doctype html", b"<html", b"<head", b"<body")):
+        raise RuntimeError("El archivo descargado está vacío o contiene una página web; se ha detenido la instalación.")
+
+
 def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int, tracker: MultiSegmentTracker, headers: dict, max_retries: int = 3):
     req_headers = dict(headers)
     req_headers['Range'] = f"bytes={start}-{end}"
@@ -357,6 +402,9 @@ def download_chunk(url: str, start: int, end: int, filepath: str, chunk_id: int,
             with requests.get(url, headers=req_headers, stream=True, timeout=30) as r:
                 if r.status_code not in (200, 206):
                     r.raise_for_status()
+                validate_http_file_response(r)
+                if r.status_code != 206 or not r.headers.get('content-range', '').lower().startswith(f'bytes {start}-'):
+                    raise RuntimeError('El proveedor no respetó el rango solicitado; se ha detenido la descarga.')
                 with open(filepath, "r+b") as f:
                     f.seek(start)
                     for chunk in r.iter_content(chunk_size=1024 * 64, decode_unicode=False):
@@ -380,13 +428,21 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         'Accept-Encoding': 'identity'
     }
 
-    head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=25)
-    head_resp.raise_for_status()
-    final_url = head_resp.url
-    headers_resp = head_resp.headers
-
-    content_length = headers_resp.get('content-length')
-    accept_ranges = headers_resp.get('accept-ranges', '').lower()
+    # GET is authoritative: several file hosts reject HEAD or return an HTML page for it.
+    with requests.get(url, headers={**headers, 'Range': 'bytes=0-511'}, stream=True, timeout=25) as probe:
+        validate_http_file_response(probe, inspect_body=True)
+        final_url = probe.url
+        headers_resp = probe.headers
+        content_range = headers_resp.get('content-range', '')
+        if probe.status_code == 206:
+            match = re.fullmatch(r'bytes 0-\d+/(\d+)', content_range, re.I)
+            if not match:
+                raise RuntimeError("El proveedor devolvió un rango de archivo inválido.")
+            content_length = match.group(1)
+            accept_ranges = 'bytes'
+        else:
+            content_length = headers_resp.get('content-length')
+            accept_ranges = headers_resp.get('accept-ranges', '').lower()
 
     if not content_length:
         # Fallback to single stream
@@ -395,7 +451,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
 
         emit_progress(app_id, "downloading", 0.0, 0, 0, 0, 0, f"Descargando {game_name} (flujo único)...")
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
-            r.raise_for_status()
+            validate_http_file_response(r)
             downloaded = 0
             start_time = time.time()
             for chunk in r.iter_content(chunk_size=1024 * 64):
@@ -416,12 +472,16 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         return True
 
     # Check Range support
-    if 'bytes' not in accept_ranges and head_resp.status_code != 206:
+    if 'bytes' not in accept_ranges:
         test_h = dict(headers)
         test_h['Range'] = 'bytes=0-0'
         t_resp = requests.get(final_url, headers=test_h, stream=True, timeout=10)
-        if t_resp.status_code != 206:
-            connections = 1
+        try:
+            validate_http_file_response(t_resp)
+            if t_resp.status_code != 206:
+                connections = 1
+        finally:
+            t_resp.close()
 
     tracker = MultiSegmentTracker(app_id, total_size, game_name)
 
@@ -430,7 +490,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         reporter = threading.Thread(target=tracker.monitor, args=(stop_event,), daemon=True)
         reporter.start()
         with requests.get(final_url, headers=headers, stream=True, timeout=30) as r, open(output_path, 'wb') as f:
-            r.raise_for_status()
+            validate_http_file_response(r)
             for chunk in r.iter_content(chunk_size=1024 * 64):
                 wait_if_paused()
                 if g_cancelled.is_set():
@@ -844,6 +904,7 @@ def extract_archives_in_path(
     delete_archive: bool = True,
     game_name: Optional[str] = None,
     retain_backup: bool = True,
+    source_root: Optional[str] = None,
     auto_installed: bool = False
 ) -> bool:
     """
@@ -1001,7 +1062,7 @@ def extract_archives_in_path(
         if success and idx == total - 1 and retain_backup and not auto_installed:
             from digital_backup import DigitalArchiveBackup
             DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
-                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")))
+                bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")), source_root=source_root)
         elif success and delete_archive:
             delete_archive_and_parts(arc)
             if arc in g_temp_files:
@@ -1025,6 +1086,7 @@ def main():
     )
     parser.add_argument("--app-id", "--appId", dest="appId", required=True, help="Application/Game ID (e.g. 1091500)")
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
+    parser.add_argument("--source-delivery", choices=("download", "browser"), default="download")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
@@ -1046,7 +1108,11 @@ def main():
     logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
     
     from digital_storage import DigitalGameStorage
-    dest_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(DigitalGameStorage().register(int(app_id), game_name))
+    storage = DigitalGameStorage()
+    game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
+    # Explicit destinations keep the established test/CLI contract.
+    dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
+    os.makedirs(game_dir, exist_ok=True)
     os.makedirs(dest_dir, exist_ok=True)
 
     control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{app_id}.control.json"
@@ -1107,18 +1173,26 @@ def main():
     download_url = None
     target_filename = None
     target_content_path = os.path.abspath(args.extract_only) if args.extract_only else None
-    is_torrent = (
-        download_source.startswith("magnet:?") or
-        download_source.endswith(".torrent") or
-        "torrent" in download_source.lower()
-    )
+    if not args.extract_only:
+        try:
+            download_source = normalize_download_source(download_source)
+        except ValueError as error:
+            emit_error(app_id, str(error))
+            return
+    is_torrent = is_torrent_source(download_source)
 
     try:
         if args.extract_only:
             if not os.path.exists(target_content_path):
                 raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
         else:
-            if is_torrent or not (download_source.startswith("http://") or download_source.startswith("https://")) or ".torrent" in download_source.lower():
+            if args.source_delivery == "browser":
+                import webbrowser
+                webbrowser.open(download_source)
+                logger.info("AppID %s: selected plugin source requires browser download.", app_id)
+                emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
+                return
+            if is_torrent:
                 torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
                 use_torbox = False
     
@@ -1207,47 +1281,18 @@ def main():
                     "fitgirl-repacks", "rentry.co", "pastebin.com"
                 ]
                 
-                domain = parsed.netloc.lower()
-                if any(d in domain for d in browser_domains):
-                    logger.info(f"Hoster web detectado ({domain}). Consultando API del servidor para link directo...")
-                    emit_progress(app_id, "downloading", 0, 0, 0, 0, 0, f"Resolviendo enlace de {domain} en servidor...")
-                    
-                    resolved = False
-                    try:
-                        api_url = os.environ.get("GAMEACCESS_API_URL", "https://game-access-api.onrender.com").rstrip("/")
-                        res = requests.post(
-                            f"{api_url}/resolve-download",
-                            json={"url": download_url},
-                            timeout=15
-                        )
-                        if res.status_code == 200:
-                            data = res.json()
-                            if data.get("ok") and data.get("direct_url"):
-                                download_url = data["direct_url"]
-                                if data.get("headers"):
-                                    headers.update(data["headers"])
-                                logger.info(f"Resuelto con éxito: {download_url}")
-                                resolved = True
-                            else:
-                                logger.error(f"Fallo al resolver en servidor: {data.get('message')}")
-                    except Exception as e:
-                        logger.error(f"Error consultando servidor resolver: {e}")
-                        
-                    if not resolved:
-                        logger.info(f"Fallback: Hoster de navegador ({domain}). Abriendo web...")
-                        import webbrowser
-                        webbrowser.open(download_source)
-                        
-                        emit_progress(
-                            app_id=app_id,
-                            phase="external",
-                            progress_percent=0.0,
-                            bytes_downloaded=0,
-                            total_bytes=0,
-                            status_text="Enlace abierto en el navegador. Esta fuente requiere completar la descarga allí; todavía no está instalado en GameAccess."
-                        )
-                        logger.info("=== DESCARGA DERIVADA AL NAVEGADOR EXITOSAMENTE ===")
-                        sys.exit(0)
+                domain = parsed.hostname or ""
+                browser_domains.append("vikingfile.com")
+                if any(domain == d or domain.endswith("." + d) for d in browser_domains):
+                    logger.info("AppID %s: plugin supplied a browser source (%s); automatic unlock unavailable.", app_id, domain)
+                    import webbrowser
+                    webbrowser.open(download_source)
+                    emit_progress(
+                        app_id=app_id, phase="external", progress_percent=0.0,
+                        bytes_downloaded=0, total_bytes=0,
+                        status_text="Esta fuente requiere descargar en el navegador. El desbloqueo de PLUS todavía no está disponible; el juego no está instalado."
+                    )
+                    sys.exit(0)
     
             # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
             if download_url:
@@ -1270,6 +1315,8 @@ def main():
                     connections=args.connections
                 )
     
+                if ok:
+                    validate_downloaded_file(out_filepath)
                 if not ok or g_cancelled.is_set():
                     cleanup_on_cancel()
                     return
@@ -1287,11 +1334,14 @@ def main():
         # Completed downloads must survive extraction/installation errors or cancellation.
         if target_content_path in g_temp_files:
             g_temp_files.remove(target_content_path)
+        logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
         # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
         should_delete_archive = True  # Only the smallest original archive is retained.
+        logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
         extracted = extract_archives_in_path(
             target_path=target_content_path or dest_dir,
-            dest_dir=dest_dir,
+            dest_dir=game_dir,
+            source_root=dest_dir,
             host=args.host,
             password=args.password,
             delete_archive=should_delete_archive,
@@ -1301,6 +1351,16 @@ def main():
 
         if g_cancelled.is_set():
             cleanup_on_cancel()
+        if not extracted and dest_dir != game_dir:
+            # Non-archive payloads are moved to the game directory after transfer.
+            for item in Path(dest_dir).iterdir():
+                target = Path(game_dir) / item.name
+                if target.exists():
+                    raise RuntimeError(f"Ya existe el archivo de destino: {target.name}")
+                shutil.move(str(item), str(target))
+        if dest_dir != game_dir and Path(dest_dir).is_dir() and not any(Path(dest_dir).iterdir()):
+            Path(dest_dir).rmdir()
+        logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
         # Digital is portable: extraction is the installation. Never execute installProcess.
         if g_cancelled.is_set():
             cleanup_on_cancel()

@@ -10,8 +10,30 @@ const mock = vi.mocked(invoke);
 describe("Digital download scheduling", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); vi.mocked(narrate).mockClear(); mock.mockReset(); mock.mockResolvedValue({ phase: "downloading" }); });
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+  it("BASE starts one worker and keeps the remaining downloads in its FIFO list", async () => {
+    const service = new DigitalDownloadService(undefined, () => "base");
+    await Promise.all([1, 2, 3].map(id => service.start(game(id))));
+    expect(mock.mock.calls.filter(call => call[0] === "start_digital_download")).toHaveLength(1);
+    expect(service.getDownloads()).toHaveLength(3);
+    expect((await service.getStatus(2)).phase).toBe("queued");
+    service.updateSnapshot({ gameId: 1, phase: "completed", progress: 100 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mock.mock.calls.filter(call => call[0] === "start_digital_download")).toHaveLength(2);
+    expect((await service.getStatus(3)).phase).toBe("queued");
+  });
+  it("upgrading admits queued jobs and downgrading preserves running jobs without admitting more", async () => {
+    let tier: "base" | "plus" = "base";
+    const service = new DigitalDownloadService(undefined, () => tier);
+    await Promise.all([1,2,3,4,5,6].map(id => service.start(game(id))));
+    tier = "plus"; await service.refreshParallelLimit();
+    expect(mock.mock.calls.filter(call => call[0] === "start_digital_download")).toHaveLength(4);
+    tier = "base";
+    service.updateSnapshot({ gameId: 1, phase: "completed", progress: 100 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect((await service.getStatus(5)).phase).toBe("queued");
+  });
   it("runs up to four workers, suppresses duplicates and advances the FIFO queue on completion", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await Promise.all([1, 2, 3, 4, 5, 6].map(id => service.start(game(id)))); await service.start(game(5));
     expect(mock.mock.calls.filter(call => call[0] === "start_digital_download")).toHaveLength(4);
     expect((await service.getStatus(5)).phase).toBe("queued");
@@ -22,7 +44,7 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(6)).phase).toBe("queued");
   });
   it("pauses and cancels queued jobs without touching a worker", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await Promise.all([1, 2, 3, 4, 5, 6].map(id => service.start(game(id))));
     await service.pause(5); await service.cancel(6);
     expect((await service.getStatus(5)).phase).toBe("paused");
@@ -33,7 +55,7 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(5)).phase).toBe("queued");
   });
   it("waits for backend snapshots before showing paused or resumed", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await service.start(game(1));
     service.updateSnapshot({ gameId: 1, phase: "downloading", progress: 30 });
     await service.pause(1);
@@ -44,7 +66,7 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(1)).phase).toBe("paused");
   });
   it("does not report cancellation or advance queue when the backend fails", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await Promise.all([1, 2, 3, 4, 5].map(id => service.start(game(id))));
     service.updateSnapshot({ gameId: 1, phase: "downloading", progress: 40 });
     mock.mockRejectedValueOnce(new Error("worker still running"));
@@ -76,21 +98,46 @@ describe("Digital download scheduling", () => {
     }), setItem: vi.fn() });
     expect(new DigitalDownloadService("old-state").getDownloads()).toEqual([]);
   });
-  it("migrates old browser handoffs out of the false completed state", () => {
-    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify({
-      entries: [{ game: game(7), snapshot: {
-        gameId: 7, phase: "completed", progress: 100,
-        statusText: "Abierto en navegador web. Usa el botón de la página (Servidor ocupado).",
-      } }],
-      queue: [], running: [],
-    }), setItem: vi.fn() });
-    const service = new DigitalDownloadService("browser-handoff-migration");
-    expect(service.getDownloads()[0].snapshot.phase).toBe("external");
-    expect(service.getManagedStatus(7)?.installed).toBe(false);
-    expect(service.getManagedStatus(7)?.state).toBe("not-installed");
+  it("clears previous-session finished entries while retaining pending downloads", () => {
+    const phases = ["completed", "error", "interrupted", "external", "cancelled", "queued", "paused", "downloading"] as const;
+    const storage = new Map([["session-history", JSON.stringify({
+      entries: phases.map((phase,i) => ({ game: game(i + 1), snapshot: { gameId: i + 1, phase, progress: 10 } })),
+      queue: [6], running: [8],
+    })]]);
+    vi.stubGlobal("localStorage", { getItem: (key:string) => storage.get(key) ?? null, setItem: (key:string,value:string) => storage.set(key,value) });
+    const service = new DigitalDownloadService("session-history");
+    expect(service.getDownloads().map(entry => entry.snapshot.phase)).toEqual(["queued", "paused", "downloading"]);
+    expect(JSON.parse(storage.get("session-history")!).entries).toHaveLength(3);
+  });
+  it("dismisses a finished row without uninstalling or invoking worker cancellation", async () => {
+    const service = new DigitalDownloadService();
+    await service.start(game(1));
+    service.updateSnapshot({gameId:1,phase:"completed",progress:100});
+    mock.mockClear();
+    await service.remove(1);
+    expect(service.getDownloads()).toEqual([]);
+    expect(mock).not.toHaveBeenCalled();
+  });
+  it("does not remove an active row when cancellation fails", async () => {
+    const service = new DigitalDownloadService(); await service.start(game(1));
+    mock.mockRejectedValueOnce(new Error("still running"));
+    await expect(service.remove(1)).rejects.toThrow("still running");
+    expect(service.getDownloads()).toHaveLength(1);
+  });
+  it("records only actual speed samples and bounds their lifetime", async () => {
+    const service = new DigitalDownloadService(); service.recordFailure(game(1), "fixture");
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:1,speedBps:100});
+    await vi.advanceTimersByTimeAsync(600);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:2,speedBps:200});
+    expect(service.getSpeedSamples(1).map(sample=>sample.speedBps)).toEqual([100,200]);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:3,speedBps:NaN});
+    expect(service.getSpeedSamples(1)).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(61000);
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:4,speedBps:300});
+    expect(service.getSpeedSamples(1).map(sample=>sample.speedBps)).toEqual([300]);
   });
   it("refills a cancelled slot without restarting other workers", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await Promise.all([1, 2, 3, 4, 5, 6].map(id => service.start(game(id))));
     mock.mockResolvedValueOnce({ phase: "cancelled" });
     await service.cancel(2);
@@ -107,18 +154,18 @@ describe("Digital download scheduling", () => {
         { game: game(5), snapshot: { gameId: 5, phase: "queued", progress: 0 } }],
       queue: [5], running,
     }), setItem: vi.fn() });
-    const service = new DigitalDownloadService("restore");
+    const service = new DigitalDownloadService("restore", () => "plus");
     await vi.advanceTimersByTimeAsync(0);
     expect((await service.getStatus(5)).phase).toBe(ids.length === 4 ? "queued" : "preparing");
     await vi.advanceTimersByTimeAsync(1000);
     for (const appId of ids) expect(mock).toHaveBeenCalledWith("digital_download_status", { appId });
   });
   it("reports worker errors through the existing server reporting path without duplicating polls", async () => {
-    const service = new DigitalDownloadService();
+    const service = new DigitalDownloadService(undefined, () => "plus");
     await service.start(game(1));
     const error = { gameId: 1, phase: "error" as const, progress: 0, error: "ninguna contraseña funcionó" };
     service.updateSnapshot(error); service.updateSnapshot(error);
-    expect(narrate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(narrate).mock.calls.filter(call => call[1]?.level === "ERROR")).toHaveLength(1);
     expect(narrate).toHaveBeenCalledWith("Digital AppID 1 · Game 1 · error: ninguna contraseña funcionó", { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   });
   it("removes failed downloads when aborted without restarting or cancelling a finished worker", async () => {
@@ -132,13 +179,31 @@ describe("Digital download scheduling", () => {
     expect(mock).not.toHaveBeenCalled();
   });
   it("keeps completed when completion races with cancellation", async () => {
-    const service = new DigitalDownloadService(); await service.start(game(1));
+    const service = new DigitalDownloadService(undefined, () => "plus"); await service.start(game(1));
     mock.mockResolvedValueOnce({ phase: "completed" });
     await service.cancel(1);
     expect((await service.getStatus(1)).phase).toBe("completed");
   });
-  it("records a startup error and allows the next queued job to start", async () => {
+  it("retries the selected plugin source without falling back to catalog metadata", async () => {
     const service = new DigitalDownloadService();
+    const record = {id:1,name:"Game 1",downloadSource:"https://example.test/selected.zip",installProcess:"",playProcess:"",uninstallProcess:"",auto_installed:false};
+    await service.start(game(1), {record});
+    service.updateSnapshot({gameId:1,phase:"error",progress:0,error:"network"});
+    await service.start(game(1));
+    const starts = mock.mock.calls.filter(call => call[0] === "start_digital_download");
+    expect(starts).toHaveLength(2);
+    expect(starts[1][1]).toMatchObject({downloadSource:record.downloadSource});
+  });
+  it("logs phase changes and completion once across repeated status polls", async () => {
+    const service = new DigitalDownloadService();
+    await service.start(game(1));
+    const snapshot = {gameId:1,phase:"completed" as const,progress:100,statusText:"ready"};
+    service.updateSnapshot(snapshot); service.updateSnapshot(snapshot);
+    expect(vi.mocked(narrate).mock.calls.filter(call => call[0].includes("job ended (completed)"))).toHaveLength(1);
+    expect(vi.mocked(narrate).mock.calls.filter(call => call[0].includes("-> completed"))).toHaveLength(1);
+  });
+  it("records a startup error and allows the next queued job to start", async () => {
+    const service = new DigitalDownloadService(undefined, () => "plus");
     mock.mockRejectedValueOnce(new Error("cannot spawn"));
     await service.start(game(1)); await service.start(game(2));
     expect((await service.getStatus(1)).phase).toBe("error");

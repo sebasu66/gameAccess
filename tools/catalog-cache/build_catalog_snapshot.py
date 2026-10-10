@@ -18,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 API_ROOT = REPO_ROOT / "apps" / "api"
 DEFAULT_SQLITE = API_ROOT / "gameaccess.db"
 OUTPUT_DIR = REPO_ROOT / "deploy" / "catalog-cache"
+sys.path.insert(0, str(API_ROOT))
+from app.catalog_snapshot import write_snapshot
 
 
 def normalize_database_url(raw: str) -> str:
@@ -75,7 +77,6 @@ def load_names(conn, table: str) -> dict[int, list[str]]:
         FROM {table} n
         JOIN game g ON g.id=n.game_id
         WHERE g.active = true
-          AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
         ORDER BY n.game_id, lower(n.name), n.name
     """)).all()
     result: dict[int, list[str]] = {}
@@ -98,14 +99,14 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
                 m.local_coop, m.shared_split_screen, m.mmo, m.pvp,
                 m.steam_review_score, m.steam_review_count,
                 m.header_image, m.capsule_image, m.hero_image, m.steam_url,
-                m.steam_json
+                m.steam_json, m.min_players, m.max_players,
+                m.local_players_max, m.online_players_max, m.players_source
             FROM game g
             JOIN game_metadata m ON m.game_id=g.id
             WHERE g.active = true
               AND lower(coalesce(m.product_type, '')) = 'game'
               AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))
-              AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
-            ORDER BY g.id
+                ORDER BY g.id
         """)).mappings().all()
 
         genres = load_names(conn, "game_genre")
@@ -118,8 +119,7 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
                 FROM game_metadata_locale l
                 JOIN game g ON g.id=l.game_id
                 WHERE g.active = true
-                  AND EXISTS (SELECT 1 FROM accountgame ag WHERE ag.game_id=g.id)
-                ORDER BY l.game_id, l.language, l.country
+                        ORDER BY l.game_id, l.language, l.country
             """)).mappings().all()
         except Exception:
             # Legacy/local SQLite databases predate localized metadata. The
@@ -166,6 +166,7 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
             "shared_split_screen": None if row["shared_split_screen"] is None else bool(row["shared_split_screen"]),
             "mmo": None if row["mmo"] is None else bool(row["mmo"]),
             "pvp": None if row["pvp"] is None else bool(row["pvp"]),
+            **{key: row[key] for key in ("min_players", "max_players", "local_players_max", "online_players_max", "players_source")},
         }
         encoded = stable_json(payload)
         content_hasher.update(encoded.encode("utf-8"))
@@ -206,87 +207,9 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
         detail_rows[key] = encoded
         content_hasher.update(encoded.encode("utf-8"))
 
-    revision = content_hasher.hexdigest()[:16]
-    sqlite_name = f"catalog-cache-{revision}.sqlite"
-    gzip_name = f"{sqlite_name}.gz"
-    sqlite_path = output_dir / sqlite_name
-    gzip_path = output_dir / gzip_name
-    manifest_path = output_dir / "catalog-manifest.json"
+    return write_snapshot(catalog_rows, detail_rows, output_dir, github_ref)
 
-    if sqlite_path.exists():
-        sqlite_path.unlink()
-    db = sqlite3.connect(sqlite_path)
-    try:
-        db.executescript("""
-            PRAGMA journal_mode=OFF;
-            PRAGMA synchronous=OFF;
-            CREATE TABLE metadata (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE catalog_game (
-                id INTEGER PRIMARY KEY,
-                app_id INTEGER,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX ix_catalog_game_app_id ON catalog_game(app_id);
-            CREATE TABLE game_detail (
-                game_id INTEGER NOT NULL,
-                language TEXT NOT NULL,
-                country TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                PRIMARY KEY(game_id, language, country)
-            );
-        """)
-        db.executemany(
-            "INSERT INTO metadata(key,value) VALUES (?,?)",
-            [
-                ("schema_version", "1"),
-                ("revision", revision),
-                ("catalog_count", str(len(catalog_rows))),
-            ],
-        )
-        db.executemany(
-            "INSERT INTO catalog_game(id, app_id, payload) VALUES (?,?,?)",
-            catalog_rows,
-        )
-        db.executemany(
-            "INSERT INTO game_detail(game_id, language, country, payload) VALUES (?,?,?,?)",
-            [(game_id, language, country, payload) for (game_id, language, country), payload in detail_rows.items()],
-        )
-        db.commit()
-        db.execute("VACUUM")
-    finally:
-        db.close()
 
-    with sqlite_path.open("rb") as source, gzip.GzipFile(filename="", mode="wb", fileobj=gzip_path.open("wb"), mtime=0, compresslevel=9) as target:
-        while True:
-            chunk = source.read(1024 * 1024)
-            if not chunk:
-                break
-            target.write(chunk)
-
-    compressed = gzip_path.read_bytes()
-    compressed_sha = hashlib.sha256(compressed).hexdigest()
-    manifest = {
-        "schema_version": 1,
-        "revision": revision,
-        "artifact_url": (
-            "https://raw.githubusercontent.com/sebasu66/gameAccess/"
-            f"refs/heads/{github_ref}/deploy/catalog-cache/{gzip_name}"
-        ),
-        "sha256": compressed_sha,
-        "catalog_count": len(catalog_rows),
-        "detail_count": len(detail_rows),
-        "compressed_bytes": len(compressed),
-        "uncompressed_bytes": sqlite_path.stat().st_size,
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-    sqlite_path.unlink()
-    engine.dispose()
-    print(json.dumps(manifest, indent=2, ensure_ascii=False))
-    return gzip_path, manifest_path
 
 
 def main() -> int:

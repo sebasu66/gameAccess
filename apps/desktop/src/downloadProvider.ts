@@ -3,7 +3,7 @@ import type { ManagedDownloadStatus, ManagedDownloadState } from "./downloadType
 
 /**
  * Standard phases of a game download or installation lifecycle.
- * Any engine (Steam DepotDownloader, HTTP direct download, torrent, archive extractor, setup.exe)
+ * Any engine (HTTP direct download, torrent, archive extractor, setup.exe)
  * can map its internal steps to these phases.
  */
 export type DownloadPhase =
@@ -77,7 +77,7 @@ export interface DownloadStartOptions {
  */
 export interface IDownloadProvider {
   /**
-   * Unique name of the download provider (e.g. "depot-downloader", "http-direct", "digital-archive", "custom-installer")
+   * Unique name of the download provider (e.g. "http-direct", "digital-archive", "custom-installer")
    */
   readonly name: string;
 

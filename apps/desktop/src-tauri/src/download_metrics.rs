@@ -102,47 +102,11 @@ fn manifest_path(app_id: u32) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
-fn provider_status_path(app_id: u32) -> Option<PathBuf> {
-    if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
-        let root = PathBuf::from(value);
-        if root.is_dir() {
-            return Some(root.join(".gameaccess").join("downloads").join("status").join(format!("app-{app_id}.json")));
-        }
-    }
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir.parent()?.parent().map(|apps| {
-        apps.join("launcher").join(".gameaccess").join("downloads").join("status").join(format!("app-{app_id}.json"))
-    })
-}
-
-fn merge_provider_metrics(metrics: &mut DownloadMetrics, app_id: u32) {
-    let Some(path) = provider_status_path(app_id) else { return; };
-    let Ok(body) = fs::read_to_string(path) else { return; };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) else { return; };
-
-    // Historical provider bytes_total comes from DepotDownloader's
-    // "Total bytes on disk". Treat it explicitly as an install-size estimate,
-    // never as network-transfer bytes or a basis for network ETA.
-    let estimate = value.get("estimated_install_size_bytes").and_then(|v| v.as_u64())
-        .or_else(|| value.get("bytes_total").and_then(|v| v.as_u64()));
-    if estimate.is_some() && metrics.installed_size_bytes.is_none() {
-        metrics.estimated_install_size_bytes = estimate;
-        metrics.size_source = Some("provider-depot-disk-estimate".into());
-        metrics.size_estimated = true;
-    }
-    let state = value.get("state").and_then(|v| v.as_str()).unwrap_or("");
-    if matches!(state, "requested" | "preparing" | "downloading" | "paused") {
-        metrics.progress_kind = Some("disk-estimate".into());
-    }
-}
-
 pub fn download_metrics(app_id: u32) -> DownloadMetrics {
-    let mut metrics = manifest_path(app_id)
+    manifest_path(app_id)
         .and_then(|path| fs::read_to_string(path).ok())
         .map(|text| metrics_from_manifest(app_id, &text))
-        .unwrap_or(DownloadMetrics { app_id, ..Default::default() });
-    merge_provider_metrics(&mut metrics, app_id);
-    metrics
+        .unwrap_or(DownloadMetrics { app_id, ..Default::default() })
 }
 
 #[cfg(test)]

@@ -32,9 +32,11 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     const manual = () => void updater.refresh(true);
     const focus = () => updater.catchUp();
     updater.start();
+    // Let the bundled catalog paint before checking for a new immutable revision.
+    const initialRefresh = window.setTimeout(() => void updater.refresh(), 5000);
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
-    return () => { updater.dispose(); window.removeEventListener(CATALOG_REFRESH_REQUEST, manual); window.removeEventListener("focus", focus); };
+    return () => { window.clearTimeout(initialRefresh); updater.dispose(); window.removeEventListener(CATALOG_REFRESH_REQUEST, manual); window.removeEventListener("focus", focus); };
   }, [enabled, ready]);
   return {notices, dismiss};
 }

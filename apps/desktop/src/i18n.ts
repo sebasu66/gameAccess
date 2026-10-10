@@ -7,6 +7,12 @@ const STORAGE_KEY = "gameaccess:language";
 const FALLBACK_LOCALE: AppLocale = "en";
 
 const es = {
+  sourcesChecking: "Buscando fuentes…",
+  sourcesUnavailable: "Fuentes no disponibles",
+  sourcesChoose: "Versiones y fuentes",
+  sourcesOptions: "Más opciones de descarga",
+  sourcesFilter: "Fuentes de descarga",
+
   accessPassTitle: "Mi pase",
   accessPassClose: "Cerrar los detalles del pase",
   accessPassExpires: "Vence",
@@ -36,8 +42,8 @@ const es = {
   activationPlusPrice: "ARS 5.000 / USD 3 al mes",
   activationPlusTrial: "Suscripción mensual · 1 semana de prueba gratis.",
   activationEverythingBase: "Todo lo incluido en BASE",
-  activationParallelDownloads: "Descargas en paralelo",
-  activationFastDownloads: "Mayor velocidad de descarga",
+  activationParallelDownloads: "Hasta 4 descargas en paralelo",
+  activationFastDownloads: "Descargas aceleradas · próximamente",
   activationGetPlus: "Probar PLUS",
   activationPlusPending: "Suscripción disponible próximamente",
   language: "Idioma",
@@ -106,6 +112,7 @@ const es = {
   back: "Volver",
   confirm: "Confirmar",
   understood: "Entendido",
+  downloadsDetailsAria: "Ver ficha de {{name}}",
   downloadCompleteAria: "Descarga completa: {{name}}",
   downloadComplete: "DESCARGA TERMINADA",
   readyToPlay: "Está listo para jugar.",
@@ -161,6 +168,12 @@ const es = {
   downloadsInstalled: "Instalación completada",
   downloadsDownloaded: "Descargado",
   downloadsSpeed: "Velocidad",
+  downloadsPeakSpeed: "Pico de velocidad",
+  downloadsSpeedChart: "Velocidad de descarga durante el último minuto",
+  downloadsWaitingSamples: "Esperando mediciones de velocidad…",
+  downloadsRemove: "Quitar de esta lista",
+  downloadsRemoveAria: "Quitar {name} de esta lista",
+  downloadsSession: "Terminadas en esta sesión",
   downloadsRemaining: "Tiempo restante",
   downloadsProgress: "Progreso de {{name}} · {{status}}",
   downloadsPause: "Pausar",
@@ -200,7 +213,13 @@ const es = {
 
 type TranslationKey = keyof typeof es;
 
-const en: Record<TranslationKey, string> = {
+const en: Record<keyof typeof es, string> = {
+  sourcesChecking: "Checking sources…",
+  sourcesUnavailable: "No sources available",
+  sourcesChoose: "Versions and sources",
+  sourcesOptions: "More download options",
+  sourcesFilter: "Download sources",
+
   accessPassTitle: "My pass",
   accessPassClose: "Close pass details",
   accessPassExpires: "Expires",
@@ -230,8 +249,8 @@ const en: Record<TranslationKey, string> = {
   activationPlusPrice: "ARS 5,000 / USD 3 per month",
   activationPlusTrial: "Monthly subscription · 1 week free trial.",
   activationEverythingBase: "Everything included in BASE",
-  activationParallelDownloads: "Parallel downloads",
-  activationFastDownloads: "Faster downloads",
+  activationParallelDownloads: "Up to 4 parallel downloads",
+  activationFastDownloads: "Accelerated downloads · coming soon",
   activationGetPlus: "Try PLUS",
   activationPlusPending: "Subscription coming soon",
   language: "Language",
@@ -300,6 +319,7 @@ const en: Record<TranslationKey, string> = {
   back: "Back",
   confirm: "Confirm",
   understood: "Got it",
+  downloadsDetailsAria: "View details for {{name}}",
   downloadCompleteAria: "Download complete: {{name}}",
   downloadComplete: "DOWNLOAD COMPLETE",
   readyToPlay: "Ready to play.",
@@ -355,6 +375,12 @@ const en: Record<TranslationKey, string> = {
   downloadsInstalled: "Installation complete",
   downloadsDownloaded: "Downloaded",
   downloadsSpeed: "Speed",
+  downloadsPeakSpeed: "Peak speed",
+  downloadsSpeedChart: "Download speed over the last minute",
+  downloadsWaitingSamples: "Waiting for speed measurements…",
+  downloadsRemove: "Remove from this list",
+  downloadsRemoveAria: "Remove {name} from this list",
+  downloadsSession: "Finished this session",
   downloadsRemaining: "Time remaining",
   downloadsProgress: "Progress for {{name}} · {{status}}",
   downloadsPause: "Pause",

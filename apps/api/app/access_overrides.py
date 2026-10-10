@@ -51,7 +51,7 @@ def _parse_local_file(data: object) -> list[CourtesyKey]:
         name = entry.get("name")
         value = entry.get("key")
         months = entry.get("duration_months", 1)
-        tier = entry.get("access_tier", "base")
+        tier = entry.get("access_tier", "plus" if name == "developer" else "base")
         if (
             not isinstance(name, str)
             or not name.strip()

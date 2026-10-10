@@ -43,7 +43,7 @@ def test_every_play_reapplies_backup_before_spawn(tmp_path):
             assert patch_file.read_bytes() == b"new"
             assert args[0] == [str(folder / "Game" / "game.exe")]
             from unittest.mock import Mock
-            return Mock(pid=42)
+            return Mock(pid=42, returncode=0)
         with patch.object(worker, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen", side_effect=launch):
             result = runner.run("play", 1, "Fixture Game")
         assert result["ok"], result
@@ -62,6 +62,7 @@ def test_missing_backup_does_not_require_restore(tmp_path):
     (folder / "Fixture Game_backup.zip").unlink()
     with patch("digital_process_runner.subprocess.Popen") as launch:
         launch.return_value.pid = 42
+        launch.return_value.returncode = 0
         assert DigitalProcessRunner(storage).run("play", 1, "Fixture Game")["ok"]
 
 def test_backup_is_not_reprocessed_on_directory_scan(tmp_path):
@@ -133,6 +134,7 @@ def test_automatic_source_play_ignores_backup_and_password_metadata(tmp_path):
     assert not runner.run("status", 1, "Fixture Game", auto_installed=True)["backup_requires_password"]
     with patch("digital_process_runner.subprocess.Popen") as launch, patch.object(DigitalArchiveBackup, "restore") as restore:
         launch.return_value.pid = 42
+        launch.return_value.returncode = 0
         assert runner.run("play", 1, "Fixture Game", auto_installed=True)["ok"]
         restore.assert_not_called()
         launch.assert_called_once()

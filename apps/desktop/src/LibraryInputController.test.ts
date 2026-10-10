@@ -4,11 +4,10 @@ import { nextCatalogMode } from "./LibraryInputController";
 
 describe("persistent library keyboard navigation", () => {
   it("cycles catalog tabs exactly once in both directions", () => {
-    expect(nextCatalogMode("local")).toBe("gameaccess");
-    expect(nextCatalogMode("gameaccess")).toBe("digital");
+    expect(nextCatalogMode("local")).toBe("digital");
     expect(nextCatalogMode("digital")).toBe("local");
     expect(nextCatalogMode("local", true)).toBe("digital");
-    expect(nextCatalogMode("digital", true)).toBe("gameaccess");
+    expect(nextCatalogMode("digital", true)).toBe("local");
   });
 
   it("does not own a second visible library search control", async () => {

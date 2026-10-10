@@ -1,0 +1,15 @@
+{
+  "released_since": "2025-10-10",
+  "through": "2026-10-10",
+  "recent_complete": true,
+  "recent_count": 27681,
+  "popular_limit": 5000,
+  "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
+  "cooptimus": {
+    "processed": 0,
+    "matched": 0,
+    "state": "not-requested"
+  },
+  "updated_at": "2026-10-10T14:07:47.108642+00:00",
+  "tagged_count": 34622
+}
