@@ -18,12 +18,12 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
     files = lt.file_storage()
     files.add_file("fixture.bin", len(payload))
     torrent = lt.create_torrent(files, 16384, lt.create_torrent.v1_only)
-    torrent.set_priv(True)
     lt.set_piece_hashes(torrent, str(seed_dir))
     info = lt.torrent_info(lt.bencode(torrent.generate()))
     create_session = lt.session
     settings = {"listen_interfaces": "127.0.0.1:0", "enable_dht": False,
-                "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False}
+                "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False,
+                "enable_outgoing_utp": False, "enable_incoming_utp": False}
     seed = create_session(settings)
     seed_params = lt.add_torrent_params()
     seed_params.ti = info
@@ -35,6 +35,7 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
         assert time.monotonic() < deadline, "Local seed did not become ready"
         time.sleep(0.05)
     peer_port = seed.listen_port()
+    assert peer_port > 0
 
     class LocalSession:
         def __init__(self, ignored_settings):
@@ -45,7 +46,7 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
             params.trackers = []
             params.flags &= ~(lt.torrent_flags.paused | lt.torrent_flags.auto_managed)
             handle = self.session.add_torrent(params)
-            handle.connect_peer(("127.0.0.1", peer_port))
+            handle.connect_peer(("127.0.0.1", peer_port), 0, 0)
             return handle
         def pop_alerts(self):
             return self.session.pop_alerts()

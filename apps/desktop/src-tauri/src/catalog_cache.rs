@@ -64,9 +64,9 @@ fn bundled_catalog_dir() -> Option<PathBuf> {
             }
         }
     }
-    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("runtime")
-        .join("catalog");
+    let project_seed = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../deploy/catalog-cache");
+    if project_seed.join("catalog-manifest.json").is_file() { return Some(project_seed); }
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime/catalog");
     dev.is_dir().then_some(dev)
 }
 
@@ -239,6 +239,13 @@ fn current_cache_info(path: &Path) -> Result<Option<(String, usize)>, String> {
     Ok(Some((revision, count)))
 }
 
+fn incoming_snapshot_older(current: &str, incoming: &str) -> bool {
+    match (chrono::DateTime::parse_from_rfc3339(current), chrono::DateTime::parse_from_rfc3339(incoming)) {
+        (Ok(current), Ok(incoming)) => incoming < current,
+        _ => false,
+    }
+}
+
 fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
     let _sync_guard = CATALOG_CACHE_SYNC_LOCK
         .get_or_init(|| Mutex::new(()))
@@ -270,7 +277,10 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
 
     let target = ready_cache_db_path_unlocked()?;
     if let Some((revision, count)) = current_cache_info(&target)? {
-        if revision == manifest.revision {
+        let conn = Connection::open(&target).map_err(|err| err.to_string())?;
+        let generated_at = read_meta(&conn, "generated_at")?.unwrap_or_default();
+        if revision == manifest.revision || incoming_snapshot_older(&generated_at, &manifest.generated_at)
+            || (manifest.generated_at.is_empty() && manifest.catalog_count < count) {
             return Ok(CatalogCacheSyncResult {
                 updated: false,
                 revision,
@@ -463,6 +473,12 @@ mod tests {
         root.join("catalog.sqlite")
     }
 
+    #[test]
+    fn older_remote_snapshot_cannot_replace_the_installer_catalog() {
+        assert!(incoming_snapshot_older("2026-10-10T14:07:48+00:00", "2026-10-09T18:00:00Z"));
+        assert!(!incoming_snapshot_older("2026-10-10T14:07:48+00:00", "2026-10-11T00:00:00Z"));
+        assert!(!incoming_snapshot_older("2026-10-10T14:07:48+00:00", ""));
+    }
     #[test]
     fn stale_next_and_backup_are_removed_when_target_exists() {
         let target = temp_target();

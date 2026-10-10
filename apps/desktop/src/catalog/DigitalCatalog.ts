@@ -1,11 +1,13 @@
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
-import { readCatalogCachedDetail } from "../catalogCache";
+import { readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
+import { getSteamStoreMetadata, hasTauriRuntime } from "../native";
+import { narrate } from "../narrationLog";
 import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
 export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
-import { normalizeSteamStoreMetadata } from "../steamMetadata";
+import { normalizeSteamStoreMetadata, mergeLocalSteamDetails } from "../steamMetadata";
 import { applySteamCatalogMetadata, cachedSteamCatalogMetadata } from "../useSteamMetadataWorker";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
@@ -108,12 +110,25 @@ export class DigitalCatalog {
     const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
     if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
 
+    // Opening a detail can use public Steam metadata even when the central API is older/offline.
+    if (game.app_id && hasTauriRuntime()) {
+      try {
+        const raw = await getSteamStoreMetadata(game.app_id);
+        if (raw) {
+          const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null }, raw));
+          void storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
+          return detail;
+        }
+      } catch (error) {
+        void narrate("AppID " + game.app_id + " · public Steam detail failed: " + String(error), {area:"DETAILS",level:"WARN"});
+      }
+    }
     if (game.app_id) {
       try {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {
           const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details`, {
-            headers: activationHeaders()
+            headers: activationHeaders(), signal: AbortSignal.timeout(8000)
           });
           if (res.ok) {
             const serverData = await res.json();
@@ -132,6 +147,7 @@ export class DigitalCatalog {
         }
       } catch (e) {
         if (e instanceof Error && e.message.includes("tiempo de acceso")) throw e;
+        void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
         // Continue to fallback
       }
     }

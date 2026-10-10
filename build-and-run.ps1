@@ -6,6 +6,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Running this development checkout needs its matching API, not a stale hosted deployment.
+$useLocalServer = $Server -or -not $NoRun
 $projectRoot = $PSScriptRoot
 $desktopRoot = Join-Path $projectRoot 'apps\desktop'
 $apiRoot = Join-Path $projectRoot 'apps\api'
@@ -95,7 +97,7 @@ try {
     Get-Command cargo -ErrorAction Stop | Out-Null
 
     Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
-    if ($Server) {
+    if ($useLocalServer) {
         Write-Host "Stopping any existing local GameAccess server on port $ServerPort before rebuild..."
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort -StopOnly
         if ($LASTEXITCODE -ne 0) { throw "Could not stop the local server before rebuild (exit $LASTEXITCODE)." }
@@ -123,7 +125,7 @@ try {
 
     $env:CARGO_TARGET_DIR = $targetRoot
     $env:VITE_BUILD_TIMESTAMP = $buildTimestamp
-    if ($Server) {
+    if ($useLocalServer) {
         # A -Server build is intentionally pinned to the local API even if the
         # packaged runtime settings normally resolve to a hosted backend.
         $env:VITE_GAMEACCESS_API = $localApiUrl
@@ -154,6 +156,7 @@ try {
     Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
     Write-Host "Build UTC: $buildTimestamp | client SHA256: $expectedHash"
     @{
+        commit = (git -C $projectRoot rev-parse HEAD).Trim()
         built_at_utc = $buildTimestamp
         source_exe = $sourceExe
         output_exe = $outputExe
@@ -161,11 +164,11 @@ try {
         server = @{
             app = 'apps/api/app.main:app'
             requirements_sha256 = $serverRequirementsHash
-            local_url = if ($Server) { $localApiUrl } else { $null }
+            local_url = if ($useLocalServer) { $localApiUrl } else { $null }
         }
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $projectRoot 'GameAccess-latest.build.json') -Encoding UTF8
 
-    if (-not $NoRun -and $Server) {
+    if (-not $NoRun -and $useLocalServer) {
         Write-Host "Starting local GameAccess server at $localApiUrl"
         Write-GameAccessNarration "Starting local GameAccess backend server at $localApiUrl." "SERVER"
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort
@@ -174,7 +177,7 @@ try {
     }
     if (-not $NoRun) {
         Write-GameAccessNarration "Starting the GameAccess desktop front end executable." "FRONTEND"
-        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Normal
+        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Hidden
     }
 } catch {
     Write-Error $_ -ErrorAction Continue
