@@ -159,6 +159,24 @@ describe("Digital download scheduling", () => {
     await service.cancel(1);
     expect((await service.getStatus(1)).phase).toBe("completed");
   });
+  it("retries the selected plugin source without falling back to catalog metadata", async () => {
+    const service = new DigitalDownloadService();
+    const record = {id:1,name:"Game 1",downloadSource:"https://example.test/selected.zip",installProcess:"",playProcess:"",uninstallProcess:"",auto_installed:false};
+    await service.start(game(1), {record});
+    service.updateSnapshot({gameId:1,phase:"error",progress:0,error:"network"});
+    await service.start(game(1));
+    const starts = mock.mock.calls.filter(call => call[0] === "start_digital_download");
+    expect(starts).toHaveLength(2);
+    expect(starts[1][1]).toMatchObject({downloadSource:record.downloadSource});
+  });
+  it("logs phase changes and completion once across repeated status polls", async () => {
+    const service = new DigitalDownloadService();
+    await service.start(game(1));
+    const snapshot = {gameId:1,phase:"completed" as const,progress:100,statusText:"ready"};
+    service.updateSnapshot(snapshot); service.updateSnapshot(snapshot);
+    expect(vi.mocked(narrate).mock.calls.filter(call => call[0].includes("job ended (completed)"))).toHaveLength(1);
+    expect(vi.mocked(narrate).mock.calls.filter(call => call[0].includes("-> completed"))).toHaveLength(1);
+  });
   it("records a startup error and allows the next queued job to start", async () => {
     const service = new DigitalDownloadService(undefined, () => "plus");
     mock.mockRejectedValueOnce(new Error("cannot spawn"));

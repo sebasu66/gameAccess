@@ -86,7 +86,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
-    this.jobs.set(id, { game, options });
+    this.jobs.set(id, { game, options: options ?? this.jobs.get(id)?.options });
     this.queue.push(id);
     void narrate(`Digital AppID ${id} · queued at position ${this.queue.length}; active=${this.running.size}, limit=${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: "En cola" });

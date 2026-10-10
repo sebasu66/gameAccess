@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
 import { useI18n } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
@@ -11,9 +11,9 @@ import "./plugin-sources.css";
 export function pluginDownloadLabel(game: CatalogGame, sources: PluginSource[], locale: "es" | "en"): string {
   const size = sources[0]?.size || "";
   const label = downloadButtonLabel({ ...game, download_size: size, download_size_bytes: null }, locale);
-  return label + " [" + sources.length + (locale === "es" ? " fuentes]" : " sources]");
+  return label + " [" + sources.length + (locale === "es" ? (sources.length === 1 ? " fuente]" : " fuentes]") : (sources.length === 1 ? " source]" : " sources]"));
 }
-export default function PluginDownloadButton({ game, disabled = false }: { game: CatalogGame; disabled?: boolean }) {
+export default function PluginDownloadButton({ game, disabled = false, buttonRef, onFocus, className }: { game: CatalogGame; disabled?: boolean; buttonRef?: Ref<HTMLButtonElement>; onFocus?: () => void; className?: string }) {
   const { t, locale } = useI18n();
   const [result, setResult] = useState<{ key: string; sources: PluginSource[]; loading: boolean }>({ key: "", sources: [], loading: true });
   const [open, setOpen] = useState(false);
@@ -43,7 +43,7 @@ export default function PluginDownloadButton({ game, disabled = false }: { game:
     } finally { setStarting(false); }
   };
   return <div className="plugin-download-action">
-    <button type="button" className="glass-action download" data-action="download"
+    <button ref={buttonRef} onFocus={onFocus} type="button" className={className ?? "glass-action download"} data-action="download"
       disabled={disabled || starting || current.loading || !current.sources.length}
       onClick={() => { const source = current.sources[0]; if (source) void start(source); }}>
       <span className="glass-action-icon">{current.loading || starting ? <Loader2 size={23} className="spin" /> : <Download size={23} />}</span>

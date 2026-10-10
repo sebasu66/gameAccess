@@ -1,8 +1,5 @@
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
-import {downloadButtonLabel} from "./downloadSize";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
-import { getCatalogMode } from "./catalogMode";
 
 
 import {useI18n} from "./i18n";
@@ -191,7 +188,7 @@ function ActionButtons(props: FeaturePanelProps) {
   const { t } = useI18n();
   return <div className="library-room-actions glass-actions-row">
     {props.actions.map((action, index) => action.kind === "download"
-      ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} />
+      ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
       : <button type="button" key={action.kind}
         ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
         data-action={action.kind} title={action.reason ?? undefined}

@@ -39,6 +39,14 @@ describe("Digital download screen", () => {
     expect(html).toContain(locale==="es"?"Abrir enlace":"Open link");
     expect(html).toContain("todavía no está instalado");
   });
+  it("retains the selected package size after a metadata-only catalog refresh", () => {
+    const service = new DigitalDownloadService();
+    const game = {id:42, app_id:42, name:"Fixture", download_size:"6 GB"} as CatalogGame;
+    vi.spyOn(service,"getDownloads").mockReturnValue([{game,snapshot:{gameId:42,phase:"queued",progress:0}}]);
+    const metadata = {...game,download_size:null,download_size_bytes:null};
+    const html = renderToStaticMarkup(<DigitalDownloadsScreen service={service} catalogGames={[metadata]} onClose={()=>{}} />);
+    expect(html).toContain("6 GB");
+  });
   it("formats missing and invalid metrics without invented values", () => {
     expect(formatDownloadBytes(undefined)).toBe("—");
     expect(formatDownloadBytes(NaN)).toBe("—");

@@ -5,6 +5,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("./settings", () => ({ getApiBaseUrl: vi.fn(async () => "https://gameaccess-api.example.test") }));
 
 import { invoke } from "@tauri-apps/api/core";
+import { getCatalogMode } from "./catalogMode";
 import { openSteamInstall } from "./native";
 
 const invokeMock = vi.mocked(invoke);
@@ -51,22 +52,10 @@ describe("Steam download routing", () => {
     vi.clearAllMocks();
   });
 
-  it("registers one durable job and uses the provider downloader for the GameAccess catalog", async () => {
+  it("migrates saved GameAccess selections to the plugin catalog", () => {
     installRuntime("gameaccess");
-    invokeMock.mockImplementation(async (command: string) => {
-      if (command === "register_download_job") return lifecycle(222);
-      if (command === "start_provider_download") return status(222, "preparing");
-      if (command === "provider_download_status") return status(222, "preparing");
-      if (command === "steam_download_status") return { ...status(222, "preparing"), state: "not-installed" };
-      throw new Error(`unexpected command: ${command}`);
-    });
-
-    await openSteamInstall(222);
-
-    expect(invokeMock).toHaveBeenCalledWith("register_download_job", { appId: 222, jobId: expect.stringMatching(/^ui-222-/) });
-    expect(invokeMock).toHaveBeenCalledWith("start_provider_download", { appId: 222, jobId: "job-222", apiBaseUrl: "https://gameaccess-api.example.test" });
-    expect(invokeMock).not.toHaveBeenCalledWith("local_steam_pool");
-    expect(invokeMock).not.toHaveBeenCalledWith("open_steam_install", expect.anything());
+    expect(getCatalogMode()).toBe("digital");
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it("keeps the remembered-account Steam install route for the local catalog", async () => {

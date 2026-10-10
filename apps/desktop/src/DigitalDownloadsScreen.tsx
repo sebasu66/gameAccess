@@ -62,7 +62,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
   const row = (entry: Entry, index: number, featured = false) => {
     const { game, snapshot } = entry;
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
-    const sourceSize = sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
+    const sourceSize = sourceDownloadSize(game,locale) || sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
     const { phase, gameId } = snapshot;
     const percent = Number.isFinite(snapshot.progress) ? Math.max(0, Math.min(100, snapshot.progress)) : 0;
     const transfer = phase === "downloading";

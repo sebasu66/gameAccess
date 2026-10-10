@@ -192,7 +192,7 @@ async function syncSources() {
                     file_size: item.fileSize || item.file_size || item.size || "Desconocido",
                     upload_date: item.uploadDate || item.date || "",
                     source_url: url,
-                    source_name: typeof rawData.name === "string" ? rawData.name : path.basename(url).replace(/\\.json$/, "")
+                    source_name: typeof rawData.name === "string" ? rawData.name : path.basename(url).replace(/\.json$/, "")
                 });
             }
         } catch (e) {
