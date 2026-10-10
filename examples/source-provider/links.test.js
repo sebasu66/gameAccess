@@ -67,3 +67,20 @@ test('HTML and JSON responses cannot be passed off as download files', () => {
   assert.throws(() => assertFileHeaders({ 'content-type': 'application/json' }), /página web/);
   assert.doesNotThrow(() => assertFileHeaders({ 'content-type': 'application/octet-stream' }));
 });
+
+const { calculateScore } = require('./matcher');
+test('TRAIL OUT does not match Rail Route, but keeps its own download release', () => {
+  assert.equal(calculateScore('TRAIL OUT', 'Rail Route 2.3.20'), 0);
+  assert.ok(calculateScore('TRAIL OUT', 'TRAIL OUT Free Download (v5.06)') > 0.8);
+  const options = optionsFor([{ ...feed(['https://example.test/trail.zip']), raw_title: 'TRAIL OUT Free Download (v5.06)' },
+    { ...feed(['magnet:?xt=urn:btih:rail']), raw_title: 'Rail Route 2.3.20' }], 'TRAIL OUT', calculateScore);
+  assert.equal(options.length, 1);
+  assert.equal(options[0].uri, 'https://example.test/trail.zip');
+});
+test('game numbers and complete word boundaries distinguish sequels', () => {
+  assert.equal(calculateScore('Alan Wake', 'Alan Wake 2 v1.3'), 0);
+  assert.ok(calculateScore('Alan Wake 2', 'Alan Wake 2 (v1.3) [Repack]') > 0.8);
+  assert.equal(calculateScore('DOOM', 'DOOM Eternal'), 0);
+  assert.equal(calculateScore('Out', 'Outlast'), 0);
+  assert.ok(calculateScore("Marvel's Spider-Man", 'Marvels Spider-Man (v1.2)') > 0.8);
+});

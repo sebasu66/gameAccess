@@ -68,7 +68,7 @@ const fetchJsonViaWindow = (url) => {
                 contextIsolation: true
             }
         });
-        
+
         let timeout = setTimeout(() => {
             win.destroy();
             reject(new Error("Timeout esperando al servidor (o Cloudflare bloqueando)."));
@@ -87,7 +87,7 @@ const fetchJsonViaWindow = (url) => {
                 // Ignore, might be cloudflare challenging
             }
         });
-        
+
         win.loadURL(url);
     });
 };
@@ -116,11 +116,11 @@ async function getJSONFromSource(url) {
 ipcMain.handle('add-source', async (event, url) => {
     if (!url || typeof url !== 'string') throw new Error("URL inválida");
     if (SOURCE_URLS.includes(url)) throw new Error("La fuente ya existe");
-    
+
     // Quick validate
     const data = await getJSONFromSource(url);
     if (!data) throw new Error("El JSON devolvió una respuesta vacía");
-    
+
     SOURCE_URLS.push(url);
     saveConfig(SOURCE_URLS);
     syncSources(); // Trigger async sync
@@ -169,7 +169,7 @@ async function syncSources() {
         try {
             log.info(`Descargando: ${url}`);
             let rawData = await getJSONFromSource(url);
-            
+
             let rawList = [];
             if (rawData.downloads && Array.isArray(rawData.downloads)) rawList = rawData.downloads;
             else if (rawData.items && Array.isArray(rawData.items)) rawList = rawData.items;
