@@ -88,7 +88,7 @@ def test_get_file_works_when_head_is_html_or_unsupported(server, tmp_path, path)
         assert downloader.download_segmented(server + path, str(output), "7", "Fixture", connections=2)
     assert output.read_bytes() == b"PK\x03\x04fixture" * 100
 
-@pytest.mark.parametrize("topic", ["urn:btih:" + "a" * 40, "urn:btih:" + "A" * 32, "urn:btmh:1220" + "b" * 64])
+@pytest.mark.parametrize("topic", ["urn:btih:" + "a" * 40, "urn:btih:" + "M" * 32, "urn:btmh:1220" + "b" * 64])
 def test_valid_magnets_are_normalized_and_use_torrent_engine(topic):
     source = downloader.normalize_download_source(" MAGNET:?xt=" + topic + "&amp;dn=Fixture ")
     assert source.startswith("magnet:?")

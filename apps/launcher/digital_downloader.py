@@ -472,7 +472,7 @@ def download_segmented(url: str, output_path: str, app_id: str, game_name: str, 
         return True
 
     # Check Range support
-    if 'bytes' not in accept_ranges and head_resp.status_code != 206:
+    if 'bytes' not in accept_ranges:
         test_h = dict(headers)
         test_h['Range'] = 'bytes=0-0'
         t_resp = requests.get(final_url, headers=test_h, stream=True, timeout=10)
