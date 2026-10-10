@@ -41,6 +41,7 @@ if (-not (Test-Path $requirements)) {
 # state, caches, credentials, or other developer-machine data.
 # Refresh code in place. Never delete launcher/games or its Digital registry.
 New-Item -ItemType Directory -Path $launcherTarget -Force | Out-Null
+Get-ChildItem $launcherTarget -File -Filter "*.py" | Where-Object { -not (Test-Path (Join-Path $launcherSource $_.Name) -PathType Leaf) } | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 Get-ChildItem $launcherSource -File |
     Where-Object { $_.Extension -eq ".py" -or $_.Name -eq "requirements.txt" } |
     Copy-Item -Destination $launcherTarget
@@ -134,7 +135,7 @@ Get-ChildItem $pythonTarget -Directory -Recurse -Filter "__pycache__" -ErrorActi
     requirements_sha256 = $requirementsSha
 } | ConvertTo-Json | Set-Content -Path $marker -Encoding UTF8
 
-& (Join-Path $pythonTarget "python.exe") -B -c "import requests, pywinauto, selenium; import steam_pool, provider_download_manager; print('embedded-runtime-ok')"
+& (Join-Path $pythonTarget "python.exe") -B -c "import requests; import digital_downloader, digital_process_runner; print('embedded-runtime-ok')"
 if ($LASTEXITCODE -ne 0) {
     throw "Embedded Python runtime self-test failed."
 }

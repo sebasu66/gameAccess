@@ -80,7 +80,6 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
   const libraryGames = useLibraryGames();
   const [games, setGames] = useState<CatalogGame[]>([]);
-  useSteamMetadataWorker(games, setGames);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -94,7 +93,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [query, setQuery] = useState("");
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(EMPTY_LIBRARY_FILTERS);
   const [selected, setSelected] = useState<CatalogGame | null>(null);
-  const [leaseBusy, setLeaseBusy] = useState(false);
+  const [launchBusy, setLaunchBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
@@ -102,6 +101,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
+  useSteamMetadataWorker(games.filter(game => Boolean(downloads[game.app_id ?? game.id]?.installed)), setGames);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
@@ -423,9 +423,9 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     }
   };
 
-  const doLease = async (game: CatalogGame) => {
+  const launchGame = async (game: CatalogGame) => {
     document.querySelectorAll("video").forEach(video => video.pause());
-    setHeroPaused(true); setSelected(null); rememberRecent(game); setLeaseBusy(true);
+    setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate("launchDetail") });
     try {
       if (getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
@@ -434,7 +434,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
     } catch (err) {
       setSession({ game, phase: "error", title: translate("launchError"), detail: err instanceof Error ? err.message : String(err) });
-    } finally { setLeaseBusy(false); }
+    } finally { setLaunchBusy(false); }
   };
 
   const previousHero = () => setHeroIndex((current) => (current - 1 + heroPool.length) % heroPool.length);
@@ -475,7 +475,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
               <h1>{featured.name}</h1>
               <p>Seleccionado de tus cuentas conectadas.</p>
               <div className="hero-actions glass-actions-row">
-                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || leaseBusy} onClick={() => void doLease(featured)} />
+                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || launchBusy} onClick={() => void launchGame(featured)} />
                 <button type="button" className="secondary-button glass-info-button" onClick={() => openGame(featured)}><Info size={19} /> Más información</button>
               </div>
             </div>
@@ -514,7 +514,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
+        <LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
@@ -528,7 +528,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
           </>}
         </div>
       </main>
-      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await doLease(game); }} /> : null}
+      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await launchGame(game); }} /> : null}
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}

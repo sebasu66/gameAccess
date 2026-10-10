@@ -5,15 +5,12 @@ mod access_activation;
 mod catalog_cache;
 mod download_lifecycle;
 mod game_uninstall;
-mod provider_download;
-mod provider_transport;
 mod steam_artwork;
-mod steam_session;
 
 use gameaccess_desktop::{download_metrics, native_core};
 use gameaccess_desktop::steam_metadata_worker;
 use native_core::{
-    MachineProfile, RuntimePrerequisites, SteamAccountSwitchResult, SteamDownloadStatus,
+    MachineProfile, RuntimePrerequisites, SteamDownloadStatus,
 };
 
 use serde::Serialize;
@@ -348,24 +345,8 @@ fn steam_library_roots_for_folder_open() -> Result<Vec<PathBuf>, String> {
     Ok(roots)
 }
 
-fn provider_prepared_game_folder(app_id: u32) -> Option<PathBuf> {
-    let status = provider_download::provider_download_status(app_id)
-        .ok()
-        .flatten()?;
-    if !(status.installed || matches!(status.state.as_str(), "installed" | "prepared")) {
-        return None;
-    }
-    let target = PathBuf::from(status.prepared_target?);
-    if !target.is_dir() {
-        return None;
-    }
-    Some(fs::canonicalize(&target).unwrap_or(target))
-}
 
 fn installed_game_folder(app_id: u32) -> Result<PathBuf, String> {
-    if let Some(folder) = provider_prepared_game_folder(app_id) {
-        return Ok(folder);
-    }
     for root in steam_library_roots_for_folder_open()? {
         let manifest = root
             .join("steamapps")
@@ -451,26 +432,8 @@ async fn machine_profile() -> Result<MachineProfile, String> {
         .map_err(|err| format!("Machine-profile task failed: {err}"))
 }
 
-#[tauri::command]
-async fn local_steam_pool() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(native_core::read_local_steam_pool)
-        .await
-        .map_err(|err| format!("Local Steam pool task failed: {err}"))?
-}
 
-#[tauri::command]
-async fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(native_core::verify_local_steam_inventory)
-        .await
-        .map_err(|err| format!("Steam inventory verification task failed: {err}"))?
-}
 
-#[tauri::command]
-async fn switch_steam_account(account_label: String) -> Result<SteamAccountSwitchResult, String> {
-    tauri::async_runtime::spawn_blocking(move || native_core::switch_steam_account(account_label))
-        .await
-        .map_err(|err| format!("Steam account-switch task failed: {err}"))
-}
 
 #[tauri::command]
 async fn steam_store_metadata(app_id: u32, force: Option<bool>) -> Result<serde_json::Value, String> {
@@ -547,16 +510,7 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
             if steam.installed || steam.state == "installed" {
                 return true;
             }
-            provider_download::provider_download_status(app_id)
-                .ok()
-                .flatten()
-                .is_some_and(|status| {
-                    (status.installed || matches!(status.state.as_str(), "installed" | "prepared"))
-                        && status
-                            .prepared_target
-                            .as_ref()
-                            .is_some_and(|target| std::path::Path::new(target).exists())
-                })
+            false
         })
     })
     .await
@@ -972,7 +926,6 @@ fn main() {
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
         })
-        .manage(steam_session::SteamSessionState::default())
         .invoke_handler(tauri::generate_handler![
             get_registered_plugins,
             activation_installation_id,
@@ -1007,30 +960,12 @@ fn main() {
             steam_metadata_worker_poll,
             steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
-            local_steam_pool,
-            verify_local_steam_inventory,
             machine_profile,
-            switch_steam_account,
             register_download_job,
             record_download_completion,
             pending_download_completions,
             acknowledge_download_completion,
             cancel_download_lifecycle,
-            provider_download::start_provider_download,
-            provider_download::cancel_provider_download,
-            provider_download::provider_download_status,
-            provider_download::provider_download_statuses,
-            provider_download::reconcile_download_staging,
-            provider_download::discard_interrupted_download,
-            provider_download::provider_download_estimate,
-            steam_session::save_steam_credential,
-            steam_session::remove_steam_credential,
-            steam_session::has_steam_credential,
-            steam_session::direct_switch_steam_account,
-            provider_transport::login_provider_steam_for_lease,
-            steam_session::start_steam_game_session,
-            steam_session::steam_session_status,
-            steam_session::steam_app_is_running,
             visual_debug_config,
             capture_visual_debug,
             finish_visual_debug,

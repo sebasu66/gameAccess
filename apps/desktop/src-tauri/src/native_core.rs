@@ -29,12 +29,6 @@ pub struct MachineProfile {
     pub gpus: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct SteamAccountSwitchResult {
-    pub ok: bool,
-    pub stage: String,
-    pub message: String,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RuntimePrerequisites {
@@ -99,27 +93,6 @@ fn find_steam_exe() -> Option<PathBuf> {
         .into_iter()
         .find(|path| path.is_file())
 }
-fn remembered_steam_accounts(steam_exe: &Path) -> (bool, usize) {
-    let Some(root) = steam_exe.parent() else {
-        return (false, 0);
-    };
-    let loginusers = root.join("config").join("loginusers.vdf");
-    let Ok(text) = fs::read_to_string(&loginusers) else {
-        return (loginusers.is_file(), 0);
-    };
-    let count = text
-        .lines()
-        .filter(|line| {
-            let lower = line.to_ascii_lowercase();
-            if !lower.contains("rememberpassword") {
-                return false;
-            }
-            let values: Vec<&str> = line.split('"').collect();
-            values.len() >= 4 && values[3].trim() == "1"
-        })
-        .count();
-    (true, count)
-}
 pub fn steam_installed() -> bool {
     find_steam_exe().is_some()
 }
@@ -133,13 +106,12 @@ pub fn runtime_prerequisites() -> RuntimePrerequisites {
             remembered_accounts: 0,
         };
     };
-    let (account_file_present, remembered_accounts) = remembered_steam_accounts(&steam_exe);
     RuntimePrerequisites {
         runtime_ok: true,
         steam_installed: true,
         steam_path: steam_exe.parent().map(|p| p.to_string_lossy().to_string()),
-        account_file_present,
-        remembered_accounts,
+        account_file_present: false,
+        remembered_accounts: 0,
     }
 }
 pub fn open_steam_client() -> Result<(), String> {
@@ -392,199 +364,12 @@ pub fn machine_profile() -> MachineProfile {
 }
 
 #[cfg(target_os = "windows")]
-fn launcher_dir() -> Option<PathBuf> {
-    if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
-        let candidate = PathBuf::from(value);
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-    }
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
-                if candidate.is_dir() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .and_then(|desktop| desktop.parent())
-        .map(|apps| apps.join("launcher"))
-}
 
 #[cfg(target_os = "windows")]
-fn launcher_python(launcher: &Path) -> PathBuf {
-    if let Some(runtime_root) = launcher.parent() {
-        let embedded = runtime_root.join("python").join("python.exe");
-        if embedded.is_file() {
-            return embedded;
-        }
-    }
-    let venv = launcher.join(".venv").join("Scripts").join("python.exe");
-    if venv.is_file() {
-        venv
-    } else {
-        PathBuf::from("python")
-    }
-}
 
-pub fn local_steam_pool() -> Result<serde_json::Value, String> {
-    read_local_steam_pool()
-}
 
-pub fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    let launcher =
-        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let python = launcher_python(&launcher);
-    let code = r#"import json; import steam_verified_inventory as inventory; from steam_verified_sync_v5 import deterministic_switch; inventory._switch=lambda identity,attempts=2: deterministic_switch(identity); result=inventory.verify_all_remembered_accounts(save=True); print(json.dumps(result,ensure_ascii=False))"#;
-    let output = Command::new(&python)
-        .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
-        .args(["-c", code])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|err| format!("Could not verify Steam ownership: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "Steam ownership verification failed".into()
-        } else {
-            stderr
-        });
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("Steam ownership verification returned invalid data: {err}"))
-}
 
-pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
-    let launcher =
-        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let python = launcher_python(&launcher);
-    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root,local_library_apps; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set(); recent={};
-for account in p.get('accounts',[]):
- for aid,info in local_library_apps(int(account.get('user_id32') or 0)).items():
-  value=str(next((v for k,v in info.items() if k.lower()=='lastplayed'),0));
-  if value.isdigit(): recent[aid]=max(recent.get(aid,0),int(value)*1000)
-for app_id,item in cat.items():
- t=str(item.get('type') or '').casefold(); n=str(item.get('name') or '').strip(); oslist=str(item.get('oslist') or '').casefold();
- if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or '', 'last_played_at':recent.get(int(app_id),0)})
-accounts=[]
-for a in p.get('accounts',[]):
- accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'runnable_app_ids':[x for x in (a.get('runnable_app_ids') or []) if x in valid],'runnable_verified':bool(a.get('runnable_verified')),'runnable_verified_at':a.get('runnable_verified_at'),'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'ticketed_app_count':int(a.get('ticketed_app_count') or 0),'ownership_source':a.get('ownership_source') or 'unverified','ownership_verified':bool(a.get('ownership_verified')),'ownership_verified_at':a.get('ownership_verified_at'),'active':bool(a.get('active'))})
-out={'source':p.get('ownership_source') or 'none','verification_complete':bool(p.get('ownership_complete')),'verified_at':p.get('ownership_verified_at'),'ownership_error':p.get('ownership_error'),'verified_account_count':int(p.get('verified_account_count') or 0),'runnable_account_count':int(p.get('runnable_account_count') or 0),'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
-    let output = Command::new(&python)
-        .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
-        .args(["-c", code])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|err| format!("Could not read the remembered personal Steam library: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "Remembered personal Steam library scan failed".into()
-        } else {
-            stderr
-        });
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("Remembered personal Steam library returned invalid data: {err}"))
-}
 
-pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
-    if account_label.trim().is_empty() {
-        return SteamAccountSwitchResult {
-            ok: false,
-            stage: "input".into(),
-            message: "No Steam account label was supplied".into(),
-        };
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let Some(launcher) = launcher_dir() else {
-            return SteamAccountSwitchResult {
-                ok: false,
-                stage: "adapter".into(),
-                message: "Could not locate the local Steam adapter".into(),
-            };
-        };
-        let python = launcher_python(&launcher);
-        let code = r#"import json,sys; from steam_pool import remembered_account_identities,active_user_id32; from steam_verified_sync_v5 import deterministic_switch; target=sys.argv[1].strip().casefold(); identity=next((i for i in remembered_account_identities() if str(i.get('account_name') or '').casefold()==target or str(i.get('display_name') or '').casefold()==target),None); ok,msg=(False,'Steam account is not remembered on this PC') if identity is None else deterministic_switch(identity); expected=None if identity is None else identity.get('user_id32'); active=active_user_id32(); verified=bool(ok and expected and active==expected); print(json.dumps({'ok':verified,'stage':'ready' if verified else 'switch','message':msg,'expected_user_id32':expected,'active_user_id32':active}, ensure_ascii=False))"#;
-        let output = Command::new(&python)
-            .current_dir(&launcher)
-            .env("PYTHONUTF8", "1")
-            .env("PYTHONIOENCODING", "utf-8")
-            .args(["-c", code, account_label.as_str()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
-
-        let output = match output {
-            Ok(output) => output,
-            Err(err) => {
-                return SteamAccountSwitchResult {
-                    ok: false,
-                    stage: "adapter".into(),
-                    message: format!("Could not run the local Steam UI adapter: {err}"),
-                }
-            }
-        };
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return SteamAccountSwitchResult {
-                ok: false,
-                stage: "adapter".into(),
-                message: if stderr.is_empty() {
-                    "Steam UI adapter failed".into()
-                } else {
-                    stderr
-                },
-            };
-        }
-
-        let parsed: serde_json::Value = match serde_json::from_slice(&output.stdout) {
-            Ok(value) => value,
-            Err(err) => {
-                return SteamAccountSwitchResult {
-                    ok: false,
-                    stage: "adapter".into(),
-                    message: format!("Steam UI adapter returned invalid data: {err}"),
-                }
-            }
-        };
-        let ok = parsed
-            .get("ok")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false);
-        let stage = parsed
-            .get("stage")
-            .and_then(|value| value.as_str())
-            .unwrap_or("switch")
-            .to_string();
-        let message = parsed
-            .get("message")
-            .and_then(|value| value.as_str())
-            .unwrap_or("Steam account switch finished")
-            .to_string();
-        SteamAccountSwitchResult { ok, stage, message }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        SteamAccountSwitchResult {
-            ok: false,
-            stage: "platform".into(),
-            message: "Remembered Steam account switching is currently implemented only on Windows"
-                .into(),
-        }
-    }
-}
 
 fn steam_media_cache_path(app_id: u32) -> Option<PathBuf> {
     let root = env::var_os("LOCALAPPDATA")
@@ -707,7 +492,6 @@ pub fn steam_store_metadata_refresh(app_id: u32, force: bool) -> Result<serde_js
 
 #[cfg(test)]
 mod tests {
-    use super::read_local_steam_pool;
 
     // Opt-in integration check: two public Steam requests for one game, then
     // a cache-only read. Never run this against the entire catalog.
@@ -726,29 +510,4 @@ mod tests {
         assert_eq!(cached["gameaccess_reviews"], fresh["gameaccess_reviews"]);
     }
 
-    #[test]
-    fn local_steam_pool_contains_real_games_and_accounts() {
-        let pool = read_local_steam_pool().expect("local Steam pool should load");
-        let games = pool
-            .get("games")
-            .and_then(|value| value.as_array())
-            .expect("games array");
-        let accounts = pool
-            .get("accounts")
-            .and_then(|value| value.as_array())
-            .expect("accounts array");
-        assert!(
-            !games.is_empty(),
-            "local Steam pool must not silently become empty"
-        );
-        assert!(
-            !accounts.is_empty(),
-            "remembered Steam accounts must be present"
-        );
-        assert!(games.iter().all(|game| game
-            .get("app_id")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(0)
-            > 0));
-    }
 }

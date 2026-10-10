@@ -85,8 +85,8 @@ jobs:
           $required = @(
             "gameaccess-desktop.exe",
             "runtime/python/python.exe",
-            "runtime/launcher/provider_download_manager.py",
-            "runtime/launcher/steam_pool.py",
+            "runtime/launcher/digital_downloader.py",
+            "runtime/launcher/digital_process_runner.py",
             "runtime/catalog/catalog-manifest.json"
           )
           foreach ($relative in $required) {

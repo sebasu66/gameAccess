@@ -1,4 +1,4 @@
-export type CatalogMode = "local" | "gameaccess" | "digital" | "store";
+export type CatalogMode = "local" | "digital" | "store";
 
 const STORAGE_KEY = "gameaccess:catalog-mode";
 

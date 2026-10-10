@@ -81,7 +81,7 @@ export interface SteamSearchResult {
   price?: SteamSearchPrice | null;
   platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
   catalog_game?: CatalogGame | null;
-  access_state: "available" | "busy" | "not-in-pool";
+  access_state: "metadata-only" | "available" | "busy" | "not-in-pool";
   steam_url?: string;
 }
 
@@ -160,14 +160,3 @@ export interface UserSummary {
   credits: number;
 }
 
-export interface LeaseResponse {
-  lease_id: number;
-  user_id?: number;
-  game: { id: number; name: string; app_id: number | null };
-  account: { id: number; label: string; provider: string };
-  credits_spent: number;
-  credits_remaining: number;
-  starts_at: string;
-  expires_at: string;
-  session_action: string;
-}
