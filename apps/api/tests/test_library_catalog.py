@@ -13,7 +13,7 @@ def test_library_metadata_does_not_require_licenses_or_download_sources():
         session.add(main.Game(id=8, app_id=123, slug="inactive", name="Inactive", active=False))
         session.commit()
     seed_known_games(engine)
-    upsert_steam_metadata(engine, 7, {"app_id": 1174180, "genres": ["Action"], "categories": ["Single-player"]})
+    upsert_steam_metadata(engine, 7, {"app_id": 1174180, "type": "game", "genres": ["Action"], "categories": ["Single-player"]})
     # No account, entitlement, source-list or lease tables exist in this database.
     with Session(engine) as session:
         result = main.library_catalog(session=session)

@@ -43,6 +43,7 @@ class DigitalStorageTests(unittest.TestCase):
         self.assertTrue(self.storage.status(1, "Fixture")["installed"])
         with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
             self.assertEqual(spawn.call_args.args[0], [str(folder / "bin" / "game.exe")])
@@ -77,6 +78,9 @@ class DigitalStorageTests(unittest.TestCase):
             self.assertTrue((folder / "game.exe").is_file())
             status = json.loads((launcher / ".cache" / "digital_downloads" / "1.json").read_text())
             self.assertEqual(status["phase"], "completed")
+            log = (launcher / "logs" / "downloads.log").read_text(encoding="utf-8")
+            for expected in ["transfer complete", "extraction starting", "extraction finished", "DESCARGA COMPLETADA"]:
+                self.assertIn(expected, log)
         finally:
             server.shutdown()
             server.server_close()
@@ -90,6 +94,7 @@ class DigitalStorageTests(unittest.TestCase):
         (nested / "Dungeons-Win64-Shipping.exe").write_bytes(b"fixture")
         with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
             spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
             result = self.runner.run("play", 1, "Fixture")
             self.assertTrue(result["ok"], result)
             self.assertEqual(spawn.call_args.args[0], [str(folder / "Dungeons.exe")])
