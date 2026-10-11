@@ -1,0 +1,150 @@
+//! Server-verified, bounded access to GameAccess services. No game DRM.
+use serde_json::Value;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime};
+
+const MAX_LEASE: u64 = 300;
+const REFRESH: u64 = 60;
+pub const DENIED: &str = "GAMEACCESS_ACCESS_DENIED";
+pub const UNAVAILABLE: &str = "GAMEACCESS_ACCESS_UNAVAILABLE";
+
+#[derive(Clone)]
+struct Lease {
+    base: String, token: String, status: Value,
+    received: Instant, wall: SystemTime, ttl: Duration,
+}
+impl Lease {
+    fn remaining(&self) -> Duration {
+        let elapsed = self.received.elapsed().max(self.wall.elapsed().unwrap_or_default());
+        self.ttl.saturating_sub(elapsed)
+    }
+}
+#[derive(Default)]
+struct State { lease: Option<Lease>, generation: u64, ended: bool }
+static STATE: Mutex<State> = Mutex::new(State { lease: None, generation: 0, ended: false });
+static CHECK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn trusted_base(raw: &str) -> Result<String, String> {
+    let url = reqwest::Url::parse(raw).map_err(|_| UNAVAILABLE.to_string())?;
+    let local = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"));
+    let configured = option_env!("GAMEACCESS_AUTHORITY_URL").unwrap_or("https://gameaccess-api-dev.onrender.com");
+    let trusted_remote = url.as_str().trim_end_matches('/') == configured.trim_end_matches('/');
+    // Loopback is the existing local development server. Production authority is pinned.
+    if !url.username().is_empty() || url.password().is_some() || url.query().is_some() ||
+        url.fragment().is_some() || !((url.scheme() == "https" && trusted_remote) || (url.scheme() == "http" && local)) {
+        return Err(UNAVAILABLE.into());
+    }
+    Ok(url.as_str().trim_end_matches('/').to_string())
+}
+fn lifetime(status: &Value) -> Result<Duration, String> {
+    if status["active"] != true { return Err(DENIED.into()); }
+    let parse = |key: &str| chrono::DateTime::parse_from_rfc3339(status[key].as_str().unwrap_or(""))
+        .map_err(|_| DENIED.to_string());
+    let now = parse("server_time")?;
+    let expiry = parse("expires_at")?;
+    let lease_end = if status.get("lease_expires_at").is_some() { parse("lease_expires_at")?.min(expiry) } else { expiry };
+    let ms = (lease_end - now).num_milliseconds().clamp(0, (MAX_LEASE * 1000) as i64);
+    if ms == 0 { return Err(DENIED.into()); }
+    Ok(Duration::from_millis(ms as u64))
+}
+pub fn clear() {
+    if let Ok(mut state) = STATE.lock() {
+        let was_active = state.lease.is_some();
+        state.lease = None;
+        state.generation = state.generation.wrapping_add(1);
+        state.ended |= was_active;
+    }
+}
+pub fn check(base: &str, token: &str) -> Result<Value, String> {
+    let _single = CHECK.get_or_init(|| Mutex::new(())).lock().map_err(|_| UNAVAILABLE.to_string())?;
+    let base = trusted_base(base)?;
+    if !(20..=200).contains(&token.len()) { return Err(DENIED.into()); }
+    let generation = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?.generation;
+    let started = Instant::now();
+    let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(8))
+        .redirect(reqwest::redirect::Policy::none()).build().map_err(|_| UNAVAILABLE.to_string())?;
+    let response = client.get(format!("{base}/activation/status")).bearer_auth(token)
+        .header("X-GameAccess-Installation", crate::access_activation::installation_id()?)
+        .header("Cache-Control", "no-store").send().map_err(|_| UNAVAILABLE.to_string())?;
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        let detail = response.json::<Value>().ok().and_then(|v|v.get("detail").cloned()).unwrap_or(serde_json::json!({"reason":"unavailable"}));
+        clear();
+        return Err(format!("{DENIED}:{}", detail));
+    }
+    if !response.status().is_success() { return Err(UNAVAILABLE.into()); }
+    let status: Value = response.json().map_err(|_| UNAVAILABLE.to_string())?;
+    let ttl = lifetime(&status)?.saturating_sub(started.elapsed());
+    if ttl.is_zero() { return Err(DENIED.into()); }
+    let mut state = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?;
+    if generation != state.generation { return Err(DENIED.into()); }
+    state.lease = Some(Lease { base, token: token.into(), status: status.clone(), received: Instant::now(), wall: SystemTime::now(), ttl });
+    state.ended = false;
+    Ok(status)
+}
+pub fn require(feature: &str) -> Result<(), String> {
+    #[cfg(test)]
+    { let _ = feature; return Ok(()); }
+    #[cfg(not(test))]
+    {
+        let lease = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?.lease.clone().ok_or_else(|| DENIED.to_string())?;
+        if lease.remaining().is_zero() { clear(); return Err(DENIED.into()); }
+        let status = if lease.received.elapsed() >= Duration::from_secs(REFRESH) {
+            match check(&lease.base, &lease.token) {
+                Ok(status) => status,
+                Err(error) if error == UNAVAILABLE && !lease.remaining().is_zero() => lease.status,
+                Err(error) => return Err(error),
+            }
+        } else { lease.status };
+        if let Some(permissions) = status["permissions"].as_array() {
+            if !permissions.iter().any(|value| value.as_str() == Some(feature)) { return Err(DENIED.into()); }
+        }
+        Ok(())
+    }
+}
+/// Returns true once per ended grant, independent of the React view.
+pub fn take_ended() -> bool {
+    let Ok(mut state) = STATE.lock() else { return true };
+    if state.lease.as_ref().is_some_and(|lease| lease.remaining().is_zero()) {
+        state.lease = None; state.generation = state.generation.wrapping_add(1); state.ended = true;
+    }
+    let ended = state.ended;
+    state.ended = false;
+    ended
+}
+pub fn refresh_due() {
+    let lease = STATE.lock().ok().and_then(|state| state.lease.clone());
+    if let Some(lease) = lease {
+        if lease.received.elapsed() >= Duration::from_secs(REFRESH) && !lease.remaining().is_zero() {
+            let _ = check(&lease.base, &lease.token);
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn lease_is_bounded_by_server_expiry_and_five_minutes() {
+        let status = serde_json::json!({"active":true,"server_time":"2026-10-10T00:00:00Z","expires_at":"2026-10-10T00:01:10Z"});
+        assert_eq!(lifetime(&status).unwrap(), Duration::from_secs(70));
+        let status = serde_json::json!({"active":true,"server_time":"2026-10-10T00:00:00Z","expires_at":"2030-10-10T00:00:00Z"});
+        assert_eq!(lifetime(&status).unwrap(), Duration::from_secs(300));
+    }
+    #[test]
+    fn invalid_expired_and_revoked_statuses_never_grant_access() {
+        for status in [serde_json::json!({"active":false}),serde_json::json!({"active":true,"expires_at":"bad","server_time":"bad"}),serde_json::json!({"active":true,"server_time":"2026-10-10T00:01:00Z","expires_at":"2026-10-10T00:00:00Z"})] {
+            assert!(lifetime(&status).is_err());
+        }
+    }
+    #[test]
+    fn cannot_replace_remote_authority_or_send_credentials_to_other_hosts() {
+        assert!(trusted_base("https://attacker.example").is_err());
+        assert!(trusted_base("http://gameaccess-api-dev.onrender.com").is_err());
+        assert!(trusted_base("https://user:secret@gameaccess-api-dev.onrender.com").is_err());
+        assert!(trusted_base("https://gameaccess-api-dev.onrender.com").is_ok());
+    }
+    #[test]
+    fn elapsed_permission_cannot_be_extended_by_changing_ui_state() {
+        let lease = Lease {base:String::new(),token:String::new(),status:Value::Null, received:Instant::now()-Duration::from_secs(6),wall:SystemTime::now(),ttl:Duration::from_secs(5)};
+        assert!(lease.remaining().is_zero());
+    }
+}

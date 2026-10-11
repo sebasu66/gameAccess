@@ -90,3 +90,29 @@ while open; it can expand or pause. It masks credentials, and remote error repor
 strip all download links and connection strings. Provider secrets never appear in
 central logs. Co-Optimus uses an on-demand public-browser lookup in the desktop
 with an exact Steam-link identity check, and a cached server lookup as fallback.
+
+## Access to managed features and desktop shortcuts
+
+GameAccess gates its own downloads, extended catalog, library interface and
+big-screen mode. Installed games and existing game processes remain independent;
+expiry never deletes files or terminates a game.
+
+Activation status supplies the server time, subscription expiry, permissions
+and a lease expiry capped at five minutes. The native layer queries the trusted
+API directly over TLS (loopback remains the development-server exception),
+refreshes every minute and checks permissions before managed actions. It never
+accepts a frontend boolean or locally editable tier as authorization. A watchdog
+expires the bounded grant independently of React, pauses transfers and exits
+fullscreen. Loss of connection cannot extend the last grant. The UI returns to
+activation. Leases are memory-only; session credentials retain Windows DPAPI.
+
+Desktop .lnk files target the GameAccess executable with --launch-game APPID.
+A single instance receives launch requests, preserves them through activation
+and uses the existing folder/executable/profile launch pipeline after access
+verification. Completed installations create shortcuts; the game detail options
+also offer manual creation. No shortcut points directly at a game's executable.
+
+This is service access control, not game DRM. Local development API instances
+are trusted only for development; a distributed client must not contain database
+credentials or privileged server configuration. Server-side validation remains
+authoritative for remote protected endpoints.

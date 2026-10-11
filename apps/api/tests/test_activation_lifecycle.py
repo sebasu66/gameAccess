@@ -197,3 +197,19 @@ def test_legacy_monthly_tier_migration_is_idempotent():
     with engine.connect() as connection:
         assert connection.execute(text("SELECT access_tier FROM accesskey ORDER BY id")).scalars().all() == ["plus", "base"]
     engine.dispose()
+
+def test_active_status_lease_is_bounded_and_has_managed_permissions(activation_db, monkeypatch, tmp_path):
+    from fastapi import Request
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
+    installation = str(uuid4())
+    with Session(activation_db) as session:
+        _, key = issue_keys(session, hours=12, months=None, count=1)[0]
+        token, expiry = redeem_key(session, key, installation)
+        request = Request({"type": "http", "headers": [
+            (b"authorization", f"Bearer {token}".encode()),
+            (b"x-gameaccess-installation", installation.encode()),
+        ]})
+        status = core.activation_status(request, session)
+        assert 0 < (status["lease_expires_at"] - status["server_time"]).total_seconds() <= 301
+        assert status["lease_expires_at"] <= expiry
+        assert set(status["permissions"]) == {"downloads", "extended-catalog", "big-screen", "library"}

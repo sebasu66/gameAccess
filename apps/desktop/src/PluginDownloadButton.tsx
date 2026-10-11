@@ -1,3 +1,4 @@
+import {invoke} from "@tauri-apps/api/core";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
@@ -59,6 +60,10 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
     {open && <section className="source-selector-panel" aria-label={t("sourcesChoose")}>
       <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
+      <button type="button" onClick={() => {
+        void invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name})
+          .then(()=>setOpen(false)).catch(err=>setError(String(err)));
+      }}>{locale === "es" ? "Crear acceso directo en el escritorio" : "Create desktop shortcut"}</button>
       <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</summary><ManualDownloadForm game={game} onDone={() => setOpen(false)} /></details>
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>

@@ -1,3 +1,5 @@
+import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT } from "./activation";
 import VoxelLogo from "./VoxelLogo";
@@ -423,12 +425,12 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     }
   };
 
-  const launchGame = async (game: CatalogGame) => {
+  const launchGame = async (game: CatalogGame, managedShortcut = false) => {
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate("launchDetail") });
     try {
-      if (getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
+      if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
       if (game.app_id) recordPlayed(game.app_id);
       setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
@@ -436,6 +438,30 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
       setSession({ game, phase: "error", title: translate("launchError"), detail: err instanceof Error ? err.message : String(err) });
     } finally { setLaunchBusy(false); }
   };
+
+  const shortcutBusy = useRef(false);
+  useEffect(() => {
+    if (loading || !("__TAURI_INTERNALS__" in window)) return;
+    let stopped = false;
+    let unlisten: (()=>void) | undefined;
+    const consume = async () => {
+      if (stopped || shortcutBusy.current) return;
+      shortcutBusy.current = true;
+      try {
+        const appId = await invoke<number | null>("take_launch_request");
+        if (typeof appId !== "number") return;
+        const game = libraryGames.find(item => (item.app_id ?? item.id) === appId)
+          || games.find(item => (item.app_id ?? item.id) === appId);
+        if (!game) { setToast("El juego del acceso directo no está en la biblioteca."); return; }
+        await launchGame(game,true);
+      } catch (error) { if (!stopped) setToast(error instanceof Error ? error.message : String(error)); }
+      finally {shortcutBusy.current=false;}
+    };
+    void consume();
+    void listen("gameaccess:launch-request",()=>void consume()).then(dispose=>{if(stopped)dispose();else unlisten=dispose;});
+    const timer = window.setInterval(()=>void consume(),2000);
+    return ()=>{stopped=true;window.clearInterval(timer);unlisten?.();};
+  },[loading,games,libraryGames]);
 
   const previousHero = () => setHeroIndex((current) => (current - 1 + heroPool.length) % heroPool.length);
   const nextHero = () => setHeroIndex((current) => (current + 1) % heroPool.length);

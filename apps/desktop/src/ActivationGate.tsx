@@ -138,8 +138,11 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!status) return;
     setNotice("");
-    const initialRemaining = Date.parse(status.expires_at) - Date.parse(status.server_time);
+    const keyRemaining = Date.parse(status.expires_at) - Date.parse(status.server_time);
+    const leaseRemaining = status.lease_expires_at ? Date.parse(status.lease_expires_at) - Date.parse(status.server_time) : 300000;
+    const initialRemaining = Math.min(keyRemaining, leaseRemaining, 300000);
     const observedAt = Date.now();
+    const observedMonotonic = performance.now();
     let timer: number | undefined;
     let cancelled = false;
 
@@ -148,7 +151,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       setConnecting(false);
       setStatus(null);
       setNotice("");
-      setEnded({ reason: "expired", expires_at: status.expires_at });
+      setEnded({ reason: keyRemaining <= initialRemaining ? "expired" : "unavailable", expires_at: status.expires_at });
       setBusy(false);
       setVerificationReady(true);
       void clearActivationSession();
@@ -156,7 +159,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
 
     const tick = () => {
       if (cancelled) return;
-      const remaining = initialRemaining - (Date.now() - observedAt);
+      const remaining = initialRemaining - Math.max(performance.now() - observedMonotonic, Date.now() - observedAt);
       if (!Number.isFinite(remaining) || remaining <= 0) {
         expire();
         return;

@@ -1,3 +1,5 @@
+import {invoke} from "@tauri-apps/api/core";
+import {MoreHorizontal} from "lucide-react";
 import CooptimusDetails from "./CooptimusDetails";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
@@ -199,6 +201,19 @@ function ActionButtons(props: FeaturePanelProps) {
         <span className="glass-action-icon">{action.icon}</span>
         <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
       </button>)}
+  {!props.actions.some(action=>action.kind==="download") && <InstalledGameShortcut game={props.game} />}
+  </div>;
+}
+
+function InstalledGameShortcut({game}:{game:CatalogGame}) {
+  const {locale,t}=useI18n();
+  const [open,setOpen]=useState(false);
+  const [error,setError]=useState("");
+  return <div className="plugin-download-action">
+    <button type="button" className="source-options-toggle" aria-label={t("sourcesOptions")} aria-expanded={open} onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={20}/></button>
+    {open && <section className="source-selector-panel"><button type="button" onClick={()=>{
+      void invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name}).then(()=>setOpen(false)).catch(err=>setError(String(err)));
+    }}>{locale==="es"?"Crear acceso directo en el escritorio":"Create desktop shortcut"}</button>{error && <p role="alert">{error}</p>}</section>}
   </div>;
 }
 

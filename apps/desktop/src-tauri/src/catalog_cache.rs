@@ -343,7 +343,10 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
 
 #[tauri::command]
 pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
-    tauri::async_runtime::spawn_blocking(move || sync_blocking(manifest_url))
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::access_policy::require("extended-catalog")?;
+        sync_blocking(manifest_url)
+    })
         .await
         .map_err(|err| format!("Catalog cache sync task failed: {err}"))?
 }
@@ -351,6 +354,7 @@ pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSync
 #[tauri::command]
 pub async fn catalog_cache_read() -> Result<Vec<Value>, String> {
     tauri::async_runtime::spawn_blocking(|| {
+        crate::access_policy::require("extended-catalog")?;
         let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(Vec::new());

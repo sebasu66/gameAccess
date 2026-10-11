@@ -23,7 +23,7 @@ export async function saveExecutionProfile(appId:number, value:unknown): Promise
 }
 export async function ensureExecutionProfile(appId:number):Promise<ExecutionProfile> {
   const stored = await invoke<ExecutionProfile | null>("read_execution_profile", {appId}).catch(()=>null);
-  if (stored?.origin === "manual") return stored;
+  if (stored) return parseExecutionProfile(stored);
   const plugins = await invoke<PluginManifest[]>("get_registered_plugins").catch(()=>[]);
   for (const plugin of (Array.isArray(plugins) ? plugins : []).filter(p=>p.type==="source_provider" && providerAvailable(p))) {
     try {

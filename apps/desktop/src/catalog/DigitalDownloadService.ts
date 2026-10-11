@@ -19,11 +19,8 @@ const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNAL
 /**
  * Dedicated Download & Execution Manager exclusively for the Digital tab.
  *
- * Keeps all digital game operations completely isolated from GameAccess:
- * - No Steam account provider pooling
- * - No courtesy keys or credit reservations
- * - Directly passes parameters from digital_catalog.json (downloadSource, installProcess, playProcess, uninstallProcess)
- *   to the Python download script or native execution commands.
+ * Manages generic plugin/manual downloads with BASE/PLUS concurrency.
+ * Access controls govern GameAccess services; installed game files remain independent.
  */
 export class DigitalDownloadService implements IDownloadProvider {
   readonly name = "digital-python-downloader";
@@ -31,6 +28,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   private listeners = new Map<number, Set<(snapshot: DownloadProgressSnapshot) => void>>();
   private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   private queue: number[] = [];
+  private accessSuspended = false;
+  private shortcutCreated = new Set<number>();
   private running = new Set<number>();
   get maxParallelDownloads(): number { return this.tier() === "plus" ? 4 : 1; }
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
@@ -119,9 +118,25 @@ export class DigitalDownloadService implements IDownloadProvider {
     await this.pump();
   }
 
-  async refreshParallelLimit(): Promise<void> { await this.pump(); }
+  async refreshParallelLimit(): Promise<void> {
+    if (this.tier()) this.accessSuspended = false;
+    await this.pump();
+  }
+
+  async suspendForAccessEnd(): Promise<void> {
+    this.accessSuspended = true;
+    const queued = [...this.queue];
+    this.queue = [];
+    for (const id of queued) {
+      const snapshot = this.activeJobs.get(id);
+      if (snapshot) this.updateSnapshot({...snapshot,phase:"paused",statusText:"Acceso terminado · descarga pausada"});
+    }
+    await Promise.allSettled([...this.running].map(id => this.pause(id)));
+    this.persist();
+  }
 
   private async pump(): Promise<void> {
+    if (this.accessSuspended || (hasTauriRuntime() && !this.tier())) return;
     while (this.running.size < this.maxParallelDownloads && this.queue.length > 0) {
       const id = this.queue.shift()!;
       const job = this.jobs.get(id);
@@ -149,6 +164,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   async resume(gameId: number): Promise<void> {
+    if (this.accessSuspended || (hasTauriRuntime() && !this.tier())) throw new Error("Ingresa una llave válida para reanudar la descarga.");
     if (this.activeJobs.get(gameId)?.phase !== "paused") return;
     if (this.running.has(gameId)) {
       await this.control(gameId, "resume");
@@ -468,6 +484,18 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.speeds.set(snapshot.gameId, samples.slice(-61));
     }
     this.activeJobs.set(snapshot.gameId, snapshot);
+    if (snapshot.phase === "completed" && previous?.phase !== "completed" && hasTauriRuntime() && !this.shortcutCreated.has(snapshot.gameId)) {
+      const game = this.jobs.get(snapshot.gameId)?.game;
+      if (game) {
+        this.shortcutCreated.add(snapshot.gameId);
+        void digitalProcessManager.status(game).then(status => {
+          if (status.installed) return invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name});
+        }).catch(error => {
+          this.shortcutCreated.delete(snapshot.gameId);
+          void narrate("No se pudo crear el acceso directo: " + String(error),{area:"SHORTCUT",level:"ERROR"});
+        });
+      }
+    }
     if (snapshot.phase === "cancelled") {
       this.jobs.delete(snapshot.gameId);
       this.queue = this.queue.filter(id => id !== snapshot.gameId);

@@ -42,7 +42,7 @@ class ExtractionTest(unittest.TestCase):
         arc = self.archive(password="fixture-password")
         result = self.extract(arc)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no hay contraseñas en el perfil", result.stdout)
+        self.assertIn("El archivo requiere contraseña", result.stdout)
         self.assertNotIn('"phase": "completed"', result.stdout)
         self.assertTrue(arc.exists())
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")

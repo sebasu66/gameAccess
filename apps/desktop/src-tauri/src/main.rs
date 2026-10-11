@@ -2,6 +2,8 @@
 
 mod automation;
 mod access_activation;
+mod access_policy;
+mod launch_intent;
 mod catalog_cache;
 mod download_lifecycle;
 mod game_uninstall;
@@ -310,6 +312,7 @@ fn open_steam_install(app_id: u32) -> Result<(), String> {
 
 #[tauri::command]
 fn open_steam_run(app_id: u32) -> Result<(), String> {
+    access_policy::require("library")?;
     native_core::open_steam_run(app_id)
 }
 
@@ -518,6 +521,51 @@ async fn pending_download_completions() -> Result<Vec<download_lifecycle::Downlo
 }
 
 #[tauri::command]
+async fn activation_check_access(api_url: String, session_token: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || access_policy::check(&api_url, &session_token)).await.map_err(|_| access_policy::UNAVAILABLE.to_string())?
+}
+#[tauri::command]
+async fn require_gameaccess_feature(feature: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || access_policy::require(&feature)).await.map_err(|_| access_policy::UNAVAILABLE.to_string())?
+}
+#[tauri::command]
+async fn create_game_shortcut(app_id: u32, name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        access_policy::require("library")?;
+        let launcher = find_launcher_dir().ok_or("Could not locate launcher")?;
+        let executable = env::current_exe().map_err(|e|e.to_string())?;
+        let mut command = Command::new(find_launcher_python(&launcher));
+        command.env("PYTHONUTF8","1").env("PYTHONIOENCODING","utf-8").arg(launcher.join("game_shortcut.py"))
+            .args(["--app-id",&app_id.to_string(),"--name",&name,"--launcher",&executable.to_string_lossy()]);
+        #[cfg(windows)] command.creation_flags(CREATE_NO_WINDOW);
+        let output = command.output().map_err(|e|e.to_string())?;
+        let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_|"Invalid shortcut result")?;
+        if result["ok"] != true { return Err(result["error"].as_str().unwrap_or("Cannot create shortcut").into()); }
+        let _ = append_narration_lines(vec![format!("AppID {app_id}: desktop shortcut points to GameAccess")],"SHORTCUT".into(),"INFO".into());
+        Ok(result["path"].as_str().unwrap_or("").to_string())
+    }).await.map_err(|e|e.to_string())?
+}
+fn start_access_watchdog(app: tauri::AppHandle) {
+    use tauri::{Emitter, Manager};
+    let foreground = app.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if access_policy::take_ended() {
+            let _ = access_activation::clear_session();
+            let ids: Vec<u32> = digital_pids().lock().map(|pids|pids.keys().copied().collect()).unwrap_or_default();
+            for id in ids { let _ = write_digital_control(id,"pause"); }
+            let _ = append_narration_lines(vec!["GameAccess access ended; transfers paused and managed functions locked. Game processes are left running.".into()],"ACCESS".into(),"INFO".into());
+            if let Some(window) = foreground.get_webview_window("main") { let _=window.set_fullscreen(false); }
+            let _ = foreground.emit("gameaccess:access-ended", ());
+        }
+    });
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        access_policy::refresh_due();
+    });
+}
+
+#[tauri::command]
 fn activation_installation_id() -> Result<String, String> {
     access_activation::installation_id()
 }
@@ -539,6 +587,7 @@ fn activation_read_key() -> Result<Option<String>, String> {
 
 #[tauri::command]
 fn activation_clear_session() -> Result<(), String> {
+    access_policy::clear();
     access_activation::clear_session()
 }
 
@@ -593,6 +642,7 @@ async fn run_digital_process(
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        if action == "play" { access_policy::require("library")?; }
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
         let python = find_launcher_python(&launcher);
         let runner_script = launcher.join("digital_process_runner.py");
@@ -658,6 +708,7 @@ async fn start_digital_download(
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        access_policy::require("downloads")?;
         let _ = append_narration_lines(vec![format!("AppID {app_id}: starting generic download for {name}")], "DOWNLOAD".into(), "INFO".into());
         let launcher = find_launcher_dir().ok_or_else(|| {
             let err = "Could not locate launcher directory".to_string();
@@ -832,6 +883,7 @@ fn read_activity_console() -> Result<Vec<String>, String> {
 async fn control_digital_download(app_id: u32, action: String) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if action != "pause" && action != "resume" { return Err("Invalid download action".to_string()); }
+        if action == "resume" { access_policy::require("downloads")?; }
         let path = write_digital_control(app_id, &action)?;
         for _ in 0..50 {
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -985,6 +1037,17 @@ fn main() {
     let visual_debug_dir = visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            use tauri::{Emitter,Manager};
+            launch_intent::receive(&args);
+            if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
+            let _=app.emit("gameaccess:launch-request",());
+        }))
+        .setup(|app| {
+            launch_intent::receive(&env::args().collect::<Vec<_>>());
+            start_access_watchdog(app.handle().clone());
+            Ok(())
+        })
         .manage(automation_state)
         .manage(VisualDebugState {
             session_dir: Mutex::new(visual_debug_dir),
@@ -992,6 +1055,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_registered_plugins,
             activation_installation_id,
+            activation_check_access,
+            require_gameaccess_feature,
+            create_game_shortcut,
+            launch_intent::take_launch_request,
             activation_read_session,
             activation_read_key,
             activation_save_session,

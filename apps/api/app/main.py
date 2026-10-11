@@ -480,6 +480,8 @@ def activation_status(request: Request, session: Session = Depends(get_session),
                 detail = {"reason": "expired", "expires_at": utc(previous.expires_at).isoformat()}
         raise HTTPException(401, detail)
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc(),
+            "lease_expires_at": min(utc(row.expires_at), now_utc() + timedelta(minutes=5)),
+            "permissions": ["downloads", "extended-catalog", "big-screen", "library"],
             "cacheable": not isinstance(row, CourtesySession),
             "access_tier": courtesy_access_tier(row) if isinstance(row, CourtesySession) else row.access_tier}
 

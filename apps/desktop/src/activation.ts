@@ -79,6 +79,8 @@ export interface ActivationStatus {
   server_time: string;
   cacheable?: boolean;
   access_tier?: AccessTier;
+  lease_expires_at?: string;
+  permissions?: string[];
 }
 
 export interface ActivationEnd {
@@ -120,10 +122,25 @@ async function activationUrl(path: string): Promise<string> {
 
 export async function checkActivation(token: string, signal?: AbortSignal, baseUrl?: string): Promise<ActivationStatus> {
   const id = await getInstallationId();
-  const response = await activationFetch(baseUrl ? `${baseUrl}/activation/status` : await activationUrl("/activation/status"), {
-    headers: { Authorization: `Bearer ${token}`, "X-GameAccess-Installation": id },
-    cache: "no-store",
-  }, signal);
+  const endpoint = baseUrl || await getApiBaseUrl();
+  let response: Response;
+  if (native()) {
+    try {
+      const status = await invoke<ActivationStatus>("activation_check_access", { apiUrl: endpoint, sessionToken: token });
+      if (!status || typeof status !== "object") throw new ActivationConnectionError();
+      response = new Response(JSON.stringify(status), { status: 200 });
+    } catch (error) {
+      const message = String(error);
+      if (!message.includes("GAMEACCESS_ACCESS_DENIED")) throw new ActivationConnectionError();
+      let detail: ActivationEnd = {reason:"unavailable"};
+      try { detail = JSON.parse(message.slice(message.indexOf("GAMEACCESS_ACCESS_DENIED:") + "GAMEACCESS_ACCESS_DENIED:".length)); } catch { /* No private details required. */ }
+      response = new Response(JSON.stringify({detail}), {status:401});
+    }
+  } else {
+    response = await activationFetch(`${endpoint}/activation/status`, {
+      headers: { Authorization: `Bearer ${token}`, "X-GameAccess-Installation": id }, cache: "no-store",
+    }, signal);
+  }
   if (!response.ok) {
     if (response.status === 401) {
       const body = await response.json().catch(() => ({})) as { detail?: Partial<ActivationEnd> };
@@ -172,4 +189,19 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   await saveActivationSession(result.session_token, persistent, persistent ? key.trim() : null);
   publishAccess(persistent ? { key: key.trim(), expires_at: status.expires_at, access_tier: activationTier || "base" } : null);
   return status;
+}
+
+/** Shared boundary for current and future managed features. */
+export async function requireGameAccessFeature(feature: "downloads" | "extended-catalog" | "big-screen" | "library"): Promise<void> {
+  try {
+    if (native()) await invoke("require_gameaccess_feature", {feature});
+    else {
+      const token = await readActivationSession();
+      if (!token) throw new ActivationRejectedError({reason:"unavailable"});
+      await checkActivation(token);
+    }
+  } catch (error) {
+    if (String(error).includes("GAMEACCESS_ACCESS_DENIED") || error instanceof ActivationRejectedError) invalidateActivation();
+    throw error;
+  }
 }

@@ -6,6 +6,7 @@ import { DigitalDownloadService } from "./DigitalDownloadService";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const game = (id: number): CatalogGame => ({ id, app_id: id, name: `Game ${id}`, slug: String(id), credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, downloadSource: "http://localhost/fixture.bin" });
+vi.mock("../activation",()=>({getActivationTier:()=> "base"}));
 const mock = vi.mocked(invoke);
 describe("Digital download scheduling", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); vi.mocked(narrate).mockClear(); mock.mockReset(); mock.mockResolvedValue({ phase: "downloading" }); });
@@ -209,4 +210,19 @@ describe("Digital download scheduling", () => {
     expect((await service.getStatus(1)).phase).toBe("error");
     expect((await service.getStatus(2)).phase).toBe("preparing");
   });
+  it("pauses queued and active transfers on expiry and cannot start the next one",async()=>{
+    let tier: "base" | null = "base";
+    const service = new DigitalDownloadService(undefined,()=>tier);
+    await service.start(game(1)); await service.start(game(2));
+    service.updateSnapshot({gameId:1,phase:"downloading",progress:25});
+    tier=null;
+    await service.suspendForAccessEnd();
+    expect((await service.getStatus(2)).phase).toBe("paused");
+    expect(mock).toHaveBeenCalledWith("control_digital_download",{appId:1,action:"pause"});
+    service.updateSnapshot({gameId:1,phase:"completed",progress:100});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mock.mock.calls.filter(call=>call[0]==="start_digital_download")).toHaveLength(1);
+    await expect(service.resume(2)).rejects.toThrow("llave válida");
+  });
+
 });

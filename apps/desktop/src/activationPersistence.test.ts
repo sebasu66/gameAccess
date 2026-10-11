@@ -6,6 +6,7 @@ vi.mock("./settings", () => ({
   boundedFetch: (fetcher: typeof fetch) => fetcher,
 }));
 let storage: Map<string, string>;
+let nativeStatus: Record<string,unknown>;
 beforeEach(() => {
   vi.resetModules();
   invoke.mockReset();
@@ -19,6 +20,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 function server(cacheable: boolean, access_tier: "base" | "plus" = "base") {
+  nativeStatus = {active:true,expires_at:"2030-01-01T00:00:00Z",server_time:"2026-10-09T00:00:00Z",cacheable,access_tier};
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(
     url.endsWith("/redeem")
       ? { session_token: "test-session-token-long-enough", expires_at: "2030-01-01T00:00:00Z", cacheable, access_tier }
@@ -76,7 +78,7 @@ describe("activation persistence policy", () => {
   });
   it("passes the server policy to Windows and never passes a courtesy key to storage", async () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} });
-    invoke.mockImplementation(async (command: string) => command === "activation_installation_id" ? "native-installation" : null);
+    invoke.mockImplementation(async (command: string) => command === "activation_installation_id" ? "native-installation" : command === "activation_check_access" ? nativeStatus : null);
     server(false);
     const activation = await import("./activation");
     await activation.redeemActivation("GA-PRIVATE-TEST");

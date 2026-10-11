@@ -25,5 +25,11 @@ describe("optional local/plugin profiles",()=>{
   expect(invoke).toHaveBeenCalledWith("save_execution_profile",expect.objectContaining({appId:12}));
   request.mockRestore();
  });
+ it("retains the selected source profile instead of overwriting it with another provider default",async()=>{
+  const profile={version:1,origin:"plugin",archivePasswords:["selected-source"],beforePlay:[]};
+  vi.mocked(invoke).mockResolvedValue(profile);
+  expect(await ensureExecutionProfile(10)).toEqual(profile);
+  expect(invoke).toHaveBeenCalledTimes(1);
+ });
  it("rejects shell profiles",()=>expect(()=>parseExecutionProfile({beforePlay:[{type:"shell"}]})).toThrow());
 });
