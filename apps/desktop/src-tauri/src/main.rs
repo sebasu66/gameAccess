@@ -797,7 +797,14 @@ fn write_digital_control(app_id: u32, action: &str) -> Result<std::path::PathBuf
     let path = dir.join(format!("{app_id}.control.json"));
     let temp = dir.join(format!("{app_id}.control.tmp"));
     fs::write(&temp, control.to_string()).map_err(|err| err.to_string())?;
-    fs::rename(temp, path).map_err(|err| err.to_string())?;
+    for attempt in 0..20 {
+        match fs::rename(&temp, &path) {
+            Ok(()) => break,
+            Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied && attempt < 19 =>
+                std::thread::sleep(std::time::Duration::from_millis(50)),
+            Err(err) => return Err(err.to_string()),
+        }
+    }
     Ok(dir.join(format!("{app_id}.json")))
 }
 

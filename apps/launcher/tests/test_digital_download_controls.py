@@ -84,7 +84,14 @@ class DigitalControlsTest(unittest.TestCase):
     def command(self, action):
         temp = self.control.with_suffix(".tmp")
         temp.write_text(json.dumps({"action": action, "requestId": str(uuid.uuid4())}), encoding="utf-8")
-        os.replace(temp, self.control)
+        for attempt in range(20):
+            try:
+                os.replace(temp, self.control)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.05)
     def test_pause_resume_and_cancel_real_transfer(self):
         self.start()
         self.wait_for(lambda s: s.get("phase") == "downloading" and s.get("bytesDownloaded", 0) > 65536)
