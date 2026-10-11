@@ -101,7 +101,7 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   }));
   if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
-  const sources = results.flat().sort((a,b) => b.score - a.score).filter(source => {
+  const sources = results.flat().filter(source => {
     if (seen.has(source.url)) return false;
     seen.add(source.url); return true;
   });

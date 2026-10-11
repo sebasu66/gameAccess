@@ -105,3 +105,14 @@ describe("Download source transport", () => {
     expect((await preparePluginSource(source)).delivery).toBe("browser");
   });
 });
+
+it("preserves provider ranking instead of promoting a small higher-score supplement", async () => {
+  vi.mocked(invoke).mockResolvedValue([plugin]);
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:true,json:async()=>[
+    {title:"Full package",url:"https://example.test/game.zip",size:"45 GB",score:0.9},
+    {title:"Supplement",url:"https://example.test/fix.zip",size:"37 MB",score:1},
+  ]}));
+  const sources = await getPluginSources(game);
+  expect(sources.map(item=>item.title)).toEqual(["Full package","Supplement"]);
+  expect(pluginDownloadLabel(game,sources,"es")).toContain("45 GB");
+});
