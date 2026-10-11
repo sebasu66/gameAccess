@@ -50,3 +50,14 @@ describe("Steam Store metadata normalization", () => {
     expect(metadata.screenshots?.[0].full).toBe("https://cdn.example/full.jpg");
   });
 });
+
+it("preserves all fields when normalizing the server's already normalized metadata", () => {
+  const server = {app_id:10,name:"Unepic",release_date:"25 JUL 2014",windows:true,mac:false,linux:true,
+    developers:["Developer"],publishers:["Publisher"],recommendation_count:123,achievement_count:0,
+    minimum_requirements:"Known minimum",recommended_requirements:"Known recommended",
+    price:{currency:"USD",initial:0,final:0,discount_percent:0},
+    screenshots:[{id:1,full:"https://steam.test/image.jpg"}]};
+  const normalized=normalizeSteamStoreMetadata(game,server);
+  expect(normalized).toMatchObject(server);
+  expect(normalizeSteamStoreMetadata(game,normalized as unknown as Record<string,unknown>)).toEqual(normalized);
+});

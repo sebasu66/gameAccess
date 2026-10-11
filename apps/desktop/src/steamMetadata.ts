@@ -37,7 +37,7 @@ const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};
 
 const optionalString = (value: unknown) => String(value || "") || undefined;
-const optionalNumber = (value: unknown) => Number(value) || undefined;
+const optionalNumber = (value: unknown) => value == null || value === "" || !Number.isFinite(Number(value)) ? undefined : Number(value);
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
@@ -117,26 +117,26 @@ export function normalizeSteamStoreMetadata(game: CatalogGame, raw: Record<strin
     genres: descriptions(data.genres),
     categories: descriptions(data.categories),
     supported_languages: optionalString(data.supported_languages),
-    release_date: optionalString(release.date),
-    coming_soon: Boolean(release.coming_soon),
+    release_date: optionalString(typeof data.release_date === "string" ? data.release_date : release.date),
+    coming_soon: Boolean(data.coming_soon ?? release.coming_soon),
     required_age: data.required_age as number | string | undefined,
     metacritic: metacriticOverview(data.metacritic),
-    recommendation_count: optionalNumber(recommendations.total),
-    achievement_count: optionalNumber(achievements.total),
-    price: priceOverview(data.price_overview),
+    recommendation_count: optionalNumber(data.recommendation_count ?? recommendations.total),
+    achievement_count: optionalNumber(data.achievement_count ?? achievements.total),
+    price: priceOverview(data.price ?? data.price_overview),
     is_free: Boolean(data.is_free),
-    windows: Boolean(platforms.windows),
-    mac: Boolean(platforms.mac),
-    linux: Boolean(platforms.linux),
-    minimum_requirements: optionalString(requirements.minimum),
-    recommended_requirements: optionalString(requirements.recommended),
+    windows: Boolean(data.windows ?? platforms.windows),
+    mac: Boolean(data.mac ?? platforms.mac),
+    linux: Boolean(data.linux ?? platforms.linux),
+    minimum_requirements: optionalString(data.minimum_requirements ?? requirements.minimum),
+    recommended_requirements: optionalString(data.recommended_requirements ?? requirements.recommended),
     screenshots: screenshots(data.screenshots),
     movies: movies(data.movies),
     header_image: optionalString(data.header_image || game.header_image),
-    capsule_image: game.capsule_image ?? undefined,
-    hero_image: optionalString(data.background_raw || data.background || game.hero_image),
+    capsule_image: optionalString(data.capsule_image || game.capsule_image),
+    hero_image: optionalString(data.hero_image || data.background_raw || data.background || game.hero_image),
     background: optionalString(data.background_raw || data.background || game.hero_image),
-    steam_url: game.steam_url ?? undefined,
+    steam_url: optionalString(data.steam_url || game.steam_url),
     source: "steam-store",
   };
 }

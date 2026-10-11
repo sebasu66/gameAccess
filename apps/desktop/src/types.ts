@@ -139,6 +139,7 @@ export interface SteamMetadata {
 }
 
 export interface GameDetails extends CatalogGame {
+  detail_schema_version?: number;
   steam: SteamMetadata | null;
   metadata_state: string;
   metadata_error?: string;

@@ -5,7 +5,7 @@
 .ga-global-language .app-language-switch button.active{color:#f2f5fa;border-color:#c8d1df80;background:#ffffff06}
 .ga-global-language button:hover{background:#ffffff12}
 .ga-header-utilities.topbar-actions{top:calc(var(--window-chrome-height,34px) + 20px);bottom:auto;right:28px;height:38px;gap:10px;align-items:center}
-.ga-header-utilities .digital-download-nav,.ga-header-utilities .ga-settings-fab,.ga-header-utilities .ga-access-pass-toggle,.ga-console-toggle,.catalog-refresh-button{position:static!important;display:inline-flex!important;align-items:center;justify-content:center;gap:8px;height:38px!important;min-height:38px;padding:0 12px!important;border:1px solid #ffffff25!important;border-radius:8px!important;background:#171c20!important;color:#dce1e5!important;font:600 12px Manrope,"Segoe UI",sans-serif!important;letter-spacing:0!important;text-transform:none!important;width:auto!important}
+.ga-header-utilities .digital-download-nav,.ga-header-utilities .ga-settings-fab,.ga-header-utilities .ga-access-pass-toggle,.ga-console-toggle,.catalog-refresh-button,.ga-big-screen-toggle{position:static!important;display:inline-flex!important;align-items:center;justify-content:center;gap:8px;height:38px!important;min-height:38px;padding:0 12px!important;border:1px solid #ffffff25!important;border-radius:8px!important;background:#171c20!important;color:#dce1e5!important;font:600 12px Manrope,"Segoe UI",sans-serif!important;letter-spacing:0!important;text-transform:none!important;width:auto!important}
 .ga-header-utilities .ga-access-pass{position:relative;inset:auto;z-index:150}
 .ga-header-utilities .ga-access-pass-panel{top:calc(100% + 12px);bottom:auto}
 .plugin-indicator-group{display:flex;align-items:center;gap:8px;max-width:260px}
@@ -15,7 +15,10 @@
 .plugin-indicator-item[data-connected=true] i{background:#ff8a35}
 .ga-console-toggle{position:fixed!important;left:140px;right:auto;bottom:13px}
 .catalog-bottom-actions>.catalog-refresh-button{position:absolute!important;right:210px;bottom:13px}
-.ga-big-screen-toggle{left:260px!important}
+.ga-big-screen-toggle{position:fixed!important;left:260px!important;bottom:13px!important}
+.ga-big-screen-toggle span{font:inherit!important;text-transform:none!important;letter-spacing:0!important}
+.catalog-refresh-button strong{display:inline!important;font:inherit!important}
+@media(max-width:1450px){.catalog-bottom-actions .catalog-scroll-action{bottom:51px}.catalog-bottom-actions{height:92px}.catalog-header-controls{bottom:101px!important}}
 .ga-detail-actions .installed-game-options{flex:0 0 48px;gap:0}
 .ga-detail-actions .glass-action.play{flex:1 1 0!important;width:auto!important;height:54px!important}
 .ga-global-language button:focus-visible,.ga-header-utilities button:focus-visible{outline:2px solid #ff8a35;outline-offset:3px}

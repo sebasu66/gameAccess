@@ -106,7 +106,7 @@ export class DigitalCatalog {
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
-    if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
+    if (cached?.steam && cached.detail_schema_version === 2) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
 
     // Prefer durable server metadata; public Steam is only a cache-miss fallback.
     if (game.app_id) {
@@ -120,7 +120,7 @@ export class DigitalCatalog {
             const serverData = await res.json();
             if (serverData && serverData.steam) {
               const steam = normalizeSteamStoreMetadata(game, serverData.steam);
-              const detail = await applyBundledDetails({ ...game, steam, metadata_state: serverData.metadata_state || "ready" });
+              const detail = await applyBundledDetails({ ...game, steam, metadata_state: serverData.metadata_state || "ready", detail_schema_version: 2 });
               await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
               return detail;
             }
@@ -137,7 +137,7 @@ export class DigitalCatalog {
       try {
         const raw = await getSteamStoreMetadata(game.app_id);
         if (raw) {
-          const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready" }, raw));
+          const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready", detail_schema_version: 2 }, raw));
           void storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
           return detail;
         }
@@ -145,6 +145,7 @@ export class DigitalCatalog {
         void narrate("AppID " + game.app_id + " · public Steam detail failed: " + String(error), {area:"DETAILS",level:"WARN"});
       }
     }
+    if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
     const fallbackDetails: GameDetails = {
       ...game,
       steam: {
