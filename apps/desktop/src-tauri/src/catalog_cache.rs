@@ -26,6 +26,12 @@ struct CatalogManifest {
     catalog_count: usize,
     #[serde(default)]
     generated_at: String,
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    base_revision: String,
+    #[serde(default)]
+    inventory_sha256: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -124,6 +130,11 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
     fs::write(&next, sqlite_bytes)
         .map_err(|err| format!("Could not stage bundled catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
+    if target.exists() {
+        merge_baseline(target,&next,&manifest)?;
+        let _=fs::remove_file(&next);
+        return Ok(true);
+    }
     let backup = target.with_extension("sqlite.bak");
     if target.exists() {
         fs::rename(target, &backup).map_err(|err| err.to_string())?;
@@ -246,6 +257,137 @@ fn incoming_snapshot_older(current: &str, incoming: &str) -> bool {
     }
 }
 
+
+#[derive(Deserialize)]
+struct DetailChange { game_id: i64, #[serde(default)] app_id: Option<i64>, language: String, country: String, payload: Value }
+#[derive(Deserialize)]
+struct CatalogBatch {
+    schema_version: u32, base_revision: String, revision: String,
+    games: Vec<Value>, details: Vec<DetailChange>,
+}
+
+// Unknown/empty fields from a partial feed must never erase known metadata.
+fn merge_metadata(previous: &mut Value, incoming: Value) {
+    match (previous, incoming) {
+        (Value::Object(previous), Value::Object(incoming)) => {
+            for (key, value) in incoming {
+                merge_metadata(previous.entry(key).or_insert(Value::Null), value);
+            }
+        }
+        (_, Value::Null) => {}
+        (_, Value::String(value)) if value.trim().is_empty() => {}
+        (_, Value::Array(value)) if value.is_empty() => {}
+        (previous, incoming) => *previous = incoming,
+    }
+}
+
+fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
+               manifest: &CatalogManifest) -> Result<usize, String> {
+    let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
+    let tx = conn.transaction().map_err(|e|e.to_string())?;
+    let mut ids = std::collections::HashMap::new();
+    for mut game in games {
+        let incoming_id = game["id"].as_i64().ok_or("Catalog game has no id")?;
+        let app_id = game["app_id"].as_i64();
+        let existing = tx.query_row(
+            "SELECT id,payload FROM catalog_game WHERE (?1 IS NOT NULL AND app_id=?1) OR (?1 IS NULL AND id=?2) LIMIT 1",
+            params![app_id,incoming_id], |row|Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?)));
+        let (id, payload) = match existing {
+            Ok((id, payload)) => {
+                let mut previous: Value = serde_json::from_str(&payload).map_err(|e|e.to_string())?;
+                merge_metadata(&mut previous,game);
+                (id,previous)
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                let occupied: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM catalog_game WHERE id=?1)",
+                    [incoming_id], |r|r.get(0)).map_err(|e|e.to_string())?;
+                let id = if occupied {tx.query_row("SELECT COALESCE(MAX(id),0)+1 FROM catalog_game",[],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?} else {incoming_id};
+                (id,game.take())
+            }
+            Err(e) => return Err(e.to_string()),
+        };
+        ids.insert(incoming_id,id);
+        let mut payload = payload;
+        payload["id"] = Value::from(id);
+        tx.execute("INSERT INTO catalog_game(id,app_id,payload) VALUES(?1,?2,?3)
+                    ON CONFLICT(id) DO UPDATE SET app_id=excluded.app_id,payload=excluded.payload",
+            params![id,app_id,payload.to_string()]).map_err(|e|e.to_string())?;
+    }
+    for detail in details {
+        let id = match detail.app_id {
+            Some(app_id) => tx.query_row("SELECT id FROM catalog_game WHERE app_id=?1 LIMIT 1",[app_id],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?,
+            None => ids.get(&detail.game_id).copied().unwrap_or(detail.game_id),
+        };
+        let mut payload = detail.payload;
+        match tx.query_row("SELECT payload FROM game_detail WHERE game_id=?1 AND language=?2 AND country=?3",
+            params![id,detail.language,detail.country], |r|r.get::<_,String>(0)) {
+            Ok(previous) => {
+                let mut previous: Value = serde_json::from_str(&previous).map_err(|e|e.to_string())?;
+                merge_metadata(&mut previous,payload); payload=previous;
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        tx.execute("INSERT INTO game_detail(game_id,language,country,payload) VALUES(?1,?2,?3,?4)
+                    ON CONFLICT(game_id,language,country) DO UPDATE SET payload=excluded.payload",
+            params![id,detail.language,detail.country,payload.to_string()]).map_err(|e|e.to_string())?;
+    }
+    let count: usize = tx.query_row("SELECT COUNT(*) FROM catalog_game",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    for (key,value) in [("revision",manifest.revision.clone()),("generated_at",manifest.generated_at.clone()),("catalog_count",count.to_string())] {
+        tx.execute("INSERT INTO metadata(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![key,value]).map_err(|e|e.to_string())?;
+    }
+    tx.commit().map_err(|e|e.to_string())?;
+    Ok(count)
+}
+
+fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest) -> Result<usize,String> {
+    let conn=Connection::open(incoming).map_err(|e|e.to_string())?;
+    let games = conn.prepare("SELECT payload FROM catalog_game").map_err(|e|e.to_string())?
+        .query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?
+        .map(|row| serde_json::from_str(&row.map_err(|e|e.to_string())?).map_err(|e|e.to_string()))
+        .collect::<Result<Vec<Value>,String>>()?;
+    let details = conn.prepare("SELECT game_id,language,country,payload FROM game_detail").map_err(|e|e.to_string())?
+        .query_map([],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?))).map_err(|e|e.to_string())?
+        .map(|row| {let (game_id,language,country,payload)=row.map_err(|e|e.to_string())?;
+            Ok(DetailChange{game_id,app_id:None,language,country,payload:serde_json::from_str(&payload).map_err(|e|e.to_string())?})})
+        .collect::<Result<Vec<_>,String>>()?;
+    apply_batch(target,games,details,manifest)
+}
+
+
+fn catalog_identities(path: &Path) -> Result<Vec<i64>,String> {
+    let db=Connection::open(path).map_err(|e|e.to_string())?;
+    let mut query=db.prepare("SELECT COALESCE(app_id,id) FROM catalog_game ORDER BY COALESCE(app_id,id)").map_err(|e|e.to_string())?;
+    let rows=query.query_map([],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?;
+    rows.map(|r|r.map_err(|e|e.to_string())).collect()
+}
+fn reconcile_missing(client: &Client, manifest_url: &str, target: &Path, manifest: &CatalogManifest) -> Result<usize,String> {
+    let present=catalog_identities(target)?;
+    let hash=format!("{:x}",Sha256::digest(serde_json::to_vec(&present).map_err(|e|e.to_string())?));
+    if manifest.inventory_sha256.is_empty() || hash == manifest.inventory_sha256 {
+        return Ok(present.len());
+    }
+    let mut url=reqwest::Url::parse(manifest_url).map_err(|e|e.to_string())?;
+    if url.path() != "/library/catalog/manifest" { return Ok(present.len()); }
+    url.set_path("/library/catalog/reconcile"); url.set_query(None);
+    let base=current_cache_info(target)?.ok_or("Missing catalog baseline")?.0;
+    let response=client.post(url).json(&serde_json::json!({"present":present,"base_revision":base}))
+        .send().and_then(|r|r.error_for_status()).map_err(|e|e.to_string())?;
+    let expected=response.headers().get("X-Catalog-SHA256").and_then(|v|v.to_str().ok()).ok_or("Catalog repair has no checksum")?.to_string();
+    let compressed=response.bytes().map_err(|e|e.to_string())?;
+    if compressed.len()>MAX_COMPRESSED_BYTES || format!("{:x}",Sha256::digest(&compressed)) != expected {
+        return Err("Catalog repair checksum failed".into());
+    }
+    let batch:CatalogBatch=serde_json::from_reader(GzDecoder::new(compressed.as_ref())).map_err(|e|e.to_string())?;
+    if batch.schema_version!=CACHE_SCHEMA_VERSION || batch.base_revision!=base || batch.revision!=manifest.revision {
+        return Err("Catalog repair revision mismatch".into());
+    }
+    let added=batch.games.len();
+    let count=apply_batch(target,batch.games,batch.details,manifest)?;
+    let _=crate::append_narration_lines(vec![format!("Catalog inventory reconciled: {added} missing game(s) restored; {count} retained")],"CATALOG".into(),"INFO".into());
+    Ok(count)
+}
+
 fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
     let _sync_guard = CATALOG_CACHE_SYNC_LOCK
         .get_or_init(|| Mutex::new(()))
@@ -256,8 +398,15 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|err| format!("Could not create catalog cache client: {err}"))?;
+    let target = ready_cache_db_path_unlocked()?;
+    let mut manifest_request = reqwest::Url::parse(&manifest_url).map_err(|e|e.to_string())?;
+    if manifest_request.path() == "/library/catalog/manifest" {
+        if let Some((revision,_)) = current_cache_info(&target)? {
+            manifest_request.query_pairs_mut().append_pair("since",&revision);
+        }
+    }
     let manifest = client
-        .get(&manifest_url)
+        .get(manifest_request)
         .header(USER_AGENT, "GameAccess/0.1")
         .header(ACCEPT, "application/vnd.github.raw+json")
         .header(CACHE_CONTROL, "no-cache")
@@ -275,7 +424,6 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     }
     validate_github_https_url(&manifest.artifact_url)?;
 
-    let target = ready_cache_db_path_unlocked()?;
     if let Some((revision, count)) = current_cache_info(&target)? {
         let conn = Connection::open(&target).map_err(|err| err.to_string())?;
         let generated_at = read_meta(&conn, "generated_at")?.unwrap_or_default();
@@ -283,8 +431,8 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
             || (manifest.generated_at.is_empty() && manifest.catalog_count < count) {
             return Ok(CatalogCacheSyncResult {
                 updated: false,
-                revision,
-                catalog_count: count,
+                revision: revision.clone(),
+                catalog_count: if revision == manifest.revision { reconcile_missing(&client,&manifest_url,&target,&manifest)? } else {count},
             });
         }
     }
@@ -312,10 +460,27 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
         .read_to_end(&mut sqlite_bytes)
         .map_err(|err| format!("Could not decompress catalog cache: {err}"))?;
 
+    if manifest.kind == "delta" {
+        let batch: CatalogBatch=serde_json::from_slice(&sqlite_bytes).map_err(|e|e.to_string())?;
+        let current = current_cache_info(&target)?.ok_or("A baseline is required before applying catalog updates")?;
+        if batch.schema_version != CACHE_SCHEMA_VERSION || batch.revision != manifest.revision
+            || batch.base_revision != manifest.base_revision || batch.base_revision != current.0 {
+            return Err("Catalog update does not match the installed revision".into());
+        }
+        let _=apply_batch(&target,batch.games,batch.details,&manifest)?;
+        let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+    }
     let next = target.with_extension("sqlite.next");
     let backup = target.with_extension("sqlite.bak");
     fs::write(&next, sqlite_bytes).map_err(|err| format!("Could not write catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
+    if target.exists() {
+        let _ = merge_baseline(&target,&next,&manifest)?;
+        let _=fs::remove_file(&next);
+        let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+    }
 
     if backup.exists() {
         let _ = fs::remove_file(&backup);
@@ -344,7 +509,6 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
 #[tauri::command]
 pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        crate::access_policy::require("extended-catalog")?;
         sync_blocking(manifest_url)
     })
         .await
@@ -354,7 +518,6 @@ pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSync
 #[tauri::command]
 pub async fn catalog_cache_read() -> Result<Vec<Value>, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        crate::access_policy::require("extended-catalog")?;
         let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(Vec::new());
@@ -477,6 +640,34 @@ mod tests {
         root.join("catalog.sqlite")
     }
 
+
+    #[test]
+    fn catalog_batch_preserves_missing_games_and_rich_local_details() {
+        let target=temp_target();
+        let db=Connection::open(&target).unwrap();
+        db.execute_batch("CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY,app_id INTEGER,payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER,language TEXT,country TEXT,payload TEXT,PRIMARY KEY(game_id,language,country));").unwrap();
+        db.execute("INSERT INTO catalog_game VALUES(7,233980,?1)",[r#"{"id":7,"app_id":233980,"name":"Unepic","short_description":"Known description","tags":["RPG"]}"#]).unwrap();
+        db.execute("INSERT INTO catalog_game VALUES(8,10,?1)",[r#"{"id":8,"app_id":10,"name":"Retained"}"#]).unwrap();
+        db.execute("INSERT INTO game_detail VALUES(7,'spanish','ar',?1)",[r#"{"steam":{"screenshots":[{"id":1}],"short_description":"Known description"}}"#]).unwrap();
+        drop(db);
+        let manifest=CatalogManifest{schema_version:1,revision:"new".into(),artifact_url:String::new(),sha256:String::new(),catalog_count:1,generated_at:String::new(),kind:"delta".into(),base_revision:"old".into(),inventory_sha256:String::new()};
+        let count=apply_batch(&target,vec![serde_json::json!({"id":99,"app_id":233980,"short_description":"","tags":[],"steam_review_score":95})],
+            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest).unwrap();
+        assert_eq!(count,2);
+        let db=Connection::open(&target).unwrap();
+        let payload:String=db.query_row("SELECT payload FROM catalog_game WHERE id=7",[],|r|r.get(0)).unwrap();
+        let game:Value=serde_json::from_str(&payload).unwrap();
+        assert_eq!(game["short_description"],"Known description");
+        assert_eq!(game["steam_review_score"],95);
+        assert_eq!(game["tags"],serde_json::json!(["RPG"]));
+        let detail:String=db.query_row("SELECT payload FROM game_detail WHERE game_id=7",[],|r|r.get(0)).unwrap();
+        assert!(detail.contains("Known description"));
+        assert!(detail.contains("screenshots"));
+        drop(db);
+        let _=fs::remove_dir_all(target.parent().unwrap());
+    }
     #[test]
     fn older_remote_snapshot_cannot_replace_the_installer_catalog() {
         assert!(incoming_snapshot_older("2026-10-10T14:07:48+00:00", "2026-10-09T18:00:00Z"));

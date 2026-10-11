@@ -194,17 +194,3 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
   return status;
 }
 
-/** Shared boundary for current and future managed features. */
-export async function requireGameAccessFeature(feature: "downloads" | "extended-catalog" | "big-screen" | "library"): Promise<void> {
-  try {
-    if (native()) await invoke("require_gameaccess_feature", {feature});
-    else {
-      const token = await readActivationSession();
-      if (!token) throw new ActivationRejectedError({reason:"unavailable"});
-      await checkActivation(token);
-    }
-  } catch (error) {
-    if (String(error).includes("GAMEACCESS_ACCESS_DENIED") || error instanceof ActivationRejectedError) invalidateActivation();
-    throw error;
-  }
-}

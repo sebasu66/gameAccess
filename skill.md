@@ -37,7 +37,10 @@ Log source discovery, download lifecycle, installation and game execution.
 ## Metadata
 
 Ship the SQLite discovery seed in every installer, read it before network waits,
-and synchronize verified server packages in the background. Maintain Steam coverage
+and receive server batches at startup and at most daily. Merge additions and changed
+records transactionally; never delete games or erase known fields with empty data.
+Compare Steam AppID inventories to repair missing records. Activation gates entry
+and session lifetime, not individual actions or catalog loading. Maintain Steam coverage
 outside the desktop. Record provenance and coverage; unknown features stay unknown.
 Co-Optimus is an optional cached lookup when the game detail opens.
 

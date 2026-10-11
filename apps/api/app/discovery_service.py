@@ -3,6 +3,7 @@ No crawl runs inside a catalog request or on the desktop.
 """
 from __future__ import annotations
 from argparse import Namespace
+from functools import lru_cache
 import gzip
 import hashlib
 import json
@@ -15,7 +16,7 @@ import threading
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .discovery_catalog import OUTPUT_DIR, refresh
 from .catalog_snapshot import stable_json
@@ -80,10 +81,62 @@ def catalog_games() -> list[dict]:
         return games
 
 
+
+@lru_cache(maxsize=32)
+def update_batch(base_revision: str, revision: str) -> bytes:
+    """Only upserts: omitted games/details never become deletion instructions."""
+    if not re.fullmatch(r"[a-f0-9]{16}", base_revision):
+        raise HTTPException(404, "Catalog base revision not found")
+    def rows(rev):
+        db = sqlite3.connect(":memory:")
+        try:
+            db.deserialize(gzip.decompress(package_path(rev).read_bytes()))
+            games = {app_id or gid: payload for gid, app_id, payload in
+                     db.execute("SELECT id,app_id,payload FROM catalog_game")}
+            details = {(gid, lang, country): payload for gid, lang, country, payload in
+                       db.execute("SELECT game_id,language,country,payload FROM game_detail")}
+            return games, details
+        finally:
+            db.close()
+    previous, previous_details = rows(base_revision)
+    current, current_details = rows(revision)
+    app_ids = {json.loads(payload)["id"]: json.loads(payload).get("app_id") for payload in current.values()}
+    batch = {"schema_version": 1, "base_revision": base_revision, "revision": revision,
+             "games": [json.loads(payload) for key, payload in current.items()
+                       if previous.get(key) != payload],
+             "details": [{"game_id": key[0], "language": key[1], "country": key[2],
+                          "app_id": app_ids.get(key[0]), "payload": json.loads(payload)}
+                         for key, payload in current_details.items()
+                         if previous_details.get(key) != payload]}
+    return gzip.compress(stable_json(batch).encode("utf-8"), mtime=0)
+
+
+@router.get("/library/catalog/updates/{base_revision}/{revision}", name="discovery_update")
+def client_update(base_revision: str, revision: str):
+    return Response(update_batch(base_revision, revision), media_type="application/gzip",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
 @router.get("/library/catalog/manifest", name="discovery_manifest")
-def client_manifest(request: Request):
+def client_manifest(request: Request, since: str = ""):
     data = manifest()
-    return {**data, "artifact_url": str(request.url_for("discovery_package", revision=data["revision"]))}
+    identities = sorted(game["app_id"] or game["id"] for game in catalog_games())
+    data["inventory_sha256"] = hashlib.sha256(stable_json(identities).encode()).hexdigest()
+    if since and since != data["revision"]:
+        try:
+            compressed = update_batch(since, data["revision"])
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            # First install or a legacy revision: the client merges the baseline,
+            # preserving its existing rows and locally cached details.
+        else:
+            return {**data, "kind": "delta", "base_revision": since,
+                    "sha256": hashlib.sha256(compressed).hexdigest(),
+                    "compressed_bytes": len(compressed),
+                    "artifact_url": str(request.url_for("discovery_update",
+                        base_revision=since, revision=data["revision"]))}
+    return {**data, "kind": "baseline",
+            "artifact_url": str(request.url_for("discovery_package", revision=data["revision"]))}
 
 
 @router.get("/library/catalog/packages/{revision}", name="discovery_package")
@@ -91,6 +144,42 @@ def client_package(revision: str):
     return FileResponse(package_path(revision), media_type="application/gzip",
                         headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
+
+
+@router.post("/library/catalog/reconcile")
+async def reconcile_catalog(request: Request):
+    """Compare exact Steam identities; return missing rows, never remove extras."""
+    payload = await request.json()
+    present = payload.get("present")
+    base = payload.get("base_revision", "")
+    if (not isinstance(present, list) or len(present) > 250000 or
+            any(type(value) is not int or value <= 0 for value in present) or
+            not re.fullmatch(r"[a-f0-9]{16}", base)):
+        raise HTTPException(400, "Invalid catalog inventory")
+    data = manifest()
+    identities = set(present)
+    missing = [game for game in catalog_games() if (game["app_id"] or game["id"]) not in identities]
+    # Packages use stable internal IDs; catalog_games exposes Steam IDs to the UI.
+    db = sqlite3.connect(":memory:")
+    try:
+        db.deserialize(gzip.decompress(package_path(data["revision"]).read_bytes()))
+        missing_ids = {game["app_id"] or game["id"] for game in missing}
+        games = [json.loads(row) for (row,) in db.execute("SELECT payload FROM catalog_game")
+                 if (json.loads(row).get("app_id") or json.loads(row)["id"]) in missing_ids]
+        internal_ids = {game["id"]: game.get("app_id") for game in games}
+        details = [{"game_id": gid, "app_id": internal_ids[gid], "language": lang,
+                    "country": country, "payload": json.loads(row)}
+                   for gid, lang, country, row in db.execute("SELECT game_id,language,country,payload FROM game_detail")
+                   if gid in internal_ids]
+    finally:
+        db.close()
+    batch = {"schema_version": 1, "base_revision": base, "revision": data["revision"],
+             "games": games, "details": details}
+    compressed = gzip.compress(stable_json(batch).encode(), mtime=0)
+    LOG.info("Catalog reconciliation: client=%s missing=%s revision=%s", len(identities), len(games), data["revision"])
+    return Response(compressed, media_type="application/gzip",
+                    headers={"X-Catalog-SHA256": hashlib.sha256(compressed).hexdigest(),
+                             "Cache-Control": "no-store"})
 
 @router.get("/library/catalog/status")
 def discovery_status():

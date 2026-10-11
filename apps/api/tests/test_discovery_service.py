@@ -51,3 +51,18 @@ def test_cooptimus_block_does_not_invent_player_numbers(tmp_path):
         result = detail_metadata(10, client, tmp_path)
     assert result["state"] == "unavailable"
     assert "local_players_max" not in result
+
+def test_update_batch_contains_only_additions_and_changes_never_deletions(tmp_path, monkeypatch):
+    first = [(7, 10, json.dumps({"id": 7, "app_id": 10, "name": "Existing"})),
+             (8, 20, json.dumps({"id": 8, "app_id": 20, "name": "Omitted later"}))]
+    write_snapshot(first, {}, tmp_path, "fixture")
+    monkeypatch.setattr(service, "ROOT", tmp_path)
+    base = service.manifest()["revision"]
+    write_snapshot([first[0], (9, 30, json.dumps({"id": 9, "app_id": 30, "name": "New"}))], {}, tmp_path, "fixture")
+    revision = service.manifest()["revision"]
+    batch = json.loads(gzip.decompress(service.update_batch(base, revision)))
+    assert batch["base_revision"] == base
+    assert batch["revision"] == revision
+    assert [game["app_id"] for game in batch["games"]] == [30]
+    assert "deleted" not in batch
+    assert "delete" not in batch

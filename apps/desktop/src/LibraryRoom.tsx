@@ -1,4 +1,3 @@
-import {requireGameAccessFeature} from "./activation";
 import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
@@ -111,7 +110,6 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const previousFullscreen = useRef(false);
   const toggleBigScreen = async () => {
     const next = !bigScreen;
-    if (next) { try { await requireGameAccessFeature("big-screen"); } catch { return; } }
     setBigScreen(next);
     try {
       if ("__TAURI_INTERNALS__" in window) {

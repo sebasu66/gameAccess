@@ -9,7 +9,6 @@ pub fn receive(args: &[String]) {
 }
 #[tauri::command]
 pub fn take_launch_request() -> Result<Option<u32>, String> {
-    crate::access_policy::require("library")?;
     Ok(PENDING.lock().map_err(|_| "Launch request is unavailable")?.take())
 }
 #[cfg(test)]

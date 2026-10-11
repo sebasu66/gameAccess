@@ -283,7 +283,7 @@ def _reject_access(
 @app.middleware("http")
 async def require_active_installation(request: Request, call_next):
     path = request.url.path
-    protected = ("/catalog", "/games/", "/steam/apps/", "/steam/search", "/users/")
+    protected = ("/users/",)
     if request.method != "OPTIONS" and any(path == prefix or path.startswith(prefix) for prefix in protected):
         with Session(engine) as session:
             if _activation_for_request(request, session) is None:
@@ -810,9 +810,7 @@ def digital_game_details(
     country: str = Query(default="ar"),
     session: Session = Depends(get_session)
 ) -> dict:
-    """Return public Steam metadata for a digital game, enforcing an active session."""
-    if _activation_for_request(request, session) is None:
-        raise HTTPException(401, "GameAccess activation is required or has expired")
+    """Return public cached Steam metadata independently of client activation."""
         
     language = language.casefold()
     country = country.casefold()

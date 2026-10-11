@@ -312,7 +312,6 @@ fn open_steam_install(app_id: u32) -> Result<(), String> {
 
 #[tauri::command]
 fn open_steam_run(app_id: u32) -> Result<(), String> {
-    access_policy::require("library")?;
     native_core::open_steam_run(app_id)
 }
 
@@ -525,13 +524,8 @@ async fn activation_check_access(api_url: String, session_token: String) -> Resu
     tauri::async_runtime::spawn_blocking(move || access_policy::check(&api_url, &session_token)).await.map_err(|_| access_policy::UNAVAILABLE.to_string())?
 }
 #[tauri::command]
-async fn require_gameaccess_feature(feature: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || access_policy::require(&feature)).await.map_err(|_| access_policy::UNAVAILABLE.to_string())?
-}
-#[tauri::command]
 async fn create_game_shortcut(app_id: u32, name: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        access_policy::require("library")?;
         let launcher = find_launcher_dir().ok_or("Could not locate launcher")?;
         let executable = env::current_exe().map_err(|e|e.to_string())?;
         let mut command = Command::new(find_launcher_python(&launcher));
@@ -642,7 +636,6 @@ async fn run_digital_process(
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if action == "play" { access_policy::require("library")?; }
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
         let python = find_launcher_python(&launcher);
         let runner_script = launcher.join("digital_process_runner.py");
@@ -708,7 +701,6 @@ async fn start_digital_download(
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        access_policy::require("downloads")?;
         let _ = append_narration_lines(vec![format!("AppID {app_id}: starting generic download for {name}")], "DOWNLOAD".into(), "INFO".into());
         let launcher = find_launcher_dir().ok_or_else(|| {
             let err = "Could not locate launcher directory".to_string();
@@ -890,7 +882,6 @@ fn read_activity_console() -> Result<Vec<String>, String> {
 async fn control_digital_download(app_id: u32, action: String) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if action != "pause" && action != "resume" { return Err("Invalid download action".to_string()); }
-        if action == "resume" { access_policy::require("downloads")?; }
         let path = write_digital_control(app_id, &action)?;
         for _ in 0..50 {
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -1063,7 +1054,6 @@ fn main() {
             get_registered_plugins,
             activation_installation_id,
             activation_check_access,
-            require_gameaccess_feature,
             create_game_shortcut,
             launch_intent::take_launch_request,
             activation_read_session,

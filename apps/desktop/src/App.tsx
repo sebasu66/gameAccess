@@ -3,7 +3,7 @@ import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
-import { ACTIVATION_CHANGED_EVENT } from "./activation";
+import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import VoxelLogo from "./VoxelLogo";
 import FilledIcon from "./FilledIcon";
 import { useSteamMetadataWorker } from "./useSteamMetadataWorker";
@@ -447,7 +447,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
     let stopped = false;
     let unlisten: (()=>void) | undefined;
     const consume = async () => {
-      if (stopped || shortcutBusy.current) return;
+      if (stopped || shortcutBusy.current || !getActivationTier()) return;
       shortcutBusy.current = true;
       try {
         const appId = await invoke<number | null>("take_launch_request");

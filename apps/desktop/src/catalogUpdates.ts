@@ -1,6 +1,6 @@
 import type { CatalogGame } from "./types";
 
-export const CATALOG_REFRESH_INTERVAL = 30 * 60 * 1000;
+export const CATALOG_REFRESH_INTERVAL = 24 * 60 * 60 * 1000;
 export const CATALOG_REFRESH_REQUEST = "gameaccess:refresh-catalog";
 export const CATALOG_REFRESH_STATUS = "gameaccess:catalog-refresh-status";
 export const CATALOG_NOTICE_DURATION = 10_000;

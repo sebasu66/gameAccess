@@ -89,23 +89,6 @@ pub fn check(base: &str, token: &str) -> Result<Value, String> {
     activity(format!("Native access verified; grant valid for {} seconds", ttl.as_secs()), "INFO");
     Ok(status)
 }
-pub fn require(feature: &str) -> Result<(), String> {
-    {
-        let lease = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?.lease.clone().ok_or_else(|| DENIED.to_string())?;
-        if lease.remaining().is_zero() { clear(); return Err(DENIED.into()); }
-        let status = if lease.received.elapsed() >= Duration::from_secs(REFRESH) {
-            match check(&lease.base, &lease.token) {
-                Ok(status) => status,
-                Err(error) if error == UNAVAILABLE && !lease.remaining().is_zero() => lease.status,
-                Err(error) => return Err(error),
-            }
-        } else { lease.status };
-        if let Some(permissions) = status["permissions"].as_array() {
-            if !permissions.iter().any(|value| value.as_str() == Some(feature)) { return Err(DENIED.into()); }
-        }
-        Ok(())
-    }
-}
 /// Returns true once per ended grant, independent of the React view.
 pub fn finish_ended(cleanup: impl FnOnce()) {
     let Ok(mut state) = STATE.lock() else { return };

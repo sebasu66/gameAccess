@@ -38,10 +38,15 @@ The server discovers the rolling last year of public Steam releases and relevant
 older titles, merges Store tags/reviews, and publishes a new immutable gzip only
 after complete date-boundary traversal. It runs outside request handling.
 
-Clients check the server manifest after first paint and every 30 minutes. On a new
-revision they verify the package hash, schema, revision and row count, then replace
-their cached database atomically. A failed update leaves the previous database
-available. GitHub provides a fallback manifest and a daily installer-seed refresh.
+The installer carries the complete discovery database before the first application
+launch. The server retains immutable revisions and distributes compressed batches
+of additions and changed records. Clients check once after startup and at most
+daily, or on explicit refresh. Hash/schema/base-revision checks precede one SQLite
+transaction. Updates never delete games or replace the local database; incomplete
+fields cannot erase known metadata or cached details. Exact Steam AppID inventories
+repair missing records independently of revision numbers. A legacy full package is
+merged with the same preservation rules. Failed updates retain the usable catalog.
+GitHub provides a fallback baseline and a daily installer-seed refresh.
 
 Co-Optimus requests happen on opening a game detail. Exact Steam AppID matching
 and response caching keep that work out of discovery and startup. Service errors
@@ -93,14 +98,15 @@ with an exact Steam-link identity check, and a cached server lookup as fallback.
 
 ## Access to managed features and desktop shortcuts
 
-GameAccess gates its own downloads, extended catalog, library interface and
-big-screen mode. Installed games and existing game processes remain independent;
+GameAccess validates entry into the application and returns to activation when
+its current session expires. Catalog synchronization is public and independent
+of activation; managed actions do not perform separate access checks. Installed games and existing game processes remain independent;
 expiry never deletes files or terminates a game.
 
 Activation status supplies the server time, subscription expiry, permissions
 and a lease expiry capped at five minutes. The native layer queries the trusted
 API directly over TLS (loopback requires the explicit development-build flag),
-refreshes every minute and checks permissions before managed actions. It never
+refreshes the application session every minute. It never
 accepts a frontend boolean or locally editable tier as authorization. A watchdog
 expires the bounded grant independently of React, pauses transfers and exits
 fullscreen. Loss of connection cannot extend the last grant. The UI returns to

@@ -6,7 +6,6 @@ import type { CatalogGame } from "./types";
 import { playCatalogBell } from "./uiSounds";
 import { narrate } from "./narrationLog";
 import { translate } from "./i18n";
-import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 
 export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled: boolean, apply: (games: CatalogGame[]) => void, showError: (message: string) => void) {
   const [notices, setNotices] = useState<CatalogNotice[]>([]);
@@ -39,17 +38,10 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     const focus = () => updater.catchUp();
     updater.start();
     // Let the bundled catalog paint before checking for a new immutable revision.
-    let accessReady = Boolean(getActivationTier());
-    const activated = () => {
-      const next = Boolean(getActivationTier());
-      if (next && !accessReady) void updater.refresh();
-      accessReady = next;
-    };
-    const initialRefresh = window.setTimeout(() => { if (accessReady) void updater.refresh(); }, 5000);
-    window.addEventListener(ACTIVATION_CHANGED_EVENT, activated);
+    const initialRefresh = window.setTimeout(() => void updater.refresh(), 5000);
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
-    return () => { window.removeEventListener(ACTIVATION_CHANGED_EVENT, activated); window.clearTimeout(initialRefresh); updater.dispose(); window.removeEventListener(CATALOG_REFRESH_REQUEST, manual); window.removeEventListener("focus", focus); };
+    return () => { window.clearTimeout(initialRefresh); updater.dispose(); window.removeEventListener(CATALOG_REFRESH_REQUEST, manual); window.removeEventListener("focus", focus); };
   }, [enabled, ready]);
   return {notices, dismiss};
 }

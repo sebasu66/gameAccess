@@ -58,7 +58,7 @@ def test_pending_key_expires_and_revocation_blocks_redemption_and_session(activa
             redeem_key(session, key, installation)
 
 
-@pytest.mark.parametrize("path", ["/catalog", "/digital/games/1/details", "/steam/apps/1"])
+@pytest.mark.parametrize("path", ["/users/1"])
 def test_expired_key_denies_protected_requests(activation_db, monkeypatch, tmp_path, path):
     monkeypatch.setattr(core, "engine", activation_db)
     monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
@@ -213,3 +213,10 @@ def test_active_status_lease_is_bounded_and_has_managed_permissions(activation_d
         assert 0 < (status["lease_expires_at"] - status["server_time"]).total_seconds() <= 301
         assert status["lease_expires_at"] <= expiry
         assert set(status["permissions"]) == {"downloads", "extended-catalog", "big-screen", "library"}
+
+def test_catalog_manifest_remains_public_without_activation():
+    client = TestClient(core.app)
+    response = client.get("/library/catalog/manifest")
+    assert response.status_code == 200
+    assert response.json()["catalog_count"] > 0
+    assert "inventory_sha256" in response.json()
