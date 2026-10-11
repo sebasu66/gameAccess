@@ -180,7 +180,7 @@ async function executeTask(task: AutomationTask, games: CatalogGame[], current: 
         return candidate instanceof HTMLInputElement && isVisible(candidate) ? candidate : null;
       }, (task.timeout_seconds ?? 10) * 1000, `input selector ${task.selector}`);
       input.focus(); setReactInput(input, task.value); await sleep(350);
-      return { current, detail: { selector: task.selector, value: task.value } };
+      return { current, detail: { selector: task.selector, input_applied: true } };
     }
     case "select": {
       const game = resolveGame(games, task, current);
@@ -289,13 +289,17 @@ export async function startLocalAutomation(): Promise<void> {
     );
     // Opening/settings/search checks do not require fetching the protected catalog.
     const needsCatalog = script.tasks.some(task => ["select", "install", "uninstall", "play"].includes(task.action) || Boolean(task.state));
-    const games = needsCatalog ? (await loadHome()).games : [];
+    let games: CatalogGame[] = [];
 
     for (let index = 0; index < script.tasks.length; index += 1) {
       const task = script.tasks[index];
       const taskStarted = new Date().toISOString();
       await narrate(`Automation step ${index + 1}/${script.tasks.length}: ${task.action}.`, { area: "AUTOMATION" });
       try {
+        if (needsCatalog && !games.length && (["select", "install", "uninstall", "play"].includes(task.action) || task.state)) {
+          await waitFor(() => document.querySelector(".app-shell"), 45_000, "activated catalog");
+          games = (await loadHome()).games;
+        }
         const executed = await executeTask(task, games, currentGame);
         currentGame = executed.current;
         const result: TaskResult = {
