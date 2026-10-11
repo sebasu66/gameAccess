@@ -24,6 +24,7 @@ $backupExe = "$temporaryExe.backup"
 $previousTarget = $env:CARGO_TARGET_DIR
 $previousStamp = $env:VITE_BUILD_TIMESTAMP
 $previousApi = $env:VITE_GAMEACCESS_API
+$previousLocalActivation = $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION
 $buildTimestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 $localApiUrl = "http://127.0.0.1:$ServerPort"
 $logBase = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'GameAccess\logs' } else { Join-Path $env:TEMP 'GameAccess\logs' }
@@ -132,6 +133,7 @@ try {
 
     $env:CARGO_TARGET_DIR = $targetRoot
     $env:VITE_BUILD_TIMESTAMP = $buildTimestamp
+    $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION = if ($useLocalServer) { "1" } else { "0" }
     if ($useLocalServer) {
         # A -Server build is intentionally pinned to the local API even if the
         # packaged runtime settings normally resolve to a hosted backend.
@@ -193,6 +195,7 @@ try {
     $env:CARGO_TARGET_DIR = $previousTarget
     $env:VITE_BUILD_TIMESTAMP = $previousStamp
     $env:VITE_GAMEACCESS_API = $previousApi
+    $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION = $previousLocalActivation
     if (Test-Path -LiteralPath $temporaryExe) { Remove-Item -LiteralPath $temporaryExe }
     if (Test-Path -LiteralPath $backupExe) { Remove-Item -LiteralPath $backupExe }
 }

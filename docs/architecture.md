@@ -99,7 +99,7 @@ expiry never deletes files or terminates a game.
 
 Activation status supplies the server time, subscription expiry, permissions
 and a lease expiry capped at five minutes. The native layer queries the trusted
-API directly over TLS (loopback remains the development-server exception),
+API directly over TLS (loopback requires the explicit development-build flag),
 refreshes every minute and checks permissions before managed actions. It never
 accepts a frontend boolean or locally editable tier as authorization. A watchdog
 expires the bounded grant independently of React, pauses transfers and exits

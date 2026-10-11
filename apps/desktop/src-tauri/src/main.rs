@@ -550,14 +550,14 @@ fn start_access_watchdog(app: tauri::AppHandle) {
     let foreground = app.clone();
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        if access_policy::take_ended() {
+        access_policy::finish_ended(|| {
             let _ = access_activation::clear_session();
             let ids: Vec<u32> = digital_pids().lock().map(|pids|pids.keys().copied().collect()).unwrap_or_default();
             for id in ids { let _ = write_digital_control(id,"pause"); }
             let _ = append_narration_lines(vec!["GameAccess access ended; transfers paused and managed functions locked. Game processes are left running.".into()],"ACCESS".into(),"INFO".into());
             if let Some(window) = foreground.get_webview_window("main") { let _=window.set_fullscreen(false); }
             let _ = foreground.emit("gameaccess:access-ended", ());
-        }
+        });
     });
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -1113,6 +1113,10 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
+    // Workers are independent processes; explicitly pause owned transfers on app exit.
+    if let Ok(pids)=digital_pids().lock() {
+        for id in pids.keys() { let _=write_digital_control(*id,"pause"); }
+    }
 }
 
 
@@ -1188,6 +1192,7 @@ mod digital_controls_tests {
         }
         assert!(ready, "Local fixture HTTP server did not start");
         let app_id = 987654321;
+        access_policy::grant_fixture();
         tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, None, "".into(), None, Some(true), None)).unwrap();
         wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
         let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();

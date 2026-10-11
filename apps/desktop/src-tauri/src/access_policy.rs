@@ -26,7 +26,8 @@ static CHECK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn trusted_base(raw: &str) -> Result<String, String> {
     let url = reqwest::Url::parse(raw).map_err(|_| UNAVAILABLE.to_string())?;
-    let local = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"));
+    let development = cfg!(debug_assertions) || option_env!("GAMEACCESS_ALLOW_LOCAL_ACTIVATION") == Some("1");
+    let local = development && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1"));
     let configured = option_env!("GAMEACCESS_AUTHORITY_URL").unwrap_or("https://gameaccess-api-dev.onrender.com");
     let trusted_remote = url.as_str().trim_end_matches('/') == configured.trim_end_matches('/');
     // Loopback is the existing local development server. Production authority is pinned.
@@ -82,9 +83,6 @@ pub fn check(base: &str, token: &str) -> Result<Value, String> {
     Ok(status)
 }
 pub fn require(feature: &str) -> Result<(), String> {
-    #[cfg(test)]
-    { let _ = feature; return Ok(()); }
-    #[cfg(not(test))]
     {
         let lease = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?.lease.clone().ok_or_else(|| DENIED.to_string())?;
         if lease.remaining().is_zero() { clear(); return Err(DENIED.into()); }
@@ -102,14 +100,21 @@ pub fn require(feature: &str) -> Result<(), String> {
     }
 }
 /// Returns true once per ended grant, independent of the React view.
-pub fn take_ended() -> bool {
-    let Ok(mut state) = STATE.lock() else { return true };
+pub fn finish_ended(cleanup: impl FnOnce()) {
+    let Ok(mut state) = STATE.lock() else { return };
     if state.lease.as_ref().is_some_and(|lease| lease.remaining().is_zero()) {
         state.lease = None; state.generation = state.generation.wrapping_add(1); state.ended = true;
     }
-    let ended = state.ended;
-    state.ended = false;
-    ended
+    if state.ended {
+        // Cleanup and emitting the event finish before another grant can be published.
+        cleanup();
+        state.ended = false;
+    }
+}
+#[cfg(test)]
+pub fn grant_fixture() {
+    let status=serde_json::json!({"active":true,"permissions":["downloads","extended-catalog","big-screen","library"],"access_tier":"base"});
+    STATE.lock().unwrap().lease=Some(Lease{base:String::new(),token:String::new(),status,received:Instant::now(),wall:SystemTime::now(),ttl:Duration::from_secs(300)});
 }
 pub fn refresh_due() {
     let lease = STATE.lock().ok().and_then(|state| state.lease.clone());
