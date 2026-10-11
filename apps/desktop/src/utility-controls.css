@@ -18,7 +18,7 @@
 .ga-big-screen-toggle{position:fixed!important;left:260px!important;bottom:13px!important}
 .ga-big-screen-toggle span{font:inherit!important;text-transform:none!important;letter-spacing:0!important}
 .catalog-refresh-button strong{display:inline!important;font:inherit!important}
-@media(max-width:1450px){.catalog-bottom-actions .catalog-scroll-action{bottom:51px}.catalog-bottom-actions{height:92px}.catalog-header-controls{bottom:101px!important}}
+@media(max-width:1450px){.catalog-bottom-actions .catalog-scroll-action{position:absolute;left:50%;transform:translateX(-50%);bottom:51px}.catalog-bottom-actions{height:92px}.catalog-header-controls .library-catalog-toolbar{bottom:116px}.library-room-grid{padding-bottom:100px!important}}
 .ga-detail-actions .installed-game-options{flex:0 0 48px;gap:0}
 .ga-detail-actions .glass-action.play{flex:1 1 0!important;width:auto!important;height:54px!important}
 .ga-global-language button:focus-visible,.ga-header-utilities button:focus-visible{outline:2px solid #ff8a35;outline-offset:3px}
