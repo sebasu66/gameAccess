@@ -7,6 +7,9 @@ const MAX_LEASE: u64 = 300;
 const REFRESH: u64 = 60;
 pub const DENIED: &str = "GAMEACCESS_ACCESS_DENIED";
 pub const UNAVAILABLE: &str = "GAMEACCESS_ACCESS_UNAVAILABLE";
+fn activity(message: String, level: &str) {
+    let _ = crate::append_narration_lines(vec![message], "ACCESS".into(), level.into());
+}
 
 #[derive(Clone)]
 struct Lease {
@@ -58,28 +61,32 @@ pub fn clear() {
 }
 pub fn check(base: &str, token: &str) -> Result<Value, String> {
     let _single = CHECK.get_or_init(|| Mutex::new(())).lock().map_err(|_| UNAVAILABLE.to_string())?;
-    let base = trusted_base(base)?;
+    let base = trusted_base(base).map_err(|error| {activity(format!("Native access check rejected authority; local development enabled={}", cfg!(debug_assertions) || option_env!("GAMEACCESS_ALLOW_LOCAL_ACTIVATION") == Some("1")), "WARN"); error})?;
     if !(20..=200).contains(&token.len()) { return Err(DENIED.into()); }
     let generation = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?.generation;
     let started = Instant::now();
-    let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(8))
-        .redirect(reqwest::redirect::Policy::none()).build().map_err(|_| UNAVAILABLE.to_string())?;
+    let mut builder = reqwest::blocking::Client::builder().timeout(Duration::from_secs(8))
+        .redirect(reqwest::redirect::Policy::none());
+    if base.starts_with("http://") { builder = builder.no_proxy(); }
+    let client = builder.build().map_err(|error| {activity(format!("Native access HTTP client failed: {error}"), "ERROR"); UNAVAILABLE.to_string()})?;
     let response = client.get(format!("{base}/activation/status")).bearer_auth(token)
         .header("X-GameAccess-Installation", crate::access_activation::installation_id()?)
-        .header("Cache-Control", "no-store").send().map_err(|_| UNAVAILABLE.to_string())?;
+        .header("Cache-Control", "no-store").send().map_err(|error| {activity(format!("Native access authority request failed: {error}"), "WARN"); UNAVAILABLE.to_string()})?;
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         let detail = response.json::<Value>().ok().and_then(|v|v.get("detail").cloned()).unwrap_or(serde_json::json!({"reason":"unavailable"}));
         clear();
         return Err(format!("{DENIED}:{}", detail));
     }
-    if !response.status().is_success() { return Err(UNAVAILABLE.into()); }
+    if !response.status().is_success() { activity(format!("Native access authority returned HTTP {}", response.status()), "WARN"); return Err(UNAVAILABLE.into()); }
     let status: Value = response.json().map_err(|_| UNAVAILABLE.to_string())?;
-    let ttl = lifetime(&status)?.saturating_sub(started.elapsed());
+    let ttl = lifetime(&status).map_err(|error| {activity("Native access authority returned an invalid or expired grant".into(), "WARN"); error})?.saturating_sub(started.elapsed());
     if ttl.is_zero() { return Err(DENIED.into()); }
     let mut state = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?;
     if generation != state.generation { return Err(DENIED.into()); }
     state.lease = Some(Lease { base, token: token.into(), status: status.clone(), received: Instant::now(), wall: SystemTime::now(), ttl });
     state.ended = false;
+    drop(state);
+    activity(format!("Native access verified; grant valid for {} seconds", ttl.as_secs()), "INFO");
     Ok(status)
 }
 pub fn require(feature: &str) -> Result<(), String> {
