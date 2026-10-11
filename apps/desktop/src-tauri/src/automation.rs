@@ -100,7 +100,7 @@ fn state_output_dir(state: &AutomationState) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn automation_config(state: tauri::State<AutomationState>) -> Result<AutomationConfig, String> {
+pub fn automation_config(state: tauri::State<'_, AutomationState>) -> Result<AutomationConfig, String> {
     let Some(script_path) = state.script_path.clone() else {
         return Ok(AutomationConfig {
             enabled: false,
@@ -149,7 +149,7 @@ fn safe_snapshot_name(label: &str) -> String {
 #[tauri::command]
 pub async fn capture_automation_screenshot(
     label: String,
-    state: tauri::State<AutomationState>,
+    state: tauri::State<'_, AutomationState>,
 ) -> Result<String, String> {
     let output_dir = state_output_dir(&state)?;
     let name = safe_snapshot_name(&label);
@@ -205,7 +205,7 @@ public static class GameAccessAutomationWindow {{
 #[tauri::command]
 pub fn finish_automation(
     results: Value,
-    state: tauri::State<AutomationState>,
+    state: tauri::State<'_, AutomationState>,
 ) -> Result<String, String> {
     let output_dir = state_output_dir(&state)?;
     let target = output_dir.join("result.json");
