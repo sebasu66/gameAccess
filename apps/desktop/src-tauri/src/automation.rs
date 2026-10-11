@@ -147,7 +147,7 @@ fn safe_snapshot_name(label: &str) -> String {
 }
 
 #[tauri::command]
-pub fn capture_automation_screenshot(
+pub async fn capture_automation_screenshot(
     label: String,
     state: tauri::State<AutomationState>,
 ) -> Result<String, String> {
@@ -157,6 +157,11 @@ pub fn capture_automation_screenshot(
         return Err("Automation screenshot label is empty".into());
     }
     let output_path = output_dir.join(format!("{name}.png"));
+    tauri::async_runtime::spawn_blocking(move || capture_window(output_path)).await
+        .map_err(|error| format!("Window capture worker failed: {error}"))?
+}
+
+fn capture_window(output_path: PathBuf) -> Result<String, String> {
 
     #[cfg(target_os = "windows")]
     {
@@ -168,10 +173,11 @@ using System;
 using System.Runtime.InteropServices;
 public static class GameAccessAutomationWindow {{
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hDC, uint flags);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
   public struct RECT {{ public int Left; public int Top; public int Right; public int Bottom; }}
 }}
-'@; [GameAccessAutomationWindow]::SetProcessDPIAware()|Out-Null; $h=(Get-Process -Id {app_pid}).MainWindowHandle; if($h -eq 0){{throw 'GameAccess window handle is unavailable'}}; $r=New-Object GameAccessAutomationWindow+RECT; [GameAccessAutomationWindow]::GetWindowRect($h,[ref]$r)|Out-Null; $w=$r.Right-$r.Left; $hgt=$r.Bottom-$r.Top; if($w -le 0 -or $hgt -le 0){{throw 'Invalid GameAccess window size'}}; $bmp=New-Object System.Drawing.Bitmap($w,$hgt); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size); $bmp.Save('{escaped_path}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()"#
+'@; [GameAccessAutomationWindow]::SetProcessDPIAware()|Out-Null; $h=(Get-Process -Id {app_pid}).MainWindowHandle; if($h -eq 0){{throw 'GameAccess window handle is unavailable'}}; $r=New-Object GameAccessAutomationWindow+RECT; [GameAccessAutomationWindow]::GetWindowRect($h,[ref]$r)|Out-Null; $w=$r.Right-$r.Left; $hgt=$r.Bottom-$r.Top; if($w -le 0 -or $hgt -le 0){{throw 'Invalid GameAccess window size'}}; $bmp=New-Object System.Drawing.Bitmap($w,$hgt); $g=[System.Drawing.Graphics]::FromImage($bmp); $dc=$g.GetHdc(); try {{ $ok=[GameAccessAutomationWindow]::PrintWindow($h,$dc,2); if(-not $ok){{throw 'GameAccess window capture failed'}} }} finally {{$g.ReleaseHdc($dc)}}; $bmp.Save('{escaped_path}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()"#
         );
         let result = Command::new("powershell.exe")
             .args([

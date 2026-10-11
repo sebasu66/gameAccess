@@ -36,7 +36,7 @@ class ExtractionTest(unittest.TestCase):
         return target
     def extract(self, archive, password=""):
         return subprocess.run([sys.executable, __file__, "--extract", str(archive),
-            str(self.root / "output"), password], capture_output=True, text=True, timeout=10)
+            str(self.root / "output"), password], capture_output=True, text=True, encoding="utf-8", timeout=10)
     @unittest.skipUnless(SEVEN_ZIP.exists(), "portable 7-Zip required")
     def test_encrypted_archive_fails_promptly_and_is_preserved(self):
         arc = self.archive(password="fixture-password")

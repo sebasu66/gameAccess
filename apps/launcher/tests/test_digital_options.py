@@ -28,7 +28,7 @@ class DigitalOptionsTests(unittest.TestCase):
         storage = DigitalGameStorage(self.launcher)
         self.assertEqual(storage.folder(12, "Renamed"), self.folder)
         self.assertTrue(storage.snapshot([{"id":12, "name":"Game"}])["12"]["installed"])
-        self.assertEqual(storage.register(13, "Next").parent, new)
+        self.assertEqual(storage.register(13, "Next").parent.resolve(), new.resolve())
         storage.uninstall(12, "Game")
         self.assertFalse(self.folder.exists())
 
