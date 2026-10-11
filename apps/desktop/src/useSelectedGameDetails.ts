@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { loadDetails } from "./api";
+import { narrate } from "./narrationLog";
 import { useI18n } from "./i18n";
 import { getSteamStoreMetadata, hasTauriRuntime } from "./native";
 import { mergeLocalSteamDetails } from "./steamMetadata";
@@ -39,7 +40,6 @@ export interface SelectedGameDetailsState {
   loading: boolean;
   error: string | null;
   refreshingSteam: boolean;
-  steamRefreshMessage: string | null;
   refreshSteam: () => Promise<void>;
 }
 
@@ -52,20 +52,17 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
   const [error, setError] = useState<string | null>(null);
   const requestTokenRef = useRef(0);
   const [refreshingSteam, setRefreshingSteam] = useState(false);
-  const [steamRefreshMessage, setSteamRefreshMessage] = useState<string | null>(null);
 
   const updateSteam = async (base: GameDetails, token: number, force: boolean) => {
     if (!localSteamAppId || !hasTauriRuntime()) return;
     setRefreshingSteam(true);
-    setSteamRefreshMessage(null);
     try {
       const raw = await getSteamStoreMetadata(localSteamAppId, force);
       if (requestTokenRef.current !== token || !raw) return;
       setDetails(mergeLocalSteamDetails(base, raw));
-      setSteamRefreshMessage(typeof raw.gameaccess_refresh_warning === "string"
-        ? raw.gameaccess_refresh_warning : "Datos de Steam actualizados en este equipo.");
+      void narrate(`AppID ${localSteamAppId} · Steam metadata refreshed${typeof raw.gameaccess_refresh_warning === "string" ? "; warning=" + raw.gameaccess_refresh_warning : "."}`, { area: "CATALOG" });
     } catch {
-      if (requestTokenRef.current === token) setSteamRefreshMessage("Steam no respondió. Se conserva la información anterior.");
+      if (requestTokenRef.current === token) void narrate(`AppID ${localSteamAppId} · Steam metadata refresh failed; retaining previous details.`, { area: "CATALOG", level: "WARN" });
     } finally {
       if (requestTokenRef.current === token) setRefreshingSteam(false);
     }
@@ -84,7 +81,6 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
     setDetailsGameId(null);
     setError(null);
     setRefreshingSteam(false);
-    setSteamRefreshMessage(null);
     if (!shouldLoad || selectedGameId == null) {
       setLoading(false);
       return;
@@ -114,7 +110,6 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
     loading,
     error,
     refreshingSteam,
-    steamRefreshMessage,
     refreshSteam: async () => {
       if (details && detailsGameId === selectedGameId && !refreshingSteam) await updateSteam(details, requestTokenRef.current, true);
     },

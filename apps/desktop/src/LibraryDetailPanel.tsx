@@ -14,7 +14,7 @@ import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Gamepad2, Globe, Image as ImageIcon, Loader2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
+import { Globe, Image as ImageIcon, Loader2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
 import { hasTauriRuntime } from "./native";
 import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
@@ -527,7 +527,6 @@ function DesktopFeature(props: FeaturePanelProps) {
           <div ref={scrollRef} className="ga-detail-scroll">
             <p className="ga-detail-lead">{summary}</p>
             {detailState.loading ? <span role="status">Cargando ficha de Steam…</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
-            {detailState.refreshingSteam ? <small role="status">Actualizando datos de Steam…</small> : detailState.steamRefreshMessage ? <small role="status">{detailState.steamRefreshMessage}</small> : null}
             <div className="ga-detail-rating"><strong>{ratingGame.steam_review_score != null ? `${Math.round(ratingGame.steam_review_score)}%` : "—"}</strong><span>Valoración de usuarios en Steam<br />{ratingGame.steam_review_count ? `${ratingGame.steam_review_count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span></div>
             <ExtendedDetails details={details} />
             <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
@@ -537,7 +536,7 @@ function DesktopFeature(props: FeaturePanelProps) {
           </div>
           <div className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label="Me gusta" aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label="No me gusta" aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label="Videos y capturas"><DesktopDetailMedia game={props.game} details={details} /><p className="ga-gallery-note"><Gamepad2 aria-hidden="true" /><span>Videos y capturas del juego · Steam<br />Elegí una captura para explorar la galería.</span></p></section>
+        <section className="ga-detail-gallery" aria-label="Videos y capturas"><DesktopDetailMedia game={props.game} details={details} /></section>
       </div>
     </article>
   );
