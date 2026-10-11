@@ -9,7 +9,6 @@ export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { normalizeSteamStoreMetadata, mergeLocalSteamDetails } from "../steamMetadata";
-import { applySteamCatalogMetadata, cachedSteamCatalogMetadata } from "../useSteamMetadataWorker";
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
@@ -92,8 +91,7 @@ export class DigitalCatalog {
     digitalDownloadService.registerRecords(digitalRecords);
 
     const normalized = this.normalizeGames(validRecords);
-    const metadata = await cachedSteamCatalogMetadata(normalized.flatMap(game => game.app_id ? [game.app_id] : []));
-    const finalGames = await applyBundledCatalogArtwork(applySteamCatalogMetadata(normalized, metadata));
+    const finalGames = await applyBundledCatalogArtwork(normalized);
     this.cachedGames = finalGames;
     return finalGames;
   }

@@ -6,7 +6,6 @@ import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import VoxelLogo from "./VoxelLogo";
 import FilledIcon from "./FilledIcon";
-import { useSteamMetadataWorker } from "./useSteamMetadataWorker";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -105,7 +104,6 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
-  useSteamMetadataWorker(games.filter(game => Boolean(downloads[game.app_id ?? game.id]?.installed)), setGames);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
   const [heroMuted, setHeroMuted] = useState(true);
