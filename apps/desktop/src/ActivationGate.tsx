@@ -4,7 +4,6 @@ import { ArrowLeft, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, Crown, Dow
 import SplashScreen from "./SplashScreen";
 import GameCoverBackdrop from "./GameCoverBackdrop";
 import BackendStatus from "./BackendStatus";
-import LanguageSwitch from "./LanguageSwitch";
 import { openingStage } from "./openingFlow";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
 import type { ActivationStatus, ActivationEnd } from "./activation";
@@ -299,7 +298,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         </section> : null}
       </div>
     </main> : null}
-    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /><div className="ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div></footer> : null}
+    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /></footer> : null}
     {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }

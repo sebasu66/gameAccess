@@ -5,7 +5,7 @@ import { narrate } from "./narrationLog";
 import { useI18n } from "./i18n";
 import { getSteamStoreMetadata, hasTauriRuntime } from "./native";
 import { mergeLocalSteamDetails } from "./steamMetadata";
-import type { GameDetails } from "./types";
+import type { CatalogGame, GameDetails } from "./types";
 
 export type LibrarySurfaceMode = "desktop" | "tablet" | "display";
 
@@ -33,6 +33,7 @@ export function isCurrentSelectedDetail(requestedGameId: number, selectedGameId?
 interface UseSelectedGameDetailsInput extends SelectedDetailRequest {
   // Opt in only for the open detail overlay, never for keyboard/grid selection.
   localSteamAppId?: number | null;
+  knownGame?: CatalogGame;
 }
 
 export interface SelectedGameDetailsState {
@@ -88,12 +89,12 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
 
     setLoading(true);
     const requestedGameId = selectedGameId;
-    void loadDetails(requestedGameId)
+    void loadDetails(requestedGameId, input.knownGame)
       .then((value) => {
         if (requestTokenRef.current !== token || !isCurrentSelectedDetail(requestedGameId, selectedGameId)) return;
         setDetails(value);
         setDetailsGameId(requestedGameId);
-        void updateSteam(value, token, false);
+        // Cached server/local details remain stable; refresh only on explicit request.
       })
       .catch((reason: unknown) => {
         if (requestTokenRef.current !== token) return;

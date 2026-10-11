@@ -209,7 +209,7 @@ function InstalledGameShortcut({game}:{game:CatalogGame}) {
   const {locale,t}=useI18n();
   const [open,setOpen]=useState(false);
   const [error,setError]=useState("");
-  return <div className="plugin-download-action">
+  return <div className="plugin-download-action installed-game-options">
     <button type="button" className="source-options-toggle" aria-label={t("sourcesOptions")} aria-expanded={open} onClick={()=>setOpen(value=>!value)}><MoreHorizontal size={20}/></button>
     {open && <section className="source-selector-panel"><button type="button" onClick={()=>{
       void invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name}).then(()=>setOpen(false)).catch(err=>setError(String(err)));
@@ -504,7 +504,7 @@ function ExtendedDetails({ details }: { details: GameDetails | null }) {
 
 function DesktopFeature(props: FeaturePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id });
+  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
   const ratingGame = details ?? props.game;
   const description = plainText(details?.steam?.short_description);

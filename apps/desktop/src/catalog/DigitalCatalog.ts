@@ -103,13 +103,41 @@ export class DigitalCatalog {
    * Retrieves game details in the standard GameDetails format,
    * enriched with Steam Store metadata if available.
    */
-  async loadDetails(gameId: number): Promise<GameDetails> {
+  async loadDetails(gameId: number, knownGame?: CatalogGame): Promise<GameDetails> {
     const games = this.cachedGames ?? (await this.loadCatalog());
-    const game = games.find((item) => item.id === gameId || item.app_id === gameId);
+    const game = games.find((item) => item.id === gameId || item.app_id === gameId) ?? knownGame;
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
     if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
+
+    // Prefer durable server metadata; public Steam is only a cache-miss fallback.
+    if (game.app_id) {
+      try {
+        const apiUrl = await getApiBaseUrl();
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`, {
+            headers: activationHeaders(), signal: AbortSignal.timeout(8000)
+          });
+          if (res.ok) {
+            const serverData = await res.json();
+            if (serverData && serverData.steam) {
+              const steam = normalizeSteamStoreMetadata(game, serverData.steam);
+              const detail = await applyBundledDetails({ ...game, steam, metadata_state: serverData.metadata_state || "ready" });
+              await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
+              return detail;
+            }
+          } else if (res.status === 401) {
+            invalidateActivation();
+            throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
+          }
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("tiempo de acceso")) throw e;
+        void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
+        // Continue to fallback
+      }
+    }
 
     // Opening a detail can use public Steam metadata even when the central API is older/offline.
     if (game.app_id && hasTauriRuntime()) {
@@ -124,35 +152,6 @@ export class DigitalCatalog {
         void narrate("AppID " + game.app_id + " · public Steam detail failed: " + String(error), {area:"DETAILS",level:"WARN"});
       }
     }
-    if (game.app_id) {
-      try {
-        const apiUrl = await getApiBaseUrl();
-        if (apiUrl) {
-          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details`, {
-            headers: activationHeaders(), signal: AbortSignal.timeout(8000)
-          });
-          if (res.ok) {
-            const serverData = await res.json();
-            if (serverData && serverData.steam) {
-              const steam = normalizeSteamStoreMetadata(game, serverData.steam);
-              return applyBundledDetails({
-                ...game,
-                steam,
-                metadata_state: serverData.metadata_state || "ready",
-              });
-            }
-          } else if (res.status === 401) {
-            invalidateActivation();
-            throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
-          }
-        }
-      } catch (e) {
-        if (e instanceof Error && e.message.includes("tiempo de acceso")) throw e;
-        void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
-        // Continue to fallback
-      }
-    }
-
     const fallbackDetails: GameDetails = {
       ...game,
       steam: {

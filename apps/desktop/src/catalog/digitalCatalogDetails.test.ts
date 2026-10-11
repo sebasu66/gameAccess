@@ -11,7 +11,7 @@ vi.mock("../narrationLog", () => ({narrate:vi.fn()}));
 const game = {id:7, app_id:100, name:"Fixture", genres:["Action"]} as CatalogGame;
 afterEach(()=>{vi.clearAllMocks();vi.unstubAllGlobals();});
 describe("Game detail with an unavailable central API", () => {
-  it("loads descriptions, requirements and media from public Steam before contacting the old server", async () => {
+  it("falls back to public Steam after the old server fails", async () => {
     mocks.native.mockReturnValue(true);
     mocks.store.mockResolvedValue(undefined);
     mocks.steam.mockResolvedValue({name:"Fixture", short_description:"Full summary", about_the_game:"Full description",
@@ -23,7 +23,7 @@ describe("Game detail with an unavailable central API", () => {
     expect(details.steam).toMatchObject({about_the_game:"Full description",minimum_requirements:"Minimum"});
     expect(details.steam?.screenshots?.[0].full).toBe("https://steam.test/full.jpg");
     expect(details.steam?.movies?.[0].mp4).toBe("https://steam.test/trailer.mp4");
-    expect(fetcher).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
     expect(mocks.store).toHaveBeenCalledWith(7,expect.any(String),"ar",details);
   });
   it("keeps the catalog detail when Steam fails and the server has no details endpoint", async () => {
@@ -34,4 +34,15 @@ describe("Game detail with an unavailable central API", () => {
     expect(details.name).toBe("Fixture");
     expect(details.steam?.genres).toEqual(["Action"]);
   });
+});
+
+it("loads an external library game from server metadata and persists it without contacting Steam", async () => {
+  mocks.native.mockReturnValue(true);
+  mocks.store.mockResolvedValue(undefined);
+  const libraryGame = {...game,id:233980,app_id:233980,name:"Unepic"};
+  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async()=>({steam:{app_id:233980,name:"Unepic",short_description:"Stored summary",screenshots:[{full:"https://fixture.test/une.jpg"}]},metadata_state:"ready"})}));
+  const details = await new DigitalCatalog({catalogLoader:async()=>[game]}).loadDetails(233980,libraryGame);
+  expect(details.steam?.short_description).toBe("Stored summary");
+  expect(mocks.steam).not.toHaveBeenCalled();
+  expect(mocks.store).toHaveBeenCalledWith(233980,expect.any(String),"ar",details);
 });

@@ -55,8 +55,8 @@ export async function loadHome(): Promise<{games: CatalogGame[]; user: UserSumma
 export function findLocalGameForDetails(gameId: number, catalog = currentCatalog) {
   return catalog.find(game => game.id === gameId || game.app_id === gameId);
 }
-export const loadDetails = async (gameId: number): Promise<GameDetails> =>
-  gameDetailsResources.get(detailCacheKey(gameId), () => digitalCatalogService.loadDetails(gameId));
+export const loadDetails = async (gameId: number, knownGame?: CatalogGame): Promise<GameDetails> =>
+  gameDetailsResources.get(detailCacheKey(gameId), () => digitalCatalogService.loadDetails(gameId, knownGame ?? findLocalGameForDetails(gameId)));
 export function invalidateDetails(gameId: number) { gameDetailsResources.invalidate(detailCacheKey(gameId)); }
 export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
   const games = currentCatalog.length ? currentCatalog : await digitalCatalogService.loadCatalog();

@@ -1,3 +1,5 @@
+import AppSettings from "./AppSettings";
+import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
@@ -530,12 +532,12 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
-      </header>
-        <div className="topbar-actions">
+        <div className="topbar-actions ga-header-utilities">
           <PluginIndicator />
           {<button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /> {t("downloadsTitle")}</button>}
-          <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
+          <AppSettings /><AccessPass />
         </div>
+      </header>
 
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 

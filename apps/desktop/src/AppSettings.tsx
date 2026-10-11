@@ -34,6 +34,6 @@ export default function AppSettings() {
  const trigger = useRef<HTMLButtonElement>(null);
  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
  return <>
-  <button ref={trigger} type="button" className="ga-settings-fab" aria-label={c.title} onClick={() => setOpen(true)}><Settings size={20} /></button>
+  <button ref={trigger} type="button" className="ga-settings-fab" aria-label={c.title} onClick={() => setOpen(true)}><Settings size={20} /><span>{c.title}</span></button>
   {open ? <SettingsPanel onClose={close} /> : null}</>;
 }
