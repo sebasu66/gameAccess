@@ -64,9 +64,12 @@ not log into Steam or switch its current account.
 
 ## Implementation workflow
 
-GitHub is authoritative. Make code/documentation changes on the backed branch/PR,
-push, synchronize through AI_Local_Access, and test the exact pushed checkout.
-Keep unrelated local changes and private runtime configuration untouched.
+Use `dev` for development and `main` for stable releases. Local agents with direct
+filesystem access edit and test the existing checkout first, then commit/push on
+`dev`. GitHub-first applies only to remote agents: author/push on the existing
+GitHub `dev` branch, synchronize through AI_Local_Access, then test that checkout.
+Do not create a new branch or worktree for each task. Preserve unrelated local
+changes and private runtime configuration; report the exact tested commit.
 
 ## Optional source and execution boundary
 

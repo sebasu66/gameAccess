@@ -22,8 +22,10 @@ BASE/PLUS features and do not represent Steam licenses.
 ## Development
 
 Read [AGENTS.md](AGENTS.md), [the execution protocol](docs/EXECUTION_PROTOCOL.md)
-and [skill.md](skill.md) before implementation. Source and documentation follow
-GitHub-first authoring; synchronize the pushed commit before local builds/tests.
+and [skill.md](skill.md) before implementation. Development uses `dev`; `main`
+holds stable releases. Local agents edit and test the existing checkout first,
+then commit/push on `dev`. GitHub-first is only for remote agents without direct
+filesystem access. Do not create a new branch for each task.
 
 The React/Tauri client is in apps/desktop, the central FastAPI service in apps/api,
 and the bundled torrent/file, installation and execution helpers in apps/launcher.

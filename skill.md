@@ -1,8 +1,11 @@
 # GameAccess project guide
 
 Read docs/EXECUTION_PROTOCOL.md and docs/architecture.md before implementation.
-GitHub-first authoring is mandatory: branch/PR, push, synchronize with
-AI_Local_Access, then build/test the exact commit.
+Use `dev` for development and `main` for stable releases; do not create a branch
+for each task. Local agents with direct filesystem access edit and test in the
+existing checkout first, then commit/push on `dev`. GitHub-first applies only to
+remote agents: edit/push on the existing GitHub `dev` branch, synchronize through
+AI_Local_Access, then build/test the exact commit. Preserve user changes.
 
 ## Product boundaries
 
