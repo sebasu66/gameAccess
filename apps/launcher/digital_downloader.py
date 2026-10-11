@@ -131,9 +131,18 @@ def _write_status(payload: dict):
             temp_file = status_dir / f"{app_id}.json.tmp"
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(payload, f, ensure_ascii=False, indent=2)
-            os.replace(temp_file, status_file)
+            # Windows readers can briefly deny replacement of the status file.
+            # Keep the terminal event durable instead of silently losing it.
+            for attempt in range(20):
+                try:
+                    os.replace(temp_file, status_file)
+                    break
+                except PermissionError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.05)
     except Exception:
-        pass
+        logger.warning("AppID %s: could not persist download status", payload.get("appId") or g_app_id, exc_info=True)
 
 def emit_progress(
     app_id: str,
