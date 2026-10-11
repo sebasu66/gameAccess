@@ -46,8 +46,8 @@ jobs:
           cache-dependency-path: apps/desktop/package-lock.json
       - name: Install desktop dependencies
         run: npm ci --no-audit --no-fund
-      - name: Run current activation and library regressions
-        run: npx vitest run src/activationExpiry.test.ts src/libraryMembership.test.ts src/catalog/digitalDownloadService.test.ts
+      - name: Run activation, catalog, source and lifecycle regressions
+        run: npx vitest run src/activationExpiry.test.ts src/libraryMembership.test.ts src/catalog/digitalDownloadService.test.ts src/catalog/digitalDownloadQueue.test.ts src/catalog/pluginSources.test.ts src/catalog/digitalCatalogDetails.test.ts src/librarySearch.test.ts src/FlowDiagnostics.test.ts
       - name: Type-check desktop
         run: npx tsc --noEmit
 

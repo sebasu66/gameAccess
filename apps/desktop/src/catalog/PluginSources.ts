@@ -1,5 +1,6 @@
 import type { ExecutionProfile } from "./ExecutionProfiles";
 import { pluginGeneration, providerAvailable } from "./PluginRuntime";
+import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
@@ -83,10 +84,14 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   const manifests = await plugins();
   void narrate(`AppID ${keyOf(game)} · source discovery started for '${game.name}' with ${manifests.length} registered provider(s).`, { area: "DOWNLOAD_SOURCES" });
   const results = await Promise.all(manifests.map(async plugin => {
+    const diagnostics = new FlowDiagnostics(`source-discovery app_id=${keyOf(game)}`, "DOWNLOAD_SOURCES");
+    diagnostics.debug(`provider=${plugin.id} generation=${epoch} request started`);
     try {
       const params = new URLSearchParams({ app_id: String(keyOf(game)), name: game.name });
       const response = await fetch(endpoint(plugin, "/api/sources?" + params), { signal: AbortSignal.timeout(8000) });
+      diagnostics.debug(`provider=${plugin.id} HTTP=${response.status}`);
       if (!response.ok) {
+        diagnostics.fail(`Provider HTTP ${response.status}`);
         void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' replied HTTP ${response.status}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
         return [];
       }
@@ -95,9 +100,10 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
       void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' returned ${received.length} usable option(s).`, { area: "DOWNLOAD_SOURCES" });
       return received;
     } catch (error) {
+      diagnostics.fail(error);
       void narrate(`AppID ${keyOf(game)} · provider '${plugin.name}' source request failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
       return [];
-    }
+    } finally { diagnostics.discard(); }
   }));
   if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
@@ -196,13 +202,22 @@ async function check(games: CatalogGame[], scanKey: string): Promise<Record<numb
 export async function preparePluginSource(source: PluginSource): Promise<PluginSource> {
   if (!source.resolverUrl) return source;
   void narrate("Preparing selected source '" + source.sourceName + "' · " + source.title + ".", { area: "DOWNLOAD_SOURCES" });
+  const diagnostics = new FlowDiagnostics("source-resolution", "DOWNLOAD_SOURCES");
+  diagnostics.debug(`provider=${source.pluginName} source=${source.sourceName} resolver started`);
+  try {
   const response = await fetch(source.resolverUrl, { signal: AbortSignal.timeout(60000) });
+  diagnostics.debug(`Resolver HTTP=${response.status}`);
   const result = await response.json() as { url?: unknown; error?: unknown; mode?: unknown; executionProfile?: ExecutionProfile };
   if (!response.ok || !validUrl(result.url)) {
     throw new Error(typeof result.error === "string" ? result.error : "El plugin no pudo preparar el enlace de descarga.");
   }
   void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
+  diagnostics.succeed();
   return { ...source, executionProfile: result.executionProfile ?? source.executionProfile, url: result.url.trim(), delivery: result.mode === "browser" ? "browser" : source.delivery };
+  } catch (error) {
+    diagnostics.fail(error);
+    throw error;
+  } finally { diagnostics.discard(); }
 }
 
 export function invalidatePluginSources(): void {

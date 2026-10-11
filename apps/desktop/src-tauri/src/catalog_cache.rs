@@ -384,7 +384,7 @@ fn reconcile_missing(client: &Client, manifest_url: &str, target: &Path, manifes
     }
     let added=batch.games.len();
     let count=apply_batch(target,batch.games,batch.details,manifest)?;
-    let _=crate::append_narration_lines(vec![format!("Catalog inventory reconciled: {added} missing game(s) restored; {count} retained")],"CATALOG".into(),"INFO".into());
+    let _=crate::activity_log::append_narration_lines(vec![format!("Catalog inventory reconciled: {added} missing game(s) restored; {count} retained")],"CATALOG".into(),"INFO".into());
     Ok(count)
 }
 

@@ -40,3 +40,6 @@ npm run tauri -- build
 The NSIS installer includes the Python helpers and compressed SQLite catalog.
 See [discovery maintenance](tools/catalog-cache/README.md),
 [architecture](docs/architecture.md) and [the archive boundary](docs/STEAM_LICENSE_ARCHIVE.md).
+
+Development references: [module ownership](docs/MODULE_MAP.md) and
+[critical regression batches](docs/TESTING.md).

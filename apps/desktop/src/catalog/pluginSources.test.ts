@@ -1,4 +1,4 @@
-vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../narrationLog", () => ({ narrate: vi.fn(), narrateBatch: vi.fn().mockResolvedValue(undefined) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { checkPluginSources, invalidatePluginSources, getPluginSources, sourceAvailability, applySourceAvailability, preparePluginSource } from "./PluginSources";

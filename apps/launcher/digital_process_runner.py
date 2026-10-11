@@ -13,6 +13,7 @@ from digital_storage import DigitalGameStorage
 from digital_preferences import DigitalPreferences
 from digital_game_options import DigitalGameOptions, checked_executable, parse_arguments, repair_language, launch_as_administrator
 import logging
+from flow_diagnostics import FlowDiagnostics
 from logging.handlers import RotatingFileHandler
 
 os.makedirs("logs", exist_ok=True)
@@ -132,6 +133,23 @@ class DigitalProcessRunner:
         return repair_language(folder, language, logger, known_only=True)
 
     def run(self, action, app_id, name, command="", auto_installed=False):
+        diagnostics = FlowDiagnostics(logger, action, app_id)
+        diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
+        # Per invocation, not shared instance state: concurrent calls remain separate.
+        try:
+            result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+            if result.get("ok"):
+                diagnostics.succeed()
+            else:
+                diagnostics.fail(result.get("error", "Operation failed"))
+            return result
+        except Exception as error:
+            diagnostics.fail(error)
+            raise
+        finally:
+            diagnostics.discard()
+
+    def _run(self, action, app_id, name, command, auto_installed, diagnostics):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
             if action == "settings":
@@ -146,6 +164,7 @@ class DigitalProcessRunner:
                 return {"ok": True, "statuses": self.storage.snapshot(games)}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
+            diagnostics.debug("Resolved app folder=%s", folder)
             game_options = DigitalGameOptions(self.storage)
             if action == "game-options":
                 return {**result, "ok": True, **game_options.inspect(app_id, name)}
@@ -184,7 +203,9 @@ class DigitalProcessRunner:
             # Apply optional local profile before executable discovery.
             profile = load_profile(self.storage.launcher, app_id)
             logger.info("AppID %s: applying optional execution profile; steps=%s", app_id, len(profile["beforePlay"]))
+            diagnostics.debug("Execution profile loaded; preparation_steps=%s", len(profile["beforePlay"]))
             apply_before_play(folder, profile)
+            diagnostics.debug("Before-play preparation finished")
             options = game_options.load(app_id)
             self.patch_crack_language(folder, options["language"])
                 
@@ -195,6 +216,7 @@ class DigitalProcessRunner:
                 candidates = self.get_candidates(folder, name, command)
                 extra = parse_arguments(options["arguments"])
                 candidates = [(exe, [*arguments, *extra]) for exe, arguments in candidates]
+            diagnostics.debug("Candidates=%s administrator=%s", [str(exe) for exe, _ in candidates], options["administrator"])
             if options["administrator"]:
                 executable, arguments = candidates[0]
                 if executable.suffix.lower() != ".exe":
@@ -208,6 +230,7 @@ class DigitalProcessRunner:
             for executable, arguments in candidates:
                 logger.info(f"Intentando ejecutar: {executable} {arguments}")
                 try:
+                    diagnostics.debug("Starting candidate=%s cwd=%s", executable, executable.parent)
                     if executable.suffix.lower() == ".bat":
                         process = subprocess.Popen(["cmd.exe", "/c", str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
                     else:
@@ -256,6 +279,7 @@ class DigitalProcessRunner:
                     return {**result, "ok": True, "pid": process.pid, "command": str(executable)}
                 except Exception as e:
                     logger.warning(f"Excepcion al intentar {executable}: {e}")
+                    diagnostics.debug("Candidate failed: %s", e)
                     last_error = str(e)
                     continue
                     

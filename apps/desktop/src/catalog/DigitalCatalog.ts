@@ -3,6 +3,7 @@ import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
 import { readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
 import { getSteamStoreMetadata, hasTauriRuntime } from "../native";
+import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
 export type { PluginSource, PluginManifest } from "./PluginSources";
@@ -54,7 +55,19 @@ export class DigitalCatalog {
   /**
    * Loads installer metadata immediately, then refreshes the shared discovery snapshot.
    */
-  async loadCatalog({ requireRemote = false }: { requireRemote?: boolean } = {}): Promise<CatalogGame[]> {
+  async loadCatalog(options: { requireRemote?: boolean } = {}): Promise<CatalogGame[]> {
+    const diagnostics = new FlowDiagnostics("catalog-load", "CATALOG");
+    diagnostics.debug(`Loading catalog; requireRemote=${Boolean(options.requireRemote)}`);
+    try {
+      const games = await this.readCatalog(options, diagnostics);
+      diagnostics.debug(`Catalog ready; records=${games.length}`);
+      diagnostics.succeed();
+      return games;
+    } catch (error) { diagnostics.fail(error); throw error; }
+    finally { diagnostics.discard(); }
+  }
+
+  private async readCatalog({ requireRemote = false }: { requireRemote?: boolean }, diagnostics: FlowDiagnostics): Promise<CatalogGame[]> {
     let rawList: (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
 
     if (this.options.catalogLoader) {
@@ -70,6 +83,7 @@ export class DigitalCatalog {
 
     // Catalog membership is independent of download availability.
     const validRecords = rawList.filter(item => Number.isSafeInteger(item.id ?? item.app_id) && (item.id ?? item.app_id ?? 0) > 0);
+    diagnostics.debug(`Received records=${rawList.length}; valid=${validRecords.length}`);
     this.rawRecords.clear();
     const digitalRecords: DigitalGameRecord[] = [];
     for (const item of validRecords) {
@@ -101,11 +115,24 @@ export class DigitalCatalog {
    * enriched with Steam Store metadata if available.
    */
   async loadDetails(gameId: number, knownGame?: CatalogGame): Promise<GameDetails> {
+    const diagnostics = new FlowDiagnostics(`detail-load app_id=${gameId}`, "DETAILS");
+    diagnostics.debug(`language=${getSteamStoreLanguage()} detail lookup entered`);
+    try {
+      const detail = await this.readDetails(gameId, knownGame, diagnostics);
+      diagnostics.debug(`Detail returned; state=${detail.metadata_state}`);
+      diagnostics.succeed();
+      return detail;
+    } catch (error) { diagnostics.fail(error); throw error; }
+    finally { diagnostics.discard(); }
+  }
+
+  private async readDetails(gameId: number, knownGame: CatalogGame | undefined, diagnostics: FlowDiagnostics): Promise<GameDetails> {
     const games = this.cachedGames ?? (await this.loadCatalog());
     const game = games.find((item) => item.id === gameId || item.app_id === gameId) ?? knownGame;
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
+    diagnostics.debug(`Local detail cache=${cached?.steam ? "hit" : "miss"}; schema=${cached?.detail_schema_version}`);
     if (cached?.steam && cached.detail_schema_version === 2) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
 
     // Prefer durable server metadata; public Steam is only a cache-miss fallback.
@@ -116,6 +143,7 @@ export class DigitalCatalog {
           const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`, {
             signal: AbortSignal.timeout(8000)
           });
+          diagnostics.debug(`Server detail HTTP=${res.status}`);
           if (res.ok) {
             const serverData = await res.json();
             if (serverData && serverData.steam) {
@@ -127,6 +155,7 @@ export class DigitalCatalog {
           }
         }
       } catch (e) {
+        diagnostics.debug(`Server detail failed; trying fallback: ${String(e)}`);
         void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
         // Continue to fallback
       }
@@ -135,6 +164,7 @@ export class DigitalCatalog {
     // Opening a detail can use public Steam metadata even when the central API is older/offline.
     if (game.app_id && hasTauriRuntime()) {
       try {
+        diagnostics.debug("Trying native Steam detail fallback");
         const raw = await getSteamStoreMetadata(game.app_id);
         if (raw) {
           const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready", detail_schema_version: 2 }, raw));
@@ -146,6 +176,7 @@ export class DigitalCatalog {
       }
     }
     if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
+    diagnostics.debug("Returning catalog-only detail fallback");
     const fallbackDetails: GameDetails = {
       ...game,
       steam: {

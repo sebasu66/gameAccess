@@ -60,7 +60,8 @@ def test_pending_key_expires_and_revocation_blocks_redemption_and_session(activa
 
 @pytest.mark.parametrize("path", ["/users/1"])
 def test_expired_key_denies_protected_requests(activation_db, monkeypatch, tmp_path, path):
-    monkeypatch.setattr(core, "engine", activation_db)
+    from app import activation_routes
+    monkeypatch.setattr(activation_routes, "engine", activation_db)
     monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
     installation = str(uuid4())
     with Session(activation_db) as session:

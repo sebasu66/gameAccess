@@ -8,7 +8,7 @@ const REFRESH: u64 = 60;
 pub const DENIED: &str = "GAMEACCESS_ACCESS_DENIED";
 pub const UNAVAILABLE: &str = "GAMEACCESS_ACCESS_UNAVAILABLE";
 fn activity(message: String, level: &str) {
-    let _ = crate::append_narration_lines(vec![message], "ACCESS".into(), level.into());
+    let _ = crate::activity_log::append_narration_lines(vec![message], "ACCESS".into(), level.into());
 }
 
 #[derive(Clone)]

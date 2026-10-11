@@ -125,3 +125,10 @@ This is service access control, not game DRM. Local development API instances
 are trusted only for development; a distributed client must not contain database
 credentials or privileged server configuration. Server-side validation remains
 authoritative for remote protected endpoints.
+
+## Module ownership and regression
+
+See [MODULE_MAP.md](MODULE_MAP.md) for flow owners and dependency directions,
+and [TESTING.md](TESTING.md) for focused and full regression batches.
+Diagnostic detail belongs to one transaction, is buffered without a size limit,
+discarded on success, and flushed once on failure. INFO milestones stay durable.

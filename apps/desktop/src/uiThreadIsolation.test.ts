@@ -1,6 +1,6 @@
+import steamCommandsSource from "../src-tauri/src/steam_commands.rs?raw";
 import { describe, expect, it } from "vitest";
 
-import tauriMainSource from "../src-tauri/src/main.rs?raw";
 import appSource from "./App.tsx?raw";
 import libraryRoomSource from "./LibraryRoom.tsx?raw";
 import { selectedMovie, selectedVideo } from "./LibraryRoomParts";
@@ -23,8 +23,8 @@ describe("UI thread isolation contract", () => {
   });
 
   it("keeps Steam Store metadata off the blocking Tauri command path", () => {
-    expect(tauriMainSource).toContain("async fn steam_store_metadata");
-    expect(tauriMainSource).toContain("spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, force.unwrap_or(false)))");
+    expect(steamCommandsSource).toContain("async fn steam_store_metadata");
+    expect(steamCommandsSource).toContain("spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, force.unwrap_or(false)))");
   });
 
   it("uses Steam Store movies as the library hero video source", () => {
