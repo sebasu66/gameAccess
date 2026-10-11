@@ -815,16 +815,35 @@ def digital_game_details(
     language = language.casefold()
     country = country.casefold()
     # Use the injected session instead of opening a new one
-    game = session.exec(select(Game).where(Game.app_id == app_id)).first()
-    if not game:
+    if app_id <= 0:
         raise HTTPException(404, "digital game metadata not found")
-    cached = get_cached_steam_metadata_locale(engine, int(game.id), language, country)
-    if cached:
-        return {"steam": cached, "metadata_state": "ready"}
-    general = get_cached_steam_metadata(engine, int(game.id))
-    if general:
-        return {"steam": general, "metadata_state": "ready"}
-    return {"steam": None, "metadata_state": "missing"}
+    game = session.exec(select(Game).where(Game.app_id == app_id)).first()
+    if game:
+        cached = get_cached_steam_metadata_locale(engine, int(game.id), language, country)
+        if cached:
+            return {"steam": cached, "metadata_state": "ready"}
+        general = get_cached_steam_metadata(engine, int(game.id))
+        if general:
+            return {"steam": general, "metadata_state": "ready"}
+    # A library game can predate the discovery baseline. Fill its durable server
+    # record on a genuine cache miss; subsequent opens never re-fetch Steam.
+    try:
+        metadata = steam_catalog.fetch(app_id, language=language, country=country)
+    except SteamCatalogError as exc:
+        _catalog_logger.warning("Detail cache miss failed: AppID=%s language=%s", app_id, language)
+        raise HTTPException(502, "Game metadata is temporarily unavailable") from exc
+    if metadata.get("type") not in CATALOG_ALLOWED_PRODUCT_TYPES or not metadata.get("name"):
+        raise HTTPException(404, "Steam game metadata not found")
+    if game is None:
+        game = Game(slug=f"steam-{app_id}", name=metadata["name"], app_id=app_id, credit_cost_per_hour=0)
+        session.add(game)
+        session.commit()
+        session.refresh(game)
+    seed_known_games(engine)
+    upsert_steam_metadata(engine, int(game.id), metadata)
+    upsert_steam_metadata_locale(engine, int(game.id), language, country, metadata)
+    _catalog_logger.info("Detail cache populated: AppID=%s game_id=%s language=%s; preserved for later opens", app_id, game.id, language)
+    return {"steam": metadata, "metadata_state": "ready"}
 
 
 @app.get("/users/{user_id}")

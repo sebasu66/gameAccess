@@ -15,7 +15,6 @@ import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
-import { activationHeaders, invalidateActivation } from "../activation";
 
 
 
@@ -117,7 +116,7 @@ export class DigitalCatalog {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {
           const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`, {
-            headers: activationHeaders(), signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(8000)
           });
           if (res.ok) {
             const serverData = await res.json();
@@ -127,13 +126,9 @@ export class DigitalCatalog {
               await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
               return detail;
             }
-          } else if (res.status === 401) {
-            invalidateActivation();
-            throw new Error("Tu tiempo de acceso terminó. Ingresa una nueva llave para continuar.");
           }
         }
       } catch (e) {
-        if (e instanceof Error && e.message.includes("tiempo de acceso")) throw e;
         void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
         // Continue to fallback
       }

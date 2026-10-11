@@ -66,3 +66,21 @@ def test_update_batch_contains_only_additions_and_changes_never_deletions(tmp_pa
     assert [game["app_id"] for game in batch["games"]] == [30]
     assert "deleted" not in batch
     assert "delete" not in batch
+
+def test_inventory_diff_repairs_equal_revision_with_missing_game(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    write_snapshot([(7, 10, json.dumps({"id": 7, "app_id": 10, "name": "Present"})),
+                    (8, 20, json.dumps({"id": 8, "app_id": 20, "name": "Missing"}))], {}, tmp_path, "fixture")
+    monkeypatch.setattr(service, "ROOT", tmp_path)
+    monkeypatch.setattr(service, "_cached_revision", "")
+    app = FastAPI()
+    app.include_router(service.router)
+    revision = service.manifest()["revision"]
+    response = TestClient(app).post("/library/catalog/reconcile",
+                                   json={"present": [10, 999], "base_revision": revision})
+    assert response.status_code == 200
+    assert hashlib.sha256(response.content).hexdigest() == response.headers["X-Catalog-SHA256"]
+    batch = json.loads(gzip.decompress(response.content))
+    assert [game["app_id"] for game in batch["games"]] == [20]
+    assert batch["base_revision"] == batch["revision"] == revision

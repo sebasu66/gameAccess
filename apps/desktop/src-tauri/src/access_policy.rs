@@ -13,7 +13,7 @@ fn activity(message: String, level: &str) {
 
 #[derive(Clone)]
 struct Lease {
-    base: String, token: String, status: Value,
+    base: String, token: String,
     received: Instant, wall: SystemTime, ttl: Duration,
 }
 impl Lease {
@@ -83,7 +83,7 @@ pub fn check(base: &str, token: &str) -> Result<Value, String> {
     if ttl.is_zero() { return Err(DENIED.into()); }
     let mut state = STATE.lock().map_err(|_| UNAVAILABLE.to_string())?;
     if generation != state.generation { return Err(DENIED.into()); }
-    state.lease = Some(Lease { base, token: token.into(), status: status.clone(), received: Instant::now(), wall: SystemTime::now(), ttl });
+    state.lease = Some(Lease { base, token: token.into(), received: Instant::now(), wall: SystemTime::now(), ttl });
     state.ended = false;
     drop(state);
     activity(format!("Native access verified; grant valid for {} seconds", ttl.as_secs()), "INFO");
@@ -103,8 +103,7 @@ pub fn finish_ended(cleanup: impl FnOnce()) {
 }
 #[cfg(test)]
 pub fn grant_fixture() {
-    let status=serde_json::json!({"active":true,"permissions":["downloads","extended-catalog","big-screen","library"],"access_tier":"base"});
-    STATE.lock().unwrap().lease=Some(Lease{base:String::new(),token:String::new(),status,received:Instant::now(),wall:SystemTime::now(),ttl:Duration::from_secs(300)});
+    STATE.lock().unwrap().lease=Some(Lease{base:String::new(),token:String::new(),received:Instant::now(),wall:SystemTime::now(),ttl:Duration::from_secs(300)});
 }
 pub fn refresh_due() {
     let lease = STATE.lock().ok().and_then(|state| state.lease.clone());
@@ -139,7 +138,7 @@ mod tests {
     }
     #[test]
     fn elapsed_permission_cannot_be_extended_by_changing_ui_state() {
-        let lease = Lease {base:String::new(),token:String::new(),status:Value::Null, received:Instant::now()-Duration::from_secs(6),wall:SystemTime::now(),ttl:Duration::from_secs(5)};
+        let lease = Lease {base:String::new(),token:String::new(), received:Instant::now()-Duration::from_secs(6),wall:SystemTime::now(),ttl:Duration::from_secs(5)};
         assert!(lease.remaining().is_zero());
     }
 }
