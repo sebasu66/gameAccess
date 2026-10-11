@@ -164,7 +164,8 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         expire();
         return;
       }
-      if (remaining <= ACTIVATION_WARNING_MS) setNotice(t("activationExpiringSoon"));
+      const keyStillRemaining = keyRemaining - Math.max(performance.now() - observedMonotonic, Date.now() - observedAt);
+      if (keyStillRemaining <= ACTIVATION_WARNING_MS) setNotice(t("activationExpiringSoon"));
       timer = window.setTimeout(tick, nextActivationTimerDelay(remaining));
     };
 

@@ -89,7 +89,7 @@ def watch_controls():
                 if g_active_subprocess and g_active_subprocess.poll() is None:
                     g_active_subprocess.terminate()
                 return
-            if action == "pause" and g_last_payload.get("phase") in ("downloading", "preparing"):
+            if action == "pause" and g_last_payload.get("phase") in ("downloading", "preparing", None):
                 g_paused.set()
                 emit_json(dict(g_last_payload))
             elif action == "resume" and g_paused.is_set():
@@ -1057,7 +1057,7 @@ def main():
     parser.add_argument("--app-id", "--appId", dest="appId", required=True, help="Application/Game ID (e.g. 1091500)")
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source-delivery", choices=("download", "browser"), default="download")
-    parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Download link or 'auto' to resolve automatically")
+    parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Explicit HTTP/HTTPS link or magnet supplied manually or by a plugin")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
@@ -1109,30 +1109,8 @@ def main():
 
     download_source = (args.download_source or "").strip()
     if not args.extract_only and (not download_source or download_source.lower() == "auto"):
-        emit_progress(
-            app_id=app_id,
-            phase="preparing",
-            progress_percent=3.0,
-            status_text="Localizando archivos de instalación recomendados..."
-        )
-        try:
-            from digital_source_resolver import DigitalSourceResolver
-            resolver = DigitalSourceResolver()
-            best = resolver.resolve_best_option(game_name)
-            if best and best.get("uri"):
-                download_source = best["uri"]
-                emit_progress(
-                    app_id=app_id,
-                    phase="preparing",
-                    progress_percent=8.0,
-                    status_text=f"Paquete seleccionado: {best.get('title', game_name)} ({best.get('size', '')})"
-                )
-            else:
-                raise RuntimeError(f"No se encontraron servidores disponibles para '{game_name}'.")
-        except Exception as err:
-            logger.error(f"Fallo resolviendo la fuente: {err}")
-            emit_error(app_id, f"No se pudo resolver la fuente de instalación: {err}")
-            sys.exit(1)
+        emit_error(app_id, "Añade un enlace manual o selecciona una fuente de un plugin.")
+        sys.exit(1)
 
     if args.extract_only:
         logger.info(f"Modo: Solo extracción. Archivo: {args.extract_only}")
