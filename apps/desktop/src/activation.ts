@@ -172,7 +172,9 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
 
 export async function redeemActivation(key: string): Promise<ActivationStatus> {
   const id = await getInstallationId();
-  const response = await activationFetch(await activationUrl("/activation/redeem"), {
+  const redeemUrl = await activationUrl("/activation/redeem");
+  const authority = redeemUrl.slice(0, -"/activation/redeem".length);
+  const response = await activationFetch(redeemUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key: key.trim(), installation_id: id }),
@@ -184,7 +186,8 @@ export async function redeemActivation(key: string): Promise<ActivationStatus> {
     throw new Error(body.detail ? translateServerDetail(body.detail) : translate("activationGenericFailed"));
   }
   const result = await response.json() as { session_token: string; expires_at: string; cacheable?: boolean };
-  const status = await checkActivation(result.session_token);
+  // A concurrent health probe must not switch the authority after issuing this token.
+  const status = await checkActivation(result.session_token, undefined, authority);
   const persistent = result.cacheable === true && status.cacheable === true;
   await saveActivationSession(result.session_token, persistent, persistent ? key.trim() : null);
   publishAccess(persistent ? { key: key.trim(), expires_at: status.expires_at, access_tier: activationTier || "base" } : null);
