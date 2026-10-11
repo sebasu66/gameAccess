@@ -60,6 +60,7 @@ function errorMessage(error: unknown) {
 
 function isVisible(element: Element) {
   const node = element as HTMLElement;
+  if (node.closest('[inert], [aria-hidden="true"]')) return false;
   const style = window.getComputedStyle(node);
   const rect = node.getBoundingClientRect();
   return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
@@ -225,7 +226,7 @@ async function executeTask(task: AutomationTask, games: CatalogGame[], current: 
       if (!task.selector) throw new Error("click requires selector.");
       const element = await waitFor(() => {
         const candidate = document.querySelector<HTMLElement>(task.selector!);
-        return candidate && isVisible(candidate) ? candidate : null;
+        return candidate && isVisible(candidate) && !(candidate instanceof HTMLButtonElement && candidate.disabled) ? candidate : null;
       }, (task.timeout_seconds ?? 30) * 1000, `selector ${task.selector}`);
       element.click();
       await sleep(250);
