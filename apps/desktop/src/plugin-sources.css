@@ -10,3 +10,8 @@
 
 .ga-detail-actions .plugin-download-action>.source-options-toggle{height:54px;min-height:54px;width:48px;min-width:48px;padding:0;display:grid;place-items:center;border-radius:5px;align-self:stretch}
 .source-selector-panel .manual-download-form{max-height:240px;overflow:auto}
+
+.source-selector-panel>button{display:block;width:100%;margin:8px 0;padding:10px 12px;background:#ffffff08;color:#eee;border:1px solid #ffffff20;border-radius:8px;text-align:left;font:inherit;cursor:pointer}
+.source-selector-panel>button:hover{border-color:#ff6a00;background:#ffffff12}
+.source-selector-panel{max-height:min(520px,70vh);overflow:auto}
+.source-selector-list button{font:inherit;line-height:1.4}
