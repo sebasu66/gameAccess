@@ -17,6 +17,8 @@ export const SOURCES_CHANGED_EVENT = "gameaccess:sources-changed";
 const availability = new Map<number, SourceAvailability>();
 const detailSources = new Map<number, PluginSource[]>();
 const pending = new Map<string, Promise<Record<number, number>>>();
+const completedScans = new Map<string, number>();
+const SCAN_CACHE_MS = 5 * 60 * 1000;
 const keyOf = (game: CatalogGame) => game.app_id ?? game.id;
 
 export function sourceAvailability(game: CatalogGame): SourceAvailability {
@@ -114,9 +116,12 @@ export function suggestedSource(game: CatalogGame): PluginSource | undefined {
 }
 export async function checkPluginSources(games: CatalogGame[]): Promise<Record<number, number>> {
   const key = pluginGeneration() + ":" + JSON.stringify(games.map(game => [keyOf(game), game.name]));
+  if (Date.now() - (completedScans.get(key) ?? 0) < SCAN_CACHE_MS) {
+    return Object.fromEntries(games.map(game => [keyOf(game), sourceAvailability(game).count]));
+  }
   const existing = pending.get(key);
   if (existing) return existing;
-  const request = check(games).finally(() => pending.delete(key));
+  const request = check(games, key).finally(() => pending.delete(key));
   pending.set(key, request);
   return request;
 }
@@ -139,7 +144,9 @@ function applyBulkBatch(batch: CatalogGame[], data: Record<string, unknown>, nex
   }
 }
 
-async function check(games: CatalogGame[]): Promise<Record<number, number>> {
+async function check(games: CatalogGame[], scanKey: string): Promise<Record<number, number>> {
+  let hadErrors = false;
+  let lastPublished = 0;
   const epoch = pluginGeneration();
   const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
   const manifests = await plugins();
@@ -158,14 +165,18 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
           signal: AbortSignal.timeout(15000),
         });
         if (!response.ok) {
+          hadErrors = true;
           void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: HTTP ${response.status}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
           continue;
         }
         const data = await response.json() as Record<string, unknown>;
         if (epoch !== pluginGeneration()) return;
         applyBulkBatch(batch, data, next, plugin.name);
-        publish();
+        if (games.length <= 500 || Date.now() - lastPublished >= 1000) {
+          lastPublished = Date.now(); publish();
+        }
       } catch (error) {
+        hadErrors = true;
         void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
       }
     }
@@ -174,6 +185,10 @@ async function check(games: CatalogGame[]): Promise<Record<number, number>> {
   for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
   publish();
+  if (!hadErrors) {
+    completedScans.set(scanKey, Date.now());
+    if (completedScans.size > 4) completedScans.delete(completedScans.keys().next().value!);
+  }
   return Object.fromEntries([...next].map(([id, entry]) => [id, entry.count]));
 }
 
@@ -192,6 +207,7 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
 
 export function invalidatePluginSources(): void {
   availability.clear();
+  completedScans.clear();
   detailSources.clear();
   publish();
 }

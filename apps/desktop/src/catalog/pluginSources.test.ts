@@ -1,14 +1,24 @@
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { checkPluginSources, getPluginSources, sourceAvailability, applySourceAvailability, preparePluginSource } from "./PluginSources";
+import { checkPluginSources, invalidatePluginSources, getPluginSources, sourceAvailability, applySourceAvailability, preparePluginSource } from "./PluginSources";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const game = { id: 7, app_id: 700, name: "Example", slug: "example", credit_cost_per_hour: 0, copies_total: 0, copies_available: 0 } satisfies CatalogGame;
 const plugin = { id: "test", name: "Provider", type: "source_provider", endpoint: "http://127.0.0.1:45000/" };
+beforeEach(() => invalidatePluginSources());
 afterEach(() => { vi.unstubAllGlobals(); vi.mocked(invoke).mockReset(); });
 describe("External plugin sources", () => {
+  it("reuses a completed scan on focus but refetches after a plugin revision invalidates it", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    const fetcher = vi.fn().mockResolvedValue({ok:true,json:async()=>({700:{count:2,sources:["Feed A"]}})});
+    vi.stubGlobal("fetch",fetcher);
+    await checkPluginSources([game]); await checkPluginSources([game]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    invalidatePluginSources(); await checkPluginSources([game]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("uses the Steam AppID, rejects unusable URLs, deduplicates and keeps source-specific sizes", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => [

@@ -18,8 +18,13 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
       load: () => digitalCatalogService.loadCatalog({requireRemote: true}),
       apply: games => latest.current.apply(games),
       added: games => {
+        // Importing the bundled/server baseline is synchronization, not thousands of new-release alerts.
+        if (games.length > 100) {
+          void narrate(`Catalog baseline synchronized: ${games.length} additional game(s); individual notices suppressed.`, {area:"CATALOG"});
+          return;
+        }
         const createdAt = Date.now();
-        setNotices(current => [...games.map(game => ({key: ++sequence.current, game, createdAt})).reverse(), ...current]);
+        setNotices(current => [...games.map(game => ({key: ++sequence.current, game, createdAt})).reverse(), ...current].slice(0, 12));
         playCatalogBell();
         void narrate(`Catalog refresh added ${games.length} game(s).`, {area:"CATALOG"});
       },
