@@ -38,6 +38,10 @@ export interface CatalogGame {
   steam_review_score?: number | null;
   steam_review_count?: number | null;
   metacritic_score?: number | null;
+  /** Known once Steam's detail payload has been cached for this game. */
+  required_age?: number | string | null;
+  content_descriptors?: string[] | null;
+  adult_only?: boolean | null;
   request_count_total?: number;
   single_player?: boolean | null;
   multiplayer?: boolean | null;

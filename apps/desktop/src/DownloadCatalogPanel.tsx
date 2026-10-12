@@ -1,11 +1,12 @@
 import FilledIcon from "./FilledIcon";
 import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
+import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog, { activeFilterTags } from "./LibraryFilterDialog";
 import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import { ArrowUpDown, ArrowUpToLine, Loader2, Star, X } from "lucide-react";
 
@@ -56,7 +57,7 @@ interface DownloadGameCardProps {
   favorite: boolean;
 }
 
-function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
+const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
   const state = gameStateManager.resolve(status);
   const active = state.transferActive;
   const progress = downloadManager.progress(status);
@@ -103,7 +104,7 @@ function DownloadGameCard({ game, index, selected, status, pinned, favorite, onS
       <div className="ga-card-caption"><span>{game.name}</span><small>{game.release_date?.match(/\d{4}/)?.[0]}</small></div>
     </div>
   );
-}
+});
 
 interface DownloadCatalogPanelProps {
   toolbarTarget?: HTMLDivElement | null;
@@ -153,14 +154,15 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
-  const indexes = new Map(props.games.map((game, index) => [game.id, index]));
+  const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games.length, props.catalogSort, props.games[0]?.id]);
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window === "undefined" ? 1440 : window.innerWidth,
     height: typeof window === "undefined" ? 900 : window.innerHeight,
   }));
-  const facets = getLibrarySearchFacets(allGames);
+  const facets = useMemo(() => getLibrarySearchFacets(allGames), [allGames.length, allGames[0]?.id]);
+  const favoritesCount = useMemo(() => displaySection.games.filter(game => props.preferences?.[game.id] === 1).length, [displaySection.games, props.preferences]);
   useEffect(() => {
     const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", updateViewport);
@@ -169,8 +171,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
   const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
+  setCoverCardWidth(coverFloor);
   const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
-  const toggleFilter = (group: "genres" | "features" | "sources", value: string) => {
+  const toggleFilter = (group: "genres" | "features" | "sources" | "tags", value: string) => {
     const current = (searchFilters[group] ?? []) as string[];
     const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
     onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
@@ -187,16 +190,88 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   ];
   const selectedSortLabel = sortOptions.find(option => option.id === catalogSort)?.label ?? "Ordenar";
 
+  const latestStateRef = useRef({ selectedIndex: props.selectedIndex, indexes, onSelect: props.onSelect });
+  useEffect(() => {
+    latestStateRef.current = { selectedIndex: props.selectedIndex, indexes, onSelect: props.onSelect };
+  });
+
   useEffect(() => {
     const grid = props.gridRef.current;
     const room = grid?.closest<HTMLElement>(".library-room");
     if (!grid) return;
-    const updateVisibility = () => setShowBackToTop(grid.scrollTop > 320 || (room?.scrollTop ?? 0) > 320 || window.scrollY > 320);
+    let clampRaf = 0;
+    const clampSelectionToViewport = () => {
+      if (grid.dataset.tweening === "true") return;
+      const selected = grid.querySelector<HTMLElement>(".is-selected");
+      const gridRect = grid.getBoundingClientRect();
+      const allCards = Array.from(grid.querySelectorAll<HTMLButtonElement>(".library-room-card"));
+      if (!allCards.length) return;
+
+      const visibleCards = allCards.filter(card => {
+        const r = card.getBoundingClientRect();
+        return r.bottom > gridRect.top + 20 && r.top < gridRect.bottom - 20;
+      });
+      if (!visibleCards.length) return;
+
+      let needsClamp = false;
+      let offscreenDirection: "above" | "below" = "above";
+      let selectedLeft = 0;
+
+      if (!selected) {
+        needsClamp = true;
+        offscreenDirection = "above";
+      } else {
+        const selectedRect = selected.getBoundingClientRect();
+        selectedLeft = selectedRect.left;
+        if (selectedRect.bottom < gridRect.top + 16) {
+          needsClamp = true;
+          offscreenDirection = "above";
+        } else if (selectedRect.top > gridRect.bottom - 16) {
+          needsClamp = true;
+          offscreenDirection = "below";
+        }
+      }
+
+      if (!needsClamp) return;
+
+      let targetCards: HTMLButtonElement[];
+      if (offscreenDirection === "above") {
+        const minTop = Math.min(...visibleCards.map(c => c.getBoundingClientRect().top));
+        targetCards = visibleCards.filter(c => Math.abs(c.getBoundingClientRect().top - minTop) < 18);
+      } else {
+        const maxTop = Math.max(...visibleCards.map(c => c.getBoundingClientRect().top));
+        targetCards = visibleCards.filter(c => Math.abs(c.getBoundingClientRect().top - maxTop) < 18);
+      }
+
+      let bestCard = targetCards[0];
+      let bestDiff = Math.abs(bestCard.getBoundingClientRect().left - selectedLeft);
+      for (const card of targetCards) {
+        const diff = Math.abs(card.getBoundingClientRect().left - selectedLeft);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestCard = card;
+        }
+      }
+
+      const gameId = Number(bestCard.dataset.libraryGameId);
+      const targetIndex = latestStateRef.current.indexes.get(gameId);
+      if (targetIndex !== undefined && targetIndex !== latestStateRef.current.selectedIndex) {
+        grid.dataset.scrollClamping = "true";
+        latestStateRef.current.onSelect(targetIndex, false);
+      }
+    };
+
+    const updateVisibility = () => {
+      setShowBackToTop(grid.scrollTop > 320 || (room?.scrollTop ?? 0) > 320 || window.scrollY > 320);
+      if (clampRaf) cancelAnimationFrame(clampRaf);
+      clampRaf = requestAnimationFrame(clampSelectionToViewport);
+    };
     grid.addEventListener("scroll", updateVisibility, { passive: true });
     room?.addEventListener("scroll", updateVisibility, { passive: true });
     window.addEventListener("scroll", updateVisibility, { passive: true, capture: true });
     updateVisibility();
     return () => {
+      if (clampRaf) cancelAnimationFrame(clampRaf);
       grid.removeEventListener("scroll", updateVisibility);
       room?.removeEventListener("scroll", updateVisibility);
       window.removeEventListener("scroll", updateVisibility, true);
@@ -207,6 +282,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     props.gridRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     props.gridRef.current?.closest<HTMLElement>(".library-room")?.scrollTo({ top: 0, behavior: "smooth" });
     window.scrollTo({ top: 0, behavior: "smooth" });
+    props.onSelect(0, false);
   };
 
 
@@ -237,7 +313,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock"><SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {displaySection.games.filter(game => props.preferences?.[game.id] === 1).length} {locale === "es" ? "favoritos" : "favorites"}</output>
+          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {favoritesCount} {locale === "es" ? "favoritos" : "favorites"}</output>
           <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label></div></div>
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}

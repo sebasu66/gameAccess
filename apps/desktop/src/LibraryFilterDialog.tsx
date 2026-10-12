@@ -6,7 +6,7 @@ import CircularScrollbar from "./CircularScrollbar";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
-import { EMPTY_LIBRARY_FILTERS, GAMEPLAY_FILTER_GROUPS, featureLabel, filterLibraryGames, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
+import { EMPTY_LIBRARY_FILTERS, GAMEPLAY_FILTER_GROUPS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, getTagCounts, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 
 export default function LibraryFilterDialog({ games, query, filters, genres, onApply }: {
@@ -25,7 +25,11 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const scrollRef = useRef<HTMLDivElement>(null);
   const matches = filterLibraryGames(games, query, draft);
   const possible = matches.filter(game => game.filter_match === "possible").length;
-  const toggle = (group: "genres" | "features" | "sources", key: string) => setDraft(current => {
+  // Counts are measured on the games the search already matched, so the numbers
+  // next to each tag describe what selecting it would actually leave.
+  const searched = filterLibraryGames(games, query, { ...EMPTY_LIBRARY_FILTERS, includeUncertain: draft.includeUncertain });
+  const tagCounts = getTagCounts(searched, CONTENT_FILTER_GROUPS.flatMap(group => group.tags));
+  const toggle = (group: "genres" | "features" | "sources" | "tags", key: string) => setDraft(current => {
     const selected = (current[group] ?? []) as string[];
     return { ...current, [group]: selected.includes(key) ? selected.filter(value => value !== key) : [...selected, key] } as LibrarySearchFilters;
   });
@@ -36,6 +40,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
       <p>Elegí cualquiera de las opciones de cada grupo.  Los grupos se combinan para afinar la búsqueda.</p>
       <div className="ga-scroll-frame ga-filter-scroll-frame"><div ref={scrollRef} className="ga-filter-groups">
         <details className="ga-filter-accordion"><summary>Géneros <small>{draft.genres.length || ""}</small></summary><div className="ga-filter-choices">{genres.map(genre => <label key={genre}><input type="checkbox" checked={draft.genres.includes(genre)} onChange={() => toggle("genres", genre)} />{genre}</label>)}</div></details>
+        {CONTENT_FILTER_GROUPS.map(group => <details className="ga-filter-accordion" key={group.id}><summary>{group.label} <small>{group.tags.filter(tag => draft.tags?.includes(tag)).length || ""}</small></summary><div className="ga-filter-choices">{group.tags.map(tag => <label key={tag}><input type="checkbox" checked={draft.tags?.includes(tag) ?? false} onChange={() => toggle("tags", tag)} />{tag} <small>({tagCounts.get(tag) ?? 0})</small></label>)}</div></details>)}
         {sourceNames.length > 0 && <details className="ga-filter-accordion"><summary>{t("sourcesFilter")} <small>{draft.sources?.length || ""}</small></summary><div className="ga-filter-choices">{sourceNames.map(name => <label key={name}><input type="checkbox" checked={draft.sources?.includes(name) ?? false} onChange={() => toggle("sources", name)} />{name}</label>)}</div></details>}
         {GAMEPLAY_FILTER_GROUPS.map(group => <details className="ga-filter-accordion" key={group.id}><summary>{group.label} <small>{draft.features.filter(key => group.options.includes(key)).length || ""}</small></summary><div className="ga-filter-choices">{group.options.map(key => <label key={key}><input type="checkbox" checked={draft.features.includes(key)} onChange={() => toggle("features", key)} />{featureLabel(key)}</label>)}</div></details>)}
       </div><CircularScrollbar targetRef={scrollRef} label="Desplazar opciones de filtros" /></div>
@@ -45,8 +50,9 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   </div>, document.body);
 }
 
-export function activeFilterTags(filters: LibrarySearchFilters): { group: "genres" | "features" | "sources"; value: string; label: string }[] {
+export function activeFilterTags(filters: LibrarySearchFilters): { group: "genres" | "features" | "sources" | "tags"; value: string; label: string }[] {
   return [...filters.genres.map(value => ({ group: "genres" as const, value, label: value })),
+    ...(filters.tags ?? []).map(value => ({ group: "tags" as const, value, label: value })),
     ...(filters.sources ?? []).map(value => ({ group: "sources" as const, value, label: value })),
     ...filters.features.map(value => ({ group: "features" as const, value, label: featureLabel(value as LibraryFeatureKey) }))];
 }

@@ -18,13 +18,15 @@ const games: CatalogGame[] = Array.from({ length: 60 }, (_, index) => ({
 }));
 
 describe("desktop regression scale guard", () => {
-  it("renders an initial card batch, a scroll sentinel, and the full result count", () => {
+  it("renders a bounded initial batch, a spacer for the rest, and the full result count", () => {
     const markup = renderToStaticMarkup(
       <LibraryRoom games={games} downloads={{}} busy={false} onPlay={() => undefined} onDownload={() => undefined} />,
     );
+    // The first paint is a preview: the remaining rows are reserved by the
+    // spacer instead of being mounted, and the true total stays visible.
     expect((markup.match(/library-room-card(?:\s|\")/g) ?? []).length).toBe(16);
     expect(markup).toContain(">60</small>");
-    expect(markup).toContain('class="library-section-sentinel"');
+    expect(markup).toMatch(/padding-bottom:\s*\d+px/);
   });
 
   it("does not restore the old startup detail preload or 24-game installation cutoff", () => {

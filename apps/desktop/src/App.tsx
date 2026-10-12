@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { loadHome } from "./api";
+import { useCoverDiagnostics } from "./SteamCover";
 import { useCatalogSources } from "./useCatalogSources";
 import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
@@ -87,6 +88,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   useCatalogSources(games, setGames);
+  useCoverDiagnostics();
   useEffect(() => {
     const changed = () => void digitalDownloadService.refreshParallelLimit();
     window.addEventListener(ACTIVATION_CHANGED_EVENT, changed);

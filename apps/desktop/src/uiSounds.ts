@@ -42,3 +42,39 @@ export function playCatalogBell() {
     }).catch(() => void context.close());
   } catch { /* Notifications remain visible if audio is unavailable. */ }
 }
+
+let lastAlertToneTime = 0;
+/** Two-tone warning chirp synthesized locally for profiler/resource alerts.
+ *  This limiter is the only one: it keeps a burst of alerts audible without
+ *  letting a sustained spike turn into a solid tone. */
+export function playResourceAlertTone(force = false): void {
+  const now = Date.now();
+  if (!force && now - lastAlertToneTime < 1200) return;
+  lastAlertToneTime = now;
+  try {
+    const AudioContextCtor = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const context = new AudioContextCtor();
+    void context.resume().then(() => {
+      const start = context.currentTime;
+      [587.33, 880].forEach((freq, idx) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        const toneStart = start + idx * 0.12;
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(freq, toneStart);
+        gain.gain.setValueAtTime(0.0001, toneStart);
+        gain.gain.exponentialRampToValueAtTime(0.08, toneStart + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, toneStart + 0.14);
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.start(toneStart);
+        osc.stop(toneStart + 0.15);
+      });
+      window.setTimeout(() => void context.close(), 600);
+    }).catch(() => void context.close());
+  } catch {
+    // Audio alerts are optional diagnostics.
+  }
+}
