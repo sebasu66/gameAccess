@@ -52,6 +52,10 @@ export class DigitalCatalog {
     return this.rawRecords.get(gameId);
   }
 
+  clearCache(): void {
+    this.cachedGames = null;
+  }
+
   /**
    * Loads installer metadata immediately, then refreshes the shared discovery snapshot.
    */
@@ -74,7 +78,7 @@ export class DigitalCatalog {
       const loaded = await this.options.catalogLoader();
       rawList = (Array.isArray(loaded) ? loaded : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
     } else {
-      const discovery = await loadDiscoveryCatalog(requireRemote);
+      const discovery = await loadDiscoveryCatalog(requireRemote, getSteamStoreLanguage());
       let raw: unknown = discovery;
       if (!requireRemote && (!Array.isArray(raw) || !raw.length)) raw = defaultCatalog;
 
@@ -131,16 +135,17 @@ export class DigitalCatalog {
     const game = games.find((item) => item.id === gameId || item.app_id === gameId) ?? knownGame;
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
-    const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar").catch(() => null);
+    const lang = getSteamStoreLanguage();
+    const cached = await readCatalogCachedDetail(game.catalog_cache_id ?? game.id, lang, "ar").catch(() => null);
     diagnostics.debug(`Local detail cache=${cached?.steam ? "hit" : "miss"}; schema=${cached?.detail_schema_version}`);
-    if (cached?.steam && cached.detail_schema_version === 2) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
+    if (cached?.steam && cached.detail_schema_version === 2) return applyBundledDetails({ ...game, ...cached, steam: cached.steam });
 
     // Prefer durable server metadata; public Steam is only a cache-miss fallback.
     if (game.app_id) {
       try {
         const apiUrl = await getApiBaseUrl();
         if (apiUrl) {
-          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`, {
+          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(lang)}&country=ar`, {
             signal: AbortSignal.timeout(8000)
           });
           diagnostics.debug(`Server detail HTTP=${res.status}`);
@@ -149,7 +154,7 @@ export class DigitalCatalog {
             if (serverData && serverData.steam) {
               const steam = normalizeSteamStoreMetadata(game, serverData.steam);
               const detail = await applyBundledDetails({ ...game, steam, metadata_state: serverData.metadata_state || "ready", detail_schema_version: 2 });
-              await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
+              await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, lang, "ar", detail).catch(() => undefined);
               return detail;
             }
           }
@@ -165,17 +170,17 @@ export class DigitalCatalog {
     if (game.app_id && hasTauriRuntime()) {
       try {
         diagnostics.debug("Trying native Steam detail fallback");
-        const raw = await getSteamStoreMetadata(game.app_id);
+        const raw = await getSteamStoreMetadata(game.app_id, false, lang);
         if (raw) {
           const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready", detail_schema_version: 2 }, raw));
-          void storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, getSteamStoreLanguage(), "ar", detail).catch(() => undefined);
+          void storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, lang, "ar", detail).catch(() => undefined);
           return detail;
         }
       } catch (error) {
         void narrate("AppID " + game.app_id + " · public Steam detail failed: " + String(error), {area:"DETAILS",level:"WARN"});
       }
     }
-    if (cached?.steam) return applyBundledDetails({ ...cached, ...game, steam: cached.steam });
+    if (cached?.steam) return applyBundledDetails({ ...game, ...cached, steam: cached.steam });
     diagnostics.debug("Returning catalog-only detail fallback");
     const fallbackDetails: GameDetails = {
       ...game,
@@ -288,9 +293,13 @@ export class DigitalCatalog {
         copies_total: item.copies_total ?? 1,
         copies_available: item.copies_available ?? 1,
         availability_state: item.availability_state ?? "ready",
-        header_image: item.header_image || (appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null),
-        capsule_image: item.capsule_image || (appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null),
-        hero_image: item.hero_image || (appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_hero.jpg` : null),
+        // Artwork URLs come from the catalog, which resolves the real hashed
+        // Steam paths once for every client. Deriving a path here produced URLs
+        // that answer 404 for most of the catalog, so it is deliberately absent:
+        // an unresolved game renders a placeholder instead of failing requests.
+        header_image: item.header_image || null,
+        capsule_image: item.capsule_image || null,
+        hero_image: item.hero_image || null,
         steam_url: item.steam_url || (appId ? `https://store.steampowered.com/app/${appId}/` : null),
         genres: item.genres ?? [],
         categories: item.categories ?? [],

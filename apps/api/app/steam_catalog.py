@@ -22,6 +22,12 @@ class SteamReviewRateLimited(SteamCatalogError):
 
 
 def steam_assets(app_id: int | None) -> dict[str, str | None]:
+    """Identity field only; artwork comes from the appdetails response itself.
+
+    This must not invent a cover URL: Steam serves covers from hashed paths, so
+    a derived `library_600x900_2x.jpg` answers 404 for most of the catalog. When
+    appdetails returns no image, the caller renders a placeholder instead.
+    """
     if not app_id:
         return {
             "header_image": None,
@@ -29,11 +35,10 @@ def steam_assets(app_id: int | None) -> dict[str, str | None]:
             "hero_image": None,
             "steam_url": None,
         }
-    base = f"https://cdn.akamai.steamstatic.com/steam/apps/{app_id}"
     return {
-        "header_image": f"{base}/header.jpg",
-        "capsule_image": f"{base}/library_600x900_2x.jpg",
-        "hero_image": f"{base}/library_hero.jpg",
+        "header_image": None,
+        "capsule_image": None,
+        "hero_image": None,
         "steam_url": f"https://store.steampowered.com/app/{app_id}/",
     }
 
@@ -215,8 +220,7 @@ class SteamCatalogAdapter:
             "header_image": raw.get("header_image") or assets["header_image"],
             "capsule_image": raw.get("capsule_imagev5") or assets["capsule_image"],
             "hero_image": assets["hero_image"],
-            "background": raw.get("background_raw") or raw.get("background") or assets["hero_image"],
-            "website": raw.get("website"),
+            "background": raw.get("background_raw") or raw.get("background") or assets["hero_image"],            "website": raw.get("website"),
             "support_info": raw.get("support_info") if isinstance(raw.get("support_info"), dict) else {},
             "steam_url": assets["steam_url"],
             "source": "steam-store",

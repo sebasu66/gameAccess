@@ -20,6 +20,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import httpx
+from .catalog_artwork import ArtworkResolver, apply_assets
 from .catalog_snapshot import stable_json, steam_assets, write_snapshot
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -308,6 +309,19 @@ def refresh(args):
         rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit)
         merge_search(games, rows, names)
         report["cooptimus"] = enrich_cooptimus(remote, games, args.cooptimus_limit)
+        # Resolve real artwork once here so no client ever has to guess a URL.
+        if getattr(args, "resolve_artwork", True):
+            resolver = ArtworkResolver(remote.client, args.cache_dir / "artwork", delay=args.delay)
+            asset_report = apply_assets(games, resolver.resolve(sorted(games)))
+            asset_report["requests"] = resolver.requests
+            asset_report["cache_hits"] = resolver.cache_hits
+            report["artwork"] = asset_report
+            LOG.info(
+                "Artwork resolved: matched=%s capsule=%s hero=%s header=%s missing=%s requests=%s cache_hits=%s",
+                asset_report["matched"], asset_report["capsule"], asset_report["hero"],
+                asset_report["header"], asset_report["missing"],
+                asset_report["requests"], asset_report["cache_hits"],
+            )
     if args.enrichment_file:
         for row in json.loads(args.enrichment_file.read_text(encoding="utf-8")):
             # Exact canonical Steam identity, never title similarity.
@@ -339,6 +353,13 @@ def main():
     parser.add_argument("--cooptimus-limit", type=int, default=0)
     parser.add_argument("--enrichment-file", type=Path)
     parser.add_argument("--delay", type=float, default=1.1)
+    parser.add_argument(
+        "--resolve-artwork",
+        dest="resolve_artwork",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Resolve real Steam asset URLs so clients never guess a cover path.",
+    )
     args = parser.parse_args()
     if args.days < 365 or args.delay < 1:
         parser.error("Discovery must cover at least 365 days with a polite request delay >= 1 second")
