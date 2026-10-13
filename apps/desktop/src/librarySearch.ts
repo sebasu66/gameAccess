@@ -93,6 +93,15 @@ export const DEFAULT_LIBRARY_FILTERS: LibrarySearchFilters = {
   software: false,
 };
 
+/** Minimum review score (0-100) the library starts with; "Limpiar todo" removes it too. */
+export const DEFAULT_MIN_REVIEW_SCORE = 60;
+
+/** What the library opens with: no criteria except hiding poorly reviewed games. */
+export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
+  ...DEFAULT_LIBRARY_FILTERS,
+  minReviewScore: DEFAULT_MIN_REVIEW_SCORE,
+};
+
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
   { key: "has_downloads", label: "Descargables (Fuentes disponibles)" },
   { key: "single_player", label: "Un jugador" },

@@ -14,7 +14,7 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { loadHome } from "./api";
 import { useCoverDiagnostics } from "./SteamCover";
 import { useCatalogSources } from "./useCatalogSources";
-import { DEFAULT_LIBRARY_FILTERS } from "./librarySearch";
+import { INITIAL_LIBRARY_FILTERS } from "./librarySearch";
 import { HERO_AUTOPLAY } from "./featureModes";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
@@ -97,7 +97,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   const [query, setQuery] = useState("");
-  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(DEFAULT_LIBRARY_FILTERS);
+  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_LIBRARY_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
