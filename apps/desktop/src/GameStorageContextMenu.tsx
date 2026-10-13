@@ -53,6 +53,7 @@ interface Props {
 export default function GameStorageContextMenu({ request, onClose, onInstall, onPlay }: Props) {
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
+  const [progress, setProgress] = useState<{ phase: "working" | "done"; label: string; detail?: string } | null>(null);
   const appId = request.game.app_id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
@@ -92,11 +93,13 @@ export default function GameStorageContextMenu({ request, onClose, onInstall, on
   const confirmUninstall = async () => {
     if (!appId) return;
     setUninstalling(true);
+    setProgress({ phase: "working", label: "Abriendo la desinstalación de Steam…", detail: request.game.name });
     try {
       await uninstallGame(appId);
-      onClose();
+      setProgress({ phase: "done", label: "Steam abrió la desinstalación.", detail: "Steam borra los archivos; confirmalo en su ventana." });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      setProgress(null);
       setDialog({ title: "No se pudo iniciar la desinstalación", message, tone: "error" });
     } finally {
       setUninstalling(false);
@@ -124,7 +127,7 @@ export default function GameStorageContextMenu({ request, onClose, onInstall, on
         <Trash2 size={16} /> Desinstalar
       </button>
     </div> : null}
-    {dialog ? <AppDialog title={dialog.title} message={dialog.message} tone={dialog.tone} onClose={onClose} onConfirm={dialog.title.startsWith("¿Desinstalar") ? () => void confirmUninstall() : undefined} confirmDisabled={uninstalling} confirmLabel="Desinstalar" cancelLabel="No, volver" /> : null}
+    {dialog ? <AppDialog title={dialog.title} message={dialog.message} tone={dialog.tone} onClose={uninstalling ? () => undefined : onClose} progress={progress ?? undefined} onConfirm={dialog.title.startsWith("¿Desinstalar") ? () => void confirmUninstall() : undefined} confirmDisabled={uninstalling} confirmLabel="Desinstalar" cancelLabel="No, volver" /> : null}
     </>
   );
 }

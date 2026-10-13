@@ -249,11 +249,12 @@ export class DigitalCatalog {
   /**
    * Uninstalls the game files.
    */
-  async uninstall(game: CatalogGame): Promise<void> {
+  async uninstall(game: CatalogGame): Promise<{ folder?: string }> {
     if (this.options.uninstallHandler) {
-      return this.options.uninstallHandler(game);
+      await this.options.uninstallHandler(game);
+      return {};
     }
-    await digitalDownloadService.uninstall(game);
+    return digitalDownloadService.uninstall(game);
   }
 
   /**

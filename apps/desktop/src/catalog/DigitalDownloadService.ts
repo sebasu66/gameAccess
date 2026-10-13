@@ -423,14 +423,15 @@ export class DigitalDownloadService implements IDownloadProvider {
     return this.getDownloads().some(({snapshot}) => !["completed", "error", "interrupted", "cancelled", "external"].includes(snapshot.phase));
   }
 
-  async uninstall(game: CatalogGame): Promise<void> {
+  async uninstall(game: CatalogGame): Promise<{ folder?: string }> {
     const id = game.app_id ?? game.id;
     const snapshot = this.activeJobs.get(id);
     if (snapshot && !["completed", "error", "interrupted", "cancelled", "external"].includes(snapshot.phase)) {
       throw new Error("Aborte la descarga antes de desinstalar el juego.");
     }
-    await digitalProcessManager.executeUninstall(game);
+    const result = await digitalProcessManager.executeUninstall(game);
     this.updateSnapshot({ gameId: id, phase: "cancelled", progress: 0, statusText: "Juego desinstalado" });
+    return { folder: result?.folder };
   }
 
   /**

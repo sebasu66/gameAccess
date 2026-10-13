@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, Loader2, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, Loader2, Play, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -28,8 +28,9 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 
-function StorageBadge() {
-  return <span className="library-install-state ready" title="Listo para presionar Jugar"><span aria-hidden="true">✓</span> INSTALADO</span>;
+/** Small play mark in the card footer: the game is installed and ready to launch. */
+function InstalledMark() {
+  return <span className="ga-card-installed" title="Instalado · listo para jugar" role="img" aria-label="Instalado, listo para jugar"><Play size={11} fill="currentColor" /></span>;
 }
 
 function statusLabel(status: ManagedDownloadStatus | undefined, progress: number) {
@@ -100,13 +101,12 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
           <span className="library-room-card-cover-base">
         <SteamCover game={game} /></span>
           {active && progress > 0 ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
-          {state.playButtonReady ? <StorageBadge /> : null}
           {favorite ? <span className="library-favorite-state" title="Favorito" aria-label="Favorito"><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
           {cardGenre ? <span className="library-room-card-genre" aria-hidden="true">{cardGenre}</span> : null}
         </span>
       </button>
-      <div className="ga-card-caption"><span>{game.name}</span><small>{game.release_date?.match(/\d{4}/)?.[0]}</small></div>
+      <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
     </div>
   );
 });

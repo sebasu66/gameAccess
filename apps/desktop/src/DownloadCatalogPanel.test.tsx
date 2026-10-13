@@ -23,7 +23,7 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).toContain("library-install-state ready");
+    expect(markup).toContain("ga-card-installed");
     expect(markup).toContain("data-install-folder-available=\"true\"");
     expect(markup).not.toContain("library-card-play");
     expect(markup).not.toContain("aria-label=\"Jugar Installed\"");
@@ -41,7 +41,7 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("ga-card-installed");
     expect(markup).not.toContain("congelado");
   });
 
@@ -57,8 +57,8 @@ describe("DownloadCatalogPanel grid contract", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(markup).toContain("library-install-state ready");
-    expect(markup).not.toContain("library-install-state no-license");
+    expect(markup).toContain("ga-card-installed");
+    expect(markup).not.toContain("ga-card-installed no-license");
   });
 
   it("keeps the card as a selection target so Enter can transfer focus to the existing detail panel", () => {

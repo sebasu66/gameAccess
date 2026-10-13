@@ -49,6 +49,7 @@ export default function DigitalGameContextMenu({
   const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
+  const [progress, setProgress] = useState<{ phase: "working" | "done"; label: string; detail?: string } | null>(null);
   const appId = request.game.app_id ?? request.game.id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
@@ -98,12 +99,19 @@ export default function DigitalGameContextMenu({
 
   const confirmUninstall = async () => {
     setUninstalling(true);
+    // The dialog stays open and narrates the work, then shows the result.
+    setProgress({ phase: "working", label: removing ? "Quitando el juego de tu biblioteca…" : "Borrando carpeta…", detail: request.game.name });
     try {
-      if (removing) await removeLibraryGame(request.game);
-      else await service.uninstall(request.game);
-      onClose();
+      if (removing) {
+        await removeLibraryGame(request.game);
+        setProgress({ phase: "done", label: "Listo: el juego ya no está en tu biblioteca.", detail: "Sus archivos locales también se borraron." });
+      } else {
+        const { folder } = await service.uninstall(request.game);
+        setProgress({ phase: "done", label: "Carpeta borrada. El juego se desinstaló.", detail: folder });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      setProgress(null);
       setDialog({ title: removing ? label.removed : "No se pudo iniciar la desinstalación", message, tone: "error" });
     } finally {
       setUninstalling(false);
@@ -163,7 +171,8 @@ export default function DigitalGameContextMenu({
           title={dialog.title}
           message={dialog.message}
           tone={dialog.tone}
-          onClose={onClose}
+          onClose={uninstalling ? () => undefined : onClose}
+          progress={progress ?? undefined}
           onConfirm={dialog.tone === "warning" ? () => void confirmUninstall() : undefined}
           confirmDisabled={uninstalling}
           confirmLabel={removing ? label.remove : "Desinstalar"}

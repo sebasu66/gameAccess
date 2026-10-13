@@ -66,21 +66,21 @@ describe("LibraryRoom grid presentation", () => {
   });
 
   it("keeps file readiness independent from the available-copy count", () => {
-    expect(render({ 10: installed })).toContain("library-install-state ready");
+    expect(render({ 10: installed })).toContain("ga-card-installed");
     const withoutLicense = render({ 10: installed }, 0);
-    expect(withoutLicense).toContain("library-install-state ready");
-    expect(withoutLicense).not.toContain("library-install-state no-license");
+    expect(withoutLicense).toContain("ga-card-installed");
+    expect(withoutLicense).not.toContain("ga-card-installed no-license");
   });
 
   it("does not mark a legacy frozen game as ready or playable", () => {
     const markup = render({ 10: frozen });
-    expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("ga-card-installed");
     expect(markup).not.toContain("Jugar");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {
-    expect(render({ 10: downloading })).not.toContain("library-install-state ready");
-    expect(render({})).not.toContain("library-install-state ready");
+    expect(render({ 10: downloading })).not.toContain("ga-card-installed");
+    expect(render({})).not.toContain("ga-card-installed");
   });
 
   it("changes the selected game only through the click handler, not mouse hover", () => {
