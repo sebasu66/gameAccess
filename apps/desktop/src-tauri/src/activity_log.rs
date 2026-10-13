@@ -11,11 +11,26 @@ const NARRATION_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const NARRATION_LOG_MAX_LINE_BYTES: usize = 16 * 1024;
 pub(crate) static NARRATION_LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
+/// In a development checkout the log sits next to the other launcher logs, so it can be
+/// read from the project. An installed app has no `apps/desktop` beside its launcher and
+/// keeps using the per-user data folder.
+fn checkout_log_directory() -> Option<PathBuf> {
+    let launcher = find_launcher_dir()?;
+    let apps = launcher.parent()?;
+    if apps.file_name()? == "apps" && apps.join("desktop").is_dir() {
+        Some(launcher.join("logs"))
+    } else {
+        None
+    }
+}
+
 pub(crate) fn narration_log_file() -> Result<PathBuf, String> {
-    let base = env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(env::temp_dir);
-    let directory = base.join("GameAccess").join("logs");
+    let directory = checkout_log_directory().unwrap_or_else(|| {
+        let base = env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(env::temp_dir);
+        base.join("GameAccess").join("logs")
+    });
     fs::create_dir_all(&directory)
         .map_err(|err| format!("Could not create GameAccess log directory: {err}"))?;
     Ok(directory.join("gameaccess.log"))
