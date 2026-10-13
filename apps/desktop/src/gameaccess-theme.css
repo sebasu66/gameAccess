@@ -143,7 +143,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-rating-main { flex:1; min-width:0; display:grid; gap:8px; }
 .ga-rating-main > span { font-size:11px; line-height:1.4; color:#c7ced2; }
 .ga-rating-bar { height:10px; border-radius:6px; overflow:hidden; background:#ffffff14; border:1px solid #ffffff1f; }
-.ga-rating-bar > i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--ga-orange),#ffb15c); box-shadow:0 0 12px #ff6a0066; transition:width 900ms cubic-bezier(.16,1,.3,1); }
+.ga-rating-bar > i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--ga-orange),#ffb15c); box-shadow:0 0 12px #ff6a0066; transition:width 480ms cubic-bezier(.16,1,.3,1); }
 .ga-rating-bar.is-great > i { background:linear-gradient(90deg,#2fae6a,#7ee0a1); box-shadow:0 0 12px #2fae6a66; }
 .ga-rating-bar.is-bad > i { background:linear-gradient(90deg,#c0392b,#ff7a6b); box-shadow:0 0 12px #c0392b66; }
 @media(prefers-reduced-motion:reduce) { .ga-rating-bar > i { transition:none; } }
