@@ -48,13 +48,19 @@ function CoverBody({ game, tier }: { game: CatalogGame; tier: CoverTier }) {
   }, [game.app_id, candidates.length, resolved, tier]);
   useEffect(() => {
     if (!game.app_id || resolved || attempted.current) return;
-    // A ref, not state: setting state here re-ran the effect, and its cleanup cancelled this very request,
-    // so the downloaded cover was discarded. There is no cancel flag either; updating an unmounted card is harmless.
+    // A ref, not state: setting state here re-ran the effect and its cleanup cancelled the request.
+    // Only an unmount (or a tier change) cancels now, which is what a scrolled-past card should do.
     attempted.current = true;
-    void resolveLibraryCover(game.app_id, tier).then((url) => {
-      if (url) { coverStats.resolvedApi++; setResolved(url); setSourceIndex(0); }
-      setResolveDone(true);
-    });
+    // Wait a moment before asking: a card that is scrolled past within this time never asks at all.
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      resolveLibraryCover(game.app_id!, tier, controller.signal).then((url) => {
+        if (controller.signal.aborted) return;
+        if (url) { coverStats.resolvedApi++; setResolved(url); setSourceIndex(0); }
+        setResolveDone(true);
+      }).catch(() => { if (!controller.signal.aborted) setResolveDone(true); });
+    }, 150);
+    return () => { window.clearTimeout(timer); controller.abort(); attempted.current = false; };
   }, [game.app_id, resolved, tier]);
   if (!source) {
     coverStats.noSource++;

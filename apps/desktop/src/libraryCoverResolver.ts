@@ -8,27 +8,37 @@ const MAX_CONCURRENT = 6;
 let activeCount = 0;
 const waitQueue: Array<() => void> = [];
 
-function acquireSlot(): Promise<void> {
+// Waiting requests are served newest first: after a fast scroll the cards on screen are the
+// newest ones, and the covers of rows already scrolled past must not hold them up.
+function acquireSlot(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new DOMException("aborted", "AbortError"));
   if (activeCount < MAX_CONCURRENT) {
     activeCount++;
     return Promise.resolve();
   }
-  return new Promise<void>(resolve => {
-    waitQueue.push(resolve);
+  return new Promise<void>((resolve, reject) => {
+    const entry = () => { signal?.removeEventListener("abort", onAbort); resolve(); };
+    const onAbort = () => {
+      const at = waitQueue.indexOf(entry);
+      if (at >= 0) waitQueue.splice(at, 1);
+      reject(new DOMException("aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    waitQueue.push(entry);
   });
 }
 
 function releaseSlot(): void {
   activeCount--;
-  const next = waitQueue.shift();
+  const next = waitQueue.pop();
   if (next) {
     activeCount++;
     next();
   }
 }
 
-async function runWithSlot<T>(task: () => Promise<T>): Promise<T> {
-  await acquireSlot();
+async function runWithSlot<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  await acquireSlot(signal);
   try {
     return await task();
   } finally {
@@ -54,7 +64,8 @@ export function cachedLibraryCover(appId?: number | null, tier: CoverTier = "2x"
 }
 
 // Resolves the portrait capsule at the size the grid needs. Visible cards only; no catalog detail prefetch.
-export function resolveLibraryCover(appId: number, tier: CoverTier = "2x"): Promise<string | null> {
+// `signal` drops the request while it still waits for a slot (a card that left the window before its turn).
+export function resolveLibraryCover(appId: number, tier: CoverTier = "2x", signal?: AbortSignal): Promise<string | null> {
   const cached = cachedLibraryCover(appId, tier);
   if (cached) return Promise.resolve(cached);
   const key = slot(appId, tier);
@@ -75,8 +86,9 @@ export function resolveLibraryCover(appId: number, tier: CoverTier = "2x"): Prom
     } finally {
       releaseTask();
     }
-  });
+  }, signal);
   requests.set(key, request);
-  void request.finally(() => requests.delete(key));
+  const forget = () => { requests.delete(key); };
+  void request.then(forget, forget);
   return request;
 }
