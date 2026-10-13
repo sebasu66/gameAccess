@@ -269,8 +269,9 @@ export class DigitalDownloadService implements IDownloadProvider {
     // Ask the server to process the link (cache, TorBox, ViKiNG). It never throws; on any
     // failure the original source is used, so the Download button keeps working.
     let effectiveSource = downloadSource;
-    // Links that open a web page for a person (browser delivery) never go through the server.
-    if (hasTauriRuntime() && canAccelerate(downloadSource) && record?.sourceDelivery !== "browser") {
+    // Every link goes to the server, which compares direct download against TorBox.
+    // A link that opens a web page is still tried through TorBox, which can sometimes fetch it.
+    if (hasTauriRuntime() && canAccelerate(downloadSource)) {
       this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga directa", bytesDownloaded: 0, bytesTotal: 0 });
       const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
       if (processed) effectiveSource = processed.url;
