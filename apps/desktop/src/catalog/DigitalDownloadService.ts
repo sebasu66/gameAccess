@@ -2,6 +2,7 @@ import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { canAccelerate, resolveVikingDownload } from "../vikingResolver";
+import { downloadMethodFor, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
@@ -36,6 +37,9 @@ export class DigitalDownloadService implements IDownloadProvider {
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
   private controls = new Set<number>();
   private speeds = new Map<number, DownloadSpeedSample[]>();
+  private readonly methods = new Map<number, DownloadMethod>();
+  /** How this game is being fetched (shown as a pill), or undefined when not known. */
+  getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
   getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
 
   constructor(private storageKey?: string, private readonly tier: () => "base" | "plus" | null = getActivationTier) {
@@ -269,14 +273,18 @@ export class DigitalDownloadService implements IDownloadProvider {
     // Ask the server to process the link (cache, TorBox, ViKiNG). It never throws; on any
     // failure the original source is used, so the Download button keeps working.
     let effectiveSource = downloadSource;
+    let serverMode: "cache" | "processed" | "direct" | null = null;
     // Every link goes to the server, which compares direct download against TorBox.
     // A link that opens a web page is still tried through TorBox, which can sometimes fetch it.
     if (hasTauriRuntime() && canAccelerate(downloadSource)) {
       this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga directa", bytesDownloaded: 0, bytesTotal: 0 });
       const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
-      if (processed) effectiveSource = processed.url;
+      if (processed) { effectiveSource = processed.url; serverMode = processed.mode; }
       else void narrate("No se pudo usar el servidor; se sigue con la descarga normal.", { area: "DOWNLOAD", level: "WARN" });
     }
+
+    this.methods.set(gameId, downloadMethodFor(effectiveSource, serverMode));
+    this.updateSnapshot({ ...(this.activeJobs.get(gameId) ?? { gameId, phase: "preparing", progress: 0 }) });
 
     if (hasTauriRuntime()) {
       try {

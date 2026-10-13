@@ -2,6 +2,7 @@ import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
 import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
+import {downloadMethodLabel} from "./downloadMethod";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
 import { Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
@@ -67,12 +68,14 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const sourceSize = sourceDownloadSize(game,locale) || sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
     const { phase, gameId } = snapshot;
     const percent = Number.isFinite(snapshot.progress) ? Math.max(0, Math.min(100, snapshot.progress)) : 0;
+    const method = service.getDownloadMethod?.(gameId);
+    const methodText = method ? downloadMethodLabel(method, locale) : null;
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
-        <div className="digital-download-title"><h2>{game.name}</h2><span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
+        <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
         <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
