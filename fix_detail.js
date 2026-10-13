@@ -1,16 +1,10 @@
 const fs = require('fs');
-let content = fs.readFileSync('apps/desktop/src/AppDetailPanel.tsx', 'utf8');
+let app = fs.readFileSync('apps/desktop/src/App.tsx', 'utf8');
 
-const target = `  useEffect(() => {
-    let active = true;
-    void digitalCatalogService.hasSources(game).then((ok) => {
-      if (active) setHasSources(ok);
-    });
-    return () => { active = false; };
-  }, [game]);`;
+app = app.replace(
+  'availableSourceCount={selected.app_id ? availableSources[selected.app_id] : 0}',
+  'availableSourceCount={availableSources[selected.app_id ?? selected.id] || 0}'
+);
 
-content = content.replace(target, '');
-content = content.replace('const [hasSources, setHasSources] = useState<boolean>(true);', '');
-
-fs.writeFileSync('apps/desktop/src/AppDetailPanel.tsx', content);
-console.log('AppDetailPanel fixed');
+fs.writeFileSync('apps/desktop/src/App.tsx', app);
+console.log("DetailPanel prop fixed");

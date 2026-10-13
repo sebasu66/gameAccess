@@ -351,11 +351,31 @@ async function startApiServer() {
             const url = file.mode === 'proxy'
                 ? 'http://127.0.0.1:' + PORT + '/api/download/' + item.id + '/' + encodeURIComponent(file.name)
                 : file.url;
-            res.json({ url, mode: file.mode, size: item.file_size });
+            res.json({
+                url,
+                mode: file.mode,
+                size: item.file_size,
+                executionProfile: item.executionProfile || {
+                    version: 1,
+                    archivePasswords: item.passwords || [],
+                    beforePlay: item.beforePlay || []
+                }
+            });
         } catch (error) {
             log.warn('[Sources] Selected option resolution failed: ' + error.message);
             res.status(422).json({ error: error.message });
         }
+    });
+    expressApp.get('/api/execution-profile', (req, res) => {
+        const appId = Number(req.query.app_id);
+        log.info('[ExecutionProfile] AppID=' + appId + ' requested');
+        res.json({
+            version: 1,
+            id: 'plugin-' + appId,
+            origin: 'plugin',
+            archivePasswords: [],
+            beforePlay: []
+        });
     });
     async function proxyFile(uri, req, res) {
         try {

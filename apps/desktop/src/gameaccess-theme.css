@@ -140,7 +140,13 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-detail-lead { margin:0 0 22px; font-size:16px; font-weight:500; line-height:1.8; }
 .ga-detail-rating { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:20px 0; border-block:1px solid #ff6a0020; margin:0 0 24px; }
 .ga-detail-rating strong { font-size:32px; color:var(--ga-orange); }
-.ga-detail-rating > span { font-size:11px; line-height:1.8; text-align:right; }
+.ga-rating-main { flex:1; min-width:0; display:grid; gap:8px; }
+.ga-rating-main > span { font-size:11px; line-height:1.4; color:#c7ced2; }
+.ga-rating-bar { height:10px; border-radius:6px; overflow:hidden; background:#ffffff14; border:1px solid #ffffff1f; }
+.ga-rating-bar > i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--ga-orange),#ffb15c); box-shadow:0 0 12px #ff6a0066; transition:width 900ms cubic-bezier(.16,1,.3,1); }
+.ga-rating-bar.is-great > i { background:linear-gradient(90deg,#2fae6a,#7ee0a1); box-shadow:0 0 12px #2fae6a66; }
+.ga-rating-bar.is-bad > i { background:linear-gradient(90deg,#c0392b,#ff7a6b); box-shadow:0 0 12px #c0392b66; }
+@media(prefers-reduced-motion:reduce) { .ga-rating-bar > i { transition:none; } }
 .ga-game-detail .library-detail-extended { padding:0; overflow:visible!important; background:none; border:0; }
 .ga-game-detail h3 { margin:0 0 12px; font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--ga-orange); }
 .ga-game-detail .steam-rich-text,.ga-game-detail .library-room-copy-block p { font-size:15px; font-weight:500; line-height:1.8; color:white; }
@@ -332,6 +338,69 @@ body:has(.surface-tablet) .topbar-actions,body:has(.surface-display) .topbar-act
 .ga-filter-dialog small { display:block; color:#aeb9c0; margin-top:4px; font-size:11px; }
 .ga-filter-choices { display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:12px; }
 .ga-filter-choices label,.ga-filter-uncertain { display:flex; align-items:center; gap:8px; cursor:pointer; }
+/* A group disabled by parental control: the topic stays visible so the reason is
+   obvious, but selecting it cannot reveal blocked content. */
+.ga-filter-accordion.is-parental-locked summary { display:flex; align-items:center; gap:7px; color:#8b959c; cursor:not-allowed; }
+.ga-filter-accordion.is-parental-locked summary::-webkit-details-marker { opacity:.5; }
+.ga-filter-accordion.is-parental-locked .ga-filter-choices label { cursor:not-allowed; color:#79838a; }
+.ga-filter-accordion.is-parental-locked .ga-filter-choices input { opacity:.45; }
+.ga-filter-locked-note { color:#c9a227!important; font-style:italic; }
+/* Tri-state criterion: one row per option with both directions available. */
+.ga-tristate { display:flex; align-items:center; gap:5px; padding:3px 6px 3px 8px; border:1px solid #ffffff1c; border-radius:6px; background:#ffffff06; }
+.ga-tristate[data-state="include"] { border-color:#5fd07a66; background:#5fd07a14; }
+.ga-tristate[data-state="exclude"] { border-color:#ff6a0066; background:#ff6a0014; }
+.ga-tristate-label { display:flex; align-items:baseline; gap:6px; font-size:12px; color:#e7ecef; }
+.ga-tristate-label small { display:inline; color:#98a3aa; font-size:10px; margin:0; }
+.ga-tristate-button { display:grid; place-items:center; width:22px; height:22px; padding:0; border:1px solid #ffffff24; border-radius:5px; background:#ffffff08; color:#9aa5ac; cursor:pointer; }
+.ga-tristate-button:hover { color:#fff; border-color:#ffffff45; }
+.ga-tristate-button.is-include.is-active { color:#0f1a12; background:#5fd07a; border-color:#5fd07a; }
+.ga-tristate-button.is-exclude.is-active { color:#1a1206; background:var(--ga-orange); border-color:var(--ga-orange); }
+.ga-tristate.is-locked { opacity:.72; }
+.ga-tristate-fixed { font-size:10px; font-style:italic; color:#c9a227; white-space:nowrap; }
+.ga-visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+/* Quality sliders: score and release age. Native range inputs are styled here
+   because an unstyled range has no visible track and drags unreliably. */
+.ga-filter-sliders { flex-shrink:0; display:grid; gap:14px; margin-top:16px; padding-top:14px; border-top:1px solid var(--ga-line); }
+.ga-slider-row { display:grid; gap:6px; }
+.ga-slider-row.is-off { opacity:.55; }
+.ga-slider-row > label { display:flex; align-items:center; gap:9px; color:var(--ga-white); font:700 12px Manrope,sans-serif; }
+.ga-slider-row > label output { margin-left:auto; color:var(--ga-orange); font:700 12px Manrope,sans-serif; }
+.ga-slider-row.is-off > label output { color:var(--ga-muted); }
+.ga-slider-row > small { color:var(--ga-muted); font-size:11px; }
+.ga-slider-row input[type="range"] { -webkit-appearance:none; appearance:none; width:100%; height:20px; margin:0; background:none; cursor:pointer; }
+.ga-slider-row input[type="range"]:disabled { cursor:not-allowed; }
+.ga-slider-row input[type="range"]::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:var(--ga-line); }
+.ga-slider-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; margin-top:-6px; border:0; border-radius:50%; background:var(--ga-orange); }
+.ga-slider-row input[type="range"]::-moz-range-track { height:4px; border-radius:2px; background:var(--ga-line); }
+.ga-slider-row input[type="range"]::-moz-range-thumb { width:16px; height:16px; border:0; border-radius:50%; background:var(--ga-orange); }
+.ga-slider-row input[type="range"]:focus-visible { outline:1px solid var(--ga-orange); outline-offset:3px; }
+.ga-slider-row input[type="range"]:disabled::-webkit-slider-thumb { background:var(--ga-muted); }
+.ga-slider-pair { display:grid; gap:4px; }
+/* The players tree: one section holding the restrictive and inclusive halves. */
+.ga-tree-parent { display:flex; align-items:center; gap:9px; padding:8px 10px; border:1px solid var(--ga-line); border-radius:6px; background:#ffffff08; cursor:pointer; color:var(--ga-white); }
+.ga-tree-parent.is-selected { border-color:var(--ga-orange); }
+.ga-tree-parent.is-branch-disabled { cursor:not-allowed; opacity:.55; }
+.ga-tree-parent strong { font:700 12px Manrope,sans-serif; }
+.ga-tree-parent small { color:var(--ga-muted); font-size:11px; }
+.ga-tree { display:grid; gap:10px; margin-top:12px; }
+.ga-tree-branch { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin:0 0 0 14px; padding:0 0 0 12px; border:0; border-left:1px solid var(--ga-line); }
+.ga-tree-branch legend { padding:0 6px 0 0; color:var(--ga-muted); font:700 11px Manrope,sans-serif; text-transform:uppercase; letter-spacing:.08em; }
+.ga-tree-branch label { display:flex; align-items:center; gap:8px; color:var(--ga-white); font:500 13px Manrope,sans-serif; cursor:pointer; }
+.ga-tree-branch.is-branch-disabled label { cursor:not-allowed; color:#8b959c; }
+.ga-tree-hint { flex-basis:100%; margin:0; color:var(--ga-muted); font-size:11px; }
+/* Turns an empty search result into an explanation instead of a dead end. */
+.ga-filter-hidden-notice { flex-basis:100%; margin:8px 0 0; color:#c9a227; font-size:11px; font-style:italic; }
+.ga-filter-hidden-notice button { margin-left:6px; padding:2px 8px; border:1px solid #c9a22766; border-radius:5px; background:#c9a2271a; color:#e8cd6a; font-size:11px; font-style:normal; cursor:pointer; }
+.ga-filter-hidden-notice button:hover { background:#c9a22733; color:#fff; }
+/* Parental criteria: negative only, so they never look like a search. */
+.ga-parental summary { display:flex; align-items:center; gap:7px; color:#f0f3f5; }
+.ga-parental.is-locked summary { color:var(--ga-orange); }
+.ga-parental-note { margin:9px 0 0; color:#aeb9c0; font-size:11px; line-height:1.55; }
+.ga-parental-levels { display:grid; gap:8px; margin-top:12px; }
+.ga-parental-levels label,.ga-parental-violence { display:flex; align-items:flex-start; gap:9px; cursor:pointer; color:#e3e9ec; font-size:12px; }
+.ga-parental-levels small,.ga-parental-violence small { display:block; color:#98a3aa; font-size:10px; margin-top:3px; }
+.ga-parental-violence { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff14; }
+.ga-parental input[type="radio"],.ga-parental input[type="checkbox"] { margin-top:2px; }
 .ga-filter-dialog input { accent-color:var(--ga-orange); width:16px; height:16px; flex-shrink:0; }
 .ga-filter-uncertain { flex-shrink:0; border-top:1px solid var(--ga-line); padding-top:18px; }
 .ga-filter-dialog footer { flex-shrink:0; display:flex; align-items:center; gap:12px; margin-top:24px; }
@@ -345,6 +414,17 @@ body:has(.surface-tablet) .topbar-actions,body:has(.surface-display) .topbar-act
 .ga-filter-scroll-frame { height:auto; margin:20px 0; }
 .ga-filter-scroll-frame .ga-filter-groups { height:100%; margin:0; padding:8px 28px 4px 0; scrollbar-width:none; }
 .ga-filter-scroll-frame .ga-filter-groups::-webkit-scrollbar { display:none; }
+/* Scroll fix: the frame is a flex column so the groups container takes the remaining
+   height (height:100% against an auto-height parent made it grow and get clipped).
+   Each expanded section scrolls on its own, bounded, so a long list (genres) never
+   pushes the other sections or the footer out of the dialog. */
+.ga-filter-scroll-frame { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+.ga-filter-scroll-frame .ga-filter-groups { flex:1 1 auto; height:auto; min-height:0; align-content:start; overscroll-behavior:contain; }
+.ga-filter-accordion { min-width:0; }
+.ga-filter-accordion .ga-filter-choices { max-height:min(240px,32svh); overflow-y:auto; overscroll-behavior:contain; padding:2px 8px 4px 0; scrollbar-width:thin; scrollbar-color:#ffffff40 transparent; }
+.ga-filter-accordion .ga-filter-choices::-webkit-scrollbar { width:6px; }
+.ga-filter-accordion .ga-filter-choices::-webkit-scrollbar-thumb { background:#ffffff40; border-radius:3px; }
+.ga-filter-accordion .ga-filter-choices::-webkit-scrollbar-thumb:hover { background:var(--ga-orange); }
 
 /* Footer polish: slightly softer white/weight, more air between criteria.
    Hover and keyboard focus retain full contrast. */

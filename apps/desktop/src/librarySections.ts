@@ -1,6 +1,7 @@
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
+import { parseReleaseDate } from "./libraryQuality";
 export const SECTION_PREVIEW_SIZE = 16;
 export const SECTION_PAGE_SIZE = 40;
 export type SectionId = "installed" | "downloads" | "favorites" | "catalog";
@@ -9,31 +10,64 @@ export type LibraryView = "library" | "catalog" | "latest" | "popular" | "top" |
 export interface LibrarySection { id: SectionId; title: string; description?: string; emptyMessage?: string; games: CatalogGame[] }
 const titleOrder = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
 
-/** Steam supplies localized dates as well as ISO dates. Unknown dates sort last. */
+/**
+ * Sort key for a release date: milliseconds since the epoch, 0 when unknown.
+ * Delegates to the one shared parser so sorting and the year filter agree on
+ * which dates are readable; unknown dates sort after every known one in the
+ * newest-first order and are never mistaken for old releases.
+ */
 export function releaseDateValue(value?: string | null): number {
-  if (!value) return 0;
-  const normalized = value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\bde\b/g, " ").replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
-  const months: Record<string, number> = { ene: 0, jan: 0, feb: 1, mar: 2, abr: 3, apr: 3, may: 4, jun: 5, jul: 6, ago: 7, aug: 7, sep: 8, set: 8, oct: 9, nov: 10, dic: 11, dec: 11 };
-  const localized = normalized.match(/^(\d{1,2}) ([a-z]+) (\d{4})$/);
-  if (localized) {
-    const month = months[localized[2].slice(0, 3)];
-    const day = Number(localized[1]);
-    const year = Number(localized[3]);
-    if (month === undefined) return 0;
-    const result = new Date(Date.UTC(year, month, day));
-    return result.getUTCMonth() === month && result.getUTCDate() === day ? result.getTime() : 0;
-  }
-  const parsed = Date.parse(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseReleaseDate(value)?.getTime() ?? 0;
 }
 
-function compareCatalogGames(a: CatalogGame, b: CatalogGame, sort: CatalogSort): number {
+/**
+ * How popular a game is, on one scale.
+ *
+ * Steam's `recommendation_count` is present for only a few hundred games of the
+ * 41,000 in the published catalog (0.6%), so sorting on it alone left the rest in
+ * alphabetical order. `steam_review_count` covers about 90% and sits on a
+ * comparable scale (No Man's Sky: 313,971 recommendations, 352,858 reviews), so it
+ * stands in whenever the recommendation count is missing. A game with neither is
+ * 0, which is "unknown", not "unpopular".
+ */
+export function popularityValue(game: CatalogGame): number {
+  const recommendations = game.recommendation_count;
+  if (typeof recommendations === "number" && Number.isFinite(recommendations) && recommendations > 0) return recommendations;
+  const reviews = game.steam_review_count;
+  return typeof reviews === "number" && Number.isFinite(reviews) && reviews > 0 ? reviews : 0;
+}
+
+export function hasPopularityData(games: readonly CatalogGame[]): boolean {
+  return games.some(game => popularityValue(game) > 0);
+}
+
+/** Reviews it takes for a game's own score to outweigh the prior. */
+const REVIEW_PRIOR_WEIGHT = 100;
+/** Prior score: Steam's threshold for "Mostly Positive". */
+const REVIEW_PRIOR_SCORE = 70;
+
+/**
+ * Review score for ranking, or -1 when there is no usable score.
+ *
+ * The raw percentage is not comparable across review counts: 3 positive reviews
+ * out of 3 is 100% and would outrank 50,000 reviews at 95%. The score is pulled
+ * toward the prior in proportion to how few reviews back it, so a few reviews
+ * barely move it and thousands decide it. The displayed score is untouched; this
+ * is only the order.
+ */
+export function reviewScoreRank(game: CatalogGame): number {
+  const score = game.steam_review_score;
+  const count = game.steam_review_count ?? 0;
+  if (typeof score !== "number" || !Number.isFinite(score) || count <= 0) return -1;
+  return (count * score + REVIEW_PRIOR_WEIGHT * REVIEW_PRIOR_SCORE) / (count + REVIEW_PRIOR_WEIGHT);
+}
+
+export function compareCatalogGames(a: CatalogGame, b: CatalogGame, sort: CatalogSort): number {
   const title = () => titleOrder.compare(a.name, b.name) || a.id - b.id;
   if (sort === "release-date") return releaseDateValue(b.release_date) - releaseDateValue(a.release_date) || title();
-  if (sort === "steam-popularity") return (b.recommendation_count ?? 0) - (a.recommendation_count ?? 0) || title();
+  if (sort === "steam-popularity") return popularityValue(b) - popularityValue(a) || title();
   if (sort === "steam-review-score") {
-    const score = (game: CatalogGame) => typeof game.steam_review_score === "number" && Number.isFinite(game.steam_review_score) && (game.steam_review_count ?? 0) > 0 ? game.steam_review_score : -1;
-    return score(b) - score(a) || (b.steam_review_count ?? 0) - (a.steam_review_count ?? 0) || title();
+    return reviewScoreRank(b) - reviewScoreRank(a) || (b.steam_review_count ?? 0) - (a.steam_review_count ?? 0) || title();
   }
   return title();
 }
@@ -47,7 +81,7 @@ export function buildLibraryCollection(
   catalogSort: CatalogSort = "steam-popularity",
   libraryIds: ReadonlySet<number> = new Set(),
 ): LibrarySection {
-  const hasRecommendations = games.some(game => (game.recommendation_count ?? 0) > 0);
+  const hasRecommendations = hasPopularityData(games);
   const hasSteamReviewData = games.some(game => typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0);
   const effectiveSort = catalogSort === "steam-popularity" && !hasRecommendations ? "name" : catalogSort;
   const titles: Record<LibraryView, string> = {
@@ -70,15 +104,15 @@ export function buildLibraryCollection(
     catalog: catalogSort === "release-date"
       ? "Todos los juegos ordenados por fecha de lanzamiento, del más reciente al más antiguo."
       : catalogSort === "steam-popularity"
-        ? hasRecommendations ? "Todos los juegos ordenados por recomendaciones globales de Steam." : "Steam no proporcionó recomendaciones para estos juegos; se ordenan por título."
+        ? hasRecommendations ? "Todos los juegos ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas)." : "Steam no proporcionó datos de popularidad para estos juegos; se ordenan por título."
         : catalogSort === "steam-review-score"
-          ? hasSteamReviewData ? "Todos los juegos ordenados por puntuación de reseñas de Steam." : "Todavía no hay puntuaciones de reseñas de Steam; los juegos se ordenan por título."
+          ? hasSteamReviewData ? "Todos los juegos ordenados por puntuación de reseñas de Steam, ajustada por la cantidad de reseñas." : "Todavía no hay puntuaciones de reseñas de Steam; los juegos se ordenan por título."
           : "Todos los juegos disponibles, ordenados alfabéticamente.",
     popular: effectiveSort === "steam-popularity"
-      ? "Ordenados por recomendaciones globales de Steam."
+      ? "Ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas)."
       : "Ordenados alfabéticamente.",
     latest: "Ordenados por fecha de lanzamiento de Steam, más recientes primero.",
-    top: hasSteamReviewData ? "Ordenados por porcentaje de reseñas positivas de Steam, con cantidad de reseñas como desempate." : "El ranking Top necesita datos de reseñas de Steam que todavía no llegan en el catálogo.",
+    top: hasSteamReviewData ? "Ordenados por porcentaje de reseñas positivas de Steam, ajustado por la cantidad de reseñas." : "El ranking Top necesita datos de reseñas de Steam que todavía no llegan en el catálogo.",
     installed: "Juegos instalados o preparados en este dispositivo.",
     favorites: "Tus juegos favoritos.",
   };
@@ -95,8 +129,6 @@ export function buildLibraryCollection(
   collection.sort((a, b) => {
     const favoriteOrder = Number(preferences[b.id] === 1) - Number(preferences[a.id] === 1);
     if (favoriteOrder) return favoriteOrder;
-    const confidenceOrder = Number(a.filter_match === "possible") - Number(b.filter_match === "possible");
-    if (confidenceOrder) return confidenceOrder;
     // Catalog and Library share the visible sort selector; history must not
     // silently override it. Favorites are partitioned before this comparator.
     const sort = view === "latest" ? "release-date" : view === "top" ? "steam-review-score" : view === "popular" ? effectiveSort : catalogSort;
@@ -105,10 +137,10 @@ export function buildLibraryCollection(
   return { id: "catalog", title: titles[view], description: descriptions[view], emptyMessage: view === "top" && !hasSteamReviewData ? "Steam todavía no proporcionó reseñas para calcular este ranking." : undefined, games: collection };
 }
 export function buildLibrarySections(games: CatalogGame[], downloads: Record<number, ManagedDownloadStatus>, preferences: Record<number, 1 | -1> = {}, history: Record<number, number> = {}, catalogSort: CatalogSort = "steam-popularity"): LibrarySection[] {
-  const hasSteamPopularity = games.some(game => (game.recommendation_count ?? 0) > 0);
+  const hasSteamPopularity = hasPopularityData(games);
   const effectiveSort = catalogSort === "steam-popularity" && !hasSteamPopularity ? "name" : catalogSort;
   const catalogPresentation = effectiveSort === "steam-popularity"
-    ? { title: "Catálogo", description: "Ordenados por recomendaciones globales de Steam; no es un ranking regional de Argentina." }
+    ? { title: "Catálogo", description: "Ordenados por popularidad global en Steam (recomendaciones o cantidad de reseñas); no es un ranking regional de Argentina." }
     : catalogSort === "release-date"
       ? { title: "Catálogo", description: "Ordenados por fecha de lanzamiento, del más reciente al más antiguo." }
       : catalogSort === "steam-review-score"
@@ -128,14 +160,7 @@ export function buildLibrarySections(games: CatalogGame[], downloads: Record<num
   }
   for (const section of sections) {
     if (section.id === "installed") section.games.sort((a, b) => (history[b.app_id ?? 0] || 0) - (history[a.app_id ?? 0] || 0) || a.name.localeCompare(b.name, "es"));
-    if (section.id === "catalog") {
-      section.games.sort((a, b) => {
-        if (effectiveSort === "steam-popularity") return (b.recommendation_count ?? 0) - (a.recommendation_count ?? 0) || a.name.localeCompare(b.name, "es");
-        if (catalogSort === "release-date") return releaseDateValue(b.release_date) - releaseDateValue(a.release_date) || a.name.localeCompare(b.name, "es");
-        if (catalogSort === "steam-review-score") return (b.steam_review_score ?? -1) - (a.steam_review_score ?? -1) || (b.steam_review_count ?? 0) - (a.steam_review_count ?? 0) || a.name.localeCompare(b.name, "es");
-        return a.name.localeCompare(b.name, "es");
-      });
-    }
+    if (section.id === "catalog") section.games.sort((a, b) => compareCatalogGames(a, b, effectiveSort));
   }
   return sections.filter(section => section.id === "installed" || section.games.length > 0);
 }

@@ -8,7 +8,7 @@ catalog and a generic torrent/file download manager.
 - Users configure external plugins. Plugins supply game download sources; GameAccess
   does not bundle or distribute source lists.
 - BASE permits one active download; PLUS permits four. Both support a download queue.
-- PLUS debrid acceleration and Viking Files caching are planned and unimplemented.
+- PLUS can resolve client-provided sources through the server-side TorBox → ViKiNG cache; the server stores source fingerprints and checks that cached ViKiNG files still exist.
 - Library membership is independent of installation. Uninstall keeps a game in the
   library; removing from the library also uninstalls it.
 - Game details expose launch configuration and language repair through advanced options.

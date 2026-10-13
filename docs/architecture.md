@@ -16,8 +16,11 @@ files and database records are not purged by the source cleanup.
 - React/Tauri desktop: catalog and library UI, native caches, plugin discovery,
   BASE/PLUS concurrency (one/four), persistent queue and session download history.
 - FastAPI server: GameAccess activation keys and plans, public discovery metadata,
-  daily Steam maintenance, immutable update packages and optional lazy Co-Optimus
-  detail enrichment. It does not hold game download sources.
+  daily Steam maintenance, immutable update packages, optional lazy Co-Optimus detail
+  enrichment, and PLUS TorBox → ViKiNG source resolution. For each request it receives
+  one client-provided URL, stores only a fingerprint/host and result metadata, and
+  verifies that the ViKiNG file still exists before reusing its URL. Provider feeds and
+  full source URLs are not stored.
 - Bundled Python helpers: torrent/file downloads, extraction, app-ID installation
   folders, installed-file registry, executable selection, language repair and
   launching. Existing launch fixes and execution logs remain part of that flow.

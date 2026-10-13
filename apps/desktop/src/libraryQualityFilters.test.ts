@@ -1,18 +1,14 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   CONTENT_FILTER_GROUPS,
-  EMPTY_LIBRARY_FILTERS,
+  DEFAULT_LIBRARY_FILTERS,
   adultReason,
   defaultLibraryFilters,
   filterLibraryGames,
   filterLibraryGamesDetailed,
-  gameHasTooFewReviews,
   gameIsAdult,
-  gameIsLowRated,
-  gameIsShitty,
-  gameIsUnratedJunk,
+  gameHasViolenceDescriptor,
   gameMatchesTags,
-  getTagCounts,
   parseReleaseDate,
 } from "./librarySearch";
 import type { CatalogGame } from "./types";
@@ -42,143 +38,168 @@ describe("release date parsing", () => {
 
   it("treats an unknown date as unknown, never as old", () => {
     expect(parseReleaseDate("Por confirmarse")).toBeNull();
-    expect(gameIsShitty(game({ release_date: "Por confirmarse" }), NOW)).toBe(false);
-    // 22.5% of the catalog has no usable date; none of it may be hidden by age.
-    expect(gameIsShitty(game({ release_date: null, steam_review_score: null }), NOW)).toBe(false);
+    // 22.5% of the catalog has no usable date. With no year bound set, none of it
+    // may be hidden for lacking a date.
+    const filters = { ...DEFAULT_LIBRARY_FILTERS };
+    expect(filterLibraryGames([game({ id: 1, release_date: "Por confirmarse" })], "", filters)).toHaveLength(1);
+    expect(filterLibraryGames([game({ id: 1, release_date: null })], "", filters)).toHaveLength(1);
   });
 });
 
-describe("the three quality screens, each gated on release age", () => {
-  it("month gate: a recent release is never judged for lacking reviews", () => {
-    expect(gameIsUnratedJunk(game({ release_date: RECENT, steam_review_score: null }), NOW)).toBe(false);
-    expect(gameIsLowRated(game({ release_date: RECENT, steam_review_score: 20 }), NOW)).toBe(false);
-    expect(gameHasTooFewReviews(game({ release_date: RECENT, steam_review_score: 90, steam_review_count: 2 }), NOW)).toBe(false);
+describe("the score slider is an explicit bound, not an age heuristic", () => {
+  it("keeps a game at or above the bar and drops one below it, at any age", () => {
+    // The old screens gated everything on release age; an explicit minimum does
+    // not. A recent game below the bar is below the bar.
+    const bound = { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 70 };
+    const games = [
+      game({ id: 1, name: "Above", steam_review_score: 70 }),
+      game({ id: 2, name: "Below", steam_review_score: 69.9 }),
+      game({ id: 3, name: "Brand new below", steam_review_score: 20, release_date: RECENT }),
+      game({ id: 4, name: "Scored high", steam_review_score: 95 }),
+    ];
+    expect(filterLibraryGames(games, "", bound).map(g => g.id)).toEqual([1, 4]);
   });
 
-  it("no reviews at all: old and scoreless", () => {
-    expect(gameIsUnratedJunk(game({ release_date: OLD, steam_review_score: null, steam_review_count: 0 }), NOW)).toBe(true);
-    // Any score means someone reviewed it.
-    expect(gameIsUnratedJunk(game({ release_date: OLD, steam_review_score: 95, steam_review_count: 12 }), NOW)).toBe(false);
+  it("drops a game with no score, because it cannot be measured against the bar", () => {
+    const bound = { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 50 };
+    // An unknown score is not "good enough". Returning it would be the silent
+    // false positive this whole filter rework removes.
+    expect(filterLibraryGames([game({ id: 1, steam_review_score: null })], "", bound)).toHaveLength(0);
+    expect(filterLibraryGames([game({ id: 1, steam_review_score: undefined })], "", bound)).toHaveLength(0);
   });
 
-  it("below the score bar: old and under 50", () => {
-    expect(gameIsLowRated(game({ release_date: OLD, steam_review_score: 49.9, steam_review_count: 5000 }), NOW)).toBe(true);
-    expect(gameIsLowRated(game({ release_date: OLD, steam_review_score: 20, steam_review_count: 1241 }), NOW)).toBe(true);
-    expect(gameIsLowRated(game({ release_date: OLD, steam_review_score: 50, steam_review_count: 5 }), NOW)).toBe(false);
-  });
-
-  it("too few reviews: old, good score, under 100 reviews", () => {
-    // A month after release, under 100 reviews means it reached almost nobody.
-    expect(gameHasTooFewReviews(game({ release_date: OLD, steam_review_score: 97, steam_review_count: 70 }), NOW)).toBe(true);
-    expect(gameHasTooFewReviews(game({ release_date: OLD, steam_review_score: 100, steam_review_count: 11 }), NOW)).toBe(true);
-    expect(gameHasTooFewReviews(game({ release_date: OLD, steam_review_score: 90, steam_review_count: 10 }), NOW)).toBe(true);
-    // 100 reviews is enough, and a low score is the other rule's business.
-    expect(gameHasTooFewReviews(game({ release_date: OLD, steam_review_score: 55, steam_review_count: 100 }), NOW)).toBe(false);
-    expect(gameHasTooFewReviews(game({ release_date: OLD, steam_review_score: 20, steam_review_count: 3 }), NOW)).toBe(false);
-  });
-
-  it("combines into the shitty rule", () => {
-    expect(gameIsShitty(game({ release_date: OLD, steam_review_score: 97, steam_review_count: 70 }), NOW)).toBe(true);
-    expect(gameIsShitty(game({ release_date: OLD, steam_review_score: 85, steam_review_count: 421100 }), NOW)).toBe(false);
+  it("is off when the bound is undefined, whatever the scores are", () => {
+    const games = [
+      game({ id: 1, steam_review_score: 10 }),
+      game({ id: 2, steam_review_score: null }),
+    ];
+    expect(filterLibraryGames(games, "", DEFAULT_LIBRARY_FILTERS)).toHaveLength(2);
   });
 });
 
-describe("adult screen", () => {
-  it("recognises adult titles from the detail payload first", () => {
-    expect(gameIsAdult(game({ required_age: 18 }))).toBe(true);
-    expect(gameIsAdult(game({ required_age: "18" }))).toBe(true);
-    expect(gameIsAdult(game({ required_age: 0 }))).toBe(false);
+describe("the release-year sliders are bounds on a readable date", () => {
+  it("keeps only games inside the range", () => {
+    const range = { ...DEFAULT_LIBRARY_FILTERS, releaseYearFrom: 2020, releaseYearTo: 2022 };
+    const games = [
+      game({ id: 1, release_date: "2019-12-31" }),
+      game({ id: 2, release_date: "2020-01-01" }),
+      game({ id: 3, release_date: "2022-12-31" }),
+      game({ id: 4, release_date: "2023-01-01" }),
+    ];
+    expect(filterLibraryGames(games, "", range).map(g => g.id)).toEqual([2, 3]);
+  });
+
+  it("drops a game whose date cannot be read, because it cannot be placed in the range", () => {
+    const range = { ...DEFAULT_LIBRARY_FILTERS, releaseYearFrom: 2000 };
+    // 22.5% of the catalog has no usable date. Saying "unknown" is not "recent".
+    expect(filterLibraryGames([game({ id: 1, release_date: "Por confirmarse" })], "", range)).toHaveLength(0);
+    expect(filterLibraryGames([game({ id: 1, release_date: null })], "", range)).toHaveLength(0);
+    // But an unreadable date is never treated as OLD when the range is off.
+    expect(filterLibraryGames([game({ id: 1, release_date: "Por confirmarse" })], "", DEFAULT_LIBRARY_FILTERS)).toHaveLength(1);
+  });
+});
+
+describe("adult screen uses Valve's official descriptors", () => {
+  it("blocks adult-only content from the descriptor ids the server resolves", () => {
+    // 3 and 4 are the ids present on every explicit title tested and absent
+    // from every mainstream one.
+    expect(gameIsAdult(game({ content_descriptorids: [1, 3, 4, 5] }))).toBe(true);
+    expect(gameIsAdult(game({ content_descriptorids: [3, 5] }))).toBe(true);
     expect(gameIsAdult(game({ adult_only: true }))).toBe(true);
-    expect(gameIsAdult(game({ content_descriptors: ["Some Nudity or Sexual Content"] }))).toBe(true);
     // No signal at all: unknown is not adult.
     expect(gameIsAdult(game({}))).toBe(false);
   });
 
-  it("falls back to explicit tags, which is all the packaged catalog has", () => {
-    // The seed carries no required_age/content_descriptors at all, so without
-    // the tags the parental filter would silently block nothing.
-    expect(gameIsAdult(game({ tags: ["Hentai"] }))).toBe(true);
-    expect(gameIsAdult(game({ tags: ["Sexual Content"] }))).toBe(true);
-    expect(gameIsAdult(game({ tags: ["Nudity"] }))).toBe(true);
-    expect(gameIsAdult(game({ genres: ["Adult Only"] }))).toBe(true);
-    expect(gameIsAdult(game({ tags: ["Action", "Indie"] }))).toBe(false);
+  it("does not treat violence or mature descriptors as adult content", () => {
+    // Mortal Kombat 11 is officially [2, 5]: frequent violence plus general
+    // mature content. Valve lists no sexual descriptor for it.
+    expect(gameIsAdult(game({ content_descriptorids: [2, 5] }))).toBe(false);
+    expect(gameIsAdult(game({ content_descriptorids: [5] }))).toBe(false);
+    // Descriptor 1 (some nudity or sexual content) is a stricter, opt-in policy.
+    expect(gameIsAdult(game({ content_descriptorids: [1, 2, 5] }))).toBe(false);
+    expect(gameIsAdult(game({ content_descriptorids: [1, 2, 5] }), true)).toBe(true);
   });
 
-  it("does not hide mainstream titles for violence tags unless asked", () => {
-    // Measured on the real catalog: `mature` matches Batman: Arkham Knight and
-    // `violent` matches Hellblade. Hiding those as "adult" would be wrong.
-    const batman = game({ tags: ["Mature"] });
-    const hellblade = game({ tags: ["Violent"] });
-    const killingFloor = game({ tags: ["Gore"] });
+  it("ignores community tags, which produced the false positives", () => {
+    // Mortal Kombat 11 carries the user tag "Sexual Content" but no sexual
+    // descriptor from Valve. Tags must never decide an adult block.
+    expect(gameIsAdult(game({ tags: ["Sexual Content"], content_descriptorids: [2, 5] }))).toBe(false);
+    expect(gameIsAdult(game({ tags: ["Hentai"] }))).toBe(false);
+    expect(gameIsAdult(game({ tags: ["Nudity"] }))).toBe(false);
+  });
 
-    expect(gameIsAdult(batman)).toBe(false);
-    expect(gameIsAdult(hellblade)).toBe(false);
-    expect(gameIsAdult(killingFloor)).toBe(false);
+  it("reports violence as its own axis, not as adult content", () => {
+    // Descriptor 2 is screened by its own flag so turning the adult block off
+    // cannot silently turn a violence screen off with it.
+    const mk11 = game({ content_descriptorids: [2, 5] });
+    expect(gameIsAdult(mk11)).toBe(false);
+    expect(gameHasViolenceDescriptor(mk11)).toBe(true);
+    expect(gameHasViolenceDescriptor(game({ content_descriptorids: [1, 3, 4, 5] }))).toBe(false);
+    const filters = { ...DEFAULT_LIBRARY_FILTERS, hideViolenceDescriptor: true };
+    expect(filterLibraryGames([mk11], "", filters)).toHaveLength(0);
+    // Without that flag the game stays visible even though it is violent.
+    expect(filterLibraryGames([mk11], "", DEFAULT_LIBRARY_FILTERS)).toHaveLength(1);
+  });
 
-    // Opting in is a legitimate but different policy choice.
-    expect(gameIsAdult(killingFloor, true)).toBe(true);
+  it("falls back to Steam's own age gate when no descriptor is cached", () => {
+    expect(gameIsAdult(game({ required_age: 18 }))).toBe(true);
+    expect(gameIsAdult(game({ required_age: "18" }))).toBe(true);
+    expect(gameIsAdult(game({ required_age: 0 }))).toBe(false);
   });
 
   it("reports which signal fired, so a block is explainable", () => {
+    expect(adultReason(game({ content_descriptorids: [1, 3, 4, 5] }))).toBe("descriptor:3");
+    expect(adultReason(game({ content_descriptorids: [2, 5] }))).toBeNull();
+    expect(adultReason(game({ adult_only: true }))).toBe("descriptor:adult-only");
     expect(adultReason(game({ required_age: 18 }))).toBe("required_age=18");
-    expect(adultReason(game({ tags: ["Hentai"] }))).toBe("tag:Hentai");
-    expect(adultReason(game({ tags: ["Action"] }))).toBeNull();
+    expect(adultReason(game({ tags: ["Hentai"] }))).toBeNull();
   });
 });
 
-describe("tag based content filtering", () => {
+describe("content filtering uses Valve descriptors, not community tags", () => {
   const games = [
-    game({ id: 1, name: "Normal", tags: ["Action", "Indie"] }),
-    game({ id: 2, name: "Hentai Game", tags: ["Hentai", "Anime"] }),
-    game({ id: 3, name: "Nudity Game", tags: ["Nudity"] }),
-    game({ id: 4, name: "Gore Game", tags: ["Gore", "Action"] }),
-    game({ id: 5, name: "Sin tags" }),
+    game({ id: 1, name: "Normal", tags: ["Action", "Indie"], content_descriptorids: [] }),
+    // Tagged sexual but Valve lists no such descriptor: the exact false positive
+    // that put Blender and 5D Chess in a sexual-content result.
+    game({ id: 2, name: "Tagged only", tags: ["Hentai", "Anime"], content_descriptorids: [] }),
+    game({ id: 3, name: "Descriptor nudity", tags: [], content_descriptorids: [1] }),
+    game({ id: 4, name: "Descriptor adult", tags: [], content_descriptorids: [3, 4] }),
+    // Violence is descriptor 2, which is a parental policy and not this group.
+    game({ id: 5, name: "Descriptor violence", tags: ["Gore"], content_descriptorids: [2] }),
   ];
+  const sexual = [1, 3, 4];
 
-  it("counts real tag hits instead of relying on genres", () => {
-    // The packaged catalog keeps content classification in `tags`; `genres`
-    // only holds a translated handful, which is why the old dialog showed 1-3.
-    const counts = getTagCounts(games, ["Hentai", "Sexual Content", "Nudity", "Gore", "Violent", "Mature"]);
-    expect(counts.get("Hentai")).toBe(1);
-    expect(counts.get("Nudity")).toBe(1);
-    expect(counts.get("Gore")).toBe(1);
-    expect(counts.get("Sexual Content")).toBeUndefined();
-    expect(counts.get("Violent")).toBeUndefined();
+  it("selects only games whose descriptors match", () => {
+    const result = filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, contentDescriptorIds: sexual });
+    expect(result.map(g => g.id)).toEqual([3, 4]);
   });
 
-  it("matches tags case-insensitively and ORs within the group", () => {
-    expect(gameMatchesTags(games[1], ["hentai"])).toBe(true);
-    expect(gameMatchesTags(games[1], ["Hentai", "Nudity"])).toBe(true);
-    expect(gameMatchesTags(games[0], ["Hentai"])).toBe(false);
-    // No tag selection means no restriction.
-    expect(gameMatchesTags(games[0], [])).toBe(true);
+  it("ignores a community tag, which is the whole point", () => {
+    const result = filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, contentDescriptorIds: sexual });
+    // Game 2 is tagged Hentai and still must not appear.
+    expect(result.map(g => g.id)).not.toContain(2);
+    expect(gameMatchesTags(games[1], ["Hentai"])).toBe(true);
   });
 
-  it("excludes by tag and composes with other groups", () => {
-    const sexual = filterLibraryGames(games, "", { ...EMPTY_LIBRARY_FILTERS, tags: ["Hentai", "Nudity"] });
-    expect(sexual.map(g => g.id)).toEqual([2, 3]);
-
-    const gore = filterLibraryGames(games, "", { ...EMPTY_LIBRARY_FILTERS, tags: ["Gore"] });
-    expect(gore.map(g => g.id)).toEqual([4]);
-
-    // Combined tag + query narrows further than either alone.
-    const searched = filterLibraryGames(games, "game", { ...EMPTY_LIBRARY_FILTERS, tags: ["Hentai", "Nudity", "Gore"] });
-    expect(searched.map(g => g.id)).toEqual([2, 3, 4]);
+  it("composes with a text query", () => {
+    const named = [...games, game({ id: 6, name: "Tagged only two", tags: ["Nudity"], content_descriptorids: [1] })];
+    const result = filterLibraryGames(named, "tagged", { ...DEFAULT_LIBRARY_FILTERS, contentDescriptorIds: sexual });
+    expect(result.map(g => g.id)).toEqual([6]);
   });
 
-  it("never treats a missing tag as a match", () => {
-    // A game with no tags cannot satisfy a tag filter, and must not be counted
-    // as 'possible' the way missing genre metadata is.
-    const result = filterLibraryGames(games, "", { ...EMPTY_LIBRARY_FILTERS, tags: ["Hentai"] });
-    expect(result.map(g => g.id)).not.toContain(5);
+  it("never treats a missing descriptor as a match", () => {
+    const result = filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, contentDescriptorIds: sexual });
+    expect(result.map(g => g.id)).not.toContain(1);
+    expect(result.map(g => g.id)).not.toContain(2);
   });
 
-  it("offers the content groups split by meaning", () => {
-    expect(CONTENT_FILTER_GROUPS.map(g => g.id)).toEqual(["sexual", "violence"]);
-    expect(CONTENT_FILTER_GROUPS[0].tags).toContain("Hentai");
-    // Violence tags stay out of the sexual group: they catch mainstream titles.
-    expect(CONTENT_FILTER_GROUPS[0].tags).not.toContain("Gore");
-    expect(CONTENT_FILTER_GROUPS[1].tags).toContain("Gore");
+  it("keeps only sexual content in the discovery groups", () => {
+    // Discovery is a positive search on descriptors. Violence moved to parental
+    // control, where the same topic is a screen, so it does not carry two
+    // meanings in one panel.
+    expect(CONTENT_FILTER_GROUPS.map(g => g.id)).toEqual(["sexual"]);
+    expect(CONTENT_FILTER_GROUPS[0].descriptorIds).toContain(1);
+    expect(CONTENT_FILTER_GROUPS[0].descriptorIds).not.toContain(2);
   });
 });
 
@@ -192,49 +213,53 @@ describe("filterLibraryGames and the hidden notice", () => {
     game({ id: 6, name: "Adulto", release_date: OLD, steam_review_score: 90, steam_review_count: 900, required_age: 18 }),
   ];
 
-  it("removes nothing while no quality screen is selected", () => {
-    expect(filterLibraryGames(games, "", EMPTY_LIBRARY_FILTERS).map(g => g.id)).toEqual([1, 2, 3, 4, 5, 6]);
+  it("removes nothing while no screen or bound is selected", () => {
+    expect(filterLibraryGames(games, "", DEFAULT_LIBRARY_FILTERS).map(g => g.id)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
-  it("ships with the quality screens on by default, still toggleable", () => {
+  it("starts with no bound set, so an untouched panel filters nothing", () => {
+    // The score and year controls are explicit bounds. Until the user sets one,
+    // nothing is hidden: the old set of always-on screens is gone, and a panel
+    // that silently drops half the catalog was the problem.
     const defaults = defaultLibraryFilters();
-    expect(defaults.hideNoReviews).toBe(true);
-    expect(defaults.hideLowRated).toBe(true);
-    expect(defaults.hideFewReviews).toBe(true);
-    // Toggling one off must not disturb the others.
-    expect({ ...defaults, hideFewReviews: false }.hideNoReviews).toBe(true);
+    expect(defaults.minReviewScore).toBeUndefined();
+    expect(defaults.releaseYearFrom).toBeUndefined();
+    expect(defaults.releaseYearTo).toBeUndefined();
+    expect(defaults.hideAdult).toBeUndefined();
   });
 
-  it("reports how many games each screen hid", () => {
-    const detailed = filterLibraryGamesDetailed(games, "", defaultLibraryFilters());
-    // The default set screens quality only: the adult filter is opt-in because
-    // it cannot work until each game's detail has been cached.
-    expect(detailed.games.map(g => g.id)).toEqual([1, 5, 6]);
-    expect(detailed.hiddenCount).toBe(3);
+  it("reports how many games a bound hid", () => {
+    // An untouched panel hides nothing: every record is still there.
+    const idle = filterLibraryGamesDetailed(games, "", defaultLibraryFilters());
+    expect(idle.games.map(g => g.id)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(idle.hiddenCount).toBe(0);
 
-    // Each screen can be isolated.
-    expect(filterLibraryGamesDetailed(games, "", { ...EMPTY_LIBRARY_FILTERS, hideNoReviews: true }).hiddenCount).toBe(1);
-    expect(filterLibraryGamesDetailed(games, "", { ...EMPTY_LIBRARY_FILTERS, hideLowRated: true }).hiddenCount).toBe(1);
-    expect(filterLibraryGamesDetailed(games, "", { ...EMPTY_LIBRARY_FILTERS, hideFewReviews: true }).hiddenCount).toBe(1);
-    expect(filterLibraryGamesDetailed(games, "", { ...EMPTY_LIBRARY_FILTERS, hideAdult: true }).games.map(g => g.id)).toEqual([1, 2, 3, 4, 5]);
+    // A minimum score of 85 keeps only the well-reviewed ones.
+    const scored = filterLibraryGamesDetailed(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 85 });
+    expect(scored.games.map(g => g.id)).toEqual([1, 4, 6]);
+    expect(scored.hiddenCount).toBe(3);
+
+    // And the adult screen is its own axis.
+    expect(filterLibraryGamesDetailed(games, "", { ...DEFAULT_LIBRARY_FILTERS, hideAdult: true }).games.map(g => g.id)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("reports adult blocks separately from quality blocks", () => {
-    const detailed = filterLibraryGamesDetailed(games, "", { ...defaultLibraryFilters(), hideAdult: true });
-    // A parental block must never be hidden inside the quality count.
-    expect(detailed.hiddenCount).toBe(4);
+  it("reports adult blocks separately from the other screens", () => {
+    const detailed = filterLibraryGamesDetailed(games, "", { ...DEFAULT_LIBRARY_FILTERS, hideAdult: true });
+    // A parental block must never be hidden inside a quality count.
     expect(detailed.hiddenAdultCount).toBe(1);
-    expect(detailed.games.map(g => g.id)).toEqual([1, 5]);
+    expect(detailed.hiddenCount).toBe(1);
+    expect(detailed.games.map(g => g.id)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("only counts a game as hidden when it actually matched the search", () => {
-    // "zombie" matches nothing, so nothing was hidden by the filter either.
+    // "zombie" matches nothing, so nothing was hidden by a filter either.
     const none = filterLibraryGamesDetailed(games, "zombie", defaultLibraryFilters());
     expect(none.games).toHaveLength(0);
     expect(none.hiddenCount).toBe(0);
 
-    // "sin criticas" matches a game that the filter then hides.
-    const matched = filterLibraryGamesDetailed(games, "sin criticas", defaultLibraryFilters());
+    // "sin criticas" matches the scoreless game, which the minimum score hides.
+    const bound = { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 50 };
+    const matched = filterLibraryGamesDetailed(games, "sin criticas", bound);
     expect(matched.games).toHaveLength(0);
     expect(matched.hiddenCount).toBe(1);
   });

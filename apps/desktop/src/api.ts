@@ -3,7 +3,7 @@ import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork } from "./bundledArtwork";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
-import { getAppLocale, getSteamStoreLanguage, translate } from "./i18n";
+import { getAppLocale, getSteamStoreLanguage, LOCALE_CHANGED_EVENT, translate } from "./i18n";
 import { narrate } from "./narrationLog";
 import { getSteamStoreMetadata, steamInstalledAppIds } from "./native";
 import { getApiBaseUrl } from "./settings";
@@ -11,6 +11,12 @@ import { normalizeSteamStoreMetadata } from "./steamMetadata";
 import type { CatalogGame, GameDetails, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
 const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ttlMs: 24 * 60 * 60 * 1000});
 let currentCatalog: CatalogGame[] = [];
+if (typeof window !== "undefined") {
+  window.addEventListener(LOCALE_CHANGED_EVENT, () => {
+    currentCatalog = [];
+    digitalCatalogService.clearCache();
+  });
+}
 function detailCacheKey(gameId: number) { return `${getAppLocale()}|${gameId}`; }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const api = await getApiBaseUrl();

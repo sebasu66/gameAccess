@@ -4,7 +4,8 @@ export interface CatalogGame {
   has_downloads?: boolean;
   availableSourceCount?: number;
   download_source_names?: string[];
-  filter_match?: "confirmed" | "possible";
+  /** Set by the filter pass so the UI can mark a confirmed match. */
+  filter_match?: "confirmed";
   id: number;
   slug: string;
   name: string;
@@ -41,6 +42,13 @@ export interface CatalogGame {
   /** Known once Steam's detail payload has been cached for this game. */
   required_age?: number | string | null;
   content_descriptors?: string[] | null;
+  /**
+   * Valve's official content descriptor ids, resolved by the server during
+   * discovery. 3 and 4 mark adult-only sexual content, 1 marks some nudity or
+   * sexual content, and 2 and 5 cover violence and general mature content.
+   */
+  content_descriptorids?: number[] | null;
+  /** Server verdict from those descriptors; true only for adult-only content. */
   adult_only?: boolean | null;
   request_count_total?: number;
   single_player?: boolean | null;

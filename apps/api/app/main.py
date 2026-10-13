@@ -24,6 +24,7 @@ from .activation_routes import router as activation_router, require_active_insta
 from .access_admin_routes import router as access_admin_router, create_access_keys, list_access_keys, renew_access_key, revoke_access_key
 from .client_error_routes import router as client_error_router, report_client_error, admin_client_errors_view
 from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary, library_catalog, digital_game_details
+from .viking_cache_routes import router as viking_cache_router
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
 install_admin_auth(app)
@@ -119,5 +120,5 @@ app.include_router(cooptimus_router)
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)
 app.middleware("http")(trace_request)
-for router in (activation_router, access_admin_router, client_error_router, catalog_router):
+for router in (activation_router, access_admin_router, client_error_router, catalog_router, viking_cache_router):
     app.include_router(router)

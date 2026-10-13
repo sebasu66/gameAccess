@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "revision": "b82d4a41972f55d6",
-  "generated_at": "2026-10-10T14:07:48.172914+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/codex/plugin-download-flow-20261009/deploy/catalog-cache/catalog-cache-b82d4a41972f55d6.sqlite.gz",
-  "sha256": "aae72aacbe740b4d0d44120f8ee6a0a50c4473f6dce665ea64f26a4afd0ccc32",
+  "revision": "e2c499094f2fefeb",
+  "generated_at": "2026-10-12T23:44:10.070035+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-e2c499094f2fefeb.sqlite.gz",
+  "sha256": "dcffa81f9b80de6b89d9c9b163da3f7d4a400a11a7de33bfc04fc26d52c04a87",
   "catalog_count": 41729,
   "detail_count": 677,
-  "compressed_bytes": 7128212,
-  "uncompressed_bytes": 54444032,
+  "compressed_bytes": 7834477,
+  "uncompressed_bytes": 64081920,
   "coverage": {
     "released_since": "2025-10-10",
     "through": "2026-10-10",
@@ -21,6 +21,15 @@
       "state": "not-requested"
     },
     "updated_at": "2026-10-10T14:07:47.108642+00:00",
-    "tagged_count": 34622
+    "tagged_count": 34622,
+    "steamdb": {
+      "seen": 191701,
+      "matched": 39655,
+      "categories": 39619,
+      "genres": 39646,
+      "tags": 8501,
+      "review_score": 34519,
+      "review_count": 35398
+    }
   }
 }

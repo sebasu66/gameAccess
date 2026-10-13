@@ -309,7 +309,8 @@ def refresh(args):
         rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit)
         merge_search(games, rows, names)
         report["cooptimus"] = enrich_cooptimus(remote, games, args.cooptimus_limit)
-        # Resolve real artwork once here so no client ever has to guess a URL.
+        # Resolve real artwork and official age ratings once here, so no client
+        # ever guesses a cover URL or decides adult content from user tags.
         if getattr(args, "resolve_artwork", True):
             resolver = ArtworkResolver(remote.client, args.cache_dir / "artwork", delay=args.delay)
             asset_report = apply_assets(games, resolver.resolve(sorted(games)))
@@ -317,9 +318,12 @@ def refresh(args):
             asset_report["cache_hits"] = resolver.cache_hits
             report["artwork"] = asset_report
             LOG.info(
-                "Artwork resolved: matched=%s capsule=%s hero=%s header=%s missing=%s requests=%s cache_hits=%s",
+                "Assets resolved: matched=%s capsule=%s hero=%s header=%s missing=%s "
+                "descriptors=%s adult_only=%s nudity=%s category_ids=%s requests=%s cache_hits=%s",
                 asset_report["matched"], asset_report["capsule"], asset_report["hero"],
                 asset_report["header"], asset_report["missing"],
+                asset_report["descriptors"], asset_report["adult_only"],
+                asset_report["nudity"], asset_report["categories"],
                 asset_report["requests"], asset_report["cache_hits"],
             )
     if args.enrichment_file:

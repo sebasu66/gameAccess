@@ -60,8 +60,11 @@ describe("library text search", () => {
     expect(filterLibraryGames(games, "  PORTAL  ").map((item) => item.name)).toEqual(["Portal 2"]);
   });
 
-  it("returns the full grid when search and filters are empty", () => {
-    expect(filterLibraryGames(games, "   ")).toBe(games);
+  it("returns the whole grid when search is empty, with no criterion applied", () => {
+    const result = filterLibraryGames(games, "   ");
+    // Every fixture is a game, so the default games-only search keeps them all.
+    // It is no longer the same array instance: "not a program" is a real filter.
+    expect(result.map((item) => item.id)).toEqual(games.map((item) => item.id));
   });
 });
 
@@ -74,7 +77,7 @@ describe("useful catalog facets", () => {
       { ...game(24, "Solo"), categories: ["Single-player", "Steam Cloud"] },
       { ...game(25, "MMO"), categories: ["Massively Multiplayer"] },
     ];
-    const matching = (features: NonNullable<Parameters<typeof filterLibraryGames>[2]>["features"]) => filterLibraryGames(records, "", { genres: [], categories: [], features, includeUncertain: false }).map(item => item.id);
+    const matching = (features: NonNullable<Parameters<typeof filterLibraryGames>[2]>["features"]) => filterLibraryGames(records, "", { genres: [], categories: [], features }).map(item => item.id);
     expect(matching(["online_coop"])).toEqual([21]);
     expect(matching(["local_coop"])).toEqual([22]);
     expect(matching(["coop_lan"])).toEqual([23]);
@@ -111,7 +114,7 @@ describe("useful catalog facets", () => {
 
   it("shows genres and gameplay modes, not noisy Steam capability categories", () => {
     const facets = getLibrarySearchFacets(games);
-    expect(facets.genres).toEqual(["Adventure", "Indie", "Sports"]);
+    expect(facets.genres).toEqual(["adventure", "sports", "indie"]);
     expect(facets.categories).toEqual([]);
     expect(facets.features).toContain("single_player");
     expect(facets.features).toContain("online_multiplayer");

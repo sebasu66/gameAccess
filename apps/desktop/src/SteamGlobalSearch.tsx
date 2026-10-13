@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -10,6 +10,11 @@ type Props = {
 
 export default function SteamGlobalSearch({ query, setQuery }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [draft, setDraft] = useState(query);
+
+  useEffect(() => {
+    setDraft(query);
+  }, [query]);
 
   useEffect(() => {
     const handleSearchShortcut = (event: KeyboardEvent) => {
@@ -29,20 +34,38 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
     window.dispatchEvent(new CustomEvent(LIBRARY_SEARCH_EVENT, { detail: { query } }));
   }, [query]);
 
+  const commitSearch = () => {
+    setQuery(draft.trim());
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitSearch();
+    }
+  };
+
+  const handleClear = () => {
+    setDraft("");
+    setQuery("");
+    inputRef.current?.focus({ preventScroll: true });
+  };
+
   return (
     <div className="global-search">
       <label className="search-box global-search-box">
-        <Search className="ga-search-icon" size={28} strokeWidth={2} />
+        <Search className="ga-search-icon" size={28} strokeWidth={2} onClick={commitSearch} style={{ cursor: "pointer" }} />
         <input
           ref={inputRef}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Buscá tu próximo juego"
           autoComplete="off"
           aria-label="Buscar juegos por título o metadatos"
         />
-        {query ? (
-          <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda">
+        {draft || query ? (
+          <button type="button" onClick={handleClear} aria-label="Limpiar búsqueda">
             <X size={15} />
           </button>
         ) : null}

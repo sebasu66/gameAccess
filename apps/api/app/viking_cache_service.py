@@ -1,0 +1,437 @@
+"""Server-side TorBox -> ViKiNG remote transfer; source URLs never reach disk or logs."""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import ipaddress
+import logging
+import os
+import re
+import time
+from dataclasses import dataclass
+from typing import Any, Callable
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
+
+import httpx
+
+from .request_diagnostics import detail
+
+logger = logging.getLogger("gameaccess.viking_cache")
+
+TORBOX_BASE = "https://api.torbox.app/v1/api"
+VIKING_API_BASE = "https://vikingfile.com/api"
+VIKING_FILE_BASE = "https://vikingfile.com/f/"
+
+_TRANSIENT_QUERY_KEYS = re.compile(
+    r"^(?:token|access_token|signature|sig|expires|expiry|authorization|auth|policy|jwt|"
+    r"download_token|x-amz-.+|x-goog-.+|x-ms-.+|se|sp|sv|sr|st|skoid|sktid|skt|ske|sks|skv)$",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class SourceIdentity:
+    kind: str
+    fingerprint: str
+    host: str
+
+
+@dataclass(frozen=True)
+class VikingFileResult:
+    name: str
+    size_bytes: int
+    file_hash: str
+    url: str
+    torbox_item_id: int
+
+
+class ProviderFailure(Exception):
+    """A safe, user-facing provider failure without upstream URLs or credentials."""
+
+    def __init__(self, code: str, status_code: int, public_message: str):
+        super().__init__(code)
+        self.code = code
+        self.status_code = status_code
+        self.public_message = public_message
+
+
+def normalize_source_url(source_url: str) -> SourceIdentity:
+    """Validate a source and derive a stable fingerprint without retaining its URL."""
+    value = str(source_url or "").strip()
+    if not value or len(value) > 8192:
+        raise ValueError("La URL de origen está vacía o es demasiado larga.")
+
+    if value.lower().startswith("magnet:"):
+        if not value.lower().startswith("magnet:?"):
+            raise ValueError("El enlace magnet no tiene un formato válido.")
+        query = parse_qs(urlsplit(value).query)
+        exact_topics = [
+            topic.strip().lower()
+            for topic in query.get("xt", [])
+            if topic.strip().lower().startswith(("urn:btih:", "urn:btmh:"))
+        ]
+        if not exact_topics:
+            raise ValueError("El magnet no contiene un identificador de torrent válido.")
+        # Trackers and display names can change without changing the torrent payload.
+        identity = "torrent:" + "|".join(sorted(set(exact_topics)))
+        return SourceIdentity(
+            kind="torrent",
+            fingerprint=hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+            host="magnet",
+        )
+
+    try:
+        parsed = urlsplit(value)
+        scheme = parsed.scheme.lower()
+        host = (parsed.hostname or "").encode("idna").decode("ascii").lower()
+        port = parsed.port
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("La URL de origen no es válida.") from exc
+
+    if scheme not in ("http", "https") or not host or parsed.username or parsed.password:
+        raise ValueError("La fuente debe ser un enlace HTTP(S) directo o un magnet.")
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        raise ValueError("No se permiten fuentes locales o privadas.")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise ValueError("No se permiten fuentes con direcciones IP privadas o reservadas.")
+    if parsed.path.lower().endswith(".torrent"):
+        raise ValueError("Para torrents, envía el enlace magnet; los archivos .torrent remotos aún no están admitidos.")
+
+    default_port = (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
+    host_for_url = f"[{host}]" if ":" in host else host
+    netloc = host_for_url if not port or default_port else f"{host_for_url}:{port}"
+    stable_query = sorted(
+        (key, item)
+        for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+        if not _TRANSIENT_QUERY_KEYS.match(key)
+    )
+    canonical = urlunsplit((scheme, netloc, parsed.path or "/", urlencode(stable_query), ""))
+    fingerprint = hashlib.sha256(("direct:" + canonical).encode("utf-8")).hexdigest()
+    return SourceIdentity(kind="direct", fingerprint=fingerprint, host=host)
+
+
+def _data_object(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data", payload)
+    if isinstance(data, list):
+        return next((item for item in data if isinstance(item, dict)), {})
+    return data if isinstance(data, dict) else {}
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _is_finished(item: dict[str, Any]) -> bool:
+    if item.get("download_finished") is True:
+        return True
+    state = str(item.get("download_state") or item.get("status") or "").strip().lower()
+    if state not in {"completed", "complete", "finished"}:
+        return False
+    try:
+        progress = float(item.get("progress") or 0)
+    except (TypeError, ValueError):
+        return False
+    if progress > 1:
+        progress /= 100.0
+    size = _safe_int(item.get("size") or item.get("total_size"))
+    return progress >= 1.0 and (size > 0 or bool(item.get("files")))
+
+
+def _validate_viking_file_url(value: str, file_hash: str) -> str:
+    try:
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        host = ""
+    if parsed.scheme == "https" and host in {"vikingfile.com", "www.vikingfile.com"} and file_hash:
+        return value
+    return VIKING_FILE_BASE + file_hash
+
+
+class TorBoxVikingProvider:
+    """Provider adapter. TorBox credentials are only sent to TorBox, never ViKiNG."""
+
+    def __init__(
+        self,
+        *,
+        torbox_api_key: str | None = None,
+        viking_user_hash: str | None = None,
+        poll_interval_seconds: float | None = None,
+        max_wait_seconds: int | None = None,
+        upload_timeout_seconds: int | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
+        sleep_fn: Callable[[float], Any] = asyncio.sleep,
+    ):
+        self.torbox_api_key = (torbox_api_key if torbox_api_key is not None else os.getenv("TORBOX_API_KEY", "")).strip()
+        self.viking_user_hash = (viking_user_hash if viking_user_hash is not None else os.getenv("VIKING_USER_HASH", "")).strip()
+        self.poll_interval_seconds = max(
+            0.0,
+            float(poll_interval_seconds if poll_interval_seconds is not None else os.getenv("GAMEACCESS_TORBOX_POLL_INTERVAL_SECONDS", "5")),
+        )
+        self.max_wait_seconds = max(
+            1,
+            int(max_wait_seconds if max_wait_seconds is not None else os.getenv("GAMEACCESS_TORBOX_MAX_WAIT_SECONDS", "2700")),
+        )
+        self.upload_timeout_seconds = max(
+            1,
+            int(upload_timeout_seconds if upload_timeout_seconds is not None else os.getenv("GAMEACCESS_VIKING_UPLOAD_TIMEOUT_SECONDS", "2400")),
+        )
+        self.transport = transport
+        self.sleep_fn = sleep_fn
+
+    @staticmethod
+    def _parse_json(response: httpx.Response, code: str, message: str) -> dict[str, Any]:
+        if response.status_code >= 400:
+            raise ProviderFailure(code, 502, message)
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ProviderFailure(code, 502, message) from exc
+        if not isinstance(payload, dict):
+            raise ProviderFailure(code, 502, message)
+        return payload
+
+    async def _torbox_json(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        timeout: float = 25.0,
+    ) -> dict[str, Any]:
+        if not self.torbox_api_key:
+            raise ProviderFailure(
+                "torbox_not_configured", 503,
+                "El servicio de TorBox todavía no está configurado en el servidor.",
+            )
+        try:
+            response = await client.request(
+                method,
+                TORBOX_BASE + path,
+                params=params,
+                data=data,
+                headers={"Authorization": f"Bearer {self.torbox_api_key}", "User-Agent": "GameAccess/1.0"},
+                timeout=timeout,
+            )
+        except httpx.TimeoutException as exc:
+            raise ProviderFailure("torbox_timeout", 504, "TorBox tardó demasiado en responder.") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderFailure("torbox_unavailable", 502, "No se pudo conectar con TorBox.") from exc
+        payload = self._parse_json(response, "torbox_api_error", "TorBox rechazó la solicitud.")
+        if payload.get("success") is False:
+            raise ProviderFailure("torbox_rejected", 502, "TorBox no pudo procesar esta fuente.")
+        return payload
+
+    async def check_viking_file(self, file_hash: str) -> bool:
+        """Verify the stored ViKiNG file ID before reusing a cached URL."""
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(20.0, connect=10.0),
+            transport=self.transport,
+            follow_redirects=False,
+        ) as client:
+            try:
+                response = await client.post(
+                    VIKING_API_BASE + "/check-file",
+                    data={"hash": file_hash},
+                )
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_check_timeout", 502, "ViKiNG no respondió al comprobar el archivo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_check_failed", 502, "No se pudo comprobar el archivo en ViKiNG.") from exc
+            payload = self._parse_json(response, "viking_check_failed", "No se pudo comprobar el archivo en ViKiNG.")
+        exists = payload.get("exist")
+        if not isinstance(exists, bool):
+            raise ProviderFailure("viking_check_invalid", 502, "ViKiNG devolvió una respuesta de verificación inválida.")
+        return exists
+
+    async def process_source(
+        self,
+        *,
+        source_url: str,
+        source_kind: str,
+        source_host: str,
+        item_name: str,
+        file_name: str,
+        request_id: str,
+        installation_id: str,
+        fingerprint: str,
+    ) -> VikingFileResult:
+        if not self.torbox_api_key:
+            raise ProviderFailure(
+                "torbox_not_configured", 503,
+                "El servicio de TorBox todavía no está configurado en el servidor.",
+            )
+
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=15.0),
+            transport=self.transport,
+            follow_redirects=False,
+        ) as client:
+            if source_kind == "torrent":
+                form: dict[str, Any] = {
+                    "magnet": source_url,
+                    "seed": 0,
+                    "allow_zip": "true",
+                }
+                if file_name:
+                    form["name"] = file_name
+                logger.info(
+                    "request=%s client=%s stage=torbox_submit kind=torrent fingerprint=%s",
+                    request_id, installation_id, fingerprint[:12],
+                )
+                created = await self._torbox_json(client, "POST", "/torrents/createtorrent", data=form)
+                created_data = _data_object(created)
+                item_id = _safe_int(created_data.get("torrent_id") or created_data.get("id"))
+                if not item_id:
+                    raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador del torrent.")
+                item_path = "/torrents/mylist"
+                download_path = "/torrents/requestdl"
+                id_param = "torrent_id"
+                zip_link = True
+            else:
+                form = {"link": source_url}
+                if file_name:
+                    form["name"] = file_name
+                logger.info(
+                    "request=%s client=%s stage=torbox_submit kind=direct host=%s fingerprint=%s",
+                    request_id, installation_id, source_host, fingerprint[:12],
+                )
+                created = await self._torbox_json(client, "POST", "/webdl/createwebdownload", data=form)
+                created_data = _data_object(created)
+                item_id = _safe_int(
+                    created_data.get("web_id")
+                    or created_data.get("webdl_id")
+                    or created_data.get("webdownload_id")
+                    or created_data.get("id")
+                )
+                if not item_id:
+                    raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador de la descarga.")
+                item_path = "/webdl/mylist"
+                download_path = "/webdl/requestdl"
+                id_param = "web_id"
+                zip_link = False
+
+            logger.info(
+                "request=%s client=%s stage=torbox_wait provider_id=%s kind=%s",
+                request_id, installation_id, item_id, source_kind,
+            )
+            deadline = time.monotonic() + self.max_wait_seconds
+            completed_item: dict[str, Any] = {}
+            while True:
+                status_payload = await self._torbox_json(
+                    client,
+                    "GET",
+                    item_path,
+                    params={"id": item_id, "bypass_cache": "true"},
+                    timeout=25.0,
+                )
+                completed_item = _data_object(status_payload)
+                if _is_finished(completed_item):
+                    break
+                state = str(completed_item.get("download_state") or completed_item.get("status") or "").lower()
+                if state in {"error", "failed", "dead", "cancelled", "canceled"}:
+                    raise ProviderFailure("torbox_download_failed", 502, "TorBox no pudo completar la descarga de origen.")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ProviderFailure("torbox_wait_timeout", 504, "La fuente todavía no está lista en TorBox; vuelve a intentarlo.")
+                await self.sleep_fn(min(self.poll_interval_seconds, remaining) if self.poll_interval_seconds else 0)
+
+            params = {
+                "token": self.torbox_api_key,
+                id_param: item_id,
+                "zip_link": "true" if zip_link else "false",
+                "redirect": "false",
+            }
+            logger.info(
+                "request=%s client=%s stage=torbox_link_ready provider_id=%s",
+                request_id, installation_id, item_id,
+            )
+            link_payload = await self._torbox_json(
+                client, "GET", download_path, params=params, timeout=30.0
+            )
+            temporary_link = link_payload.get("data")
+            if not isinstance(temporary_link, str) or urlsplit(temporary_link).scheme != "https":
+                raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
+
+            server_payload = await self._viking_json(
+                client, "GET", VIKING_API_BASE + "/get-server", timeout=20.0
+            )
+            upload_server = str(server_payload.get("server") or "")
+            parsed_server = urlsplit(upload_server)
+            if parsed_server.scheme != "https" or parsed_server.hostname != "upload.vikingfile.com":
+                raise ProviderFailure("viking_invalid_upload_server", 502, "ViKiNG devolvió un servidor de carga inválido.")
+
+            upload_data = {"link": temporary_link, "user": self.viking_user_hash}
+            if file_name:
+                upload_data["name"] = file_name
+            logger.info(
+                "request=%s client=%s stage=viking_remote_upload host=%s item=%s",
+                request_id, installation_id, source_host, (item_name or "unknown")[:80],
+            )
+            upload_timeout = httpx.Timeout(
+                float(self.upload_timeout_seconds),
+                connect=20.0,
+                read=float(self.upload_timeout_seconds),
+                write=30.0,
+                pool=20.0,
+            )
+            try:
+                upload_response = await client.post(
+                    upload_server,
+                    data=upload_data,
+                    timeout=upload_timeout,
+                )
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_upload_timeout", 504, "ViKiNG tardó demasiado en importar el archivo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_upload_failed", 502, "No se pudo completar la carga remota en ViKiNG.") from exc
+            upload_payload = self._parse_json(
+                upload_response, "viking_upload_failed", "ViKiNG no pudo importar el archivo de TorBox."
+            )
+            file_hash = str(upload_payload.get("hash") or "").strip()
+            if not file_hash:
+                raise ProviderFailure("viking_upload_invalid_response", 502, "ViKiNG no devolvió el identificador del archivo.")
+            file_url = _validate_viking_file_url(str(upload_payload.get("url") or ""), file_hash)
+            name = str(upload_payload.get("name") or file_name or item_name or "download").strip()[:300]
+            size_bytes = _safe_int(upload_payload.get("size"))
+            logger.info(
+                "request=%s client=%s stage=viking_upload_complete provider_id=%s file_hash=%s size_bytes=%s",
+                request_id, installation_id, item_id, file_hash, size_bytes,
+            )
+            return VikingFileResult(
+                name=name,
+                size_bytes=size_bytes,
+                file_hash=file_hash,
+                url=file_url,
+                torbox_item_id=item_id,
+            )
+
+    async def _viking_json(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        url: str,
+        *,
+        timeout: float,
+    ) -> dict[str, Any]:
+        try:
+            response = await client.request(method, url, timeout=timeout)
+        except httpx.TimeoutException as exc:
+            raise ProviderFailure("viking_api_timeout", 502, "ViKiNG tardó demasiado en responder.") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderFailure("viking_api_unavailable", 502, "No se pudo conectar con ViKiNG.") from exc
+        return self._parse_json(response, "viking_api_error", "ViKiNG rechazó la solicitud.")
+
+
+def create_provider() -> TorBoxVikingProvider:
+    """Factory kept separate so route tests can inject a fake provider."""
+    return TorBoxVikingProvider()

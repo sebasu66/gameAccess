@@ -1,15 +1,15 @@
-import { renderToStaticMarkup } from "react-dom/server";
+﻿import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LibraryRoom from "./LibraryRoom";
 import { buildActions } from "./LibraryRoomParts";
-import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
+import { DEFAULT_LIBRARY_FILTERS } from "./librarySearch";
 import type { CatalogGame } from "./types";
 
 const downloaded = { id: 42, app_id: 42, name: "Downloaded game", slug: "downloaded", copies_total: 0, copies_available: 0, credit_cost_per_hour: 0 } as CatalogGame;
 afterEach(() => vi.unstubAllGlobals());
 describe("the shared game detail overlay", () => {
   const render = (games: CatalogGame[]) => renderToStaticMarkup(<LibraryRoom games={games} externalDetailGame={downloaded}
-    searchFilters={{ ...EMPTY_LIBRARY_FILTERS, genres: ["Excluded genre"] }} downloads={{}} busy={false} onPlay={() => {}} onDownload={() => {}} />);
+    searchFilters={{ ...DEFAULT_LIBRARY_FILTERS, genres: ["Excluded genre"] }} downloads={{}} busy={false} onPlay={() => {}} onDownload={() => {}} />);
   it("opens the requested download even when catalog filters exclude it", () => {
     const html = render([downloaded, { ...downloaded, id: 99, app_id: 99, name: "Different game" }]);
     expect(html).toContain('class="ga-detail-dialog"');

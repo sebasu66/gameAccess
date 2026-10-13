@@ -1,4 +1,5 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
+import ParentalControlSection from "./ParentalControlSection";
 import { useCallback, useRef, useState } from "react";
 import BuildStamp from "./BuildStamp";
 import { Settings, X, RotateCcw, Play } from "lucide-react";
@@ -18,7 +19,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel" role="dialog" aria-modal="true" aria-labelledby="ga-settings-title">
    <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><button type="button" onClick={onClose} aria-label={c.close} data-dialog-initial><X size={20} /></button></header>
-   <div className="ga-settings-content"><DigitalStorageSettings /><details className="ga-settings-group"><summary>{c.style}</summary>
+   <div className="ga-settings-content"><DigitalStorageSettings /><ParentalControlSection /><details className="ga-settings-group"><summary>{c.style}</summary>
     <fieldset><legend>{c.background}</legend>{(["spd", "cob", "blink"] as StyleParam[]).map(slider)}</fieldset>
     <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
     <label className="ga-style-toggle"><input type="checkbox" checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>

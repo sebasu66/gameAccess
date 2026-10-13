@@ -1,10 +1,10 @@
-import { useLibraryDownloads } from "./useLibraryDownloads";
+﻿import { useLibraryDownloads } from "./useLibraryDownloads";
 import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { EMPTY_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -58,7 +58,7 @@ interface LibraryRoomProps {
 }
 
 
-export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
@@ -173,13 +173,31 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         const status = isDigitalGame
           ? await digitalCatalogService.getStatus(selectedGame!)
           : await steamDownloadStatus(selectedAppId);
-        if (!cancelled && status.state !== "unknown") setManagedDownloads((current) => ({ ...current, [selectedAppId]: status }));
+        if (!cancelled && status.state !== "unknown") {
+          setManagedDownloads((current) => {
+            const existing = current[selectedAppId];
+            if (
+              existing &&
+              existing.state === status.state &&
+              existing.installed === status.installed &&
+              existing.progress === status.progress &&
+              existing.job_id === status.job_id
+            ) {
+              return current;
+            }
+            return { ...current, [selectedAppId]: status };
+          });
+        }
       } catch { /* Keep last known state until a successful probe. */ }
       finally { pending = false; }
     };
-    void probe();
+    const initialDelay = window.setTimeout(() => void probe(), 150);
     const timer = window.setInterval(() => void probe(), 3000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialDelay);
+      window.clearInterval(timer);
+    };
   }, [selectedAppId]);
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);

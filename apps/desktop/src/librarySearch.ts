@@ -1,4 +1,20 @@
 import type { CatalogGame } from "./types";
+import { normalizeSearchText } from "./libraryText";
+import { genreConceptId, genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
+import { capabilityNames, gameMatchesLibraryFeature, hasLanCategory } from "./libraryCapabilities";
+import type { LibraryFeatureKey } from "./libraryCapabilities";
+import {
+  hasQualityFilters,
+  gamePassesQualityFilters,
+  gameIsAdult,
+  gameHasViolenceDescriptor,
+  parseReleaseDate,
+} from "./libraryQuality";
+
+export { gameMatchesLibraryFeature, normalizeSearchText };
+export type { LibraryFeatureKey };
+// Re-exported so existing importers keep one entry point for library filtering.
+export * from "./libraryQuality";
 
 export const LIBRARY_SEARCH_EVENT = "gameaccess:library-search-query";
 
@@ -6,223 +22,76 @@ export interface LibrarySearchEventDetail {
   query?: string;
 }
 
-export type LibraryFeatureKey =
-  | "single_player"
-  | "multiplayer"
-  | "online_multiplayer"
-  | "local_multiplayer"
-  | "coop"
-  | "online_coop"
-  | "local_coop"
-  | "coop_lan"
-  | "multiplayer_lan"
-  | "lan"
-  | "shared_split_screen"
-  | "mmo"
-  | "pvp"
-  | "pve"
-  | "cross_platform"
-  | "has_downloads";
-
 export interface LibrarySearchFilters {
   genres: string[];
   categories: string[];
   features: LibraryFeatureKey[];
-  /** Steam community tags; OR within the group, AND against other groups. */
-  tags?: string[];
-  includeUncertain?: boolean;
+  /** Genres to remove: "adventure but not role-playing". */
+  excludeGenres?: string[];
+  /** Gameplay capabilities to remove: "simulators that are not racing". */
+  excludeFeatures?: LibraryFeatureKey[];
+  /** Source names to remove. */
+  excludeSources?: string[];
+  /** Source names to include. */
   sources?: string[];
-  /** Hide games older than a month with no reviews at all. */
-  hideNoReviews?: boolean;
-  /** Hide games older than a month whose review score is below the bar. */
-  hideLowRated?: boolean;
-  /** Hide games older than a month whose reviews are too few to matter. */
-  hideFewReviews?: boolean;
-  /** Hide games known to carry adult content descriptors. */
+  /**
+   * What kind of record to search: programs, or everything that is not a program.
+   *
+   * `true` is a program-only search, `false` is a games-only search. There is no
+   * "both" because the two are different universes: a program has no PvP, no LAN,
+   * no story mode, so mixing them in one result means the gameplay filters cannot
+   * apply to everything on screen.
+   *
+   * A program is the handful of entries Steam filed under Games whose genres are
+   * software classifications (Blender, OBS Studio, Godot Engine). Measured on the
+   * published catalog: 10 records.
+   */
+  software?: boolean;
+  /**
+   * Valve content descriptor ids to require, e.g. `[1, 3, 4]` for sexual content.
+   *
+   * Descriptors are Valve's own classification and replace the community tags
+   * that used to drive this, which produced false positives like `Blender` and
+   * `5D Chess` (tagged `Nudity`, no descriptor) and lost no descriptor games.
+   */
+  contentDescriptorIds?: number[];
+  /**
+   * Minimum review percentage (0-100). Not a boolean: "at least 80%" is a
+   * different question from "good enough", and a slider expresses it directly.
+   * Undefined means no bar.
+   */
+  minReviewScore?: number;
+  /** Earliest release year accepted (inclusive). Undefined means no bound. */
+  releaseYearFrom?: number;
+  /** Latest release year accepted (inclusive). Undefined means no bound. */
+  releaseYearTo?: number;
+  /** Hide games Valve marks as adult-only (descriptor 3 or 4). */
   hideAdult?: boolean;
-  /** Also treat violence/gore tags as adult. Off by default: they catch
-   *  mainstream action titles, which is a different policy choice. */
-  adultIncludesViolence?: boolean;
+  /** Also hide "some nudity or sexual content" (descriptor 1), e.g. South Park.
+   *  A stricter policy, off by default. */
+  adultIncludesNudity?: boolean;
+  /** Hide descriptor 2, "frequent violence or gore". Independent of hideAdult:
+   *  an operator may screen violence without screening adult content. */
+  hideViolenceDescriptor?: boolean;
 }
 
 /**
- * Default filter set: the quality screens start ON, as requested, and remain
- * toggleable from the filter panel. Kept as a function so callers get a fresh
- * object rather than a shared mutable one.
+ * The default search: everything that is not a program, with no other criterion
+ * selected. Programs are excluded because a game search must never return
+ * software, and the two are chosen between, not combined.
+ *
+ * Kept as a function so callers get a fresh object rather than a shared one.
  */
 export function defaultLibraryFilters(): LibrarySearchFilters {
-  return { genres: [], categories: [], features: [], tags: [], hideNoReviews: true, hideLowRated: true, hideFewReviews: true };
+  return { ...DEFAULT_LIBRARY_FILTERS };
 }
 
-/** Every game hidden by the three quality screens, whatever the split. */
-export function gameIsShitty(game: CatalogGame, now = Date.now()): boolean {
-  return gameIsUnratedJunk(game, now) || gameIsLowRated(game, now) || gameHasTooFewReviews(game, now);
-}
-
-export const EMPTY_LIBRARY_FILTERS: LibrarySearchFilters = {
+export const DEFAULT_LIBRARY_FILTERS: LibrarySearchFilters = {
   genres: [],
   categories: [],
   features: [],
+  software: false,
 };
-
-/** Days after release before an absent review record counts as a bad sign. */
-export const UNRATED_GRACE_DAYS = 30;
-/** Review percentage below which a game is considered poorly received. */
-export const LOW_REVIEW_SCORE = 50;
-/** A good score backed by fewer reviews than this is not yet trustworthy. */
-export const MIN_REVIEWS_FOR_CONFIDENCE = 100;
-
-/**
- * Release dates arrive in two shapes: ISO (`2009-05-14`, the common one by far)
- * and a localized label (`12 AGO 2016`, `12 Aug, 2026`). Reading only one of
- * them silently mis-dates almost the whole catalog, so both are accepted.
- * Month names cover Spanish and English because the catalog is requested in the
- * user's Steam language.
- */
-const LOCALIZED_MONTHS: Record<string, number> = {
-  ene: 1, jan: 1,
-  feb: 2,
-  mar: 3,
-  abr: 4, apr: 4,
-  may: 5,
-  jun: 6,
-  jul: 7,
-  ago: 8, aug: 8,
-  sep: 9,
-  oct: 10,
-  nov: 11,
-  dic: 12, dec: 12,
-};
-
-export function parseReleaseDate(value?: string | null): Date | null {
-  if (!value) return null;
-  const raw = value.trim();
-  if (!raw) return null;
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-  if (iso) return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
-  const parts = raw.replace(/,/g, " ").split(/\s+/);
-  if (parts.length >= 3) {
-    const day = Number.parseInt(parts[0], 10);
-    const month = LOCALIZED_MONTHS[parts[1]?.slice(0, 3).toLowerCase()];
-    const year = Number.parseInt(parts[2], 10);
-    if (Number.isFinite(day) && month && Number.isFinite(year)) {
-      return new Date(Date.UTC(year, month - 1, day));
-    }
-  }
-  // "Por confirmarse", "To be announced", "Q1 2027" and friends are unknown,
-  // not old: an unreadable date must never be treated as a stale release.
-  return null;
-}
-
-export function isOlderThanGrace(game: CatalogGame, now = Date.now()): boolean {
-  const released = parseReleaseDate(game.release_date);
-  if (!released) return false;
-  return now - released.getTime() > UNRATED_GRACE_DAYS * 86_400_000;
-}
-
-export function gameIsUnratedJunk(game: CatalogGame, now = Date.now()): boolean {
-  if (!isOlderThanGrace(game, now)) return false;
-  // A score of any kind means someone reviewed it; only a total absence counts.
-  if (typeof game.steam_review_score === "number") return false;
-  return !(game.steam_review_count ?? 0);
-}
-
-/**
- * The three quality screens. All of them are gated on release age: the month is
- * the entry condition, not a sibling rule, so a recent release is never judged
- * for lacking reviews. A game with an unreadable date is unknown, not old.
- */
-export function gameIsLowRated(game: CatalogGame, now = Date.now()): boolean {
-  const score = game.steam_review_score;
-  return typeof score === "number" && score < LOW_REVIEW_SCORE && isOlderThanGrace(game, now);
-}
-
-export function gameHasTooFewReviews(game: CatalogGame, now = Date.now()): boolean {
-  const score = game.steam_review_score;
-  // Only a good-but-unproven score belongs here. A missing score is the first
-  // screen's business and a bad score is the second's; without this the three
-  // screens would overlap and the UI could not tell them apart.
-  if (typeof score !== "number" || score < LOW_REVIEW_SCORE) return false;
-  return isOlderThanGrace(game, now) && (game.steam_review_count ?? 0) < MIN_REVIEWS_FOR_CONFIDENCE;
-}
-
-/**
- * Steam community tags that indicate sexual or explicit adult content. The
- * packaged catalog carries no age rating, so tags are the only signal available
- * at install time. They are a proxy, not a classification.
- *
- * This list is deliberately narrow. Measured against the real catalog, `mature`
- * matches Batman: Arkham Knight and `violent` matches Hellblade — mainstream
- * titles, not adult content. A parental filter that hides those would be wrong
- * far more often than it is right, so violence tags are handled separately and
- * are off unless the operator asks for them.
- */
-export const ADULT_CONTENT_TAGS = [
-  "hentai",
-  "sexual content",
-  "nudity",
-  "adult only",
-] as const;
-
-/** Violence/gore tags: a legitimate but different policy choice, never implied. */
-export const VIOLENCE_CONTENT_TAGS = [
-  "gore",
-  "violent",
-  "mature",
-] as const;
-
-function tagMatch(values: string[] | null | undefined, tags: readonly string[]): string | null {
-  if (!values?.length) return null;
-  for (const value of values) {
-    const normalized = value.trim().toLowerCase();
-    if (tags.some(tag => normalized === tag)) return value;
-  }
-  return null;
-}
-
-/**
- * Adult titles are recognised from two sources, in order of authority:
- *   1. the age rating / content descriptors from Steam's detail payload,
- *   2. Steam community tags already present in the packaged catalog.
- *
- * Step 2 exists because the catalog has no rating field today; without it the
- * parental filter would silently block nothing.
- */
-export function gameIsAdult(game: CatalogGame, includeViolenceTags = false): boolean {
-  if (game.adult_only === true) return true;
-  const age = typeof game.required_age === "string" ? Number.parseInt(game.required_age, 10) : game.required_age;
-  if (typeof age === "number" && Number.isFinite(age)) return age >= 18;
-  if ((game.content_descriptors ?? []).some(descriptor => /adult|sexual|nudity|hentai/i.test(descriptor))) return true;
-  if (adultReason(game, includeViolenceTags)) return true;
-  return false;
-}
-
-/** Which signal flagged the game, for diagnostics and the hidden notice. */
-export function adultReason(game: CatalogGame, includeViolenceTags = false): string | null {
-  if (game.adult_only === true) return "adult_only";
-  const age = typeof game.required_age === "string" ? Number.parseInt(game.required_age, 10) : game.required_age;
-  if (typeof age === "number" && Number.isFinite(age) && age >= 18) return `required_age=${age}`;
-  const descriptor = (game.content_descriptors ?? []).find(value => /adult|sexual|nudity|hentai/i.test(value));
-  if (descriptor) return `descriptor:${descriptor}`;
-  const explicit = tagMatch(game.tags, ADULT_CONTENT_TAGS) ?? tagMatch(game.genres, ADULT_CONTENT_TAGS);
-  if (explicit) return `tag:${explicit}`;
-  if (!includeViolenceTags) return null;
-  const violence = tagMatch(game.tags, VIOLENCE_CONTENT_TAGS) ?? tagMatch(game.genres, VIOLENCE_CONTENT_TAGS);
-  return violence ? `violence-tag:${violence}` : null;
-}
-
-/** Any active catalog-quality filter, so callers can skip the work when idle. */
-export function hasQualityFilters(filters: LibrarySearchFilters): boolean {
-  return Boolean(filters.hideNoReviews || filters.hideLowRated || filters.hideFewReviews || filters.hideAdult);
-}
-
-export function gamePassesQualityFilters(game: CatalogGame, filters: LibrarySearchFilters, now = Date.now()): boolean {
-  if (filters.hideAdult && gameIsAdult(game, filters.adultIncludesViolence)) return false;
-  if (filters.hideNoReviews && gameIsUnratedJunk(game, now)) return false;
-  if (filters.hideLowRated && gameIsLowRated(game, now)) return false;
-  if (filters.hideFewReviews && gameHasTooFewReviews(game, now)) return false;
-  return true;
-}
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
   { key: "has_downloads", label: "Descargables (Fuentes disponibles)" },
@@ -250,55 +119,16 @@ export interface LibrarySearchFacets {
   tags: string[];
 }
 
-function hasLanCategory(game: CatalogGame): boolean {
-  return game.steam_category_ids?.includes(48) === true || (game.categories ?? []).some((category) => (
-    normalizeSearchText(category).split(/[^a-z0-9]+/).includes("lan")
-  ));
-}
-
-// Stable IDs verified against Steam Store appdetails categories. Old server
-// records still use localized descriptions; local refreshes retain IDs too.
-const CAPABILITY_NAMES: Record<number, string> = { 1: "Multi-player", 2: "Single-player", 9: "Co-op", 24: "Shared/Split Screen", 36: "Online PvP", 38: "Online Co-op", 39: "Shared/Split Screen Co-op", 48: "LAN Co-op", 49: "PvP" };
-function capabilityNames(game: CatalogGame): string[] {
-  return [...(game.categories ?? []), ...(game.steam_category_ids ?? []).flatMap(id => CAPABILITY_NAMES[id] ? [CAPABILITY_NAMES[id]] : [])].map(normalizeSearchText);
-}
-
-export function gameMatchesLibraryFeature(game: CatalogGame, feature: LibraryFeatureKey): boolean {
-  // Digital and older catalog records can have categories without boolean flags.
-  // Match actual Steam capability evidence, never community tags or descriptions.
-  const categories = capabilityNames(game);
-  const has = (...names: string[]) => categories.some(category => names.some(name => category.includes(name)));
-  const coop = game.coop === true || has("co-op", "coop", "cooperativ");
-  const onlineCoop = game.online_coop === true || has("online co-op", "online coop", "cooperativo en linea");
-  const localCoop = game.local_coop === true || has("local co-op", "local coop", "cooperativo local", "shared/split screen co-op", "cooperativo de pantalla", "coop. a pantalla");
-  const shared = game.shared_split_screen === true || has("shared/split screen", "shared split screen", "pantalla dividida", "pantalla compartida", "pantalla (com)partida", "pantalla partida");
-  const onlineMulti = onlineCoop || has("jcj en linea", "online pvp", "multijugador en linea", "online multiplayer");
-  const localMulti = localCoop || shared || has("local multiplayer", "multijugador local", "jcj de pantalla");
-  const lan = hasLanCategory(game);
-  if (feature === "has_downloads") return (game as any).has_downloads === true;
-    if (feature === "lan") return lan;
-  if (feature === "coop_lan") return has("lan co-op", "lan coop", "cooperativo en lan", "coop. en lan");
-  if (feature === "multiplayer_lan") return lan;
-  if (feature === "online_multiplayer") return onlineMulti;
-  if (feature === "local_multiplayer") return localMulti;
-  if (feature === "single_player") return game.single_player === true || has("single-player", "single player", "un jugador");
-  if (feature === "multiplayer") return game.multiplayer === true || onlineMulti || localMulti || lan || coop || game.pvp === true || has("pvp", "jcj") || game.mmo === true || has("multi-player", "multiplayer", "multijugador", "massively multiplayer");
-  if (feature === "coop") return coop || onlineCoop || localCoop;
-  if (feature === "online_coop") return onlineCoop;
-  if (feature === "local_coop") return localCoop;
-  if (feature === "shared_split_screen") return shared;
-  if (feature === "mmo") return game.mmo === true || has("mmo", "massively multiplayer", "multijugador masivo");
-  if (feature === "cross_platform") return has("cross-platform multiplayer", "multijugador multiplataforma");
-  if (feature === "pve") return has("pve", "jce");
-  if (feature === "pvp") return game.pvp === true || has("pvp", "jcj");
-  return false;
-}
 
 export function getLibrarySearchFacets(games: CatalogGame[]): LibrarySearchFacets {
   const sortedUnique = (values: string[]) => [...new Set(values.filter(Boolean))]
     .sort((left, right) => left.localeCompare(right, "es"));
   return {
-    genres: sortedUnique(games.flatMap((game) => game.genres ?? [])),
+    // Software classifications are excluded here: they are offered as the
+    // Software filter instead of as genres, because "Edición fotográfica" is not
+    // a way to find a game.
+    genres: [...new Set(games.flatMap((game) => gameGenres(game)))]
+      .sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), "es")),
     // Steam capability categories are intentionally hidden from the UI.
     categories: [],
     features: LIBRARY_FEATURE_OPTIONS
@@ -317,10 +147,26 @@ export function getLibrarySearchFacets(games: CatalogGame[]): LibrarySearchFacet
  * implied by the sexual group.
  */
 export const SEXUAL_CONTENT_TAGS = ["Hentai", "Sexual Content", "Nudity"] as const;
-export const VIOLENCE_CONTENT_TAGS_UI = ["Gore", "Violent", "Mature"] as const;
-export const CONTENT_FILTER_GROUPS: { id: string; label: string; tags: string[] }[] = [
-  { id: "sexual", label: "Contenido sexual", tags: [...SEXUAL_CONTENT_TAGS] },
-  { id: "violence", label: "Violencia y gore", tags: [...VIOLENCE_CONTENT_TAGS_UI] },
+/**
+ * Content groups offered as a positive search.
+ *
+ * These filter on Valve's official content descriptors, NOT on community tags.
+ * Tags are user opinion and demonstrably wrong for this: measured on the
+ * published catalog, 2590 games carry a sexual tag while only 2154 of those have
+ * a matching descriptor, so tags add 436 false positives. Among them
+ * `5D Chess With Multiverse Time Travel` and `Blender` (tagged `Nudity`, no
+ * descriptor at all) and `Mortal Kombat 11` (tagged `Sexual Content` while Valve
+ * marks it `[2, 5]`, neither sexual).
+ *
+ * Violence is not here: it is a parental policy, not a discovery criterion.
+ */
+export const CONTENT_FILTER_GROUPS: {
+  id: string;
+  label: string;
+  /** Valve descriptor ids that satisfy this group. */
+  descriptorIds: number[];
+}[] = [
+  { id: "sexual", label: "Contenido sexual", descriptorIds: [1, 3, 4] },
 ];
 
 /**
@@ -343,15 +189,19 @@ export function getTagCounts(games: CatalogGame[], tags: readonly string[]): Map
   return counts;
 }
 
-/** Tag match is OR within the group and case-insensitive against the catalog. */
+/**
+ * Content tags, kept for search enrichment only.
+ *
+ * These are deliberately NOT a filter. A community tag is user opinion and
+ * unreliable in both directions, which is why the content groups filter on
+ * Valve's descriptors instead: filtering by tag put `Blender` and `5D Chess` in a
+ * sexual-content result. `gameMatchesTags` remains for text search and for
+ * enriching what the detail view shows.
+ */
 export function gameMatchesTags(game: CatalogGame, tags: string[]): boolean {
   if (!tags.length) return true;
   const wanted = new Set(tags.map(tag => tag.trim().toLowerCase()));
   return (game.tags ?? []).some(value => wanted.has(value.trim().toLowerCase()));
-}
-
-export function normalizeSearchText(value: string): string {
-  return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es");
 }
 
 export interface LibraryFilterResult {
@@ -367,6 +217,23 @@ export interface LibraryFilterResult {
  * Filter by query and filters, and report how many games each screen removed so
  * the UI can say so instead of appearing to have lost results.
  */
+const SEARCH_TEXT = new WeakMap<CatalogGame, string>();
+
+/**
+ * What a text query is matched against: the name and the community tags. Genres,
+ * developers and descriptions are deliberately not free text; genres have their
+ * own filter, which compares concept ids. Cached per game object so typing does
+ * not rebuild 40,000 strings per keystroke.
+ */
+function searchableText(game: CatalogGame): string {
+  let text = SEARCH_TEXT.get(game);
+  if (text === undefined) {
+    text = normalizeSearchText([game.name, ...(game.tags ?? [])].join(" "));
+    SEARCH_TEXT.set(game, text);
+  }
+  return text;
+}
+
 /** Why a game is dropped, so each screen can report its own count. */
 type DropReason = "quality" | "adult" | "tag" | "filter" | null;
 
@@ -375,31 +242,113 @@ type DropReason = "quality" | "adult" | "tag" | "filter" | null;
  * itself stays readable and testable per rule.
  */
 function dropReason(game: CatalogGame, terms: string[], filters: LibrarySearchFilters, now: number): DropReason {
-  const tags = filters.tags ?? [];
   // The query must match first, otherwise a game that simply was not a search
   // result would later be counted as "hidden by a filter".
   if (terms.length) {
-    const searchable = normalizeSearchText([game.name, ...(game.tags ?? [])].join(" "));
+    const searchable = searchableText(game);
     if (!terms.every((term) => searchable.includes(term))) return "filter";
   }
-  if (hasQualityFilters(filters) && !gamePassesQualityFilters(game, filters, now)) {
-    return filters.hideAdult && gameIsAdult(game, filters.adultIncludesViolence) ? "adult" : "quality";
+  if (hasQualityFilters(filters) && !gamePassesQualityFilters(game, filters)) {
+    return filters.hideAdult && gameIsAdult(game, filters.adultIncludesNudity) ? "adult" : "quality";
   }
-  if (!gameMatchesTags(game, tags)) return "tag";
   if (classifyFilterMatch(game, filters) === "excluded") return "filter";
   return null;
+}
+
+/**
+ * The two possible answers. There is no third: a filter is a promise, and a game
+ * either satisfies it or does not. See `classifyFilterMatch` for why the old
+ * "possible" state was removed.
+ */
+export type FilterMatch = "confirmed" | "excluded";
+
+/**
+ * Does the game satisfy a required criterion?
+ *
+ * Binary on purpose. The `keys` list exists so callers can name the criterion in
+ * diagnostics; it does not soften the answer. A game whose categories cannot
+ * confirm the requirement does not satisfy it — an absent answer is not a yes,
+ * and the whole "possible" third state was removed for exactly that reason.
+ */
+function satisfiesCapability(game: CatalogGame, keys: LibraryFeatureKey[]): boolean {
+  return keys.some(key => gameMatchesLibraryFeature(game, key));
+}
+
+/**
+ * Genres in the catalog that are not game genres.
+ *
+ * The genre list comes from SteamSpy's tag vocabulary, which includes software
+ * classifications alongside game genres. Measured on the published catalog these
+ * are 10 games: `Blender` (Animación y modelado, Diseño e ilustración, Producción
+ * de vídeo), `OBS Studio` (Producción de vídeo, Utilidades), `ShareX`, `Godot
+ * Engine`, `Driver Booster 3` and similar titles that Steam itself lists under
+ * Games.
+ *
+ * They are deliberately NOT shown in the genre list: picking "Edición
+ * fotográfica" is not a way to find a game. Instead their union is the Software
+ * filter, so the user sees one meaningful option instead of eight categories that
+ * do not describe games.
+ */
+export const SOFTWARE_GENRES: readonly string[] = [
+  "Animación y modelado",
+  "Diseño e ilustración",
+  "Edición fotográfica",
+  "Producción de audio",
+  "Producción de vídeo",
+  "Publicación web",
+  "Utilidades",
+  "Desarrollo de juegos",
+  "Educación",
+  "Contabilidad",
+  // Steam's English spellings of the same classifications. The catalog now
+  // carries these, and matching only the Spanish names let them through as games.
+  "Utilities",
+  "Animation & Modeling",
+  "Design & Illustration",
+  "Photo Editing",
+  "Audio Production",
+  "Video Production",
+  "Web Publishing",
+  "Game Development",
+  "Education",
+  "Accounting",
+  "Software Training",
+  "Programming",
+];
+
+/**
+ * Genre concept ids of a game that are game genres, i.e. everything the panel
+ * should offer. Ids such as `racing`, never Steam's text: see libraryGenres.ts.
+ */
+export function gameGenres(game: CatalogGame): string[] {
+  return genreConceptIds(game.genres).filter(id => !genreIsSoftware(id));
+}
+
+/** True when the record is one of the software entries Steam filed under Games. */
+export function gameIsSoftware(game: CatalogGame): boolean {
+  return genreConceptIds(game.genres).some(genreIsSoftware);
+}
+
+/** True when no criterion, in either direction, is selected. */
+export function hasNoActiveFilters(filters: LibrarySearchFilters): boolean {
+  const pairs: [unknown[] | undefined, unknown[] | undefined][] = [
+    [filters.genres, filters.excludeGenres],
+    [filters.features, filters.excludeFeatures],
+    [filters.sources, filters.excludeSources],
+    [filters.contentDescriptorIds, undefined],
+  ];
+  return pairs.every(([include, exclude]) => !include?.length && !exclude?.length)
+    && filters.software === undefined
+    && !hasQualityFilters(filters);
 }
 
 export function filterLibraryGamesDetailed(
   games: CatalogGame[],
   query: string,
-  filters: LibrarySearchFilters = EMPTY_LIBRARY_FILTERS,
+  filters: LibrarySearchFilters = DEFAULT_LIBRARY_FILTERS,
 ): LibraryFilterResult {
   const terms = normalizeSearchText(query.trim()).split(/\s+/).filter(Boolean);
-  const tags = filters.tags ?? [];
-  const idle = !terms.length && !filters.genres.length && !filters.features.length
-    && !filters.sources?.length && !tags.length && !hasQualityFilters(filters);
-  if (idle) return { games, hiddenCount: 0, hiddenAdultCount: 0 };
+  if (!terms.length && hasNoActiveFilters(filters)) return { games, hiddenCount: 0, hiddenAdultCount: 0 };
 
   // One clock reading for the whole pass: timing each game separately would
   // make the result depend on how long the loop took.
@@ -413,7 +362,7 @@ export function filterLibraryGamesDetailed(
     if (reason === "adult" || reason === "quality") hiddenCount++;
     if (reason !== null) continue;
     kept.push(filters.genres.length || filters.features.length
-      ? { ...game, filter_match: classifyFilterMatch(game, filters) as "confirmed" | "possible" }
+      ? { ...game, filter_match: classifyFilterMatch(game, filters) as "confirmed" }
       : game);
   }
   return { games: kept, hiddenCount, hiddenAdultCount };
@@ -422,68 +371,251 @@ export function filterLibraryGamesDetailed(
 export function filterLibraryGames(
   games: CatalogGame[],
   query: string,
-  filters: LibrarySearchFilters = EMPTY_LIBRARY_FILTERS,
+  filters: LibrarySearchFilters = DEFAULT_LIBRARY_FILTERS,
 ): CatalogGame[] {
   return filterLibraryGamesDetailed(games, query, filters).games;
 }
 
 // The UI groups capabilities without making them mutually exclusive.
-export const GAMEPLAY_FILTER_GROUPS: { id: string; label: string; options: LibraryFeatureKey[] }[] = [
-  { id: "players", label: "Jugadores", options: ["single_player", "multiplayer"] },
-  { id: "style", label: "Cómo se juega", options: ["coop", "pvp", "pve"] },
-  { id: "connection", label: "Dónde se juega", options: ["local_multiplayer", "lan", "online_multiplayer"] },
-  { id: "features", label: "Características", options: ["shared_split_screen", "cross_platform", "mmo", "has_downloads"] },
+/**
+ * Gameplay criteria grouped for the filter panel.
+ *
+ * `includeOnly` marks a group where exclusion adds nothing. "Jugadores" is the
+ * case the panel was designed around: choosing neither means "both", so a
+ * negative would only duplicate an unselected positive. Measured on the real
+ * catalog, 389 of 6651 flagged games support single and multiplayer at once, so
+ * the two are not actually exclusive — the rule is about the panel's meaning,
+ * not about the data.
+ */
+/**
+ * Gameplay criteria, structured as the panel presents them.
+ *
+ * The players branch is deliberately asymmetric:
+ *   - "Solo un jugador" is RESTRICTIVE: it requires single-player and drops
+ *     anything that also offers multiplayer.
+ *   - "Admite multijugador" is INCLUSIVE: it accepts multiplayer-only games and
+ *     games that offer both.
+ * The two contradict each other, so the panel disables one when the other is
+ * chosen. Everything multiplayer — modes, co-op, PvP — hangs off "Admite
+ * multijugador", because none of it means anything for a single-player-only
+ * game. Measured on the catalog: 4855 single-player-only, 1395 multiplayer-only
+ * and 389 that offer both.
+ */
+export const PLAYER_FEATURE_KEYS: LibraryFeatureKey[] = ["single_player", "multiplayer"];
+
+/**
+ * The multiplayer tree, as the panel renders it.
+ *
+ * Everything multiplayer hangs off one parent, and inside it each level answers a
+ * different question. Options are requirements, never directions: "multiplayer,
+ * online, co-op" is a search, and searching for the absence of those is not a
+ * use case worth the extra controls.
+ *
+ * A branch is satisfied by ANY of its selected options, and the branches are
+ * combined with AND — exactly the user's query "online co-op/PvE, then combine
+ * with role-playing". Measured on the catalog: 4693 games carry Co-op, 5276
+ * carry PvP and 2169 carry both, so nothing here is mutually exclusive.
+ *
+ * PvE sits with Co-op because Steam has no PvE category at all (measured: 0
+ * games; it only exists as a community tag on 1342). Keeping it separate, as it
+ * was, meant an option that could never match anything.
+ */
+export const MULTIPLAYER_BRANCHES: {
+  id: string;
+  label: string;
+  hint?: string;
+  /**
+   * Options in a branch are alternatives (OR). Two branches are both required
+   * (AND), so Co-op and PvP are separate branches: "requires Co-op AND requires
+   * PvP" is the intersection, while putting them in one branch would make it a
+   * union and return all 8529 games with either mode.
+   */
+  options: { key: LibraryFeatureKey; label: string }[];
+  /**
+   * The keys that actually satisfy the branch, when that differs from the keys a
+   * caller may select. The Co-op branch is the case: selecting "coop" means the
+   * generic Co-op requirement, not "any co-op", or an `Online Co-op` game would
+   * confirm co-op-over-LAN on online-only evidence.
+   */
+  requires?: LibraryFeatureKey[];
+}[] = [
+  {
+    id: "coop", label: "Co-op / PvE", hint: "Jugar con otros contra el juego; Steam no tiene categoría PvE, va con Co-op",
+    options: [{ key: "coop", label: "Co-op / PvE" }],
+    requires: ["coop_generic"],
+  },  {
+    id: "pvp", label: "PvP", hint: "Jugar contra otros; 2463 juegos tienen Co-op y PvP a la vez",
+    options: [{ key: "pvp", label: "PvP" }],
+  },
+  {
+    id: "play", label: "Cómo se juega", hint: "Couch co-op, en red local o por internet",
+    options: [
+      { key: "shared_split_screen", label: "Pantalla compartida" },
+      { key: "lan", label: "LAN" },
+      { key: "online_multiplayer", label: "Online" },
+    ],
+  },
+  {
+    id: "scale", label: "Escala",
+    options: [{ key: "mmo", label: "MMO" }],
+  },
 ];
+/** Every option the multiplayer tree can select. */
+export const MULTIPLAYER_OPTION_KEYS: LibraryFeatureKey[] =
+  MULTIPLAYER_BRANCHES.flatMap(branch => branch.options.map(option => option.key));
+
+/**
+ * Criteria that only exist when a game admits multiplayer, so selecting one
+ * contradicts "Solo un jugador". Co-op, PvP, the play styles and MMO all qualify:
+ * none of them means anything for a single-player-only game.
+ */
+export const MULTIPLAYER_ONLY_KEYS: LibraryFeatureKey[] = ["multiplayer", ...MULTIPLAYER_OPTION_KEYS];
+export const MULTIPLAYER_BRANCH_KEYS: LibraryFeatureKey[] = [...MULTIPLAYER_ONLY_KEYS];
+
+/** Panel labels for the keys the multiplayer tree offers. */
+const MULTIPLAYER_LABELS: Partial<Record<LibraryFeatureKey, string>> = Object.fromEntries(
+  MULTIPLAYER_BRANCHES.flatMap(branch => branch.options.map(option => [option.key, option.label])),
+) as Partial<Record<LibraryFeatureKey, string>>;
+
 export function featureLabel(key: LibraryFeatureKey): string {
   if (key === "local_multiplayer") return "Mismo PC";
   if (key === "online_multiplayer") return "Online";
-  return LIBRARY_FEATURE_OPTIONS.find(option => option.key === key)?.label ?? key;
+  if (key === "single_player") return "Solo un jugador";
+  if (key === "multiplayer") return "Admite multijugador";
+  return MULTIPLAYER_LABELS[key] ?? LIBRARY_FEATURE_OPTIONS.find(option => option.key === key)?.label ?? key;
 }
-export type FilterMatch = "confirmed" | "possible" | "excluded";
 
-/** Positive capability evidence confirms a match. Missing child metadata never
- * proves absence. Tags can hint, but cannot confirm a Steam capability.
- * Multiple choices in a group are OR; separate groups narrow together. */
+/**
+ * Negative criteria, plus the requirements that are absolute.
+ *
+ * Every group carries the same tri-state semantics: positive criteria are a
+ * search, negative criteria are a screen. A negative never fires on missing
+ * metadata, because absence of evidence is not evidence of the feature.
+ */
+function screenOutGame(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+  if (filters.sources?.length && !filters.sources.some(name => game.download_source_names?.includes(name))) return true;
+  if ((filters.excludeSources ?? []).some(name => game.download_source_names?.includes(name))) return true;
+  if (filters.features.includes("has_downloads") && !game.has_downloads) return true;
+  if (filters.excludeFeatures?.some(key => gameMatchesLibraryFeature(game, key))) return true;
+  if (filters.excludeGenres?.length) {
+    // Selections saved before genres were normalized may use an old spelling.
+    const excluded = filters.excludeGenres.map(genreConceptId).filter((id): id is string => id !== null);
+    if (gameGenres(game).some(genre => excluded.includes(genre))) return true;
+  }
+  // Tags are intentionally absent here: they are search material, not criteria.
+  return false;
+}
+
+/**
+ * The players branch, which is asymmetric:
+ *   "Admite multijugador" is INCLUSIVE: multiplayer-only, or both.
+ *   "Solo un jugador" is RESTRICTIVE: single-player and nothing else.
+ */
+function checkPlayersBranch(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+  if (filters.features.includes("multiplayer") && !gameMatchesLibraryFeature(game, "multiplayer")) return false;
+  if (!filters.features.includes("single_player")) return true;
+  // "Solo un jugador" is the restrictive side: a game that also offers
+  // multiplayer does not qualify, or the label would be false for the 389
+  // catalog games that offer both.
+  if (gameMatchesLibraryFeature(game, "multiplayer")) return false;
+  // It also has to positively BE a single-player game. Being "not multiplayer" is
+  // not the same claim: a record with no categories at all is neither, and
+  // without this a software entry like Blender came back in a single-player-only
+  // search.
+  if (!gameMatchesLibraryFeature(game, "single_player")) return false;
+  // A criterion that only exists with multiplayer contradicts "Solo un jugador".
+  return !MULTIPLAYER_ONLY_KEYS.some(key => filters.features.includes(key));
+}
+
+/**
+ * The multiplayer tree.
+ *
+ * Structure decides the logic, and the two levels mean different things:
+ *   - branches are ANDed: "Co-op" and "LAN" must both hold
+ *   - options inside a branch are ORed: "LAN or Online" is either
+ *
+ * Co-op and PvP get one branch each despite both being "the mode", because
+ * requiring both modes is a conjunction; grouping them as alternatives would
+ * return every game with either mode (measured: 8529 instead of 2463).
+ *
+ * Each option is a plain requirement on its own concept. No branch cross-checks
+ * another: a `LAN Co-op` category satisfies Co-op and LAN at once, which is the
+ * whole point of keeping the concepts independent.
+ */
+function checkMultiplayerTree(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+  for (const branch of MULTIPLAYER_BRANCHES) {
+    const selected = branch.options.map(option => option.key).filter(key => filters.features.includes(key));
+    if (!selected.length) continue;
+    if (!satisfiesCapability(game, branch.requires ?? selected)) return false;
+  }
+  return true;
+}
+
+/**
+ * Any capability the panel can select outside the tree. Kept so a key added to
+ * the type without a home in the tree still gets evaluated rather than silently
+ * ignored.
+ */
+function checkLooseCapabilities(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+  const known = new Set<LibraryFeatureKey>([...MULTIPLAYER_ONLY_KEYS, ...PLAYER_FEATURE_KEYS,
+    ...MULTIPLAYER_BRANCHES.flatMap(branch => branch.options.map(option => option.key))]);
+  const loose = filters.features.filter(key => !known.has(key));
+  if (!loose.length) return true;
+  return satisfiesCapability(game, loose);
+}
+
+/**
+ * A filter is a promise, so this answer is binary: a game matches a required
+ * criterion or it does not. There is no third "maybe" state.
+ *
+ * The catalog has gaps — 2206 games carry no categories at all and community
+ * tags are opinion rather than an answer — but a gap is not evidence, so a game
+ * whose data cannot confirm a criterion is not part of that criterion's results.
+ * Returning it anyway is what put Age of Empires III in a co-op search.
+ *
+ * Community tags stay searchable as text (see `filterLibraryGames`) and will
+ * later be something the user can add per game, which is the right way to fill a
+ * gap: the user asserts the fact, we do not guess it.
+ */
+/**
+ * The content screens that are not a capability: what kind of record this is, and
+ * which Valve descriptors it carries.
+ *
+ * Both are requirements, so a record that cannot satisfy one is not a result.
+ */
+function screenOutByContent(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+  // Content groups ask for Valve descriptors. A game without the descriptor is
+  // not a result, even if its community tags suggest otherwise.
+  if (filters.contentDescriptorIds?.length) {
+    const descriptors = game.content_descriptorids ?? [];
+    if (!filters.contentDescriptorIds.some(id => descriptors.includes(id))) return true;
+  }
+  // The Software choice: programs and games are separate searches, never blended.
+  if (filters.software !== undefined && gameIsSoftware(game) !== filters.software) return true;
+  return false;
+}
+
 export function classifyFilterMatch(game: CatalogGame, filters: LibrarySearchFilters): FilterMatch {
-  if (filters.sources?.length && !filters.sources.some(name => game.download_source_names?.includes(name))) return "excluded";
-  if (filters.features.includes("has_downloads") && !game.has_downloads) return "excluded";
-  // Tag selection is an exclusion, not a "possible": either the game carries the
-  // tag or it does not. Missing tags never count as a match.
-  if (filters.tags?.length && !gameMatchesTags(game, filters.tags)) return "excluded";
-  let possible = false;
-  if (filters.genres.length && !filters.genres.some(genre => game.genres?.includes(genre))) {
-    if (game.genres?.length) return "excluded";
-    possible = true;
+  if (screenOutGame(game, filters)) return "excluded";
+  if (screenOutByContent(game, filters)) return "excluded";
+  if (filters.genres.length) {
+    const wanted = filters.genres.map(genreConceptId).filter((id): id is string => id !== null);
+    const own = gameGenres(game);
+    if (!wanted.some(genre => own.includes(genre))) return "excluded";
   }
-  const hasMulti = gameMatchesLibraryFeature(game, "multiplayer");
-  const soloOnly = gameMatchesLibraryFeature(game, "single_player") && !hasMulti;
-  const groups = GAMEPLAY_FILTER_GROUPS.map(group => filters.features.filter(key => group.options.includes(key)));
-  const legacy = filters.features.filter(key => !GAMEPLAY_FILTER_GROUPS.some(group => group.options.includes(key)));
-  if (legacy.length) groups.push(legacy);
-  for (const selected of groups) {
-    if (!selected.length || selected.some(key => gameMatchesLibraryFeature(game, key))) continue;
-    // A positively identified solo-only game is not a possible multiplayer result.
-    if (soloOnly && !selected.includes("single_player") && !selected.includes("pve")) return "excluded";
-    possible = true;
+  for (const verdict of [checkPlayersBranch(game, filters), checkMultiplayerTree(game, filters), checkLooseCapabilities(game, filters)]) {
+    if (!verdict) return "excluded";
   }
-  // A game may have Online Co-op and LAN PvP simultaneously: never invent LAN Co-op.
-  const styles = filters.features.filter(key => key === "coop" || key === "pvp");
-  const connections = filters.features.filter(key => ["lan", "online_multiplayer", "local_multiplayer"].includes(key));
-  const screen = filters.features.includes("shared_split_screen") && !filters.features.some(key => key === "mmo" || key === "cross_platform");
-  if (styles.length && (connections.length || screen)) {
-    const categories = capabilityNames(game);
-    const styleMatches = (category: string, style: LibraryFeatureKey) => style === "coop" ? /co-op|coop|cooperativ/.test(category) : /pvp|jcj/.test(category);
-    const connectionEvidence = !connections.length || styles.some(style => categories.some(category =>
-      styleMatches(category, style) && connections.some(connection =>
-        connection === "lan" ? /\blan\b/.test(category)
-          : connection === "online_multiplayer" ? /online|en linea/.test(category)
-          : /shared|split|local|pantalla/.test(category))));
-    // Screen support and LAN/online support can be distinct modes in one game.
-    const screenEvidence = !screen || styles.some(style => categories.some(category => styleMatches(category, style) && /shared|split|pantalla/.test(category)));
-    const evidence = connectionEvidence && screenEvidence;
-    if (!evidence) possible = true;
+  // "Solo un jugador" is the restrictive half of the partition, so its exclusivity
+  // belongs here rather than in the capability predicate: the label promises
+  // single-player and nothing else. A record reporting both flags (measured: 12,
+  // e.g. Battlefield 6) supports both, so it is not a single-player-only game.
+  if (filters.features.includes("single_player")
+    && gameMatchesLibraryFeature(game, "single_player")
+    && gameMatchesLibraryFeature(game, "multiplayer")) {
+    return "excluded";
   }
-  return possible ? filters.includeUncertain === false ? "excluded" : "possible" : "confirmed";
+  return "confirmed";
 }
 
 export function findLibraryLetter(games: CatalogGame[], key: string, selectedIndex: number): number {

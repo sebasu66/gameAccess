@@ -45,3 +45,19 @@ See [module ownership](MODULE_MAP.md) before changing a flow. In particular,
 diagnostic buffers are transaction-owned and have **no size limit**; they are not
 historical logs. Test that successful detail never reaches a file and that an
 error contains every preceding diagnostic event.
+
+## Catalog regression suite (real data)
+
+`apps/desktop/src/catalogRealData.test.ts` loads the catalog package that ships in
+the installer (`deploy/catalog-cache`) and asserts quantities for genres, ordering,
+search and filters: racing returns every racing game whichever way Steam spelled it,
+popularity and score orderings are monotonic and use real data, dates are readable,
+and a full filter plus sort stays fast. It runs with the rest of `npm test`, needs
+Node 22.5+ (`node:sqlite`; without it the suite skips) and fails when a change to the
+code or to the data quietly degrades the catalog. Genre concepts are documented in
+`CATALOG_GENRE_MAPPING.md`, regenerated with
+`python tools/catalog-cache/generate_genre_mapping_doc.py`.
+
+`npm run catalog:report` (in `apps/desktop`) prints the same measurements as a readable text report
+and writes it to `logs/catalog-report.txt`: data coverage, genre counts, player-mode counts, top of each
+ordering, search and speed, each check marked PASS/FAIL. Use it to read the numbers without opening the app.

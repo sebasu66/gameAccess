@@ -164,8 +164,8 @@ pub(crate) async fn machine_profile() -> Result<MachineProfile, String> {
 
 
 #[tauri::command]
-pub(crate) async fn steam_store_metadata(app_id: u32, force: Option<bool>) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, force.unwrap_or(false)))
+pub(crate) async fn steam_store_metadata(app_id: u32, language: Option<String>, force: Option<bool>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, language, force.unwrap_or(false)))
         .await
         .map_err(|err| format!("Steam metadata task failed: {err}"))?
 }

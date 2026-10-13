@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { InstalledGameStatus } from "./catalog/InstalledGameStatus";
 import { narrate } from "./narrationLog";
+import { getSteamStoreLanguage } from "./i18n";
 export const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 const LOCAL_BRIDGE = (import.meta.env.VITE_GAMEACCESS_LOCAL_BRIDGE ?? "http://127.0.0.1:1431").replace(/\/$/, "");
 
@@ -139,32 +140,34 @@ export async function getMachineProfile(): Promise<MachineProfile | null> {
   catch { return null; }
 }
 
-const steamStoreMetadataCache = new Map<number, Record<string, unknown>>();
-const steamStoreMetadataCachedAt = new Map<number, number>();
-const steamStoreMetadataRequests = new Map<number, Promise<Record<string, unknown> | null>>();
+const steamStoreMetadataCache = new Map<string, Record<string, unknown>>();
+const steamStoreMetadataCachedAt = new Map<string, number>();
+const steamStoreMetadataRequests = new Map<string, Promise<Record<string, unknown> | null>>();
 
-export async function getSteamStoreMetadata(appId: number, force = false): Promise<Record<string, unknown> | null> {
+export async function getSteamStoreMetadata(appId: number, force = false, language?: string): Promise<Record<string, unknown> | null> {
   if (!appId) return null;
-  const cached = steamStoreMetadataCache.get(appId);
+  const lang = language ?? getSteamStoreLanguage();
+  const cacheKey = `${appId}:${lang}`;
+  const cached = steamStoreMetadataCache.get(cacheKey);
   const ttl = cached?.gameaccess_refresh_warning ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
-  if (cached && !force && Date.now() - (steamStoreMetadataCachedAt.get(appId) ?? 0) < ttl) return cached;
-  const existing = steamStoreMetadataRequests.get(appId);
+  if (cached && !force && Date.now() - (steamStoreMetadataCachedAt.get(cacheKey) ?? 0) < ttl) return cached;
+  const existing = steamStoreMetadataRequests.get(cacheKey);
   if (existing) return existing;
   const request = (async () => {
-    if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId, force });
+    if (hasTauriRuntime()) return invoke<Record<string, unknown>>("steam_store_metadata", { appId, language: lang, force });
     try { return await bridgeRequest<Record<string, unknown>>(`/steam-store-metadata/${appId}`); }
     catch { return null; }
   })();
-  steamStoreMetadataRequests.set(appId, request);
+  steamStoreMetadataRequests.set(cacheKey, request);
   try {
     const value = await request;
     if (value) {
-      steamStoreMetadataCache.set(appId, value);
-      steamStoreMetadataCachedAt.set(appId, Date.now());
+      steamStoreMetadataCache.set(cacheKey, value);
+      steamStoreMetadataCachedAt.set(cacheKey, Date.now());
     }
     return value;
   } finally {
-    steamStoreMetadataRequests.delete(appId);
+    steamStoreMetadataRequests.delete(cacheKey);
   }
 }
 

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Gamepad2, Search, X } from "lucide-react";
 
-import { EMPTY_LIBRARY_FILTERS, filterLibraryGames, getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import { DEFAULT_LIBRARY_FILTERS, filterLibraryGames, getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import { genreLabel } from "./libraryGenres";
 import type { LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 
-export function LibrarySphere({ games, query, setQuery, searchFilters = EMPTY_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, onOpen, onClose, detailOpen = false }: {
+export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, onOpen, onClose, detailOpen = false }: {
   games: CatalogGame[];
   query: string;
   setQuery: (value: string) => void;
@@ -27,6 +28,8 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = EMPTY_LI
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [draftQuery, setDraftQuery] = useState(query);
+  useEffect(() => setDraftQuery(query), [query]);
   const columns = 11;
   const selectedGame = visible[selectedIndex] ?? visible[0];
 
@@ -77,14 +80,14 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = EMPTY_LI
       <div className="library-vault-head">
         <div><span className="eyebrow">BIBLIOTECA INMERSIVA</span><h2>{selectedGame?.name ?? "Tus juegos"}</h2><p>{visible.length} juegos en esta vista</p></div>
         <div className="library-vault-actions">
-          <label className="library-search"><Search size={18} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en tu biblioteca" />{query ? <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}</label>
+          <label className="library-search"><Search size={18} onClick={() => setQuery(draftQuery.trim())} style={{ cursor: "pointer" }} /><input ref={searchRef} value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setQuery(draftQuery.trim()); } }} placeholder="Buscar en tu biblioteca" />{draftQuery || query ? <button type="button" onClick={() => { setDraftQuery(""); setQuery(""); }} aria-label="Limpiar búsqueda"><X size={16} /></button> : null}</label>
           <div className="library-search-filters">
             <details className="library-search-filter-dropdown">
               <summary>Géneros{searchFilters.genres.length ? ` · ${searchFilters.genres.length}` : ""}</summary>
               <div className="library-search-filter-menu">
                 <input type="search" value={genreQuery} onChange={event => setGenreQuery(event.target.value)} placeholder="Buscar género" aria-label="Buscar género" />
                 <div className="library-search-filter-options">
-                  {facets.genres.filter(value => value.toLocaleLowerCase("es").includes(genreQuery.trim().toLocaleLowerCase("es"))).map(value => <label key={value}><input type="checkbox" checked={searchFilters.genres.includes(value)} onChange={() => toggleFilter("genres", value)} />{value}</label>)}
+                  {facets.genres.filter(value => genreLabel(value).toLocaleLowerCase("es").includes(genreQuery.trim().toLocaleLowerCase("es"))).map(value => <label key={value}><input type="checkbox" checked={searchFilters.genres.includes(value)} onChange={() => toggleFilter("genres", value)} />{genreLabel(value)}</label>)}
                   {!facets.genres.length ? <p>No hay géneros disponibles.</p> : null}
                 </div>
                 {searchFilters.genres.length ? <button type="button" onClick={() => onSearchFiltersChange({ ...searchFilters, genres: [] })}>Limpiar géneros</button> : null}

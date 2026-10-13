@@ -15,8 +15,9 @@ account switching. The former implementation is preserved on
 codex/legacy-steam-licenses; see docs/STEAM_LICENSE_ARCHIVE.md.
 
 BASE permits one active download and PLUS four. Both share the same catalog,
-placements, actions and persistent queue. Debrid acceleration and Viking Files
-cache remain unimplemented.
+placements, actions and persistent queue. PLUS source resolution can use the server-side
+TorBox → ViKiNG cache. The server stores source fingerprints and result metadata, not
+full source URLs or provider feeds.
 
 Optional independent plugins provide download sources, archive passwords and execution profiles.
 Manual links and profiles are user inputs and work without a plugin.

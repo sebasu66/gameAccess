@@ -17,6 +17,8 @@ implementations. Follow the flow to its owner before changing behavior.
 | `access_admin_routes.py`, `admin_security.py` | Administrative access-key operations |
 | `client_error_routes.py` | Sanitized client error reports and views |
 | `request_diagnostics.py` | Request-owned diagnostic context |
+| `viking_cache_routes.py` | Authenticated TorBox → ViKiNG resolution and per-client usage reporting |
+| `viking_cache_service.py` | Source fingerprints, TorBox polling, ViKiNG existence checks and remote upload |
 
 Routes import models, dependencies and domain services directly, never `main.py`.
 Catalog handlers use their injected session's database. The server does not

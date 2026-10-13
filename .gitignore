@@ -84,3 +84,8 @@ apps/api/courtesy-keys.json.*
 
 # Local regression reports (synthetic fixtures, never release payloads)
 /.cache/regressions/
+
+# Build-time enrichment sources and backups. The SteamDB-format dump is fetched
+# locally, used to fill our catalog, and deleted; it is never redistributed.
+/.cache/steamdb/
+/.cache/catalog-filled/

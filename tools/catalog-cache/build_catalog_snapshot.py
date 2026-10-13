@@ -195,17 +195,19 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
         content_hasher.update(encoded.encode("utf-8"))
 
     for game_id, data in canonical_by_id.items():
-        key = (game_id, "spanish", "ar")
-        if key in detail_rows or not isinstance(data["steam_json"], dict):
+        if not isinstance(data["steam_json"], dict):
             continue
-        detail = {
-            **data["catalog"],
-            "steam": data["steam_json"],
-            "metadata_state": "ready",
-        }
-        encoded = stable_json(detail)
-        detail_rows[key] = encoded
-        content_hasher.update(encoded.encode("utf-8"))
+        for lang, country in [("spanish", "ar"), ("english", "us")]:
+            key = (game_id, lang, country)
+            if key not in detail_rows:
+                detail = {
+                    **data["catalog"],
+                    "steam": data["steam_json"],
+                    "metadata_state": "ready",
+                }
+                encoded = stable_json(detail)
+                detail_rows[key] = encoded
+                content_hasher.update(encoded.encode("utf-8"))
 
     return write_snapshot(catalog_rows, detail_rows, output_dir, github_ref)
 

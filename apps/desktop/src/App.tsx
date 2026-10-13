@@ -14,7 +14,8 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { loadHome } from "./api";
 import { useCoverDiagnostics } from "./SteamCover";
 import { useCatalogSources } from "./useCatalogSources";
-import { EMPTY_LIBRARY_FILTERS } from "./librarySearch";
+import { DEFAULT_LIBRARY_FILTERS } from "./librarySearch";
+import { HERO_AUTOPLAY } from "./featureModes";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
@@ -96,7 +97,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, []);
 
   const [query, setQuery] = useState("");
-  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(EMPTY_LIBRARY_FILTERS);
+  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(DEFAULT_LIBRARY_FILTERS);
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -263,10 +264,13 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   }, [heroIndex, heroPool.length]);
 
   useEffect(() => {
-    if (heroPaused || heroPool.length < 2) return;
+    // Rotation is off until HERO_AUTOPLAY is enabled: advancing the featured game
+    // every 18 seconds moves the page while the user is reading it.
+    if (!HERO_AUTOPLAY || heroPaused || heroPool.length < 2) return;
     const timer = window.setInterval(() => setHeroIndex((current) => (current + 1) % heroPool.length), 18000);
     return () => window.clearInterval(timer);
   }, [heroPaused, heroPool.length]);
+
 
   const continueGames = useMemo(() => {
     const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
@@ -496,7 +500,7 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
   const renderMagazine = () => (<>{featured ? (
           <section className="magazine-view" aria-label="Biblioteca en vista revista">
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
-            {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={!heroPaused} muted={heroMuted} playsInline loop /> : null}
+            {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={HERO_AUTOPLAY && !heroPaused} muted={heroMuted} playsInline loop /> : null}
             <div className="hero-shade" />
             <div className="hero-copy">
               <span className="hero-kicker">TU BIBLIOTECA</span>

@@ -14,9 +14,9 @@ export async function syncCatalogCache(manifestUrl: string): Promise<CatalogCach
   return invoke<CatalogCacheSyncResult>("catalog_cache_sync", { manifestUrl });
 }
 
-export async function readCatalogCache(): Promise<CatalogGame[]> {
+export async function readCatalogCache(language?: string): Promise<CatalogGame[]> {
   if (!native()) return [];
-  return invoke<CatalogGame[]>("catalog_cache_read");
+  return invoke<CatalogGame[]>("catalog_cache_read", { language });
 }
 
 export async function upsertCatalogCacheGame(game: CatalogGame): Promise<void> {
@@ -51,3 +51,46 @@ export async function storeCatalogCachedDetail(
     detail,
   });
 }
+
+export interface CatalogQueryParams {
+  query?: string;
+  genres?: string[];
+  features?: string[];
+  sources?: string[];
+  has_downloads?: boolean;
+  language?: string;
+  sort_by?: string;
+  sort_direction?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export interface CatalogQueryResult {
+  items: CatalogGame[];
+  total: number;
+}
+
+export interface TempSourceItem {
+  app_id: number;
+  source_names: string[];
+}
+
+export interface CatalogFacetsResult {
+  genres: string[];
+}
+
+export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
+  if (!native()) return { items: [], total: 0 };
+  return invoke<CatalogQueryResult>("catalog_cache_query", { params });
+}
+
+export async function setCatalogTempSources(sources: TempSourceItem[]): Promise<void> {
+  if (!native()) return;
+  await invoke("catalog_cache_set_temp_sources", { sources });
+}
+
+export async function getCatalogFacets(): Promise<CatalogFacetsResult> {
+  if (!native()) return { genres: [] };
+  return invoke<CatalogFacetsResult>("catalog_cache_get_facets");
+}
+

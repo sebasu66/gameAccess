@@ -37,6 +37,26 @@ import { useSelectedGameDetails } from "./useSelectedGameDetails";
 
 const SCREENSHOT_HOLD_MS = 8_000;
 
+/** Steam approval as a bar that fills on mount and whenever the value changes. */
+function RatingBar({ score, count }: { score?: number | null; count?: number | null }) {
+  const target = typeof score === "number" && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null;
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    if (target === null) return;
+    const frame = requestAnimationFrame(() => setShown(target));
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  const tone = target === null ? "none" : target >= 80 ? "great" : target >= 60 ? "mixed" : "bad";
+  return <div className="ga-detail-rating">
+    <strong>{target === null ? "—" : `${Math.round(target)}%`}</strong>
+    <div className="ga-rating-main">
+      <div className={`ga-rating-bar is-${tone}`} role="progressbar" aria-label="Valoración de usuarios en Steam" aria-valuemin={0} aria-valuemax={100} aria-valuenow={target === null ? undefined : Math.round(target)}><i style={{ width: `${shown}%` }} /></div>
+      <span>Valoración de usuarios en Steam · {count ? `${count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span>
+    </div>
+  </div>;
+}
+
 function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
   return values.find((value) => value != null) ?? undefined;
 }
@@ -527,7 +547,7 @@ function DesktopFeature(props: FeaturePanelProps) {
           <div ref={scrollRef} className="ga-detail-scroll">
             <p className="ga-detail-lead">{summary}</p>
             {detailState.loading ? <span role="status">Cargando ficha de Steam…</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
-            <div className="ga-detail-rating"><strong>{ratingGame.steam_review_score != null ? `${Math.round(ratingGame.steam_review_score)}%` : "—"}</strong><span>Valoración de usuarios en Steam<br />{ratingGame.steam_review_count ? `${ratingGame.steam_review_count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span></div>
+            <RatingBar score={ratingGame.steam_review_score} count={ratingGame.steam_review_count} />
             <ExtendedDetails details={details} />
             <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
             <ActiveDownloadFacts download={props.download} />

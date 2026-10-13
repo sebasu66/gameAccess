@@ -1,9 +1,10 @@
-import FilledIcon from "./FilledIcon";
+﻿import FilledIcon from "./FilledIcon";
 import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
-import LibraryFilterDialog, { activeFilterTags } from "./LibraryFilterDialog";
+import LibraryFilterDialog from "./LibraryFilterDialog";
+import CatalogFilterToolbar from "./CatalogFilterToolbar";
 import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
@@ -15,7 +16,8 @@ import { gameStateManager } from "./GameStateManager";
 import { getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
-import { getLibrarySearchFacets, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import { genreConceptIds, genreLabel } from "./libraryGenres";
+import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFacets, hasNoActiveFilters, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
@@ -68,7 +70,10 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
     : state.playButtonReady
       ? " · listo para Jugar"
       : "";
-  const favoriteLabel = (favorite ? " · favorito" : "") + (game.filter_match === "possible" ? " · coincidencia posible, datos incompletos" : "");
+  const favoriteLabel = (favorite ? " · favorito" : "");
+  // Raw catalog genres carry duplicates and content labels; show the canonical one.
+  const cardGenreId = genreConceptIds(game.genres)[0];
+  const cardGenre = cardGenreId ? genreLabel(cardGenreId) : undefined;
 
   const showContextMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -88,17 +93,17 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
         onClick={() => onSelect(index)}
         onContextMenu={showContextMenu}
         aria-current={selected ? "true" : undefined}
-        aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${game.genres?.[0] ? ` · género ${game.genres[0]}` : ""}${accessibilityState}${favoriteLabel}`}
+        aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${cardGenre ? ` · género ${cardGenre}` : ""}${accessibilityState}${favoriteLabel}`}
         tabIndex={-1}
       >
         <span className="library-room-card-art">
-          <span className="library-room-card-cover-base">{game.filter_match === "possible" ? <span className="ga-possible-match" title="Steam no confirma todos los criterios seleccionados">Datos incompletos</span> : null}
+          <span className="library-room-card-cover-base">
         <SteamCover game={game} /></span>
           {active && progress > 0 ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
           {state.playButtonReady ? <StorageBadge /> : null}
           {favorite ? <span className="library-favorite-state" title="Favorito" aria-label="Favorito"><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
-          {game.genres?.[0] ? <span className="library-room-card-genre" aria-hidden="true">{game.genres[0]}</span> : null}
+          {cardGenre ? <span className="library-room-card-genre" aria-hidden="true">{cardGenre}</span> : null}
         </span>
       </button>
       <div className="ga-card-caption"><span>{game.name}</span><small>{game.release_date?.match(/\d{4}/)?.[0]}</small></div>
@@ -173,11 +178,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
   setCoverCardWidth(coverFloor);
   const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
-  const toggleFilter = (group: "genres" | "features" | "sources" | "tags", value: string) => {
-    const current = (searchFilters[group] ?? []) as string[];
-    const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value];
-    onSearchFiltersChange({ ...searchFilters, [group]: next } as LibrarySearchFilters);
-  };
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: "Catálogo" },
     { id: getCatalogMode() === "digital" ? "library" : "installed", label: "Biblioteca" },
@@ -323,19 +323,17 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       </>
   );
-  const filters = (
-        <div className="library-catalog-filter-actions">
-        <button type="button" className="ga-filter-open" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)}><FilledIcon name="genres" />Filtros{activeFilterTags(searchFilters).length ? ` · ${activeFilterTags(searchFilters).length}` : ""}</button>
-        <div className="ga-filter-tags" aria-label="Filtros activos">{activeFilterTags(searchFilters).length ? activeFilterTags(searchFilters).map(tag => <span key={`${tag.group}:${tag.value}`} className="ga-filter-tag"><button type="button" onClick={() => setFiltersOpen(true)}>{tag.label}</button><button type="button" aria-label={`Quitar filtro ${tag.label}`} onClick={() => toggleFilter(tag.group, tag.value)}><X size={13} /></button></span>) : <span className="ga-filter-any">Todos</span>}</div>
-        <span className="ga-footer-divider" aria-hidden="true" />
-        {<details className="library-sort-dropdown">
-          <summary aria-label={`Ordenar por ${selectedSortLabel}`} title={`Ordenar por: ${selectedSortLabel}`}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
-          <div className="library-sort-menu" role="group" aria-label="Criterio de orden">
-            {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onCatalogSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
-          </div>
-        </details>}
-        </div>
-  );
+  const filters = <CatalogFilterToolbar
+    games={props.games}
+    query={searchQuery}
+    filters={searchFilters}
+    sortOptions={sortOptions}
+    selectedSortLabel={selectedSortLabel}
+    catalogSort={catalogSort}
+    onSortChange={onCatalogSortChange}
+    onFiltersChange={onSearchFiltersChange}
+    onOpenFilters={() => setFiltersOpen(true)}
+  />;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label="Volver arriba" title="Volver arriba"><ArrowUpToLine size={17} /><span>Volver arriba</span></button> : null;
 
   return (

@@ -4,7 +4,8 @@ export type AppLocale = "es" | "en";
 export type TranslationParams = Record<string, string | number>;
 
 const STORAGE_KEY = "gameaccess:language";
-const FALLBACK_LOCALE: AppLocale = "en";
+const FALLBACK_LOCALE: AppLocale = "es";
+export const LOCALE_CHANGED_EVENT = "gameaccess:locale-changed";
 
 const es = {
   sourcesChecking: "Buscando fuentes…",
@@ -423,9 +424,9 @@ const listeners = new Set<() => void>();
 
 function detectLocale(): AppLocale {
   if (typeof window === "undefined") return FALLBACK_LOCALE;
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = window.localStorage?.getItem?.(STORAGE_KEY);
   if (stored === "es" || stored === "en") return stored;
-  return window.navigator.language.toLowerCase().startsWith("es") ? "es" : FALLBACK_LOCALE;
+  return window.navigator?.language?.toLowerCase().startsWith("en") ? "en" : FALLBACK_LOCALE;
 }
 
 let currentLocale: AppLocale = detectLocale();
@@ -463,7 +464,10 @@ export function translateServerDetail(detail: string): string {
 export function setAppLocale(locale: AppLocale): void {
   if (locale === currentLocale) return;
   currentLocale = locale;
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, locale);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(STORAGE_KEY, locale);
+    window.dispatchEvent(new CustomEvent(LOCALE_CHANGED_EVENT, { detail: locale }));
+  }
   if (typeof document !== "undefined") document.documentElement.lang = locale;
   listeners.forEach(listener => listener());
 }
@@ -478,7 +482,7 @@ function snapshot(): AppLocale {
 }
 
 export function useI18n() {
-  const locale = useSyncExternalStore(subscribe, snapshot, () => FALLBACK_LOCALE);
+  const locale = useSyncExternalStore(subscribe, snapshot, snapshot);
   const t = useCallback(
     (key: TranslationKey, params?: TranslationParams) => translate(key, params, locale),
     [locale],

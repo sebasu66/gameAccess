@@ -40,7 +40,7 @@ pub fn start(mut ids: Vec<u32>, mut roots: Vec<PathBuf>) {
             }
         }
         { let mut worker = state().lock().unwrap(); worker.phase = "updating".into(); worker.error = None; }
-        let result = native_core::steam_store_metadata_refresh(app_id, true);
+        let result = native_core::steam_store_metadata_refresh(app_id, None, true);
         let failed = result.as_ref().map(|data| data.get("gameaccess_refresh_warning").is_some()).unwrap_or(true);
         {
             let mut worker = state().lock().unwrap();

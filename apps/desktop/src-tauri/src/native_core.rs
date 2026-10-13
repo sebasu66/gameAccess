@@ -371,20 +371,27 @@ pub fn machine_profile() -> MachineProfile {
 
 
 
-fn steam_media_cache_path(app_id: u32) -> Option<PathBuf> {
+fn steam_media_cache_path(app_id: u32, language: Option<&str>) -> Option<PathBuf> {
     let root = env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(env::temp_dir)
         .join("gameAccess")
         .join("media-cache");
     fs::create_dir_all(&root).ok()?;
-    Some(root.join(format!("steam-{app_id}.json")))
+    let lang = language.unwrap_or("spanish");
+    Some(root.join(format!("steam-{app_id}-{lang}.json")))
 }
 
-fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<serde_json::Value> {
-    let path = steam_media_cache_path(app_id)?;
+fn read_steam_media_cache(app_id: u32, language: Option<&str>, max_age_seconds: Option<u64>) -> Option<serde_json::Value> {
+    let path = steam_media_cache_path(app_id, language)?;
+    let target_path = if path.exists() {
+        path
+    } else {
+        let legacy = path.with_file_name(format!("steam-{app_id}.json"));
+        if legacy.exists() { legacy } else { return None; }
+    };
     if let Some(max_age) = max_age_seconds {
-        let modified = fs::metadata(&path).ok()?.modified().ok()?;
+        let modified = fs::metadata(&target_path).ok()?.modified().ok()?;
         let age = std::time::SystemTime::now()
             .duration_since(modified)
             .ok()?
@@ -393,12 +400,12 @@ fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<s
             return None;
         }
     }
-    let bytes = fs::read(path).ok()?;
+    let bytes = fs::read(target_path).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
-fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
-    let Some(path) = steam_media_cache_path(app_id) else {
+fn write_steam_media_cache(app_id: u32, language: Option<&str>, data: &serde_json::Value) {
+    let Some(path) = steam_media_cache_path(app_id, language) else {
         return;
     };
     let Ok(body) = serde_json::to_vec(data) else {
@@ -411,7 +418,7 @@ fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
 }
 
 pub fn steam_metadata_cache_fresh(app_id: u32) -> bool {
-    read_steam_media_cache(app_id, Some(24 * 60 * 60)).is_some_and(|data| cached_reviews_current(&data))
+    read_steam_media_cache(app_id, None, Some(24 * 60 * 60)).is_some_and(|data| cached_reviews_current(&data))
 }
 
 fn cached_reviews_current(data: &serde_json::Value) -> bool {
@@ -426,7 +433,7 @@ fn cached_reviews_current(data: &serde_json::Value) -> bool {
 pub fn steam_metadata_catalog_cache(app_ids: &[u32]) -> serde_json::Value {
     let mut result = serde_json::Map::new();
     for &app_id in app_ids {
-        if let Some(data) = read_steam_media_cache(app_id, None) {
+        if let Some(data) = read_steam_media_cache(app_id, None, None) {
             let mut compact = serde_json::Map::new();
             for key in ["genres", "categories", "release_date", "recommendations", "short_description", "gameaccess_reviews", "gameaccess_updated_at"] {
                 if let Some(value) = data.get(key) { compact.insert(key.into(), value.clone()); }
@@ -440,24 +447,30 @@ pub fn steam_metadata_catalog_cache(app_ids: &[u32]) -> serde_json::Value {
 // Opening a detail reads a one-day cache; an explicit refresh bypasses it.
 // Only public Store data is queried. Installation sizes still come from local manifests.
 pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
-    steam_store_metadata_refresh(app_id, false)
+    steam_store_metadata_refresh(app_id, None, false)
 }
 
-pub fn steam_store_metadata_refresh(app_id: u32, force: bool) -> Result<serde_json::Value, String> {
+pub fn steam_store_metadata_refresh(app_id: u32, language: Option<String>, force: bool) -> Result<serde_json::Value, String> {
     if app_id == 0 { return Err("Invalid Steam AppID".into()); }
+    let lang_str = language.as_deref().unwrap_or("spanish");
+    let (steam_lang, steam_cc) = if lang_str.eq_ignore_ascii_case("english") || lang_str.eq_ignore_ascii_case("en") {
+        ("english", "US")
+    } else {
+        ("spanish", "AR")
+    };
     if !force {
-        if let Some(cached) = read_steam_media_cache(app_id, Some(24 * 60 * 60)) {
+        if let Some(cached) = read_steam_media_cache(app_id, Some(steam_lang), Some(24 * 60 * 60)) {
             if cached_reviews_current(&cached) { return Ok(cached); }
         }
     }
-    let stale = read_steam_media_cache(app_id, None);
+    let stale = read_steam_media_cache(app_id, Some(steam_lang), None);
     let fetched = (|| -> Result<serde_json::Value, String> {
         let client = reqwest::blocking::Client::builder()
             .user_agent("gameAccess/0.1")
             .timeout(std::time::Duration::from_secs(20))
             .build().map_err(|err| err.to_string())?;
         let response: serde_json::Value = client.get("https://store.steampowered.com/api/appdetails")
-            .query(&[("appids", app_id.to_string()), ("cc", "AR".into()), ("l", "spanish".into())])
+            .query(&[("appids", app_id.to_string()), ("cc", steam_cc.into()), ("l", steam_lang.into())])
             .send().and_then(|res| res.error_for_status()).and_then(|res| res.json())
             .map_err(|err| format!("Steam Store: {err}"))?;
         let entry = &response[app_id.to_string()];
@@ -480,7 +493,7 @@ pub fn steam_store_metadata_refresh(app_id: u32, force: bool) -> Result<serde_js
             _ => { data["gameaccess_refresh_warning"] = "Steam no pudo actualizar las valoraciones. Se conserva la información anterior.".into(); }
         }
         data["gameaccess_updated_at"] = chrono::Utc::now().to_rfc3339().into();
-        write_steam_media_cache(app_id, &data);
+        write_steam_media_cache(app_id, Some(steam_lang), &data);
         Ok(data)
     })();
     match fetched {
@@ -498,7 +511,7 @@ mod tests {
     #[test]
     #[ignore = "requires Steam network access"]
     fn live_steam_metadata_refresh_caches_reviews() {
-        let fresh = super::steam_store_metadata_refresh(1174180, true).expect("Steam refresh");
+        let fresh = super::steam_store_metadata_refresh(1174180, None, true).expect("Steam refresh");
         assert_eq!(fresh["steam_appid"].as_u64(), Some(1174180));
         let reviews = &fresh["gameaccess_reviews"];
         let total = reviews["total_reviews"].as_u64().expect("review total");

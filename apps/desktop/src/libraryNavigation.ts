@@ -20,6 +20,7 @@ export function tweenSelectionScroll(root: HTMLElement, target: number): () => v
     root.scrollTop = target;
     return () => {};
   }
+  if (root.dataset) root.dataset.tweening = "true";
   const duration = Math.min(380, Math.max(220, Math.abs(target-from)*.28));
   let frame = 0;
   const start = performance.now();
@@ -27,9 +28,13 @@ export function tweenSelectionScroll(root: HTMLElement, target: number): () => v
     const progress = Math.min(1, Math.max(0, (now-start)/duration));
     root.scrollTop = from+(target-from)*(1-Math.pow(1-progress,3));
     if(progress < 1) frame=requestAnimationFrame(tick);
+    else if (root.dataset) delete root.dataset.tweening;
   };
   frame=requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(frame);
+  return () => {
+    cancelAnimationFrame(frame);
+    if (root.dataset) delete root.dataset.tweening;
+  };
 }
 
 export interface SelectionRelativeTopMetrics {

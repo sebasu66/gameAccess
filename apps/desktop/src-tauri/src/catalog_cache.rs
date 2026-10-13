@@ -1,7 +1,7 @@
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
 use reqwest::header::{ACCEPT, CACHE_CONTROL, USER_AGENT};
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter, Connection, ToSql};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -16,6 +16,7 @@ use std::{
 const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
 static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -137,6 +138,9 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
     }
     let backup = target.with_extension("sqlite.bak");
     if target.exists() {
+        if let Ok(mut guard) = CATALOG_SESSION_CONN.lock() {
+            *guard = None;
+        }
         fs::rename(target, &backup).map_err(|err| err.to_string())?;
     }
     if let Err(err) = fs::rename(&next, target) {
@@ -281,11 +285,49 @@ fn merge_metadata(previous: &mut Value, incoming: Value) {
     }
 }
 
+/// Refill the searchable tables from the payloads that just changed.
+///
+/// `game_genre`, `game_category` and `game_tag` are derived from the payload, but
+/// the delta path only wrote `catalog_game`. A refresh that corrected the genre
+/// vocabulary therefore reached the payload and not the tables the search and the
+/// facets read, so the client kept serving the previous values. Rows are replaced
+/// rather than merged, because the incoming list is the whole answer for that
+/// game and a merge would keep values that were removed upstream.
+fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, String)]) -> Result<(), String> {
+    let mut del_genre = tx.prepare("DELETE FROM game_genre WHERE game_id=?1").map_err(|e|e.to_string())?;
+    let mut del_category = tx.prepare("DELETE FROM game_category WHERE game_id=?1").map_err(|e|e.to_string())?;
+    let mut del_tag = tx.prepare("DELETE FROM game_tag WHERE game_id=?1").map_err(|e|e.to_string())?;
+    let mut ins_genre = tx.prepare("INSERT OR IGNORE INTO game_genre(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
+    let mut ins_category = tx.prepare("INSERT OR IGNORE INTO game_category(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
+    let mut ins_tag = tx.prepare("INSERT OR IGNORE INTO game_tag(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
+    for (id, payload) in touched {
+        let Ok(game) = serde_json::from_str::<Value>(payload) else { continue };
+        let _ = del_genre.execute(params![id]);
+        let _ = del_category.execute(params![id]);
+        let _ = del_tag.execute(params![id]);
+        for (field, statement) in [("genres", &mut ins_genre), ("categories", &mut ins_category), ("tags", &mut ins_tag)] {
+            let Some(values) = game.get(field).and_then(Value::as_array) else { continue };
+            for value in values {
+                if let Some(text) = value.as_str() {
+                    if !text.trim().is_empty() {
+                        let _ = statement.execute(params![id, text.trim()]);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
-               manifest: &CatalogManifest) -> Result<usize, String> {
+                manifest: &CatalogManifest) -> Result<usize, String> {
     let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
     let tx = conn.transaction().map_err(|e|e.to_string())?;
     let mut ids = std::collections::HashMap::new();
+    // Games whose payload changed, so their normalized rows can be refilled from
+    // it. Without this the payload updates and the searchable tables do not: a
+    // refresh that added genres left `game_genre` holding the previous values.
+    let mut touched: Vec<(i64, String)> = Vec::new();
     for mut game in games {
         let incoming_id = game["id"].as_i64().ok_or("Catalog game has no id")?;
         let app_id = game["app_id"].as_i64();
@@ -309,10 +351,13 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
         ids.insert(incoming_id,id);
         let mut payload = payload;
         payload["id"] = Value::from(id);
+        let serialized = payload.to_string();
         tx.execute("INSERT INTO catalog_game(id,app_id,payload) VALUES(?1,?2,?3)
                     ON CONFLICT(id) DO UPDATE SET app_id=excluded.app_id,payload=excluded.payload",
-            params![id,app_id,payload.to_string()]).map_err(|e|e.to_string())?;
+            params![id,app_id,serialized.clone()]).map_err(|e|e.to_string())?;
+        touched.push((id, serialized));
     }
+    refresh_normalized_rows(&tx, &touched)?;
     for detail in details {
         let id = match detail.app_id {
             Some(app_id) => tx.query_row("SELECT id FROM catalog_game WHERE app_id=?1 LIMIT 1",[app_id],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?,
@@ -331,6 +376,17 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
         tx.execute("INSERT INTO game_detail(game_id,language,country,payload) VALUES(?1,?2,?3,?4)
                     ON CONFLICT(game_id,language,country) DO UPDATE SET payload=excluded.payload",
             params![id,detail.language,detail.country,payload.to_string()]).map_err(|e|e.to_string())?;
+        let steam = payload.get("steam").unwrap_or(&payload);
+        let short_d = steam.get("short_description").and_then(Value::as_str);
+        let detailed_d = steam.get("detailed_description").and_then(Value::as_str);
+        let about_d = steam.get("about_the_game").and_then(Value::as_str);
+        let _ = tx.execute(
+            "INSERT INTO game_description(game_id, language, short_description, detailed_description, about_the_game)
+             VALUES(?1, lower(?2), ?3, ?4, ?5)
+             ON CONFLICT(game_id, language) DO UPDATE SET
+             short_description=excluded.short_description, detailed_description=excluded.detailed_description, about_the_game=excluded.about_the_game",
+            params![id, detail.language, short_d, detailed_d, about_d]
+        );
     }
     let count: usize = tx.query_row("SELECT COUNT(*) FROM catalog_game",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     for (key,value) in [("revision",manifest.revision.clone()),("generated_at",manifest.generated_at.clone()),("catalog_count",count.to_string())] {
@@ -486,6 +542,9 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
         let _ = fs::remove_file(&backup);
     }
     if target.exists() {
+        if let Ok(mut guard) = CATALOG_SESSION_CONN.lock() {
+            *guard = None;
+        }
         fs::rename(&target, &backup)
             .map_err(|err| format!("Could not rotate old catalog cache: {err}"))?;
     }
@@ -516,23 +575,44 @@ pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSync
 }
 
 #[tauri::command]
-pub async fn catalog_cache_read() -> Result<Vec<Value>, String> {
-    tauri::async_runtime::spawn_blocking(|| {
+pub async fn catalog_cache_read(language: Option<String>) -> Result<Vec<Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
         let path = ready_cache_db_path()?;
         if !path.exists() {
             return Ok(Vec::new());
         }
         let conn = Connection::open(path).map_err(|err| err.to_string())?;
+        let _ = ensure_normalized_schema(&conn);
+        let lang = language.as_deref().unwrap_or("spanish").to_lowercase();
         let mut statement = conn
-            .prepare("SELECT payload FROM catalog_game ORDER BY id")
+            .prepare(
+                "SELECT cg.id, cg.payload, COALESCE(gd.short_description, gd_def.short_description, m.short_description)
+                 FROM catalog_game cg
+                 LEFT JOIN game_metadata m ON m.game_id = cg.id
+                 LEFT JOIN game_description gd ON gd.game_id = cg.id AND lower(gd.language) = ?1
+                 LEFT JOIN game_description gd_def ON gd_def.game_id = cg.id AND lower(gd_def.language) = 'spanish'
+                 ORDER BY cg.id"
+            )
             .map_err(|err| err.to_string())?;
         let rows = statement
-            .query_map([], |row| row.get::<_, String>(0))
+            .query_map(params![lang], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+            })
             .map_err(|err| err.to_string())?;
         let mut games = Vec::new();
         for row in rows {
-            let payload = row.map_err(|err| err.to_string())?;
-            games.push(serde_json::from_str(&payload).map_err(|err| err.to_string())?);
+            let (_id, payload, localized_desc) = row.map_err(|err| err.to_string())?;
+            let mut val: Value = serde_json::from_str(&payload).unwrap_or(Value::Null);
+            if let Some(desc) = localized_desc {
+                if !desc.trim().is_empty() {
+                    if let Value::Object(ref mut map) = val {
+                        map.insert("short_description".to_string(), Value::String(desc));
+                    }
+                }
+            }
+            if !val.is_null() {
+                games.push(val);
+            }
         }
         Ok(games)
     })
@@ -575,13 +655,24 @@ pub async fn catalog_cache_read_detail(
             return Ok(None);
         }
         let conn = Connection::open(path).map_err(|err| err.to_string())?;
+        let lang = language.trim().to_lowercase();
+        let ctry = country.trim().to_lowercase();
         let mut statement = conn
             .prepare(
                 "SELECT payload FROM game_detail
-                 WHERE game_id=?1 AND language=?2 AND country=?3",
+                 WHERE (game_id=?1 OR game_id=(SELECT id FROM catalog_game WHERE app_id=?1 LIMIT 1) OR game_id=(SELECT app_id FROM catalog_game WHERE id=?1 LIMIT 1))
+                 ORDER BY
+                    CASE
+                        WHEN lower(language) = ?2 AND lower(country) = ?3 THEN 0
+                        WHEN lower(language) = ?2 THEN 1
+                        WHEN lower(language) = 'spanish' AND lower(country) = 'ar' THEN 2
+                        WHEN lower(language) = 'spanish' THEN 3
+                        ELSE 4
+                    END
+                 LIMIT 1",
             )
             .map_err(|err| err.to_string())?;
-        match statement.query_row(params![game_id, language, country], |row| row.get::<_, String>(0)) {
+        match statement.query_row(params![game_id, lang, ctry], |row| row.get::<_, String>(0)) {
             Ok(payload) => Ok(Some(
                 serde_json::from_str(&payload).map_err(|err| err.to_string())?,
             )),
@@ -606,21 +697,521 @@ pub async fn catalog_cache_store_detail(
             return Ok(());
         }
         let conn = Connection::open(path).map_err(|err| err.to_string())?;
+        let _ = ensure_normalized_schema(&conn);
+        let lang = language.trim().to_lowercase();
+        let ctry = country.trim().to_lowercase();
         let payload = serde_json::to_string(&detail).map_err(|err| err.to_string())?;
         conn.execute(
             "INSERT INTO game_detail(game_id, language, country, payload)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(game_id, language, country)
              DO UPDATE SET payload=excluded.payload",
-            params![game_id, language, country, payload],
+            params![game_id, lang, ctry, payload],
         )
         .map_err(|err| err.to_string())?;
+
+        let steam = detail.get("steam").unwrap_or(&detail);
+        let short_d = steam.get("short_description").and_then(Value::as_str);
+        let detailed_d = steam.get("detailed_description").and_then(Value::as_str);
+        let about_d = steam.get("about_the_game").and_then(Value::as_str);
+        let _ = conn.execute(
+            "INSERT INTO game_description(game_id, language, short_description, detailed_description, about_the_game)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(game_id, language)
+             DO UPDATE SET short_description=excluded.short_description, detailed_description=excluded.detailed_description, about_the_game=excluded.about_the_game",
+            params![game_id, lang, short_d, detailed_d, about_d],
+        );
         Ok(())
     })
     .await
     .map_err(|err| format!("Catalog detail cache write task failed: {err}"))?
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct CatalogQueryParams {
+    pub query: Option<String>,
+    pub genres: Option<Vec<String>>,
+    pub features: Option<Vec<String>>,
+    pub sources: Option<Vec<String>>,
+    pub has_downloads: Option<bool>,
+    pub language: Option<String>,
+    pub sort_by: Option<String>,
+    pub sort_direction: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogQueryResult {
+    pub items: Vec<Value>,
+    pub total: usize,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TempSourceItem {
+    pub app_id: i64,
+    pub source_names: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CatalogFacetsResult {
+    pub genres: Vec<String>,
+}
+
+pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS game (
+            id INTEGER PRIMARY KEY,
+            app_id INTEGER,
+            slug TEXT,
+            name TEXT NOT NULL,
+            credit_cost_per_hour INTEGER DEFAULT 0,
+            active INTEGER DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS ix_game_app_id ON game(app_id);
+        CREATE INDEX IF NOT EXISTS ix_game_name ON game(name COLLATE NOCASE);
+
+        CREATE TABLE IF NOT EXISTS game_metadata (
+            game_id INTEGER PRIMARY KEY REFERENCES game(id) ON DELETE CASCADE,
+            release_date TEXT,
+            recommendation_count INTEGER,
+            steam_review_score REAL,
+            steam_review_count INTEGER,
+            metacritic_score INTEGER,
+            single_player INTEGER DEFAULT 0,
+            multiplayer INTEGER DEFAULT 0,
+            coop INTEGER DEFAULT 0,
+            online_coop INTEGER DEFAULT 0,
+            local_coop INTEGER DEFAULT 0,
+            shared_split_screen INTEGER DEFAULT 0,
+            mmo INTEGER DEFAULT 0,
+            pvp INTEGER DEFAULT 0,
+            pve INTEGER DEFAULT 0,
+            lan INTEGER DEFAULT 0,
+            cross_platform INTEGER DEFAULT 0,
+            header_image TEXT,
+            capsule_image TEXT,
+            hero_image TEXT,
+            steam_url TEXT,
+            short_description TEXT
+        );
+        CREATE INDEX IF NOT EXISTS ix_gm_score ON game_metadata(steam_review_score);
+        CREATE INDEX IF NOT EXISTS ix_gm_recommendation ON game_metadata(recommendation_count);
+        CREATE INDEX IF NOT EXISTS ix_gm_release_date ON game_metadata(release_date);
+
+        CREATE TABLE IF NOT EXISTS game_genre (
+            game_id INTEGER NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            PRIMARY KEY (game_id, name)
+        );
+        CREATE INDEX IF NOT EXISTS ix_game_genre_name ON game_genre(name COLLATE NOCASE);
+
+        CREATE TABLE IF NOT EXISTS game_tag (
+            game_id INTEGER NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            PRIMARY KEY (game_id, name)
+        );
+        CREATE INDEX IF NOT EXISTS ix_game_tag_name ON game_tag(name COLLATE NOCASE);
+
+        CREATE TABLE IF NOT EXISTS game_category (
+            game_id INTEGER NOT NULL REFERENCES game(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            PRIMARY KEY (game_id, name)
+        );
+
+        CREATE TABLE IF NOT EXISTS game_description (
+            game_id INTEGER NOT NULL,
+            language TEXT NOT NULL,
+            short_description TEXT,
+            detailed_description TEXT,
+            about_the_game TEXT,
+            PRIMARY KEY (game_id, language)
+        );
+        CREATE INDEX IF NOT EXISTS ix_game_desc_lang ON game_description(language);
+
+        CREATE TEMP TABLE IF NOT EXISTS temp_plugin_availability (
+            app_id INTEGER NOT NULL,
+            source_name TEXT NOT NULL,
+            PRIMARY KEY (app_id, source_name)
+        );
+        CREATE INDEX IF NOT EXISTS ix_temp_plugin_app_id ON temp_plugin_availability(app_id);
+        CREATE INDEX IF NOT EXISTS ix_temp_plugin_source ON temp_plugin_availability(source_name);"
+    ).map_err(|e| e.to_string())?;
+
+    let has_catalog_game: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalog_game')",
+        [], |r| r.get(0)
+    ).unwrap_or(false);
+
+    if has_catalog_game {
+        let game_count: i64 = conn.query_row("SELECT COUNT(*) FROM game", [], |r| r.get(0)).unwrap_or(0);
+        let catalog_count: i64 = conn.query_row("SELECT COUNT(*) FROM catalog_game", [], |r| r.get(0)).unwrap_or(0);
+        if game_count == 0 && catalog_count > 0 {
+            let mut statement = conn.prepare("SELECT id, app_id, payload FROM catalog_game").map_err(|e| e.to_string())?;
+            let rows = statement.query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, String>(2)?))
+            }).map_err(|e| e.to_string())?;
+
+            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+            {
+                let mut ins_game = tx.prepare("INSERT OR IGNORE INTO game(id, app_id, slug, name, credit_cost_per_hour, active) VALUES (?1, ?2, ?3, ?4, ?5, 1)").map_err(|e| e.to_string())?;
+                let mut ins_meta = tx.prepare("INSERT OR REPLACE INTO game_metadata(game_id, release_date, recommendation_count, steam_review_score, steam_review_count, metacritic_score, single_player, multiplayer, coop, online_coop, local_coop, shared_split_screen, mmo, pvp, pve, lan, cross_platform, header_image, capsule_image, hero_image, steam_url, short_description) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)").map_err(|e| e.to_string())?;
+                let mut ins_genre = tx.prepare("INSERT OR IGNORE INTO game_genre(game_id, name) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
+                let mut ins_tag = tx.prepare("INSERT OR IGNORE INTO game_tag(game_id, name) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
+                let mut ins_cat = tx.prepare("INSERT OR IGNORE INTO game_category(game_id, name) VALUES (?1, ?2)").map_err(|e| e.to_string())?;
+                let mut ins_desc = tx.prepare("INSERT OR REPLACE INTO game_description(game_id, language, short_description, detailed_description, about_the_game) VALUES (?1, 'spanish', ?2, NULL, NULL)").map_err(|e| e.to_string())?;
+
+                for row in rows {
+                    let (gid, app_id, payload_str) = row.map_err(|e| e.to_string())?;
+                    if let Ok(g) = serde_json::from_str::<Value>(&payload_str) {
+                        let name = g.get("name").and_then(Value::as_str).unwrap_or("");
+                        let slug = g.get("slug").and_then(Value::as_str).unwrap_or("");
+                        let cost = g.get("credit_cost_per_hour").and_then(Value::as_i64).unwrap_or(0);
+                        let _ = ins_game.execute(params![gid, app_id, slug, name, cost]);
+
+                        let rel_date = g.get("release_date").and_then(Value::as_str);
+                        let rec_count = g.get("recommendation_count").and_then(Value::as_i64);
+                        let rev_score = g.get("steam_review_score").and_then(Value::as_f64);
+                        let rev_count = g.get("steam_review_count").and_then(Value::as_i64);
+                        let meta_score = g.get("metacritic_score").and_then(Value::as_i64);
+
+                        let sp = if g.get("single_player").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let mp = if g.get("multiplayer").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let coop = if g.get("coop").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let o_coop = if g.get("online_coop").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let l_coop = if g.get("local_coop").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let split = if g.get("shared_split_screen").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let mmo = if g.get("mmo").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let pvp = if g.get("pvp").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let pve = if g.get("pve").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let lan = if g.get("lan").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+                        let cross = if g.get("cross_platform").and_then(Value::as_bool) == Some(true) { 1 } else { 0 };
+
+                        let header = g.get("header_image").and_then(Value::as_str);
+                        let capsule = g.get("capsule_image").and_then(Value::as_str);
+                        let hero = g.get("hero_image").and_then(Value::as_str);
+                        let steam_url = g.get("steam_url").and_then(Value::as_str);
+                        let short_desc = g.get("short_description").and_then(Value::as_str);
+
+                        let _ = ins_meta.execute(params![
+                            gid, rel_date, rec_count, rev_score, rev_count, meta_score,
+                            sp, mp, coop, o_coop, l_coop, split, mmo, pvp, pve, lan, cross,
+                            header, capsule, hero, steam_url, short_desc
+                        ]);
+
+                        if let Some(desc) = short_desc {
+                            if !desc.trim().is_empty() {
+                                let _ = ins_desc.execute(params![gid, desc]);
+                            }
+                        }
+
+                        if let Some(genres) = g.get("genres").and_then(Value::as_array) {
+                            for item in genres {
+                                if let Some(s) = item.as_str() {
+                                    if !s.trim().is_empty() {
+                                        let _ = ins_genre.execute(params![gid, s.trim()]);
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(tags) = g.get("tags").and_then(Value::as_array) {
+                            for item in tags {
+                                if let Some(s) = item.as_str() {
+                                    if !s.trim().is_empty() {
+                                        let _ = ins_tag.execute(params![gid, s.trim()]);
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(categories) = g.get("categories").and_then(Value::as_array) {
+                            for item in categories {
+                                if let Some(s) = item.as_str() {
+                                    if !s.trim().is_empty() {
+                                        let _ = ins_cat.execute(params![gid, s.trim()]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+    }
+
+    let desc_count: i64 = conn.query_row("SELECT COUNT(*) FROM game_description", [], |r| r.get(0)).unwrap_or(0);
+    if desc_count == 0 {
+        let has_detail: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='game_detail')",
+            [], |r| r.get(0)
+        ).unwrap_or(false);
+        if has_detail {
+            if let Ok(mut stmt) = conn.prepare("SELECT game_id, language, payload FROM game_detail") {
+                if let Ok(detail_rows) = stmt.query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                }) {
+                    if let Ok(tx) = conn.unchecked_transaction() {
+                        if let Ok(mut ins) = tx.prepare("INSERT OR REPLACE INTO game_description(game_id, language, short_description, detailed_description, about_the_game) VALUES (?1, lower(?2), ?3, ?4, ?5)") {
+                            for row in detail_rows.flatten() {
+                                let (gid, lang, payload_str) = row;
+                                if let Ok(val) = serde_json::from_str::<Value>(&payload_str) {
+                                    let steam = val.get("steam").unwrap_or(&val);
+                                    let short_d = steam.get("short_description").and_then(Value::as_str);
+                                    let detailed_d = steam.get("detailed_description").and_then(Value::as_str);
+                                    let about_d = steam.get("about_the_game").and_then(Value::as_str);
+                                    let _ = ins.execute(params![gid, lang, short_d, detailed_d, about_d]);
+                                }
+                            }
+                        }
+                        let _ = tx.commit();
+                    }
+                }
+            }
+        }
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO game_description(game_id, language, short_description)
+             SELECT game_id, 'spanish', short_description FROM game_metadata WHERE short_description IS NOT NULL AND trim(short_description) != ''",
+            [],
+        );
+    }
+    Ok(())
+}
+
+fn with_catalog_conn<F, R>(f: F) -> Result<R, String>
+where
+    F: FnOnce(&mut Connection) -> Result<R, String>,
+{
+    let mut guard = CATALOG_SESSION_CONN
+        .lock()
+        .map_err(|_| "Catalog connection lock poisoned".to_string())?;
+    if guard.is_none() {
+        let path = ready_cache_db_path()?;
+        let conn = Connection::open(&path).map_err(|err| err.to_string())?;
+        let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
+        ensure_normalized_schema(&conn)?;
+        *guard = Some(conn);
+    }
+    let conn = guard.as_mut().unwrap();
+    f(conn)
+}
+
+#[tauri::command]
+pub async fn catalog_cache_set_temp_sources(sources: Vec<TempSourceItem>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_catalog_conn(|conn| {
+            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM temp_plugin_availability", []).map_err(|e| e.to_string())?;
+            {
+                let mut stmt = tx.prepare_cached(
+                    "INSERT OR IGNORE INTO temp_plugin_availability(app_id, source_name) VALUES (?1, ?2)"
+                ).map_err(|e| e.to_string())?;
+                for item in sources {
+                    for name in item.source_names {
+                        let trimmed = name.trim();
+                        if !trimmed.is_empty() {
+                            stmt.execute(params![item.app_id, trimmed]).map_err(|e| e.to_string())?;
+                        }
+                    }
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+            Ok(())
+        })
+    })
+    .await
+    .map_err(|err| format!("Catalog temp sources task failed: {err}"))?
+}
+
+#[tauri::command]
+pub async fn catalog_cache_get_facets() -> Result<CatalogFacetsResult, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        with_catalog_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT name FROM game_genre ORDER BY name COLLATE NOCASE ASC"
+            ).map_err(|e| e.to_string())?;
+            let genres: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(Result::ok)
+                .collect();
+            Ok(CatalogFacetsResult { genres })
+        })
+    })
+    .await
+    .map_err(|err| format!("Catalog facets task failed: {err}"))?
+}
+
+#[tauri::command]
+pub async fn catalog_cache_query(params: CatalogQueryParams) -> Result<CatalogQueryResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        with_catalog_conn(|conn| {
+            let mut where_clauses: Vec<String> = Vec::new();
+            let mut string_params: Vec<String> = Vec::new();
+
+            if let Some(ref q) = params.query {
+                let trimmed = q.trim();
+                if !trimmed.is_empty() {
+                    for word in trimmed.split_whitespace() {
+                        let p_idx = string_params.len() + 1;
+                        where_clauses.push(format!(
+                            "(g.name LIKE ?{0} OR EXISTS (SELECT 1 FROM game_tag gt WHERE gt.game_id = g.id AND gt.name LIKE ?{0}))",
+                            p_idx
+                        ));
+                        string_params.push(format!("%{}%", word));
+                    }
+                }
+            }
+
+            if let Some(ref genres) = params.genres {
+                if !genres.is_empty() {
+                    let mut genre_placeholders = Vec::new();
+                    for g in genres {
+                        let p_idx = string_params.len() + 1;
+                        genre_placeholders.push(format!("?{}", p_idx));
+                        string_params.push(g.clone());
+                    }
+                    where_clauses.push(format!(
+                        "EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({}))",
+                        genre_placeholders.join(",")
+                    ));
+                }
+            }
+
+            if let Some(ref features) = params.features {
+                for feat in features {
+                    match feat.as_str() {
+                        "has_downloads" => {
+                            where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
+                        }
+                        "single_player" => where_clauses.push("m.single_player = 1".to_string()),
+                        "multiplayer" => where_clauses.push("m.multiplayer = 1".to_string()),
+                        "coop" => where_clauses.push("m.coop = 1".to_string()),
+                        "online_coop" => where_clauses.push("m.online_coop = 1".to_string()),
+                        "local_coop" => where_clauses.push("m.local_coop = 1".to_string()),
+                        "shared_split_screen" => where_clauses.push("m.shared_split_screen = 1".to_string()),
+                        "mmo" => where_clauses.push("m.mmo = 1".to_string()),
+                        "pvp" => where_clauses.push("m.pvp = 1".to_string()),
+                        "pve" => where_clauses.push("m.pve = 1".to_string()),
+                        "lan" => where_clauses.push("m.lan = 1".to_string()),
+                        "cross_platform" => where_clauses.push("m.cross_platform = 1".to_string()),
+                        _ => {}
+                    }
+                }
+            }
+
+            if params.has_downloads == Some(true) {
+                where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
+            }
+
+            if let Some(ref sources) = params.sources {
+                if !sources.is_empty() {
+                    let mut source_placeholders = Vec::new();
+                    for s in sources {
+                        let p_idx = string_params.len() + 1;
+                        source_placeholders.push(format!("?{}", p_idx));
+                        string_params.push(s.clone());
+                    }
+                    where_clauses.push(format!(
+                        "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))",
+                        source_placeholders.join(",")
+                    ));
+                }
+            }
+
+            let where_sql = if where_clauses.is_empty() {
+                "".to_string()
+            } else {
+                format!("WHERE {}", where_clauses.join(" AND "))
+            };
+
+            let count_sql = format!(
+                "SELECT COUNT(*) FROM game g LEFT JOIN game_metadata m ON m.game_id = g.id {}",
+                where_sql
+            );
+
+            let param_refs: Vec<&dyn ToSql> = string_params.iter().map(|s| s as &dyn ToSql).collect();
+            let total: usize = conn.query_row(
+                &count_sql,
+                params_from_iter(param_refs.iter().copied()),
+                |r| r.get(0)
+            ).map_err(|e| format!("Count query failed: {e}; SQL: {count_sql}"))?;
+
+            let is_asc = params.sort_direction.as_deref().map(|d| d.eq_ignore_ascii_case("asc")).unwrap_or(false);
+            let dir = if is_asc { "ASC" } else { "DESC" };
+            let order_by = match params.sort_by.as_deref() {
+                Some("score") => format!("COALESCE(m.steam_review_score, 0) {}, COALESCE(m.recommendation_count, 0) DESC", dir),
+                Some("release_date") => format!("COALESCE(m.release_date, '') {}", dir),
+                Some("name") => format!("g.name COLLATE NOCASE {}", if is_asc { "ASC" } else { "DESC" }),
+                _ => format!("COALESCE(m.recommendation_count, 0) {}, g.id ASC", dir),
+            };
+
+            let limit = params.limit.unwrap_or(60);
+            let offset = params.offset.unwrap_or(0);
+
+            let lang = params.language.as_deref().unwrap_or("spanish").to_lowercase();
+            let mut select_params = string_params.clone();
+            let lang_idx = select_params.len() + 1;
+            select_params.push(lang);
+
+            let select_sql = format!(
+                "SELECT g.id, g.app_id, cg.payload,
+                        COALESCE((SELECT COUNT(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), 0) AS src_count,
+                        COALESCE((SELECT json_group_array(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), '[]') AS src_names,
+                        COALESCE(gd.short_description, gd_def.short_description, m.short_description) AS localized_short_desc
+                 FROM game g
+                 LEFT JOIN catalog_game cg ON cg.id = g.id
+                 LEFT JOIN game_metadata m ON m.game_id = g.id
+                 LEFT JOIN game_description gd ON gd.game_id = g.id AND lower(gd.language) = ?{lang_idx}
+                 LEFT JOIN game_description gd_def ON gd_def.game_id = g.id AND lower(gd_def.language) = 'spanish'
+                 {}
+                 ORDER BY {}
+                 LIMIT {} OFFSET {}",
+                where_sql, order_by, limit, offset
+            );
+
+            let select_param_refs: Vec<&dyn ToSql> = select_params.iter().map(|s| s as &dyn ToSql).collect();
+            let mut stmt = conn.prepare(&select_sql).map_err(|e| format!("Select prepare failed: {e}; SQL: {select_sql}"))?;
+            let rows = stmt.query_map(
+                params_from_iter(select_param_refs.iter().copied()),
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                    ))
+                }
+            ).map_err(|e| format!("Select query failed: {e}"))?;
+
+            let mut items = Vec::new();
+            for row in rows {
+                let (gid, app_id, payload_opt, src_count, src_names_json, localized_desc) = row.map_err(|e| e.to_string())?;
+                let mut val = if let Some(payload_str) = payload_opt {
+                    serde_json::from_str::<Value>(&payload_str).unwrap_or_else(|_| serde_json::json!({ "id": gid, "app_id": app_id }))
+                } else {
+                    serde_json::json!({ "id": gid, "app_id": app_id })
+                };
+                if let Value::Object(ref mut map) = val {
+                    map.insert("has_downloads".to_string(), Value::Bool(src_count > 0));
+                    map.insert("availableSourceCount".to_string(), Value::from(src_count));
+                    let src_names: Value = serde_json::from_str(&src_names_json).unwrap_or(Value::Array(vec![]));
+                    map.insert("download_source_names".to_string(), src_names);
+                    if let Some(desc) = localized_desc {
+                        if !desc.trim().is_empty() {
+                            map.insert("short_description".to_string(), Value::String(desc));
+                        }
+                    }
+                }
+                items.push(val);
+            }
+
+            Ok(CatalogQueryResult { items, total })
+        })
+    })
+    .await
+    .map_err(|err| format!("Catalog query task failed: {err}"))?
+}
 
 #[cfg(test)]
 mod tests {
@@ -701,6 +1292,96 @@ mod tests {
 
         assert_eq!(fs::read(&target).unwrap(), b"recoverable");
         assert!(!backup.exists());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_normalized_schema_and_temp_plugin_join() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 100, '{\"id\":1,\"app_id\":100,\"name\":\"Alpha Game\",\"genres\":[\"Action\"]}');
+            INSERT INTO catalog_game VALUES(2, 200, '{\"id\":2,\"app_id\":200,\"name\":\"Beta Puzzle\",\"genres\":[\"Puzzle\"]}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        // Verify normalized tables exist and were backfilled
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM game", [], |r| r.get(0)).unwrap();
+        assert_eq!(count, 2);
+
+        // Add a temp source for app_id 100
+        conn.execute("INSERT INTO temp_plugin_availability VALUES(100, 'FitGirl')", []).unwrap();
+
+        // Query filtering by temp plugin source availability
+        let with_downloads: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM game g WHERE EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)",
+            [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(with_downloads, 1);
+
+        let without_downloads: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM game g WHERE NOT EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)",
+            [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(without_downloads, 1);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_multilanguage_catalog_descriptions_and_fallback() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 100, '{\"id\":1,\"app_id\":100,\"name\":\"Aventura\",\"short_description\":\"Descripción en español\"}');
+            INSERT INTO catalog_game VALUES(2, 200, '{\"id\":2,\"app_id\":200,\"name\":\"Puzzle\",\"short_description\":\"Solo español\"}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        // Add English description for game 1
+        conn.execute(
+            "INSERT INTO game_description(game_id, language, short_description) VALUES(1, 'english', 'English adventure description')",
+            [],
+        ).unwrap();
+
+        // 1. Query with 'english': game 1 has English, game 2 falls back to Spanish
+        let mut stmt = conn.prepare("
+            SELECT g.id, COALESCE(gd.short_description, gd_def.short_description, m.short_description)
+            FROM game g
+            LEFT JOIN game_metadata m ON m.game_id = g.id
+            LEFT JOIN game_description gd ON gd.game_id = g.id AND lower(gd.language) = ?1
+            LEFT JOIN game_description gd_def ON gd_def.game_id = g.id AND lower(gd_def.language) = 'spanish'
+            ORDER BY g.id
+        ").unwrap();
+
+        let english_rows: Vec<(i64, Option<String>)> = stmt.query_map(["english"], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        }).unwrap().filter_map(Result::ok).collect();
+
+        assert_eq!(english_rows.len(), 2);
+        assert_eq!(english_rows[0].1.as_deref(), Some("English adventure description"));
+        assert_eq!(english_rows[1].1.as_deref(), Some("Solo español")); // fallback to Spanish
+
+        // 2. Query with 'spanish': both return Spanish
+        let spanish_rows: Vec<(i64, Option<String>)> = stmt.query_map(["spanish"], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        }).unwrap().filter_map(Result::ok).collect();
+
+        assert_eq!(spanish_rows.len(), 2);
+        assert_eq!(spanish_rows[0].1.as_deref(), Some("Descripción en español"));
+        assert_eq!(spanish_rows[1].1.as_deref(), Some("Solo español"));
+
+        drop(stmt);
+        drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
     }
 }

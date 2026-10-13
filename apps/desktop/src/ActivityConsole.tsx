@@ -53,17 +53,14 @@ function ProfilerToggle({enabled,locale}:{enabled:boolean;locale:string}){
  </button>;
 }
 
-/** Entry point while the console is closed. */
-function ConsoleDock({onOpen}:{onOpen:()=>void}){
- const {locale}=useI18n();const es=locale==="es";
- const profilerEnabled=useProfilerEnabled();
- return <div className="ga-console-dock">
-  <DebugLogToggle locale={locale} />
-  <ProfilerToggle enabled={profilerEnabled} locale={locale} />
-  <button className="ga-console-toggle" type="button" title={es?"Consola · tecla a la izquierda del 1":"Console · key to the left of 1"} onClick={onOpen}>{es?"Consola":"Console"} <kbd>~</kbd></button>
- </div>;
-}
-
+/**
+ * The console header.
+ *
+ * The console has no floating entry point: it used to sit on a corner dock with
+ * a "Console" button and the two developer switches beside it, which put debug
+ * controls in front of every user. It is a developer tool opened with `~` (see
+ * `consoleShortcut`), so it needs no button, and its switches live in here.
+ */
 function ConsoleHeader({paused,expanded,locale,onTogglePaused,onToggleExpanded,onClose}:{
  paused:boolean;expanded:boolean;locale:string;onTogglePaused:()=>void;onToggleExpanded:()=>void;onClose:()=>void;
 }){
@@ -71,8 +68,12 @@ function ConsoleHeader({paused,expanded,locale,onTogglePaused,onToggleExpanded,o
  const profilerEnabled=useProfilerEnabled();
  return <header>
   <strong>{es?"Actividad de GameAccess":"GameAccess activity"}</strong><span/>
-  <DebugLogToggle locale={locale} />
-  <ProfilerToggle enabled={profilerEnabled} locale={locale} />
+  {/* Diagnostics and alarms appear once the console is expanded, so the default
+      view stays a plain log. */}
+  {expanded?<>
+   <DebugLogToggle locale={locale} />
+   <ProfilerToggle enabled={profilerEnabled} locale={locale} />
+  </>:<small className="ga-console-hint">{es?"Expandí para diagnóstico y alarmas":"Expand for diagnostics and alarms"}</small>}
   <button type="button" aria-pressed={paused} onClick={onTogglePaused}>{paused?(es?"Reanudar":"Resume"):(es?"Pausar":"Pause")}</button>
   <button type="button" aria-expanded={expanded} onClick={onToggleExpanded}>{expanded?(es?"Reducir":"Collapse"):(es?"Expandir":"Expand")}</button>
   <button type="button" onClick={onClose} aria-label={es?"Cerrar consola":"Close console"}>×</button>
@@ -128,7 +129,7 @@ export default function ActivityConsole(){
  const {lines,error}=useActivityLines(open,paused,es);
  const logRef=useRef<HTMLPreElement>(null);
  useEffect(()=>{const log=logRef.current;if(log)log.scrollTop=log.scrollHeight;},[lines]);
- if(!open)return <ConsoleDock onOpen={()=>setOpen(true)} />;
+ if(!open)return null;
  return <section className={"ga-activity-console"+(expanded?" is-expanded":"")} aria-label={es?"Consola de actividad":"Activity console"}>
   <ConsoleHeader paused={paused} expanded={expanded} locale={locale} onTogglePaused={()=>setPaused(v=>!v)} onToggleExpanded={()=>setExpanded(v=>!v)} onClose={()=>setOpen(false)} />
   <pre ref={logRef} role="log" aria-live="off">{error||lines.join("\n")||(es?"Esperando actividad…":"Waiting for activity…")}</pre>

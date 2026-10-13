@@ -2,9 +2,14 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
+
+from .genre_normalization import normalize_catalog_rows
+
+LOG = logging.getLogger("gameaccess.catalog_snapshot")
 
 def steam_assets(app_id: int | None) -> dict[str, str | None]:
     """Identity fields only.
@@ -35,9 +40,16 @@ def stable_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
-def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows: dict[tuple[int, str, str], str], output_dir: Path, github_ref: str, coverage: dict | None = None) -> tuple[Path, Path]:
-    """Publish metadata only; consumers validate hash, schema and row count."""
+def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows: dict[tuple[int, str, str], str], output_dir: Path, github_ref: str, coverage: dict | None = None, strip_normalized: bool = True) -> tuple[Path, Path]:
+    """Publish metadata only; consumers validate hash, schema and row count.
+
+    ``strip_normalized`` drops the tables that duplicate the ``catalog_game``
+    payload. Every reader rebuilds them from the payload, so keeping them would
+    only inflate the installer package by roughly 14 MB compressed.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Genres are normalized before hashing so the revision describes what ships.
+    catalog_rows = normalize_catalog_rows(catalog_rows)
     from datetime import datetime, timezone
     generated_at = datetime.now(timezone.utc).isoformat()
     content_hasher = hashlib.sha256()
@@ -254,6 +266,19 @@ def write_snapshot(catalog_rows: list[tuple[int, int | None, str]], detail_rows:
             list(desc_rows.values()),
         )
         db.commit()
+        # The normalized tables duplicate what the payload already carries, and
+        # every consumer rebuilds them: the client's cache fills game_tag,
+        # game_genre, game_category and game_description from the payload, and
+        # the server's own reads only ever touch catalog_game and game_detail.
+        # They cost about 14 MB compressed, which the installer would ship twice.
+        if strip_normalized:
+            for table in ("game", "game_metadata", "game_genre", "game_tag",
+                          "game_category", "game_description"):
+                try:
+                    db.execute(f"DROP TABLE IF EXISTS {table}")
+                except sqlite3.Error as error:  # pragma: no cover - defensive
+                    LOG.warning("Could not drop %s from the package: %s", table, error)
+            db.commit()
         db.execute("VACUUM")
     finally:
         db.close()

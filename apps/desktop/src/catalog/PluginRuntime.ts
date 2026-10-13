@@ -59,13 +59,19 @@ export function pollPluginRuntime(): Promise<void> {
 }
 async function tick(run: number) {
   await pollPluginRuntime();
-  if (watchers && run === driver) timer = setTimeout(() => void tick(run), 3000);
+  if (watchers > 0 && run === driver) timer = setTimeout(() => void tick(run), 3000);
 }
 export function monitorPluginRuntime(): () => void {
   watchers++;
-  if (watchers === 1) void tick(++driver);
+  if (watchers === 1) {
+    if (timer) clearTimeout(timer);
+    void tick(++driver);
+  }
   return () => {
     watchers = Math.max(0, watchers - 1);
     if (!watchers) { driver++; if (timer) clearTimeout(timer); timer = undefined; }
   };
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("focus", () => void pollPluginRuntime());
 }

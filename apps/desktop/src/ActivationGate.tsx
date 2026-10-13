@@ -9,6 +9,7 @@ import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, read
 import type { ActivationStatus, ActivationEnd } from "./activation";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
+import { devAutoLoginKey } from "./devAutoLogin";
 import { boundedFetch } from "./settings";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
@@ -181,23 +182,51 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(frame);
   }, [helpOpen]);
 
-  const activate = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!key.trim() || busy || connecting) return;
+  /**
+   * Send a key to the server and adopt the result.
+   *
+   * Shared by the form and by the development auto-login, so both go through the
+   * same validation, error handling and connection recovery.
+   */
+  const redeemKey = useCallback(async (submitted: string) => {
+    if (!submitted.trim() || busy || connecting) return;
     let reconnect = false;
     redeeming.current = true;
     verification.current?.abort();
     setBusy(true);
     setError("");
     try {
-      setStatus(await redeemActivation(key));
+      setStatus(await redeemActivation(submitted));
       setKey("");
       setEnded(null);
     } catch (reason) {
       if (reason instanceof ActivationConnectionError) { reconnect = true; setConnecting(true); }
       else setError(reason instanceof Error ? reason.message : t("activationKeyFailed"));
     } finally { redeeming.current = false; setBusy(false); setVerificationReady(true); if (reconnect) void verify(); }
+  }, [busy, connecting, t, verify]);
+
+  const activate = async (event: FormEvent) => {
+    event.preventDefault();
+    await redeemKey(key);
   };
+
+  /**
+   * Development convenience: sign in with the key in the local `.env`.
+   *
+   * Runs once, and only when no session is active, so it never replaces a valid
+   * session and never retries a rejected key. With no `.env` the gate behaves
+   * exactly as before.
+   */
+  const autoLoginAttempted = useRef(false);
+  useEffect(() => {
+    if (autoLoginAttempted.current) return;
+    if (!verificationReady || busy || connecting || status?.active) return;
+    autoLoginAttempted.current = true;
+    void (async () => {
+      const devKey = await devAutoLoginKey(Boolean(status?.active));
+      if (devKey) await redeemKey(devKey);
+    })();
+  }, [verificationReady, busy, connecting, status?.active, redeemKey]);
 
   return <>
     {(verificationReady || (status?.active && (introReady || applicationStarted))) ? <div className={`ga-application-reveal${!status?.active ? " is-entry-preview" : ""}${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>

@@ -24,8 +24,8 @@ export function mergeDiscoveryCatalog(base: CatalogGame[], remote: CatalogGame[]
   return [...games.values()];
 }
 
-export async function loadDiscoveryCatalog(requireRemote: boolean): Promise<CatalogGame[] | null> {
-  const local = await readCatalogCache().catch(() => []);
+export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<CatalogGame[] | null> {
+  const local = await readCatalogCache(language).catch(() => []);
   // First paint uses the installer/cache; network work belongs to the updater.
   if (!requireRemote && local.length) return steamIdentities(local);
   if (requireRemote) {
@@ -36,7 +36,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean): Promise<Cata
       try {
         const synced = await syncCatalogCache(manifest);
         if (synced) {
-          const refreshed = await readCatalogCache();
+          const refreshed = await readCatalogCache(language);
           if (!refreshed.length) throw new Error("El catálogo actualizado está vacío.");
           void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
           return steamIdentities(refreshed);
