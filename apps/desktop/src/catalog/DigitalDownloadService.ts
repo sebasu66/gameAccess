@@ -270,7 +270,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     // failure the original source is used, so the Download button keeps working.
     let effectiveSource = downloadSource;
     if (hasTauriRuntime() && canAccelerate(downloadSource)) {
-      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga en el servidor...", bytesDownloaded: 0, bytesTotal: 0 });
+      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga directa", bytesDownloaded: 0, bytesTotal: 0 });
       const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
       if (processed) effectiveSource = processed.url;
       else void narrate("No se pudo usar el servidor; se sigue con la descarga normal.", { area: "DOWNLOAD", level: "WARN" });

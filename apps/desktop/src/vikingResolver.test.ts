@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const narrate = vi.fn(async () => undefined);
+const narrate = vi.fn(async (_message: string, _options?: { level?: string; area?: string }) => undefined);
 vi.mock("./narrationLog", () => ({ narrate }));
 vi.mock("./settings", () => ({ getApiBaseUrl: async () => "http://api.test" }));
 vi.mock("./activation", () => ({ readActivationSession: async () => "token", getInstallationId: async () => "install" }));

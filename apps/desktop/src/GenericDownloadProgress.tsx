@@ -46,7 +46,7 @@ export function getDownloadStatusLabel(
   switch (state) {
     case "requested":
     case "preparing":
-      return isEn ? "Preparing" : "Preparando";
+      return isEn ? "Preparing the direct download" : "Preparando la descarga directa";
     case "downloading":
       return roundedProgress > 0
         ? (isEn ? `Downloading ${roundedProgress}%` : `Descargando ${roundedProgress}%`)
