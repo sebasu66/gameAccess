@@ -44,4 +44,14 @@ describe("vikingResolver", () => {
     expect(messages()[1]).toContain("conviene descargarlo directo");
     expect(messages()[1]).toContain("40 Mbps");
   });
+
+  it("stops waiting after the time limit and says the server keeps working", async () => {
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(init.signal.reason));
+    })));
+    expect(await resolveVikingDownload({ sourceUrl: "https://host/file.zip" }, 20)).toBeNull();
+    const last = narrate.mock.calls[narrate.mock.calls.length - 1];
+    expect(String(last[0])).toContain("El server sigue preparando el archivo");
+    expect(last[1]?.level).toBe("WARN");
+  });
 });

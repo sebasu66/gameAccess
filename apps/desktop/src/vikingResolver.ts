@@ -4,8 +4,13 @@ import { getApiBaseUrl } from "./settings";
 
 declare const __BUILD_TIMESTAMP__: string;
 
-/** The server waits for TorBox and ViKiNG, which can take a long time for big files. */
-const RESOLVE_TIMEOUT_MS = 50 * 60 * 1000;
+/**
+ * How long the player waits for the server before downloading on its own. A file already in
+ * the cache (or one the server tells us to fetch directly) answers within seconds; a new big
+ * file needs minutes of TorBox and ViKiNG work, which the server keeps doing after we stop
+ * waiting, so the next request for it is instant.
+ */
+export const RESOLVE_WAIT_MS = 25 * 1000;
 
 export type VikingResolved = {
   url: string;
@@ -47,7 +52,7 @@ async function readError(response: Response): Promise<string> {
  * returns the processed link. Every step is written to the console and the activity
  * log. Returns null, never throws, so a failure leaves the normal download working.
  */
-export async function resolveVikingDownload(request: VikingResolveRequest): Promise<VikingResolved | null> {
+export async function resolveVikingDownload(request: VikingResolveRequest, waitMs: number = RESOLVE_WAIT_MS): Promise<VikingResolved | null> {
   const area = "DOWNLOAD";
   const source = request.sourceUrl.trim();
   if (!canAccelerate(source)) {
@@ -66,7 +71,7 @@ export async function resolveVikingDownload(request: VikingResolveRequest): Prom
     const response = await fetch(`${api}/downloads/viking-cache`, {
       method: "POST",
       cache: "no-store",
-      signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(waitMs),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
@@ -111,7 +116,11 @@ export async function resolveVikingDownload(request: VikingResolveRequest): Prom
     return resolved;
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";
-    const reason = timedOut ? "el server tardó demasiado en responder" : error instanceof Error ? error.message : String(error);
+    if (timedOut) {
+      void narrate(`El server sigue preparando el archivo (más de ${Math.round(waitMs / 1000)} s). Se descarga por tu cuenta ahora; la próxima vez estará listo en Viking.`, { area, level: "WARN" });
+      return null;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
     void narrate(`Error al pedir el link procesado al server: ${reason}`, { area, level: "ERROR" });
     return null;
   }
