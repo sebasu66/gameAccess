@@ -253,11 +253,33 @@ async def resolve_viking_download(
                 "name": cache.viking_name,
                 "size_bytes": cache.file_size_bytes,
                 "cache_hit": True,
+                "mode": "cache",
             }
         logger.info(
             "request=%s client=%s stage=cache_stale file_hash=%s fingerprint=%s",
             request_id, installation_id, cache.viking_hash, identity.fingerprint[:12],
         )
+
+    decision = await provider.decide_delivery(source_url=req.source_url, source_kind=identity.kind)
+    logger.info(
+        "request=%s client=%s stage=delivery_decision use_direct=%s reason=%s speed_bps=%s",
+        request_id, installation_id, decision.use_direct, decision.reason, decision.speed_bps,
+    )
+    if decision.use_direct:
+        # The original link goes back to the client. It is never stored.
+        _finish_request(
+            session, row, status="completed", started=started, cache_hit=False, result_name=item_name,
+        )
+        return {
+            "ok": True,
+            "request_id": request_id,
+            "url": req.source_url,
+            "name": item_name,
+            "size_bytes": None,
+            "cache_hit": False,
+            "mode": "direct",
+            "speed_bps": decision.speed_bps,
+        }
 
     try:
         cache = _claim_cache(session, identity, item_name=item_name)
@@ -342,6 +364,7 @@ async def resolve_viking_download(
         "name": result.name,
         "size_bytes": result.size_bytes,
         "cache_hit": False,
+        "mode": "processed",
     }
 
 

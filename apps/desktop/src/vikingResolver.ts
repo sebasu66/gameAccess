@@ -12,6 +12,9 @@ export type VikingResolved = {
   name: string;
   sizeBytes: number | null;
   cacheHit: boolean;
+  /** "direct": the server judged the original link fast enough and returned it unchanged. */
+  mode: "cache" | "processed" | "direct";
+  speedBps: number | null;
 };
 
 export type VikingResolveRequest = {
@@ -93,11 +96,18 @@ export async function resolveVikingDownload(request: VikingResolveRequest): Prom
       name: typeof body.name === "string" ? body.name : "",
       sizeBytes: typeof body.size_bytes === "number" ? body.size_bytes : null,
       cacheHit: body.cache_hit === true,
+      mode: body.mode === "direct" ? "direct" : body.cache_hit === true ? "cache" : "processed",
+      speedBps: typeof body.speed_bps === "number" ? body.speed_bps : null,
     };
-    void narrate(
-      `Recibido link de descarga procesado: ${resolved.url}${resolved.cacheHit ? " (ya estaba en caché)" : ""}`,
-      { area },
-    );
+    if (resolved.mode === "direct") {
+      const mbps = resolved.speedBps ? ` (velocidad medida: ${(resolved.speedBps / 125_000).toFixed(0)} Mbps)` : "";
+      void narrate(`El server analizó el link y conviene descargarlo directo${mbps}: ${resolved.url}`, { area });
+    } else {
+      void narrate(
+        `Recibido link de descarga procesado: ${resolved.url}${resolved.cacheHit ? " (ya estaba en caché)" : ""}`,
+        { area },
+      );
+    }
     return resolved;
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";

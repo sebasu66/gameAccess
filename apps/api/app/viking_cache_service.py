@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import hashlib
 import ipaddress
 import logging
 import os
 import re
+import socket
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -155,6 +158,57 @@ def _validate_viking_file_url(value: str, file_hash: str) -> str:
     return VIKING_FILE_BASE + file_hash
 
 
+PROBE_BYTES = 4 * 1024 * 1024
+PROBE_MAX_SECONDS = 5.0
+PROBE_MIN_BYTES = 512 * 1024
+PROBE_MAX_REDIRECTS = 3
+
+
+@dataclass(frozen=True)
+class DeliveryDecision:
+    """Whether the client should download the original link itself instead of using TorBox."""
+
+    use_direct: bool
+    reason: str
+    speed_bps: int = 0
+
+
+def magnet_infohash(source_url: str) -> str | None:
+    """The torrent info hash of a magnet as 40 lowercase hex characters, if it has one."""
+    if not str(source_url).lower().startswith("magnet:?"):
+        return None
+    for topic in parse_qs(urlsplit(source_url).query).get("xt", []):
+        topic = topic.strip()
+        if not topic.lower().startswith("urn:btih:"):
+            continue
+        value = topic[9:].strip()
+        if re.fullmatch(r"[0-9a-fA-F]{40}", value):
+            return value.lower()
+        if re.fullmatch(r"[A-Za-z2-7]{32}", value):
+            try:
+                return binascii.hexlify(base64.b32decode(value.upper())).decode("ascii")
+            except (binascii.Error, ValueError):
+                return None
+    return None
+
+
+class WebPageLink(Exception):
+    """The link opens a web page, not a file, so a person has to take the next step."""
+
+
+async def _assert_public_host(host: str) -> None:
+    """Refuse hosts whose DNS answers point at private or reserved addresses."""
+    loop = asyncio.get_running_loop()
+    try:
+        infos = await loop.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError("No se pudo resolver el servidor de origen.") from exc
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0])
+        if not address.is_global:
+            raise ValueError("El origen apunta a una dirección privada o reservada.")
+
+
 class TorBoxVikingProvider:
     """Provider adapter. TorBox credentials are only sent to TorBox, never ViKiNG."""
 
@@ -166,6 +220,7 @@ class TorBoxVikingProvider:
         poll_interval_seconds: float | None = None,
         max_wait_seconds: int | None = None,
         upload_timeout_seconds: int | None = None,
+        direct_min_mbps: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep_fn: Callable[[float], Any] = asyncio.sleep,
     ):
@@ -182,6 +237,10 @@ class TorBoxVikingProvider:
         self.upload_timeout_seconds = max(
             1,
             int(upload_timeout_seconds if upload_timeout_seconds is not None else os.getenv("GAMEACCESS_VIKING_UPLOAD_TIMEOUT_SECONDS", "2400")),
+        )
+        # Megabits per second the server must measure before it hands the original link back.
+        self.direct_min_bytes_per_second = int(
+            max(0.0, float(direct_min_mbps if direct_min_mbps is not None else os.getenv("GAMEACCESS_DIRECT_MIN_MBPS", "20"))) * 125_000
         )
         self.transport = transport
         self.sleep_fn = sleep_fn
@@ -414,6 +473,82 @@ class TorBoxVikingProvider:
                 url=file_url,
                 torbox_item_id=item_id,
             )
+
+    async def torbox_has_cached(self, info_hash: str) -> bool:
+        """True when TorBox already holds this torrent, so no download wait is needed."""
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=15.0), transport=self.transport, follow_redirects=False
+        ) as client:
+            payload = await self._torbox_json(
+                client, "GET", "/torrents/checkcached",
+                params={"hash": info_hash, "format": "object", "list_files": "false"},
+            )
+        data = payload.get("data")
+        return isinstance(data, dict) and info_hash.lower() in {str(key).lower() for key in data}
+
+    async def probe_direct_speed(self, url: str) -> int | None:
+        """Bytes per second measured by reading the first megabytes of a direct link.
+
+        Redirects are followed by hand so every hop is checked to be a public host.
+        Returns None when the link cannot be measured.
+        """
+        current = url
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=8.0), transport=self.transport, follow_redirects=False
+        ) as client:
+            for _ in range(PROBE_MAX_REDIRECTS + 1):
+                parsed = urlsplit(current)
+                host = (parsed.hostname or "").lower()
+                if parsed.scheme not in ("http", "https") or not host:
+                    return None
+                await _assert_public_host(host)
+                async with client.stream(
+                    "GET", current,
+                    headers={"Range": f"bytes=0-{PROBE_BYTES - 1}", "User-Agent": "GameAccess/1.0"},
+                ) as response:
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        location = response.headers.get("location", "")
+                        if not location:
+                            return None
+                        current = str(httpx.URL(current).join(location))
+                        continue
+                    if response.status_code not in (200, 206):
+                        return None
+                    if "text/html" in response.headers.get("content-type", "").lower():
+                        raise WebPageLink()
+                    received = 0
+                    first_byte_at = None
+                    async for chunk in response.aiter_bytes():
+                        now = time.monotonic()
+                        if first_byte_at is None:
+                            first_byte_at = now
+                        received += len(chunk)
+                        if received >= PROBE_BYTES or now - first_byte_at >= PROBE_MAX_SECONDS:
+                            break
+                    if first_byte_at is None or received < PROBE_MIN_BYTES:
+                        return None
+                    elapsed = max(time.monotonic() - first_byte_at, 0.05)
+                    return int(received / elapsed)
+        return None
+
+    async def decide_delivery(self, *, source_url: str, source_kind: str) -> DeliveryDecision:
+        """Decide whether processing through TorBox is worth it. Never raises."""
+        try:
+            if source_kind == "torrent":
+                info_hash = magnet_infohash(source_url)
+                if info_hash and await self.torbox_has_cached(info_hash):
+                    return DeliveryDecision(False, "cached_in_torbox")
+                # Peer health is not measured yet, so an uncached torrent goes through TorBox.
+                return DeliveryDecision(False, "torrent_needs_torbox")
+            speed = await self.probe_direct_speed(source_url)
+            if speed is not None and speed >= self.direct_min_bytes_per_second:
+                return DeliveryDecision(True, "fast_direct", speed)
+            return DeliveryDecision(False, "slow_or_unmeasurable", speed or 0)
+        except WebPageLink:
+            # Pages that need a person (captchas, countdowns) are outside this comparison.
+            return DeliveryDecision(False, "web_page")
+        except (ProviderFailure, ValueError, httpx.HTTPError):
+            return DeliveryDecision(False, "analysis_failed")
 
     async def _viking_json(
         self,

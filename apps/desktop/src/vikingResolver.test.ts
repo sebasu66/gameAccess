@@ -37,4 +37,11 @@ describe("vikingResolver", () => {
     expect(await resolveVikingDownload({ sourceUrl: "magnet:?xt=urn:btih:abc" })).toBeNull();
     expect(messages().at(-1)).toContain("sin conexión");
   });
+  it("says so when the server decides the original link is better", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, url: "https://host/file.zip", name: "", size_bytes: null, cache_hit: false, mode: "direct", speed_bps: 5_000_000 }))));
+    const result = await resolveVikingDownload({ sourceUrl: "https://host/file.zip" });
+    expect(result?.mode).toBe("direct");
+    expect(messages()[1]).toContain("conviene descargarlo directo");
+    expect(messages()[1]).toContain("40 Mbps");
+  });
 });

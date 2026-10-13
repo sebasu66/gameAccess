@@ -1,0 +1,82 @@
+import asyncio
+
+import httpx
+
+from app import viking_cache_service as service
+
+HASH = "a" * 40
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def provider(handler, **kwargs):
+    return service.TorBoxVikingProvider(
+        torbox_api_key="key", viking_user_hash="user", transport=httpx.MockTransport(handler), **kwargs
+    )
+
+
+def public(monkeypatch):
+    async def ok(host):
+        return None
+    monkeypatch.setattr(service, "_assert_public_host", ok)
+
+
+def test_magnet_infohash_accepts_hex_and_base32():
+    assert service.magnet_infohash(f"magnet:?xt=urn:btih:{HASH.upper()}&dn=x") == HASH
+    assert service.magnet_infohash("magnet:?xt=urn:btih:" + "A" * 32) == "00" * 20
+    assert service.magnet_infohash("https://host/file.zip") is None
+    assert service.magnet_infohash("magnet:?dn=sin-hash") is None
+
+
+def test_fast_direct_link_is_returned_as_is(monkeypatch):
+    public(monkeypatch)
+    handler = lambda request: httpx.Response(206, content=b"x" * (2 * 1024 * 1024))
+    decision = run(provider(handler, direct_min_mbps=1).decide_delivery(source_url="https://cdn.example/f.zip", source_kind="direct"))
+    assert decision.use_direct and decision.reason == "fast_direct" and decision.speed_bps > 0
+
+
+def test_slow_threshold_sends_the_link_through_torbox(monkeypatch):
+    public(monkeypatch)
+    handler = lambda request: httpx.Response(206, content=b"x" * (2 * 1024 * 1024))
+    decision = run(provider(handler, direct_min_mbps=1_000_000).decide_delivery(source_url="https://cdn.example/f.zip", source_kind="direct"))
+    assert not decision.use_direct and decision.reason == "slow_or_unmeasurable"
+
+
+def test_redirects_are_followed_and_error_pages_are_not_measured(monkeypatch):
+    public(monkeypatch)
+
+    def redirecting(request):
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "https://cdn.example/real"})
+        return httpx.Response(206, content=b"x" * (1024 * 1024))
+    assert run(provider(redirecting).probe_direct_speed("https://host.example/start")) is not None
+
+    not_found = lambda request: httpx.Response(404, content=b"no")
+    assert run(provider(not_found).probe_direct_speed("https://host.example/f")) is None
+
+
+def test_private_hosts_are_refused_and_never_raise(monkeypatch):
+    async def private(host):
+        raise ValueError("privada")
+    monkeypatch.setattr(service, "_assert_public_host", private)
+    decision = run(provider(lambda r: httpx.Response(200)).decide_delivery(source_url="https://intranet.example/f", source_kind="direct"))
+    assert not decision.use_direct and decision.reason == "analysis_failed"
+
+
+def test_torrent_cached_in_torbox_is_reported(monkeypatch):
+    handler = lambda request: httpx.Response(200, json={"success": True, "data": {HASH: {"name": "x"}}})
+    decision = run(provider(handler).decide_delivery(source_url=f"magnet:?xt=urn:btih:{HASH}", source_kind="torrent"))
+    assert not decision.use_direct and decision.reason == "cached_in_torbox"
+
+    empty = lambda request: httpx.Response(200, json={"success": True, "data": {}})
+    decision = run(provider(empty).decide_delivery(source_url=f"magnet:?xt=urn:btih:{HASH}", source_kind="torrent"))
+    assert decision.reason == "torrent_needs_torbox"
+
+
+def test_web_pages_are_not_treated_as_fast_direct_downloads(monkeypatch):
+    public(monkeypatch)
+    page = lambda request: httpx.Response(200, headers={"content-type": "text/html; charset=utf-8"}, content=b"<html>" + b"x" * (2 * 1024 * 1024))
+    decision = run(provider(page, direct_min_mbps=1).decide_delivery(source_url="https://filehost.example/abc", source_kind="direct"))
+    assert not decision.use_direct and decision.reason == "web_page"
