@@ -61,6 +61,8 @@ export interface LibrarySearchFilters {
    * Undefined means no bar.
    */
   minReviewScore?: number;
+  /** With a minimum score: do not hide games that are new or have too few reviews to judge. */
+  spareUnprovenGames?: boolean;
   /** Earliest release year accepted (inclusive). Undefined means no bound. */
   releaseYearFrom?: number;
   /** Latest release year accepted (inclusive). Undefined means no bound. */
@@ -100,6 +102,7 @@ export const DEFAULT_MIN_REVIEW_SCORE = 60;
 export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
   ...DEFAULT_LIBRARY_FILTERS,
   minReviewScore: DEFAULT_MIN_REVIEW_SCORE,
+  spareUnprovenGames: true,
 };
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
@@ -257,7 +260,7 @@ function dropReason(game: CatalogGame, terms: string[], filters: LibrarySearchFi
     const searchable = searchableText(game);
     if (!terms.every((term) => searchable.includes(term))) return "filter";
   }
-  if (hasQualityFilters(filters) && !gamePassesQualityFilters(game, filters)) {
+  if (hasQualityFilters(filters) && !gamePassesQualityFilters(game, filters, now)) {
     return filters.hideAdult && gameIsAdult(game, filters.adultIncludesNudity) ? "adult" : "quality";
   }
   if (classifyFilterMatch(game, filters) === "excluded") return "filter";

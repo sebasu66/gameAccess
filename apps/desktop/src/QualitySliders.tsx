@@ -40,7 +40,7 @@ export default function QualitySliders({ draft, onChange }: {
         </label>
         <input id="ga-min-score" type="range" min={0} max={100} step={5} value={score} disabled={!scoreOn}
           onChange={event => onChange({ minReviewScore: Number(event.target.value) })} />
-        <small>Porcentaje de reseñas positivas en Steam. 70% es el umbral de "mayormente positivas".</small>
+        <small>Porcentaje de reseñas positivas en Steam. 70% es el umbral de "mayormente positivas". No oculta juegos nuevos (menos de un mes) ni con pocas reseñas.</small>
       </div>
       <div className={"ga-slider-row" + (yearsOn ? "" : " is-off")}>
         <label htmlFor="ga-year-from">

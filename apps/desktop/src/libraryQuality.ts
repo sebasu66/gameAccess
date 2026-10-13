@@ -160,6 +160,19 @@ export function releaseYear(game: CatalogGame): number | null {
   return released ? released.getUTCFullYear() : null;
 }
 
+/** Reviews a game needs before its score says anything, and how long it must have been out. */
+export const MIN_REVIEWS_TO_JUDGE = 10;
+export const NEW_RELEASE_DAYS = 30;
+
+/** No score yet, too few reviews, or released in the last month. */
+function isUnproven(game: CatalogGame, now: number): boolean {
+  if (typeof game.steam_review_score !== "number") return true;
+  const reviews = game.steam_review_count;
+  if (typeof reviews !== "number" || reviews < MIN_REVIEWS_TO_JUDGE) return true;
+  const released = parseReleaseDate(game.release_date);
+  return released !== null && now - released.getTime() < NEW_RELEASE_DAYS * 86400000;
+}
+
 /**
  * The score and year sliders.
  *
@@ -168,9 +181,14 @@ export function releaseYear(game: CatalogGame): number | null {
  * "recent". Treating either as a pass would put silent false positives in the
  * results, which is the failure this whole filter rework exists to remove.
  */
-function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters): boolean {
+function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters, now: number): boolean {
   if (filters.minReviewScore !== undefined) {
     const score = game.steam_review_score;
+    if (filters.spareUnprovenGames) {
+      // Only a game with a real track record can be "badly reviewed": it needs a handful of
+      // reviews and must have been out for a while. New and unrated games are not hidden.
+      if (isUnproven(game, now)) return true;
+    }
     if (typeof score !== "number" || score < filters.minReviewScore) return false;
   }
   if (filters.releaseYearFrom === undefined && filters.releaseYearTo === undefined) return true;
@@ -188,6 +206,6 @@ function passesContentScreens(game: CatalogGame, filters: LibrarySearchFilters):
   return true;
 }
 
-export function gamePassesQualityFilters(game: CatalogGame, filters: LibrarySearchFilters): boolean {
-  return passesContentScreens(game, filters) && passesSliderBounds(game, filters);
+export function gamePassesQualityFilters(game: CatalogGame, filters: LibrarySearchFilters, now: number = Date.now()): boolean {
+  return passesContentScreens(game, filters) && passesSliderBounds(game, filters, now);
 }
