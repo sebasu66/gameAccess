@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import binascii
 import hashlib
 import ipaddress
@@ -207,6 +208,36 @@ async def _assert_public_host(host: str) -> None:
         address = ipaddress.ip_address(info[4][0])
         if not address.is_global:
             raise ValueError("El origen apunta a una dirección privada o reservada.")
+
+
+def parse_viking_upload_response(response: httpx.Response) -> dict[str, Any]:
+    """ViKiNG answers a remote upload with a stream of JSON lines.
+
+    Progress lines ({"progress":"41.2%",...}) come first and the last line is the result
+    ({"name","size","hash"}) or an error, so the body is not one JSON document."""
+    if response.status_code >= 400:
+        raise ProviderFailure("viking_upload_failed", 502, "ViKiNG no pudo importar el archivo de TorBox.")
+    objects: list[dict[str, Any]] = []
+    for line in response.text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            objects.append(value)
+    for value in reversed(objects):
+        if value.get("hash"):
+            return value
+    for value in reversed(objects):
+        error = value.get("error") or value.get("message")
+        if error:
+            logger.warning("viking_upload_rejected reason=%s", str(error)[:200])
+            raise ProviderFailure("viking_upload_failed", 502, "ViKiNG rechazó la carga: " + str(error)[:160])
+    logger.warning("viking_upload_unreadable status=%s body=%s", response.status_code, response.text[:300])
+    raise ProviderFailure("viking_upload_failed", 502, "ViKiNG no pudo importar el archivo de TorBox.")
 
 
 def is_viking_upload_server(url: str) -> bool:
@@ -463,9 +494,7 @@ class TorBoxVikingProvider:
                 raise ProviderFailure("viking_upload_timeout", 504, "ViKiNG tardó demasiado en importar el archivo.") from exc
             except httpx.HTTPError as exc:
                 raise ProviderFailure("viking_upload_failed", 502, "No se pudo completar la carga remota en ViKiNG.") from exc
-            upload_payload = self._parse_json(
-                upload_response, "viking_upload_failed", "ViKiNG no pudo importar el archivo de TorBox."
-            )
+            upload_payload = parse_viking_upload_response(upload_response)
             file_hash = str(upload_payload.get("hash") or "").strip()
             if not file_hash:
                 raise ProviderFailure("viking_upload_invalid_response", 502, "ViKiNG no devolvió el identificador del archivo.")

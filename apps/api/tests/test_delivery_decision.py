@@ -89,3 +89,24 @@ def test_viking_upload_server_accepts_regional_hosts_only():
     assert not service.is_viking_upload_server("https://vikingfile.com.evil.example/x")
     assert not service.is_viking_upload_server("https://evilvikingfile.com/x")
     assert not service.is_viking_upload_server("")
+
+
+def test_viking_upload_reads_the_last_json_line_of_a_progress_stream():
+    body = (
+        '{"progress":"30.9%","current":4098,"total":13264,"name":"dummy.pdf"}\n'
+        '{"progress":"100%","current":13264,"total":13264,"name":"dummy.pdf"}\n'
+        '{"name":"ga-probe.pdf","size":"13264","hash":"wpGNXAgg1"}'
+    )
+    parsed = service.parse_viking_upload_response(httpx.Response(200, text=body))
+    assert parsed["hash"] == "wpGNXAgg1" and parsed["size"] == "13264"
+
+
+def test_viking_upload_error_line_and_bad_bodies_fail_clearly():
+    import pytest
+    with pytest.raises(service.ProviderFailure) as rejected:
+        service.parse_viking_upload_response(httpx.Response(200, text='{"progress":"10%"}\n{"error":"link not allowed"}'))
+    assert "link not allowed" in rejected.value.public_message
+    with pytest.raises(service.ProviderFailure):
+        service.parse_viking_upload_response(httpx.Response(200, text="<html>nope</html>"))
+    with pytest.raises(service.ProviderFailure):
+        service.parse_viking_upload_response(httpx.Response(500, text="{}"))
