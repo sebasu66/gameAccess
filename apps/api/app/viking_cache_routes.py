@@ -4,10 +4,12 @@ from __future__ import annotations
 import logging
 import re
 import time
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +18,7 @@ from sqlmodel import Session, select
 from .access_keys import AccessKey, canonical_installation_id
 from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request, _admin_activation_access
+from .admin_security import _admin_browser_access
 from .api_dependencies import get_session
 from .models import VikingDownloadRequest, VikingSourceCache
 from .request_diagnostics import detail
@@ -407,3 +410,63 @@ def get_viking_download_usage(
         ],
         "note": "resolved_size_bytes mide el tamaño de enlaces resueltos, no confirma que el cliente haya terminado la descarga.",
     }
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+@router.get("/admin/viking-running-tasks")
+def get_viking_running_tasks(request: Request, session: Session = Depends(get_session)) -> dict:
+    """Admin-only list of links the server is processing right now (TorBox -> ViKiNG)."""
+    _admin_activation_access(request)
+    now = _now()
+    running = session.exec(
+        select(VikingDownloadRequest)
+        .where(VikingDownloadRequest.status == "processing")
+        .order_by(VikingDownloadRequest.requested_at.asc())
+    ).all()
+    since = now - timedelta(hours=24)
+    last_day = session.exec(
+        select(VikingDownloadRequest.status, func.count(VikingDownloadRequest.id))
+        .where(VikingDownloadRequest.requested_at >= since)
+        .group_by(VikingDownloadRequest.status)
+    ).all()
+    counts = {status: int(total or 0) for status, total in last_day}
+    tasks = []
+    for row in running:
+        started = _as_utc(row.requested_at) or now
+        elapsed = max(0, int((now - started).total_seconds()))
+        tasks.append({
+            "request_id": row.request_id,
+            "installation_id": row.installation_id,
+            "app_id": row.app_id,
+            "item_name": row.item_name,
+            "source_kind": row.source_kind,
+            "source_host": row.source_host,
+            "requested_at": started,
+            "elapsed_seconds": elapsed,
+            "possibly_stuck": elapsed > int(_CACHE_PROCESSING_STALE_AFTER.total_seconds()),
+        })
+    return {
+        "now": now,
+        "running_total": len(tasks),
+        "running_torrents": sum(1 for task in tasks if task["source_kind"] == "torrent"),
+        "running_direct": sum(1 for task in tasks if task["source_kind"] != "torrent"),
+        "last_24h": {
+            "completed": counts.get("completed", 0),
+            "failed": counts.get("failed", 0),
+            "rejected": counts.get("rejected", 0),
+        },
+        "tasks": tasks,
+    }
+
+
+@router.get("/admin/viking-tasks", response_class=HTMLResponse)
+def viking_tasks_page(request: Request) -> HTMLResponse:
+    """Admin page with the table of running TorBox -> ViKiNG tasks."""
+    _admin_browser_access(request)
+    page = Path(__file__).resolve().parents[1] / "admin" / "viking-tasks.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})

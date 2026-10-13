@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Tareas en ejecución</title>
+<style>
+body{margin:0;background:#111416;color:#f5f5f5;font:15px system-ui}main{max-width:1100px;margin:48px auto;padding:24px}h1{margin-bottom:8px}p{color:#adb5bd}a{color:#ff8a3d}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin:24px 0}.stat{background:#191d20;padding:16px 20px;border-radius:12px;min-width:140px}.stat b{display:block;font-size:30px;color:#ff8a3d;font-variant-numeric:tabular-nums}.stat span{color:#adb5bd;font-size:13px}
+.wrap{background:#191d20;border-radius:12px;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px 16px;border-bottom:1px solid #ffffff14;font-size:14px}th{color:#adb5bd;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+td.num{font-variant-numeric:tabular-nums}.empty{padding:28px;color:#adb5bd;text-align:center}.warn{color:#ffb15c}.err{color:#ff7a6b;padding:12px 0}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff8a3d;margin-right:8px;animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+<main>
+<h1>Tareas en ejecución</h1>
+<p>Enlaces que el servidor está procesando ahora (caché de Viking Files, Torbox y subida). Se actualiza solo cada 5 segundos. <a href="/admin">Volver</a></p>
+<div class="stats">
+<div class="stat"><b id="total">–</b><span>en ejecución</span></div>
+<div class="stat"><b id="direct">–</b><span>enlaces directos</span></div>
+<div class="stat"><b id="torrent">–</b><span>magnets</span></div>
+<div class="stat"><b id="done">–</b><span>completadas (24 h)</span></div>
+<div class="stat"><b id="failed">–</b><span>con error (24 h)</span></div>
+</div>
+<div id="error" class="err" role="alert"></div>
+<div class="wrap"><table><thead><tr><th>Juego o archivo</th><th>Tipo</th><th>Origen</th><th>Cliente</th><th>Iniciada</th><th>Tiempo</th><th>Estado</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>No hay tareas en ejecución.</div></div>
+</main>
+<script>
+const q=id=>document.getElementById(id);
+let tasks=[],fetchedAt=0;
+const fmt=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+" h ":"")+(h||m?m+" min ":"")+r+" s"};
+function cell(tr,text,cls){const td=document.createElement("td");td.textContent=text;if(cls)td.className=cls;tr.appendChild(td);return td}
+function draw(){
+  const rows=q("rows");rows.replaceChildren();
+  const extra=(Date.now()-fetchedAt)/1000;
+  for(const t of tasks){
+    const tr=document.createElement("tr");
+    cell(tr,t.item_name||"(sin nombre)");
+    cell(tr,t.source_kind==="torrent"?"Magnet":"Enlace directo");
+    cell(tr,t.source_host||"–");
+    cell(tr,(t.installation_id||"").slice(0,8)||"–","num");
+    cell(tr,new Date(t.requested_at).toLocaleTimeString("es-AR"),"num");
+    cell(tr,fmt(t.elapsed_seconds+extra),"num");
+    const st=document.createElement("td");const dot=document.createElement("span");dot.className="dot";st.appendChild(dot);
+    st.appendChild(document.createTextNode(t.possibly_stuck?"Posiblemente trabada":"Procesando"));if(t.possibly_stuck)st.className="warn";tr.appendChild(st);
+    rows.appendChild(tr);
+  }
+  q("empty").hidden=tasks.length>0;
+}
+async function load(){
+  try{
+    const r=await fetch("/admin/viking-running-tasks",{cache:"no-store"});
+    const data=await r.json();
+    if(!r.ok)throw Error(typeof data.detail==="string"?data.detail:"No se pudo leer el estado.");
+    tasks=data.tasks;fetchedAt=Date.now();
+    q("total").textContent=data.running_total;q("direct").textContent=data.running_direct;q("torrent").textContent=data.running_torrents;
+    q("done").textContent=data.last_24h.completed;q("failed").textContent=data.last_24h.failed;
+    q("error").textContent="";draw();
+  }catch(e){q("error").textContent=e.message}
+}
+load();setInterval(load,5000);setInterval(draw,1000);
+</script>
+</html>
