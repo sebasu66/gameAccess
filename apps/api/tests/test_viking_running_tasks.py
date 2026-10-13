@@ -40,3 +40,24 @@ def test_lists_only_running_tasks_and_counts_by_kind(monkeypatch):
     assert by_id["r1"]["possibly_stuck"] is False
     assert by_id["r2"]["possibly_stuck"] is True
     assert "r3" not in by_id
+
+
+def test_restart_closes_requests_left_processing():
+    from app.models import VikingSourceCache
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__, VikingSourceCache.__table__])
+    now = datetime.now(timezone.utc)
+    with Session(engine) as session:
+        session.add_all([_row("r1", "processing", "torrent", 9), _row("r2", "completed", "direct", 9)])
+        session.add(VikingSourceCache(source_fingerprint="f" * 64, source_kind="torrent", source_host="", status="processing", created_at=now, updated_at=now))
+        session.commit()
+
+    assert routes.recover_interrupted_viking_requests(engine) == 1
+
+    with Session(engine) as session:
+        by_id = {row.request_id: row for row in session.exec(__import__("sqlmodel").select(VikingDownloadRequest)).all()}
+        assert by_id["r1"].status == "failed" and by_id["r1"].error_code == "server_restarted"
+        assert by_id["r2"].status == "completed"
+        cache = session.exec(__import__("sqlmodel").select(VikingSourceCache)).one()
+        assert cache.status == "failed"
+    assert routes.recover_interrupted_viking_requests(engine) == 0

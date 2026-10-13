@@ -34,6 +34,33 @@ logger = logging.getLogger("gameaccess.viking_cache")
 _CACHE_PROCESSING_STALE_AFTER = timedelta(minutes=90)
 
 
+def recover_interrupted_viking_requests(engine) -> int:
+    """Close requests a restart left as "processing".
+
+    A request only lives inside the process that handles it, so after a restart nothing is
+    still working on the ones the database calls "processing". Left alone they stay in the
+    admin table forever and the cache entry rejects new requests for the same source until
+    it goes stale. Run once at startup; returns how many requests were closed."""
+    now = _now()
+    with Session(engine) as session:
+        rows = session.exec(select(VikingDownloadRequest).where(VikingDownloadRequest.status == "processing")).all()
+        for row in rows:
+            row.status = "failed"
+            row.error_code = "server_restarted"
+            row.completed_at = now
+            session.add(row)
+        caches = session.exec(select(VikingSourceCache).where(VikingSourceCache.status == "processing")).all()
+        for cache in caches:
+            cache.status = "failed"
+            cache.last_error_code = "server_restarted"
+            cache.updated_at = now
+            session.add(cache)
+        session.commit()
+        if rows or caches:
+            logger.warning("viking_recovery closed_requests=%s closed_cache_entries=%s", len(rows), len(caches))
+        return len(rows)
+
+
 class VikingDownloadResolveRequest(BaseModel):
     source_url: str = Field(min_length=1, max_length=8192)
     item_name: str = Field(default="", max_length=300)
