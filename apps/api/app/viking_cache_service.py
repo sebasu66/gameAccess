@@ -209,6 +209,16 @@ async def _assert_public_host(host: str) -> None:
             raise ValueError("El origen apunta a una dirección privada o reservada.")
 
 
+def is_viking_upload_server(url: str) -> bool:
+    """ViKiNG hands out regional upload servers (jp.vikingfile.com, upload.vikingfile.com, ...).
+
+    Any HTTPS host under vikingfile.com is theirs; anything else is refused so the
+    server never posts a TorBox link to a third party."""
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and (host == "vikingfile.com" or host.endswith(".vikingfile.com"))
+
+
 class TorBoxVikingProvider:
     """Provider adapter. TorBox credentials are only sent to TorBox, never ViKiNG."""
 
@@ -426,7 +436,7 @@ class TorBoxVikingProvider:
             )
             upload_server = str(server_payload.get("server") or "")
             parsed_server = urlsplit(upload_server)
-            if parsed_server.scheme != "https" or parsed_server.hostname != "upload.vikingfile.com":
+            if not is_viking_upload_server(upload_server):
                 raise ProviderFailure("viking_invalid_upload_server", 502, "ViKiNG devolvió un servidor de carga inválido.")
 
             upload_data = {"link": temporary_link, "user": self.viking_user_hash}

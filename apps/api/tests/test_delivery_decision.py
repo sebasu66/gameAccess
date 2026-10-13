@@ -80,3 +80,12 @@ def test_web_pages_are_not_treated_as_fast_direct_downloads(monkeypatch):
     page = lambda request: httpx.Response(200, headers={"content-type": "text/html; charset=utf-8"}, content=b"<html>" + b"x" * (2 * 1024 * 1024))
     decision = run(provider(page, direct_min_mbps=1).decide_delivery(source_url="https://filehost.example/abc", source_kind="direct"))
     assert not decision.use_direct and decision.reason == "web_page"
+
+
+def test_viking_upload_server_accepts_regional_hosts_only():
+    assert service.is_viking_upload_server("https://jp.vikingfile.com/index2.php")
+    assert service.is_viking_upload_server("https://upload.vikingfile.com/")
+    assert not service.is_viking_upload_server("http://jp.vikingfile.com/index2.php")
+    assert not service.is_viking_upload_server("https://vikingfile.com.evil.example/x")
+    assert not service.is_viking_upload_server("https://evilvikingfile.com/x")
+    assert not service.is_viking_upload_server("")
