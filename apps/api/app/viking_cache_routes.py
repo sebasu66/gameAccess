@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func
+from sqlalchemy import case, func, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -32,6 +32,21 @@ from .viking_cache_service import (
 router = APIRouter(tags=["Viking cache"])
 logger = logging.getLogger("gameaccess.viking_cache")
 _CACHE_PROCESSING_STALE_AFTER = timedelta(minutes=90)
+
+
+def ensure_viking_schema(engine) -> None:
+    """Widen the size columns of databases created before sizes could exceed 2 GB."""
+    if engine.dialect.name != "postgresql":
+        return
+    inspector = inspect(engine)
+    for table in ("viking_download_request", "viking_source_cache"):
+        if not inspector.has_table(table):
+            continue
+        for column in inspector.get_columns(table):
+            if column["name"] == "file_size_bytes" and "BIGINT" not in str(column["type"]).upper():
+                with engine.begin() as connection:
+                    connection.execute(text(f"ALTER TABLE {table} ALTER COLUMN file_size_bytes TYPE BIGINT"))
+                logger.warning("viking_schema widened %s.file_size_bytes to BIGINT", table)
 
 
 def recover_interrupted_viking_requests(engine) -> int:

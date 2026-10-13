@@ -61,3 +61,20 @@ def test_restart_closes_requests_left_processing():
         cache = session.exec(__import__("sqlmodel").select(VikingSourceCache)).one()
         assert cache.status == "failed"
     assert routes.recover_interrupted_viking_requests(engine) == 0
+
+
+def test_file_sizes_above_two_gigabytes_fit_in_the_columns():
+    from sqlalchemy import BigInteger
+    from app.models import VikingSourceCache
+    assert isinstance(VikingDownloadRequest.__table__.c.file_size_bytes.type, BigInteger)
+    assert isinstance(VikingSourceCache.__table__.c.file_size_bytes.type, BigInteger)
+    engine = create_engine("sqlite://")
+    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__])
+    with Session(engine) as session:
+        row = _row("big", "completed", "direct", 1)
+        row.file_size_bytes = 9_307_286_934
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+        assert row.file_size_bytes == 9_307_286_934
+    routes.ensure_viking_schema(engine)  # no-op outside PostgreSQL

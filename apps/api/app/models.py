@@ -1,6 +1,7 @@
 """Persistent API models. No application startup or transport dependencies."""
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import BigInteger, Column
 from sqlmodel import Field as SQLField, SQLModel
 
 class User(SQLModel, table=True):
@@ -56,7 +57,8 @@ class VikingSourceCache(SQLModel, table=True):
     viking_hash: Optional[str] = SQLField(default=None, index=True, max_length=120)
     viking_url: Optional[str] = None
     viking_name: str = SQLField(default="", max_length=300)
-    file_size_bytes: Optional[int] = None
+    # Games are larger than 2 GB, which a 32-bit INTEGER column cannot hold.
+    file_size_bytes: Optional[int] = SQLField(default=None, sa_column=Column(BigInteger))
     status: str = SQLField(default="processing", index=True, max_length=24)
     created_at: datetime = SQLField(index=True)
     updated_at: datetime = SQLField(index=True)
@@ -85,7 +87,8 @@ class VikingDownloadRequest(SQLModel, table=True):
     result_name: str = SQLField(default="", max_length=300)
     result_hash: str = SQLField(default="", index=True, max_length=120)
     result_url: str = SQLField(default="")
-    file_size_bytes: Optional[int] = None
+    # Games are larger than 2 GB, which a 32-bit INTEGER column cannot hold.
+    file_size_bytes: Optional[int] = SQLField(default=None, sa_column=Column(BigInteger))
     torbox_item_id: Optional[int] = None
     duration_ms: Optional[int] = None
     error_code: str = SQLField(default="", max_length=80)

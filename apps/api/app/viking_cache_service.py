@@ -237,6 +237,8 @@ def parse_viking_upload_response(response: httpx.Response) -> dict[str, Any]:
             logger.warning("viking_upload_rejected reason=%s", str(error)[:200])
             raise ProviderFailure("viking_upload_failed", 502, "ViKiNG rechazó la carga: " + str(error)[:160])
     logger.warning("viking_upload_unreadable status=%s body=%s", response.status_code, response.text[:300])
+    if "can not download link" in response.text.lower():
+        raise ProviderFailure("viking_cannot_fetch_link", 502, "ViKiNG no pudo descargar el enlace que le dio TorBox.")
     raise ProviderFailure("viking_upload_failed", 502, "ViKiNG no pudo importar el archivo de TorBox.")
 
 

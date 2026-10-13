@@ -67,7 +67,8 @@ def startup() -> None:
     with Session(engine) as session:
         seed_defaults(session)
     seed_known_games(engine)
-    from .viking_cache_routes import recover_interrupted_viking_requests
+    from .viking_cache_routes import ensure_viking_schema, recover_interrupted_viking_requests
+    ensure_viking_schema(engine)
     recover_interrupted_viking_requests(engine)
     _start_steam_review_importer()
     from .discovery_service import start_maintenance

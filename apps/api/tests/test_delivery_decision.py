@@ -110,3 +110,10 @@ def test_viking_upload_error_line_and_bad_bodies_fail_clearly():
         service.parse_viking_upload_response(httpx.Response(200, text="<html>nope</html>"))
     with pytest.raises(service.ProviderFailure):
         service.parse_viking_upload_response(httpx.Response(500, text="{}"))
+
+
+def test_viking_plain_text_refusal_gets_its_own_message():
+    import pytest
+    with pytest.raises(service.ProviderFailure) as refused:
+        service.parse_viking_upload_response(httpx.Response(200, text="can not download link"))
+    assert refused.value.code == "viking_cannot_fetch_link"
