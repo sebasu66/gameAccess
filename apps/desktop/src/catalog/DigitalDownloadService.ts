@@ -1,6 +1,7 @@
 import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
+import { canAccelerate, resolveVikingDownload } from "../vikingResolver";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
 import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
@@ -265,13 +266,23 @@ export class DigitalDownloadService implements IDownloadProvider {
       throw new Error(errorMsg);
     }
 
+    // Ask the server to process the link (cache, TorBox, ViKiNG). It never throws; on any
+    // failure the original source is used, so the Download button keeps working.
+    let effectiveSource = downloadSource;
+    if (hasTauriRuntime() && canAccelerate(downloadSource)) {
+      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga en el servidor...", bytesDownloaded: 0, bytesTotal: 0 });
+      const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
+      if (processed) effectiveSource = processed.url;
+      else void narrate("No se pudo usar el servidor; se sigue con la descarga normal.", { area: "DOWNLOAD", level: "WARN" });
+    }
+
     if (hasTauriRuntime()) {
       try {
         console.log(`[DigitalDownloaderService:start] Invoking Tauri start_digital_download...`);
         const result = await invoke("start_digital_download", {
           appId,
           name,
-          downloadSource,
+          downloadSource: effectiveSource,
           sourceDelivery: record?.sourceDelivery,
           installProcess,
           autoInstalled: record?.auto_installed === true,
