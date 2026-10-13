@@ -105,7 +105,14 @@ class TorrentDownloadTransport:
         def log_libtorrent_alerts(session):
             for alert in session.pop_alerts():
                 if alert.category() & lt.alert.category_t.error_notification:
-                    context.logger.error(f"[Libtorrent Error] {alert.message()}")
+                    message = alert.message()
+                    # libtorrent announces through every network adapter, including virtual ones
+                    # (VirtualBox, WSL, loopback) that cannot reach a tracker. Those are expected
+                    # and not errors; real failures are reported once metadata times out.
+                    if "(udp://" in message or "(http://" in message or "(https://" in message:
+                        context.logger.debug(f"[Libtorrent Tracker] {message}")
+                    else:
+                        context.logger.error(f"[Libtorrent Error] {message}")
                 elif alert.category() & lt.alert.category_t.status_notification:
                     context.logger.info(f"[Libtorrent Status] {alert.message()}")
 
