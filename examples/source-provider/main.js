@@ -322,6 +322,12 @@ async function startApiServer() {
     const resolver = createResolver({ http: axios, websiteToken, log });
     const findOption = id => downloadOptions.get(id);
 
+    // Normalised titles of every source, so a client can look its catalog up in this list
+    // instead of asking about each of its games.
+    expressApp.get('/api/titles', (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.json([...titleIndex.keys()]);
+    });
     expressApp.post('/api/bulk_check', (req, res) => {
         const results = {};
         for (const game of req.body.games || []) {

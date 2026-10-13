@@ -4,6 +4,7 @@ import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
+import { gamesWithPossibleSources } from "./sourceTitleIndex";
 
 export interface PluginManifest { id: string; name: string; endpoint: string; type: string; }
 export interface PluginSource {
@@ -150,6 +151,16 @@ function applyBulkBatch(batch: CatalogGame[], data: Record<string, unknown>, nex
   }
 }
 
+/** Asks the provider for the titles it has sources for (a few thousand). Null when it cannot tell. */
+async function providerTitles(plugin: PluginManifest): Promise<string[] | null> {
+  try {
+    const response = await fetch(endpoint(plugin, "/api/titles"), { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) return null;
+    const data = await response.json() as unknown;
+    return Array.isArray(data) ? data.filter((title): title is string => typeof title === "string") : null;
+  } catch { return null; }
+}
+
 async function check(games: CatalogGame[], scanKey: string): Promise<Record<number, number>> {
   let hadErrors = false;
   let lastPublished = 0;
@@ -161,9 +172,14 @@ async function check(games: CatalogGame[], scanKey: string): Promise<Record<numb
   for (const [id, entry] of next) availability.set(id, entry);
   publish();
   await Promise.all(manifests.map(async plugin => {
-    for (let start = 0; start < games.length; start += 100) {
+    // Start from the provider's own list of titles and look those up in the catalog, instead of
+    // asking about every catalog game. Providers without /api/titles are scanned game by game.
+    const titles = await providerTitles(plugin);
+    const toScan = titles ? gamesWithPossibleSources(titles, games) : games;
+    if (titles) void narrate(`Provider '${plugin.name}' lists ${titles.length} source title(s); ${toScan.length} of ${games.length} catalog game(s) may match.`, { area: "DOWNLOAD_SOURCES" });
+    for (let start = 0; start < toScan.length; start += 100) {
       if (epoch !== pluginGeneration()) return;
-      const batch = games.slice(start, start + 100);
+      const batch = toScan.slice(start, start + 100);
       try {
         const response = await fetch(endpoint(plugin, "/api/bulk_check"), {
           method: "POST", headers: { "Content-Type": "application/json" },

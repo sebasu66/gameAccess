@@ -7,6 +7,7 @@ import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const game = (id: number): CatalogGame => ({ id, app_id: id, name: `Game ${id}`, slug: String(id), credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, downloadSource: "http://localhost/fixture.bin" });
 vi.mock("../activation",()=>({getActivationTier:()=> "base"}));
+vi.mock("../vikingResolver", () => ({ canAccelerate: () => false, resolveVikingDownload: vi.fn().mockResolvedValue(null) }));
 const mock = vi.mocked(invoke);
 describe("Digital download scheduling", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { __TAURI_INTERNALS__: {} }); vi.mocked(narrate).mockClear(); mock.mockReset(); mock.mockResolvedValue({ phase: "downloading" }); });

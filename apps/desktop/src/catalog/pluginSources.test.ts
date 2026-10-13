@@ -12,12 +12,28 @@ afterEach(() => { vi.unstubAllGlobals(); vi.mocked(invoke).mockReset(); });
 describe("External plugin sources", () => {
   it("reuses a completed scan on focus but refetches after a plugin revision invalidates it", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
-    const fetcher = vi.fn().mockResolvedValue({ok:true,json:async()=>({700:{count:2,sources:["Feed A"]}})});
+    // An older provider answers 404 to /api/titles, so each scan is the titles probe plus one bulk batch.
+    const fetcher = vi.fn(async (url: string) => String(url).endsWith("/api/titles") ? {ok:false,json:async()=>({})} : {ok:true,json:async()=>({700:{count:2,sources:["Feed A"]}})});
     vi.stubGlobal("fetch",fetcher);
     await checkPluginSources([game]); await checkPluginSources([game]);
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    invalidatePluginSources(); await checkPluginSources([game]);
     expect(fetcher).toHaveBeenCalledTimes(2);
+    invalidatePluginSources(); await checkPluginSources([game]);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+  it("starts from the provider's title list and only asks about catalog games that can match", async () => {
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    const bulkBodies: Array<{games:Array<{id:number}>}> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: {body?: string}) => {
+      if (String(url).endsWith("/api/titles")) return {ok:true,json:async()=>["example v1.2","something else entirely"]};
+      bulkBodies.push(JSON.parse(init?.body ?? "{}"));
+      return {ok:true,json:async()=>({700:{count:1,sources:["Feed A"]}})};
+    }));
+    const others = Array.from({length:250},(_,index)=>({...game,id:2000+index,app_id:2000+index,name:"Unlisted "+index}));
+    await checkPluginSources([game,...others]);
+    expect(bulkBodies).toHaveLength(1);
+    expect(bulkBodies[0].games.map(entry=>entry.id)).toEqual([700]);
+    expect(sourceAvailability(game).count).toBe(1);
+    expect(sourceAvailability(others[0]).count).toBe(0);
   });
   it("uses the Steam AppID, rejects unusable URLs, deduplicates and keeps source-specific sizes", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
@@ -49,6 +65,7 @@ describe("External plugin sources", () => {
     let resolveLast!: (value: unknown) => void;
     const last = new Promise(resolve => { resolveLast = resolve; });
     vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ok:false,json:async()=>({})})
       .mockResolvedValueOnce({ok:true,json:async()=>({800:{count:2,sources:["Feed A"]}})})
       .mockImplementationOnce(()=>last));
     const games = Array.from({length:101},(_,index)=>({...game,id:800+index,app_id:800+index,name:"Game "+index}));
