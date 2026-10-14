@@ -15,7 +15,10 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
   useEffect(() => {
     if (!enabled || !ready) return;
     const updater = new CatalogUpdater(latest.current.games, {
-      load: () => digitalCatalogService.loadCatalog({requireRemote: true}),
+      load: async () => {
+        await digitalCatalogService.loadCatalog({ requireRemote: true });
+        return latest.current.games;
+      },
       apply: games => latest.current.apply(games),
       added: games => {
         // Importing the bundled/server baseline is synchronization, not thousands of new-release alerts.

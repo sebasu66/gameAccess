@@ -1,7 +1,7 @@
 import { saveExecutionProfile, ensureExecutionProfile } from "./ExecutionProfiles";
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
-import { readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
+import { queryCatalogCache, readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
 import { getSteamStoreMetadata, hasTauriRuntime } from "../native";
 import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
@@ -16,7 +16,11 @@ import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
 
-
+export interface DigitalCatalogSyncResult {
+  updated: boolean;
+  revision: string;
+  catalog_count: number;
+}
 
 export interface DigitalGameRecord {
   name: string;
@@ -43,7 +47,6 @@ export interface DigitalCatalogOptions {
  * GameAccess provider account pooling, credit ledgers, and license leases.
  */
 export class DigitalCatalog {
-  private cachedGames: CatalogGame[] | null = null;
   private rawRecords = new Map<number, DigitalGameRecord>();
 
   constructor(private readonly options: DigitalCatalogOptions = {}) {}
@@ -52,66 +55,77 @@ export class DigitalCatalog {
     return this.rawRecords.get(gameId);
   }
 
+  ensureRecord(game: CatalogGame): DigitalGameRecord {
+    const appId = game.app_id ?? game.id;
+    let record = this.rawRecords.get(game.id) ?? this.rawRecords.get(appId);
+    if (!record) {
+      record = {
+        name: game.name || `Juego ${appId}`,
+        id: appId,
+        downloadSource: (game as any).downloadSource ?? "",
+        installProcess: (game as any).installProcess ?? (game as any).install_process ?? "",
+        playProcess: (game as any).playProcess ?? (game as any).play_process ?? "",
+        uninstallProcess: (game as any).uninstallProcess ?? (game as any).uninstall_process ?? "",
+        auto_installed: (game as any).auto_installed === true,
+      };
+      this.rawRecords.set(game.id, record);
+      this.rawRecords.set(appId, record);
+    }
+    return record;
+  }
+
   clearCache(): void {
-    this.cachedGames = null;
+    this.rawRecords.clear();
   }
 
   /**
-   * Loads installer metadata immediately, then refreshes the shared discovery snapshot.
+   * Synchronizes the catalog cache and returns revision and count without loading all games into memory.
    */
-  async loadCatalog(options: { requireRemote?: boolean } = {}): Promise<CatalogGame[]> {
+  async loadCatalog(options: { requireRemote?: boolean } = {}): Promise<DigitalCatalogSyncResult> {
     const diagnostics = new FlowDiagnostics("catalog-load", "CATALOG");
     diagnostics.debug(`Loading catalog; requireRemote=${Boolean(options.requireRemote)}`);
     try {
-      const games = await this.readCatalog(options, diagnostics);
-      diagnostics.debug(`Catalog ready; records=${games.length}`);
+      const summary = await this.readCatalog(options, diagnostics);
+      diagnostics.debug(`Catalog ready; count=${summary.catalog_count}; revision=${summary.revision}`);
       diagnostics.succeed();
-      return games;
+      return summary;
     } catch (error) { diagnostics.fail(error); throw error; }
     finally { diagnostics.discard(); }
   }
 
-  private async readCatalog({ requireRemote = false }: { requireRemote?: boolean }, diagnostics: FlowDiagnostics): Promise<CatalogGame[]> {
-    let rawList: (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
-
+  async readCatalog(
+    { requireRemote = false }: { requireRemote?: boolean } = {},
+    diagnostics?: FlowDiagnostics,
+  ): Promise<DigitalCatalogSyncResult> {
     if (this.options.catalogLoader) {
       const loaded = await this.options.catalogLoader();
-      rawList = (Array.isArray(loaded) ? loaded : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
-    } else {
-      const discovery = await loadDiscoveryCatalog(requireRemote, getSteamStoreLanguage());
-      let raw: unknown = discovery;
-      if (!requireRemote && (!Array.isArray(raw) || !raw.length)) raw = defaultCatalog;
-
-      rawList = (Array.isArray(raw) ? raw : []) as (Partial<CatalogGame> & Partial<DigitalGameRecord>)[];
-    }
-
-    // Catalog membership is independent of download availability.
-    const validRecords = rawList.filter(item => Number.isSafeInteger(item.id ?? item.app_id) && (item.id ?? item.app_id ?? 0) > 0);
-    diagnostics.debug(`Received records=${rawList.length}; valid=${validRecords.length}`);
-    this.rawRecords.clear();
-    const digitalRecords: DigitalGameRecord[] = [];
-    for (const item of validRecords) {
-      const id = item.id ?? item.app_id;
-      if (typeof id === "number") {
-        const rec: DigitalGameRecord = {
-          name: item.name || `Juego ${id}`,
-          id,
-          downloadSource: "",
-          installProcess: item.installProcess ?? (item as any).install_process ?? "",
-          playProcess: item.playProcess ?? (item as any).play_process ?? "",
-          uninstallProcess: item.uninstallProcess ?? (item as any).uninstall_process ?? "",
-          auto_installed: item.auto_installed === true,
-        };
-        this.rawRecords.set(id, rec);
-        digitalRecords.push(rec);
+      const list = (Array.isArray(loaded) ? loaded : []) as CatalogGame[];
+      for (const item of list) {
+        this.ensureRecord(item);
       }
+      return { updated: true, revision: "loader", catalog_count: list.length };
     }
-    digitalDownloadService.registerRecords(digitalRecords);
 
-    const normalized = this.normalizeGames(validRecords);
-    const finalGames = await applyBundledCatalogArtwork(normalized);
-    this.cachedGames = finalGames;
-    return finalGames;
+    const discovery = await loadDiscoveryCatalog(requireRemote, getSteamStoreLanguage());
+    if (!discovery) {
+      return { updated: false, revision: "empty", catalog_count: 0 };
+    }
+    return {
+      updated: discovery.updated,
+      revision: discovery.revision,
+      catalog_count: discovery.catalog_count,
+    };
+  }
+
+  async getGamesByAppIds(appIds: number[]): Promise<CatalogGame[]> {
+    if (!appIds.length) return [];
+    if (this.options.catalogLoader) {
+      const loaded = await this.options.catalogLoader();
+      const set = new Set(appIds);
+      return (loaded as CatalogGame[]).filter(g => set.has(g.app_id ?? g.id));
+    }
+    const result = await queryCatalogCache({ app_ids: appIds, limit: appIds.length });
+    return applyBundledCatalogArtwork(this.normalizeGames(result.items));
   }
 
   /**
@@ -131,8 +145,16 @@ export class DigitalCatalog {
   }
 
   private async readDetails(gameId: number, knownGame: CatalogGame | undefined, diagnostics: FlowDiagnostics): Promise<GameDetails> {
-    const games = this.cachedGames ?? (await this.loadCatalog());
-    const game = games.find((item) => item.id === gameId || item.app_id === gameId) ?? knownGame;
+    let game = knownGame;
+    if (!game) {
+      if (this.options.catalogLoader) {
+        const loaded = await this.options.catalogLoader();
+        game = (loaded as CatalogGame[]).find((item) => item.id === gameId || item.app_id === gameId);
+      } else {
+        const queried = await queryCatalogCache({ app_ids: [gameId], limit: 1 }).catch(() => ({ items: [] as CatalogGame[], total: 0 }));
+        game = queried.items[0];
+      }
+    }
     if (!game) throw new Error("Juego no encontrado en el catálogo Digital");
 
     const lang = getSteamStoreLanguage();
@@ -218,6 +240,8 @@ export class DigitalCatalog {
     if (this.options.playHandler) {
       return this.options.playHandler(game);
     }
+    const record = this.ensureRecord(game);
+    digitalDownloadService.registerRecords([record]);
     await digitalDownloadService.play(game);
   }
 
@@ -237,11 +261,12 @@ export class DigitalCatalog {
     const appId = game.app_id ?? game.id;
     if (prepared.executionProfile) await saveExecutionProfile(appId, prepared.executionProfile);
     else await ensureExecutionProfile(appId);
-    const record = this.getRecord(game.id);
+    const record = this.ensureRecord(game);
     const effectiveRecord: DigitalGameRecord = {
-      name: game.name, id: game.app_id ?? game.id, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
-      installProcess: "", playProcess: record?.playProcess ?? "", uninstallProcess: "", auto_installed: false,
+      name: game.name, id: appId, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
+      installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
+    digitalDownloadService.registerRecords([effectiveRecord]);
     return digitalDownloadService.start({ ...game, download_size: selected.size, download_size_bytes: null,
       download_size_source: selected.sourceName }, { record: effectiveRecord });
   }

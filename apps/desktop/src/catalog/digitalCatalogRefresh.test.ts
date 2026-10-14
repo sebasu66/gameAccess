@@ -10,7 +10,11 @@ describe("authoritative Digital refresh",()=>{
   });
   it("accepts an empty remote catalog without reintroducing bundled games",async()=>{
     vi.stubGlobal("window",{});const fetch=vi.fn(async(_input:string)=>({ok:true,json:async()=>[]}));vi.stubGlobal("fetch",fetch);
-    expect(await new DigitalCatalog().loadCatalog({requireRemote:true})).toEqual([]);
+    expect(await new DigitalCatalog().loadCatalog({requireRemote:true})).toEqual({
+      updated: true,
+      revision: "remote",
+      catalog_count: 0,
+    });
     expect(fetch.mock.calls.filter(args=>String(args[0]).endsWith("/library/catalog"))).toHaveLength(1);
     expect(fetch.mock.calls.some(args=>String(args[0]).includes("digital_catalog.json"))).toBe(false);
   });

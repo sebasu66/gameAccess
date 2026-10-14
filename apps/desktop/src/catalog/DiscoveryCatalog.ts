@@ -1,7 +1,13 @@
 import { getApiBaseUrl, getCatalogManifestUrl } from "../settings";
-import { readCatalogCache, syncCatalogCache } from "../catalogCache";
+import { queryCatalogCache, syncCatalogCache } from "../catalogCache";
 import type { CatalogGame } from "../types";
 import { narrate } from "../narrationLog";
+
+export interface DiscoveryCatalogSummary {
+  updated: boolean;
+  revision: string;
+  catalog_count: number;
+}
 
 /** Digital identities are Steam AppIDs; the shared snapshot also carries legacy DB IDs. */
 function steamIdentities(games: CatalogGame[]): CatalogGame[] {
@@ -24,10 +30,7 @@ export function mergeDiscoveryCatalog(base: CatalogGame[], remote: CatalogGame[]
   return [...games.values()];
 }
 
-export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<CatalogGame[] | null> {
-  const local = await readCatalogCache(language).catch(() => []);
-  // First paint uses the installer/cache; network work belongs to the updater.
-  if (!requireRemote && local.length) return steamIdentities(local);
+export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<DiscoveryCatalogSummary | null> {
   if (requireRemote) {
     const api = await Promise.resolve().then(() => getApiBaseUrl()).catch(() => "");
     const fallback = await Promise.resolve().then(() => getCatalogManifestUrl()).catch(() => "");
@@ -36,16 +39,22 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
       try {
         const synced = await syncCatalogCache(manifest);
         if (synced) {
-          const refreshed = await readCatalogCache(language);
-          if (!refreshed.length) throw new Error("El catálogo actualizado está vacío.");
           void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
-          return steamIdentities(refreshed);
+          return synced;
         }
       } catch (error) {
         void narrate(`Discovery snapshot refresh failed; preserving local data: ${String(error)}`, {area: "CATALOG", level: "WARN"});
       }
     }
   }
+
+  // Local / offline: query total count from SQLite without loading all 39k games into JS memory.
+  const cached = await queryCatalogCache({ limit: 0 }).catch(() => null);
+  const count = cached?.total ?? 0;
+  if (!requireRemote && count > 0) {
+    return { updated: false, revision: "local", catalog_count: count };
+  }
+
   if (typeof window === "undefined" || typeof fetch === "undefined") return null;
   const api = await getApiBaseUrl();
   if (!api) {
@@ -57,7 +66,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
     if (!response.ok) throw new Error(`No pudimos actualizar el catálogo (${response.status}).`);
     const raw: unknown = await response.json();
     if (!Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
-    return mergeDiscoveryCatalog(local, raw);
+    return { updated: true, revision: "remote", catalog_count: raw.length };
   } catch (error) {
     if (requireRemote) throw error;
     return null;

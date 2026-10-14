@@ -2,6 +2,9 @@ import { AsyncResourceCache } from "./asyncResourceCache";
 import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork } from "./bundledArtwork";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalDownloadService } from "./catalog/DigitalDownloadService";
+import { libraryMembership } from "./libraryMembership";
+import { queryCatalogCache } from "./catalogCache";
 import { getCatalogMode } from "./catalogMode";
 import { getAppLocale, getSteamStoreLanguage, LOCALE_CHANGED_EVENT, translate } from "./i18n";
 import { narrate } from "./narrationLog";
@@ -50,13 +53,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 
 export async function loadHome(): Promise<{games: CatalogGame[]; user: UserSummary; offlineDemo: boolean}> {
-  const catalog = await digitalCatalogService.loadCatalog();
+  let offlineDemo = false;
+  try {
+    await digitalCatalogService.readCatalog();
+  } catch {
+    offlineDemo = true;
+  }
   const mode = getCatalogMode();
+  let installedIds: number[] = [];
   if (mode === "local") {
-    const installed = new Set(await steamInstalledAppIds());
-    currentCatalog = catalog.filter(game => game.app_id && installed.has(game.app_id));
-  } else currentCatalog = catalog;
-  return {games: await applyBundledCatalogArtwork(currentCatalog), user: {id:1, username:"gameaccess", credits:0}, offlineDemo:false};
+    installedIds = await steamInstalledAppIds().catch(() => []);
+  }
+  const downloadEntries = digitalDownloadService.getDownloads();
+  const downloadIds = downloadEntries.map(e => e.game.app_id ?? e.game.id);
+  const memberIds = libraryMembership.getGames().map(g => g.app_id ?? g.id);
+  const activeIds = [...new Set([...installedIds, ...downloadIds, ...memberIds])];
+
+  let games: CatalogGame[] = [];
+  if (activeIds.length > 0) {
+    games = await digitalCatalogService.getGamesByAppIds(activeIds);
+  }
+  currentCatalog = games;
+  return {games, user: {id:1, username:"gameaccess", credits:0}, offlineDemo};
 }
 export function findLocalGameForDetails(gameId: number, catalog = currentCatalog) {
   return catalog.find(game => game.id === gameId || game.app_id === gameId);
@@ -65,15 +83,19 @@ export const loadDetails = async (gameId: number, knownGame?: CatalogGame): Prom
   gameDetailsResources.get(detailCacheKey(gameId), () => digitalCatalogService.loadDetails(gameId, knownGame ?? findLocalGameForDetails(gameId)));
 export function invalidateDetails(gameId: number) { gameDetailsResources.invalidate(detailCacheKey(gameId)); }
 export const searchSteam = async (query: string, limit = 20): Promise<SteamSearchResponse> => {
-  const games = currentCatalog.length ? currentCatalog : await digitalCatalogService.loadCatalog();
-  const matches = games.filter(game => game.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
-  return {query, count: matches.length, results: matches.slice(0,limit).map(game => ({
+  const result = await queryCatalogCache({ query, limit }).catch(() => ({ items: [] as CatalogGame[], total: 0 }));
+  const matches = result.items;
+  return {query, count: result.total, results: matches.map(game => ({
     app_id: game.app_id ?? game.id, name: game.name, image_url: game.header_image, catalog_game: game,
     access_state: "metadata-only", steam_url: game.steam_url ?? undefined,
   }))};
 };
 export const loadSteamApp = async (appId: number): Promise<SteamMetadata> => {
-  const game = findLocalGameForDetails(appId);
+  let game = findLocalGameForDetails(appId);
+  if (!game) {
+    const list = await digitalCatalogService.getGamesByAppIds([appId]).catch(() => []);
+    game = list[0];
+  }
   const raw = await getSteamStoreMetadata(appId);
   if (raw && game) return normalizeSteamStoreMetadata(game, raw);
   return request<SteamMetadata>(`/steam/apps/${appId}?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`);

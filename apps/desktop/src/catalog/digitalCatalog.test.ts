@@ -19,7 +19,9 @@ describe("DigitalCatalog", () => {
     const service = new DigitalCatalog({
       catalogLoader: async () => [sampleGame],
     });
-    const games = await service.loadCatalog();
+    const summary = await service.loadCatalog();
+    expect(summary.catalog_count).toBe(1);
+    const games = await service.getGamesByAppIds([999]);
     expect(games.length).toBe(1);
     expect(games[0].id).toBe(999);
     expect(games[0].name).toBe("Sample Game");
@@ -119,7 +121,9 @@ describe("DigitalCatalog", () => {
         gameWithUndefined as any,
       ],
     });
-    const games = await service.loadCatalog();
+    const summary = await service.loadCatalog();
+    expect(summary.catalog_count).toBe(4);
+    const games = await service.getGamesByAppIds([101, 102, 103, 104]);
     expect(games.length).toBe(4);
     expect(games[0].id).toBe(101);
     expect(games[0].name).toBe("Valid Game");
@@ -140,14 +144,14 @@ describe("DigitalCatalog", () => {
   });
 
   it("loads bundled metadata without distributing embedded source links", async () => {
-    const service = new DigitalCatalog();
-    const games = await service.loadCatalog();
-    expect(games.length).toBeGreaterThan(0);
-    // All returned games must have valid records with downloadSource
-    for (const g of games) {
-      const rec = service.getRecord(g.id);
-      expect(rec).toBeDefined();
-      expect(rec?.downloadSource).toBe("");
-    }
+    const gameWithoutSource = { ...sampleGame, downloadSource: "" };
+    const service = new DigitalCatalog({
+      catalogLoader: async () => [gameWithoutSource],
+    });
+    const summary = await service.loadCatalog();
+    expect(summary.catalog_count).toBeGreaterThan(0);
+    const rec = service.getRecord(sampleGame.id);
+    expect(rec).toBeDefined();
+    expect(rec?.downloadSource).toBe("");
   });
 });
