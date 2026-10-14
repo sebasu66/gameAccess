@@ -2,16 +2,17 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Lock, X } from "lucide-react";
-import CircularScrollbar from "./CircularScrollbar";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
 import TriStateOption, { type TriState } from "./TriStateOption";
-import MultiplayerParentOption from "./MultiplayerParentOption";
-import QualitySliders from "./QualitySliders";
+import GenrePicker from "./GenrePicker";
+import PlayersPicker from "./PlayersPicker";
+import ExtrasPicker from "./ExtrasPicker";
+import { buildFilterSentence } from "./filterSentence";
 import { applyParentalPolicy } from "./parentalControl";
 import { useParentalLocked } from "./ParentalControlSection";
-import { DEFAULT_LIBRARY_FILTERS, MULTIPLAYER_BRANCHES, MULTIPLAYER_OPTION_KEYS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, gameIsSoftware, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
+import { DEFAULT_LIBRARY_FILTERS, MULTIPLAYER_OPTION_KEYS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, gameIsSoftware, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 import { genreLabel } from "./libraryGenres";
 
@@ -59,7 +60,6 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const previousFocus = useRef(document.activeElement);
   useEffect(() => () => { if (previousFocus.current instanceof HTMLElement && previousFocus.current.isConnected) previousFocus.current.focus({ preventScroll: true }); }, []);
   const ref = useDialogFocus(close);
-  const scrollRef = useRef<HTMLDivElement>(null);
   // The enforced policy is merged in, so the counts under a lock describe what
   // the user will actually get rather than what the raw filters would return.
   const effective = useMemo(() => applyParentalPolicy(draft), [draft]);
@@ -101,115 +101,39 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     if (value === "multiplayer") return { ...next, features: next.features.filter(key => key !== "single_player") };
     return next;
   });
-  /** Drafts carrying user selections in either direction, for the group counters. */
-  const selectedCount = (group: GroupKey) => {
-    const pair = GROUPS[group];
-    const included = (draft[pair.include] ?? []) as string[];
-    const excluded = (draft[pair.exclude] ?? []) as string[];
-    return included.length + excluded.length;
-  };
-  const renderOptions = (group: GroupKey, values: { value: string; label: string; hint?: string }[], options: { locked?: boolean; disabled?: boolean; disableValue?: string } = {}) =>
-    <div className="ga-filter-choices">{values.map(({ value, label, hint }) => {
-      // The option that contradicts the current selection reads as disabled too.
-      const contradicting = options.disabled || (options.disableValue !== undefined && value === options.disableValue);
-      return <TriStateOption
-        key={value}
-        label={label}
-        hint={hint}
-        disabled={contradicting}
-        disabledTitle={options.disabled ? "No aplica a \"Solo un jugador\"" : "Contradice \"Solo un jugador\""}
-        state={options.locked ? "exclude" : criterionState(draft, group, value)}
-        locked={options.locked}
-        lockedTitle={LOCKED_TITLE}
-        onSet={state => set(group, value, state)}
-      />;
-    })}</div>;
+  const sentence = buildFilterSentence(draft);
+  const patch = (change: Partial<LibrarySearchFilters>) => setDraft(current => ({ ...current, ...change }));
   return createPortal(<div className={`ga-filter-backdrop${closing ? " is-closing" : ""}`} onPointerDown={event => { event.stopPropagation(); if (event.target === event.currentTarget) close(); }}>
     <OverlayScreenDimmer panelRef={ref} />
-    <section ref={ref} className="ga-filter-dialog" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
+    <section ref={ref} className="ga-filter-dialog ga-wizard" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
       <header><div><span className="ga-detail-eyebrow">ENCONTRÁ TU PRÓXIMO JUEGO</span><h2 id="ga-filter-title">Filtros</h2></div><button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button></header>
-      <p>Usá <strong>+</strong> para exigir un criterio y <strong>−</strong> para excluirlo: "aventura, pero no rol". Los grupos se combinan.</p>
-      <div className="ga-scroll-frame ga-filter-scroll-frame"><div ref={scrollRef} className="ga-filter-groups">
-        <details className="ga-filter-accordion"><summary>Géneros <small>{selectedCount("genres") || ""}</small></summary>{renderOptions("genres", genres.map(genre => ({ value: genre, label: genreLabel(genre) })))}</details>
-        {CONTENT_FILTER_GROUPS.map(group => {
-          const chosen = draft.contentDescriptorIds?.some(id => group.descriptorIds.includes(id)) ?? false;
-          return <details className={"ga-filter-accordion" + (parentalLocked ? " is-parental-locked" : "")} key={group.id}>
-            <summary title={parentalLocked ? LOCKED_TITLE : undefined}>
-              {parentalLocked ? <Lock size={12} aria-hidden="true" /> : null}
-              {group.label} <small>{chosen ? "1" : ""}</small>
-              {parentalLocked ? <small className="ga-filter-locked-note">{LOCKED_TITLE}</small> : null}
-            </summary>
-            <div className="ga-filter-choices">
-              <label title="Filtra por la clasificación oficial de Valve, no por etiquetas de la comunidad">
+      <p className="ga-wiz-sentence" aria-live="polite">{sentence.map((part, index) => part.hl ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>)}</p>
+      <div className="ga-wiz-cols">
+        <section className="ga-wiz-col" aria-labelledby="ga-wiz-h1">
+          <h3 id="ga-wiz-h1"><i>1</i>Quiero encontrar {draft.software === true ? "programas" : "juegos"} de</h3>
+          <GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
+            footer={CONTENT_FILTER_GROUPS.map(group => {
+              const chosen = draft.contentDescriptorIds?.some(id => group.descriptorIds.includes(id)) ?? false;
+              return <label key={group.id} className={"ga-wiz-content" + (parentalLocked ? " is-locked" : "")} title={parentalLocked ? LOCKED_TITLE : "Filtra por la clasificación oficial de Valve, no por etiquetas de la comunidad"}>
+                {parentalLocked ? <Lock size={13} aria-hidden="true" /> : null}
                 <input type="checkbox" checked={chosen} disabled={parentalLocked}
-                  onChange={event => setDraft(current => ({
-                    ...current,
-                    contentDescriptorIds: event.target.checked ? [...group.descriptorIds] : undefined,
-                  }))} />
-                {group.label}
-                <small>({descriptorCount(group.descriptorIds)})</small>
-              </label>
-            </div>
-          </details>;
-        })}
-        {sourceNames.length > 0 && <details className="ga-filter-accordion"><summary>{t("sourcesFilter")} <small>{selectedCount("sources") || ""}</small></summary>{renderOptions("sources", sourceNames.map(name => ({ value: name, label: name })))}</details>}
-        <details className="ga-filter-accordion" open>
-          <summary>Jugadores <small>{playersSelectedCount || ""}</small></summary>
-          <div className="ga-tree">
-            {/* One section, two halves that mirror each other: the restrictive
-                "single-player only" and the inclusive "admits multiplayer" with
-                everything that hangs off it. */}
-            <label className={"ga-tree-parent" + (draft.features.includes("single_player") ? " is-selected" : "") + (multiplayerModeSelected ? " is-branch-disabled" : "")}
-              title={multiplayerModeSelected ? "Contradice la selección de multijugador" : "Juegos que no tienen multijugador"}>
-              <input type="checkbox" checked={draft.features.includes("single_player")} disabled={multiplayerModeSelected}
-                onChange={() => toggleFeature("single_player")} />
-              <strong>Solo un jugador</strong>
-              <small>Sin multijugador de ningún tipo</small>
-            </label>
-            <MultiplayerParentOption
-              selected={draft.features.includes("multiplayer")}
-              disabled={singleOnlySelected}
-              onToggle={() => toggleFeature("multiplayer")}
-            />
-            {MULTIPLAYER_BRANCHES.map(branch => {
-              const chosen = branch.options.filter(option => draft.features.includes(option.key)).length;
-              // A branch cannot be picked when its parent is off: the options
-              // only mean something for a game that admits multiplayer.
-              const off = singleOnlySelected || !draft.features.includes("multiplayer");
-              return <fieldset className={"ga-tree-branch" + (off ? " is-branch-disabled" : "")} key={branch.id} disabled={off}>
-                <legend>{branch.label} {chosen ? <small>{chosen}</small> : null}</legend>
-                {branch.hint ? <p className="ga-tree-hint">{branch.hint}</p> : null}
-                {branch.options.map(option => <label key={option.key} title={off ? "Activá \"Admite multijugador\" primero" : undefined}>
-                  <input type="checkbox" checked={draft.features.includes(option.key)} onChange={() => toggleFeature(option.key)} />
-                  {option.label}
-                </label>)}
-              </fieldset>;
-            })}
-          </div>
-        </details>
-        {/* One choice, two universes. A program has no PvP, no LAN and no story
-            mode, so searching both at once would put records on screen that most
-            of the other filters cannot describe. */}
-        <details className="ga-filter-accordion" open>
-          <summary>Qué buscás</summary>
-          <div className="ga-filter-choices">
-            <label>
-              <input type="radio" name="ga-content-kind" checked={draft.software !== true}
-                onChange={() => setDraft(current => ({ ...current, software: false }))} />
-              Juegos
-              <small>({games.length - softwareCount})</small>
-            </label>
-            <label title="Blender, OBS Studio, Godot Engine y similares: software que Steam lista dentro del catálogo de juegos">
-              <input type="radio" name="ga-content-kind" checked={draft.software === true}
-                onChange={() => setDraft(current => ({ ...current, software: true }))} />
-              Programas
-              <small>({softwareCount})</small>
-            </label>
-          </div>
-          {draft.software === true ? <p className="ga-tree-hint">Los programas no tienen PvP, ni LAN, ni modo historia: los demás filtros no se aplican.</p> : null}
-        </details>
-      </div><CircularScrollbar targetRef={scrollRef} label="Desplazar opciones de filtros" /></div>
-      <QualitySliders draft={draft} onChange={patch => setDraft(current => ({ ...current, ...patch }))} />
+                  onChange={event => patch({ contentDescriptorIds: event.target.checked ? [...group.descriptorIds] : undefined })} />
+                <span>{group.label} <small>({descriptorCount(group.descriptorIds)})</small></span>
+                {parentalLocked ? <small className="ga-filter-locked-note">{LOCKED_TITLE}</small> : null}
+              </label>;
+            })} />
+        </section>
+        <section className="ga-wiz-col" aria-labelledby="ga-wiz-h2">
+          <h3 id="ga-wiz-h2"><i>2</i>Que sea</h3>
+          <PlayersPicker filters={draft} onToggle={toggleFeature} />
+        </section>
+        <section className="ga-wiz-col" aria-labelledby="ga-wiz-h3">
+          <h3 id="ga-wiz-h3"><i>3</i>Y además</h3>
+          <ExtrasPicker draft={draft} onChange={patch} sourceNames={sourceNames}
+            sourceState={name => criterionState(draft, "sources", name)} onSource={(name, state) => set("sources", name, state)}
+            gameCount={games.length - softwareCount} softwareCount={softwareCount} />
+        </section>
+      </div>
       <footer><div role="status" aria-live="polite"><strong>{matches.length} {matches.length === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>Limpiar todo</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matches.length} {matches.length === 1 ? "juego" : "juegos"}</button></footer>
     </section>
   </div>, document.body);

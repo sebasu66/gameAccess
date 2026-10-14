@@ -1,0 +1,109 @@
+/* Filter editor as a three-column wizard: genres, players, extras, under a sentence that builds itself. */
+.ga-filter-dialog.ga-wizard { width: min(1280px, 100%); padding: 26px 32px 24px; }
+.ga-wizard header h2 { margin: 2px 0 6px; font-size: 44px; }
+.ga-wizard .ga-wiz-sentence {
+  margin: 0 0 18px; padding: 14px 18px; border-radius: 12px; border: 1px solid #ffffff1c; background: #ffffff0a;
+  font: 600 21px/1.65 Manrope, "Segoe UI", sans-serif; color: #e8edf1; text-wrap: balance; flex-shrink: 0;
+}
+.ga-wizard .ga-wiz-sentence mark {
+  display: inline-block; padding: 0 9px; margin: 0 1px; border-radius: 7px; background: #ff6a0026; color: #ff9a4d;
+  border: 1px solid #ff6a0055; font-weight: 800; line-height: 1.45;
+}
+.ga-wizard .ga-wiz-cols {
+  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 16px; overflow: hidden;
+}
+.ga-wizard .ga-wiz-col {
+  min-width: 0; min-height: 0; overflow-y: auto; padding: 16px; border-radius: 14px; border: 1px solid #ffffff14; background: #ffffff06;
+  scrollbar-width: thin; scrollbar-color: #ffffff30 transparent;
+}
+.ga-wizard .ga-wiz-col h3 {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font: 700 17px/1.2 Manrope, "Segoe UI", sans-serif; color: #f2f5f7;
+}
+.ga-wizard .ga-wiz-col h3 i {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--ga-orange); color: var(--ga-orange); font: 800 12px Manrope, sans-serif; font-style: normal;
+}
+.ga-wizard .ga-wiz-hint { margin: 0 0 10px; color: #98a5ad; font-size: 12px; line-height: 1.45; }
+.ga-wizard .ga-wiz-hint b { color: #e8edf1; }
+.ga-wizard .ga-wiz-empty { grid-column: 1 / -1; color: #98a5ad; margin: 8px 0; }
+
+/* genres */
+.ga-wizard .ga-wiz-search { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 0 14px; height: 42px; border-radius: 999px; border: 1px solid #ffffff2a; background: #0a0f1480; }
+.ga-wizard .ga-wiz-search:focus-within { border-color: var(--ga-orange); }
+.ga-wizard .ga-wiz-search svg { color: #98a5ad; flex: none; }
+.ga-filter-dialog.ga-wizard .ga-wiz-search input { width: 100%; height: auto; flex: 1; background: none; border: 0; outline: 0; color: white; font: 600 14px Manrope, sans-serif; padding: 0; }
+.ga-wizard .ga-wiz-genre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 8px; }
+.ga-filter-dialog.ga-wizard .ga-wiz-genre {
+  position: relative; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 8px 12px; text-align: left;
+  border-radius: 10px; border: 1px solid #ffffff1f; background: #ffffff08; color: #d6dde2; font: 700 13px/1.2 Manrope, sans-serif;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.ga-wizard .ga-wiz-genre svg { flex: none; color: #8fa0aa; }
+.ga-wizard .ga-wiz-genre:hover { background: #ffffff12; border-color: #ffffff3a; }
+.ga-wizard .ga-wiz-genre.is-include { border-color: var(--ga-orange); background: #ff6a0020; color: #fff; }
+.ga-wizard .ga-wiz-genre.is-include svg { color: var(--ga-orange); }
+.ga-wizard .ga-wiz-genre.is-exclude { border-color: #ff6b6b99; background: #ff5d5d16; color: #ffb4b4; }
+.ga-wizard .ga-wiz-genre.is-exclude span { text-decoration: line-through; text-decoration-thickness: 1px; }
+.ga-wizard .ga-wiz-genre.is-exclude svg { color: #ff8b8b; }
+.ga-wizard .ga-wiz-badge { position: absolute; top: 5px; right: 6px; width: 14px; height: 14px; padding: 1px; border-radius: 50%; background: var(--ga-orange); color: #101416 !important; }
+.ga-wizard .ga-wiz-genre.is-exclude .ga-wiz-badge { background: #ff6b6b; }
+.ga-wizard .ga-wiz-content { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed #ffffff26; color: #cfd8de; font-weight: 600; }
+.ga-wizard .ga-wiz-content.is-locked { opacity: .75; }
+.ga-wizard .ga-wiz-content small { display: inline; margin: 0; }
+.ga-wizard .ga-wiz-content .ga-filter-locked-note { color: #e0b24a; font-weight: 700; margin-left: auto; }
+
+/* players */
+.ga-wizard .ga-wiz-players { display: grid; gap: 10px; }
+.ga-filter-dialog.ga-wizard .ga-wiz-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; border-radius: 12px;
+  border: 1px solid #ffffff22; background: #ffffff08; color: #d6dde2; font: 500 14px Manrope, sans-serif;
+  transition: background-color .15s, border-color .15s;
+}
+.ga-wizard .ga-wiz-card svg { flex: none; color: #8fa0aa; }
+.ga-wizard .ga-wiz-card strong { display: block; font-size: 15px; color: #f2f5f7; }
+.ga-wizard .ga-wiz-card small { margin-top: 2px; }
+.ga-wizard .ga-wiz-card:hover { background: #ffffff12; }
+.ga-wizard .ga-wiz-card.is-on { border-color: var(--ga-orange); background: #ff6a0020; }
+.ga-wizard .ga-wiz-card.is-on svg { color: var(--ga-orange); }
+.ga-wizard .ga-wiz-branches { display: grid; gap: 10px; padding: 12px 12px 4px; border-radius: 12px; background: #0a0f1466; border: 1px solid #ffffff12; animation: ga-wiz-open .22s ease-out; }
+.ga-wizard .ga-wiz-branches fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.ga-wizard .ga-wiz-branches legend { padding: 0; margin-bottom: 6px; font: 800 11px Manrope, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #aeb9c0; }
+@keyframes ga-wiz-open { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* chips (multiplayer modes, sources) */
+.ga-wizard .ga-wiz-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.ga-filter-dialog.ga-wizard .ga-wiz-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; border: 1px solid #ffffff2a;
+  background: #ffffff08; color: #d6dde2; font: 700 13px Manrope, sans-serif;
+}
+.ga-wizard .ga-wiz-chip:hover { background: #ffffff12; }
+.ga-wizard .ga-wiz-chip.is-on, .ga-wizard .ga-wiz-chip.is-include { border-color: var(--ga-orange); background: #ff6a0022; color: #fff; }
+.ga-wizard .ga-wiz-chip.is-exclude { border-color: #ff6b6b99; background: #ff5d5d16; color: #ffb4b4; text-decoration: line-through; }
+
+/* extras */
+.ga-wizard .ga-wiz-extras { display: grid; gap: 16px; }
+.ga-wizard .ga-wiz-kind { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 999px; border: 1px solid #ffffff22; background: #0a0f1480; }
+.ga-filter-dialog.ga-wizard .ga-wiz-kind button { display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px; background: none; padding: 9px 12px; color: #aeb9c0; font: 700 13px Manrope, sans-serif; }
+.ga-wizard .ga-wiz-kind button small { display: inline; margin: 0; }
+.ga-filter-dialog.ga-wizard .ga-wiz-kind button.is-on { background: var(--ga-orange); color: #101416; }
+.ga-wizard .ga-wiz-kind button.is-on small { color: #101416b0; }
+.ga-wizard .ga-filter-sliders { display: grid; gap: 14px; margin: 0; padding: 0; border: 0; }
+.ga-wizard .ga-slider-row { margin: 0; }
+.ga-wizard .ga-slider-row label { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.ga-wizard .ga-slider-row output { margin-left: auto; color: var(--ga-orange); font-weight: 800; }
+.ga-filter-dialog.ga-wizard .ga-slider-row input[type="range"] { width: 100%; height: 22px; margin: 6px 0 2px; }
+.ga-wizard .ga-slider-row small { line-height: 1.4; }
+.ga-wizard .ga-wiz-sources h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 14px Manrope, sans-serif; color: #e8edf1; }
+
+.ga-wizard footer { margin-top: 18px; }
+
+@media (max-width: 1040px) {
+  .ga-wizard .ga-wiz-cols { grid-template-columns: 1fr; overflow-y: auto; }
+  .ga-wizard .ga-wiz-col { overflow: visible; }
+  .ga-wizard .ga-wiz-sentence { font-size: 17px; }
+  .ga-filter-dialog.ga-wizard { padding: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { .ga-wizard .ga-wiz-branches { animation: none; } }
+
+.ga-filter-dialog.ga-wizard .ga-wiz-more { grid-column: 1 / -1; justify-self: start; min-height: 40px; border-style: dashed; color: #aeb9c0; font: 700 13px Manrope, sans-serif; border-radius: 10px; }
+.ga-wizard .ga-wiz-more:hover { color: #fff; border-color: var(--ga-orange); }

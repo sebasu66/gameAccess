@@ -37,6 +37,7 @@ import "./library-sections.css";
 import "./i18n.css";
 import "./gameaccess-theme.css";
 import "./dock.css";
+import "./filter-wizard.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
 
