@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 from download_source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
 from debrid_client import TorboxClient
+from chunked_download import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
 
 class DownloadPipeline:
     def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives):
@@ -94,7 +95,23 @@ class DownloadPipeline:
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)
                     context.emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
                     return
-                if is_torrent:
+                chunk_path = None
+                chunk_session = ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION"))
+                if chunk_session and args.source_delivery != "browser" and (is_torrent or download_source.lower().startswith(("http://", "https://"))):
+                    context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
+                    try:
+                        chunk_path = ChunkedDownloader(context, chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
+                        if context.cancelled.is_set():
+                            self.cleanup_on_cancel()
+                            return
+                        context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
+                    except ChunkedDownloadUnavailable as unavailable:
+                        context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
+                    except ChunkedDownloadError as failure:
+                        context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+                if chunk_path:
+                    target_content_path = chunk_path
+                elif is_torrent:
                     torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
                     use_torbox = False
 
