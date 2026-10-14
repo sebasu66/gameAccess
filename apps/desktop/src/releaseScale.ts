@@ -4,7 +4,10 @@
  * The leftmost step means no limit; the rightmost is the last month.
  */
 const DAYS_PER_MONTH = 30;
-const OLDEST_YEARS = 30;
+const OLDEST_YEARS = 15;
+/** Slider length; the last 12 months take the final 30 % of it. */
+export const RELEASE_TRACK = 1000;
+const MONTHS_SHARE = 0.3;
 
 /** Steps from the far past (index 0 = any date) to the last month. */
 export const RELEASE_STEPS: (number | undefined)[] = [
@@ -15,6 +18,23 @@ export const RELEASE_STEPS: (number | undefined)[] = [
 ];
 
 export const RELEASE_LAST_INDEX = RELEASE_STEPS.length - 1;
+
+/** Where each step sits on the slider: years share 70 %, the last 12 months 30 %. */
+const ONE_YEAR_INDEX = OLDEST_YEARS; // any + 14 older years, then the 1-year mark
+export const RELEASE_POSITIONS: number[] = RELEASE_STEPS.map((_, i) => {
+  const yearsEnd = RELEASE_TRACK * (1 - MONTHS_SHARE);
+  if (i <= ONE_YEAR_INDEX) return Math.round((yearsEnd * i) / ONE_YEAR_INDEX);
+  return Math.round(yearsEnd + ((RELEASE_TRACK - yearsEnd) * (i - ONE_YEAR_INDEX)) / (RELEASE_LAST_INDEX - ONE_YEAR_INDEX));
+});
+
+/** The step nearest to a slider position. */
+export function releaseIndexAt(position: number): number {
+  let best = 0;
+  for (let i = 1; i < RELEASE_POSITIONS.length; i++) {
+    if (Math.abs(RELEASE_POSITIONS[i] - position) < Math.abs(RELEASE_POSITIONS[best] - position)) best = i;
+  }
+  return best;
+}
 
 /** The step closest to a number of days (undefined = any date). */
 export function releaseIndexFor(days: number | undefined): number {

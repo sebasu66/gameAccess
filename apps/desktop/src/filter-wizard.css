@@ -180,3 +180,42 @@
 .ga-filter-dialog.ga-wizard .ga-sx-cat button.ga-sx-pm { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
 .ga-wizard .ga-sx-cat .ga-sx-pmrow { gap: 2px; }
 .ga-wizard .ga-sx-slider-title { order: 2; margin-top: 2px; }
+
+/* ---- Shared window chrome: one big title style and one loud red close button ---- */
+.ga-filter-dialog h2,
+.ga-settings-panel > header h2,
+.ga-access-pass-panel header h2,
+.digital-downloads-heading h1,
+.ga-dialog h2,
+.download-complete-dialog h2 {
+  font: 400 52px/1 "Bebas Neue", sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--ga-orange);
+  margin: 4px 0 8px;
+}
+.ga-filter-dialog > header button[aria-label="Cerrar filtros"],
+.ga-settings-panel > header > button,
+.ga-access-pass-panel header > button,
+.digital-download-back,
+.download-dialog-close,
+.ga-detail-close,
+.library-close,
+.window-controls .window-close {
+  background: #e5202e;
+  border: 1px solid #ff6b75;
+  color: #fff;
+  box-shadow: 0 0 14px #e5202e88;
+  cursor: pointer;
+}
+.ga-filter-dialog > header button[aria-label="Cerrar filtros"]:hover,
+.ga-settings-panel > header > button:hover,
+.ga-access-pass-panel header > button:hover,
+.digital-download-back:hover,
+.download-dialog-close:hover,
+.ga-detail-close:hover,
+.library-close:hover,
+.window-controls .window-close:hover {
+  background: #ff3342;
+  color: #fff;
+  box-shadow: 0 0 20px #ff3342cc;
+}

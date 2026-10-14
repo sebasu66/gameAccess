@@ -1,6 +1,6 @@
 import { CircleMinus, CirclePlus, Eraser, Globe, Handshake, Network, Swords, Tv, User, Users, type LucideIcon } from "lucide-react";
 import FancySlider from "./FancySlider";
-import { RELEASE_LAST_INDEX, RELEASE_STEPS, releaseIndexFor, releaseShort } from "./releaseScale";
+import { RELEASE_POSITIONS, RELEASE_STEPS, RELEASE_TRACK, releaseIndexAt, releaseIndexFor, releaseShort } from "./releaseScale";
 import type { TriState } from "./TriStateOption";
 import type { LibraryFeatureKey, LibrarySearchFilters } from "./librarySearch";
 
@@ -63,9 +63,9 @@ export function DatePanel({ filters, onChange }: { filters: LibrarySearchFilters
   return (
     <div className="ga-sx-slider">
       <span className="ga-sx-slider-title">Lanzamiento</span>
-      <FancySlider min={0} max={RELEASE_LAST_INDEX} step={1} value={index} label="Cuánto hace que salió el juego"
-        format={n => releaseShort(RELEASE_STEPS[n])}
-        onChange={value => onChange({ maxAgeDays: RELEASE_STEPS[value as number], releaseYearFrom: undefined, releaseYearTo: undefined })} />
+      <FancySlider min={0} max={RELEASE_TRACK} step={1} value={RELEASE_POSITIONS[index]} label="Cuánto hace que salió el juego"
+        format={n => releaseShort(RELEASE_STEPS[releaseIndexAt(n)])}
+        onChange={value => onChange({ maxAgeDays: RELEASE_STEPS[releaseIndexAt(value as number)], releaseYearFrom: undefined, releaseYearTo: undefined })} />
     </div>
   );
 }

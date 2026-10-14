@@ -1129,13 +1129,13 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
                     where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
                 }
                 "single_player" => where_clauses.push("m.single_player = 1".to_string()),
-                "multiplayer" => where_clauses.push("m.multiplayer = 1".to_string()),
-                "coop" => where_clauses.push("m.coop = 1".to_string()),
+                "multiplayer" => where_clauses.push(format!("(m.multiplayer = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Co-op','Cooperativo','PvP','JcJ','Online PvP','JcJ en línea','Online Co-op','Cooperativo en línea','Shared/Split Screen','Shared/Split Screen Co-op','LAN Co-op','MMO','Multijugador masivo','Cross-Platform Multiplayer','Multijugador multiplataforma'))")),
+                "coop" => where_clauses.push(format!("(m.coop = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Online Co-op','Cooperativo en línea','LAN Co-op','Shared/Split Screen Co-op'))")),
                 "online_coop" => where_clauses.push("m.online_coop = 1".to_string()),
                 "local_coop" => where_clauses.push("m.local_coop = 1".to_string()),
                 "shared_split_screen" => where_clauses.push("m.shared_split_screen = 1".to_string()),
                 "mmo" => where_clauses.push("m.mmo = 1".to_string()),
-                "pvp" => where_clauses.push("m.pvp = 1".to_string()),
+                "pvp" => where_clauses.push(format!("(m.pvp = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','Online PvP','JcJ en línea'))")),
                 "pve" => where_clauses.push("m.pve = 1".to_string()),
                 "lan" => where_clauses.push("m.lan = 1".to_string()),
                 "cross_platform" => where_clauses.push("m.cross_platform = 1".to_string()),
