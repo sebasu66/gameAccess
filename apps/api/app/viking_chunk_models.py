@@ -25,6 +25,8 @@ class VikingChunkJob(SQLModel, table=True):
     error_code: str = SQLField(default="", max_length=80)
     # Which server instance runs the job (several instances can share one database, e.g. local and Render).
     owner: str = SQLField(default="", index=True, max_length=80)
+    # What the server is doing right now (TorBox state and progress), as JSON, so players can show it.
+    detail: str = SQLField(default="", max_length=600)
     created_at: datetime = SQLField(index=True)
     updated_at: datetime = SQLField(index=True)
     completed_at: Optional[datetime] = None

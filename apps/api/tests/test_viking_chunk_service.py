@@ -1,4 +1,5 @@
 import asyncio
+import json
 import hashlib
 from pathlib import Path
 
@@ -213,6 +214,17 @@ def test_instance_id_is_stable_and_tells_render_from_local(monkeypatch):
     assert svc.instance_id().startswith("local:") and svc.instance_id() == svc.instance_id()
     monkeypatch.setenv("RENDER_SERVICE_ID", "srv-1")
     assert svc.instance_id() == "render:srv-1"
+
+
+def test_torbox_detail_and_manifest_carry_what_the_server_is_doing(engine):
+    detail = svc.torbox_detail({"download_state": "downloading", "progress": 0.256, "download_speed": 1000, "seeds": 7, "eta": 60})
+    assert detail["progress"] == 25.6 and detail["seeds"] == 7 and detail["stage"] == "torbox"
+    with Session(engine) as session:
+        job = svc.create_job(session, fingerprint="d", kind="torrent", item_name="x")
+        job.detail = json.dumps(detail)
+        session.add(job)
+        session.commit()
+        assert svc.build_manifest(session, job)["detail"]["seeds"] == 7
 
 
 def test_find_job_for_source_returns_the_newest(engine):

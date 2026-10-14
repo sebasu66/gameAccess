@@ -41,6 +41,21 @@ class ChunkedDownloadError(Exception):
     pass
 
 
+def describe_wait(detail: dict | None, game_name: str = "") -> str:
+    """Plain words for what the server is doing while the first pieces are not ready yet."""
+    if not detail or detail.get("stage") != "torbox":
+        return "Preparando los archivos en el servidor..."
+    progress = float(detail.get("progress") or 0)
+    seeds = int(detail.get("seeds") or 0)
+    state = str(detail.get("state") or "").lower()
+    if progress >= 99.5 or state in ("cached", "completed", "uploading"):
+        return "El servidor ya tiene el juego y está armando los fragmentos..."
+    extra = f" ({seeds} fuentes)" if seeds else ""
+    if progress <= 0 and seeds == 0:
+        return "El servidor está buscando fuentes para el juego; si nadie lo comparte puede demorar..."
+    return f"El servidor está reuniendo el juego: {progress:.0f}%{extra}"
+
+
 @dataclass(frozen=True)
 class ChunkSession:
     api: str
@@ -164,7 +179,7 @@ class ChunkedDownloader:
                             continue
                         raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga ({manifest.get('error') or 'error'})")
                     if not manifest["pieces"]:
-                        context.emit_progress(app_id, "preparing", 20.0, 0, 0, 0, 0, "Preparando los archivos en el servidor...")
+                        context.emit_progress(app_id, "preparing", 20.0, 0, 0, 0, 0, describe_wait(manifest.get("detail"), game_name))
                         self._idle(idle_since or started)
                         continue
                     if not files_ready:

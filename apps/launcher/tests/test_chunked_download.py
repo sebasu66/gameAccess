@@ -179,6 +179,13 @@ def test_an_interrupted_download_resumes_without_repeating_finished_pieces(tmp_p
     assert not [p for p in tmp_path.iterdir() if p.name.startswith(".ga-")]
 
 
+def test_waiting_message_explains_what_the_server_is_doing():
+    assert "buscando fuentes" in cd.describe_wait({"stage": "torbox", "progress": 0, "seeds": 0})
+    assert "42%" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3}) and "3 fuentes" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3})
+    assert "armando" in cd.describe_wait({"stage": "torbox", "progress": 100, "state": "cached"})
+    assert cd.describe_wait(None).startswith("Preparando")
+
+
 def test_server_refusal_means_use_the_normal_download(tmp_path):
     class Refusing(FakeServer):
         def request(self, *a, **k):

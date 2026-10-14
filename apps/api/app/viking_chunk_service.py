@@ -72,6 +72,28 @@ def _touch(job: VikingChunkJob) -> None:
     job.updated_at = _now()
 
 
+def torbox_detail(item: dict[str, Any]) -> dict[str, Any]:
+    """The few TorBox fields worth showing a player while the source is still being fetched."""
+    def number(*keys: str) -> float:
+        for key in keys:
+            try:
+                return float(item.get(key) or 0)
+            except (TypeError, ValueError):
+                continue
+        return 0.0
+
+    progress = number("progress")
+    return {
+        "stage": "torbox",
+        "state": str(item.get("download_state") or item.get("status") or "")[:40],
+        "progress": round(progress * 100 if progress <= 1 else progress, 1),
+        "speed": int(number("download_speed")),
+        "seeds": int(number("seeds")),
+        "peers": int(number("peers")),
+        "eta": int(number("eta")),
+    }
+
+
 def get_job(session: Session, job_id: str) -> VikingChunkJob | None:
     return session.exec(select(VikingChunkJob).where(VikingChunkJob.job_id == job_id)).first()
 
@@ -167,6 +189,7 @@ def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
         "job_id": job.job_id,
         "status": job.status,
         "error": job.error_code,
+        "detail": json.loads(job.detail) if job.detail else {},
         "item_name": job.item_name,
         "total_bytes": job.total_bytes,
         "files": json.loads(job.files_json or "[]"),
@@ -417,10 +440,14 @@ def start_job(
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, connect=15.0), transport=worker.transport, follow_redirects=False,
             ) as api_client:
+                async def report(torbox_item: dict[str, Any]) -> None:
+                    _set_job(engine, job_id, detail=json.dumps(torbox_detail(torbox_item)))
+
                 async def prepare() -> tuple[PieceSource, list[dict[str, Any]]]:
                     item, files = await worker.prepare_chunk_source(
                         api_client, source_url=source_url, source_kind=source_kind, source_host=source_host,
                         file_name=file_name, request_id=job_id, installation_id=installation_id, fingerprint=fingerprint,
+                        on_status=report,
                     )
                     return TorboxRangeSource(worker, api_client, item, files), files
 

@@ -518,6 +518,7 @@ class TorBoxVikingProvider:
         request_id: str,
         installation_id: str,
         fingerprint: str,
+        on_status: Any = None,
     ) -> tuple["TorboxItem", list[dict[str, Any]]]:
         """Submit a source to TorBox, wait for it, and return it with its file list."""
         if not self.torbox_api_key:
@@ -534,6 +535,7 @@ class TorBoxVikingProvider:
             request_id=request_id,
             installation_id=installation_id,
             fingerprint=fingerprint,
+            on_status=on_status,
         )
         return item, self.torbox_files(item)
 
@@ -590,8 +592,11 @@ class TorBoxVikingProvider:
         request_id: str,
         installation_id: str,
         fingerprint: str,
+        on_status: Any = None,
     ) -> "TorboxItem":
-        """Submit a source to TorBox and wait until it has finished downloading there."""
+        """Submit a source to TorBox and wait until it has finished downloading there.
+
+        `on_status(item)` (optional, async) is told what TorBox reports on every check."""
         if source_kind == "torrent":
             form: dict[str, Any] = {
                 "magnet": source_url,
@@ -651,6 +656,11 @@ class TorBoxVikingProvider:
                 timeout=25.0,
             )
             completed_item = _data_object(status_payload)
+            if on_status is not None:
+                try:
+                    await on_status(completed_item)
+                except Exception:  # reporting must never stop the transfer
+                    logger.debug("torbox on_status failed", exc_info=True)
             if _is_finished(completed_item):
                 break
             state = str(completed_item.get("download_state") or completed_item.get("status") or "").lower()
