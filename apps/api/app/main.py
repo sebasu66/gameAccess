@@ -59,6 +59,9 @@ def seed_defaults(session: Session) -> None:
 def startup() -> None:
     # Root stream handlers retain failed-request DEBUG context flushed with handle().
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s %(message)s")
+    # httpx logs each request URL at INFO and TorBox calls carry the API token in the query string.
+    for noisy_logger in ("httpx", "httpcore"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
     if os.environ.get("GAMEACCESS_ALLOW_SQLITE_FOR_TESTS") != "1":
         verify_shared_database(engine)
     SQLModel.metadata.create_all(engine)
