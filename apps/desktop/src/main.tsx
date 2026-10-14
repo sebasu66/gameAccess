@@ -34,6 +34,7 @@ import "./splash-screen.css";
 import "./library-sections.css";
 import "./i18n.css";
 import "./gameaccess-theme.css";
+import "./card-quick-actions.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
 

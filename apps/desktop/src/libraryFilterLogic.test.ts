@@ -73,17 +73,16 @@ describe("grouped Steam capability filters", () => {
     // Contradicting the restrictive side yields nothing.
     expect(classifyFilterMatch(lanBoth, filters(["single_player", "lan"]))).toBe("excluded");
   });
-  it("keeps both matches and partitions favorites ahead of the sort", () => {
+  it("keeps both matches and does not lift favorites above the sort", () => {
     // CS2 is not a co-op result: it carries a Co-op tag but no Co-op category, and
     // a tag cannot satisfy a required criterion.
     const games = filterLibraryGames([cs2, portal, stardew], "", filters(["coop"]));
     expect([...games.map(game => game.id)].sort((a, b) => a - b)).toEqual([620, 413150]);
-    // Favorites are partitioned ahead of the sort, so the favourite leads.
-    const favorite = buildLibraryCollection(games, {}, { 413150: 1 }, {}, "catalog", "name").games;
-    expect(favorite.map(game => game.id)[0]).toBe(413150);
-    // Without a favorite both are still present.
+    // A like only feeds recommendations: the order is the same with or without it.
     const plain = buildLibraryCollection(games, {}, {}, {}, "catalog", "name").games;
     expect([...plain.map(game => game.id)].sort((a, b) => a - b)).toEqual([620, 413150]);
+    const favorite = buildLibraryCollection(games, {}, { 413150: 1 }, {}, "catalog", "name").games;
+    expect(favorite.map(game => game.id)).toEqual(plain.map(game => game.id));
   });
   it("worker metadata updates genres/categories and ratings without replacing install commands", () => {
     const updated = mergeLocalCatalogMetadata({ ...cs2, coop: true, playProcess: "existing-command" }, { categories: [{ description: "LAN PvP" }], genres: [{ description: "Strategy" }], gameaccess_reviews: { total_reviews: 10, total_positive: 9 } });

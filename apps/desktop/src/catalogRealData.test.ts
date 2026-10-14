@@ -270,13 +270,14 @@ describe("real catalog", { timeout: 30_000 }, () => {
       }
     });
 
-    it("favorites stay on top of any sort", ({ skip }) => {
+    it("liked games are never lifted above the chosen sort", ({ skip }) => {
       if (!available) skip();
       const favorites = games().slice(5000, 5003);
       const preferences = Object.fromEntries(favorites.map(game => [game.id, 1 as const]));
       for (const sort of ["name", "steam-popularity", "steam-review-score", "release-date"] as const) {
-        const top = buildLibraryCollection(games(), {}, preferences, {}, "catalog", sort).games.slice(0, 3);
-        expect(new Set(top.map(game => game.id)), sort).toEqual(new Set(favorites.map(game => game.id)));
+        const plain = buildLibraryCollection(games(), {}, {}, {}, "catalog", sort).games.map(game => game.id);
+        const liked = buildLibraryCollection(games(), {}, preferences, {}, "catalog", sort).games.map(game => game.id);
+        expect(liked, sort).toEqual(plain);
       }
     });
 
