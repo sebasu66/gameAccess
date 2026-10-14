@@ -10,6 +10,7 @@ from sqlmodel import Session
 from .access_service import _admin_activation_access
 from .admin_security import _admin_browser_access
 from .api_dependencies import get_session
+from .admin_clients import activity_summary, integrated_clients
 from .telemetry import client_history, clients, overview
 from .viking_chunk_service import default_work_dir
 
@@ -42,3 +43,13 @@ def api_client_history(installation_id: str, request: Request, response: Respons
     _admin_activation_access(request)
     response.headers["Cache-Control"] = "no-store"
     return client_history(session, installation_id[:36])
+
+
+
+@router.get("/admin/api/clients-overview")
+def api_clients_overview(request: Request, response: Response, hours: int = Query(default=24, ge=1, le=720),
+                         session: Session = Depends(get_session)) -> dict:
+    """Clients with their key, activation events and download tasks of the last `hours`, plus the summary block."""
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    return {"hours": hours, "clients": integrated_clients(session, hours), "summary": activity_summary(session, hours)}
