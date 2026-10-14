@@ -56,7 +56,7 @@ class HttpDownloadTransport:
     def __init__(self, context):
         self.context = context
 
-    def download_chunk(self, url: str, start: int, end: int, filepath: str, chunk_id: int, tracker: MultiSegmentTracker, headers: dict, max_retries: int = 3):
+    def download_chunk(self, url: str, start: int, end: int, filepath: str, chunk_id: int, tracker: MultiSegmentTracker, headers: dict, max_retries: int = 5):
         context = self.context
         context.logger.debug("HTTP segment=%s range=%s-%s", chunk_id, start, end)
         req_headers = dict(headers)
@@ -84,14 +84,18 @@ class HttpDownloadTransport:
                                 tracker.add(len(chunk))
                 return
             except Exception as e:
-                context.logger.debug("HTTP segment=%s attempt=%s failed: %s", chunk_id, attempt + 1, e)
+                is_rate_limit = "429" in str(e) or "too many requests" in str(e).lower()
+                backoff = (2 ** attempt) + 1 if is_rate_limit else (1 + attempt)
+                context.logger.debug("HTTP segment=%s attempt=%s failed: %s (reintento en %ss)", chunk_id, attempt + 1, e, backoff)
                 if attempt == max_retries - 1:
                     tracker.record_error(f"Segment {chunk_id} failed: {e}")
                     raise
-                time.sleep(1 + attempt)
+                time.sleep(backoff)
 
 
-    def download_segmented(self, url: str, output_path: str, app_id: str, game_name: str, connections: int = 16) -> bool:
+    def download_segmented(self, url: str, output_path: str, app_id: str, game_name: str, connections: int = 4) -> bool:
+        if "vikingfile.com" in url.lower():
+            connections = min(connections, 4)
         context = self.context
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

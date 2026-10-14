@@ -277,10 +277,22 @@ async def resolve_viking_download(
             cache.last_checked_at = _now()
             session.add(cache)
             session.commit()
+            try:
+                direct_url = await provider.resolve_viking_direct_link(cache.viking_url or cache.viking_hash)
+            except ProviderFailure as exc:
+                _finish_request(
+                    session, row, status="failed", started=started, error_code=exc.code,
+                )
+                logger.error(
+                    "request=%s client=%s stage=viking_direct_resolve_failed code=%s fingerprint=%s",
+                    request_id, installation_id, exc.code, identity.fingerprint[:12],
+                )
+                raise HTTPException(exc.status_code, exc.public_message) from exc
+
             _finish_request(
                 session, row, status="completed", started=started, cache_hit=True,
                 result_name=cache.viking_name, result_hash=cache.viking_hash,
-                result_url=cache.viking_url or "",
+                result_url=direct_url,
                 size_bytes=cache.file_size_bytes,
             )
             logger.info(
@@ -291,7 +303,7 @@ async def resolve_viking_download(
             return {
                 "ok": True,
                 "request_id": request_id,
-                "url": cache.viking_url,
+                "url": direct_url,
                 "name": cache.viking_name,
                 "size_bytes": cache.file_size_bytes,
                 "cache_hit": True,
@@ -390,9 +402,21 @@ async def resolve_viking_download(
     cache.updated_at = _now()
     session.add(cache)
     session.commit()
+    try:
+        direct_url = await provider.resolve_viking_direct_link(result.url or result.file_hash)
+    except ProviderFailure as exc:
+        _finish_request(
+            session, row, status="failed", started=started, error_code=exc.code,
+        )
+        logger.error(
+            "request=%s client=%s stage=viking_direct_resolve_failed code=%s fingerprint=%s",
+            request_id, installation_id, exc.code, identity.fingerprint[:12],
+        )
+        raise HTTPException(exc.status_code, exc.public_message) from exc
+
     _finish_request(
         session, row, status="completed", started=started, cache_hit=False,
-        result_name=result.name, result_hash=result.file_hash, result_url=result.url,
+        result_name=result.name, result_hash=result.file_hash, result_url=direct_url,
         size_bytes=result.size_bytes, torbox_item_id=result.torbox_item_id,
     )
     logger.info(
@@ -402,7 +426,7 @@ async def resolve_viking_download(
     return {
         "ok": True,
         "request_id": request_id,
-        "url": result.url,
+        "url": direct_url,
         "name": result.name,
         "size_bytes": result.size_bytes,
         "cache_hit": False,

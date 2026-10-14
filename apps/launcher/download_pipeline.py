@@ -84,7 +84,11 @@ class DownloadPipeline:
                 if not os.path.exists(target_content_path):
                     raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
             else:
-                if args.source_delivery == "browser":
+                is_direct_file_link = any(
+                    download_source.lower().split("?")[0].endswith(ext)
+                    for ext in (".rar", ".zip", ".7z", ".bin", ".iso", ".tar", ".gz")
+                ) or "vikingfile.com" in download_source.lower()
+                if args.source_delivery == "browser" and not is_direct_file_link:
                     import webbrowser
                     webbrowser.open(download_source)
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)

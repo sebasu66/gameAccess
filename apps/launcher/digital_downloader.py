@@ -310,7 +310,7 @@ def main():
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
     parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
-    parser.add_argument("--connections", "-n", type=int, default=16, help="Parallel download connections")
+    parser.add_argument("--connections", "-n", type=int, default=4, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")
     parser.add_argument("--keep-archive", action="store_true", help="Keep archive after decompressing")
     parser.add_argument("--extract-only", default=None, help="Retry extraction of an already downloaded file or directory")

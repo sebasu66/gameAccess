@@ -13,14 +13,19 @@ import re
 import socket
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
 
+from dotenv import load_dotenv
 import httpx
 
 from .request_diagnostics import detail
 
 logger = logging.getLogger("gameaccess.viking_cache")
+
+_API_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_API_ROOT / ".env", override=False)
 
 TORBOX_BASE = "https://api.torbox.app/v1/api"
 VIKING_API_BASE = "https://vikingfile.com/api"
@@ -260,6 +265,8 @@ class TorBoxVikingProvider:
         *,
         torbox_api_key: str | None = None,
         viking_user_hash: str | None = None,
+        viking_cookie: str | None = None,
+        viking_rememberme: str | None = None,
         poll_interval_seconds: float | None = None,
         max_wait_seconds: int | None = None,
         upload_timeout_seconds: int | None = None,
@@ -269,6 +276,8 @@ class TorBoxVikingProvider:
     ):
         self.torbox_api_key = (torbox_api_key if torbox_api_key is not None else os.getenv("TORBOX_API_KEY", "")).strip()
         self.viking_user_hash = (viking_user_hash if viking_user_hash is not None else os.getenv("VIKING_USER_HASH", "")).strip()
+        self.viking_cookie = (viking_cookie if viking_cookie is not None else os.getenv("VIKING_COOKIE", "")).strip()
+        self.viking_rememberme = (viking_rememberme if viking_rememberme is not None else os.getenv("VIKING_REMEMBERME", "")).strip()
         self.poll_interval_seconds = max(
             0.0,
             float(poll_interval_seconds if poll_interval_seconds is not None else os.getenv("GAMEACCESS_TORBOX_POLL_INTERVAL_SECONDS", "5")),
@@ -367,6 +376,97 @@ class TorBoxVikingProvider:
         if not isinstance(exists, bool):
             raise ProviderFailure("viking_check_invalid", 502, "ViKiNG devolvió una respuesta de verificación inválida.")
         return exists
+
+    def _viking_cookie_header(self) -> str:
+        parts: list[str] = []
+        if self.viking_rememberme:
+            val = self.viking_rememberme
+            if "REMEMBERME=" not in val:
+                val = f"REMEMBERME={val}"
+            parts.append(val)
+        if self.viking_cookie:
+            val = self.viking_cookie
+            if "PHPSESSID=" not in val and "REMEMBERME=" not in val:
+                val = f"PHPSESSID={val}"
+            if val not in parts:
+                parts.append(val)
+        return "; ".join(parts)
+
+    async def resolve_viking_direct_link(self, file_url_or_hash: str) -> str:
+        """Resolve a ViKiNG file landing page or hash (e.g. /f/<hash>) to the signed direct CDN download URL."""
+        cookie_header = self._viking_cookie_header()
+        value = str(file_url_or_hash or "").strip()
+        if not value:
+            raise ProviderFailure("viking_invalid_url", 502, "La URL o identificador de ViKiNG está vacío.")
+
+        file_url = value if value.startswith(("http://", "https://")) else VIKING_FILE_BASE + value
+        if not cookie_header:
+            logger.warning("viking_direct_resolve_skipped reason=no_cookie_configured")
+            return file_url
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Cookie": cookie_header,
+        }
+
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(25.0, connect=10.0),
+            transport=self.transport,
+            follow_redirects=False,
+        ) as client:
+            try:
+                r1 = await client.get(file_url, headers=headers)
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_resolve_timeout", 504, "ViKiNG tardó demasiado en responder al resolver la descarga.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_resolve_failed", 502, "No se pudo conectar con ViKiNG para resolver la descarga.") from exc
+
+            if r1.status_code not in (301, 302, 303, 307, 308):
+                if "challenges.cloudflare.com" in r1.text or 'id="captcha"' in r1.text:
+                    raise ProviderFailure(
+                        "viking_auth_required",
+                        502,
+                        "ViKiNG requiere verificación de captcha; la sesión configurada puede estar expirada.",
+                    )
+                raise ProviderFailure("viking_resolve_failed", 502, "ViKiNG no redirigió a la descarga directa.")
+
+            location1 = r1.headers.get("location", "")
+            if not location1:
+                raise ProviderFailure("viking_resolve_failed", 502, "ViKiNG no devolvió la dirección de redirección intermedia.")
+
+            step2_url = str(httpx.URL(file_url).join(location1))
+
+            new_cookies = {}
+            for sc in r1.headers.get_list("set-cookie"):
+                parts = sc.split(";")[0].split("=", 1)
+                if len(parts) == 2:
+                    new_cookies[parts[0].strip()] = parts[1].strip()
+
+            merged = [cookie_header]
+            for k, v in new_cookies.items():
+                if f"{k}=" not in cookie_header:
+                    merged.append(f"{k}={v}")
+            headers["Cookie"] = "; ".join(merged)
+
+            try:
+                r2 = await client.get(step2_url, headers=headers)
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_resolve_timeout", 504, "ViKiNG tardó demasiado en generar el enlace directo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_resolve_failed", 502, "No se pudo conectar con ViKiNG para generar el enlace directo.") from exc
+
+            if r2.status_code in (301, 302, 303, 307, 308):
+                location2 = r2.headers.get("location", "")
+                if location2:
+                    return str(httpx.URL(step2_url).join(location2))
+
+            if r2.status_code == 200:
+                content_type = r2.headers.get("content-type", "").lower()
+                if "application/" in content_type or "octet-stream" in content_type:
+                    return step2_url
+
+            raise ProviderFailure("viking_resolve_failed", 502, "No se pudo obtener el enlace directo al archivo en ViKiNG.")
 
     async def process_source(
         self,

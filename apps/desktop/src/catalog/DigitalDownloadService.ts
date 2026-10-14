@@ -274,12 +274,19 @@ export class DigitalDownloadService implements IDownloadProvider {
     // failure the original source is used, so the Download button keeps working.
     let effectiveSource = downloadSource;
     let serverMode: "cache" | "processed" | "direct" | null = null;
+    let effectiveDelivery = record?.sourceDelivery;
     // Every link goes to the server, which compares direct download against TorBox.
     // A link that opens a web page is still tried through TorBox, which can sometimes fetch it.
     if (hasTauriRuntime() && canAccelerate(downloadSource)) {
       this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga directa", bytesDownloaded: 0, bytesTotal: 0 });
       const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
-      if (processed) { effectiveSource = processed.url; serverMode = processed.mode; }
+      if (processed) {
+        effectiveSource = processed.url;
+        serverMode = processed.mode;
+        if (processed.mode === "cache" || processed.mode === "processed") {
+          effectiveDelivery = "download";
+        }
+      }
       else void narrate("No se pudo usar el servidor; se sigue con la descarga normal.", { area: "DOWNLOAD", level: "WARN" });
     }
 
@@ -293,7 +300,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           appId,
           name,
           downloadSource: effectiveSource,
-          sourceDelivery: record?.sourceDelivery,
+          sourceDelivery: effectiveDelivery,
           installProcess,
           autoInstalled: record?.auto_installed === true,
           torboxKey: options?.torboxKey,
