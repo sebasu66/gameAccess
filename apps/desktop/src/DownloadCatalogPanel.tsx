@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, Loader2, Play, ThumbsUp, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, Loader2, Play, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -24,8 +24,6 @@ import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
-import CardQuickActions from "./CardQuickActions";
-import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
@@ -60,13 +58,9 @@ interface DownloadGameCardProps {
   onSelect: (index: number, openDetails?: boolean) => void;
   onContextMenu: (request: ContextMenuRequest) => void;
   favorite: boolean;
-  preference?: 1 | -1;
-  inLibrary: boolean;
-  onPreference?: (gameId: number, value: 1 | -1) => void;
-  onPlay?: (game: CatalogGame) => void | Promise<void>;
 }
 
-const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, preference, inLibrary, onPreference, onPlay, onSelect, onContextMenu }: DownloadGameCardProps) {
+const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
   const state = gameStateManager.resolve(status);
   const active = state.transferActive;
   const progress = downloadManager.progress(status);
@@ -77,7 +71,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
     : state.playButtonReady
       ? " · listo para Jugar"
       : "";
-  const favoriteLabel = (favorite ? " · te gusta" : "");
+  const favoriteLabel = (favorite ? " · favorito" : "");
   // Raw catalog genres carry duplicates and content labels; show the canonical one.
   const cardGenreId = genreConceptIds(game.genres)[0];
   const cardGenre = cardGenreId ? genreLabel(cardGenreId) : undefined;
@@ -107,20 +101,11 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
           <span className="library-room-card-cover-base">
         <SteamCover game={game} /></span>
           {active && progress > 0 ? <span className="library-room-card-color-fill" aria-hidden="true"><SteamCover game={game} /></span> : null}
-          {favorite ? <span className="library-favorite-state" title="Te gusta" aria-label="Te gusta"><ThumbsUp size={13} fill="currentColor" /></span> : null}
+          {favorite ? <span className="library-favorite-state" title="Favorito" aria-label="Favorito"><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
           {cardGenre ? <span className="library-room-card-genre" aria-hidden="true">{cardGenre}</span> : null}
         </span>
       </button>
-      <CardQuickActions
-        name={game.name}
-        preference={preference}
-        inLibrary={inLibrary}
-        canPlay={state.playButtonReady}
-        onPreference={onPreference ? value => onPreference(game.id, value) : undefined}
-        onAddToLibrary={() => { try { libraryMembership.add(game); } catch { /* busy: the library is being changed */ } }}
-        onPlay={onPlay ? () => void onPlay(game) : undefined}
-      />
       <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
     </div>
   );
@@ -149,7 +134,6 @@ interface DownloadCatalogPanelProps {
   pinnedAppIds: Set<number>;
   onSelect: (index: number, openDetails?: boolean) => void;
   preferences?: Record<number, 1 | -1>;
-  onPreference?: (gameId: number, value: 1 | -1) => void;
   history?: Record<number, number>;
   onPlay?: (game: CatalogGame) => void | Promise<void>;
   onInstall?: (game: CatalogGame) => void | Promise<void>;
@@ -183,8 +167,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     height: typeof window === "undefined" ? 900 : window.innerHeight,
   }));
   const facets = useMemo(() => getLibrarySearchFacets(allGames), [allGames.length, allGames[0]?.id]);
-  const libraryMembers = useLibraryGames();
-  const libraryIds = useMemo(() => new Set(libraryMembers.map(member => member.app_id ?? member.id)), [libraryMembers]);
+  const favoritesCount = useMemo(() => displaySection.games.filter(game => props.preferences?.[game.id] === 1).length, [displaySection.games, props.preferences]);
   useEffect(() => {
     const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", updateViewport);
@@ -330,7 +313,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock"><SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"}</output>
+          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {favoritesCount} {locale === "es" ? "favoritos" : "favorites"}</output>
           <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label></div></div>
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
@@ -359,7 +342,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
-        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} preference={props.preferences?.[game.id]} inLibrary={libraryIds.has(game.app_id ?? game.id)} onPreference={props.onPreference} onPlay={props.onPlay} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label="Desplazar juegos" /> : null}
       </div>

@@ -440,9 +440,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     if (next[gameId] === undefined) delete next[gameId];
     setPreferences(next);
     localStorage.setItem("gameaccess:preferences", JSON.stringify(next));
-    setToast(value === 1
-      ? (next[gameId] === 1 ? "Te gusta: te mostraremos más juegos así." : "Quitamos tu me gusta.")
-      : (next[gameId] === -1 ? "No te gusta: veremos menos juegos de este estilo." : "Quitamos tu no me gusta."));
+    setToast(value === 1 ? (next[gameId] === 1 ? "Añadido a favoritos." : "Quitado de favoritos.") : "Perfecto, veremos menos juegos de este estilo.");
   };
 
   const startDownload = async (game: CatalogGame) => {
