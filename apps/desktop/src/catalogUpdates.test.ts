@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CatalogUpdater, CATALOG_REFRESH_INTERVAL } from "./catalogUpdates";
+import { CatalogUpdater, CATALOG_REFRESH_INTERVAL, shouldSyncOnOpen } from "./catalogUpdates";
 import type { CatalogGame } from "./types";
 const game = (id:number) => ({id,name:`Game ${id}`} as CatalogGame);
 afterEach(() => vi.useRealTimers());
@@ -36,5 +36,24 @@ describe("client catalog updater",()=>{
     vi.setSystemTime(Date.now()+CATALOG_REFRESH_INTERVAL); updater.catchUp(); await Promise.resolve();
     updater.dispose(); resolve([game(2)]); await Promise.resolve(); await Promise.resolve();
     expect(callbacks.apply).not.toHaveBeenCalled(); expect(callbacks.added).not.toHaveBeenCalled();
+  });
+  it("determines whether to sync on open based on 1 hour threshold", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn(),
+    });
+    expect(shouldSyncOnOpen()).toBe(true);
+
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn().mockReturnValue(String(Date.now() - 30 * 60 * 1000)),
+      setItem: vi.fn(),
+    });
+    expect(shouldSyncOnOpen()).toBe(false);
+
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn().mockReturnValue(String(Date.now() - 61 * 60 * 1000)),
+      setItem: vi.fn(),
+    });
+    expect(shouldSyncOnOpen()).toBe(true);
   });
 });

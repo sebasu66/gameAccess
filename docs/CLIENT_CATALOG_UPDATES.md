@@ -51,3 +51,12 @@ catch-up tests; authoritative remote/fallback tests; circle bounds/progress test
 Browser fixture checks cover independent expiry, ordering, loaded artwork, segmented
 progress, detail reveal, drag without click and position restoration. The production
 30-minute wall-clock tick and audible bell need observation in the native client.
+
+## Sincronización Servidor → Cliente (Delta vs Snapshot)
+
+- **Soporte delta en cliente y Rust:** `catalog_cache_sync` en `apps/desktop/src-tauri/src/catalog_cache.rs` soporta sincronización diferencial consultando `/library/catalog/manifest?since=<revision>`. Cuando el manifiesto declara `kind == "delta"`, descarga únicamente el `CatalogBatch` (JSON comprimido con juegos y detalles diferenciales que empatan con `base_revision`) y los aplica sobre la base SQLite existente mediante `apply_batch`, sin redescargar toda la base.
+- **Estado del servidor:** Las publicaciones estáticas actuales en GitHub sirven snapshots completos (`catalog-cache-*.sqlite.gz`, `kind` no es delta). Cuando el servidor o pipeline genere deltas, el cliente los consumirá automáticamente.
+- **Frecuencia de sincronización:**
+  1. Al instalar / primera apertura (descarga de snapshot inicial).
+  2. Al abrir la app, únicamente si transcurrió más de 1 hora desde la última sincronización (`shouldSyncOnOpen()`).
+  3. Periódicamente una vez al día (`CATALOG_REFRESH_INTERVAL`) mientras la aplicación permanece abierta, o a petición manual en el footer.

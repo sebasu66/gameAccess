@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
-import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
+import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS, shouldSyncOnOpen } from "./catalogUpdates";
 import type { CatalogNotice } from "./CatalogNewGameNotices";
 import type { CatalogGame } from "./types";
 import { playCatalogBell } from "./uiSounds";
@@ -40,11 +40,20 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     const manual = () => void updater.refresh(true);
     const focus = () => updater.catchUp();
     updater.start();
-    // Let the bundled catalog paint before checking for a new immutable revision.
-    const initialRefresh = window.setTimeout(() => void updater.refresh(), 5000);
+    // Let the bundled catalog paint before checking for a new immutable revision,
+    // only if more than 1 hour passed since last sync (or on initial install).
+    let initialRefresh: number | undefined;
+    if (shouldSyncOnOpen()) {
+      initialRefresh = window.setTimeout(() => void updater.refresh(), 5000);
+    }
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
-    return () => { window.clearTimeout(initialRefresh); updater.dispose(); window.removeEventListener(CATALOG_REFRESH_REQUEST, manual); window.removeEventListener("focus", focus); };
+    return () => {
+      if (initialRefresh) window.clearTimeout(initialRefresh);
+      updater.dispose();
+      window.removeEventListener(CATALOG_REFRESH_REQUEST, manual);
+      window.removeEventListener("focus", focus);
+    };
   }, [enabled, ready]);
   return {notices, dismiss};
 }
