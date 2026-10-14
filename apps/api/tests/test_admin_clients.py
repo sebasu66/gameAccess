@@ -41,3 +41,19 @@ def test_a_client_comes_with_key_activation_events_and_its_downloads():
         assert integrated_clients(s, hours=1)[0]["tasks_count"] == 1
         summary = activity_summary(s, 24)
         assert summary["downloads_7d"] == 1 and summary["clients_online"] == 1
+
+
+def test_table_pages_embed_their_config_and_unknown_ones_are_404(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from app import admin_dashboard_routes as routes
+
+    monkeypatch.setattr(routes, "_admin_browser_access", lambda request: None)
+    page = routes.table_page("access-events", None)
+    body = page.body.decode()
+    assert 'window.__TABLE__={"title": "Eventos de acceso"' in body and "</script>" in body
+    assert "/admin/access-events" in body
+    with pytest.raises(HTTPException) as err:
+        routes.table_page("../secrets", None)
+    assert err.value.status_code == 404

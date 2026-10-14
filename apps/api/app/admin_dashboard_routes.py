@@ -1,9 +1,10 @@
 """Administrator dashboard: connected clients, what each one downloads and the load over time."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session
 
@@ -53,3 +54,22 @@ def api_clients_overview(request: Request, response: Response, hours: int = Quer
     _admin_activation_access(request)
     response.headers["Cache-Control"] = "no-store"
     return {"hours": hours, "clients": integrated_clients(session, hours), "summary": activity_summary(session, hours)}
+
+
+# Sections that only returned JSON, now shown as a table with search, filter and sort.
+TABLE_VIEWS = {
+    "access-events": {"title": "Eventos de acceso", "src": "/admin/access-events?limit=1000", "description": "Cada vez que un cliente pidió, activó o fue rechazado."},
+    "catalog-status": {"title": "Estado del catálogo", "src": "/library/catalog/status", "description": "Versión del catálogo y última sincronización."},
+    "download-usage": {"title": "Uso de descargas", "src": "/admin/viking-download-usage?limit=1000", "key": "requests", "description": "Pedidos de descarga por cliente."},
+}
+
+
+@router.get("/admin/table/{slug}", response_class=HTMLResponse)
+def table_page(slug: str, request: Request) -> HTMLResponse:
+    _admin_browser_access(request)
+    view = TABLE_VIEWS.get(slug)
+    if view is None:
+        raise HTTPException(status_code=404, detail="Esa tabla no existe.")
+    page = (Path(__file__).resolve().parents[1] / "admin" / "table.html").read_text(encoding="utf-8")
+    config = json.dumps({**view, "slug": slug}).replace("</", "<\\/")
+    return HTMLResponse(page.replace("<script>", f"<script>window.__TABLE__={config};", 1), headers={"Cache-Control": "no-store"})
