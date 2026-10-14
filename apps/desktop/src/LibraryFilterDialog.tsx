@@ -58,6 +58,14 @@ export function setCriterionState(filters: LibrarySearchFilters, group: GroupKey
   return { ...filters, [pair.include]: included, [pair.exclude]: excluded } as LibrarySearchFilters;
 }
 
+/** Brings the real mouse pointer to a spot in the window (desktop app only; elsewhere it does nothing). */
+async function moveMouseTo(x: number, y: number) {
+  try {
+    const { getCurrentWindow, LogicalPosition } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setCursorPosition(new LogicalPosition(Math.round(x), Math.round(y)));
+  } catch { /* running in a plain browser */ }
+}
+
 export default function LibraryFilterDialog({ games, query, filters, genres, onApply }: {
   games: CatalogGame[]; query: string; filters: LibrarySearchFilters; genres: string[];
   onApply: (filters: LibrarySearchFilters) => void;
@@ -102,6 +110,41 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const lastShown = useRef<SentenceSlot | null>(null);
   if (open) lastShown.current = open;
   const shown = open ?? lastShown.current;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // An open editor tidies itself away: when the pointer leaves it, or when nothing happens for a while.
+  // Opening a slider also brings the mouse to its handle, so it can be moved straight away.
+  useEffect(() => {
+    if (!open) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    const isSlider = open === "score" || open === "date";
+    const idleMs = isSlider ? 2200 : 6000;
+    let idle: number | undefined;
+    let leave: number | undefined;
+    const hide = () => setOpen(current => current === open ? null : current);
+    const restartIdle = () => { window.clearTimeout(idle); idle = window.setTimeout(hide, idleMs); };
+    const inside = (target: EventTarget | null) => target instanceof Element && !!target.closest(".ga-sx-zone.is-open, .ga-sx-term.is-open");
+    const onActivity = (event: Event) => {
+      if (inside(event.target)) { window.clearTimeout(leave); leave = undefined; restartIdle(); return; }
+      const pressed = event instanceof MouseEvent && event.buttons > 0;
+      if (event.type === "pointermove" && !pressed && leave === undefined) leave = window.setTimeout(hide, 700);
+    };
+    const events = ["pointermove", "pointerdown", "keydown", "input", "wheel"] as const;
+    events.forEach(name => body.addEventListener(name, onActivity, true));
+    restartIdle();
+    let warp: number | undefined;
+    if (isSlider) warp = window.setTimeout(() => {
+      const input = body.querySelector<HTMLInputElement>(".ga-sx-zone.is-open input[type=range]");
+      if (!input) return;
+      const rect = input.getBoundingClientRect();
+      const fraction = (Number(input.value) - Number(input.min)) / ((Number(input.max) - Number(input.min)) || 1);
+      void moveMouseTo(rect.left + 12 + (rect.width - 24) * fraction, rect.top + rect.height / 2);
+    }, 420);
+    return () => {
+      window.clearTimeout(idle); window.clearTimeout(leave); window.clearTimeout(warp);
+      events.forEach(name => body.removeEventListener(name, onActivity, true));
+    };
+  }, [open]);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const sourcesChosen = (draft.sources?.length ?? 0) + (draft.excludeSources?.length ?? 0) > 0;
   const clearPlayers = () => setDraft(current => ({ ...current,
@@ -139,7 +182,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
           <button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button>
         </div>
       </header>
-      <div className="ga-sx-body">
+      <div className="ga-sx-body" ref={bodyRef}>
         <div className={"ga-sx-zone is-top" + (topOpen ? " is-open" : "")} style={{ ["--zone-h" as string]: `${ZONE_HEIGHT[shown ?? "genres"]}px` }}>
           {topOpen && shown === "genres" ? <div className="ga-sx-panel"><GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
             onClear={() => patch({ genres: [], excludeGenres: [] })} /></div> : null}
