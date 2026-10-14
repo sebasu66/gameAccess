@@ -32,6 +32,7 @@ import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySe
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import { playUiSound } from "./uiSounds";
@@ -381,6 +382,31 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       (selected ?? rootRef.current)?.focus({ preventScroll: true });
     });
   });
+
+  // Tab (handled by LibraryInputController) flips between Catalog and Library.
+  useEffect(() => {
+    if (auxiliarySurface) return;
+    const toggle = () => {
+      setLibraryView(current => (current === "catalog" ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog"));
+      setSelectedGameId(null);
+      gridRef.current?.scrollTo({ top: 0 });
+    };
+    window.addEventListener(TOGGLE_COLLECTION_EVENT, toggle);
+    return () => window.removeEventListener(TOGGLE_COLLECTION_EVENT, toggle);
+  }, [auxiliarySurface]);
+
+  // Esc always backs out of a game's detail, even when the focus is not inside the library.
+  useEffect(() => {
+    if (!detailOpen || auxiliarySurface) return;
+    const back = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.repeat) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]:not(.ga-detail-overlay)')) return;
+      event.preventDefault();
+      if (detailMenu) setDetailMenu(null); else closeGameDetail();
+    };
+    window.addEventListener("keydown", back);
+    return () => window.removeEventListener("keydown", back);
+  }, [detailOpen, auxiliarySurface, detailMenu, closeGameDetail]);
 
   const startVideoPastIntro = (video: HTMLVideoElement) => {
     const duration = Number.isFinite(video.duration) ? video.duration : 0;

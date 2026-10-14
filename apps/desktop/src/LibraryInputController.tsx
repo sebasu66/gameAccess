@@ -148,6 +148,8 @@ function refocusOperationalSurface(): void {
   });
 }
 
+export const TOGGLE_COLLECTION_EVENT = "gameaccess:toggle-collection";
+
 export default function LibraryInputController({ mode, onModeChange }: { mode: CatalogMode; onModeChange: (mode: CatalogMode) => void }) {
   const modeRef = useRef(mode);
 
@@ -161,6 +163,16 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
       if (!libraryRoot() || modal()) return;
       if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
+
+      if (key === "tab" && modeRef.current === "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        // Inside a game's detail Tab keeps cycling its own controls.
+        if (document.querySelector(".ga-detail-overlay") || isEditable(event.target)) return;
+        if (event.repeat) return;
+        event.preventDefault();
+        event.stopPropagation();
+        window.dispatchEvent(new Event(TOGGLE_COLLECTION_EVENT));
+        return;
+      }
 
       if (key === "tab" && modeRef.current !== "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {
         if (event.repeat) return;
