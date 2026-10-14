@@ -53,9 +53,9 @@ export default function DigitalGameContextMenu({
   const appId = request.game.app_id ?? request.game.id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
-  // Library actions and options only need the transfer to be stopped.
+  // Library actions only need the transfer to be stopped.
   const canManage = Boolean(appId) && !state.transferActive && !libraryBusy;
-  // Desinstalar only makes sense when there are installed files to remove.
+  // Desinstalar and the language/launch options need installed files.
   const canUninstall = canManage && (state.installed || state.prepared);
   const canPlay = Boolean(appId) && state.playButtonReady;
   const canInstall = Boolean(appId) && !state.playButtonReady;
@@ -154,7 +154,7 @@ export default function DigitalGameContextMenu({
           >
             <FolderOpen size={16} /> Abrir carpeta de instalación
           </button>
-          <button type="button" role="menuitem" disabled={!canManage} onClick={() => setConfiguring(true)}>{label.options}</button>
+          <button type="button" role="menuitem" disabled={!canUninstall} onClick={() => setConfiguring(true)}>{label.options}</button>
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { libraryMembership.add(request.game); onClose(); }}>{label.add}</button>}
           <button
@@ -167,7 +167,7 @@ export default function DigitalGameContextMenu({
           </button>
         </div>
       ) : null}
-      {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canManage} /> : null}
+      {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}
       {dialog ? (
         <AppDialog
           title={dialog.title}

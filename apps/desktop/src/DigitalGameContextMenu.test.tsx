@@ -84,4 +84,12 @@ describe("DigitalGameContextMenu", () => {
       expect(uninstallButton(state)).toContain('disabled=""');
     }
   );
+
+  it.each([["installed", true, false], ["prepared", false, false], ["not-installed", false, true], ["downloading", false, true]] as const)(
+    "Idioma y ejecución follows the installed state (%s)", (state, installed, disabled) => {
+      const html = renderToStaticMarkup(<DigitalGameContextMenu request={{ game: testGame, x: 0, y: 0, status: { app_id: 100, state, progress: 0, bytes_downloaded: 0, bytes_total: null, installed } as ManagedDownloadStatus }} onClose={() => {}} />);
+      const options = html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Idioma y ejecución"));
+      expect(options?.includes('disabled=""')).toBe(disabled);
+    }
+  );
 });
