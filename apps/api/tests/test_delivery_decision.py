@@ -132,3 +132,60 @@ def test_check_file_accepts_the_single_object_answer_and_reports_missing_files()
         return httpx.Response(200, json=[{"exist": False, "hash": "abc"}])
     assert run(provider(present).check_viking_file("abc")) is True
     assert run(provider(missing).check_viking_file("abc")) is False
+
+
+def test_requestdl_retries_a_torbox_500_and_then_succeeds(monkeypatch):
+    calls = {"requestdl": 0}
+
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/torrents/createtorrent"):
+            return httpx.Response(200, json={"success": True, "data": {"torrent_id": 7}})
+        if path.endswith("/torrents/mylist"):
+            return httpx.Response(200, json={"data": {"id": 7, "download_finished": True, "size": 10}})
+        if path.endswith("/torrents/requestdl"):
+            calls["requestdl"] += 1
+            if calls["requestdl"] < 3:
+                return httpx.Response(500, json={"detail": "zip failed"})
+            return httpx.Response(200, json={"success": True, "data": "https://cdn.example/file.zip"})
+        if path.endswith("/get-server"):
+            return httpx.Response(200, json={"server": "https://upload.vikingfile.com"})
+        if request.url.host.endswith("vikingfile.com"):
+            return httpx.Response(200, text='{"name":"g.zip","size":10,"hash":"HASH123456","url":"https://vikingfile.com/f/HASH123456"}')
+        return httpx.Response(404)
+
+    sleeps = []
+
+    async def no_wait(seconds):
+        sleeps.append(seconds)
+
+    result = run(provider(handler, sleep_fn=no_wait).process_source(
+        source_url="magnet:?xt=urn:btih:" + HASH, source_kind="torrent", source_host="magnet",
+        item_name="Game", file_name="", request_id="r", installation_id="i", fingerprint="f" * 64,
+    ))
+    assert calls["requestdl"] == 3
+    assert result.file_hash == "HASH123456"
+    assert [s for s in sleeps if s >= 4] == [4.0, 8.0]
+
+
+def test_requestdl_gives_up_after_three_torbox_500s():
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/torrents/createtorrent"):
+            return httpx.Response(200, json={"success": True, "data": {"torrent_id": 7}})
+        if path.endswith("/torrents/mylist"):
+            return httpx.Response(200, json={"data": {"id": 7, "download_finished": True, "size": 10}})
+        return httpx.Response(500, json={})
+
+    async def no_wait(seconds):
+        return None
+
+    try:
+        run(provider(handler, sleep_fn=no_wait).process_source(
+            source_url="magnet:?xt=urn:btih:" + HASH, source_kind="torrent", source_host="magnet",
+            item_name="Game", file_name="", request_id="r", installation_id="i", fingerprint="f" * 64,
+        ))
+    except service.ProviderFailure as exc:
+        assert exc.code == "torbox_server_error"
+    else:
+        raise AssertionError("expected a ProviderFailure")

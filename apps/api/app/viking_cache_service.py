@@ -168,6 +168,9 @@ PROBE_BYTES = 4 * 1024 * 1024
 PROBE_MAX_SECONDS = 5.0
 PROBE_MIN_BYTES = 512 * 1024
 PROBE_MAX_REDIRECTS = 3
+# TorBox sometimes answers 500 when it builds a zip right after a torrent finishes; a short retry usually works.
+TORBOX_LINK_ATTEMPTS = 3
+TORBOX_LINK_RETRY_SECONDS = 4.0
 
 
 @dataclass(frozen=True)
@@ -337,6 +340,8 @@ class TorBoxVikingProvider:
             raise ProviderFailure("torbox_timeout", 504, "TorBox tardó demasiado en responder.") from exc
         except httpx.HTTPError as exc:
             raise ProviderFailure("torbox_unavailable", 502, "No se pudo conectar con TorBox.") from exc
+        if response.status_code >= 500:
+            raise ProviderFailure("torbox_server_error", 502, "TorBox tuvo un problema interno al preparar el archivo.")
         payload = self._parse_json(response, "torbox_api_error", "TorBox rechazó la solicitud.")
         if payload.get("success") is False:
             raise ProviderFailure("torbox_rejected", 502, "TorBox no pudo procesar esta fuente.")
@@ -570,9 +575,20 @@ class TorBoxVikingProvider:
                 "request=%s client=%s stage=torbox_link_ready provider_id=%s",
                 request_id, installation_id, item_id,
             )
-            link_payload = await self._torbox_json(
-                client, "GET", download_path, params=params, timeout=30.0
-            )
+            for attempt in range(1, TORBOX_LINK_ATTEMPTS + 1):
+                try:
+                    link_payload = await self._torbox_json(
+                        client, "GET", download_path, params=params, timeout=30.0
+                    )
+                    break
+                except ProviderFailure as exc:
+                    if exc.code != "torbox_server_error" or attempt == TORBOX_LINK_ATTEMPTS:
+                        raise
+                    logger.warning(
+                        "request=%s client=%s stage=torbox_link_retry attempt=%s provider_id=%s",
+                        request_id, installation_id, attempt, item_id,
+                    )
+                    await self.sleep_fn(TORBOX_LINK_RETRY_SECONDS * attempt)
             temporary_link = link_payload.get("data")
             if not isinstance(temporary_link, str) or urlsplit(temporary_link).scheme != "https":
                 raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
