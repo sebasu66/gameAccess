@@ -193,6 +193,27 @@ def test_recovery_fails_active_jobs_only(engine):
         assert svc.get_job(session, a_id).error_code == "server_restarted"
         assert svc.get_job(session, b_id).status == "ready"
 
+def test_restart_only_fails_jobs_of_this_server(engine):
+    with Session(engine) as session:
+        mine = svc.create_job(session, fingerprint="m", kind="torrent", item_name="mine")
+        other = svc.create_job(session, fingerprint="o", kind="torrent", item_name="other")
+        other.owner = "render:srv-other"
+        session.add(other)
+        session.commit()
+        mine_id, other_id = mine.job_id, other.job_id
+    assert svc.recover_interrupted_chunk_jobs(engine) == 1
+    with Session(engine) as session:
+        assert svc.get_job(session, mine_id).error_code == "server_restarted"
+        assert svc.get_job(session, other_id).status == "preparing"
+
+
+def test_instance_id_is_stable_and_tells_render_from_local(monkeypatch):
+    monkeypatch.delenv("GAMEACCESS_INSTANCE_ID", raising=False)
+    monkeypatch.delenv("RENDER_SERVICE_ID", raising=False)
+    assert svc.instance_id().startswith("local:") and svc.instance_id() == svc.instance_id()
+    monkeypatch.setenv("RENDER_SERVICE_ID", "srv-1")
+    assert svc.instance_id() == "render:srv-1"
+
 
 def test_find_job_for_source_returns_the_newest(engine):
     with Session(engine) as session:

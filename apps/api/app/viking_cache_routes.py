@@ -36,9 +36,13 @@ _CACHE_PROCESSING_STALE_AFTER = timedelta(minutes=90)
 
 def ensure_viking_schema(engine) -> None:
     """Widen the size columns of databases created before sizes could exceed 2 GB."""
+    inspector = inspect(engine)
+    if inspector.has_table("viking_chunk_job") and "owner" not in {c["name"] for c in inspector.get_columns("viking_chunk_job")}:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE viking_chunk_job ADD COLUMN owner VARCHAR(80) NOT NULL DEFAULT ''"))
+        logger.warning("viking_schema added viking_chunk_job.owner")
     if engine.dialect.name != "postgresql":
         return
-    inspector = inspect(engine)
     for table in ("viking_download_request", "viking_source_cache"):
         if not inspector.has_table(table):
             continue

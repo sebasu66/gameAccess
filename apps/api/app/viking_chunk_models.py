@@ -23,6 +23,8 @@ class VikingChunkJob(SQLModel, table=True):
     total_bytes: Optional[int] = SQLField(default=None, sa_column=Column(BigInteger))
     files_json: str = "[]"
     error_code: str = SQLField(default="", max_length=80)
+    # Which server instance runs the job (several instances can share one database, e.g. local and Render).
+    owner: str = SQLField(default="", index=True, max_length=80)
     created_at: datetime = SQLField(index=True)
     updated_at: datetime = SQLField(index=True)
     completed_at: Optional[datetime] = None

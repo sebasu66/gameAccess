@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import socket
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -57,6 +58,16 @@ class PieceSink(Protocol):
 
 # ---------------------------------------------------------------- database helpers
 
+def instance_id() -> str:
+    """Stable name of this server: the same after a restart, different between local and Render."""
+    explicit = os.getenv("GAMEACCESS_INSTANCE_ID", "").strip()
+    if explicit:
+        return explicit[:80]
+    if os.getenv("RENDER_SERVICE_ID"):
+        return ("render:" + os.environ["RENDER_SERVICE_ID"])[:80]
+    return ("local:" + socket.gethostname())[:80]
+
+
 def _touch(job: VikingChunkJob) -> None:
     job.updated_at = _now()
 
@@ -78,7 +89,7 @@ def create_job(session: Session, *, fingerprint: str, kind: str, item_name: str,
     now = _now()
     job = VikingChunkJob(
         job_id=uuid4().hex, source_fingerprint=fingerprint, source_kind=kind, source_url=source_url[:2000],
-        item_name=item_name[:300], status="preparing", created_at=now, updated_at=now,
+        item_name=item_name[:300], status="preparing", owner=instance_id(), created_at=now, updated_at=now,
     )
     session.add(job)
     session.commit()
@@ -179,9 +190,16 @@ def get_ready_piece(session: Session, job_id: str, index: int) -> VikingChunkPie
 
 
 def recover_interrupted_chunk_jobs(engine: Engine) -> int:
-    """After a restart nothing is working on a job the database calls active; fail it so it can resume."""
+    """After a restart nothing is working on this server's jobs the database calls active; fail them so they resume.
+
+    Jobs owned by another server sharing the database are left alone (they are still running there)."""
     with Session(engine) as session:
-        jobs = session.exec(select(VikingChunkJob).where(VikingChunkJob.status.in_(("preparing", "running")))).all()
+        jobs = session.exec(
+            select(VikingChunkJob).where(
+                VikingChunkJob.status.in_(("preparing", "running")),
+                VikingChunkJob.owner.in_((instance_id(), "")),
+            )
+        ).all()
         for job in jobs:
             job.status, job.error_code = "failed", "server_restarted"
             _touch(job)
