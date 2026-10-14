@@ -201,3 +201,59 @@ def test_session_from_env():
     assert s == cd.ChunkSession("https://a", "t", "i")
     assert cd.ChunkSession.from_env("nope") is None
     assert cd.ChunkSession.from_env(json.dumps({"api": "", "token": "t", "installation": "i"})) is None
+
+
+def test_a_server_that_is_down_for_a_while_is_waited_for(tmp_path):
+    data = b"abc" * 10_000
+    server = FakeServer([("f.bin", data)], 20_000)
+    real = server.request
+    state = {"fails": 3}
+
+    def flaky(method, url, **kw):
+        if state["fails"] > 0:
+            state["fails"] -= 1
+            raise cd.requests.ConnectionError("refused")
+        return real(method, url, **kw)
+
+    server.request = flaky
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+
+
+def test_a_server_that_never_comes_back_fails_cleanly(tmp_path, monkeypatch):
+    monkeypatch.setattr(cd, "NETWORK_RETRIES", 3)
+    server = FakeServer([("f.bin", b"1" * 100)], 50)
+    server.request = lambda *a, **k: (_ for _ in ()).throw(cd.requests.ConnectionError("refused"))
+    downloader, _ = make(server, tmp_path)
+    with pytest.raises(cd.ChunkedDownloadError):
+        downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_job_stopped_by_a_server_restart_is_resumed_by_the_player(tmp_path):
+    data = bytes(range(100)) * 600
+    server = FakeServer([("f.bin", data)], 20_000)
+    original_manifest = server.manifest
+    state = {"restarted": False, "posts": 0}
+
+    def manifest():
+        m = original_manifest()
+        if not state["restarted"] and server.polls >= 2:
+            m.update(status="failed", error="server_restarted", ready_count=0)
+            for p in m["pieces"]:
+                p["ready"], p["sha256"] = False, ""
+        return m
+
+    real_request = server.request
+
+    def request(method, url, **kw):
+        if method == "POST":
+            state["posts"] += 1
+            state["restarted"] = state["posts"] >= 2
+        return real_request(method, url, **kw)
+
+    server.manifest, server.request = manifest, request
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data and state["posts"] == 2

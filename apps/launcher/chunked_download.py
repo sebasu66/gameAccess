@@ -24,6 +24,10 @@ POLL_SECONDS = 2.0
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
 STREAM_CHUNK = 1 << 20
+NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
+NETWORK_RETRY_SECONDS = 3.0
+MAX_RESUMES = 3                  # times the player asks the server to resume a job that stopped
+RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", ""}
 
 
 class ChunkedDownloadUnavailable(Exception):
@@ -67,12 +71,24 @@ class ChunkedDownloader:
         return {"Authorization": f"Bearer {self.session.token}", "X-GameAccess-Installation": self.session.installation}
 
     def _call(self, method: str, path: str, **kwargs: Any) -> Any:
-        response = self.http.request(method, f"{self.session.api}{path}", headers=self._headers(), timeout=30, **kwargs)
-        if response.status_code in (401, 402, 403, 404, 422):
-            raise ChunkedDownloadUnavailable(f"el servidor respondió {response.status_code}")
-        if response.status_code >= 400:
-            raise ChunkedDownloadError(f"el servidor respondió {response.status_code}")
-        return response.json()
+        """One server call; a lost connection (server restarting, network blip) is waited out."""
+        for attempt in range(1, NETWORK_RETRIES + 1):
+            try:
+                response = self.http.request(method, f"{self.session.api}{path}", headers=self._headers(), timeout=30, **kwargs)
+            except requests.RequestException as exc:
+                if attempt == NETWORK_RETRIES or self.context.cancelled.is_set():
+                    raise ChunkedDownloadError(f"no se pudo conectar con el servidor: {type(exc).__name__}") from exc
+                self.sleep(NETWORK_RETRY_SECONDS)
+                continue
+            if response.status_code in (401, 402, 403, 404, 422):
+                raise ChunkedDownloadUnavailable(f"el servidor respondió {response.status_code}")
+            if response.status_code >= 500 and attempt < NETWORK_RETRIES and not self.context.cancelled.is_set():
+                self.sleep(NETWORK_RETRY_SECONDS)
+                continue
+            if response.status_code >= 400:
+                raise ChunkedDownloadError(f"el servidor respondió {response.status_code}")
+            return response.json()
+        raise ChunkedDownloadError("el servidor no respondió")
 
     def start(self, source_url: str, item_name: str, file_name: str = "") -> dict:
         return self._call("POST", "/downloads/viking-chunks", json={
@@ -102,12 +118,19 @@ class ChunkedDownloader:
         files_ready = False
         paths: dict[int, Path] = {}
         created: list[Path] = []
+        resumes = 0
         finished = False
         try:
             while not context.cancelled.is_set():
                 context.wait_if_paused()
                 manifest = self.manifest(job_id)
-                if manifest["status"] == "failed" and manifest["ready_count"] <= len(done):
+                if manifest["status"] == "failed" and not any(p["ready"] and p["index"] not in done for p in manifest["pieces"]):
+                    # Nothing left to download from a stopped job: ask the server to resume it when that makes sense.
+                    if resumes < MAX_RESUMES and (manifest.get("error") or "") in RESUMABLE_ERRORS:
+                        resumes += 1
+                        self.start(source_url, item_name)
+                        self.sleep(POLL_SECONDS)
+                        continue
                     raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga ({manifest.get('error') or 'error'})")
                 if not manifest["pieces"]:
                     # TorBox is still preparing the source; nothing to download yet.
