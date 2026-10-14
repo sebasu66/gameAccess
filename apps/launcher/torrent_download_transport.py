@@ -4,6 +4,14 @@ import os
 import time
 import requests
 
+# libtorrent reports these as errors, but they only mean a peer hung up or the router has no UPnP.
+_LIBTORRENT_NOISE = ("UDP error:", "could not map port", "no router found")
+
+
+def is_libtorrent_noise(message: str) -> bool:
+    return any(marker in message for marker in _LIBTORRENT_NOISE)
+
+
 class TorrentDownloadTransport:
     def __init__(self, context):
         self.context = context
@@ -111,6 +119,8 @@ class TorrentDownloadTransport:
                     # and not errors; real failures are reported once metadata times out.
                     if "(udp://" in message or "(http://" in message or "(https://" in message:
                         context.logger.debug(f"[Libtorrent Tracker] {message}")
+                    elif is_libtorrent_noise(message):
+                        context.logger.debug(f"[Libtorrent Noise] {message}")
                     else:
                         context.logger.error(f"[Libtorrent Error] {message}")
                 elif alert.category() & lt.alert.category_t.status_notification:
