@@ -203,7 +203,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   return <section ref={rootRef} className="library-section" aria-label={section.title}>
     <header className="library-section-heading">
       <div>
-        <h2>{section.title} <small>{section.games.length}</small></h2>
+        <h2>{section.title} <small>{section.total ?? section.games.length}</small></h2>
         {section.description ? <span>{section.description}</span> : section.id === "installed" ? <span>Últimos jugados primero</span> : null}
       </div>
     </header>

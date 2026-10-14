@@ -1,8 +1,9 @@
-﻿import { useLibraryDownloads } from "./useLibraryDownloads";
+import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
+import { useCatalogQuery } from "./useCatalogQuery";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -123,26 +124,68 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   }, [bigScreen]);
 
 
+  const isCatalog = libraryView === "catalog";
+  const activeQuery = (searchValue || searchQuery || "").trim();
+  const catalogQuery = useCatalogQuery({
+    query: activeQuery,
+    genres: searchFilters.genres?.length ? searchFilters.genres : undefined,
+    features: searchFilters.features?.length ? searchFilters.features : undefined,
+    sources: searchFilters.sources?.length ? searchFilters.sources : undefined,
+    sort_by: catalogSort,
+    sort_direction: catalogSort === "name" ? "asc" : "desc",
+    min_rating: searchFilters.minReviewScore,
+    max_age_days: searchFilters.maxAgeDays,
+    include_recent_unrated: searchFilters.spareUnprovenGames,
+    limit: 1000,
+    enabled: isCatalog,
+  });
+
   const history = usePlayHistory();
   const members = useLibraryGames();
   const libraryIds = useMemo(() => new Set(members.map(game => game.app_id ?? game.id)), [members]);
   const hasInstalledGames = useMemo(() => games.some(game => { const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : undefined); return state.installed || state.prepared; }), [games, effectiveDownloads]);
   const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
-  const searchedGames = useMemo(() => {
-    const filtered = filterLibraryGames(games, searchQuery, searchFilters);
-    // Likes and dislikes only teach recommendations; they never change the order of what is listed.
-    return filtered;
-  }, [games, searchQuery, searchFilters]);
-  const catalogCollection = useMemo(
-    () => buildLibraryCollection(downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds), effectiveDownloads, preferences, history, libraryView, catalogSort, libraryIds),
-    [searchedGames, effectiveDownloads, trackedAppIds, preferences, history, libraryView, catalogSort, libraryIds],
-  );
+  const catalogCollection = useMemo(() => {
+    if (libraryView === "catalog") {
+      const sourceItems = catalogQuery.items.length > 0 ? catalogQuery.items : games;
+      const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
+      const titles: Record<CatalogSort, string> = {
+        "release-date": "Catálogo · lanzamientos recientes",
+        "steam-popularity": "Catálogo · popularidad en Steam",
+        "steam-review-score": "Catálogo · puntuación de Steam",
+        "name": "Catálogo · A–Z",
+      };
+      const descriptions: Record<CatalogSort, string> = {
+        "release-date": "Todos los juegos ordenados por fecha de lanzamiento, del más reciente al más antiguo.",
+        "steam-popularity": "Todos los juegos ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas).",
+        "steam-review-score": "Todos los juegos ordenados por puntuación de reseñas de Steam.",
+        "name": "Todos los juegos disponibles, ordenados alfabéticamente.",
+      };
+      return {
+        id: "catalog" as const,
+        title: titles[catalogSort] ?? "Catálogo",
+        description: descriptions[catalogSort],
+        games: items,
+        total: catalogQuery.items.length > 0 ? catalogQuery.total : (games.length || catalogQuery.total),
+      };
+    }
+    const nonCatalogGames = filterLibraryGames(games, activeQuery, searchFilters);
+    return buildLibraryCollection(
+      downloadManager.pinGames(nonCatalogGames, effectiveDownloads, trackedAppIds),
+      effectiveDownloads,
+      preferences,
+      history,
+      libraryView,
+      catalogSort,
+      libraryIds,
+    );
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogSort, games, activeQuery, searchFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
   // Downloads may refer to games outside the current search, collection or catalog.
   const selectedGame = externalDetailGame
-    ? games.find(game => game.id === externalDetailGame.id) ?? externalDetailGame
+    ? games.find(game => game.id === externalDetailGame.id) ?? displayGames.find(game => game.id === externalDetailGame.id) ?? externalDetailGame
     : selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id ?? selectedGame?.id;
@@ -594,7 +637,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
-      {games.length > 0 || externalDetailGame ? (
+      {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}
           {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
@@ -608,7 +651,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? (catalogQuery.items.length > 0 ? catalogQuery.total : (games.length || catalogQuery.total)) : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

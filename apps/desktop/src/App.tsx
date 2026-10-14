@@ -17,7 +17,7 @@ import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search
 import { loadHome } from "./api";
 import { useCoverDiagnostics } from "./SteamCover";
 import { useCatalogSources } from "./useCatalogSources";
-import { INITIAL_LIBRARY_FILTERS } from "./librarySearch";
+import { INITIAL_CATALOG_FILTERS } from "./librarySearch";
 import { HERO_AUTOPLAY } from "./featureModes";
 import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
@@ -100,7 +100,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   }, []);
 
   const [query, setQuery] = useState("");
-  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_LIBRARY_FILTERS }));
+  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -264,20 +264,36 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("es");
-    if (!needle) return games;
-    return games.filter((game) => game.name.toLocaleLowerCase("es").includes(needle));
-  }, [games, query]);
+  const relevantCatalogGames = useMemo(() => {
+    const activeAppIds = new Set([
+      ...Object.keys(downloads).map(Number),
+      ...Object.keys(preferences).map(Number),
+      ...recentIds,
+    ]);
+    return games.filter(g => activeAppIds.has(g.id) || (g.app_id != null && activeAppIds.has(g.app_id)));
+  }, [games, downloads, preferences, recentIds]);
+
+  const orderedLibrary = useMemo(() => {
+    const order = new Map(recentIds.map((id, index) => [id, index]));
+    const rank = (game: CatalogGame) => {
+      if (preferences[game.id] === -1) return 2;
+      const status = game.app_id ? downloads[game.app_id] : undefined;
+      if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
+      return 1;
+    };
+    const combined = new Map([...libraryGames, ...relevantCatalogGames].map(game => [game.app_id ?? game.id, game]));
+    return [...combined.values()].sort((left, right) => {
+      const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
+      const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
+      if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
+      return left.name.localeCompare(right.name, "es");
+    });
+  }, [libraryGames, relevantCatalogGames, recentIds, preferences, downloads]);
 
   const heroPool = useMemo(() => {
-    const base = filtered.length ? filtered : games;
-    return [...base].sort((a, b) => {
-      const ra = detailsById[a.id]?.steam?.recommendation_count ?? 0;
-      const rb = detailsById[b.id]?.steam?.recommendation_count ?? 0;
-      return rb - ra || b.copies_available - a.copies_available;
-    }).slice(0, 6);
-  }, [filtered, games, detailsById]);
+    const base = orderedLibrary.length ? orderedLibrary : games.slice(0, 30);
+    return [...base].slice(0, 6);
+  }, [orderedLibrary, games]);
 
   useEffect(() => {
     if (heroIndex >= heroPool.length) setHeroIndex(0);
@@ -293,26 +309,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
 
   const continueGames = useMemo(() => {
-    const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
-    return recent.length ? recent.slice(0, 8) : filtered.filter((game) => game.copies_available > 0).slice(0, 4);
-  }, [recentIds, filtered]);
-
-  const orderedLibrary = useMemo(() => {
-    const order = new Map(recentIds.map((id, index) => [id, index]));
-    const rank = (game: CatalogGame) => {
-      if (preferences[game.id] === -1) return 2;
-      const status = game.app_id ? downloads[game.app_id] : undefined;
-      if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
-      return 1;
-    };
-    const combined = new Map([...libraryGames, ...games].map(game => [game.app_id ?? game.id, game]));
-    return [...combined.values()].sort((left, right) => {
-      const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
-      const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
-      if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
-      return left.name.localeCompare(right.name, "es");
-    });
-  }, [games, libraryGames, recentIds, preferences, downloads]);
+    const recent = recentIds.map((id) => orderedLibrary.find((game) => game.id === id) || games.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
+    return recent.length ? recent.slice(0, 8) : orderedLibrary.filter((game) => game.copies_available > 0).slice(0, 4);
+  }, [recentIds, orderedLibrary, games]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -415,13 +414,19 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     observer.observe(catalog);
     return () => observer.disconnect();
   }, [magazineGames.length]);
-  const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
+  const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || orderedLibrary[0] || games[0];
   const heroDetails = featured ? detailsById[featured.id] : undefined;
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
   const featuredPlayReady = gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)]);
 
-  const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
-  const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
+  const newGames = useMemo(() => {
+    const base = games.slice(0, 30);
+    return [...base].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10);
+  }, [games, detailsById]);
+  const suggestedGames = useMemo(() => {
+    const base = games.slice(0, 30);
+    return [...base].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12);
+  }, [games, detailsById, preferences]);
 
   const openGame = (game: CatalogGame) => {
     void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });

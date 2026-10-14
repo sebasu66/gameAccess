@@ -60,6 +60,7 @@ body:has(.app-shell) .ga-access-brand{display:none}
 .library-catalog-toolbar .global-search-box>svg{position:absolute;left:26px;top:50%;transform:translateY(-50%);pointer-events:none}
 .library-catalog-toolbar .global-search-box>button{position:absolute;right:23px;top:50%;transform:translateY(-50%);width:28px;height:28px;padding:0;display:grid;place-items:center}
 .ga-search-results{display:block;text-align:center;color:#a5a7ad;font:600 11px Manrope,"Segoe UI",sans-serif;white-space:nowrap;line-height:16px;min-height:16px}
+.ga-catalog-capped-hint{font:600 11px Manrope,"Segoe UI",sans-serif;color:#ffb15c;text-align:center;margin:2px 0 0;line-height:1.4}
 .library-catalog-tabs{margin-top:4px}
 /* Compact footer information; normal backgrounds on its text/icon controls. */
 .ga-footer-left{position:absolute;left:16px;display:flex;align-items:center;gap:18px}

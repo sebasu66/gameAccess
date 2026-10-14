@@ -1,4 +1,4 @@
-﻿import FilledIcon from "./FilledIcon";
+import FilledIcon from "./FilledIcon";
 import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
@@ -128,6 +128,8 @@ interface DownloadCatalogPanelProps {
   hasInstalled?: boolean;
   hasFavorites?: boolean;
   catalogUnavailable?: boolean;
+  catalogTotal?: number;
+  catalogLoading?: boolean;
   downloads: DownloadMap;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
@@ -143,11 +145,11 @@ type OpenContextMenu = ContextMenuRequest | null;
 
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const { locale } = useI18n();
-  const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games };
+  const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games, total: props.catalogTotal };
   const view = props.view ?? "catalog";
   const displaySection = props.catalogUnavailable && view === "catalog"
-    ? { ...section, emptyMessage: "En este momento no pudimos conectarnos con el servicio de GameAccess para recuperar la lista de juegos." }
-    : section;
+    ? { ...section, total: props.catalogTotal ?? section.total, emptyMessage: "En este momento no pudimos conectarnos con el servicio de GameAccess para recuperar la lista de juegos." }
+    : { ...section, total: props.catalogTotal ?? section.total };
   const onViewChange = props.onViewChange ?? (() => undefined);
   const catalogSort = props.catalogSort ?? "steam-popularity";
   const onCatalogSortChange = props.onCatalogSortChange ?? (() => undefined);
@@ -312,9 +314,29 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
-        <div className="ga-search-dock"><SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <div className="ga-search-meta"><output className="ga-search-results" aria-live="polite">{displaySection.games.length} {locale === "es" ? "juegos" : "games"} / {favoritesCount} {locale === "es" ? "favoritos" : "favorites"}</output>
-          <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label></div></div>
+        <div className="ga-search-dock">
+          <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
+          {view === "catalog" && props.catalogTotal !== undefined && props.catalogTotal > 1000 ? (
+            <p className="ga-catalog-capped-hint">
+              {locale === "es"
+                ? "Más de 1000 resultados: mostrando los primeros 1000. Afiná la búsqueda."
+                : "Over 1,000 results: showing the first 1,000. Refine your search."}
+            </p>
+          ) : null}
+          <div className="ga-search-meta">
+            <output className="ga-search-results" aria-live="polite">
+              {view === "catalog" && props.catalogTotal !== undefined
+                ? `${props.catalogTotal.toLocaleString(locale === "es" ? "es-AR" : "en-US")} ${
+                    locale === "es"
+                      ? (searchQuery.trim() ? "resultados" : "juegos en el catálogo")
+                      : (searchQuery.trim() ? "results" : "games in catalog")
+                  }`
+                : `${displaySection.games.length} ${locale === "es" ? "juegos" : "games"}`
+              } / {favoritesCount} {locale === "es" ? "favoritos" : "favorites"}
+            </output>
+            <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
+          </div>
+        </div>
         <div className="library-catalog-tabs" role="tablist" aria-label="Colecciones de juegos">
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
           </div>

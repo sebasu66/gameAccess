@@ -1,6 +1,6 @@
-﻿import { ArrowUpDown, X } from "lucide-react";
+import { ArrowUpDown, X } from "lucide-react";
 import FilledIcon from "./FilledIcon";
-import { activeFilterTags, setCriterionState } from "./LibraryFilterDialog";
+import { activeFilterTags, setCriterionState, type FilterTagGroup } from "./LibraryFilterDialog";
 import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, hasNoActiveFilters, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogSort } from "./librarySections";
 import type { CatalogGame } from "./types";
@@ -29,8 +29,15 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   // all filtered away. Saying how many were hidden turns a dead end into an
   // explanation.
   const hidden = hasNoActiveFilters(filters) ? 0 : filterLibraryGamesDetailed(games, query, filters).hiddenCount;
-  const clearCriterion = (group: "genres" | "features" | "sources", value: string) =>
-    onFiltersChange(setCriterionState(filters, group, value, "off"));
+  const clearCriterion = (group: FilterTagGroup, value: string) => {
+    if (group === "rating") {
+      onFiltersChange({ ...filters, minReviewScore: undefined });
+    } else if (group === "age") {
+      onFiltersChange({ ...filters, maxAgeDays: undefined });
+    } else {
+      onFiltersChange(setCriterionState(filters, group, value, "off"));
+    }
+  };
   return (
     <div className="library-catalog-filter-actions">
       <button type="button" className="ga-filter-open" aria-haspopup="dialog" onClick={onOpenFilters}>

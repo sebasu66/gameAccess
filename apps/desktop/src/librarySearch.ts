@@ -77,6 +77,8 @@ export interface LibrarySearchFilters {
   /** Hide descriptor 2, "frequent violence or gore". Independent of hideAdult:
    *  an operator may screen violence without screening adult content. */
   hideViolenceDescriptor?: boolean;
+  /** Maximum age in days from release date (e.g. 365 for 1 year). */
+  maxAgeDays?: number;
 }
 
 /**
@@ -105,6 +107,12 @@ export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
   ...DEFAULT_LIBRARY_FILTERS,
   minReviewScore: DEFAULT_MIN_REVIEW_SCORE,
   spareUnprovenGames: true,
+};
+
+/** Default catalog filters: min rating 60 (>= 6) and max age 1 year (365 days). */
+export const INITIAL_CATALOG_FILTERS: LibrarySearchFilters = {
+  ...INITIAL_LIBRARY_FILTERS,
+  maxAgeDays: 365,
 };
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [

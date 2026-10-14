@@ -7,7 +7,7 @@ export const SECTION_PAGE_SIZE = 40;
 export type SectionId = "installed" | "downloads" | "favorites" | "catalog";
 export type CatalogSort = "release-date" | "steam-popularity" | "steam-review-score" | "name";
 export type LibraryView = "library" | "catalog" | "latest" | "popular" | "top" | "installed" | "favorites";
-export interface LibrarySection { id: SectionId; title: string; description?: string; emptyMessage?: string; games: CatalogGame[] }
+export interface LibrarySection { id: SectionId; title: string; description?: string; emptyMessage?: string; games: CatalogGame[]; total?: number; }
 const titleOrder = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
 
 /**

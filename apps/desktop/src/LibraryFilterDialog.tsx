@@ -138,8 +138,17 @@ function tagLabel(group: GroupKey, value: string): string {
   return group === "genres" ? genreLabel(value) : value;
 }
 
-export function activeFilterTags(filters: LibrarySearchFilters): { group: GroupKey; value: string; label: string; direction: TriState }[] {
-  const entries: { group: GroupKey; value: string; label: string; direction: TriState }[] = [];
+export type FilterTagGroup = GroupKey | "rating" | "age";
+
+export function activeFilterTags(filters: LibrarySearchFilters): { group: FilterTagGroup; value: string; label: string; direction: TriState }[] {
+  const entries: { group: FilterTagGroup; value: string; label: string; direction: TriState }[] = [];
+  if (filters.minReviewScore !== undefined) {
+    entries.push({ group: "rating", value: "rating", label: `Rating ≥ ${Math.round(filters.minReviewScore / 10)}`, direction: "include" });
+  }
+  if (filters.maxAgeDays !== undefined) {
+    const years = Math.round(filters.maxAgeDays / 365);
+    entries.push({ group: "age", value: "age", label: years === 1 ? "Último año" : `≤ ${years} años`, direction: "include" });
+  }
   for (const group of Object.keys(GROUPS) as GroupKey[]) {
     const pair = GROUPS[group];
     for (const value of (filters[pair.include] ?? []) as string[]) {

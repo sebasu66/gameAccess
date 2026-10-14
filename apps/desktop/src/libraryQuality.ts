@@ -150,7 +150,8 @@ export function hasQualityFilters(filters: LibrarySearchFilters): boolean {
   return Boolean(
     filters.hideAdult || filters.hideViolenceDescriptor
     || filters.minReviewScore !== undefined
-    || filters.releaseYearFrom !== undefined || filters.releaseYearTo !== undefined,
+    || filters.releaseYearFrom !== undefined || filters.releaseYearTo !== undefined
+    || filters.maxAgeDays !== undefined,
   );
 }
 
@@ -190,6 +191,12 @@ function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters, no
       if (isUnproven(game, now)) return true;
     }
     if (typeof score !== "number" || score < filters.minReviewScore) return false;
+  }
+  if (filters.maxAgeDays !== undefined) {
+    const released = parseReleaseDate(game.release_date);
+    if (!released) return false;
+    const ageDays = (now - released.getTime()) / 86400000;
+    if (ageDays > filters.maxAgeDays) return false;
   }
   if (filters.releaseYearFrom === undefined && filters.releaseYearTo === undefined) return true;
   const year = releaseYear(game);
