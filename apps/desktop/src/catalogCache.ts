@@ -63,6 +63,9 @@ export interface CatalogQueryParams {
   sort_direction?: "asc" | "desc";
   limit?: number;
   offset?: number;
+  min_rating?: number;
+  max_age_days?: number;
+  include_recent_unrated?: boolean;
 }
 
 export interface CatalogQueryResult {

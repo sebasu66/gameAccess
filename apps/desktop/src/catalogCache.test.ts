@@ -32,6 +32,26 @@ describe("catalogCache IPC queries", () => {
     expect(result.total).toBe(1);
   });
 
+  it("forwards rating and age filter params to queryCatalogCache", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ items: [], total: 0 });
+
+    await queryCatalogCache({
+      min_rating: 70,
+      max_age_days: 365,
+      include_recent_unrated: true,
+      limit: 100,
+    });
+
+    expect(invoke).toHaveBeenCalledWith("catalog_cache_query", {
+      params: {
+        min_rating: 70,
+        max_age_days: 365,
+        include_recent_unrated: true,
+        limit: 100,
+      },
+    });
+  });
+
   it("forwards language to readCatalogCache and queryCatalogCache", async () => {
     vi.mocked(invoke).mockResolvedValueOnce([]);
     await readCatalogCache("spanish");

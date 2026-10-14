@@ -1,7 +1,7 @@
 use flate2::read::GzDecoder;
 use reqwest::blocking::Client;
 use reqwest::header::{ACCEPT, CACHE_CONTROL, USER_AGENT};
-use rusqlite::{params, params_from_iter, Connection, ToSql};
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, Connection, ToSql};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -322,6 +322,7 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
 fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
                 manifest: &CatalogManifest) -> Result<usize, String> {
     let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
+    ensure_normalized_schema(&conn)?;
     let tx = conn.transaction().map_err(|e|e.to_string())?;
     let mut ids = std::collections::HashMap::new();
     // Games whose payload changed, so their normalized rows can be refilled from
@@ -727,7 +728,7 @@ pub async fn catalog_cache_store_detail(
     .map_err(|err| format!("Catalog detail cache write task failed: {err}"))?
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct CatalogQueryParams {
     pub query: Option<String>,
     pub genres: Option<Vec<String>>,
@@ -739,6 +740,9 @@ pub struct CatalogQueryParams {
     pub sort_direction: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    pub min_rating: Option<f32>,
+    pub max_age_days: Option<i64>,
+    pub include_recent_unrated: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -756,6 +760,47 @@ pub struct TempSourceItem {
 #[derive(Debug, Serialize)]
 pub struct CatalogFacetsResult {
     pub genres: Vec<String>,
+}
+
+pub fn normalize_release_date(raw: &str) -> Option<String> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if s.len() >= 10 {
+        let b = s.as_bytes();
+        if b[0].is_ascii_digit() && b[1].is_ascii_digit() && b[2].is_ascii_digit() && b[3].is_ascii_digit()
+            && b[4] == b'-' && b[5].is_ascii_digit() && b[6].is_ascii_digit()
+            && b[7] == b'-' && b[8].is_ascii_digit() && b[9].is_ascii_digit()
+        {
+            return Some(s[..10].to_string());
+        }
+    }
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() == 3 {
+        if let (Ok(day), Ok(year)) = (parts[0].parse::<u32>(), parts[2].parse::<i32>()) {
+            let mon_str = parts[1].to_lowercase();
+            let month = match mon_str.chars().take(3).collect::<String>().as_str() {
+                "ene" | "jan" => Some(1),
+                "feb" | "fev" => Some(2),
+                "mar" => Some(3),
+                "abr" | "apr" => Some(4),
+                "may" | "mai" => Some(5),
+                "jun" => Some(6),
+                "jul" => Some(7),
+                "ago" | "aug" => Some(8),
+                "sep" | "set" => Some(9),
+                "oct" | "out" => Some(10),
+                "nov" => Some(11),
+                "dic" | "dec" | "dez" => Some(12),
+                _ => None,
+            };
+            if let Some(m) = month {
+                return Some(format!("{:04}-{:02}-{:02}", year, m, day));
+            }
+        }
+    }
+    None
 }
 
 pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
@@ -893,8 +938,10 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
                         let steam_url = g.get("steam_url").and_then(Value::as_str);
                         let short_desc = g.get("short_description").and_then(Value::as_str);
 
+                        let norm_date = rel_date.and_then(normalize_release_date);
+                        let rel_date_ref = norm_date.as_deref().or(rel_date);
                         let _ = ins_meta.execute(params![
-                            gid, rel_date, rec_count, rev_score, rev_count, meta_score,
+                            gid, rel_date_ref, rec_count, rev_score, rev_count, meta_score,
                             sp, mp, coop, o_coop, l_coop, split, mmo, pvp, pve, lan, cross,
                             header, capsule, hero, steam_url, short_desc
                         ]);
@@ -1040,174 +1087,212 @@ pub async fn catalog_cache_get_facets() -> Result<CatalogFacetsResult, String> {
     .map_err(|err| format!("Catalog facets task failed: {err}"))?
 }
 
+pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Result<CatalogQueryResult, String> {
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut sql_params: Vec<SqlValue> = Vec::new();
+
+    if let Some(ref q) = params.query {
+        let trimmed = q.trim();
+        if !trimmed.is_empty() {
+            for word in trimmed.split_whitespace() {
+                let p_idx = sql_params.len() + 1;
+                where_clauses.push(format!(
+                    "(g.name LIKE ?{0} OR EXISTS (SELECT 1 FROM game_tag gt WHERE gt.game_id = g.id AND gt.name LIKE ?{0}))",
+                    p_idx
+                ));
+                sql_params.push(SqlValue::Text(format!("%{}%", word)));
+            }
+        }
+    }
+
+    if let Some(ref genres) = params.genres {
+        if !genres.is_empty() {
+            let mut genre_placeholders = Vec::new();
+            for g in genres {
+                let p_idx = sql_params.len() + 1;
+                genre_placeholders.push(format!("?{}", p_idx));
+                sql_params.push(SqlValue::Text(g.clone()));
+            }
+            where_clauses.push(format!(
+                "EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({}))",
+                genre_placeholders.join(",")
+            ));
+        }
+    }
+
+    if let Some(ref features) = params.features {
+        for feat in features {
+            match feat.as_str() {
+                "has_downloads" => {
+                    where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
+                }
+                "single_player" => where_clauses.push("m.single_player = 1".to_string()),
+                "multiplayer" => where_clauses.push("m.multiplayer = 1".to_string()),
+                "coop" => where_clauses.push("m.coop = 1".to_string()),
+                "online_coop" => where_clauses.push("m.online_coop = 1".to_string()),
+                "local_coop" => where_clauses.push("m.local_coop = 1".to_string()),
+                "shared_split_screen" => where_clauses.push("m.shared_split_screen = 1".to_string()),
+                "mmo" => where_clauses.push("m.mmo = 1".to_string()),
+                "pvp" => where_clauses.push("m.pvp = 1".to_string()),
+                "pve" => where_clauses.push("m.pve = 1".to_string()),
+                "lan" => where_clauses.push("m.lan = 1".to_string()),
+                "cross_platform" => where_clauses.push("m.cross_platform = 1".to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    if params.has_downloads == Some(true) {
+        where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
+    }
+
+    if let Some(ref sources) = params.sources {
+        if !sources.is_empty() {
+            let mut source_placeholders = Vec::new();
+            for s in sources {
+                let p_idx = sql_params.len() + 1;
+                source_placeholders.push(format!("?{}", p_idx));
+                sql_params.push(SqlValue::Text(s.clone()));
+            }
+            where_clauses.push(format!(
+                "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))",
+                source_placeholders.join(",")
+            ));
+        }
+    }
+
+    if let Some(min_rating) = params.min_rating {
+        if min_rating > 0.0 {
+            let effective_min_score = if min_rating <= 10.0 {
+                (min_rating * 10.0) as f64
+            } else {
+                min_rating as f64
+            };
+            let include_unrated = params.include_recent_unrated.unwrap_or(true);
+            let p_idx = sql_params.len() + 1;
+            if include_unrated {
+                where_clauses.push(format!(
+                    "(m.steam_review_score >= ?{0} OR m.steam_review_score IS NULL OR COALESCE(m.steam_review_count, 0) < 10 OR (m.release_date IS NOT NULL AND (julianday('now') - julianday(m.release_date)) <= 30.0))",
+                    p_idx
+                ));
+            } else {
+                where_clauses.push(format!(
+                    "(m.steam_review_score IS NOT NULL AND m.steam_review_score >= ?{0})",
+                    p_idx
+                ));
+            }
+            sql_params.push(SqlValue::Real(effective_min_score));
+        }
+    }
+
+    if let Some(max_days) = params.max_age_days {
+        if max_days > 0 {
+            let p_idx = sql_params.len() + 1;
+            where_clauses.push(format!(
+                "(m.release_date IS NOT NULL AND (julianday('now') - julianday(m.release_date)) <= ?{0})",
+                p_idx
+            ));
+            sql_params.push(SqlValue::Real(max_days as f64));
+        }
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        "".to_string()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM game g LEFT JOIN game_metadata m ON m.game_id = g.id {}",
+        where_sql
+    );
+
+    let param_refs: Vec<&dyn ToSql> = sql_params.iter().map(|s| s as &dyn ToSql).collect();
+    let total: usize = conn.query_row(
+        &count_sql,
+        params_from_iter(param_refs.iter().copied()),
+        |r| r.get(0)
+    ).map_err(|e| format!("Count query failed: {e}; SQL: {count_sql}"))?;
+
+    let is_asc = params.sort_direction.as_deref().map(|d| d.eq_ignore_ascii_case("asc")).unwrap_or(false);
+    let dir = if is_asc { "ASC" } else { "DESC" };
+    let order_by = match params.sort_by.as_deref() {
+        Some("score") => format!("COALESCE(m.steam_review_score, 0) {}, COALESCE(m.recommendation_count, 0) DESC", dir),
+        Some("release_date") => format!("COALESCE(m.release_date, '') {}", dir),
+        Some("name") => format!("g.name COLLATE NOCASE {}", if is_asc { "ASC" } else { "DESC" }),
+        _ => format!("COALESCE(m.recommendation_count, 0) {}, g.id ASC", dir),
+    };
+
+    let raw_limit = params.limit.unwrap_or(60);
+    let limit = if raw_limit == 0 { 60 } else { raw_limit.min(1000) };
+    let offset = params.offset.unwrap_or(0);
+
+    let lang = params.language.as_deref().unwrap_or("spanish").to_lowercase();
+    let mut select_params = sql_params.clone();
+    let lang_idx = select_params.len() + 1;
+    select_params.push(SqlValue::Text(lang));
+
+    let select_sql = format!(
+        "SELECT g.id, g.app_id, cg.payload,
+                COALESCE((SELECT COUNT(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), 0) AS src_count,
+                COALESCE((SELECT json_group_array(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), '[]') AS src_names,
+                COALESCE(gd.short_description, gd_def.short_description, m.short_description) AS localized_short_desc
+         FROM game g
+         LEFT JOIN catalog_game cg ON cg.id = g.id
+         LEFT JOIN game_metadata m ON m.game_id = g.id
+         LEFT JOIN game_description gd ON gd.game_id = g.id AND lower(gd.language) = ?{lang_idx}
+         LEFT JOIN game_description gd_def ON gd_def.game_id = g.id AND lower(gd_def.language) = 'spanish'
+         {}
+         ORDER BY {}
+         LIMIT {} OFFSET {}",
+        where_sql, order_by, limit, offset
+    );
+
+    let select_param_refs: Vec<&dyn ToSql> = select_params.iter().map(|s| s as &dyn ToSql).collect();
+    let mut stmt = conn.prepare(&select_sql).map_err(|e| format!("Select prepare failed: {e}; SQL: {select_sql}"))?;
+    let rows = stmt.query_map(
+        params_from_iter(select_param_refs.iter().copied()),
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<i64>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+            ))
+        }
+    ).map_err(|e| format!("Select query failed: {e}"))?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        let (gid, app_id, payload_opt, src_count, src_names_json, localized_desc) = row.map_err(|e| e.to_string())?;
+        let mut val = if let Some(payload_str) = payload_opt {
+            serde_json::from_str::<Value>(&payload_str).unwrap_or_else(|_| serde_json::json!({ "id": gid, "app_id": app_id }))
+        } else {
+            serde_json::json!({ "id": gid, "app_id": app_id })
+        };
+        if let Value::Object(ref mut map) = val {
+            map.insert("has_downloads".to_string(), Value::Bool(src_count > 0));
+            map.insert("availableSourceCount".to_string(), Value::from(src_count));
+            let src_names: Value = serde_json::from_str(&src_names_json).unwrap_or(Value::Array(vec![]));
+            map.insert("download_source_names".to_string(), src_names);
+            if let Some(desc) = localized_desc {
+                if !desc.trim().is_empty() {
+                    map.insert("short_description".to_string(), Value::String(desc));
+                }
+            }
+        }
+        items.push(val);
+    }
+
+    Ok(CatalogQueryResult { items, total })
+}
+
 #[tauri::command]
 pub async fn catalog_cache_query(params: CatalogQueryParams) -> Result<CatalogQueryResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        with_catalog_conn(|conn| {
-            let mut where_clauses: Vec<String> = Vec::new();
-            let mut string_params: Vec<String> = Vec::new();
-
-            if let Some(ref q) = params.query {
-                let trimmed = q.trim();
-                if !trimmed.is_empty() {
-                    for word in trimmed.split_whitespace() {
-                        let p_idx = string_params.len() + 1;
-                        where_clauses.push(format!(
-                            "(g.name LIKE ?{0} OR EXISTS (SELECT 1 FROM game_tag gt WHERE gt.game_id = g.id AND gt.name LIKE ?{0}))",
-                            p_idx
-                        ));
-                        string_params.push(format!("%{}%", word));
-                    }
-                }
-            }
-
-            if let Some(ref genres) = params.genres {
-                if !genres.is_empty() {
-                    let mut genre_placeholders = Vec::new();
-                    for g in genres {
-                        let p_idx = string_params.len() + 1;
-                        genre_placeholders.push(format!("?{}", p_idx));
-                        string_params.push(g.clone());
-                    }
-                    where_clauses.push(format!(
-                        "EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({}))",
-                        genre_placeholders.join(",")
-                    ));
-                }
-            }
-
-            if let Some(ref features) = params.features {
-                for feat in features {
-                    match feat.as_str() {
-                        "has_downloads" => {
-                            where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
-                        }
-                        "single_player" => where_clauses.push("m.single_player = 1".to_string()),
-                        "multiplayer" => where_clauses.push("m.multiplayer = 1".to_string()),
-                        "coop" => where_clauses.push("m.coop = 1".to_string()),
-                        "online_coop" => where_clauses.push("m.online_coop = 1".to_string()),
-                        "local_coop" => where_clauses.push("m.local_coop = 1".to_string()),
-                        "shared_split_screen" => where_clauses.push("m.shared_split_screen = 1".to_string()),
-                        "mmo" => where_clauses.push("m.mmo = 1".to_string()),
-                        "pvp" => where_clauses.push("m.pvp = 1".to_string()),
-                        "pve" => where_clauses.push("m.pve = 1".to_string()),
-                        "lan" => where_clauses.push("m.lan = 1".to_string()),
-                        "cross_platform" => where_clauses.push("m.cross_platform = 1".to_string()),
-                        _ => {}
-                    }
-                }
-            }
-
-            if params.has_downloads == Some(true) {
-                where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
-            }
-
-            if let Some(ref sources) = params.sources {
-                if !sources.is_empty() {
-                    let mut source_placeholders = Vec::new();
-                    for s in sources {
-                        let p_idx = string_params.len() + 1;
-                        source_placeholders.push(format!("?{}", p_idx));
-                        string_params.push(s.clone());
-                    }
-                    where_clauses.push(format!(
-                        "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))",
-                        source_placeholders.join(",")
-                    ));
-                }
-            }
-
-            let where_sql = if where_clauses.is_empty() {
-                "".to_string()
-            } else {
-                format!("WHERE {}", where_clauses.join(" AND "))
-            };
-
-            let count_sql = format!(
-                "SELECT COUNT(*) FROM game g LEFT JOIN game_metadata m ON m.game_id = g.id {}",
-                where_sql
-            );
-
-            let param_refs: Vec<&dyn ToSql> = string_params.iter().map(|s| s as &dyn ToSql).collect();
-            let total: usize = conn.query_row(
-                &count_sql,
-                params_from_iter(param_refs.iter().copied()),
-                |r| r.get(0)
-            ).map_err(|e| format!("Count query failed: {e}; SQL: {count_sql}"))?;
-
-            let is_asc = params.sort_direction.as_deref().map(|d| d.eq_ignore_ascii_case("asc")).unwrap_or(false);
-            let dir = if is_asc { "ASC" } else { "DESC" };
-            let order_by = match params.sort_by.as_deref() {
-                Some("score") => format!("COALESCE(m.steam_review_score, 0) {}, COALESCE(m.recommendation_count, 0) DESC", dir),
-                Some("release_date") => format!("COALESCE(m.release_date, '') {}", dir),
-                Some("name") => format!("g.name COLLATE NOCASE {}", if is_asc { "ASC" } else { "DESC" }),
-                _ => format!("COALESCE(m.recommendation_count, 0) {}, g.id ASC", dir),
-            };
-
-            let limit = params.limit.unwrap_or(60);
-            let offset = params.offset.unwrap_or(0);
-
-            let lang = params.language.as_deref().unwrap_or("spanish").to_lowercase();
-            let mut select_params = string_params.clone();
-            let lang_idx = select_params.len() + 1;
-            select_params.push(lang);
-
-            let select_sql = format!(
-                "SELECT g.id, g.app_id, cg.payload,
-                        COALESCE((SELECT COUNT(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), 0) AS src_count,
-                        COALESCE((SELECT json_group_array(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), '[]') AS src_names,
-                        COALESCE(gd.short_description, gd_def.short_description, m.short_description) AS localized_short_desc
-                 FROM game g
-                 LEFT JOIN catalog_game cg ON cg.id = g.id
-                 LEFT JOIN game_metadata m ON m.game_id = g.id
-                 LEFT JOIN game_description gd ON gd.game_id = g.id AND lower(gd.language) = ?{lang_idx}
-                 LEFT JOIN game_description gd_def ON gd_def.game_id = g.id AND lower(gd_def.language) = 'spanish'
-                 {}
-                 ORDER BY {}
-                 LIMIT {} OFFSET {}",
-                where_sql, order_by, limit, offset
-            );
-
-            let select_param_refs: Vec<&dyn ToSql> = select_params.iter().map(|s| s as &dyn ToSql).collect();
-            let mut stmt = conn.prepare(&select_sql).map_err(|e| format!("Select prepare failed: {e}; SQL: {select_sql}"))?;
-            let rows = stmt.query_map(
-                params_from_iter(select_param_refs.iter().copied()),
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, Option<i64>>(1)?,
-                        row.get::<_, Option<String>>(2)?,
-                        row.get::<_, i64>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, Option<String>>(5)?,
-                    ))
-                }
-            ).map_err(|e| format!("Select query failed: {e}"))?;
-
-            let mut items = Vec::new();
-            for row in rows {
-                let (gid, app_id, payload_opt, src_count, src_names_json, localized_desc) = row.map_err(|e| e.to_string())?;
-                let mut val = if let Some(payload_str) = payload_opt {
-                    serde_json::from_str::<Value>(&payload_str).unwrap_or_else(|_| serde_json::json!({ "id": gid, "app_id": app_id }))
-                } else {
-                    serde_json::json!({ "id": gid, "app_id": app_id })
-                };
-                if let Value::Object(ref mut map) = val {
-                    map.insert("has_downloads".to_string(), Value::Bool(src_count > 0));
-                    map.insert("availableSourceCount".to_string(), Value::from(src_count));
-                    let src_names: Value = serde_json::from_str(&src_names_json).unwrap_or(Value::Array(vec![]));
-                    map.insert("download_source_names".to_string(), src_names);
-                    if let Some(desc) = localized_desc {
-                        if !desc.trim().is_empty() {
-                            map.insert("short_description".to_string(), Value::String(desc));
-                        }
-                    }
-                }
-                items.push(val);
-            }
-
-            Ok(CatalogQueryResult { items, total })
-        })
+        with_catalog_conn(|conn| query_catalog_conn(conn, &params))
     })
     .await
     .map_err(|err| format!("Catalog query task failed: {err}"))?
@@ -1381,6 +1466,148 @@ mod tests {
         assert_eq!(spanish_rows[1].1.as_deref(), Some("Solo español"));
 
         drop(stmt);
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_limit_hard_cap() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+        ").unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        {
+            let mut ins = tx.prepare("INSERT INTO catalog_game(id, app_id, payload) VALUES (?1, ?2, ?3)").unwrap();
+            for i in 1..=1050 {
+                let payload = format!(r#"{{"id":{i},"app_id":{i},"name":"Game {i}"}}"#);
+                ins.execute(params![i, i, payload]).unwrap();
+            }
+        }
+        tx.commit().unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            limit: Some(1500),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 1050, "Total should report the actual total count before limit");
+        assert_eq!(result.items.len(), 1000, "Items returned must be clamped to hard cap of 1000");
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_min_rating_strict() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 10, '{\"id\":1,\"app_id\":10,\"name\":\"G1\",\"steam_review_score\":90,\"steam_review_count\":100}');
+            INSERT INTO catalog_game VALUES(2, 20, '{\"id\":2,\"app_id\":20,\"name\":\"G2\",\"steam_review_score\":50,\"steam_review_count\":100}');
+            INSERT INTO catalog_game VALUES(3, 30, '{\"id\":3,\"app_id\":30,\"name\":\"G3\"}');
+            INSERT INTO catalog_game VALUES(4, 40, '{\"id\":4,\"app_id\":40,\"name\":\"G4\",\"steam_review_score\":40,\"steam_review_count\":2}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            min_rating: Some(6.0),
+            include_recent_unrated: Some(false),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 1, "Only game 1 should match strict min_rating >= 6.0 (score >= 60)");
+        assert_eq!(result.items[0]["id"], 1);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_include_recent_unrated() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+        ").unwrap();
+
+        // Game 1: high rating (80), old release (100 days ago) -> keep
+        // Game 2: low rating (40), 50 reviews, old release (100 days ago) -> exclude
+        // Game 3: unrated -> keep
+        // Game 4: low rating (30), few reviews (5), old release (100 days ago) -> keep
+        // Game 5: low rating (40), 50 reviews, recent release (5 days ago) -> keep
+        let old_date: String = conn.query_row("SELECT date('now', '-100 days')", [], |r| r.get(0)).unwrap();
+        let recent_date: String = conn.query_row("SELECT date('now', '-5 days')", [], |r| r.get(0)).unwrap();
+
+        conn.execute("INSERT INTO catalog_game VALUES(1, 10, ?1)", [format!(r#"{{"id":1,"app_id":10,"name":"G1","steam_review_score":80,"steam_review_count":50,"release_date":"{old_date}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(2, 20, ?1)", [format!(r#"{{"id":2,"app_id":20,"name":"G2","steam_review_score":40,"steam_review_count":50,"release_date":"{old_date}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(3, 30, ?1)", [format!(r#"{{"id":3,"app_id":30,"name":"G3","release_date":"{old_date}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(4, 40, ?1)", [format!(r#"{{"id":4,"app_id":40,"name":"G4","steam_review_score":30,"steam_review_count":5,"release_date":"{old_date}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(5, 50, ?1)", [format!(r#"{{"id":5,"app_id":50,"name":"G5","steam_review_score":40,"steam_review_count":50,"release_date":"{recent_date}"}}"#)]).unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            min_rating: Some(6.0),
+            include_recent_unrated: Some(true),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 4, "Games 1, 3, 4, 5 should match. Game 2 (established low score) excluded");
+        let matched_ids: Vec<i64> = result.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+        assert!(matched_ids.contains(&1));
+        assert!(!matched_ids.contains(&2));
+        assert!(matched_ids.contains(&3));
+        assert!(matched_ids.contains(&4));
+        assert!(matched_ids.contains(&5));
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_max_age_days() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+        ").unwrap();
+
+        let date_10d: String = conn.query_row("SELECT date('now', '-10 days')", [], |r| r.get(0)).unwrap();
+        let date_200d: String = conn.query_row("SELECT date('now', '-200 days')", [], |r| r.get(0)).unwrap();
+        let date_400d: String = conn.query_row("SELECT date('now', '-400 days')", [], |r| r.get(0)).unwrap();
+
+        conn.execute("INSERT INTO catalog_game VALUES(1, 10, ?1)", [format!(r#"{{"id":1,"app_id":10,"name":"G1","release_date":"{date_10d}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(2, 20, ?1)", [format!(r#"{{"id":2,"app_id":20,"name":"G2","release_date":"{date_200d}"}}"#)]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(3, 30, ?1)", [format!(r#"{{"id":3,"app_id":30,"name":"G3","release_date":"{date_400d}"}}"#)]).unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            max_age_days: Some(365),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 2, "Games released within 365 days should match");
+        let matched_ids: Vec<i64> = result.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+        assert!(matched_ids.contains(&1));
+        assert!(matched_ids.contains(&2));
+        assert!(!matched_ids.contains(&3));
+
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
     }

@@ -388,7 +388,7 @@ mod digital_controls_tests {
         assert!(ready, "Local fixture HTTP server did not start");
         let app_id = 987654321;
         access_policy::grant_fixture();
-        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, None, "".into(), None, Some(true), None)).unwrap();
+        tauri::async_runtime::block_on(start_digital_download(app_id, "HTTP smoke fixture".into(), url, None, "".into(), None, None, Some(true), None)).unwrap();
         wait_status(app_id, |s| s["phase"] == "downloading" && s["bytesDownloaded"].as_u64().unwrap_or(0) > 65536);
         let paused = tauri::async_runtime::block_on(control_digital_download(app_id, "pause".into())).unwrap();
         assert_eq!(paused["phase"], "paused");

@@ -7,7 +7,7 @@ describe("pending Steam metadata refresh", () => {
     expect(appSource).toContain("const isPendingSteamMetadata");
     expect(appSource).toContain("games.some(isPendingSteamMetadata)");
     expect(appSource).toContain("refreshPendingMetadata");
-    expect(appSource).toContain("window.setInterval(() => void refreshPendingMetadata(), 5000)");
+    expect(appSource).toContain("timer = window.setTimeout(() => void loop(), delay)");
     expect(apiSource).toContain('cache: method === "GET" ? "no-store"');
   });
 });
