@@ -5,7 +5,7 @@ import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
 import { gamesWithPossibleSources } from "./sourceTitleIndex";
-import { setCatalogTempSources, type TempSourceItem, readCatalogCache } from "../catalogCache";
+import { setCatalogTempSources, type TempSourceItem, readCatalogNames } from "../catalogCache";
 
 export interface PluginManifest { id: string; name: string; endpoint: string; type: string; }
 export interface PluginSource {
@@ -130,7 +130,7 @@ export function invalidateCatalogMatchingCache(): void {
 
 async function getMatchingCatalog(): Promise<CatalogGame[]> {
   if (matchingCatalog && matchingCatalog.length > 0) return matchingCatalog;
-  matchingCatalog = await readCatalogCache().catch(() => []);
+  matchingCatalog = await readCatalogNames().catch(() => []);
   return matchingCatalog;
 }
 

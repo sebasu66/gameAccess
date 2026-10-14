@@ -19,6 +19,12 @@ export async function readCatalogCache(language?: string): Promise<CatalogGame[]
   return invoke<CatalogGame[]>("catalog_cache_read", { language });
 }
 
+/** Light version of readCatalogCache: only id, app_id and name of each game. */
+export async function readCatalogNames(): Promise<CatalogGame[]> {
+  if (!native()) return [];
+  return invoke<CatalogGame[]>("catalog_cache_read_names");
+}
+
 export async function upsertCatalogCacheGame(game: CatalogGame): Promise<void> {
   if (!native()) return;
   await invoke("catalog_cache_upsert_game", { game });

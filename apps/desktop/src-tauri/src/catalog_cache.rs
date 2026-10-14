@@ -575,6 +575,33 @@ pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSync
         .map_err(|err| format!("Catalog cache sync task failed: {err}"))?
 }
 
+/// Only id, app id and name of every game: enough to match titles without loading whole records.
+#[tauri::command]
+pub async fn catalog_cache_read_names() -> Result<Vec<Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = ready_cache_db_path()?;
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let conn = Connection::open(path).map_err(|err| err.to_string())?;
+        let _ = ensure_normalized_schema(&conn);
+        let mut statement = conn
+            .prepare("SELECT id, app_id, name FROM game ORDER BY id")
+            .map_err(|err| err.to_string())?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, String>(2)?)))
+            .map_err(|err| err.to_string())?;
+        let mut games = Vec::new();
+        for row in rows {
+            let (id, app_id, name) = row.map_err(|err| err.to_string())?;
+            games.push(serde_json::json!({ "id": id, "app_id": app_id, "name": name }));
+        }
+        Ok(games)
+    })
+    .await
+    .map_err(|err| format!("Catalog names task failed: {err}"))?
+}
+
 #[tauri::command]
 pub async fn catalog_cache_read(language: Option<String>) -> Result<Vec<Value>, String> {
     tauri::async_runtime::spawn_blocking(move || {

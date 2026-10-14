@@ -56,6 +56,7 @@ fn main() {
             access_commands::activation_clear_session,
             catalog_cache::catalog_cache_sync,
             catalog_cache::catalog_cache_read,
+            catalog_cache::catalog_cache_read_names,
             catalog_cache::catalog_cache_upsert_game,
             catalog_cache::catalog_cache_read_detail,
             catalog_cache::catalog_cache_store_detail,
