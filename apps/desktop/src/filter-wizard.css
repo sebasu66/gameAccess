@@ -219,3 +219,19 @@ body .download-complete-dialog h2 {
   color: #fff;
   box-shadow: 0 0 20px #ff3342cc;
 }
+
+/* ---- Footer: no stray scrollbar, active filters in orange, sort menu in the app palette ---- */
+body .ga-filter-tags { overflow: hidden; scrollbar-width: none; }
+body .ga-filter-tags::-webkit-scrollbar { display: none; }
+body .ga-filter-tag button { color: var(--ga-orange); }
+body .ga-filter-tag button:hover { color: #fff; }
+body .ga-filter-any { color: #fff; }
+body .library-sort-dropdown > summary { background: transparent; color: #fff; border-color: transparent; }
+body .library-sort-dropdown > summary:hover, body .library-sort-dropdown[open] > summary { color: var(--ga-orange); }
+body .library-sort-menu { background: #222a30f5; border: 1px solid #ffffff22; border-radius: 12px; backdrop-filter: blur(32px); }
+body .library-sort-menu button { background: transparent; border: 1px solid transparent; color: #fff; font: 650 12px Manrope, sans-serif; text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+body .library-sort-menu button:hover { background: #ffffff12; color: var(--ga-orange); }
+body .library-sort-menu button[aria-pressed="true"] { border-color: var(--ga-orange); color: var(--ga-orange); background: #ff7a001f; }
+body .library-sort-dropdown[open] > summary,
+body .library-sort-dropdown > summary:hover,
+body .library-sort-dropdown > summary:focus-visible { background: #ffffff10; border-color: transparent; box-shadow: none; outline-color: var(--ga-orange); }

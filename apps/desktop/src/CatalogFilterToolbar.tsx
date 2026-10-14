@@ -1,7 +1,7 @@
 import { ArrowUpDown, X } from "lucide-react";
 import FilledIcon from "./FilledIcon";
 import { activeFilterTags, setCriterionState, type FilterTagGroup } from "./LibraryFilterDialog";
-import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, hasNoActiveFilters, type LibrarySearchFilters } from "./librarySearch";
+import { type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogSort } from "./librarySections";
 import type { CatalogGame } from "./types";
 
@@ -25,10 +25,6 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   onOpenFilters: () => void;
 }) {
   const active = activeFilterTags(filters);
-  // A search that finds nothing looks identical to a search whose results were
-  // all filtered away. Saying how many were hidden turns a dead end into an
-  // explanation.
-  const hidden = hasNoActiveFilters(filters) ? 0 : filterLibraryGamesDetailed(games, query, filters).hiddenCount;
   const clearCriterion = (group: FilterTagGroup, value: string) => {
     if (group === "rating") {
       onFiltersChange({ ...filters, minReviewScore: undefined });
@@ -56,10 +52,6 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
           {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
         </div>
       </details>
-      {hidden > 0 ? <p className="ga-filter-hidden-notice" role="status">
-        {hidden} {hidden === 1 ? "juego oculto" : "juegos ocultos"} por los filtros activos.
-        <button type="button" onClick={() => onFiltersChange({ ...DEFAULT_LIBRARY_FILTERS })}>Quitar filtros</button>
-      </p> : null}
     </div>
   );
 }

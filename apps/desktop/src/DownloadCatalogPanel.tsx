@@ -316,24 +316,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          {view === "catalog" && props.catalogTotal !== undefined && props.catalogTotal > 1000 ? (
-            <p className="ga-catalog-capped-hint">
-              {locale === "es"
-                ? "Más de 1000 resultados: mostrando los primeros 1000. Afiná la búsqueda."
-                : "Over 1,000 results: showing the first 1,000. Refine your search."}
-            </p>
-          ) : null}
           <div className="ga-search-meta">
-            <output className="ga-search-results" aria-live="polite">
-              {view === "catalog" && props.catalogTotal !== undefined
-                ? `${props.catalogTotal.toLocaleString(locale === "es" ? "es-AR" : "en-US")} ${
-                    locale === "es"
-                      ? (searchQuery.trim() ? "resultados" : "juegos en el catálogo")
-                      : (searchQuery.trim() ? "results" : "games in catalog")
-                  }`
-                : `${displaySection.games.length} ${locale === "es" ? "juegos" : "games"}`
-              } / {favoritesCount} {locale === "es" ? "favoritos" : "favorites"}
-            </output>
             <label className="ga-grid-zoom"><span>Zoom</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
           </div>
         </div>
