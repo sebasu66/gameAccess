@@ -54,4 +54,23 @@ describe("DigitalGameContextMenu", () => {
       else expect(uninstall).toContain('disabled=""');
     }
   );
+
+  const uninstallButton = (state: string, installed = false, appId: number | undefined = 100) => {
+    const html = renderToStaticMarkup(<DigitalGameContextMenu request={{ game: { ...testGame, app_id: appId, id: appId as number }, x: 0, y: 0, status: {
+      app_id: appId, state, progress: 0, bytes_downloaded: 0, bytes_total: null, installed,
+    } as ManagedDownloadStatus }} onClose={() => {}} />);
+    return html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Desinstalar"));
+  };
+
+  it.each([["installed", true], ["prepared", false], ["not-installed", false], ["error", false], ["cancelled", false], ["unknown", false]] as const)(
+    "enables Desinstalar when nothing is transferring (%s)", (state, installed) => {
+      expect(uninstallButton(state, installed)).not.toContain('disabled=""');
+    }
+  );
+
+  it.each(["requested", "preparing", "downloading", "decompressing", "extracting", "installing", "paused", "cancelling"] as const)(
+    "disables Desinstalar while the game is transferring (%s), including the piece-by-piece download", state => {
+      expect(uninstallButton(state)).toContain('disabled=""');
+    }
+  );
 });
