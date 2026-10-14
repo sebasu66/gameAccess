@@ -52,6 +52,22 @@ describe("catalogCache IPC queries", () => {
     });
   });
 
+  it("forwards app_ids filter param to queryCatalogCache", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ items: [], total: 0 });
+
+    await queryCatalogCache({
+      app_ids: [100, 200, 300],
+      limit: 50,
+    });
+
+    expect(invoke).toHaveBeenCalledWith("catalog_cache_query", {
+      params: {
+        app_ids: [100, 200, 300],
+        limit: 50,
+      },
+    });
+  });
+
   it("forwards language to readCatalogCache and queryCatalogCache", async () => {
     vi.mocked(invoke).mockResolvedValueOnce([]);
     await readCatalogCache("spanish");

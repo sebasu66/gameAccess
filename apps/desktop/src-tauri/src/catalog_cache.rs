@@ -743,6 +743,7 @@ pub struct CatalogQueryParams {
     pub min_rating: Option<f32>,
     pub max_age_days: Option<i64>,
     pub include_recent_unrated: Option<bool>,
+    pub app_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -842,6 +843,7 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
         );
         CREATE INDEX IF NOT EXISTS ix_gm_score ON game_metadata(steam_review_score);
         CREATE INDEX IF NOT EXISTS ix_gm_recommendation ON game_metadata(recommendation_count);
+        CREATE INDEX IF NOT EXISTS ix_gm_review_count ON game_metadata(steam_review_count);
         CREATE INDEX IF NOT EXISTS ix_gm_release_date ON game_metadata(release_date);
 
         CREATE TABLE IF NOT EXISTS game_genre (
@@ -1196,6 +1198,24 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
         }
     }
 
+    if let Some(ref app_ids) = params.app_ids {
+        if app_ids.is_empty() {
+            where_clauses.push("1 = 0".to_string());
+        } else {
+            let mut unique_ids: Vec<i64> = app_ids.clone();
+            unique_ids.sort_unstable();
+            unique_ids.dedup();
+            let mut id_placeholders = Vec::new();
+            for id in unique_ids {
+                let p_idx = sql_params.len() + 1;
+                id_placeholders.push(format!("?{}", p_idx));
+                sql_params.push(SqlValue::Integer(id));
+            }
+            let list = id_placeholders.join(",");
+            where_clauses.push(format!("(g.app_id IN ({0}) OR (g.app_id IS NULL AND g.id IN ({0})))", list));
+        }
+    }
+
     let where_sql = if where_clauses.is_empty() {
         "".to_string()
     } else {
@@ -1216,11 +1236,27 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
 
     let is_asc = params.sort_direction.as_deref().map(|d| d.eq_ignore_ascii_case("asc")).unwrap_or(false);
     let dir = if is_asc { "ASC" } else { "DESC" };
+    let has_query = params.query.as_ref().map(|q| !q.trim().is_empty()).unwrap_or(false);
     let order_by = match params.sort_by.as_deref() {
-        Some("score") => format!("COALESCE(m.steam_review_score, 0) {}, COALESCE(m.recommendation_count, 0) DESC", dir),
-        Some("release_date") => format!("COALESCE(m.release_date, '') {}", dir),
-        Some("name") => format!("g.name COLLATE NOCASE {}", if is_asc { "ASC" } else { "DESC" }),
-        _ => format!("COALESCE(m.recommendation_count, 0) {}, g.id ASC", dir),
+        Some("popularity") | Some("steam-popularity") => {
+            format!("MAX(COALESCE(m.recommendation_count, 0), COALESCE(m.steam_review_count, 0)) {}, g.id ASC", dir)
+        }
+        Some("score") | Some("steam-review-score") => {
+            format!("COALESCE(m.steam_review_score, 0) {}, MAX(COALESCE(m.recommendation_count, 0), COALESCE(m.steam_review_count, 0)) DESC, g.id ASC", dir)
+        }
+        Some("release_date") | Some("release-date") => {
+            format!("COALESCE(m.release_date, '') {}, g.id ASC", dir)
+        }
+        Some("name") => {
+            format!("g.name COLLATE NOCASE {}, g.id ASC", if is_asc { "ASC" } else { "DESC" })
+        }
+        _ => {
+            if has_query {
+                format!("COALESCE(m.recommendation_count, 0) {}, g.id ASC", dir)
+            } else {
+                format!("MAX(COALESCE(m.recommendation_count, 0), COALESCE(m.steam_review_count, 0)) DESC, g.id ASC")
+            }
+        }
     };
 
     let raw_limit = params.limit.unwrap_or(60);
@@ -1607,6 +1643,85 @@ mod tests {
         assert!(matched_ids.contains(&1));
         assert!(matched_ids.contains(&2));
         assert!(!matched_ids.contains(&3));
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_app_ids_filter() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 100, '{\"id\":1,\"app_id\":100,\"name\":\"G100\"}');
+            INSERT INTO catalog_game VALUES(2, 200, '{\"id\":2,\"app_id\":200,\"name\":\"G200\"}');
+            INSERT INTO catalog_game VALUES(3, 300, '{\"id\":3,\"app_id\":300,\"name\":\"G300\"}');
+            INSERT INTO catalog_game VALUES(4, 400, '{\"id\":4,\"app_id\":400,\"name\":\"G400\"}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            app_ids: Some(vec![100, 300]),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 2);
+        let ids: Vec<i64> = result.items.iter().map(|item| item["app_id"].as_i64().unwrap()).collect();
+        assert_eq!(ids, vec![100, 300]);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_app_ids_empty() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 100, '{\"id\":1,\"app_id\":100,\"name\":\"G100\"}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams {
+            app_ids: Some(vec![]),
+            ..Default::default()
+        };
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 0);
+        assert!(result.items.is_empty());
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_default_popularity_order_without_search() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 100, '{\"id\":1,\"app_id\":100,\"name\":\"Alpha\",\"steam_review_count\":10,\"recommendation_count\":0}');
+            INSERT INTO catalog_game VALUES(2, 200, '{\"id\":2,\"app_id\":200,\"name\":\"Beta\",\"steam_review_count\":5000,\"recommendation_count\":0}');
+            INSERT INTO catalog_game VALUES(3, 300, '{\"id\":3,\"app_id\":300,\"name\":\"Gamma\",\"steam_review_count\":100,\"recommendation_count\":20000}');
+        ").unwrap();
+
+        ensure_normalized_schema(&conn).unwrap();
+
+        let params = CatalogQueryParams::default();
+        let result = query_catalog_conn(&conn, &params).unwrap();
+        assert_eq!(result.total, 3);
+        let ids: Vec<i64> = result.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+        assert_eq!(ids, vec![3, 2, 1]);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());

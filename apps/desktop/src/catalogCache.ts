@@ -66,6 +66,7 @@ export interface CatalogQueryParams {
   min_rating?: number;
   max_age_days?: number;
   include_recent_unrated?: boolean;
+  app_ids?: number[];
 }
 
 export interface CatalogQueryResult {
