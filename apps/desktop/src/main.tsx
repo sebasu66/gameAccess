@@ -10,7 +10,7 @@ import LibraryInputController, { captureLibraryUiState } from "./LibraryInputCon
 import RuntimeGate from "./RuntimeGate";
 import BackendStatus from "./BackendStatus";
 import LanguageSwitch from "./LanguageSwitch";
-import { Globe2 } from "lucide-react";
+import { Globe2, RefreshCw } from "lucide-react";
 import PixelAppearance from "./PixelAppearance";
 import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
@@ -35,6 +35,7 @@ import "./library-sections.css";
 import "./i18n.css";
 import "./gameaccess-theme.css";
 import "./card-quick-actions.css";
+import "./dock.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
 
@@ -67,6 +68,7 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 function CatalogShell() {
   const { t } = useI18n();
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
+  const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
   const [refreshing, setRefreshing] = React.useState(false);
   React.useEffect(() => {
@@ -90,8 +92,8 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><button type="button" className="catalog-refresh-button" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><span aria-hidden="true">↻</span><strong>{t("refreshGames")}</strong></button></div> : null}
-    <App key={mode} actionsTarget={actionsTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} />
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button></div></div> : null}
+    <App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} />
   </>;
 }
 

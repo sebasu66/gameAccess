@@ -72,9 +72,9 @@ export default function BigScreenControls(props: Props) {
     return () => cancelAnimationFrame(frame);
   }, []);
   useEffect(() => { if (keyboard) document.querySelector<HTMLElement>(".ga-pad-keyboard button")?.focus({preventScroll:true}); }, [keyboard]);
-  const toggle = <button type="button" className="ga-big-screen-toggle" aria-pressed={props.enabled} aria-label={props.enabled ? "Salir de pantalla grande" : "Pantalla grande"} title={props.enabled ? "Salir de pantalla grande (F11 / Start)" : "Pantalla grande (F11 / Start)"} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? "Salir" : "Pantalla grande"}</span></button>;
+  const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? "Salir de pantalla grande" : "Pantalla grande"} title={props.enabled ? "Salir de pantalla grande (F11 / Start)" : "Pantalla grande (F11 / Start)"} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? "Salir" : "Pantalla grande"}</span></button>;
   return <>
-    {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
+    {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
     {props.enabled ? <div className="ga-pad-hints" aria-label="Controles de Xbox">
       <span className="ga-pad-connection" role="status"><Gamepad2 size={18}/>{connected ? "Mando conectado" : "Conectá un mando"}</span>
       {[

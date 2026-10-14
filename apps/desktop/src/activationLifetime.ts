@@ -15,3 +15,13 @@ export function nextActivationTimerDelay(remainingMs: number): number {
     Math.min(ACTIVATION_TIMER_SLICE_MS, untilNextMeaningfulPoint),
   );
 }
+
+/** "11 h 32 min", "45 min", "2 d 3 h": how much access is left, for the header badge. */
+export function formatRemaining(remainingMs: number): string {
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return "0 min";
+  const minutes = Math.ceil(remainingMs / 60_000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, "0")} min`;
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
+}

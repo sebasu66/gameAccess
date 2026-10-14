@@ -9,6 +9,7 @@ import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { loadHome } from "./api";
@@ -69,7 +70,7 @@ function playToastBeep(): void {
   }
 }
 
-export default function App({ catalogNavigation, actionsTarget }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null }) {
+export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
@@ -540,10 +541,14 @@ export default function App({ catalogNavigation, actionsTarget }: { catalogNavig
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
           <PluginIndicator />
-          {<button type="button" className="digital-download-nav" aria-pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /> {t("downloadsTitle")}</button>}
-          <AppSettings /><AccessPass />
+          <AppSettings dockTarget={dockTarget} /><AccessPass />
         </div>
       </header>
+
+      {(() => {
+        const downloadsButton = <button type="button" className="digital-download-nav ga-dock-btn" aria-pressed={downloadsOpen} aria-label={t("downloadsTitle")} title={t("downloadsTitle")} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /><span>{t("downloadsTitle")}</span></button>;
+        return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
+      })()}
 
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 

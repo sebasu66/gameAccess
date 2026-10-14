@@ -1,6 +1,7 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
 import ParentalControlSection from "./ParentalControlSection";
 import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
 import { Settings, X, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -29,12 +30,13 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
   </section>
  </div>;
 }
-export default function AppSettings() {
+export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {
  const { locale } = useI18n(); const c = copy[locale];
  const [open, setOpen] = useState(false);
  const trigger = useRef<HTMLButtonElement>(null);
  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
+ const button = <button ref={trigger} type="button" className="ga-settings-fab ga-dock-btn" aria-label={c.title} title={c.title} onClick={() => setOpen(true)}><Settings size={20} /><span>{c.title}</span></button>;
  return <>
-  <button ref={trigger} type="button" className="ga-settings-fab" aria-label={c.title} onClick={() => setOpen(true)}><Settings size={20} /><span>{c.title}</span></button>
+  {dockTarget ? createPortal(button, dockTarget) : button}
   {open ? <SettingsPanel onClose={close} /> : null}</>;
 }

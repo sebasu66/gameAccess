@@ -5,7 +5,7 @@ import i18nSource from "./i18n.ts?raw";
 
 describe("GameAccess catalog refresh control", () => {
   it("exposes a visible refresh action that reloads catalog state from the backend", () => {
-    expect(source).toContain('className="catalog-refresh-button"');
+    expect(source).toContain('className="catalog-refresh-button ga-dock-btn"');
     expect(source).toContain('aria-label={t("refreshGamesAria")}');
     expect(source).toContain("if (!auxiliarySurface) captureLibraryUiState(mode);");
     expect(source).toContain("window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST))");
@@ -16,6 +16,6 @@ describe("GameAccess catalog refresh control", () => {
 
   it("keeps the refresh control off auxiliary tablet/display surfaces", () => {
     expect(source).toContain('!auxiliarySurface ? <div className="catalog-bottom-actions"');
-    expect(source).toContain('<button type="button" className="catalog-refresh-button"');
+    expect(source).toContain('<button type="button" className="catalog-refresh-button ga-dock-btn"');
   });
 });
