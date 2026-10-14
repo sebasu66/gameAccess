@@ -13,6 +13,7 @@ from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request
 from .api_dependencies import get_session
 from .database import engine
+from .download_events import log_event
 from .telemetry import record_transfer
 from .viking_cache_service import ProviderFailure, create_provider, normalize_source_url
 from .viking_chunk_service import (
@@ -66,6 +67,8 @@ async def start_chunk_download(
         raise HTTPException(422, str(exc)) from exc
 
     job = find_job_for_source(session, identity.fingerprint)
+    existed = job is not None
+    previous_error = job.error_code if job is not None else ""
     # preparing/running/ready: join it. failed (or never run in this process): resume with the same job.
     if job is None:
         job = create_job(
@@ -73,6 +76,16 @@ async def start_chunk_download(
             item_name=_safe_text(req.item_name, 300), source_url=req.source_url.strip(),
         )
     needs_worker = job.status == "failed" or (job.status in ("preparing", "running") and not is_running(job.job_id))
+    name = job.item_name or "un juego"
+    if not existed:
+        log_event(engine, job.job_id, "request", f"El cliente pidió «{name}»: no estaba en el caché, se prepara desde cero.", installation_id=installation_id, item_name=job.item_name)
+    elif needs_worker:
+        why = f" (la vez anterior terminó con: {previous_error})" if previous_error else ""
+        log_event(engine, job.job_id, "resume", f"El cliente pidió «{name}»: el trabajo estaba detenido y se reanuda{why}.", installation_id=installation_id, item_name=job.item_name)
+    elif job.status == "ready":
+        log_event(engine, job.job_id, "cache", f"El cliente pidió «{name}»: ya estaba en el caché de Viking, se le respondió con las piezas existentes.", status="ok", installation_id=installation_id, item_name=job.item_name)
+    else:
+        log_event(engine, job.job_id, "request", f"El cliente pidió «{name}»: ya se estaba preparando, se une al mismo trabajo.", installation_id=installation_id, item_name=job.item_name)
     if needs_worker:
         job.status, job.error_code = "preparing", ""
         session.add(job)

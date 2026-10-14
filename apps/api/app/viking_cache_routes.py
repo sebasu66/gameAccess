@@ -560,9 +560,17 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
             "possibly_stuck": elapsed > int(_CACHE_PROCESSING_STALE_AFTER.total_seconds()),
         })
     from .viking_chunk_models import VikingChunkJob
-    for job in session.exec(
+    from .download_events import events_for_jobs, recent_errors, requesting_client
+    live_jobs = session.exec(
         select(VikingChunkJob).where(VikingChunkJob.status.in_(("preparing", "running"))).order_by(VikingChunkJob.created_at.asc())
-    ).all():
+    ).all()
+    # Same mini log also for jobs that just finished, so a quick one can still be read.
+    recent_jobs = session.exec(
+        select(VikingChunkJob).where(VikingChunkJob.status.in_(("ready", "failed")), VikingChunkJob.updated_at >= now - timedelta(hours=6))
+        .order_by(VikingChunkJob.updated_at.desc()).limit(30)
+    ).all()
+    log = events_for_jobs(session, [j.job_id for j in live_jobs] + [j.job_id for j in recent_jobs])
+    for job in live_jobs:
         started = _as_utc(job.created_at) or now
         elapsed = max(0, int((now - started).total_seconds()))
         try:
@@ -570,23 +578,35 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
         except ValueError:
             progress = {}
         tasks.append({
-            "request_id": job.job_id, "installation_id": "", "app_id": None, "item_name": job.item_name,
+            "request_id": job.job_id, "installation_id": requesting_client(log[job.job_id]), "app_id": None, "item_name": job.item_name,
             "source_kind": job.source_kind or "torrent", "source_host": "fragmentos", "requested_at": started,
             "elapsed_seconds": elapsed, "possibly_stuck": elapsed > int(_CACHE_PROCESSING_STALE_AFTER.total_seconds()),
-            "status": job.status, "detail": progress,
+            "status": job.status, "detail": progress, "events": log[job.job_id],
+            "last_message": log[job.job_id][-1]["message"] if log[job.job_id] else "",
         })
+    finished = [{
+        "request_id": job.job_id, "item_name": job.item_name, "status": job.status, "at": _as_utc(job.updated_at),
+        "installation_id": requesting_client(log[job.job_id]), "events": log[job.job_id],
+    } for job in recent_jobs]
     for job in session.exec(
         select(VikingChunkJob).where(VikingChunkJob.status == "failed", VikingChunkJob.updated_at >= since)
         .order_by(VikingChunkJob.updated_at.desc()).limit(100)
     ).all():
         failures.append({
             "at": _as_utc(job.updated_at), "item_name": job.item_name, "source_kind": job.source_kind, "source_host": "fragmentos",
-            "installation_id": "", "status": "failed", "error_code": job.error_code, "flow": "fragmentos",
+            "installation_id": "", "status": "failed", "error_code": job.error_code, "flow": "fragmentos", "job_id": job.job_id,
         })
         counts["failed"] = counts.get("failed", 0) + 1
+    errors_by_job = {e["job_id"]: e for e in reversed(recent_errors(session, since))}
+    for failure in failures:
+        found = errors_by_job.get(failure.get("job_id", ""))
+        if found:
+            failure["message"] = found["message"]
+            failure["installation_id"] = failure["installation_id"] or found["installation_id"]
     failures.sort(key=lambda f: f["at"] or now, reverse=True)
     return {
         "now": now,
+        "finished": finished,
         "failures": failures[:100],
         "running_total": len(tasks),
         "running_torrents": sum(1 for task in tasks if task["source_kind"] == "torrent"),

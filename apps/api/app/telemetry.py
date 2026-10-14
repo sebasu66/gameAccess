@@ -17,6 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Field as SQLField, Session, SQLModel, select
 
+from .download_events import DownloadEvent
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 
 logger = logging.getLogger("gameaccess.telemetry")
@@ -147,7 +148,7 @@ def take_sample(engine: Engine) -> bool:
 
 def prune(engine: Engine) -> None:
     with Session(engine) as session:
-        for model, column, days in ((ServerSample, ServerSample.sampled_at, SAMPLE_KEEP_DAYS), (ChunkTransfer, ChunkTransfer.served_at, TRANSFER_KEEP_DAYS)):
+        for model, column, days in ((ServerSample, ServerSample.sampled_at, SAMPLE_KEEP_DAYS), (ChunkTransfer, ChunkTransfer.served_at, TRANSFER_KEEP_DAYS), (DownloadEvent, DownloadEvent.created_at, TRANSFER_KEEP_DAYS)):
             for row in session.exec(select(model).where(column < _now() - timedelta(days=days)).limit(5000)).all():
                 session.delete(row)
         session.commit()

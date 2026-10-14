@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.download_events import DownloadEvent
 from app import admin_dashboard_routes as routes
 from app import telemetry as t
 from app.viking_chunk_models import VikingChunkJob, VikingChunkPiece
@@ -16,7 +17,7 @@ def engine():
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(eng, tables=[
         t.ClientPresence.__table__, t.ChunkTransfer.__table__, t.ServerSample.__table__,
-        VikingChunkJob.__table__, VikingChunkPiece.__table__,
+        VikingChunkJob.__table__, VikingChunkPiece.__table__, DownloadEvent.__table__,
     ])
     return eng
 

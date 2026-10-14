@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
+from app.download_events import DownloadEvent
 from app import viking_chunk_service as svc
 from app.viking_cache_service import ProviderFailure
 from app.viking_chunk_models import VikingChunkJob, VikingChunkPiece
@@ -18,7 +19,7 @@ DATA = bytes(range(256)) * 4096  # 1 MiB
 @pytest.fixture()
 def engine():
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(eng, tables=[VikingChunkJob.__table__, VikingChunkPiece.__table__])
+    SQLModel.metadata.create_all(eng, tables=[VikingChunkJob.__table__, VikingChunkPiece.__table__, DownloadEvent.__table__])
     return eng
 
 

@@ -23,6 +23,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
 from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxItem, create_provider
+from .download_events import log_event
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 from .viking_chunk_plan import PlannedPiece, plan_pieces
 
@@ -70,6 +71,14 @@ def instance_id() -> str:
 
 def _touch(job: VikingChunkJob) -> None:
     job.updated_at = _now()
+
+
+TORBOX_STATE_ES = {
+    "downloading": "descargando el juego", "metadl": "leyendo los datos del torrent", "checking": "verificando",
+    "checkingresumedata": "verificando", "stalled": "sin fuentes activas (estancado)", "stalleddl": "sin fuentes activas (estancado)",
+    "queued": "en cola", "completed": "completo", "cached": "ya estaba guardado en Torbox", "uploading": "completo",
+    "error": "con error", "paused": "en pausa",
+}
 
 
 def torbox_detail(item: dict[str, Any]) -> dict[str, Any]:
@@ -252,6 +261,7 @@ async def _retry(factory: Callable[[], Awaitable[Any]]) -> Any:
 async def _transfer(
     engine: Engine, job_id: str, pending: list[PlannedPiece], source: PieceSource, sink: PieceSink,
     work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "", uploads: int | None = None,
+    note: Callable[..., None] | None = None,
 ) -> None:
     """Fetch pieces one after another while up to `uploads` of them go up to ViKiNG at once.
 
@@ -260,6 +270,7 @@ async def _transfer(
     workers = max(1, uploads if uploads is not None else int(os.getenv("GAMEACCESS_CHUNK_UPLOADS") or UPLOADS_IN_PARALLEL))
     slots = asyncio.Semaphore(workers + 1)
     queue: asyncio.Queue = asyncio.Queue()
+    total, finished, every = len(pending), 0, max(1, len(pending) // 10)
 
     async def producer() -> None:
         try:
@@ -287,6 +298,10 @@ async def _transfer(
                 viking_hash = await _retry(lambda: sink.upload(path, name_for(piece), folder))
                 _mark_piece_ready(engine, job_id, piece.index, sha, viking_hash)
                 logger.info("chunk_ready job=%s piece=%s size=%s", job_id[:8], piece.index, piece.size)
+                nonlocal finished
+                finished += 1
+                if note is not None and (finished == 1 or finished == total or finished % every == 0):
+                    note("viking", f"Paso 2 · Pieza {piece.index + 1} ya está en Viking ({finished} de {total} pendientes).")
             finally:
                 path.unlink(missing_ok=True)
                 slots.release()
@@ -306,13 +321,19 @@ async def _transfer(
 async def run_chunk_job(
     engine: Engine, job_id: str, *,
     prepare: Callable[[], Awaitable[tuple[PieceSource, list[dict[str, Any]]]]],
-    sink: PieceSink, work_dir: Path,
+    sink: PieceSink, work_dir: Path, installation_id: str = "",
 ) -> None:
     """Prepare the source, plan the pieces and move every missing one to ViKiNG."""
     source: Any = None
+
+    def note(step: str, message: str, status: str = "info") -> None:
+        log_event(engine, job_id, step, message, status=status, installation_id=installation_id)
+
     try:
         work_dir.mkdir(parents=True, exist_ok=True)
+        note("torbox", "Paso 1 · Pidiéndole el juego a Torbox.")
         source, files = await prepare()
+        note("torbox", f"Paso 1 · Torbox ya tiene el juego ({len(files)} archivo{'s' if len(files) != 1 else ''}).", "ok")
         if len(files) > MAX_FILES:
             raise ProviderFailure("too_many_files", 422, "Esta fuente tiene demasiados archivos para enviarla por piezas.")
         plan = plan_pieces([int(f["size"]) for f in files])
@@ -322,21 +343,26 @@ async def run_chunk_job(
         _set_job(engine, job_id, status="running", error_code="")
         pending = [p for p in plan if p.index not in ready]
         logger.info("chunk_job_running job=%s pieces=%s pending=%s", job_id[:8], len(plan), len(pending))
+        note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas).")
         await _transfer(
             engine, job_id, pending, source, sink, work_dir,
-            lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id),
+            lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id), note=note,
         )
         _set_job(engine, job_id, status="ready", completed_at=_now())
+        note("ready", f"Listo: las {len(plan)} piezas están disponibles para el cliente.", "ok")
         logger.info("chunk_job_ready job=%s", job_id[:8])
     except asyncio.CancelledError:
         _fail_job(engine, job_id, "server_stopped")
+        note("error", "El servidor se detuvo mientras trabajaba (se retoma cuando el cliente vuelva a pedirlo).", "error")
         raise
     except ProviderFailure as exc:
         logger.error("chunk_job_failed job=%s code=%s", job_id[:8], exc.code)
         _fail_job(engine, job_id, exc.code)
-    except Exception:  # noqa: BLE001 - the job row must always leave "running"
+        note("error", f"Falló: {getattr(exc, 'public_message', '') or exc.code} [{exc.code}]", "error")
+    except Exception as exc:  # noqa: BLE001 - the job row must always leave "running"
         logger.exception("chunk_job_crashed job=%s", job_id[:8])
         _fail_job(engine, job_id, "unexpected_error")
+        note("error", f"Error inesperado del servidor: {type(exc).__name__}.", "error")
     finally:
         closer = getattr(source, "aclose", None)
         if closer is not None:
@@ -440,8 +466,17 @@ def start_job(
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, connect=15.0), transport=worker.transport, follow_redirects=False,
             ) as api_client:
+                last_state: list[Any] = [None]
+
                 async def report(torbox_item: dict[str, Any]) -> None:
-                    _set_job(engine, job_id, detail=json.dumps(torbox_detail(torbox_item)))
+                    detail = torbox_detail(torbox_item)
+                    _set_job(engine, job_id, detail=json.dumps(detail))
+                    marker = (detail["state"], int(detail["progress"] // 10))
+                    if marker != last_state[0]:
+                        last_state[0] = marker
+                        words = TORBOX_STATE_ES.get(str(detail["state"]).lower(), str(detail["state"]) or "esperando")
+                        seeds = f", {detail['seeds']} fuentes" if detail["seeds"] else ""
+                        log_event(engine, job_id, "torbox", f"Paso 1 · Torbox: {words} {detail['progress']:.0f}%{seeds}.", installation_id=installation_id)
 
                 async def prepare() -> tuple[PieceSource, list[dict[str, Any]]]:
                     item, files = await worker.prepare_chunk_source(
@@ -451,7 +486,7 @@ def start_job(
                     )
                     return TorboxRangeSource(worker, api_client, item, files), files
 
-                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir())
+                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(), installation_id=installation_id)
 
     task = asyncio.create_task(runner())
     _running[job_id] = task
