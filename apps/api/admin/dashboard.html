@@ -28,7 +28,7 @@ tr.sub td{background:#14181a;padding:14px 18px;white-space:normal}.cols{display:
 <select id="sort" aria-label="Ordenar"><option value="seen">Última conexión</option><option value="downloads">Más descargas</option><option value="bytes">Más datos</option><option value="first">Más nuevos</option></select>
 <select id="range" aria-label="Historia"><option value="1">Historia: 1 hora</option><option value="6">6 horas</option><option value="24" selected>24 horas</option><option value="168">7 días</option><option value="720">30 días</option></select>
 </div>
-<div class="wrap"><table><thead><tr><th>Cliente</th><th>Plan</th><th>Estado</th><th>Última conexión</th><th>Llave</th><th>Obtenida</th><th class="num">Descargas</th><th class="num">Datos</th></tr></thead><tbody id="clients"></tbody></table></div>
+<div class="wrap"><table><thead><tr><th>Cliente</th><th>Plan</th><th>Estado</th><th>Última conexión</th><th>Llave</th><th>Obtenida</th><th>Le queda</th><th class="num">Descargas</th><th class="num">Datos</th></tr></thead><tbody id="clients"></tbody></table></div>
 <p id="count" class="muted"></p></section>
 
 <section><h2>Resumen</h2>
@@ -52,6 +52,7 @@ const q=id=>document.getElementById(id);
 const bytes=n=>{n=Number(n)||0;const u=["B","KB","MB","GB","TB"];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(n>=10||i===0?0:1)+" "+u[i]};
 const when=v=>v?new Date(v).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"–";
 const ago=v=>{if(!v)return"–";const s=Math.max(0,(Date.now()-new Date(v))/1000);return s<90?"hace "+Math.round(s)+" s":s<5400?"hace "+Math.round(s/60)+" min":s<172800?"hace "+Math.round(s/3600)+" h":when(v)};
+const remain=sec=>{if(sec==null)return"–";if(sec<=0)return"vencida";const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);return d?d+" d "+h+" h":h?h+" h "+m+" min":m+" min"};
 const STATUS={ready:["Completada",""],running:["Descargando","dl"],preparing:["Preparando","dl"],failed:["Con error","bad"],desconocido:["–",""]};
 const ACTIONS={"activation-redeem":"Activó una llave","activation-status":"Chequeo de acceso"};
 const REASONS={ok:"correcto",invalid_key:"llave inválida",key_expired:"llave vencida",key_used:"llave ya usada",revoked:"llave revocada"};
@@ -74,13 +75,15 @@ function visible(){
   return list.sort((a,b)=>by(a)-by(b));
 }
 function subRow(c){
-  const tr=el("tr",null,"sub"),td=el("td");td.colSpan=8;const cols=el("div",null,"cols");
+  const tr=el("tr",null,"sub"),td=el("td");td.colSpan=9;const cols=el("div",null,"cols");
   const left=el("div");left.appendChild(el("h3","Llave vinculada"));
   const kv=el("div",null,"kv");const add=(k,v)=>{kv.appendChild(el("span",k));kv.appendChild(el("span",v))};
-  if(c.key){add("Plan",(c.key.tier||"").toUpperCase());add("Estado",c.key.state);add("Obtenida",when(c.key.obtained_at));add("Vence",when(c.key.expires_at));if(c.key.revoked_at)add("Revocada",when(c.key.revoked_at));add("Llaves usadas",c.key.keys_total)}
+  if(c.key){add("Plan",(c.key.tier||"").toUpperCase());add("Estado",c.key.state);add("Obtenida",when(c.key.obtained_at));add("Vence",when(c.key.expires_at));add("Le queda",remain(c.key.remaining_seconds));if(c.key.revoked_at)add("Revocada",when(c.key.revoked_at));add("Llaves usadas",c.key.keys_total)}
   else add("Llave","Este cliente todavía no activó ninguna.");
   add("Primera vez",when(c.first_seen_at));add("Id completo",c.installation_id);
   left.appendChild(kv);
+  if(c.keys&&c.keys.length>1){left.appendChild(el("h3","Todas sus llaves ("+c.keys.length+")")).style.marginTop="14px";const kl=el("ul");
+    for(const k of c.keys){const li=el("li");li.appendChild(el("time",when(k.obtained_at)));li.appendChild(document.createTextNode((k.tier||"").toUpperCase()+" · "+k.state+" · le queda "+remain(k.remaining_seconds)));kl.appendChild(li)}left.appendChild(kl)}
   left.appendChild(el("h3","Activaciones")).style.marginTop="14px";
   const ul=el("ul");if(!c.activation_events.length)ul.appendChild(el("li","Sin eventos de activación."));
   for(const e of c.activation_events){const li=el("li");li.appendChild(el("time",when(e.at)));li.appendChild(document.createTextNode((ACTIONS[e.action]||e.action)+" · "+(e.outcome==="allowed"?"permitido":e.outcome)+(e.reason&&e.reason!=="ok"?" ("+(REASONS[e.reason]||e.reason)+")":"")));ul.appendChild(li)}
@@ -94,7 +97,7 @@ function subRow(c){
 }
 function drawClients(){
   const rows=q("clients");rows.replaceChildren();if(!data)return;const list=visible();
-  if(!list.length){const tr=el("tr");cell(tr,"No hay clientes con ese filtro.").colSpan=8;rows.appendChild(tr)}
+  if(!list.length){const tr=el("tr");cell(tr,"No hay clientes con ese filtro.").colSpan=9;rows.appendChild(tr)}
   for(const c of list){
     const tr=el("tr",null,"click");tr.onclick=()=>{opened.has(c.installation_id)?opened.delete(c.installation_id):opened.add(c.installation_id);drawClients()};
     cell(tr,(opened.has(c.installation_id)?"▾ ":"▸ ")+c.installation_id.slice(0,8));
@@ -102,7 +105,7 @@ function drawClients(){
     const st=cell(tr,"");if(c.downloading)pill(st,"bajando","dl");else if(c.online)pill(st,"conectado","on");else pill(st,"desconectado","");
     cell(tr,ago(c.last_seen_at));
     const k=cell(tr,"");if(c.key)pill(k,c.key.state,c.key.state==="activa"?"on":(c.key.state==="sin usar"?"":"bad"));else k.textContent="–";
-    cell(tr,c.key?when(c.key.obtained_at):"–");cell(tr,c.tasks_count,"num");cell(tr,bytes(c.bytes_in_range),"num");rows.appendChild(tr);
+    cell(tr,c.key?when(c.key.obtained_at):"–");cell(tr,c.key?remain(c.key.remaining_seconds):"–");cell(tr,c.tasks_count,"num");cell(tr,bytes(c.bytes_in_range),"num");rows.appendChild(tr);
     if(opened.has(c.installation_id))rows.appendChild(subRow(c));
   }
   q("count").textContent=list.length+" de "+data.clients.length+" clientes";

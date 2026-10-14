@@ -35,6 +35,22 @@ def _key_state(key: AccessKey, now: datetime) -> str:
     return "activa" if key.activated_at else "sin usar"
 
 
+def _remaining_seconds(key: AccessKey, now: datetime) -> int | None:
+    """Seconds this key still gives access for; None when it has not started or never ends."""
+    expires = _utc(key.expires_at)
+    if key.revoked_at or expires is None:
+        return None
+    return max(0, int((expires - now).total_seconds()))
+
+
+def _key_info(key: AccessKey, now: datetime) -> dict[str, Any]:
+    return {
+        "id": key.id, "tier": key.access_tier, "state": _key_state(key, now), "obtained_at": _utc(key.activated_at),
+        "expires_at": _utc(key.expires_at), "revoked_at": _utc(key.revoked_at), "remaining_seconds": _remaining_seconds(key, now),
+        "duration_hours": key.duration_hours, "duration_months": key.duration_months,
+    }
+
+
 def _download_tasks(session: Session, ids: list[str], since: datetime) -> dict[str, list[dict[str, Any]]]:
     """Per client, the downloads it asked for since `since`, newest first."""
     result: dict[str, list[dict[str, Any]]] = {i: [] for i in ids}
@@ -112,11 +128,8 @@ def integrated_clients(session: Session, hours: int = 24, limit: int = 200) -> l
             "last_seen_at": seen,
             "online": bool(seen and now - seen <= ONLINE_WINDOW),
             "downloading": bool(last_piece and now - last_piece <= DOWNLOADING_WINDOW),
-            "key": None if current is None else {
-                "tier": current.access_tier, "state": _key_state(current, now), "obtained_at": _utc(current.activated_at),
-                "expires_at": _utc(current.expires_at), "revoked_at": _utc(current.revoked_at), "id": current.id,
-                "keys_total": len(mine),
-            },
+            "key": None if current is None else {**_key_info(current, now), "keys_total": len(mine)},
+            "keys": [_key_info(k, now) for k in mine],
             "activation_events": [
                 {"at": _utc(e.created_at), "action": e.action, "outcome": e.outcome, "reason": e.reason} for e in events.get(row.installation_id, [])
             ],
