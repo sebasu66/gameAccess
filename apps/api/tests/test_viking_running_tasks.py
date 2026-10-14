@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, SQLModel, create_engine
 
 from app import viking_cache_routes as routes
+from app.viking_chunk_models import VikingChunkJob
 from app.models import VikingDownloadRequest
 
 
@@ -22,7 +23,7 @@ def _row(request_id: str, status: str, kind: str, minutes_ago: int) -> VikingDow
 def test_lists_only_running_tasks_and_counts_by_kind(monkeypatch):
     monkeypatch.setattr(routes, "_admin_activation_access", lambda request: None)
     engine = create_engine("sqlite://")
-    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__])
+    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__, VikingChunkJob.__table__])
     with Session(engine) as session:
         session.add_all([
             _row("r1", "processing", "direct", 2),
@@ -45,7 +46,7 @@ def test_lists_only_running_tasks_and_counts_by_kind(monkeypatch):
 def test_restart_closes_requests_left_processing():
     from app.models import VikingSourceCache
     engine = create_engine("sqlite://")
-    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__, VikingSourceCache.__table__])
+    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__, VikingSourceCache.__table__, VikingChunkJob.__table__])
     now = datetime.now(timezone.utc)
     with Session(engine) as session:
         session.add_all([_row("r1", "processing", "torrent", 9), _row("r2", "completed", "direct", 9)])
@@ -69,7 +70,7 @@ def test_file_sizes_above_two_gigabytes_fit_in_the_columns():
     assert isinstance(VikingDownloadRequest.__table__.c.file_size_bytes.type, BigInteger)
     assert isinstance(VikingSourceCache.__table__.c.file_size_bytes.type, BigInteger)
     engine = create_engine("sqlite://")
-    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__])
+    SQLModel.metadata.create_all(engine, tables=[VikingDownloadRequest.__table__, VikingChunkJob.__table__])
     with Session(engine) as session:
         row = _row("big", "completed", "direct", 1)
         row.file_size_bytes = 9_307_286_934

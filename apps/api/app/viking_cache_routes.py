@@ -1,6 +1,7 @@
 """Client endpoint for resolving a source through TorBox -> ViKiNG, plus admin usage reporting."""
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -37,10 +38,13 @@ _CACHE_PROCESSING_STALE_AFTER = timedelta(minutes=90)
 def ensure_viking_schema(engine) -> None:
     """Widen the size columns of databases created before sizes could exceed 2 GB."""
     inspector = inspect(engine)
-    if inspector.has_table("viking_chunk_job") and "owner" not in {c["name"] for c in inspector.get_columns("viking_chunk_job")}:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE viking_chunk_job ADD COLUMN owner VARCHAR(80) NOT NULL DEFAULT ''"))
-        logger.warning("viking_schema added viking_chunk_job.owner")
+    if inspector.has_table("viking_chunk_job"):
+        have = {c["name"] for c in inspector.get_columns("viking_chunk_job")}
+        for name, size in (("owner", 80), ("detail", 600)):
+            if name not in have:
+                with engine.begin() as connection:
+                    connection.execute(text(f"ALTER TABLE viking_chunk_job ADD COLUMN {name} VARCHAR({size}) NOT NULL DEFAULT ''"))
+                logger.warning("viking_schema added viking_chunk_job.%s", name)
     if engine.dialect.name != "postgresql":
         return
     for table in ("viking_download_request", "viking_source_cache"):
@@ -528,6 +532,18 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
         .group_by(VikingDownloadRequest.status)
     ).all()
     counts = {status: int(total or 0) for status, total in last_day}
+    failures = []
+    for row in session.exec(
+        select(VikingDownloadRequest)
+        .where(VikingDownloadRequest.requested_at >= since, VikingDownloadRequest.status.in_(("failed", "rejected")))
+        .order_by(VikingDownloadRequest.requested_at.desc())
+        .limit(100)
+    ).all():
+        failures.append({
+            "at": _as_utc(row.completed_at) or _as_utc(row.requested_at), "item_name": row.item_name, "source_kind": row.source_kind,
+            "source_host": row.source_host, "installation_id": row.installation_id, "status": row.status,
+            "error_code": row.error_code, "flow": "enlace",
+        })
     tasks = []
     for row in running:
         started = _as_utc(row.requested_at) or now
@@ -543,8 +559,35 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
             "elapsed_seconds": elapsed,
             "possibly_stuck": elapsed > int(_CACHE_PROCESSING_STALE_AFTER.total_seconds()),
         })
+    from .viking_chunk_models import VikingChunkJob
+    for job in session.exec(
+        select(VikingChunkJob).where(VikingChunkJob.status.in_(("preparing", "running"))).order_by(VikingChunkJob.created_at.asc())
+    ).all():
+        started = _as_utc(job.created_at) or now
+        elapsed = max(0, int((now - started).total_seconds()))
+        try:
+            progress = json.loads(job.detail) if job.detail else {}
+        except ValueError:
+            progress = {}
+        tasks.append({
+            "request_id": job.job_id, "installation_id": "", "app_id": None, "item_name": job.item_name,
+            "source_kind": job.source_kind or "torrent", "source_host": "fragmentos", "requested_at": started,
+            "elapsed_seconds": elapsed, "possibly_stuck": elapsed > int(_CACHE_PROCESSING_STALE_AFTER.total_seconds()),
+            "status": job.status, "detail": progress,
+        })
+    for job in session.exec(
+        select(VikingChunkJob).where(VikingChunkJob.status == "failed", VikingChunkJob.updated_at >= since)
+        .order_by(VikingChunkJob.updated_at.desc()).limit(100)
+    ).all():
+        failures.append({
+            "at": _as_utc(job.updated_at), "item_name": job.item_name, "source_kind": job.source_kind, "source_host": "fragmentos",
+            "installation_id": "", "status": "failed", "error_code": job.error_code, "flow": "fragmentos",
+        })
+        counts["failed"] = counts.get("failed", 0) + 1
+    failures.sort(key=lambda f: f["at"] or now, reverse=True)
     return {
         "now": now,
+        "failures": failures[:100],
         "running_total": len(tasks),
         "running_torrents": sum(1 for task in tasks if task["source_kind"] == "torrent"),
         "running_direct": sum(1 for task in tasks if task["source_kind"] != "torrent"),
