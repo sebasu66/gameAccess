@@ -1,60 +1,52 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { Minus, Plus, Search } from "lucide-react";
-import { genreIcon, genreRank } from "./genreIcons";
+import { useMemo, useState } from "react";
+import { CircleMinus, CirclePlus, Search } from "lucide-react";
+import { genreIcon } from "./genreIcons";
 import { genreLabel } from "./libraryGenres";
 import { normalizeSearchText } from "./libraryText";
 import type { TriState } from "./TriStateOption";
 
-const NEXT: Record<TriState, TriState> = { off: "include", include: "exclude", exclude: "off" };
-
 /**
- * Step 1 of the filter wizard: every genre as an icon tile with its own search box.
- * One tap requires the genre (+), a second tap excludes it (−), a third clears it.
+ * The genre list behind "cualquier género": a small search box and an
+ * alphabetical, scrollable list. Every row has its own + (I want it) and
+ * − (I don't want it); pressing the active one again clears it.
  */
-export default function GenrePicker({ genres, stateOf, onSet, footer }: {
+export default function GenrePicker({ genres, stateOf, onSet }: {
   genres: string[];
   stateOf: (genre: string) => TriState;
   onSet: (genre: string, state: TriState) => void;
-  footer?: ReactNode;
 }) {
   const [text, setText] = useState("");
-  const [showAll, setShowAll] = useState(false);
-  // The curated genres come first in a fixed order; the long tail of small ones hides behind "Ver más".
-  const { visible, hidden } = useMemo(() => {
+  const rows = useMemo(() => {
     const needle = normalizeSearchText(text);
-    if (needle) return { visible: genres.filter(genre => normalizeSearchText(genreLabel(genre)).includes(needle)), hidden: 0 };
-    const main = genres.filter(genre => genreRank(genre) >= 0).sort((a, b) => genreRank(a) - genreRank(b));
-    const rest = genres.filter(genre => genreRank(genre) < 0);
-    return showAll ? { visible: [...main, ...rest], hidden: 0 } : { visible: main, hidden: rest.length };
-  }, [genres, text, showAll]);
+    return genres
+      .map(id => ({ id, label: genreLabel(id) }))
+      .filter(row => !needle || normalizeSearchText(row.label).includes(needle))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [genres, text]);
   return (
-    <div className="ga-wiz-genres">
-      <label className="ga-wiz-search">
+    <div className="ga-sx-genres">
+      <label className="ga-sx-search">
         <Search size={15} aria-hidden="true" />
-        <input type="search" value={text} placeholder="Buscá un género" aria-label="Buscar género"
+        <input type="search" value={text} placeholder="Buscar género" aria-label="Buscar género" autoFocus
           onChange={event => setText(event.target.value)} />
       </label>
-      <p className="ga-wiz-hint">Tocá una vez para pedirlo <b>+</b>, dos para excluirlo <b>−</b>.</p>
-      <div className="ga-wiz-genre-grid" role="group" aria-label="Géneros">
-        {visible.map(genre => {
-          const state = stateOf(genre);
-          const Icon = genreIcon(genre);
-          const label = genreLabel(genre);
+      <ul className="ga-sx-genre-list" aria-label="Géneros">
+        {rows.map(({ id, label }) => {
+          const state = stateOf(id);
+          const Icon = genreIcon(id);
           return (
-            <button key={genre} type="button" className={`ga-wiz-genre is-${state}`} aria-pressed={state !== "off"}
-              aria-label={`${label}: ${state === "include" ? "exigido" : state === "exclude" ? "excluido" : "sin elegir"}`}
-              onClick={() => onSet(genre, NEXT[state])}>
-              <Icon size={20} aria-hidden="true" />
+            <li key={id} className={`is-${state}`}>
+              <Icon size={18} aria-hidden="true" />
               <span>{label}</span>
-              {state === "include" ? <Plus className="ga-wiz-badge" size={13} aria-hidden="true" /> : null}
-              {state === "exclude" ? <Minus className="ga-wiz-badge" size={13} aria-hidden="true" /> : null}
-            </button>
+              <button type="button" className="ga-sx-pm is-include" aria-pressed={state === "include"} title={`Quiero juegos de ${label}`}
+                aria-label={`Incluir ${label}`} onClick={() => onSet(id, state === "include" ? "off" : "include")}><CirclePlus size={18} aria-hidden="true" /></button>
+              <button type="button" className="ga-sx-pm is-exclude" aria-pressed={state === "exclude"} title={`No quiero juegos de ${label}`}
+                aria-label={`Excluir ${label}`} onClick={() => onSet(id, state === "exclude" ? "off" : "exclude")}><CircleMinus size={18} aria-hidden="true" /></button>
+            </li>
           );
         })}
-        {hidden > 0 ? <button type="button" className="ga-wiz-more" onClick={() => setShowAll(true)}>Ver {hidden} géneros más</button> : null}
-        {visible.length === 0 ? <p className="ga-wiz-empty">Ningún género se llama así.</p> : null}
-      </div>
-      {footer}
+        {rows.length === 0 ? <li className="ga-sx-empty">Ningún género se llama así.</li> : null}
+      </ul>
     </div>
   );
 }

@@ -1,82 +1,89 @@
-import { CONTENT_FILTER_GROUPS, MULTIPLAYER_OPTION_KEYS, featureLabel, type LibrarySearchFilters } from "./librarySearch";
+import { MULTIPLAYER_OPTION_KEYS, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import { genreLabel } from "./libraryGenres";
 
-/** One piece of the sentence. `hl` marks a value the user chose, shown highlighted. */
-export type SentencePart = { text: string; hl?: boolean };
+/** Which editor a clickable term opens. */
+export type SentenceSlot = "kind" | "genres" | "players" | "score" | "date";
 
-/** Year bounds shared with the release-date slider. */
+/** One piece of the sentence. A part with a `slot` is a term the user can click to change. */
+export type SentencePart = { text: string; slot?: SentenceSlot };
+
+/** The sentence is two lines: what to look for, then how well reviewed and how recent. */
+export type FilterSentence = [SentencePart[], SentencePart[]];
+
+/** Year bounds shared with the release-date editor. */
 export const EARLIEST_YEAR = 1995;
 export const latestYear = () => new Date().getFullYear() + 1;
 
-const plain = (text: string): SentencePart => ({ text });
-const mark = (text: string): SentencePart => ({ text, hl: true });
+/** How each multiplayer option reads inside a sentence. */
+export const PLAYER_MODE_WORDS: Partial<Record<LibraryFeatureKey, string>> = {
+  coop: "cooperativo", pvp: "PvP", mmo: "MMO", shared_split_screen: "misma pantalla", lan: "LAN", online_multiplayer: "online",
+};
 
-/** "a", "a y b", "a, b y c" with each item highlighted. */
-function list(items: string[], joiner = "y"): SentencePart[] {
+const plain = (text: string): SentencePart => ({ text });
+const term = (text: string, slot: SentenceSlot): SentencePart => ({ text, slot });
+
+/** "a", "a y b", "a, b y c" with each item a clickable term. */
+function list(items: string[], slot: SentenceSlot, joiner = "y"): SentencePart[] {
   const parts: SentencePart[] = [];
   items.forEach((item, index) => {
     if (index > 0) parts.push(plain(index === items.length - 1 ? ` ${joiner} ` : ", "));
-    parts.push(mark(item));
+    parts.push(term(item, slot));
   });
   return parts;
 }
 
-/**
- * The filters as one readable sentence, e.g.
- * "Quiero encontrar juegos de Acción y Aventura, pero no de Terror, de un solo jugador…".
- * Only what is active appears, so an untouched panel reads as the plain default.
- */
-export function buildFilterSentence(filters: LibrarySearchFilters, now = new Date().getFullYear()): SentencePart[] {
-  const parts: SentencePart[] = [plain("Quiero encontrar "), mark(filters.software === true ? "programas" : "juegos")];
-
-  const included = (filters.genres ?? []).map(genreLabel);
-  const excluded = (filters.excludeGenres ?? []).map(genreLabel);
-  if (included.length) parts.push(plain(" de "), ...list(included));
-  if (excluded.length) parts.push(plain(included.length ? ", pero no de " : " que no sean de "), ...list(excluded, "ni"));
-
-  const features = filters.features ?? [];
-  if (features.includes("single_player")) {
-    parts.push(plain(", de "), mark("un solo jugador"));
-  } else if (features.includes("multiplayer") || MULTIPLAYER_OPTION_KEYS.some(key => features.includes(key))) {
-    parts.push(plain(", que admitan "), mark("multijugador"));
-    const modes = MULTIPLAYER_OPTION_KEYS.filter(key => features.includes(key)).map(featureLabel);
-    if (modes.length) parts.push(plain(" ("), ...list(modes), plain(")"));
-  }
-
-  if (filters.minReviewScore !== undefined) {
-    parts.push(plain(", con al menos "), mark(`${filters.minReviewScore} %`), plain(" de reseñas positivas"));
-  }
-
+/** The release window in words, e.g. "en el último año" or "desde 2010". */
+export function dateWords(filters: LibrarySearchFilters, now = new Date().getFullYear()): string {
   const from = filters.releaseYearFrom;
   const to = filters.releaseYearTo;
   const hasFrom = from !== undefined && from > EARLIEST_YEAR;
   const hasTo = to !== undefined && to < now;
   if (hasFrom && !hasTo) {
     const years = now - (from as number);
-    parts.push(plain(", lanzados "), years >= 1 && years <= 5
-      ? mark(years === 1 ? "en el último año" : `en los últimos ${years} años`)
-      : mark(`desde ${from}`));
-  } else if (hasFrom && hasTo) {
-    parts.push(plain(", lanzados entre "), mark(String(from)), plain(" y "), mark(String(to)));
-  } else if (hasTo) {
-    parts.push(plain(", lanzados hasta "), mark(String(to)));
+    return years >= 1 && years <= 10
+      ? (years === 1 ? "en el último año" : `en los últimos ${years} años`)
+      : `desde ${from}`;
   }
+  if (hasFrom && hasTo) return `entre ${from} y ${to}`;
+  if (hasTo) return `hasta ${to}`;
+  return "en cualquier fecha";
+}
 
-  if (filters.contentDescriptorIds?.length) {
-    const group = CONTENT_FILTER_GROUPS.find(item => item.descriptorIds.some(id => filters.contentDescriptorIds?.includes(id)));
-    if (group) parts.push(plain(", con "), mark(group.label.toLowerCase()));
+/**
+ * The filters as a two-line sentence in plain Spanish. The terms that can change
+ * carry a slot; with nothing chosen every slot reads as "cualquier…", so an
+ * untouched dialog is the permissive default.
+ */
+export function buildFilterSentence(filters: LibrarySearchFilters, now = new Date().getFullYear()): FilterSentence {
+  const line1: SentencePart[] = [plain("Quiero encontrar "), term(filters.software === true ? "programas" : "juegos", "kind"), plain(" de ")];
+
+  const included = (filters.genres ?? []).map(genreLabel);
+  const excluded = (filters.excludeGenres ?? []).map(genreLabel);
+  if (included.length) line1.push(...list(included, "genres"));
+  else line1.push(term("cualquier género", "genres"));
+  if (excluded.length) line1.push(plain("\u2060, pero no de "), ...list(excluded, "genres", "ni"));
+
+  const features = filters.features ?? [];
+  line1.push(plain("\u2060, para "));
+  if (features.includes("single_player")) {
+    line1.push(term("un solo jugador", "players"));
+  } else if (features.includes("multiplayer") || MULTIPLAYER_OPTION_KEYS.some(key => features.includes(key))) {
+    line1.push(term("multijugador", "players"));
+    const modes = MULTIPLAYER_OPTION_KEYS.filter(key => features.includes(key)).map(key => PLAYER_MODE_WORDS[key] ?? key);
+    if (modes.length) line1.push(plain(" ("), ...list(modes, "players"), plain("\u2060)"));
+  } else {
+    line1.push(term("cualquier número de jugadores", "players"));
   }
+  line1.push(plain("\u2060."));
 
-  const sources = filters.sources ?? [];
-  const noSources = filters.excludeSources ?? [];
-  if (sources.length) parts.push(plain(", con fuente "), ...list(sources, "o"));
-  if (noSources.length) parts.push(plain(sources.length ? " y sin " : ", sin fuente "), ...list(noSources, "ni"));
-
-  parts.push(plain("."));
-  return parts;
+  const line2: SentencePart[] = filters.minReviewScore !== undefined
+    ? [plain("Con al menos "), term(`${filters.minReviewScore} %`, "score"), plain("\u2060 de reseñas positivas, ")]
+    : [plain("Con "), term("cualquier puntaje", "score"), plain("\u2060 de reseñas, ")];
+  line2.push(plain("lanzados "), term(dateWords(filters, now), "date"), plain("\u2060."));
+  return [line1, line2];
 }
 
 /** The sentence as plain text, for tests and screen readers. */
-export function sentenceText(parts: SentencePart[]): string {
-  return parts.map(part => part.text).join("");
+export function sentenceText(sentence: FilterSentence): string {
+  return sentence.map(line => line.map(part => part.text).join("")).join(" ").replaceAll("\u2060", "");
 }

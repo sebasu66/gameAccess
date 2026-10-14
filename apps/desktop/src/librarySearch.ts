@@ -55,6 +55,8 @@ export interface LibrarySearchFilters {
    * `5D Chess` (tagged `Nudity`, no descriptor) and lost no descriptor games.
    */
   contentDescriptorIds?: number[];
+  /** Valve content descriptor ids to leave out, e.g. `[1, 3, 4]` to hide sexual content. */
+  excludeContentDescriptorIds?: number[];
   /**
    * Minimum review percentage (0-100). Not a boolean: "at least 80%" is a
    * different question from "good enough", and a slider expresses it directly.
@@ -347,7 +349,7 @@ export function hasNoActiveFilters(filters: LibrarySearchFilters): boolean {
     [filters.genres, filters.excludeGenres],
     [filters.features, filters.excludeFeatures],
     [filters.sources, filters.excludeSources],
-    [filters.contentDescriptorIds, undefined],
+    [filters.contentDescriptorIds, filters.excludeContentDescriptorIds],
   ];
   return pairs.every(([include, exclude]) => !include?.length && !exclude?.length)
     && filters.software === undefined
@@ -601,6 +603,10 @@ function screenOutByContent(game: CatalogGame, filters: LibrarySearchFilters): b
   if (filters.contentDescriptorIds?.length) {
     const descriptors = game.content_descriptorids ?? [];
     if (!filters.contentDescriptorIds.some(id => descriptors.includes(id))) return true;
+  }
+  if (filters.excludeContentDescriptorIds?.length) {
+    const descriptors = game.content_descriptorids ?? [];
+    if (filters.excludeContentDescriptorIds.some(id => descriptors.includes(id))) return true;
   }
   // The Software choice: programs and games are separate searches, never blended.
   if (filters.software !== undefined && gameIsSoftware(game) !== filters.software) return true;

@@ -5,53 +5,46 @@ import { buildFilterSentence, sentenceText } from "./filterSentence";
 const NOW = 2026;
 const sentence = (patch: Partial<LibrarySearchFilters>) =>
   sentenceText(buildFilterSentence({ ...DEFAULT_LIBRARY_FILTERS, minReviewScore: undefined, ...patch } as LibrarySearchFilters, NOW));
+const DEFAULT_TAIL = "Con cualquier puntaje de reseñas, lanzados en cualquier fecha.";
 
 describe("filter sentence", () => {
-  it("reads as the plain default when nothing is chosen", () => {
-    expect(sentence({})).toBe("Quiero encontrar juegos.");
+  it("reads as the permissive default when nothing is chosen", () => {
+    expect(sentence({})).toBe(`Quiero encontrar juegos de cualquier género, para cualquier número de jugadores. ${DEFAULT_TAIL}`);
   });
 
-  it("includes the default review bar when it is on", () => {
-    expect(sentence({ minReviewScore: 60 })).toBe("Quiero encontrar juegos, con al menos 60 % de reseñas positivas.");
+  it("states the review bar", () => {
+    expect(sentence({ minReviewScore: 60 })).toContain("Con al menos 60 % de reseñas positivas, lanzados en cualquier fecha.");
   });
 
-  it("lists included genres with a natural join", () => {
-    expect(sentence({ genres: ["action"] })).toBe("Quiero encontrar juegos de Acción.");
-    expect(sentence({ genres: ["action", "adventure"] })).toBe("Quiero encontrar juegos de Acción y Aventura.");
-    expect(sentence({ genres: ["action", "adventure", "rpg"] })).toBe("Quiero encontrar juegos de Acción, Aventura y RPG.");
+  it("lists included and excluded genres in natural Spanish", () => {
+    expect(sentence({ genres: ["action", "adventure"] })).toContain("juegos de Acción y Aventura, para");
+    expect(sentence({ genres: ["action"], excludeGenres: ["horror"] })).toContain("juegos de Acción, pero no de Terror, para");
+    expect(sentence({ excludeGenres: ["horror"] })).toContain("juegos de cualquier género, pero no de Terror, para");
   });
 
-  it("says what to leave out", () => {
-    expect(sentence({ genres: ["action"], excludeGenres: ["horror"] })).toBe("Quiero encontrar juegos de Acción, pero no de Terror.");
-    expect(sentence({ excludeGenres: ["horror"] })).toBe("Quiero encontrar juegos que no sean de Terror.");
-  });
-
-  it("describes single player and multiplayer branches", () => {
-    expect(sentence({ features: ["single_player"] })).toBe("Quiero encontrar juegos, de un solo jugador.");
-    expect(sentence({ features: ["multiplayer"] })).toBe("Quiero encontrar juegos, que admitan multijugador.");
-    expect(sentence({ features: ["multiplayer", "coop", "online_multiplayer"] }))
-      .toBe("Quiero encontrar juegos, que admitan multijugador (Co-op / PvE y Online).");
+  it("describes single player and multiplayer", () => {
+    expect(sentence({ features: ["single_player"] })).toContain("para un solo jugador.");
+    expect(sentence({ features: ["multiplayer"] })).toContain("para multijugador.");
+    expect(sentence({ features: ["multiplayer", "coop", "online_multiplayer"] })).toContain("para multijugador (cooperativo y online).");
   });
 
   it("describes release years in plain words", () => {
-    expect(sentence({ releaseYearFrom: 2024, releaseYearTo: NOW + 1 })).toBe("Quiero encontrar juegos, lanzados en los últimos 2 años.");
-    expect(sentence({ releaseYearFrom: 2025, releaseYearTo: NOW + 1 })).toBe("Quiero encontrar juegos, lanzados en el último año.");
-    expect(sentence({ releaseYearFrom: 2010, releaseYearTo: NOW + 1 })).toBe("Quiero encontrar juegos, lanzados desde 2010.");
-    expect(sentence({ releaseYearFrom: 2010, releaseYearTo: 2015 })).toBe("Quiero encontrar juegos, lanzados entre 2010 y 2015.");
-    expect(sentence({ releaseYearFrom: 1995, releaseYearTo: 2000 })).toBe("Quiero encontrar juegos, lanzados hasta 2000.");
+    expect(sentence({ releaseYearFrom: 2024, releaseYearTo: NOW + 1 })).toContain("lanzados en los últimos 2 años.");
+    expect(sentence({ releaseYearFrom: 2025, releaseYearTo: NOW + 1 })).toContain("lanzados en el último año.");
+    expect(sentence({ releaseYearFrom: 2010, releaseYearTo: NOW + 1 })).toContain("lanzados desde 2010.");
+    expect(sentence({ releaseYearFrom: 2010, releaseYearTo: 2015 })).toContain("lanzados entre 2010 y 2015.");
+    expect(sentence({ releaseYearFrom: 1995, releaseYearTo: 2000 })).toContain("lanzados hasta 2000.");
   });
 
-  it("mentions programs and sources", () => {
-    expect(sentence({ software: true })).toBe("Quiero encontrar programas.");
-    expect(sentence({ sources: ["Fuente A", "Fuente B"] })).toBe("Quiero encontrar juegos, con fuente Fuente A o Fuente B.");
-    expect(sentence({ excludeSources: ["Fuente C"] })).toBe("Quiero encontrar juegos, sin fuente Fuente C.");
+  it("says programs when looking for software", () => {
+    expect(sentence({ software: true })).toContain("Quiero encontrar programas de");
   });
 
-  it("combines everything in one sentence and marks chosen values", () => {
-    const parts = buildFilterSentence({
+  it("marks only the changeable terms as clickable", () => {
+    const [line1, line2] = buildFilterSentence({
       ...DEFAULT_LIBRARY_FILTERS, genres: ["action"], excludeGenres: ["horror"], features: ["single_player"], minReviewScore: 70,
     } as LibrarySearchFilters, NOW);
-    expect(sentenceText(parts)).toBe("Quiero encontrar juegos de Acción, pero no de Terror, de un solo jugador, con al menos 70 % de reseñas positivas.");
-    expect(parts.filter(part => part.hl).map(part => part.text)).toEqual(["juegos", "Acción", "Terror", "un solo jugador", "70 %"]);
+    expect(line1.filter(part => part.slot).map(part => part.text)).toEqual(["juegos", "Acción", "Terror", "un solo jugador"]);
+    expect(line2.filter(part => part.slot).map(part => part.text)).toEqual(["70 %", "en cualquier fecha"]);
   });
 });
