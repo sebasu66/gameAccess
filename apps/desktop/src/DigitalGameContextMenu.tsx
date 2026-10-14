@@ -3,7 +3,8 @@ import { useI18n } from "./i18n";
 import { libraryMembership, useLibraryBusy, useLibraryGames } from "./libraryMembership";
 import { removeLibraryGame } from "./libraryActions";
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { SOURCES_CHANGED_EVENT, sourceAvailability } from "./catalog/PluginSources";
 import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
 
 import AppDialog from "./AppDialog";
@@ -58,7 +59,15 @@ export default function DigitalGameContextMenu({
   // Desinstalar and the language/launch options need installed files.
   const canUninstall = canManage && (state.installed || state.prepared);
   const canPlay = Boolean(appId) && state.playButtonReady;
-  const canInstall = Boolean(appId) && !state.playButtonReady;
+  // Same rule as the Download button: it needs at least one connected source for this game.
+  const [, refreshSources] = useState(0);
+  useEffect(() => {
+    const changed = () => refreshSources(value => value + 1);
+    window.addEventListener(SOURCES_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(SOURCES_CHANGED_EVENT, changed);
+  }, []);
+  const hasSources = sourceAvailability(request.game).count > 0 || (request.game.availableSourceCount ?? 0) > 0;
+  const canInstall = Boolean(appId) && !state.playButtonReady && hasSources;
 
   const install = async () => {
     onClose();

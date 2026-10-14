@@ -31,19 +31,23 @@ describe("overview sorting", () => {
   { ...game(4), name: "Favorite", release_date: null, recommendation_count: null, steam_review_score: null },
   { ...game(5), name: "Unknown", release_date: "Próximamente", steam_review_score: 100, steam_review_count: 0 },
  ];
- const expected: Record<CatalogSort, number[]> = { name: [4, 2, 3, 1, 5], "release-date": [4, 3, 2, 1, 5], "steam-popularity": [4, 3, 2, 1, 5], "steam-review-score": [4, 3, 2, 1, 5] };
  for (const view of ["catalog", "installed"] as const) {
-  for (const sort of Object.keys(expected) as CatalogSort[]) {
-   it(`${view} respects ${sort} with favorites first`, () => {
+  for (const sort of ["name", "release-date", "steam-popularity", "steam-review-score"] as CatalogSort[]) {
+   it(`${view} respects ${sort} and liking a game never reorders the list`, () => {
     const downloads = { 1: status(1,"installed"), 2: status(2,"installed"), 3: status(3,"installed"), 5: status(5,"installed") };
-    expect(buildLibraryCollection(games, downloads, {4:1}, {1:9999}, view, sort).games.map(g => g.id)).toEqual(expected[sort]);
+    const plain = buildLibraryCollection(games, downloads, {}, {1:9999}, view, sort).games.map(g => g.id);
+    expect(buildLibraryCollection(games, downloads, {4:1}, {1:9999}, view, sort).games.map(g => g.id)).toEqual(plain);
+    expect(buildLibraryCollection(games, downloads, {4:-1}, {1:9999}, view, sort).games.map(g => g.id)).toEqual(plain);
+    expect(plain.includes(4)).toBe(view === "catalog");
     expect(games.map(g => g.id)).toEqual([1,2,3,4,5]);
    });
   }
  }
- it("preserves favorites-first sorting within search/filter matches", () => {
+ it("a liked game is not lifted above the others inside search/filter matches", () => {
   const matches = filterLibraryGames(games, "Title", {genres: [], categories: [], features: ["online_coop"]});
-  expect(buildLibraryCollection(matches, {}, {1:1}, {}, "catalog", "steam-popularity").games.map(g => g.id)).toEqual([1,3,2]);
+  const plain = buildLibraryCollection(matches, {}, {}, {}, "catalog", "steam-popularity").games.map(g => g.id);
+  expect(buildLibraryCollection(matches, {}, {1:1}, {}, "catalog", "steam-popularity").games.map(g => g.id)).toEqual(plain);
+  expect(plain).toEqual([3,2,1]);
  });
  it("parses Spanish Steam dates and sends invalid dates to the end", () => {
   expect(releaseDateValue("5 DIC 2019")).toBe(Date.UTC(2019,11,5));

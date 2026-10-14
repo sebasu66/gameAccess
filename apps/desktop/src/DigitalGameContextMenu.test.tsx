@@ -43,6 +43,22 @@ describe("DigitalGameContextMenu", () => {
     expect(html).toContain("Desinstalar");
   });
 
+  const installButton = (game: CatalogGame) => {
+    const html = renderToStaticMarkup(<DigitalGameContextMenu request={{ game, x: 0, y: 0, status: {
+      app_id: 100, state: "not-installed", progress: 0, bytes_downloaded: 0, bytes_total: null, installed: false,
+    } as ManagedDownloadStatus }} onClose={() => {}} />);
+    return html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Instalar")) ?? "";
+  };
+
+  it("keeps Instalar off when the game has no download source, like the Download button", () => {
+    expect(installButton(testGame)).toContain('disabled=""');
+    expect(installButton({ ...testGame, availableSourceCount: 0 })).toContain('disabled=""');
+  });
+
+  it("enables Instalar once a download source exists", () => {
+    expect(installButton({ ...testGame, availableSourceCount: 2 })).not.toContain('disabled=""');
+  });
+
   it.each(["not-installed","error","downloading","decompressing","paused","cancelling"] as const)(
     "keeps Desinstalar off when there is nothing installed or a transfer is active (%s)", state => {
       const html=renderToStaticMarkup(<DigitalGameContextMenu request={{game:testGame,x:0,y:0,status:{

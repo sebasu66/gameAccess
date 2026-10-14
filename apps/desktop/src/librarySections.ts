@@ -120,17 +120,15 @@ export function buildLibraryCollection(
     if (view === "library") return libraryIds.has(game.app_id ?? game.id);
     if (view === "installed") {
       const state = gameStateManager.resolve(game.app_id ? downloads[game.app_id] : undefined);
-      return state.installed || state.prepared || preferences[game.id] === 1;
+      return state.installed || state.prepared;
     }
     if (view === "favorites") return preferences[game.id] === 1;
     if (view === "top") return typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0;
     return true;
   });
   collection.sort((a, b) => {
-    const favoriteOrder = Number(preferences[b.id] === 1) - Number(preferences[a.id] === 1);
-    if (favoriteOrder) return favoriteOrder;
-    // Catalog and Library share the visible sort selector; history must not
-    // silently override it. Favorites are partitioned before this comparator.
+    // Catalog and Library share the visible sort selector; neither history nor
+    // likes may silently override it.
     const sort = view === "latest" ? "release-date" : view === "top" ? "steam-review-score" : view === "popular" ? effectiveSort : catalogSort;
     return compareCatalogGames(a, b, sort);
   });

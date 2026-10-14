@@ -58,6 +58,8 @@ interface LibraryRoomProps {
 }
 
 
+const IDLE_SHOWCASE_ENABLED = false;
+
 export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
@@ -126,14 +128,9 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
   const searchedGames = useMemo(() => {
     const filtered = filterLibraryGames(games, searchQuery, searchFilters);
-    const rank = (game: CatalogGame) => {
-      if (preferences[game.id] === -1) return 2;
-      const status = game.app_id ? effectiveDownloads[game.app_id] : undefined;
-      if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
-      return 1;
-    };
-    return [...filtered].sort((left, right) => rank(left) - rank(right));
-  }, [games, searchQuery, searchFilters, preferences, effectiveDownloads]);
+    // Likes and dislikes only teach recommendations; they never change the order of what is listed.
+    return filtered;
+  }, [games, searchQuery, searchFilters]);
   const catalogCollection = useMemo(
     () => buildLibraryCollection(downloadManager.pinGames(searchedGames, effectiveDownloads, trackedAppIds), effectiveDownloads, preferences, history, libraryView, catalogSort, libraryIds),
     [searchedGames, effectiveDownloads, trackedAppIds, preferences, history, libraryView, catalogSort, libraryIds],
@@ -252,6 +249,8 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const markActivity = useCallback(() => {
     setShowcaseMode(false);
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current);
+    // The idle "showcase" (jumping to a random game on its own) is switched off until it is designed properly.
+    if (!IDLE_SHOWCASE_ENABLED) return;
     idleTimerRef.current = window.setTimeout(() => {
       setFocusZone("grid");
       setShowcaseMode(true);
