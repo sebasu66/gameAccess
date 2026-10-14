@@ -8,6 +8,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app import viking_chunk_routes as routes
 from app import viking_chunk_service as svc
 from app.viking_cache_service import ProviderFailure
+from app.telemetry import ChunkTransfer, ClientPresence, ServerSample
 from app.viking_chunk_models import VikingChunkJob, VikingChunkPiece
 
 MAGNET = "magnet:?xt=urn:btih:" + "a" * 40 + "&dn=Portal"
@@ -16,7 +17,7 @@ MAGNET = "magnet:?xt=urn:btih:" + "a" * 40 + "&dn=Portal"
 @pytest.fixture()
 def session():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(engine, tables=[VikingChunkJob.__table__, VikingChunkPiece.__table__])
+    SQLModel.metadata.create_all(engine, tables=[VikingChunkJob.__table__, VikingChunkPiece.__table__, ChunkTransfer.__table__, ClientPresence.__table__, ServerSample.__table__])
     with Session(engine) as s:
         yield s
 
@@ -114,3 +115,21 @@ def test_piece_link_passes_viking_errors_on(session, monkeypatch):
     with pytest.raises(HTTPException) as err:
         asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session))
     assert err.value.status_code == 503
+
+
+def test_start_and_piece_requests_are_recorded_per_client(session, monkeypatch):
+    from sqlmodel import select
+
+    job_id = post(session)["job_id"]
+    session.add(VikingChunkPiece(job_id=job_id, piece_index=0, file_index=0, start_byte=0, size_bytes=4096, sha256="s", viking_hash="H", status="ready", updated_at=svc._now()))
+    session.commit()
+
+    class Fake:
+        async def resolve_viking_direct_link(self, value):
+            return "https://dr.vikingfile.com/x"
+
+    monkeypatch.setattr(routes, "create_provider", lambda: Fake())
+    asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session))
+    rows = session.exec(select(ChunkTransfer).order_by(ChunkTransfer.id)).all()
+    assert [(r.installation_id, r.kind, r.size_bytes) for r in rows] == [("inst-1", "start", 0), ("inst-1", "piece", 4096)]
+    assert rows[1].item_name == "Portal 2"

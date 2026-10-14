@@ -26,6 +26,7 @@ from .client_error_routes import router as client_error_router, report_client_er
 from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary, library_catalog, digital_game_details
 from .viking_cache_routes import router as viking_cache_router
 from .viking_chunk_routes import router as viking_chunk_router
+from .admin_dashboard_routes import router as admin_dashboard_router
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
 install_admin_auth(app)
@@ -76,6 +77,8 @@ def startup() -> None:
     recover_interrupted_viking_requests(engine)
     from .viking_chunk_service import recover_interrupted_chunk_jobs
     recover_interrupted_chunk_jobs(engine)
+    from .telemetry import start_sampler
+    start_sampler(engine)
     _start_steam_review_importer()
     from .discovery_service import start_maintenance
     start_maintenance()
@@ -85,6 +88,8 @@ def startup() -> None:
 def stop_discovery_worker():
     from .discovery_service import stop_maintenance
     stop_maintenance()
+    from .telemetry import stop_sampler
+    stop_sampler()
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -129,5 +134,5 @@ app.include_router(cooptimus_router)
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)
 app.middleware("http")(trace_request)
-for router in (activation_router, access_admin_router, client_error_router, catalog_router, viking_cache_router, viking_chunk_router):
+for router in (activation_router, access_admin_router, client_error_router, catalog_router, viking_cache_router, viking_chunk_router, admin_dashboard_router):
     app.include_router(router)

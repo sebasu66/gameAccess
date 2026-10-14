@@ -13,6 +13,7 @@ from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request
 from .api_dependencies import get_session
 from .database import engine
+from .telemetry import record_transfer
 from .viking_cache_service import ProviderFailure, create_provider, normalize_source_url
 from .viking_chunk_service import (
     build_manifest,
@@ -83,6 +84,7 @@ async def start_chunk_download(
         )
         logger.info("chunk_job_started job=%s client=%s kind=%s", job.job_id[:8], installation_id, identity.kind)
     session.refresh(job)
+    record_transfer(session, installation_id=installation_id, job_id=job.job_id, kind="start", item_name=job.item_name)
     return build_manifest(session, job)
 
 
@@ -105,7 +107,7 @@ async def chunk_piece_link(
 ) -> dict:
     """A fresh direct link for one ready piece (links are signed and expire)."""
     response.headers["Cache-Control"] = "no-store"
-    _installation_for_plus(request, session)
+    installation_id = _installation_for_plus(request, session)
     piece = get_ready_piece(session, job_id, index)
     if piece is None:
         raise HTTPException(404, "Esa pieza todavía no está lista.")
@@ -113,4 +115,9 @@ async def chunk_piece_link(
         url = await create_provider().resolve_viking_direct_link(piece.viking_hash)
     except ProviderFailure as exc:
         raise HTTPException(exc.status_code, exc.public_message) from exc
+    job = get_job(session, job_id)
+    record_transfer(
+        session, installation_id=installation_id, job_id=job_id, kind="piece", piece_index=piece.piece_index,
+        size_bytes=piece.size_bytes, item_name=job.item_name if job else "",
+    )
     return {"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": url}

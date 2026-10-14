@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Panel de control</title>
+<style>
+body{margin:0;background:#111416;color:#f5f5f5;font:15px system-ui}main{max-width:1200px;margin:32px auto;padding:24px}h1{margin:0 0 6px}h2{font-size:16px;margin:0 0 12px}p{color:#adb5bd;margin:4px 0}a{color:#ff8a3d}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin:22px 0}.stat{background:#191d20;padding:14px 18px;border-radius:12px;min-width:150px}.stat b{display:block;font-size:28px;color:#ff8a3d;font-variant-numeric:tabular-nums}.stat span{color:#adb5bd;font-size:13px}
+section{background:#191d20;border-radius:12px;padding:18px 20px;margin-top:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #ffffff14;font-size:13.5px;white-space:nowrap}th{color:#adb5bd;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em}
+td.num{font-variant-numeric:tabular-nums;text-align:right}th.num{text-align:right}tr.click{cursor:pointer}tr.click:hover{background:#ffffff0a}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:#2a3034;color:#adb5bd}.on{background:#1f3d2a;color:#7be09a}.dl{background:#4a2e12;color:#ffb15c}.plus{color:#ff8a3d}
+.err{color:#ff7a6b}.muted{color:#adb5bd}svg{width:100%;height:150px;display:block}.legend{font-size:12px;color:#adb5bd;margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 5px 0 12px}
+.hint{font-size:12.5px;color:#adb5bd;line-height:1.5}.hint b{color:#f5f5f5}#detail[hidden]{display:none}button{font:inherit;background:#22282b;color:#fff;border:1px solid #555;border-radius:6px;padding:6px 12px;cursor:pointer}
+</style>
+<main>
+<h1>Panel de control</h1>
+<p>Clientes conectados, qué baja cada uno y la carga del servidor. Se actualiza solo cada 10 segundos. <a href="/admin">Volver</a> · <a href="/admin/viking-tasks">Tareas en ejecución</a></p>
+<div id="error" class="err" role="alert"></div>
+
+<div class="stats">
+<div class="stat"><b id="online">–</b><span>conectados ahora</span></div>
+<div class="stat"><b id="downloading">–</b><span>bajando ahora</span></div>
+<div class="stat"><b id="total">–</b><span>clientes conocidos</span></div>
+<div class="stat"><b id="new7">–</b><span>nuevos (7 días)</span></div>
+<div class="stat"><b id="served24">–</b><span>servido (24 h)</span></div>
+<div class="stat"><b id="served7">–</b><span>servido (7 días)</span></div>
+<div class="stat"><b id="jobs">–</b><span>trabajos activos</span></div>
+</div>
+
+<div class="grid">
+<section><h2>Últimas 6 horas</h2><svg id="chart" viewBox="0 0 600 150" preserveAspectRatio="none" role="img" aria-label="Clientes conectados y velocidad servida en las últimas 6 horas"></svg>
+<div class="legend"><i style="background:#7be09a"></i>conectados<i style="background:#ffb15c"></i>bajando<i style="background:#6cb6ff"></i>Mbps servidos</div></section>
+<section><h2>Para dimensionar el servidor</h2>
+<div class="hint" id="capacity">–</div></section>
+</div>
+
+<section><h2>Clientes</h2><p class="muted">Tocá un cliente para ver su historial.</p>
+<div class="wrap"><table><thead><tr><th>Cliente</th><th>Plan</th><th>Estado</th><th>Visto por última vez</th><th>Primera vez</th><th class="num">Piezas</th><th class="num">Total servido</th><th class="num">Últimas 24 h</th></tr></thead><tbody id="clients"></tbody></table></div></section>
+
+<section id="detail" hidden><h2 id="detail-title"></h2><button id="close">Cerrar</button>
+<div class="grid"><div><h2>Por día</h2><div class="wrap"><table><thead><tr><th>Día</th><th class="num">Descargado</th></tr></thead><tbody id="per-day"></tbody></table></div></div>
+<div><h2>Juegos</h2><div class="wrap"><table><thead><tr><th>Juego</th><th class="num">Pedidos</th><th class="num">Piezas</th><th class="num">Servido</th><th>Último</th></tr></thead><tbody id="games"></tbody></table></div></div></div>
+<h2 style="margin-top:16px">Últimos movimientos</h2><div class="wrap"><table><thead><tr><th>Hora</th><th>Evento</th><th>Juego</th><th class="num">Pieza</th><th class="num">Tamaño</th></tr></thead><tbody id="recent"></tbody></table></div></section>
+
+<section><h2>Por día (últimos 7 días)</h2><div class="wrap"><table><thead><tr><th>Día</th><th class="num">Servido</th><th class="num">Máx. conectados</th><th class="num">Máx. bajando</th></tr></thead><tbody id="daily"></tbody></table></div></section>
+</main>
+<script>
+const q=id=>document.getElementById(id);
+const bytes=n=>{n=Number(n)||0;const u=["B","KB","MB","GB","TB"];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(n>=10||i===0?0:1)+" "+u[i]};
+const when=v=>v?new Date(v).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"–";
+const ago=v=>{if(!v)return"–";const s=Math.max(0,(Date.now()-new Date(v))/1000);return s<90?"hace "+Math.round(s)+" s":s<5400?"hace "+Math.round(s/60)+" min":s<172800?"hace "+Math.round(s/3600)+" h":when(v)};
+function cell(tr,text,cls){const td=document.createElement("td");td.textContent=text;if(cls)td.className=cls;tr.appendChild(td);return td}
+function pill(td,text,cls){const s=document.createElement("span");s.className="pill "+cls;s.textContent=text;td.appendChild(s)}
+async function get(path){const r=await fetch(path,{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"No se pudo leer el estado.");return d}
+
+function chart(points){
+  const svg=q("chart");svg.replaceChildren();if(!points.length)return;
+  const W=600,H=150,n=points.length;const maxC=Math.max(1,...points.map(p=>Math.max(p.online,p.downloading)));const maxM=Math.max(1,...points.map(p=>p.mbps));
+  const line=(key,max,color)=>{const p=document.createElementNS("http://www.w3.org/2000/svg","polyline");
+    p.setAttribute("fill","none");p.setAttribute("stroke",color);p.setAttribute("stroke-width","2");p.setAttribute("vector-effect","non-scaling-stroke");
+    p.setAttribute("points",points.map((d,i)=>(n===1?W/2:i*W/(n-1)).toFixed(1)+","+(H-6-(d[key]/max)*(H-14)).toFixed(1)).join(" "));svg.appendChild(p)};
+  line("mbps",maxM,"#6cb6ff");line("online",maxC,"#7be09a");line("downloading",maxC,"#ffb15c");
+}
+function capacity(o){
+  const p=o.peaks_7d,l=o.limits;const box=q("capacity");box.replaceChildren();
+  const add=(label,value)=>{const d=document.createElement("div");const b=document.createElement("b");b.textContent=label+": ";d.appendChild(b);d.appendChild(document.createTextNode(value));box.appendChild(d)};
+  add("Pico de clientes conectados (7 días)",p.online);add("Pico bajando a la vez",p.downloading);add("Pico de velocidad servida",p.mbps+" Mbps");
+  add("Trabajos simultáneos permitidos",l.max_jobs+" (cada uno sube "+l.uploads_per_job+" piezas a la vez)");
+  add("Guardado en Viking ahora",bytes(o.bytes_stored_in_viking));add("Disco temporal del servidor",bytes(o.work_dir_bytes));
+  const note=document.createElement("div");note.style.marginTop="8px";
+  note.textContent=p.downloading>=l.max_jobs*2?"Atención: hubo más clientes bajando que el doble de los trabajos permitidos; conviene subir GAMEACCESS_CHUNK_MAX_JOBS.":"Con los picos actuales los límites alcanzan.";
+  box.appendChild(note);
+}
+async function loadOverview(){
+  const o=await get("/admin/api/overview");
+  q("online").textContent=o.clients_online;q("downloading").textContent=o.clients_downloading;q("total").textContent=o.clients_total;q("new7").textContent=o.clients_new_7d;
+  q("served24").textContent=bytes(o.bytes_served_24h);q("served7").textContent=bytes(o.bytes_served_7d);
+  q("jobs").textContent=(o.jobs.preparing||0)+(o.jobs.running||0);
+  chart(o.last_6h);capacity(o);
+  const rows=q("daily");rows.replaceChildren();for(const d of o.daily.slice().reverse()){const tr=document.createElement("tr");cell(tr,d.day);cell(tr,bytes(d.bytes_served),"num");cell(tr,d.peak_online,"num");cell(tr,d.peak_downloading,"num");rows.appendChild(tr)}
+}
+async function loadClients(){
+  const d=await get("/admin/api/clients");const rows=q("clients");rows.replaceChildren();
+  if(!d.clients.length){const tr=document.createElement("tr");cell(tr,"Todavía no hay clientes registrados.").colSpan=8;rows.appendChild(tr)}
+  for(const c of d.clients){
+    const tr=document.createElement("tr");tr.className="click";tr.onclick=()=>openClient(c.installation_id);
+    cell(tr,c.installation_id.slice(0,8),"");const plan=cell(tr,(c.access_tier||"–").toUpperCase());if(c.access_tier==="plus")plan.className="plus";
+    const st=cell(tr,"");if(c.downloading)pill(st,"bajando","dl");else if(c.online)pill(st,"conectado","on");else pill(st,"desconectado","");
+    cell(tr,ago(c.last_seen_at));cell(tr,when(c.first_seen_at));cell(tr,c.pieces_served,"num");cell(tr,bytes(c.bytes_served),"num");cell(tr,bytes(c.bytes_served_24h),"num");rows.appendChild(tr)}
+}
+async function openClient(id){
+  const d=await get("/admin/api/clients/"+encodeURIComponent(id));
+  q("detail").hidden=false;q("detail-title").textContent="Cliente "+id.slice(0,8)+" · "+(d.access_tier||"sin plan").toUpperCase()+" · visto "+ago(d.last_seen_at);
+  const fill=(bodyId,list,cols)=>{const b=q(bodyId);b.replaceChildren();for(const item of list){const tr=document.createElement("tr");for(const [fn,cls] of cols)cell(tr,fn(item),cls);b.appendChild(tr)}};
+  fill("per-day",d.per_day.slice().reverse(),[[x=>x.day],[x=>bytes(x.bytes),"num"]]);
+  fill("games",d.games,[[x=>x.item_name||x.job_id.slice(0,8)],[x=>x.requested,"num"],[x=>x.pieces,"num"],[x=>bytes(x.bytes),"num"],[x=>ago(x.last_at)]]);
+  fill("recent",d.recent,[[x=>when(x.at)],[x=>x.kind==="start"?"pidió la descarga":"bajó una pieza"],[x=>x.item_name||"–"],[x=>x.kind==="start"?"–":x.piece_index,"num"],[x=>x.kind==="start"?"–":bytes(x.size_bytes),"num"]]);
+  q("detail").scrollIntoView({behavior:"smooth"});
+}
+q("close").onclick=()=>{q("detail").hidden=true};
+async function refresh(){try{await Promise.all([loadOverview(),loadClients()]);q("error").textContent=""}catch(e){q("error").textContent=e.message}}
+refresh();setInterval(refresh,10000);
+</script>
+</html>
