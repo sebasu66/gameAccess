@@ -3,27 +3,41 @@ import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import openingAudio from "../public/brand/opening-audio.json";
+// The opening sound ends with silence; the logo never waits for it longer than this.
+export const HOLD_MAX_MS = 900;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
  const [formed, setFormed] = useState(stage !== "intro");
  const [audioState, setAudioState] = useState("idle");
+ const [dockShown, setDockShown] = useState(false);
+ const [landing, setLanding] = useState(false);
  const video = useRef<HTMLVideoElement>(null);
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
  const phase = stage === "docking" ? "dock" : formed ? "hold" : "intro";
  const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const reducedRef = useRef(reduced);
  const finishDock = useCallback(() => {
   if (finished.current) return;
   finished.current = true;
+  // The header logo appears right away while the film fades out over it: no pop.
   document.body.classList.remove("ga-splash-active");
   window.dispatchEvent(new Event("gameaccess:logo-settled"));
-  onDocked();
+  if (reducedRef.current) { onDocked(); return; }
+  setLanding(true);
+  window.setTimeout(onDocked, 260);
  }, [onDocked]);
  useEffect(() => {
   document.body.classList.add("ga-splash-active");
-  return () => { document.body.classList.remove("ga-splash-active"); sound.current?.pause(); };
+  return () => {
+   document.body.classList.remove("ga-splash-active");
+   const audio = sound.current;
+   if (!audio) return;
+   // Let the sound fade instead of cutting it when the opening ends.
+   const fade = window.setInterval(() => { audio.volume = Math.max(0, audio.volume - .1); if (audio.volume <= .01) { audio.pause(); window.clearInterval(fade); } }, 40);
+  };
  }, []);
  useEffect(() => {
   const src = openingAudio.src as string | null;
@@ -33,7 +47,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   audio.onplaying = () => setAudioState("playing");
   audio.onended = () => setAudioState("ended");
   audio.onerror = () => setAudioState("error");
-  return () => { audio.pause(); sound.current = null; };
+  return () => { sound.current = null; };
  }, []);
  useEffect(() => {
   if (phase === "intro") {
@@ -45,7 +59,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    // Keep the formed logo large until the complete opening sound finishes.
    const audio = sound.current;
    const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
-   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.max(700, remaining));
+   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
    return () => clearTimeout(timer);
   }
   if (reduced) { onDockStart(); finishDock(); return; }
@@ -59,6 +73,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   started.current = true;
   const v = video.current;
   if (!v) return;
+  setDockShown(true);
   const target = Array.from(document.querySelectorAll(".ga-header-logo")).map(e => e.getBoundingClientRect()).find(rect => rect.width > 0);
   const scale = innerWidth / 1920;
   const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
@@ -76,11 +91,14 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
   onDockStart();
  };
- if (stage === "holding" || stage === "validation") return null;
- return <div className={`gameaccess-splash phase-${phase}`} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
-  {phase === "hold" ? <img className="gameaccess-splash-film" src="/brand/logo-intro-hold.png" alt="" />
-   : <video key={phase} ref={video} className="gameaccess-splash-film" src={phase === "intro" ? "/brand/logo-intro.webm" : "/brand/logo-to-header.webm"}
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => phase === "intro" ? setFormed(true) : finishDock()}
-    onEnded={() => phase === "intro" ? setFormed(true) : finishDock()} aria-hidden="true" />}
+ const away = stage === "holding" || stage === "validation";
+ const cls = `gameaccess-splash phase-${phase}${away ? " is-away" : ""}${landing ? " is-landing" : ""}`;
+ // Every layer stays mounted in turn so the picture never goes blank between films.
+ return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
+  <img className={`gameaccess-splash-film splash-hold${phase !== "intro" && !dockShown ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
+  {phase === "intro" ? <video key="intro" ref={video} className="gameaccess-splash-film splash-intro" src="/brand/logo-intro.webm"
+    muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => setFormed(true)} onEnded={() => setFormed(true)} aria-hidden="true" /> : null}
+  {phase === "dock" ? <video key="dock" ref={video} className={`gameaccess-splash-film splash-dock${dockShown ? " is-on" : ""}`} src="/brand/logo-to-header.webm"
+    muted playsInline autoPlay preload="auto" onPlaying={play} onError={finishDock} onEnded={finishDock} aria-hidden="true" /> : null}
  </div>;
 }

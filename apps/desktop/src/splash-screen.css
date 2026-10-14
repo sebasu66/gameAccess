@@ -1,5 +1,13 @@
 .gameaccess-splash{position:fixed;inset:0;z-index:510;pointer-events:none;overflow:hidden;background:transparent}
 .gameaccess-splash-film{position:absolute;left:0;top:0;width:100vw;height:auto;max-width:none;transform-origin:0 0;transform:translateY(calc((100vh - 56.25vw)/2));background:transparent}
+.splash-hold{opacity:0}.splash-hold.is-on{opacity:1}
+.splash-dock{opacity:0}.splash-dock.is-on{opacity:1}
+.gameaccess-splash.is-away{animation:ga-splash-away .55s ease both}
+.gameaccess-splash.phase-dock{animation:ga-splash-in .35s ease both}
+.gameaccess-splash.is-landing{animation:ga-splash-away .26s ease both}
+@keyframes ga-splash-away{from{opacity:1}to{opacity:0}}
+@keyframes ga-splash-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.gameaccess-splash.is-away,.gameaccess-splash.phase-dock,.gameaccess-splash.is-landing{animation:none}.gameaccess-splash.is-away{opacity:0}}
 .ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
