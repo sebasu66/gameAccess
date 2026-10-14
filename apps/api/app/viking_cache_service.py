@@ -54,6 +54,17 @@ class VikingFileResult:
     torbox_item_id: int
 
 
+@dataclass(frozen=True)
+class TorboxItem:
+    """A source that TorBox has finished downloading, with what is needed to ask for its links."""
+
+    item_id: int
+    data: dict[str, Any]
+    download_path: str
+    id_param: str
+    zip_link: bool
+
+
 class ProviderFailure(Exception):
     """A safe, user-facing provider failure without upstream URLs or credentials."""
 
@@ -473,6 +484,224 @@ class TorBoxVikingProvider:
 
             raise ProviderFailure("viking_resolve_failed", 502, "No se pudo obtener el enlace directo al archivo en ViKiNG.")
 
+    @staticmethod
+    def torbox_files(item: "TorboxItem") -> list[dict[str, Any]]:
+        """The files of a finished TorBox item as {"id", "name", "size"}, in TorBox order."""
+        if item.id_param == "torrent_id":
+            raw = item.data.get("files")
+            files = [
+                {
+                    "id": entry.get("id"),
+                    "name": str(entry.get("short_name") or entry.get("name") or "").strip() or f"file-{entry.get('id')}",
+                    "size": _safe_int(entry.get("size")),
+                }
+                for entry in (raw if isinstance(raw, list) else [])
+                if isinstance(entry, dict) and _safe_int(entry.get("size")) > 0
+            ]
+            files.sort(key=lambda entry: (_safe_int(entry["id"]), entry["name"]))
+        else:
+            size = _safe_int(item.data.get("size") or item.data.get("total_size"))
+            name = str(item.data.get("name") or "download").strip()
+            files = [{"id": None, "name": name, "size": size}] if size > 0 else []
+        if not files:
+            raise ProviderFailure("torbox_no_files", 502, "TorBox no informó los archivos de esta fuente.")
+        return files
+
+    async def prepare_chunk_source(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        source_url: str,
+        source_kind: str,
+        source_host: str,
+        file_name: str,
+        request_id: str,
+        installation_id: str,
+        fingerprint: str,
+    ) -> tuple["TorboxItem", list[dict[str, Any]]]:
+        """Submit a source to TorBox, wait for it, and return it with its file list."""
+        if not self.torbox_api_key:
+            raise ProviderFailure(
+                "torbox_not_configured", 503,
+                "El servicio de TorBox todavía no está configurado en el servidor.",
+            )
+        item = await self._torbox_submit_and_wait(
+            client,
+            source_url=source_url,
+            source_kind=source_kind,
+            source_host=source_host,
+            file_name=file_name,
+            request_id=request_id,
+            installation_id=installation_id,
+            fingerprint=fingerprint,
+        )
+        return item, self.torbox_files(item)
+
+    async def torbox_file_link(self, client: httpx.AsyncClient, item: "TorboxItem", file_id: int | None) -> str:
+        """A fresh temporary link to one file of a finished TorBox item (never a zip)."""
+        params: dict[str, Any] = {
+            "token": self.torbox_api_key,
+            item.id_param: item.item_id,
+            "zip_link": "false",
+            "redirect": "false",
+        }
+        if file_id is not None:
+            params["file_id"] = file_id
+        payload = await self._torbox_link_with_retry(
+            client, item.download_path, params, request_id="chunks", installation_id="server", item_id=item.item_id,
+        )
+        link = payload.get("data")
+        if not isinstance(link, str) or urlsplit(link).scheme != "https":
+            raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
+        return link
+
+    async def upload_file_to_viking(self, path: "Path", name: str) -> dict[str, Any]:
+        """Upload a local file to ViKiNG with a normal multipart upload and return its JSON result."""
+        timeout = httpx.Timeout(
+            float(self.upload_timeout_seconds), connect=20.0, read=float(self.upload_timeout_seconds),
+            write=float(self.upload_timeout_seconds), pool=20.0,
+        )
+        async with httpx.AsyncClient(timeout=timeout, transport=self.transport, follow_redirects=False) as client:
+            server_payload = await self._viking_json(client, "GET", VIKING_API_BASE + "/get-server", timeout=20.0)
+            upload_server = str(server_payload.get("server") or "")
+            if not is_viking_upload_server(upload_server):
+                raise ProviderFailure("viking_invalid_upload_server", 502, "ViKiNG devolvió un servidor de carga inválido.")
+            try:
+                with path.open("rb") as handle:
+                    response = await client.post(
+                        upload_server,
+                        data={"user": self.viking_user_hash},
+                        files={"file": (name, handle, "application/octet-stream")},
+                    )
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_upload_timeout", 504, "ViKiNG tardó demasiado en recibir el archivo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_upload_failed", 502, "No se pudo subir el archivo a ViKiNG.") from exc
+        return parse_viking_upload_response(response)
+
+    async def delete_viking_file(self, file_hash: str) -> bool:
+        """Delete one of our files from ViKiNG. Returns False when ViKiNG did not confirm it."""
+        async with httpx.AsyncClient(timeout=30.0, transport=self.transport, follow_redirects=False) as client:
+            try:
+                response = await client.post(
+                    VIKING_API_BASE + "/delete-file", data={"hash": file_hash, "user": self.viking_user_hash},
+                )
+            except httpx.HTTPError:
+                return False
+        return response.status_code < 400
+
+    async def _torbox_submit_and_wait(
+        self,
+        client: httpx.AsyncClient,
+        *,
+        source_url: str,
+        source_kind: str,
+        source_host: str,
+        file_name: str,
+        request_id: str,
+        installation_id: str,
+        fingerprint: str,
+    ) -> "TorboxItem":
+        """Submit a source to TorBox and wait until it has finished downloading there."""
+        if source_kind == "torrent":
+            form: dict[str, Any] = {
+                "magnet": source_url,
+                "seed": 0,
+                "allow_zip": "true",
+            }
+            if file_name:
+                form["name"] = file_name
+            logger.info(
+                "request=%s client=%s stage=torbox_submit kind=torrent fingerprint=%s",
+                request_id, installation_id, fingerprint[:12],
+            )
+            created = await self._torbox_json(client, "POST", "/torrents/createtorrent", data=form)
+            created_data = _data_object(created)
+            item_id = _safe_int(created_data.get("torrent_id") or created_data.get("id"))
+            if not item_id:
+                raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador del torrent.")
+            item_path = "/torrents/mylist"
+            download_path = "/torrents/requestdl"
+            id_param = "torrent_id"
+            zip_link = True
+        else:
+            form = {"link": source_url}
+            if file_name:
+                form["name"] = file_name
+            logger.info(
+                "request=%s client=%s stage=torbox_submit kind=direct host=%s fingerprint=%s",
+                request_id, installation_id, source_host, fingerprint[:12],
+            )
+            created = await self._torbox_json(client, "POST", "/webdl/createwebdownload", data=form)
+            created_data = _data_object(created)
+            item_id = _safe_int(
+                created_data.get("web_id")
+                or created_data.get("webdl_id")
+                or created_data.get("webdownload_id")
+                or created_data.get("id")
+            )
+            if not item_id:
+                raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador de la descarga.")
+            item_path = "/webdl/mylist"
+            download_path = "/webdl/requestdl"
+            id_param = "web_id"
+            zip_link = False
+
+        logger.info(
+            "request=%s client=%s stage=torbox_wait provider_id=%s kind=%s",
+            request_id, installation_id, item_id, source_kind,
+        )
+        deadline = time.monotonic() + self.max_wait_seconds
+        completed_item: dict[str, Any] = {}
+        while True:
+            status_payload = await self._torbox_json(
+                client,
+                "GET",
+                item_path,
+                params={"id": item_id, "bypass_cache": "true"},
+                timeout=25.0,
+            )
+            completed_item = _data_object(status_payload)
+            if _is_finished(completed_item):
+                break
+            state = str(completed_item.get("download_state") or completed_item.get("status") or "").lower()
+            if state in {"error", "failed", "dead", "cancelled", "canceled"}:
+                raise ProviderFailure("torbox_download_failed", 502, "TorBox no pudo completar la descarga de origen.")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderFailure("torbox_wait_timeout", 504, "La fuente todavía no está lista en TorBox; vuelve a intentarlo.")
+            await self.sleep_fn(min(self.poll_interval_seconds, remaining) if self.poll_interval_seconds else 0)
+        return TorboxItem(
+            item_id=item_id,
+            data=completed_item,
+            download_path=download_path,
+            id_param=id_param,
+            zip_link=zip_link,
+        )
+
+    async def _torbox_link_with_retry(
+        self,
+        client: httpx.AsyncClient,
+        download_path: str,
+        params: dict[str, Any],
+        *,
+        request_id: str,
+        installation_id: str,
+        item_id: int,
+    ) -> dict[str, Any]:
+        for attempt in range(1, TORBOX_LINK_ATTEMPTS + 1):
+            try:
+                return await self._torbox_json(client, "GET", download_path, params=params, timeout=30.0)
+            except ProviderFailure as exc:
+                if exc.code != "torbox_server_error" or attempt == TORBOX_LINK_ATTEMPTS:
+                    raise
+                logger.warning(
+                    "request=%s client=%s stage=torbox_link_retry attempt=%s provider_id=%s",
+                    request_id, installation_id, attempt, item_id,
+                )
+                await self.sleep_fn(TORBOX_LINK_RETRY_SECONDS * attempt)
+        raise ProviderFailure("torbox_server_error", 502, "TorBox tuvo un problema interno al preparar el archivo.")
+
     async def process_source(
         self,
         *,
@@ -496,74 +725,17 @@ class TorBoxVikingProvider:
             transport=self.transport,
             follow_redirects=False,
         ) as client:
-            if source_kind == "torrent":
-                form: dict[str, Any] = {
-                    "magnet": source_url,
-                    "seed": 0,
-                    "allow_zip": "true",
-                }
-                if file_name:
-                    form["name"] = file_name
-                logger.info(
-                    "request=%s client=%s stage=torbox_submit kind=torrent fingerprint=%s",
-                    request_id, installation_id, fingerprint[:12],
-                )
-                created = await self._torbox_json(client, "POST", "/torrents/createtorrent", data=form)
-                created_data = _data_object(created)
-                item_id = _safe_int(created_data.get("torrent_id") or created_data.get("id"))
-                if not item_id:
-                    raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador del torrent.")
-                item_path = "/torrents/mylist"
-                download_path = "/torrents/requestdl"
-                id_param = "torrent_id"
-                zip_link = True
-            else:
-                form = {"link": source_url}
-                if file_name:
-                    form["name"] = file_name
-                logger.info(
-                    "request=%s client=%s stage=torbox_submit kind=direct host=%s fingerprint=%s",
-                    request_id, installation_id, source_host, fingerprint[:12],
-                )
-                created = await self._torbox_json(client, "POST", "/webdl/createwebdownload", data=form)
-                created_data = _data_object(created)
-                item_id = _safe_int(
-                    created_data.get("web_id")
-                    or created_data.get("webdl_id")
-                    or created_data.get("webdownload_id")
-                    or created_data.get("id")
-                )
-                if not item_id:
-                    raise ProviderFailure("torbox_invalid_response", 502, "TorBox no devolvió el identificador de la descarga.")
-                item_path = "/webdl/mylist"
-                download_path = "/webdl/requestdl"
-                id_param = "web_id"
-                zip_link = False
-
-            logger.info(
-                "request=%s client=%s stage=torbox_wait provider_id=%s kind=%s",
-                request_id, installation_id, item_id, source_kind,
+            item = await self._torbox_submit_and_wait(
+                client,
+                source_url=source_url,
+                source_kind=source_kind,
+                source_host=source_host,
+                file_name=file_name,
+                request_id=request_id,
+                installation_id=installation_id,
+                fingerprint=fingerprint,
             )
-            deadline = time.monotonic() + self.max_wait_seconds
-            completed_item: dict[str, Any] = {}
-            while True:
-                status_payload = await self._torbox_json(
-                    client,
-                    "GET",
-                    item_path,
-                    params={"id": item_id, "bypass_cache": "true"},
-                    timeout=25.0,
-                )
-                completed_item = _data_object(status_payload)
-                if _is_finished(completed_item):
-                    break
-                state = str(completed_item.get("download_state") or completed_item.get("status") or "").lower()
-                if state in {"error", "failed", "dead", "cancelled", "canceled"}:
-                    raise ProviderFailure("torbox_download_failed", 502, "TorBox no pudo completar la descarga de origen.")
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise ProviderFailure("torbox_wait_timeout", 504, "La fuente todavía no está lista en TorBox; vuelve a intentarlo.")
-                await self.sleep_fn(min(self.poll_interval_seconds, remaining) if self.poll_interval_seconds else 0)
+            item_id, download_path, id_param, zip_link = item.item_id, item.download_path, item.id_param, item.zip_link
 
             params = {
                 "token": self.torbox_api_key,
@@ -575,20 +747,10 @@ class TorBoxVikingProvider:
                 "request=%s client=%s stage=torbox_link_ready provider_id=%s",
                 request_id, installation_id, item_id,
             )
-            for attempt in range(1, TORBOX_LINK_ATTEMPTS + 1):
-                try:
-                    link_payload = await self._torbox_json(
-                        client, "GET", download_path, params=params, timeout=30.0
-                    )
-                    break
-                except ProviderFailure as exc:
-                    if exc.code != "torbox_server_error" or attempt == TORBOX_LINK_ATTEMPTS:
-                        raise
-                    logger.warning(
-                        "request=%s client=%s stage=torbox_link_retry attempt=%s provider_id=%s",
-                        request_id, installation_id, attempt, item_id,
-                    )
-                    await self.sleep_fn(TORBOX_LINK_RETRY_SECONDS * attempt)
+            link_payload = await self._torbox_link_with_retry(
+                client, download_path, params,
+                request_id=request_id, installation_id=installation_id, item_id=item_id,
+            )
             temporary_link = link_payload.get("data")
             if not isinstance(temporary_link, str) or urlsplit(temporary_link).scheme != "https":
                 raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
