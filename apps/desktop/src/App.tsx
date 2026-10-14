@@ -1,5 +1,6 @@
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
+import RenderProbe from "./RenderProbe";
 import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
@@ -158,12 +159,21 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     if (!hasPendingSteamMetadata) return;
     let cancelled = false;
     let inFlight = false;
+    let delay = 5000;
+    let timer = 0;
+    let known = { total: -1, pending: -1 };
     const refreshPendingMetadata = async () => {
       if (inFlight) return;
       inFlight = true;
       try {
         const home = await loadHome();
         if (cancelled) return;
+        // Re-rendering the whole catalog costs about a second, so only do it when something actually got enriched.
+        const next = { total: home.games.length, pending: home.games.filter(isPendingSteamMetadata).length };
+        const changed = next.total !== known.total || next.pending !== known.pending;
+        known = next;
+        delay = changed ? 5000 : Math.min(delay * 2, 120_000);
+        if (!changed) return;
         setGames(home.games);
         setUser(home.user);
         setOfflineDemo(home.offlineDemo);
@@ -177,11 +187,14 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         inFlight = false;
       }
     };
-    void refreshPendingMetadata();
-    const timer = window.setInterval(() => void refreshPendingMetadata(), 5000);
+    const loop = async () => {
+      await refreshPendingMetadata();
+      if (!cancelled) timer = window.setTimeout(() => void loop(), delay);
+    };
+    void loop();
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, [hasPendingSteamMetadata]);
 
@@ -219,16 +232,21 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           ...digitalDownloadService.getDownloads().map(entry => entry.game),
         ]);
         if (!cancelled) setDownloads(current => {
-          const next = { ...current };
+          // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
+          let next: typeof current | null = null;
           for (const game of games) {
             const id = game.app_id ?? game.id;
             const active = digitalDownloadService.getManagedStatus(id);
             if (active && !["installed", "not-installed"].includes(active.state)) continue;
             const installed = Boolean(result.statuses?.[id]?.installed);
-            next[id] = { app_id: id, state: installed ? "installed" : "not-installed", progress: installed ? 100 : null,
+            const state = installed ? "installed" : "not-installed";
+            const existing = current[id];
+            if (existing && existing.state === state && Boolean(existing.installed) === installed && existing.bytes_downloaded === null) continue;
+            next ??= { ...current };
+            next[id] = { app_id: id, state, progress: installed ? 100 : null,
               bytes_downloaded: null, bytes_total: null, installed };
           }
-          return next;
+          return next ?? current;
         });
       } catch { /* Keep last confirmed folder state on probe errors. */ }
       finally { pending = false; }
@@ -554,7 +572,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
 
       <main>
-        <LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} />
+        <RenderProbe id="LibraryRoom"><LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} /></RenderProbe>
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
           {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}

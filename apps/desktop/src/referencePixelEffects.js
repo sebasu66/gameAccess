@@ -136,23 +136,39 @@ function updateStyle(){
  dirty=true;
 }
 function signature(data){let v=2166136261;for(let i=0;i<data.length;i+=17)v=Math.imul(v^data[i],16777619);return (v>>>0).toString(16)}
+let fieldMs=4;
 let frame=0,last=performance.now(),tt=media.matches?3:0,lp=-1e3,lq=-1e3,diagnosticAt=-1e3,dirty=true;
 function loop(now){
  const dt=Math.max(0,(now-last)/1000);last=now;
  const animated=P.animate&&!media.matches;
  if(animated&&document.visibilityState==='visible')tt+=dt*P.spd;
  if(document.visibilityState==='visible'&&(animated||dirty)){
-   if(dirty||now-lp>90){lp=now;paintField(tt)}
+   // The field repaints more slowly when a frame of it is expensive, so it never starves hover animations.
+   if(dirty||now-lp>Math.max(90,fieldMs*10)){const began=performance.now();lp=now;paintField(tt);fieldMs=fieldMs*.8+(performance.now()-began)*.2}
    if(dirty||now-lq>60){lq=now;drawBtns(tt)}
    dirty=false;
  }
- if(now-diagnosticAt>500){
+ // Reading pixels back from a canvas stalls the GPU, so the signatures are only kept for diagnostics.
+ if(document.documentElement.dataset.gaPixelDiagnostics==='1'&&now-diagnosticAt>500){
    diagnosticAt=now;fx.dataset.animationTime=tt.toFixed(3);fx.dataset.animated=String(animated);fx.dataset.pixelSignature=signature(u32);
    for(const o of targets.values())if(o.s&&selected(o.button))o.button.dataset.pixelSignature=signature(o.c.getImageData(0,0,o.canvas.width,o.canvas.height).data);
  }
  frame=requestAnimationFrame(loop);
 }
-const observer=new MutationObserver(()=>{syncButtons();dirty=true});
+// Only a change to the effect buttons matters; hover classes elsewhere must not repaint the whole field.
+const relevant=m=>{
+ if(m.type==='childList'){
+  for(const list of [m.addedNodes,m.removedNodes])for(const n of list)if(n.nodeType===1&&(n.matches(selector)||n.querySelector(selector)))return true;
+  return false;
+ }
+ return Boolean(m.target.matches&&m.target.matches(selector));
+};
+let syncQueued=false;
+const observer=new MutationObserver(list=>{
+ if(syncQueued||!list.some(relevant))return;
+ syncQueued=true;
+ requestAnimationFrame(()=>{syncQueued=false;syncButtons();dirty=true});
+});
 const resizeField=()=>{build();dirty=true};
 const visibility=()=>{last=performance.now();dirty=true};
 build();syncButtons();updateStyle();

@@ -32,6 +32,9 @@ class ResourceGuardManager {
   public isDebugEnabled(): boolean {
     if (this.debugOverride !== null) return this.debugOverride;
     if (typeof window === "undefined") return false;
+    // During development the profiler starts on, so slowness is caught while building.
+    // An explicit choice (the toggle) still wins.
+    if (import.meta.env?.DEV && import.meta.env?.MODE !== "test" && this.storedChoice() === null) return true;
     const globalFlag = (window as unknown as { __GA_DEBUG_PROFILER__?: boolean }).__GA_DEBUG_PROFILER__;
     if (typeof globalFlag === "boolean") return globalFlag;
     try {
@@ -45,6 +48,13 @@ class ResourceGuardManager {
       // Storage access blocked or restricted.
     }
     return false;
+  }
+
+  private storedChoice(): boolean | null {
+    try {
+      const value = typeof localStorage !== "undefined" ? localStorage.getItem("gameaccess:debug_profiler") : null;
+      return value === "true" ? true : value === "false" ? false : null;
+    } catch { return null; }
   }
 
   public setDebugEnabled(enabled: boolean): void {

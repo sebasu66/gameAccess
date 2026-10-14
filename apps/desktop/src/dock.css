@@ -50,3 +50,8 @@
 .ga-header-utilities .ga-access-pass-toggle svg { color: #ff8a35; }
 @media (max-width: 760px) { .ga-global-language { top: calc(var(--window-chrome-height, 34px) + 20px) !important; right: 16px !important; } .ga-header-utilities.topbar-actions { right: 16px !important; top: calc(var(--window-chrome-height, 34px) + 70px) !important; } }
 .ga-dock .ga-help-fab { order: 3; }
+
+/* Developer resource bar (only while the profiler is on). */
+.ga-resource-meter{position:fixed;left:12px;bottom:10px;z-index:9000;display:flex;gap:12px;padding:5px 11px;border-radius:8px;background:#0b0e12d9;border:1px solid #ffffff22;color:#9fe0b0;font:600 11px/1.4 ui-monospace,Consolas,monospace;pointer-events:none;font-variant-numeric:tabular-nums}
+.ga-resource-culprits{color:#ffd28a;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ga-resource-meter.is-hot{color:#ff9d8f;border-color:#ff7a6b}

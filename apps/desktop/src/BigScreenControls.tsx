@@ -31,7 +31,7 @@ export default function BigScreenControls(props: Props) {
   const closeKeyboardRef=useRef(closeKeyboard);closeKeyboardRef.current=closeKeyboard;
   useEffect(() => { if (!props.enabled) setKeyboard(false); }, [props.enabled]);
   useEffect(() => {
-    const input = new GamepadInput(); let frame = 0; let wasConnected = false; let controller = -1;
+    const input = new GamepadInput(); let frame = 0; let idle = 0; let wasConnected = false; let controller = -1;
     const dispatch = (action: PadAction) => {
       const p = latest.current;
       if (action === "toggle") { if (!dialogScope()) p.onToggle(); return; }
@@ -66,10 +66,12 @@ export default function BigScreenControls(props: Props) {
         if (pad) { if (controller !== pad.index) { input.reset(); controller=pad.index; } input.read(pad,now).forEach(dispatch); }
         else { input.reset(); controller=-1; }
       } else input.reset();
-      frame=requestAnimationFrame(tick);
+      // Poll every frame only while a controller is in use; otherwise check a few times a second.
+      if (controller >= 0) frame = requestAnimationFrame(tick);
+      else idle = window.setTimeout(() => { frame = requestAnimationFrame(tick); }, 300);
     };
     frame=requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(idle); };
   }, []);
   useEffect(() => { if (keyboard) document.querySelector<HTMLElement>(".ga-pad-keyboard button")?.focus({preventScroll:true}); }, [keyboard]);
   const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? "Salir de pantalla grande" : "Pantalla grande"} title={props.enabled ? "Salir de pantalla grande (F11 / Start)" : "Pantalla grande (F11 / Start)"} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? "Salir" : "Pantalla grande"}</span></button>;
