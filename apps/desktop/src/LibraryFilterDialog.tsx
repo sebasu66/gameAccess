@@ -13,6 +13,7 @@ import { useParentalLocked } from "./ParentalControlSection";
 import { DEFAULT_LIBRARY_FILTERS, MULTIPLAYER_OPTION_KEYS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 import { genreLabel } from "./libraryGenres";
+import { getAllAvailableSourceNames } from "./catalog/PluginSources";
 
 /** Which filters group owns each criterion, and the positive/negative pair. */
 const GROUPS = {
@@ -59,7 +60,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   onApply: (filters: LibrarySearchFilters) => void;
 }) {
   const parentalLocked = useParentalLocked();
-  const sourceNames = [...new Set(games.flatMap(game => game.download_source_names ?? []))].sort();
+  const sourceNames = [...new Set([...games.flatMap(game => game.download_source_names ?? []), ...getAllAvailableSourceNames()])].sort();
   const [draft, setDraft] = useState<LibrarySearchFilters>({ ...filters });
   /** The sentence term whose editor is open under it. */
   const [open, setOpen] = useState<SentenceSlot | null>(null);

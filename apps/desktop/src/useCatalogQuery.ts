@@ -38,6 +38,15 @@ export function useCatalogQuery(options: UseCatalogQueryOptions = {}): UseCatalo
     setRefreshTick(t => t + 1);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onSourcesChanged = () => {
+      setRefreshTick(t => t + 1);
+    };
+    window.addEventListener("gameaccess:sources-changed", onSourcesChanged);
+    return () => window.removeEventListener("gameaccess:sources-changed", onSourcesChanged);
+  }, []);
+
   const paramsKey = useMemo(() => JSON.stringify({
     query: options.query,
     genres: options.genres,

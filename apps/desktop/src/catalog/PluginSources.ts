@@ -5,6 +5,7 @@ import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
 import { gamesWithPossibleSources } from "./sourceTitleIndex";
+import { setCatalogTempSources, type TempSourceItem, readCatalogCache } from "../catalogCache";
 
 export interface PluginManifest { id: string; name: string; endpoint: string; type: string; }
 export interface PluginSource {
@@ -121,14 +122,35 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
 export function suggestedSource(game: CatalogGame): PluginSource | undefined {
   return detailSources.get(keyOf(game))?.[0];
 }
-export async function checkPluginSources(games: CatalogGame[]): Promise<Record<number, number>> {
-  const key = pluginGeneration() + ":" + JSON.stringify(games.map(game => [keyOf(game), game.name]));
+let matchingCatalog: CatalogGame[] | null = null;
+
+export function invalidateCatalogMatchingCache(): void {
+  matchingCatalog = null;
+}
+
+async function getMatchingCatalog(): Promise<CatalogGame[]> {
+  if (matchingCatalog && matchingCatalog.length > 0) return matchingCatalog;
+  matchingCatalog = await readCatalogCache().catch(() => []);
+  return matchingCatalog;
+}
+
+export function getAllAvailableSourceNames(): string[] {
+  const names = new Set<string>();
+  for (const entry of availability.values()) {
+    for (const name of entry.names) names.add(name);
+  }
+  return [...names].sort();
+}
+
+export async function checkPluginSources(games?: CatalogGame[]): Promise<Record<number, number>> {
+  const candidateGames = (games && games.length) ? games : await getMatchingCatalog();
+  const key = pluginGeneration() + ":" + (games && games.length ? JSON.stringify(games.map(game => [keyOf(game), game.name])) : "all");
   if (Date.now() - (completedScans.get(key) ?? 0) < SCAN_CACHE_MS) {
-    return Object.fromEntries(games.map(game => [keyOf(game), sourceAvailability(game).count]));
+    return Object.fromEntries(candidateGames.map(game => [keyOf(game), sourceAvailability(game).count]));
   }
   const existing = pending.get(key);
   if (existing) return existing;
-  const request = check(games, key).finally(() => pending.delete(key));
+  const request = check(candidateGames, key).finally(() => pending.delete(key));
   pending.set(key, request);
   return request;
 }
@@ -206,6 +228,15 @@ async function check(games: CatalogGame[], scanKey: string): Promise<Record<numb
   if (epoch !== pluginGeneration()) return {};
   for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
+  const tempSources: TempSourceItem[] = [];
+  for (const [id, entry] of next) {
+    if (entry.count > 0 && entry.names.length > 0) {
+      tempSources.push({ app_id: id, source_names: [...new Set(entry.names)] });
+    }
+  }
+  await setCatalogTempSources(tempSources).catch(err => {
+    void narrate(`Failed to set catalog temp sources: ${String(err)}`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+  });
   publish();
   if (!hadErrors) {
     completedScans.set(scanKey, Date.now());
@@ -240,5 +271,6 @@ export function invalidatePluginSources(): void {
   availability.clear();
   completedScans.clear();
   detailSources.clear();
+  void setCatalogTempSources([]).catch(() => {});
   publish();
 }

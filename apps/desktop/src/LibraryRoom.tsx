@@ -126,11 +126,14 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
 
   const isCatalog = libraryView === "catalog";
   const activeQuery = (searchValue || searchQuery || "").trim();
+  const hasDownloads = searchFilters.features?.includes("has_downloads");
+  const filteredFeatures = searchFilters.features?.filter(f => f !== "has_downloads");
   const catalogQuery = useCatalogQuery({
     query: activeQuery,
     genres: searchFilters.genres?.length ? searchFilters.genres : undefined,
-    features: searchFilters.features?.length ? searchFilters.features : undefined,
+    features: filteredFeatures?.length ? filteredFeatures : undefined,
     sources: searchFilters.sources?.length ? searchFilters.sources : undefined,
+    has_downloads: hasDownloads ? true : undefined,
     sort_by: catalogSort,
     sort_direction: catalogSort === "name" ? "asc" : "desc",
     min_rating: searchFilters.minReviewScore,

@@ -2,6 +2,7 @@ import { getApiBaseUrl, getCatalogManifestUrl } from "../settings";
 import { queryCatalogCache, syncCatalogCache } from "../catalogCache";
 import type { CatalogGame } from "../types";
 import { narrate } from "../narrationLog";
+import { invalidateCatalogMatchingCache } from "./PluginSources";
 
 export interface DiscoveryCatalogSummary {
   updated: boolean;
@@ -39,6 +40,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
       try {
         const synced = await syncCatalogCache(manifest);
         if (synced) {
+          if (synced.updated) invalidateCatalogMatchingCache();
           void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
           return synced;
         }

@@ -81,6 +81,15 @@ describe("External plugin sources", () => {
     expect(await getPluginSources(game)).toEqual([]);
     expect(sourceAvailability(game).count).toBe(0);
   });
+  it("publishes matched temp sources to SQLite cache via setCatalogTempSources", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    vi.mocked(invoke).mockResolvedValue([plugin]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ 700: { count: 1, sources: ["Feed A"] } }) }));
+    await checkPluginSources([game]);
+    expect(invoke).toHaveBeenCalledWith("catalog_cache_set_temp_sources", {
+      sources: [{ app_id: 700, source_names: ["Feed A"] }],
+    });
+  });
 });
 
 describe("Plugin link preparation", () => {
