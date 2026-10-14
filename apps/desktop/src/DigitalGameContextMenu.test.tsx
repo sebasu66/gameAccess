@@ -44,14 +44,13 @@ describe("DigitalGameContextMenu", () => {
   });
 
   it.each(["not-installed","error","downloading","decompressing","paused","cancelling"] as const)(
-    "allows cleanup after a failed installation but protects an active transfer (%s)", state => {
+    "keeps Desinstalar off when there is nothing installed or a transfer is active (%s)", state => {
       const html=renderToStaticMarkup(<DigitalGameContextMenu request={{game:testGame,x:0,y:0,status:{
         app_id:100,state,progress:0,bytes_downloaded:0,bytes_total:null,installed:false,
       } as ManagedDownloadStatus}} onClose={()=>{}} />);
       const uninstall=html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button=>button.includes("Desinstalar"));
       expect(uninstall).toBeDefined();
-      if(state==="not-installed"||state==="error") expect(uninstall).not.toContain('disabled=""');
-      else expect(uninstall).toContain('disabled=""');
+      expect(uninstall).toContain('disabled=""');
     }
   );
 
@@ -62,11 +61,23 @@ describe("DigitalGameContextMenu", () => {
     return html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Desinstalar"));
   };
 
-  it.each([["installed", true], ["prepared", false], ["not-installed", false], ["error", false], ["cancelled", false], ["unknown", false]] as const)(
-    "enables Desinstalar when nothing is transferring (%s)", (state, installed) => {
+  it.each([["installed", true], ["prepared", false]] as const)(
+    "enables Desinstalar only when there are installed files (%s)", (state, installed) => {
       expect(uninstallButton(state, installed)).not.toContain('disabled=""');
     }
   );
+
+  it.each(["not-installed", "error", "cancelled", "unknown"] as const)(
+    "disables Desinstalar when nothing is installed (%s)", state => {
+      expect(uninstallButton(state)).toContain('disabled=""');
+    }
+  );
+
+  it("still lets a not-installed game be removed from the library", () => {
+    const html = renderToStaticMarkup(<DigitalGameContextMenu request={{ game: testGame, x: 0, y: 0, status: { app_id: 100, state: "not-installed", progress: 0, bytes_downloaded: 0, bytes_total: null, installed: false } as ManagedDownloadStatus }} onClose={() => {}} />);
+    const add = html.match(/<button[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Añadir a biblioteca") || button.includes("Quitar de biblioteca"));
+    expect(add).not.toContain('disabled=""');
+  });
 
   it.each(["requested", "preparing", "downloading", "decompressing", "extracting", "installing", "paused", "cancelling"] as const)(
     "disables Desinstalar while the game is transferring (%s), including the piece-by-piece download", state => {
