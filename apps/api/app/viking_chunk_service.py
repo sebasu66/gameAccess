@@ -355,56 +355,6 @@ class VikingFileSink:
         return file_hash
 
 
-# ---------------------------------------------------------------- cleanup
-
-PURGE_AFTER_HOURS = 24
-
-
-async def purge_job(engine: Engine, job_id: str, deleter: Callable[[str], Awaitable[bool]]) -> int:
-    """Delete the job's pieces from ViKiNG and forget them. Returns how many were removed.
-
-    A piece whose deletion ViKiNG does not confirm stays in the table so a later sweep retries it.
-    """
-    with Session(engine) as session:
-        rows = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job_id)).all()
-        targets = [(r.piece_index, r.viking_hash) for r in rows if r.viking_hash]
-    removed = 0
-    for index, file_hash in targets:
-        try:
-            ok = await deleter(file_hash)
-        except Exception:  # noqa: BLE001 - one bad piece must not stop the sweep
-            ok = False
-        if not ok:
-            continue
-        removed += 1
-        with Session(engine) as session:
-            row = session.exec(
-                select(VikingChunkPiece).where(VikingChunkPiece.job_id == job_id, VikingChunkPiece.piece_index == index)
-            ).first()
-            if row is not None:
-                session.delete(row)
-                session.commit()
-    with Session(engine) as session:
-        left = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job_id)).first()
-        if left is None:
-            _set_job(engine, job_id, status="purged")
-    return removed
-
-
-async def purge_stale_jobs(engine: Engine, deleter: Callable[[str], Awaitable[bool]], *, hours: float = PURGE_AFTER_HOURS) -> int:
-    """Remove pieces of jobs nobody touched for a while, so ViKiNG storage does not pile up."""
-    from datetime import timedelta
-
-    limit = _now() - timedelta(hours=hours)
-    with Session(engine) as session:
-        ids = [
-            j.job_id for j in session.exec(
-                select(VikingChunkJob).where(VikingChunkJob.status.in_(("ready", "failed")), VikingChunkJob.updated_at < limit)
-            ).all()
-        ]
-    return sum([await purge_job(engine, job_id, deleter) for job_id in ids])
-
-
 # ---------------------------------------------------------------- starting jobs from the API
 
 _running: dict[str, asyncio.Task] = {}

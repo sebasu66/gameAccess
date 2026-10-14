@@ -579,17 +579,6 @@ class TorBoxVikingProvider:
                 raise ProviderFailure("viking_upload_failed", 502, "No se pudo subir el archivo a ViKiNG.") from exc
         return parse_viking_upload_response(response)
 
-    async def delete_viking_file(self, file_hash: str) -> bool:
-        """Delete one of our files from ViKiNG. Returns False when ViKiNG did not confirm it."""
-        async with httpx.AsyncClient(timeout=30.0, transport=self.transport, follow_redirects=False) as client:
-            try:
-                response = await client.post(
-                    VIKING_API_BASE + "/delete-file", data={"hash": file_hash, "user": self.viking_user_hash},
-                )
-            except httpx.HTTPError:
-                return False
-        return response.status_code < 400
-
     async def _torbox_submit_and_wait(
         self,
         client: httpx.AsyncClient,
