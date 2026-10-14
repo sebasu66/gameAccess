@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeOverviewZoom, overviewCoverSizing } from "./overviewSizing";
+import { MIN_COVER_SCALE, normalizeOverviewZoom, overviewCoverSizing } from "./overviewSizing";
 describe("overview zoom combined with automatic grid sizing", () => {
-  it("makes the dense default floor 10 percent larger than the former automatic baseline", () => {
+  it("makes the dense default floor larger than the former automatic baseline", () => {
     // 1200px grid: six former baseline columns, 28px gaps, 77% dense scale.
     const previousFloor = ((1200 - 5 * 28) / 6) * .77;
-    expect(overviewCoverSizing(1440, 900, 1200, 50).coverFloor).toBeCloseTo(previousFloor * 1.1);
+    expect(overviewCoverSizing(1440, 900, 1200, 50).coverFloor).toBeCloseTo(previousFloor * 1.1 * MIN_COVER_SCALE);
   });
   it("increases cover size and reduces columns while retaining sparse-search enlargement", () => {
     const normal = overviewCoverSizing(1920, 1080, 1700, 300);

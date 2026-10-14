@@ -1,4 +1,6 @@
 export const OVERVIEW_ZOOM_KEY = "gameaccess:overview-zoom:v1";
+// Covers never get smaller than this share of the automatic size: fewer, bigger covers keep the grid fast to draw.
+export const MIN_COVER_SCALE = 1.35;
 export function normalizeOverviewZoom(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(160, Math.max(100, Math.round(value))) : 100;
 }
@@ -20,7 +22,7 @@ export function overviewCoverSizing(width: number, height: number, availableWidt
   const maximum = Math.max(132, Math.min(360, baseline * 1.5, (height - 270) * 2 / 3));
   // Preserve automatic result/viewport sizing, then apply the new 10% base and user zoom.
   const automaticFloor = Math.max(132, Math.min(maximum, baseline * scale));
-  const coverFloor = Math.min(availableWidth, automaticFloor * 1.1 * normalizeOverviewZoom(zoom) / 100);
+  const coverFloor = Math.min(availableWidth, automaticFloor * 1.1 * MIN_COVER_SCALE * normalizeOverviewZoom(zoom) / 100);
   const coverColumns = Math.min(resultCount, Math.max(1, Math.floor((availableWidth + gap) / (coverFloor + gap))));
   return { coverFloor, coverColumns };
 }
