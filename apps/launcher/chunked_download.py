@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import os
 import re
 import shutil
@@ -24,6 +26,7 @@ POLL_SECONDS = 2.0
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
 STREAM_CHUNK = 1 << 20
+DOWNLOADS_IN_PARALLEL = 4        # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS)
 NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
 NETWORK_RETRY_SECONDS = 3.0
 MAX_RESUMES = 3                  # times the player asks the server to resume a job that stopped
@@ -60,7 +63,10 @@ def safe_name(name: str, fallback: str) -> str:
 
 
 class ChunkedDownloader:
-    def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep):
+    def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep, parallel: int | None = None):
+        self.parallel = max(1, parallel or int(os.getenv("GAMEACCESS_CHUNK_DOWNLOADS") or DOWNLOADS_IN_PARALLEL))
+        self.live: dict[int, int] = {}
+        self.abort = threading.Event()
         self.context = context
         self.session = session
         self.http = http or requests
@@ -113,62 +119,102 @@ class ChunkedDownloader:
         work.mkdir(exist_ok=True)
         state_path = dest / f".ga-state-{job_id[:8]}.json"
         done = self._load_state(state_path, job_id)
-        started, base_done = time.time(), 0
-        idle_since = time.time()
+        started = time.time()
+        idle_since = last_poll = 0.0
         files_ready = False
         paths: dict[int, Path] = {}
         created: list[Path] = []
         resumes = 0
         finished = False
+        inflight: dict[Any, int] = {}
+        sizes: dict[int, int] = {}
+        total = 0
+        base_done = 0
+        last_emit = 0.0
+        self.abort.clear()
+        self.live.clear()
+        pool = ThreadPoolExecutor(max_workers=self.parallel)
         try:
             while not context.cancelled.is_set():
                 context.wait_if_paused()
-                manifest = self.manifest(job_id)
-                if manifest["status"] == "failed" and not any(p["ready"] and p["index"] not in done for p in manifest["pieces"]):
-                    # Nothing left to download from a stopped job: ask the server to resume it when that makes sense.
-                    if resumes < MAX_RESUMES and (manifest.get("error") or "") in RESUMABLE_ERRORS:
-                        resumes += 1
-                        self.start(source_url, item_name)
-                        self.sleep(POLL_SECONDS)
-                        continue
-                    raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga ({manifest.get('error') or 'error'})")
-                if not manifest["pieces"]:
-                    # TorBox is still preparing the source; nothing to download yet.
-                    context.emit_progress(app_id, "preparing", 20.0, 0, 0, 0, 0, "Preparando los archivos en el servidor...")
-                    self._idle(idle_since)
-                    continue
-                if not files_ready:
-                    paths = self._prepare_files(manifest, dest, item_name, created)
-                    files_ready = True
-                    base_done = sum(p["size"] for p in manifest["pieces"] if p["index"] in done)
-                total = int(manifest["total_bytes"] or sum(p["size"] for p in manifest["pieces"]))
-                todo = [p for p in manifest["pieces"] if p["index"] not in done]
-                if not todo:
+                for future in [f for f in inflight if f.done()]:
+                    index = inflight.pop(future)
+                    future.result()  # raises the piece's error
+                    done.add(index)
+                    self.live.pop(index, None)
+                    self._save_state(state_path, job_id, done)
+                if files_ready and not inflight and len(done) >= len(sizes):
                     finished = True
                     break
-                ready = [p for p in todo if p["ready"]]
-                if not ready:
-                    context.emit_progress(
-                        app_id, "downloading", self._percent(done, manifest, total), self._bytes(done, manifest), total, 0, 0,
-                        f"Esperando el siguiente fragmento de {game_name}...",
-                    )
-                    self._idle(idle_since)
-                    continue
-                idle_since = time.time()
-                piece = ready[0]
-                self._download_piece(job_id, piece, paths[piece["file_index"]], work, manifest, done, total, app_id, game_name, started, base_done)
-                done.add(piece["index"])
-                self._save_state(state_path, job_id, done)
+                polled = False
+                if len(inflight) < self.parallel:
+                    now = time.time()
+                    if last_poll == 0.0 or now - last_poll >= (1.0 if inflight else POLL_SECONDS):
+                        last_poll, polled = now, True
+                        manifest = self.manifest(job_id)
+                if polled:
+                    ready_left = any(p["ready"] and p["index"] not in done and p["index"] not in inflight.values() for p in manifest["pieces"])
+                    if manifest["status"] == "failed" and not ready_left and not inflight:
+                        # Nothing left to download from a stopped job: ask the server to resume it when that makes sense.
+                        if resumes < MAX_RESUMES and (manifest.get("error") or "") in RESUMABLE_ERRORS:
+                            resumes += 1
+                            self.start(source_url, item_name)
+                            self.sleep(POLL_SECONDS)
+                            last_poll = 0.0
+                            continue
+                        raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga ({manifest.get('error') or 'error'})")
+                    if not manifest["pieces"]:
+                        context.emit_progress(app_id, "preparing", 20.0, 0, 0, 0, 0, "Preparando los archivos en el servidor...")
+                        self._idle(idle_since or started)
+                        continue
+                    if not files_ready:
+                        paths = self._prepare_files(manifest, dest, item_name, created)
+                        files_ready = True
+                        sizes = {p["index"]: int(p["size"]) for p in manifest["pieces"]}
+                        total = int(manifest["total_bytes"] or sum(sizes.values()))
+                        base_done = sum(sizes[i] for i in done if i in sizes)
+                    todo = [p for p in manifest["pieces"] if p["index"] not in done]
+                    if not todo:
+                        finished = True
+                        break
+                    taken = set(inflight.values())
+                    for piece in [p for p in todo if p["ready"] and p["index"] not in taken][: self.parallel - len(inflight)]:
+                        idle_since = time.time()
+                        future = pool.submit(self._download_piece, job_id, piece, paths[piece["file_index"]], work)
+                        inflight[future] = piece["index"]
+                if inflight:
+                    self.sleep(0.25)
+                elif polled:
+                    self._idle(idle_since or started)
+                else:
+                    self.sleep(0.25)
+                if time.time() - last_emit >= 0.5 and files_ready:
+                    last_emit = time.time()
+                    got = sum(sizes.get(i, 0) for i in done) + sum(self.live.values())
+                    speed = int(max(got - base_done, 0) / max(time.time() - started, 0.001))
+                    eta = int((total - got) / speed) if speed > 0 else 0
+                    if inflight:
+                        context.emit_progress(app_id, "downloading", got / total * 100.0 if total else 0.0, got, total, speed, eta,
+                                              f"Descargando {game_name} ({got / total * 100.0 if total else 0.0:.1f}%)")
+                    else:
+                        context.emit_progress(app_id, "downloading", got / total * 100.0 if total else 0.0, got, total, 0, 0,
+                                              f"Esperando el siguiente fragmento de {game_name}...")
         except ChunkedDownloadError:
+            self.abort.set()
+            pool.shutdown(wait=True, cancel_futures=True)
             self._discard(dest, created, state_path)
             raise
         finally:
+            if not finished:
+                self.abort.set()
+            pool.shutdown(wait=True, cancel_futures=True)
             shutil.rmtree(work, ignore_errors=True)
             if finished or context.cancelled.is_set():
                 state_path.unlink(missing_ok=True)
         if context.cancelled.is_set():
             self._discard(dest, created, state_path)
             return ""
+        context.emit_progress(app_id, "downloading", 100.0, total, total, 0, 0, f"Descarga de {game_name} completa.")
         ordered = [paths[i] for i in sorted(paths)]
         if len(ordered) == 1:
             return str(ordered[0])
@@ -228,18 +274,20 @@ class ChunkedDownloader:
         temp.write_text(json.dumps({"job_id": job_id, "done": sorted(done)}), "utf-8")
         os.replace(temp, path)
 
-    def _download_piece(self, job_id, piece, target: Path, work: Path, manifest, done, total, app_id, game_name, started, base_done) -> None:
+    def _download_piece(self, job_id: str, piece: dict, target: Path, work: Path) -> None:
+        """Runs in a worker thread: download one piece, verify it and write it at its place."""
         context = self.context
-        part = work / f"{piece['index']:04d}.part"
+        index = piece["index"]
+        part = work / f"{index:04d}.part"
         last_error = "error"
         for attempt in range(1, PIECE_ATTEMPTS + 1):
-            if context.cancelled.is_set():
+            if context.cancelled.is_set() or self.abort.is_set():
                 return
             try:
-                link = self.piece_link(job_id, piece["index"])
+                link = self.piece_link(job_id, index)
                 digest = hashlib.sha256()
                 written = 0
-                already = self._bytes(done, manifest)
+                self.live[index] = 0
                 with self.http.get(link["url"], stream=True, timeout=60, allow_redirects=True) as response:
                     if response.status_code != 200:
                         raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
@@ -248,21 +296,14 @@ class ChunkedDownloader:
                     with part.open("wb") as handle:
                         for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
                             context.wait_if_paused()
-                            if context.cancelled.is_set():
+                            if context.cancelled.is_set() or self.abort.is_set():
                                 return
                             if not chunk:
                                 continue
                             handle.write(chunk)
                             digest.update(chunk)
                             written += len(chunk)
-                            elapsed = max(time.time() - started, 0.001)
-                            got = already + written
-                            speed = int((got - base_done) / elapsed)
-                            eta = int((total - got) / speed) if speed > 0 else 0
-                            context.emit_progress(
-                                app_id, "downloading", got / total * 100.0 if total else 0.0, got, total, speed, eta,
-                                f"Descargando {game_name} ({got / total * 100.0 if total else 0.0:.1f}%)",
-                            )
+                            self.live[index] = written
                 if written != piece["size"] or digest.hexdigest() != piece["sha256"]:
                     raise ChunkedDownloadError("el fragmento llegó incompleto o dañado")
                 with target.open("r+b") as out:
@@ -273,7 +314,8 @@ class ChunkedDownloader:
                 return
             except (requests.RequestException, ChunkedDownloadError, OSError) as exc:
                 last_error = str(exc)
+                self.live[index] = 0
                 part.unlink(missing_ok=True)
                 if attempt < PIECE_ATTEMPTS:
                     self.sleep(1.5 * attempt)
-        raise ChunkedDownloadError(f"no se pudo bajar el fragmento {piece['index']}: {last_error}")
+        raise ChunkedDownloadError(f"no se pudo bajar el fragmento {index}: {last_error}")

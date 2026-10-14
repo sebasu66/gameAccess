@@ -11,6 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import chunked_download as cd
 
 
+@pytest.fixture(autouse=True)
+def fast_polling(monkeypatch):
+    monkeypatch.setattr(cd, "POLL_SECONDS", 0.0)
+
+
 class Ctx:
     def __init__(self):
         self.cancelled = threading.Event()
@@ -88,10 +93,10 @@ class FakeServer:
         return Resp(200, data=data)
 
 
-def make(server, tmp_path):
+def make(server, tmp_path, parallel=1):
     ctx = Ctx()
     session = cd.ChunkSession("https://api", "tok", "inst")
-    return cd.ChunkedDownloader(ctx, session, http=server, sleep=lambda s: None), ctx
+    return cd.ChunkedDownloader(ctx, session, http=server, sleep=lambda s: None, parallel=parallel), ctx
 
 
 def test_single_file_is_assembled_and_nothing_is_left_behind(tmp_path):
@@ -257,3 +262,30 @@ def test_a_job_stopped_by_a_server_restart_is_resumed_by_the_player(tmp_path):
     downloader, _ = make(server, tmp_path)
     result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
     assert Path(result).read_bytes() == data and state["posts"] == 2
+
+
+def test_several_pieces_are_downloaded_at_the_same_time(tmp_path):
+    import time as _time
+
+    data = bytes(range(250)) * 2000
+    server = FakeServer([("f.bin", data)], 50_000)
+    original = server.get
+    state = {"active": 0, "peak": 0}
+    lock = threading.Lock()
+
+    class Slow(Resp):
+        def iter_content(self, chunk_size=1):
+            with lock:
+                state["active"] += 1
+                state["peak"] = max(state["peak"], state["active"])
+            _time.sleep(0.05)
+            yield self.data
+            with lock:
+                state["active"] -= 1
+
+    server.get = lambda url, **kw: (lambda r: Slow(200, data=r.data))(original(url, **kw))
+    downloader, ctx = make(server, tmp_path, parallel=4)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert state["peak"] >= 2
+    assert list(tmp_path.iterdir()) == [Path(result)]
