@@ -49,3 +49,4 @@
 .ga-header-utilities .ga-access-pass-toggle .ga-access-time { font-variant-numeric: tabular-nums; color: #dce1e5; font-weight: 650; }
 .ga-header-utilities .ga-access-pass-toggle svg { color: #ff8a35; }
 @media (max-width: 760px) { .ga-global-language { top: calc(var(--window-chrome-height, 34px) + 20px) !important; right: 16px !important; } .ga-header-utilities.topbar-actions { right: 16px !important; top: calc(var(--window-chrome-height, 34px) + 70px) !important; } }
+.ga-dock .ga-help-fab { order: 3; }

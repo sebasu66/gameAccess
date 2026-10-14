@@ -1,4 +1,5 @@
 import AppSettings from "./AppSettings";
+import AppHelp from "./AppHelp";
 import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
@@ -541,7 +542,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
           <PluginIndicator />
-          <AppSettings dockTarget={dockTarget} /><AccessPass />
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass />
         </div>
       </header>
 

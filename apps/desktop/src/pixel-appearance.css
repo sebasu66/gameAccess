@@ -114,3 +114,9 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-settings-panel .ga-settings-error{color:#ffb4b4;white-space:pre-wrap}
 .ga-game-config{width:min(600px,100%)}
 .ga-game-options{max-height:calc(100vh - 80px);overflow:auto}
+.ga-help-panel{width:min(640px,100%)}
+.ga-help-topic ol{margin:10px 0 4px;padding-left:22px;line-height:1.7;font-size:13.5px;color:#d9dce2}
+.ga-help-contact{margin-top:22px;padding-top:18px;border-top:1px solid #ffffff16}.ga-help-contact h3{margin:0 0 8px}.ga-help-contact p{font-size:13px}
+.ga-help-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.ga-help-write{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:#ff6a00;color:#1a0d04;font:750 12px Manrope,"Segoe UI",sans-serif;text-decoration:none}.ga-help-write:hover{filter:brightness(1.1)}.ga-help-write:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.ga-help-address{font-size:12px;color:#a5a7ad}.ga-help-missing{color:#ffb15c !important}
