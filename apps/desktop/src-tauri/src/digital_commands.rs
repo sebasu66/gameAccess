@@ -83,6 +83,7 @@ pub(crate) async fn start_digital_download(
     source_delivery: Option<String>,
     install_process: String,
     torbox_key: Option<String>,
+    chunk_session: Option<String>,
     keep_archive: Option<bool>,
     auto_installed: Option<bool>,
 ) -> Result<serde_json::Value, String> {
@@ -133,6 +134,13 @@ pub(crate) async fn start_digital_download(
         if let Some(ref key) = torbox_key {
             if !key.trim().is_empty() {
                 cmd.arg("--torbox-key").arg(key.trim());
+            }
+        }
+
+        // Credentials for the piece-by-piece download travel in the environment, not in the command line.
+        if let Some(ref session) = chunk_session {
+            if !session.trim().is_empty() {
+                cmd.env("GAMEACCESS_CHUNK_SESSION", session.trim());
             }
         }
 

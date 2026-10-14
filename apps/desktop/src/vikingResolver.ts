@@ -125,3 +125,13 @@ export async function resolveVikingDownload(request: VikingResolveRequest, waitM
     return null;
   }
 }
+
+/**
+ * Credentials the launcher needs to download a source piece by piece from the server
+ * (TorBox -> ViKiNG). Returns null when there is no activation, so the normal download runs.
+ */
+export async function buildChunkSession(): Promise<string | null> {
+  const [api, token, installationId] = await Promise.all([getApiBaseUrl(), readActivationSession(), getInstallationId()]);
+  if (!api || !token || !installationId) return null;
+  return JSON.stringify({ api, token, installation: installationId });
+}

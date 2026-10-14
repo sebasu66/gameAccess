@@ -1,7 +1,7 @@
 import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
-import { canAccelerate, resolveVikingDownload } from "../vikingResolver";
+import { buildChunkSession, canAccelerate } from "../vikingResolver";
 import { downloadMethodFor, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
@@ -270,27 +270,23 @@ export class DigitalDownloadService implements IDownloadProvider {
       throw new Error(errorMsg);
     }
 
-    // Ask the server to process the link (cache, TorBox, ViKiNG). It never throws; on any
-    // failure the original source is used, so the Download button keeps working.
-    let effectiveSource = downloadSource;
-    let serverMode: "cache" | "processed" | "direct" | null = null;
+    // The launcher downloads the source piece by piece from the server (TorBox -> ViKiNG) and
+    // falls back to the normal download by itself when the server cannot serve it.
+    const effectiveSource = downloadSource;
     let effectiveDelivery = record?.sourceDelivery;
-    // Every link goes to the server, which compares direct download against TorBox.
-    // A link that opens a web page is still tried through TorBox, which can sometimes fetch it.
+    let chunkSession: string | null = null;
     if (hasTauriRuntime() && canAccelerate(downloadSource)) {
-      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga directa", bytesDownloaded: 0, bytesTotal: 0 });
-      const processed = await resolveVikingDownload({ sourceUrl: downloadSource, itemName: name, appId: typeof appId === "number" ? appId : null });
-      if (processed) {
-        effectiveSource = processed.url;
-        serverMode = processed.mode;
-        if (processed.mode === "cache" || processed.mode === "processed") {
-          effectiveDelivery = "download";
-        }
+      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga", bytesDownloaded: 0, bytesTotal: 0 });
+      chunkSession = await buildChunkSession();
+      if (chunkSession) {
+        effectiveDelivery = "download";
+        void narrate(`Descarga por fragmentos solicitada al server para el link ${downloadSource}`, { area: "DOWNLOAD" });
+      } else {
+        void narrate("No hay una activación vigente; se descarga sin pasar por el servidor.", { area: "DOWNLOAD", level: "WARN" });
       }
-      else void narrate("No se pudo usar el servidor; se sigue con la descarga normal.", { area: "DOWNLOAD", level: "WARN" });
     }
 
-    this.methods.set(gameId, downloadMethodFor(effectiveSource, serverMode));
+    this.methods.set(gameId, downloadMethodFor(effectiveSource, chunkSession ? "processed" : null));
     this.updateSnapshot({ ...(this.activeJobs.get(gameId) ?? { gameId, phase: "preparing", progress: 0 }) });
 
     if (hasTauriRuntime()) {
@@ -304,6 +300,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           installProcess,
           autoInstalled: record?.auto_installed === true,
           torboxKey: options?.torboxKey,
+          chunkSession,
           keepArchive: options?.keepArchive,
         });
         console.log(`[DigitalDownloaderService:start] start_digital_download response:`, result);
