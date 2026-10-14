@@ -3,6 +3,7 @@ import { CircleMinus, CirclePlus, Search } from "lucide-react";
 import { genreIcon } from "./genreIcons";
 import { genreLabel } from "./libraryGenres";
 import { normalizeSearchText } from "./libraryText";
+import { ClearButton } from "./SentencePanels";
 import type { TriState } from "./TriStateOption";
 
 /**
@@ -10,10 +11,11 @@ import type { TriState } from "./TriStateOption";
  * alphabetical, scrollable list. Every row has its own + (I want it) and
  * − (I don't want it); pressing the active one again clears it.
  */
-export default function GenrePicker({ genres, stateOf, onSet }: {
+export default function GenrePicker({ genres, stateOf, onSet, onClear }: {
   genres: string[];
   stateOf: (genre: string) => TriState;
   onSet: (genre: string, state: TriState) => void;
+  onClear: () => void;
 }) {
   const [text, setText] = useState("");
   const rows = useMemo(() => {
@@ -25,11 +27,14 @@ export default function GenrePicker({ genres, stateOf, onSet }: {
   }, [genres, text]);
   return (
     <div className="ga-sx-genres">
+      <div className="ga-sx-genre-head">
       <label className="ga-sx-search">
         <Search size={15} aria-hidden="true" />
         <input type="search" value={text} placeholder="Buscar género" aria-label="Buscar género" autoFocus
           onChange={event => setText(event.target.value)} />
       </label>
+      <ClearButton onClick={onClear} disabled={!genres.some(genre => stateOf(genre) !== "off")} />
+      </div>
       <ul className="ga-sx-genre-list" aria-label="Géneros">
         {rows.map(({ id, label }) => {
           const state = stateOf(id);

@@ -1,12 +1,12 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { CirclePlus, X } from "lucide-react";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
 import TriStateOption, { type TriState } from "./TriStateOption";
 import GenrePicker from "./GenrePicker";
-import { PlayersPanel, ScorePanel, DatePanel, PlusMinus } from "./SentencePanels";
+import { PlayersPanel, ScorePanel, DatePanel, PlusMinus, ClearButton } from "./SentencePanels";
 import { buildFilterSentence, sentenceText, type SentencePart, type SentenceSlot } from "./filterSentence";
 import { applyParentalPolicy } from "./parentalControl";
 import { useParentalLocked } from "./ParentalControlSection";
@@ -92,6 +92,12 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     if (slot === "kind") { patch({ software: draft.software === true ? false : true }); return; }
     setOpen(current => current === slot ? null : slot);
   };
+  /** Open editors appear above the sentence for its first line and below it for the second. */
+  const topOpen = open === "genres" || open === "players";
+  const clearPlayers = () => setDraft(current => ({ ...current,
+    features: current.features.filter(item => item !== "single_player" && item !== "multiplayer" && !MULTIPLAYER_OPTION_KEYS.includes(item)) }));
+  const setAllSources = (state: TriState) => setDraft(current => ({ ...current,
+    sources: state === "include" ? [...sourceNames] : [], excludeSources: [] }));
   const adultGroup = CONTENT_FILTER_GROUPS[0];
   const adultState: TriState = draft.excludeContentDescriptorIds?.some(id => adultGroup.descriptorIds.includes(id)) ? "exclude"
     : draft.contentDescriptorIds?.some(id => adultGroup.descriptorIds.includes(id)) ? "include" : "off";
@@ -104,18 +110,21 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     <section ref={ref} className="ga-filter-dialog ga-wizard" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
       <header><h2 id="ga-filter-title">Filtros</h2><button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button></header>
       <div className="ga-sx-body">
+        <div className="ga-sx-zone is-top" data-open={topOpen ? open : "none"}>
+          {open === "genres" ? <div className="ga-sx-panel"><GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
+            onClear={() => patch({ genres: [], excludeGenres: [] })} /></div> : null}
+          {open === "players" ? <div className="ga-sx-panel"><PlayersPanel filters={draft} onToggle={toggleFeature} onClear={clearPlayers} /></div> : null}
+        </div>
         <p className="ga-sx-sentence" aria-live="polite" aria-label={sentenceText(sentence)}>
           {sentence.map((line, row) => <span key={row} className="ga-sx-line">{glueTerms(line).map((group, g) => <span key={g} className="ga-sx-grp">{group.map((part, index) => part.slot
             ? <button key={index} type="button" className={"ga-sx-term" + (open === part.slot ? " is-open" : "")} aria-expanded={part.slot === "kind" ? undefined : open === part.slot}
               onClick={() => pickTerm(part.slot as SentenceSlot)}>{part.text}</button>
             : <span key={index}>{part.text.replaceAll("\u2060", "")}</span>)}</span>)}</span>)}
         </p>
-        <div className="ga-sx-panel" data-open={open ?? "none"}>
+        <div className="ga-sx-zone is-bottom" data-open={open && !topOpen ? open : "none"}>
+          {open === "score" ? <div className="ga-sx-panel"><ScorePanel filters={draft} onChange={patch} /></div> : null}
+          {open === "date" ? <div className="ga-sx-panel"><DatePanel filters={draft} onChange={patch} /></div> : null}
           {open === null ? <p className="ga-sx-tip">Tocá lo subrayado para cambiarlo.</p> : null}
-          {open === "genres" ? <GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)} /> : null}
-          {open === "players" ? <PlayersPanel filters={draft} onToggle={toggleFeature} /> : null}
-          {open === "score" ? <ScorePanel filters={draft} onChange={patch} /> : null}
-          {open === "date" ? <DatePanel filters={draft} onChange={patch} /> : null}
         </div>
       </div>
       <div className="ga-sx-extras">
@@ -125,6 +134,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
         </div>
         {sourceNames.length ? <div className="ga-sx-extra">
           <span className="ga-sx-extra-title">Fuentes de descarga</span>
+          <span className="ga-sx-bulk"><button type="button" className="ga-sx-clear" onClick={() => setAllSources("include")}><CirclePlus size={13} aria-hidden="true" />Todas</button><ClearButton label="Ninguna" onClick={() => setAllSources("off")} /></span>
           <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>
         </div> : null}
       </div>

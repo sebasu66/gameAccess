@@ -1,4 +1,5 @@
-import { CircleMinus, CirclePlus, Globe, Handshake, Network, Swords, Tv, User, Users, type LucideIcon } from "lucide-react";
+import { CircleMinus, CirclePlus, Eraser, Globe, Handshake, Network, Swords, Tv, User, Users, type LucideIcon } from "lucide-react";
+import FancySlider from "./FancySlider";
 import { dateWords, EARLIEST_YEAR, latestYear } from "./filterSentence";
 import type { TriState } from "./TriStateOption";
 import type { LibraryFeatureKey, LibrarySearchFilters } from "./librarySearch";
@@ -16,7 +17,7 @@ const WHERE: Chip[] = [
 ];
 
 /** "Solo un jugador" or "Multijugador" side by side; multijugador opens its modes. */
-export function PlayersPanel({ filters, onToggle }: { filters: LibrarySearchFilters; onToggle: (key: LibraryFeatureKey) => void }) {
+export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibrarySearchFilters; onToggle: (key: LibraryFeatureKey) => void; onClear: () => void }) {
   const single = filters.features.includes("single_player");
   const multi = filters.features.includes("multiplayer");
   const chips = (list: Chip[]) => list.map(({ key, label, Icon }) => {
@@ -27,6 +28,7 @@ export function PlayersPanel({ filters, onToggle }: { filters: LibrarySearchFilt
   });
   return (
     <div className="ga-sx-players">
+      <ClearButton onClick={onClear} disabled={!single && !multi} />
       <div className="ga-sx-pair">
         <button type="button" className={"ga-sx-big" + (single ? " is-on" : "")} aria-pressed={single} onClick={() => onToggle("single_player")}>
           <User size={20} aria-hidden="true" />Solo un jugador
@@ -48,10 +50,10 @@ export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilter
   const score = filters.minReviewScore;
   return (
     <div className="ga-sx-score">
-      <output>{score === undefined ? "Sin mínimo" : `${score} %`}</output>
-      <input type="range" min={0} max={100} step={5} value={score ?? 60} aria-label="Porcentaje mínimo de reseñas positivas"
-        onChange={event => onChange({ minReviewScore: Number(event.target.value) })} />
-      <button type="button" className="ga-sx-chip" disabled={score === undefined} onClick={() => onChange({ minReviewScore: undefined })}>Sin mínimo</button>
+      <div className="ga-sx-what"><strong>Reseñas positivas</strong><span>Mostrar solo juegos que le gustaron al menos a este porcentaje de quienes los probaron.</span></div>
+      <FancySlider min={0} max={100} step={5} value={score ?? 60} label="Porcentaje mínimo de reseñas positivas" format={n => `${n} %`}
+        onChange={value => onChange({ minReviewScore: value as number })} />
+      <ClearButton label="Sin mínimo" disabled={score === undefined} onClick={() => onChange({ minReviewScore: undefined })} />
     </div>
   );
 }
@@ -68,21 +70,23 @@ export function DatePanel({ filters, onChange }: { filters: LibrarySearchFilters
   const active = (years: number) => filters.releaseYearFrom === now - years && (filters.releaseYearTo ?? top) >= now;
   return (
     <div className="ga-sx-date">
+      <div className="ga-sx-what"><strong>Año de lanzamiento</strong><span>Mové las dos puntas para elegir desde qué año y hasta cuál. {anyDate ? "Hoy: cualquier fecha." : `Hoy: ${dateWords(filters)}.`}</span></div>
       <div className="ga-sx-row">
         <button type="button" className={"ga-sx-chip" + (anyDate ? " is-on" : "")} aria-pressed={anyDate}
           onClick={() => onChange({ releaseYearFrom: undefined, releaseYearTo: undefined })}>Cualquier fecha</button>
         {PRESETS.map(({ label, years }) => <button key={years} type="button" className={"ga-sx-chip" + (active(years) ? " is-on" : "")} aria-pressed={active(years)}
           onClick={() => onChange({ releaseYearFrom: now - years, releaseYearTo: top })}>{label}</button>)}
       </div>
-      <div className="ga-sx-range">
-        <span>{anyDate ? "O elegí un rango de años" : dateWords(filters)}</span>
-        <input type="range" min={EARLIEST_YEAR} max={top} step={1} value={from} aria-label="Desde el año"
-          onChange={event => onChange({ releaseYearFrom: Math.min(Number(event.target.value), to), releaseYearTo: to })} />
-        <input type="range" min={EARLIEST_YEAR} max={top} step={1} value={to} aria-label="Hasta el año"
-          onChange={event => onChange({ releaseYearTo: Math.max(Number(event.target.value), from), releaseYearFrom: from })} />
-      </div>
+      <FancySlider min={EARLIEST_YEAR} max={top} step={1} value={[from, to]} label="Año de lanzamiento" ariaLabels={["Desde el año", "Hasta el año"]}
+        format={n => n >= top ? "hoy" : String(n)}
+        onChange={value => { const [f, t] = value as [number, number]; onChange({ releaseYearFrom: f, releaseYearTo: t }); }} />
     </div>
   );
+}
+
+/** Wipes one group of choices, and nothing else. */
+export function ClearButton({ label = "Limpiar", onClick, disabled }: { label?: string; onClick: () => void; disabled?: boolean }) {
+  return <button type="button" className="ga-sx-clear" onClick={onClick} disabled={disabled}><Eraser size={13} aria-hidden="true" />{label}</button>;
 }
 
 /** A name with its own + (I want it) and − (I don't) controls; pressing the active one clears it. */
