@@ -41,6 +41,12 @@ export interface DownloadProgressSnapshot {
    */
   statusText?: string;
 
+  /** Download progress from 0 to 100, separate from the installation (extraction) progress */
+  downloadPercent?: number;
+
+  /** Installation (extraction) progress from 0 to 100; 0 until the download finishes */
+  installPercent?: number;
+
   /** Number of bytes downloaded or processed so far */
   bytesDownloaded?: number;
 

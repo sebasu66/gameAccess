@@ -342,6 +342,8 @@ export class DigitalDownloadService implements IDownloadProvider {
             gameId,
             phase: raw.phase,
             progress: raw.progressPercent ?? 0,
+            downloadPercent: typeof raw.downloadPercent === "number" ? raw.downloadPercent : undefined,
+            installPercent: typeof raw.installPercent === "number" ? raw.installPercent : undefined,
             statusText: raw.statusText ?? "",
             bytesDownloaded: raw.bytesDownloaded ?? 0,
             bytesTotal: raw.totalBytes ?? 0,

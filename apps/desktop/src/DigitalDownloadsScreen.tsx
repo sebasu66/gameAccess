@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
 import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
 import {downloadMethodLabel} from "./downloadMethod";
+import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
 import { Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
@@ -67,7 +68,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
     const sourceSize = sourceDownloadSize(game,locale) || sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
     const { phase, gameId } = snapshot;
-    const percent = Number.isFinite(snapshot.progress) ? Math.max(0, Math.min(100, snapshot.progress)) : 0;
+    const bars = downloadBars(snapshot);
     const method = service.getDownloadMethod?.(gameId);
     const methodText = method ? downloadMethodLabel(method, locale) : null;
     const transfer = phase === "downloading";
@@ -80,8 +81,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" && phase !== "external" ? <>
-          <div className="digital-download-progress-line"><span>{phase === "completed" ? t("downloadsInstalled") : phaseLabel(phase)}</span><strong>{Math.round(percent)}%</strong></div>
-          <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:phaseLabel(phase)})} />
+          <div className="digital-download-progress-line"><span>{t("downloadsDownloadBar")}</span><strong>{Math.round(bars.download)}%</strong></div>
+          <progress className="download-phase-progress" max={100} value={bars.download} aria-label={t("downloadsProgress",{name:game.name,status:t("downloadsDownloadBar")})} />
+          <div className="digital-download-progress-line digital-download-install-line"><span>{phase === "completed" ? t("downloadsInstalled") : t("downloadsInstallBar")}</span><strong>{Math.round(bars.install)}%</strong></div>
+          <progress className="download-phase-progress download-install-progress" max={100} value={bars.install} aria-label={t("downloadsProgress",{name:game.name,status:t("downloadsInstallBar")})} />
           <dl className="digital-download-metrics">
             <div><dt>{t("downloadsDownloaded")}</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded,locale)} / {sourceSize}</dd></div>
             <div><dt>{t("downloadsSpeed")}</dt><dd>{transfer ? `${formatDownloadBytes(snapshot.speedBps,locale)} / s` : "—"}</dd></div>

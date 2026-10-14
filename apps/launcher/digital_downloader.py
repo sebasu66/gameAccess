@@ -166,6 +166,11 @@ def emit_progress(
     status_text: str = ""
 ):
     reported_progress = float(progress_percent)
+    raw_percent = max(0.0, min(100.0, reported_progress))
+    # Download and installation (extraction) are reported on their own scales so the player can
+    # show two bars; the combined progressPercent below stays for older consumers.
+    download_percent = raw_percent if phase == "downloading" else (100.0 if phase in ("decompressing", "installing", "completed") else 0.0)
+    install_percent = raw_percent if phase in ("decompressing", "installing") else (100.0 if phase == "completed" else 0.0)
     if phase == "preparing":
         reported_progress = 0.0
     elif phase == "downloading":
@@ -184,6 +189,8 @@ def emit_progress(
         "appId": str(app_id),
         "phase": phase,
         "progressPercent": round(reported_progress, 1),
+        "downloadPercent": round(download_percent, 1),
+        "installPercent": round(install_percent, 1),
         "bytesDownloaded": int(bytes_downloaded),
         "totalBytes": int(total_bytes),
         "speedBps": int(speed_bps),
