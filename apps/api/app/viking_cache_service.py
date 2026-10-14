@@ -349,7 +349,20 @@ class TorBoxVikingProvider:
                 raise ProviderFailure("viking_check_timeout", 502, "ViKiNG no respondió al comprobar el archivo.") from exc
             except httpx.HTTPError as exc:
                 raise ProviderFailure("viking_check_failed", 502, "No se pudo comprobar el archivo en ViKiNG.") from exc
-            payload = self._parse_json(response, "viking_check_failed", "No se pudo comprobar el archivo en ViKiNG.")
+            if response.status_code >= 400:
+                raise ProviderFailure("viking_check_failed", 502, "No se pudo comprobar el archivo en ViKiNG.")
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise ProviderFailure("viking_check_failed", 502, "No se pudo comprobar el archivo en ViKiNG.") from exc
+        # ViKiNG answers with one object for old clients and a list when the hash is sent as a batch.
+        if isinstance(payload, list):
+            payload = next(
+                (item for item in payload if isinstance(item, dict) and item.get("hash") == file_hash),
+                next((item for item in payload if isinstance(item, dict)), {}),
+            )
+        if not isinstance(payload, dict):
+            raise ProviderFailure("viking_check_invalid", 502, "ViKiNG devolvió una respuesta de verificación inválida.")
         exists = payload.get("exist")
         if not isinstance(exists, bool):
             raise ProviderFailure("viking_check_invalid", 502, "ViKiNG devolvió una respuesta de verificación inválida.")

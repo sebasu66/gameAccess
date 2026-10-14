@@ -117,3 +117,18 @@ def test_viking_plain_text_refusal_gets_its_own_message():
     with pytest.raises(service.ProviderFailure) as refused:
         service.parse_viking_upload_response(httpx.Response(200, text="can not download link"))
     assert refused.value.code == "viking_cannot_fetch_link"
+
+
+def test_check_file_accepts_the_list_answer_viking_sends_now():
+    def handler(request):
+        return httpx.Response(200, json=[{"exist": True, "hash": "abc", "name": "x.rar", "size": 5}])
+    assert run(provider(handler).check_viking_file("abc")) is True
+
+
+def test_check_file_accepts_the_single_object_answer_and_reports_missing_files():
+    def present(request):
+        return httpx.Response(200, json={"exist": True})
+    def missing(request):
+        return httpx.Response(200, json=[{"exist": False, "hash": "abc"}])
+    assert run(provider(present).check_viking_file("abc")) is True
+    assert run(provider(missing).check_viking_file("abc")) is False
