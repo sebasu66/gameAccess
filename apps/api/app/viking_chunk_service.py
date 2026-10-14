@@ -30,7 +30,8 @@ logger = logging.getLogger("gameaccess.viking_chunks")
 MAX_FILES = 200            # a source with more files than this is not worth splitting
 PIECE_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 3.0
-MAX_PIECES_ON_DISK = 2
+UPLOADS_IN_PARALLEL = 3       # pieces going up to ViKiNG at the same time (GAMEACCESS_CHUNK_UPLOADS)
+MAX_PIECES_ON_DISK = UPLOADS_IN_PARALLEL + 1
 LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
@@ -209,10 +210,14 @@ async def _retry(factory: Callable[[], Awaitable[Any]]) -> Any:
 
 async def _transfer(
     engine: Engine, job_id: str, pending: list[PlannedPiece], source: PieceSource, sink: PieceSink,
-    work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "",
+    work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "", uploads: int | None = None,
 ) -> None:
-    """Fetch piece N+1 while piece N uploads, with at most MAX_PIECES_ON_DISK files on disk."""
-    slots = asyncio.Semaphore(MAX_PIECES_ON_DISK)
+    """Fetch pieces one after another while up to `uploads` of them go up to ViKiNG at once.
+
+    At most `uploads + 1` piece files exist on disk at any moment.
+    """
+    workers = max(1, uploads if uploads is not None else int(os.getenv("GAMEACCESS_CHUNK_UPLOADS") or UPLOADS_IN_PARALLEL))
+    slots = asyncio.Semaphore(workers + 1)
     queue: asyncio.Queue = asyncio.Queue()
 
     async def producer() -> None:
@@ -228,7 +233,8 @@ async def _transfer(
                     raise
                 await queue.put((piece, path, sha))
         finally:
-            await queue.put(None)
+            for _ in range(workers):
+                await queue.put(None)
 
     async def consumer() -> None:
         while True:
@@ -244,7 +250,7 @@ async def _transfer(
                 path.unlink(missing_ok=True)
                 slots.release()
 
-    tasks = [asyncio.create_task(producer()), asyncio.create_task(consumer())]
+    tasks = [asyncio.create_task(producer())] + [asyncio.create_task(consumer()) for _ in range(workers)]
     try:
         await asyncio.gather(*tasks)
     except BaseException:

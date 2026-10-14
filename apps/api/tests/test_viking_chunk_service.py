@@ -109,7 +109,7 @@ def test_at_most_two_pieces_sit_on_disk(engine, tmp_path):
     sink = FakeSink(work_dir=tmp_path)
     job2 = new_job(engine)
     run(engine, job2, FakeSource(), sink, files_for(3000 * MB), tmp_path)
-    assert 0 < sink.peak_files <= svc.MAX_PIECES_ON_DISK
+    assert 0 < sink.peak_files <= svc.UPLOADS_IN_PARALLEL + 1
 
 
 def test_a_failed_piece_is_retried(engine, tmp_path):
@@ -200,3 +200,27 @@ def test_find_job_for_source_returns_the_newest(engine):
         newest = svc.create_job(session, fingerprint="x", kind="torrent", item_name="new")
         assert svc.find_job_for_source(session, "x").job_id == newest.job_id
         assert svc.find_job_for_source(session, "nope") is None
+
+
+def test_uploads_run_in_parallel_and_pieces_may_finish_out_of_order(engine, tmp_path):
+    class SlowFirst(FakeSink):
+        def __init__(self):
+            super().__init__()
+            self.active = 0
+            self.peak_active = 0
+
+        async def upload(self, path, name, folder=""):
+            self.active += 1
+            self.peak_active = max(self.peak_active, self.active)
+            await asyncio.sleep(0.05 if name.endswith("p0000") else 0.01)
+            self.active -= 1
+            return await super().upload(path, name, folder)
+
+    job_id = new_job(engine)
+    sink = SlowFirst()
+    run(engine, job_id, FakeSource(), sink, files_for(1500 * MB), tmp_path)
+    assert sink.peak_active >= 2
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        manifest = svc.build_manifest(session, job)
+        assert job.status == "ready" and manifest["ready_count"] == manifest["piece_count"]
