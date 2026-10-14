@@ -27,7 +27,8 @@ import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
-import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
+import { queryCatalogCache } from "./catalogCache";
+import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, GlassActionButton } from "./AppPresentation";
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
@@ -290,10 +291,23 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     });
   }, [libraryGames, relevantCatalogGames, recentIds, preferences, downloads]);
 
+  const [newGames, setNewGames] = useState<CatalogGame[]>([]);
+  const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
+
+  useEffect(() => {
+    if (loading) return;
+    void queryCatalogCache({ sort_by: "release-date", sort_direction: "desc", limit: 10 })
+      .then(res => setNewGames(res.items))
+      .catch(() => {});
+    void queryCatalogCache({ sort_by: "steam-review-score", sort_direction: "desc", limit: 12 })
+      .then(res => setSuggestedGames(res.items))
+      .catch(() => {});
+  }, [loading]);
+
   const heroPool = useMemo(() => {
-    const base = orderedLibrary.length ? orderedLibrary : games.slice(0, 30);
+    const base = orderedLibrary.length ? orderedLibrary : (newGames.length ? newGames : suggestedGames);
     return [...base].slice(0, 6);
-  }, [orderedLibrary, games]);
+  }, [orderedLibrary, newGames, suggestedGames]);
 
   useEffect(() => {
     if (heroIndex >= heroPool.length) setHeroIndex(0);
@@ -309,9 +323,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
 
   const continueGames = useMemo(() => {
-    const recent = recentIds.map((id) => orderedLibrary.find((game) => game.id === id) || games.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
+    const recent = recentIds.map((id) => orderedLibrary.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
     return recent.length ? recent.slice(0, 8) : orderedLibrary.filter((game) => game.copies_available > 0).slice(0, 4);
-  }, [recentIds, orderedLibrary, games]);
+  }, [recentIds, orderedLibrary]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -419,14 +433,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
   const featuredPlayReady = gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)]);
 
-  const newGames = useMemo(() => {
-    const base = games.slice(0, 30);
-    return [...base].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10);
-  }, [games, detailsById]);
-  const suggestedGames = useMemo(() => {
-    const base = games.slice(0, 30);
-    return [...base].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12);
-  }, [games, detailsById, preferences]);
 
   const openGame = (game: CatalogGame) => {
     void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });
