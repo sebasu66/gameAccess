@@ -1,6 +1,6 @@
 import { CircleMinus, CirclePlus, Eraser, Globe, Handshake, Network, Swords, Tv, User, Users, type LucideIcon } from "lucide-react";
 import FancySlider from "./FancySlider";
-import { dateWords, EARLIEST_YEAR, latestYear } from "./filterSentence";
+import { RELEASE_LAST_INDEX, RELEASE_STEPS, releaseIndexFor, releaseShort } from "./releaseScale";
 import type { TriState } from "./TriStateOption";
 import type { LibraryFeatureKey, LibrarySearchFilters } from "./librarySearch";
 
@@ -49,37 +49,23 @@ export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibraryS
 export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilters; onChange: (patch: Partial<LibrarySearchFilters>) => void }) {
   const score = filters.minReviewScore;
   return (
-    <div className="ga-sx-score">
-      <div className="ga-sx-what"><strong>Reseñas positivas</strong><span>Mostrar solo juegos que le gustaron al menos a este porcentaje de quienes los probaron.</span></div>
-      <FancySlider min={0} max={100} step={5} value={score ?? 60} label="Porcentaje mínimo de reseñas positivas" format={n => `${n} %`}
-        onChange={value => onChange({ minReviewScore: value as number })} />
-      <ClearButton label="Sin mínimo" disabled={score === undefined} onClick={() => onChange({ minReviewScore: undefined })} />
+    <div className="ga-sx-slider">
+      <span className="ga-sx-slider-title">Reseñas positivas</span>
+      <FancySlider min={0} max={100} step={5} value={score ?? 0} label="Porcentaje mínimo de reseñas positivas" format={n => n === 0 ? "sin mínimo" : `${n} %`}
+        onChange={value => onChange({ minReviewScore: (value as number) === 0 ? undefined : value as number })} />
     </div>
   );
 }
 
-const PRESETS = [{ label: "Último año", years: 1 }, { label: "2 años", years: 2 }, { label: "5 años", years: 5 }, { label: "10 años", years: 10 }];
-
-/** How recent: quick windows, or an exact range of years. */
+/** How recent: one slider, a year per step in the past and a month per step near the present. */
 export function DatePanel({ filters, onChange }: { filters: LibrarySearchFilters; onChange: (patch: Partial<LibrarySearchFilters>) => void }) {
-  const now = new Date().getFullYear();
-  const top = latestYear();
-  const from = filters.releaseYearFrom ?? EARLIEST_YEAR;
-  const to = filters.releaseYearTo ?? top;
-  const anyDate = filters.releaseYearFrom === undefined && filters.releaseYearTo === undefined;
-  const active = (years: number) => filters.releaseYearFrom === now - years && (filters.releaseYearTo ?? top) >= now;
+  const index = releaseIndexFor(filters.maxAgeDays);
   return (
-    <div className="ga-sx-date">
-      <div className="ga-sx-what"><strong>Año de lanzamiento</strong><span>Mové las dos puntas para elegir desde qué año y hasta cuál. {anyDate ? "Hoy: cualquier fecha." : `Hoy: ${dateWords(filters)}.`}</span></div>
-      <div className="ga-sx-row">
-        <button type="button" className={"ga-sx-chip" + (anyDate ? " is-on" : "")} aria-pressed={anyDate}
-          onClick={() => onChange({ releaseYearFrom: undefined, releaseYearTo: undefined })}>Cualquier fecha</button>
-        {PRESETS.map(({ label, years }) => <button key={years} type="button" className={"ga-sx-chip" + (active(years) ? " is-on" : "")} aria-pressed={active(years)}
-          onClick={() => onChange({ releaseYearFrom: now - years, releaseYearTo: top })}>{label}</button>)}
-      </div>
-      <FancySlider min={EARLIEST_YEAR} max={top} step={1} value={[from, to]} label="Año de lanzamiento" ariaLabels={["Desde el año", "Hasta el año"]}
-        format={n => n >= top ? "hoy" : String(n)}
-        onChange={value => { const [f, t] = value as [number, number]; onChange({ releaseYearFrom: f, releaseYearTo: t }); }} />
+    <div className="ga-sx-slider">
+      <span className="ga-sx-slider-title">Lanzamiento</span>
+      <FancySlider min={0} max={RELEASE_LAST_INDEX} step={1} value={index} label="Cuánto hace que salió el juego"
+        format={n => releaseShort(RELEASE_STEPS[n])}
+        onChange={value => onChange({ maxAgeDays: RELEASE_STEPS[value as number], releaseYearFrom: undefined, releaseYearTo: undefined })} />
     </div>
   );
 }

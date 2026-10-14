@@ -4,7 +4,7 @@ import { buildFilterSentence, sentenceText } from "./filterSentence";
 
 const NOW = 2026;
 const sentence = (patch: Partial<LibrarySearchFilters>) =>
-  sentenceText(buildFilterSentence({ ...DEFAULT_LIBRARY_FILTERS, minReviewScore: undefined, ...patch } as LibrarySearchFilters, NOW));
+  sentenceText(buildFilterSentence({ ...DEFAULT_LIBRARY_FILTERS, minReviewScore: undefined, maxAgeDays: undefined, ...patch } as LibrarySearchFilters, NOW));
 const DEFAULT_TAIL = "Con cualquier puntaje de reseñas, lanzados en cualquier fecha.";
 
 describe("filter sentence", () => {
@@ -22,6 +22,18 @@ describe("filter sentence", () => {
     expect(sentence({ excludeGenres: ["horror"] })).toContain("juegos de cualquier género, pero no de Terror, para");
   });
 
+  it("summarizes many genres instead of listing them", () => {
+    expect(sentence({ genres: ["action", "adventure", "rpg", "horror"] })).toContain("juegos de varios géneros, para");
+    expect(sentence({ genres: ["action"], excludeGenres: ["horror", "rpg", "adventure", "strategy"] })).toContain("de Acción, pero no de varios géneros, para");
+  });
+
+  it("reads the recent-release window in months and years", () => {
+    expect(sentence({ maxAgeDays: 90 })).toContain("lanzados en los últimos 3 meses.");
+    expect(sentence({ maxAgeDays: 30 })).toContain("lanzados en el último mes.");
+    expect(sentence({ maxAgeDays: 365 })).toContain("lanzados en el último año.");
+    expect(sentence({ maxAgeDays: 365 * 5 })).toContain("lanzados en los últimos 5 años.");
+  });
+
   it("describes single player and multiplayer", () => {
     expect(sentence({ features: ["single_player"] })).toContain("para un solo jugador.");
     expect(sentence({ features: ["multiplayer"] })).toContain("para multijugador.");
@@ -36,15 +48,11 @@ describe("filter sentence", () => {
     expect(sentence({ releaseYearFrom: 1995, releaseYearTo: 2000 })).toContain("lanzados hasta 2000.");
   });
 
-  it("says programs when looking for software", () => {
-    expect(sentence({ software: true })).toContain("Quiero encontrar programas de");
-  });
-
   it("marks only the changeable terms as clickable", () => {
     const [line1, line2] = buildFilterSentence({
       ...DEFAULT_LIBRARY_FILTERS, genres: ["action"], excludeGenres: ["horror"], features: ["single_player"], minReviewScore: 70,
     } as LibrarySearchFilters, NOW);
-    expect(line1.filter(part => part.slot).map(part => part.text)).toEqual(["juegos", "Acción", "Terror", "un solo jugador"]);
+    expect(line1.filter(part => part.slot).map(part => part.text)).toEqual(["Acción", "Terror", "un solo jugador"]);
     expect(line2.filter(part => part.slot).map(part => part.text)).toEqual(["70 %", "en cualquier fecha"]);
   });
 });

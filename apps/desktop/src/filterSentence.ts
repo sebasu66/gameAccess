@@ -1,8 +1,9 @@
 import { MULTIPLAYER_OPTION_KEYS, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import { genreLabel } from "./libraryGenres";
+import { releaseWords } from "./releaseScale";
 
 /** Which editor a clickable term opens. */
-export type SentenceSlot = "kind" | "genres" | "players" | "score" | "date";
+export type SentenceSlot = "genres" | "players" | "score" | "date";
 
 /** One piece of the sentence. A part with a `slot` is a term the user can click to change. */
 export type SentencePart = { text: string; slot?: SentenceSlot };
@@ -19,6 +20,9 @@ export const PLAYER_MODE_WORDS: Partial<Record<LibraryFeatureKey, string>> = {
   coop: "cooperativo", pvp: "PvP", mmo: "MMO", shared_split_screen: "misma pantalla", lan: "LAN", online_multiplayer: "online",
 };
 
+/** How many genres the sentence names before it says "varios géneros". */
+export const MAX_NAMED_GENRES = 3;
+
 const plain = (text: string): SentencePart => ({ text });
 const term = (text: string, slot: SentenceSlot): SentencePart => ({ text, slot });
 
@@ -34,6 +38,8 @@ function list(items: string[], slot: SentenceSlot, joiner = "y"): SentencePart[]
 
 /** The release window in words, e.g. "en el último año" or "desde 2010". */
 export function dateWords(filters: LibrarySearchFilters, now = new Date().getFullYear()): string {
+  const recent = releaseWords(filters.maxAgeDays);
+  if (recent) return recent;
   const from = filters.releaseYearFrom;
   const to = filters.releaseYearTo;
   const hasFrom = from !== undefined && from > EARLIEST_YEAR;
@@ -55,13 +61,16 @@ export function dateWords(filters: LibrarySearchFilters, now = new Date().getFul
  * untouched dialog is the permissive default.
  */
 export function buildFilterSentence(filters: LibrarySearchFilters, now = new Date().getFullYear()): FilterSentence {
-  const line1: SentencePart[] = [plain("Quiero encontrar "), term(filters.software === true ? "programas" : "juegos", "kind"), plain(" de ")];
+  const line1: SentencePart[] = [plain("Quiero encontrar "), plain("juegos"), plain(" de ")];
 
   const included = (filters.genres ?? []).map(genreLabel);
   const excluded = (filters.excludeGenres ?? []).map(genreLabel);
-  if (included.length) line1.push(...list(included, "genres"));
+  // Past a few genres the sentence would not fit, so it just says "varios".
+  if (included.length > MAX_NAMED_GENRES) line1.push(term("varios géneros", "genres"));
+  else if (included.length) line1.push(...list(included, "genres"));
   else line1.push(term("cualquier género", "genres"));
-  if (excluded.length) line1.push(plain("\u2060, pero no de "), ...list(excluded, "genres", "ni"));
+  if (excluded.length > MAX_NAMED_GENRES) line1.push(plain("\u2060, pero no de "), term("varios géneros", "genres"));
+  else if (excluded.length) line1.push(plain("\u2060, pero no de "), ...list(excluded, "genres", "ni"));
 
   const features = filters.features ?? [];
   line1.push(plain("\u2060, para "));

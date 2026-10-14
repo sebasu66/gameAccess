@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CirclePlus, X } from "lucide-react";
+import { ChevronDown, CirclePlus, Download, X } from "lucide-react";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
@@ -32,6 +32,9 @@ function glueTerms(parts: SentencePart[]): SentencePart[][] {
   }
   return groups;
 }
+
+/** Height each editor needs, so the sentence can make room by moving. */
+const ZONE_HEIGHT: Record<SentenceSlot, number> = { genres: 250, players: 190, score: 96, date: 96 };
 
 const LOCKED_TITLE = "Bloqueado por control parental";
 
@@ -65,7 +68,8 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   /** The sentence term whose editor is open under it. */
   const [open, setOpen] = useState<SentenceSlot | null>(null);
   const closeRef = useRef(() => onApply(draft));
-  closeRef.current = () => onApply(draft);
+  // Programs (Blender, OBS…) are never offered: the library is always games only.
+  closeRef.current = () => onApply({ ...draft, software: false });
   const {closing,close} = useOverlayClose(useCallback(() => closeRef.current(), []));
   const previousFocus = useRef(document.activeElement);
   useEffect(() => () => { if (previousFocus.current instanceof HTMLElement && previousFocus.current.isConnected) previousFocus.current.focus({ preventScroll: true }); }, []);
@@ -89,11 +93,17 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const patch = (change: Partial<LibrarySearchFilters>) => setDraft(current => ({ ...current, ...change }));
   const sentence = buildFilterSentence(draft);
   const pickTerm = (slot: SentenceSlot) => {
-    if (slot === "kind") { patch({ software: draft.software === true ? false : true }); return; }
     setOpen(current => current === slot ? null : slot);
   };
   /** Open editors appear above the sentence for its first line and below it for the second. */
   const topOpen = open === "genres" || open === "players";
+  const bottomOpen = open === "score" || open === "date";
+  /** The last editor shown, kept while its zone closes so it does not vanish mid-animation. */
+  const lastShown = useRef<SentenceSlot | null>(null);
+  if (open) lastShown.current = open;
+  const shown = open ?? lastShown.current;
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const sourcesChosen = (draft.sources?.length ?? 0) + (draft.excludeSources?.length ?? 0) > 0;
   const clearPlayers = () => setDraft(current => ({ ...current,
     features: current.features.filter(item => item !== "single_player" && item !== "multiplayer" && !MULTIPLAYER_OPTION_KEYS.includes(item)) }));
   const setAllSources = (state: TriState) => setDraft(current => ({ ...current,
@@ -108,35 +118,44 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   return createPortal(<div className={`ga-filter-backdrop${closing ? " is-closing" : ""}`} onPointerDown={event => { event.stopPropagation(); if (event.target === event.currentTarget) close(); }}>
     <OverlayScreenDimmer panelRef={ref} />
     <section ref={ref} className="ga-filter-dialog ga-wizard" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
-      <header><h2 id="ga-filter-title">Filtros</h2><button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button></header>
+      <header>
+        <h2 id="ga-filter-title">Filtros</h2>
+        <div className="ga-sx-corner">
+          <div className="ga-sx-chipwrap">
+            <span className={"ga-sx-cat" + (draft.features.includes("has_downloads") || sourcesChosen ? " is-on" : "") + (sourcesOpen ? " is-open" : "")}>
+              <button type="button" className="ga-sx-cat-main" aria-pressed={draft.features.includes("has_downloads")}
+                title="Pedir que el juego tenga descargas disponibles" onClick={() => toggleFeature("has_downloads")}><Download size={14} aria-hidden="true" />Fuentes de descarga</button>
+              <button type="button" className="ga-sx-cat-more" aria-expanded={sourcesOpen} aria-label="Elegir fuentes una por una" onClick={() => setSourcesOpen(value => !value)}><ChevronDown size={15} aria-hidden="true" /></button>
+            </span>
+            {sourcesOpen ? <div className="ga-sx-pop" role="group" aria-label="Fuentes de descarga">
+              <div className="ga-sx-bulk"><button type="button" className="ga-sx-clear" onClick={() => setAllSources("include")}><CirclePlus size={13} aria-hidden="true" />Todas</button><ClearButton label="Ninguna" onClick={() => setAllSources("off")} /></div>
+              {sourceNames.length === 0 ? <p className="ga-sx-tip">Todavía no importaste fuentes.</p>
+                : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
+            </div> : null}
+          </div>
+          <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? LOCKED_TITLE : undefined}>
+            <PlusMinus label="Contenido adulto" state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
+          </span>
+          <button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button>
+        </div>
+      </header>
       <div className="ga-sx-body">
-        <div className="ga-sx-zone is-top" data-open={topOpen ? open : "none"}>
-          {open === "genres" ? <div className="ga-sx-panel"><GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
+        <div className={"ga-sx-zone is-top" + (topOpen ? " is-open" : "")} style={{ ["--zone-h" as string]: `${ZONE_HEIGHT[shown ?? "genres"]}px` }}>
+          {topOpen && shown === "genres" ? <div className="ga-sx-panel"><GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
             onClear={() => patch({ genres: [], excludeGenres: [] })} /></div> : null}
-          {open === "players" ? <div className="ga-sx-panel"><PlayersPanel filters={draft} onToggle={toggleFeature} onClear={clearPlayers} /></div> : null}
+          {(topOpen || shown === "players") && shown === "players" ? <div className="ga-sx-panel"><PlayersPanel filters={draft} onToggle={toggleFeature} onClear={clearPlayers} /></div> : null}
         </div>
         <p className="ga-sx-sentence" aria-live="polite" aria-label={sentenceText(sentence)}>
           {sentence.map((line, row) => <span key={row} className="ga-sx-line">{glueTerms(line).map((group, g) => <span key={g} className="ga-sx-grp">{group.map((part, index) => part.slot
-            ? <button key={index} type="button" className={"ga-sx-term" + (open === part.slot ? " is-open" : "")} aria-expanded={part.slot === "kind" ? undefined : open === part.slot}
+            ? <button key={index} type="button" className={"ga-sx-term" + (open === part.slot ? " is-open" : "")} aria-expanded={open === part.slot}
               onClick={() => pickTerm(part.slot as SentenceSlot)}>{part.text}</button>
             : <span key={index}>{part.text.replaceAll("\u2060", "")}</span>)}</span>)}</span>)}
         </p>
-        <div className="ga-sx-zone is-bottom" data-open={open && !topOpen ? open : "none"}>
-          {open === "score" ? <div className="ga-sx-panel"><ScorePanel filters={draft} onChange={patch} /></div> : null}
-          {open === "date" ? <div className="ga-sx-panel"><DatePanel filters={draft} onChange={patch} /></div> : null}
-          {open === null ? <p className="ga-sx-tip">Tocá lo subrayado para cambiarlo.</p> : null}
+        <div className={"ga-sx-zone is-bottom" + (bottomOpen ? " is-open" : "")} style={{ ["--zone-h" as string]: `${ZONE_HEIGHT[shown ?? "score"]}px` }}>
+          {shown === "score" ? <div className="ga-sx-panel is-bare"><ScorePanel filters={draft} onChange={patch} /></div> : null}
+          {shown === "date" ? <div className="ga-sx-panel is-bare"><DatePanel filters={draft} onChange={patch} /></div> : null}
         </div>
-      </div>
-      <div className="ga-sx-extras">
-        <div className="ga-sx-extra">
-          <span className="ga-sx-extra-title">Contenido para adultos</span>
-          <PlusMinus label={parentalLocked ? "Bloqueado por control parental" : adultState === "include" ? "Sí" : adultState === "exclude" ? "No" : "Me da igual"} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} title={parentalLocked ? LOCKED_TITLE : undefined} onSet={setAdult} />
-        </div>
-        {sourceNames.length ? <div className="ga-sx-extra">
-          <span className="ga-sx-extra-title">Fuentes de descarga</span>
-          <span className="ga-sx-bulk"><button type="button" className="ga-sx-clear" onClick={() => setAllSources("include")}><CirclePlus size={13} aria-hidden="true" />Todas</button><ClearButton label="Ninguna" onClick={() => setAllSources("off")} /></span>
-          <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>
-        </div> : null}
+        <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>Tocá lo subrayado para cambiarlo.</p>
       </div>
       <footer><div role="status" aria-live="polite"><strong>{matches.length} {matches.length === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>Limpiar todo</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matches.length} {matches.length === 1 ? "juego" : "juegos"}</button></footer>
     </section>

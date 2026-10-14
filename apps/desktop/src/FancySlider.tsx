@@ -38,7 +38,7 @@ export default function FancySlider({ min, max, step = 1, value, onChange, forma
       onFocus={() => hold(which)} onKeyUp={release} onBlur={() => setActive(null)} />
   );
   const bubble = (which: 0 | 1, current: number) => (
-    <span key={which} className={"ga-fs-bubble" + (active === which ? " is-active" : "")} style={{ left: `${pct(current)}%` }} aria-hidden="true">
+    <span key={`${which}-${format(current)}`} className={"ga-fs-bubble" + (active === which ? " is-active" : "")} style={{ left: `${pct(current)}%` }} aria-hidden="true">
       {format(current)}
     </span>
   );
