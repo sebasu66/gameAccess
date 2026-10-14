@@ -35,6 +35,11 @@ LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
 
+def viking_folder(job_id: str) -> str:
+    """One ViKiNG folder per job keeps the pieces of a game together and out of the account root."""
+    return f"GameAccess/{job_id[:8]}"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -45,8 +50,8 @@ class PieceSource(Protocol):
 
 
 class PieceSink(Protocol):
-    async def upload(self, path: Path, name: str) -> str:
-        """Upload the file and return the id (hash) ViKiNG gave it."""
+    async def upload(self, path: Path, name: str, folder: str = "") -> str:
+        """Upload the file (into `folder` when given) and return the id (hash) ViKiNG gave it."""
 
 
 # ---------------------------------------------------------------- database helpers
@@ -68,10 +73,10 @@ def find_job_for_source(session: Session, fingerprint: str) -> VikingChunkJob | 
     ).first()
 
 
-def create_job(session: Session, *, fingerprint: str, kind: str, item_name: str) -> VikingChunkJob:
+def create_job(session: Session, *, fingerprint: str, kind: str, item_name: str, source_url: str = "") -> VikingChunkJob:
     now = _now()
     job = VikingChunkJob(
-        job_id=uuid4().hex, source_fingerprint=fingerprint, source_kind=kind,
+        job_id=uuid4().hex, source_fingerprint=fingerprint, source_kind=kind, source_url=source_url[:2000],
         item_name=item_name[:300], status="preparing", created_at=now, updated_at=now,
     )
     session.add(job)
@@ -204,7 +209,7 @@ async def _retry(factory: Callable[[], Awaitable[Any]]) -> Any:
 
 async def _transfer(
     engine: Engine, job_id: str, pending: list[PlannedPiece], source: PieceSource, sink: PieceSink,
-    work_dir: Path, name_for: Callable[[PlannedPiece], str],
+    work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "",
 ) -> None:
     """Fetch piece N+1 while piece N uploads, with at most MAX_PIECES_ON_DISK files on disk."""
     slots = asyncio.Semaphore(MAX_PIECES_ON_DISK)
@@ -232,7 +237,7 @@ async def _transfer(
                 return
             piece, path, sha = item
             try:
-                viking_hash = await _retry(lambda: sink.upload(path, name_for(piece)))
+                viking_hash = await _retry(lambda: sink.upload(path, name_for(piece), folder))
                 _mark_piece_ready(engine, job_id, piece.index, sha, viking_hash)
                 logger.info("chunk_ready job=%s piece=%s size=%s", job_id[:8], piece.index, piece.size)
             finally:
@@ -270,7 +275,10 @@ async def run_chunk_job(
         _set_job(engine, job_id, status="running", error_code="")
         pending = [p for p in plan if p.index not in ready]
         logger.info("chunk_job_running job=%s pieces=%s pending=%s", job_id[:8], len(plan), len(pending))
-        await _transfer(engine, job_id, pending, source, sink, work_dir, lambda p: f"ga-{job_id[:8]}.p{p.index:04d}")
+        await _transfer(
+            engine, job_id, pending, source, sink, work_dir,
+            lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id),
+        )
         _set_job(engine, job_id, status="ready", completed_at=_now())
         logger.info("chunk_job_ready job=%s", job_id[:8])
     except asyncio.CancelledError:
@@ -347,8 +355,8 @@ class VikingFileSink:
     def __init__(self, provider: TorBoxVikingProvider):
         self.provider = provider
 
-    async def upload(self, path: Path, name: str) -> str:
-        result = await self.provider.upload_file_to_viking(path, name)
+    async def upload(self, path: Path, name: str, folder: str = "") -> str:
+        result = await self.provider.upload_file_to_viking(path, name, folder)
         file_hash = str(result.get("hash") or "").strip()
         if not file_hash:
             raise ProviderFailure("viking_upload_invalid_response", 502, "ViKiNG no devolvió el identificador del archivo.")

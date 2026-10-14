@@ -555,7 +555,7 @@ class TorBoxVikingProvider:
             raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
         return link
 
-    async def upload_file_to_viking(self, path: "Path", name: str) -> dict[str, Any]:
+    async def upload_file_to_viking(self, path: "Path", name: str, folder: str = "") -> dict[str, Any]:
         """Upload a local file to ViKiNG with a normal multipart upload and return its JSON result."""
         timeout = httpx.Timeout(
             float(self.upload_timeout_seconds), connect=20.0, read=float(self.upload_timeout_seconds),
@@ -570,7 +570,7 @@ class TorBoxVikingProvider:
                 with path.open("rb") as handle:
                     response = await client.post(
                         upload_server,
-                        data={"user": self.viking_user_hash},
+                        data={"user": self.viking_user_hash, **({"path": folder} if folder else {})},
                         files={"file": (name, handle, "application/octet-stream")},
                     )
             except httpx.TimeoutException as exc:

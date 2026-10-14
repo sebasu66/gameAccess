@@ -14,6 +14,8 @@ class VikingChunkJob(SQLModel, table=True):
     id: Optional[int] = SQLField(default=None, primary_key=True)
     job_id: str = SQLField(index=True, unique=True, max_length=40)
     source_fingerprint: str = SQLField(index=True, max_length=64)
+    # The link the player originally asked for; with the pieces below it is the "dictionary" original link -> ViKiNG pieces.
+    source_url: str = SQLField(default="", max_length=2000)
     source_kind: str = SQLField(default="", max_length=24)
     item_name: str = SQLField(default="", max_length=300)
     # preparing (TorBox is still downloading) -> running (pieces are going up) -> ready | failed

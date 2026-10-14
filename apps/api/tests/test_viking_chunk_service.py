@@ -53,11 +53,13 @@ class FakeSource:
 class FakeSink:
     def __init__(self, fail_names: set[str] | None = None, work_dir: Path | None = None):
         self.names: list[str] = []
+        self.folders: set[str] = set()
         self.fail_names = fail_names or set()
         self.work_dir = work_dir
         self.peak_files = 0
 
-    async def upload(self, path: Path, name: str) -> str:
+    async def upload(self, path: Path, name: str, folder: str = "") -> str:
+        self.folders.add(folder)
         if self.work_dir is not None:
             self.peak_files = max(self.peak_files, len(list(self.work_dir.glob("*.part"))))
         await asyncio.sleep(0)
@@ -97,6 +99,7 @@ def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
         assert svc.get_ready_piece(session, job_id, 999) is None
     assert not list(tmp_path.glob("*.part"))
     assert sink.peak_files <= svc.MAX_PIECES_ON_DISK
+    assert sink.folders == {f"GameAccess/{job_id[:8]}"}
 
 
 def test_at_most_two_pieces_sit_on_disk(engine, tmp_path):
