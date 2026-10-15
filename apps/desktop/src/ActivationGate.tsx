@@ -1,6 +1,6 @@
 import VoxelLogo from "./VoxelLogo";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowUpRight, CheckCircle2, ChevronRight, Clock3, Crown, Download, Gamepad2, Gauge, Globe2, KeyRound, Layers3, Loader2, LockKeyhole, Monitor, Play, Search } from "lucide-react";
+import { ArrowUpRight, ChevronRight, KeyRound, Loader2 } from "lucide-react";
 import SplashScreen from "./SplashScreen";
 import GameCoverBackdrop from "./GameCoverBackdrop";
 import BackendStatus from "./BackendStatus";
@@ -10,18 +10,14 @@ import type { ActivationStatus, ActivationEnd } from "./activation";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
 import { devAutoLoginKey } from "./devAutoLogin";
-import { boundedFetch } from "./settings";
-import { loadPixelStyle } from "./pixelStylePreferences";
 import { ACTIVATION_WARNING_MS, nextActivationTimerDelay } from "./activationLifetime";
 
-const linkvertiseUrl = import.meta.env.VITE_LINKVERTISE_URL?.trim() || "";
-const plusUrl = import.meta.env.VITE_PLUS_CHECKOUT_URL?.trim() || "";
-const tutorialVideoUrl = import.meta.env.VITE_LINKVERTISE_HELP_VIDEO_URL?.trim() || "";
+/** Where people go to get a key: the website lists every way to do it. */
+const websiteUrl = import.meta.env.VITE_GAMEACCESS_WEBSITE_URL?.trim() || "https://gameaccess.app";
 
 export default function ActivationGate({ children }: { children: ReactNode }) {
   const { t, locale } = useI18n();
   const [status, setStatus] = useState<ActivationStatus | null>(null);
-  const [freePassUrl, setFreePassUrl] = useState(linkvertiseUrl);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -35,9 +31,20 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [docked, setDocked] = useState(false);
   const [dockStarted, setDockStarted] = useState(false);
   const [applicationStarted, setApplicationStarted] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(() => window.location.hash === "#obtener-clave");
 
-  const stage = openingStage({ introReady, verificationReady, approved: Boolean(status?.active), docked });
+  const checkedStage = openingStage({ introReady, verificationReady, approved: Boolean(status?.active), docked });
+  // A slow or unreachable server must not leave only the big logo on screen: after a moment the panel explains what is happening.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (checkedStage !== "holding") { setWaited(false); return; }
+    const timer = window.setTimeout(() => setWaited(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, [checkedStage]);
+  const stage = checkedStage === "holding" && waited ? "validation" : checkedStage;
+  /** The access panel shows once the logo has settled at the top, and stays just long enough to fade out when access is granted. */
+  const [entryShown, setEntryShown] = useState(false);
+  useEffect(() => { if (stage === "validation") setEntryShown(true); else if (stage === "intro") setEntryShown(false); }, [stage]);
+  const entryVisible = stage === "validation" || (stage === "docking" && entryShown);
   const completeIntro = useCallback(() => setIntroReady(true), []);
   const startDock = useCallback(() => setDockStarted(true), []);
   const completeDock = useCallback(() => setDocked(true), []);
@@ -67,10 +74,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         try {
           const result = token ? await checkActivation(token, signal, connection.url) : null;
           if (signal.aborted) return;
-          void boundedFetch(fetch, signal)(`${connection.url}/activation/free/config`, { cache: "no-store" })
-            .then(async response => response.ok ? await response.json() as { configured: boolean } : null)
-            .then(offers => { if (!signal.aborted) setFreePassUrl(offers?.configured ? `${connection.url}/activation/free/start` : linkvertiseUrl); })
-            .catch(() => { if (!signal.aborted) setFreePassUrl(linkvertiseUrl); });
           setStatus(result);
           if (result) setEnded(null);
           setConnecting(false);
@@ -102,11 +105,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     void verify();
     return () => verification.current?.abort();
   }, [verify]);
-  useEffect(() => {
-    const syncHelpPage = () => setHelpOpen(window.location.hash === "#obtener-clave");
-    window.addEventListener("hashchange", syncHelpPage);
-    return () => window.removeEventListener("hashchange", syncHelpPage);
-  }, []);
   useEffect(() => {
     const invalid = () => {
       verification.current?.abort();
@@ -176,12 +174,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     };
   }, [status, t]);
 
-  useEffect(() => {
-    if (!helpOpen) return;
-    const frame = requestAnimationFrame(() => document.getElementById("obtener-clave")?.scrollIntoView({ block: "start", behavior: "smooth" }));
-    return () => cancelAnimationFrame(frame);
-  }, [helpOpen]);
-
   /**
    * Send a key to the server and adopt the result.
    *
@@ -235,18 +227,11 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
     {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}>
-      {stage === "validation" || stage === "holding" ? <div className="ga-entry-scrim" aria-hidden="true" /> : <GameCoverBackdrop />}
+      {entryVisible ? <div className="ga-entry-scrim" aria-hidden="true" /> : <GameCoverBackdrop />}
     </div> : null}
-    {stage === "validation" || stage === "holding" ? <main className="activation-gate ga-validation">
+    {entryVisible ? <main className={`activation-gate ga-validation${stage === "docking" ? " is-leaving" : ""}`}>
       <div className="ga-entry-layout">
         <div className="ga-entry-content">
-          <div className="ga-entry-brand" aria-hidden="true">
-            {loadPixelStyle().animate && !matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? <video src="/brand/logo-entry-loop.webm" poster="/brand/logo-entry-poster.png" autoPlay loop muted playsInline />
-              : <img src="/brand/logo-entry-poster.png" alt="" />}
-            <GameAccessWordmark />
-            <p className="ga-entry-tagline">{t("activationBrandTagline")}</p>
-          </div>
           {ended ? <aside className="activation-ended" role="status">
             <KeyRound size={24} aria-hidden="true" />
             <div><strong>{ended.reason === "expired" ? t("activationTimeEndedTitle") : ended.reason === "revoked" ? t("activationRevokedTitle") : t("activationUnavailableTitle")}</strong>
@@ -280,59 +265,10 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             </form>
           </section>
         </div>
-        <section className="activation-passes" aria-labelledby="activation-passes-title">
-          <div className="activation-passes-intro">
-            <h2 id="activation-passes-title">{t("activationChoosePass")}</h2>
-            <p>{t("activationPassLead")}</p>
-          </div>
-          <div className="activation-pass-grid">
-            <article className="activation-pass">
-              <img className="activation-access-card-art" src="/brand/access-ticket-base.webp" alt="" />
-              <div className="activation-pass-copy">
-                <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>BASE</h3><Gamepad2 size={34} aria-hidden="true" /></div><span>{t("activationBetaShort")}</span></div></div>
-                <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationBasePrice")}</p><p>{t("activationBaseAds")}</p></div>
-                <ul>
-                  <li><Download aria-hidden="true" /><span>{t("activationOneClick")}</span></li>
-                  <li><Monitor aria-hidden="true" /><span>{t("activationBigScreen")}</span></li>
-                  <li><Clock3 aria-hidden="true" /><span>{t("activationRegularDownload")}</span></li>
-                  <li><Search aria-hidden="true" /><span>{t("activationEnhancedSearch")}</span></li>
-                </ul>
-                <div className="activation-pass-actions"><a className="activation-pass-link" href="#obtener-clave"><Play size={20} aria-hidden="true" />{t("activationGetBase")}</a></div>
-              </div>
-            </article>
-            <article className="activation-pass activation-pass-plus">
-              <img className="activation-access-card-art" src="/brand/access-ticket-plus.webp" alt="" />
-              <div className="activation-pass-copy">
-                <div className="activation-pass-heading"><div><div className="activation-pass-title"><h3>PLUS</h3><Crown size={34} aria-hidden="true" /></div><span>{t("activationBetaPromo")}</span></div></div>
-                <div className="activation-pass-intro"><p className="activation-pass-price">{t("activationPlusPrice")}</p><p className="activation-pass-trial">{t("activationPlusTrial")}</p></div>
-                <ul>
-                  <li><CheckCircle2 aria-hidden="true" /><span>{t("activationEverythingBase")}</span></li>
-                  <li><Layers3 aria-hidden="true" /><span>{t("activationParallelDownloads")}</span></li>
-                  <li><Gauge aria-hidden="true" /><span>{t("activationFastDownloads")}</span></li>
-                </ul>
-                <div className="activation-pass-actions">{plusUrl ? <a className="activation-pass-link" href={plusUrl} target="_blank" rel="noopener noreferrer">{t("activationGetPlus")} <ArrowUpRight size={20} aria-hidden="true" /></a>
-                  : <span className="activation-pass-pending"><LockKeyhole size={20} aria-hidden="true" />{t("activationPlusPending")}</span>}</div>
-              </div>
-            </article>
-          </div>
-        </section>
-        {helpOpen ? <section id="obtener-clave" className="activation-card activation-help" aria-labelledby="activation-help-title">
-          <a className="activation-back" href="#acceso"><ArrowLeft size={20} aria-hidden="true" /> {t("activationBack")}</a>
-          <h2 id="activation-help-title">{t("activationHelpTitle")}</h2>
-          <p>{t("activationHelpLead")}</p>
-          {tutorialVideoUrl ? <video className="activation-help-video" controls playsInline src={tutorialVideoUrl} aria-label={t("activationHelpVideo")} /> : null}
-          <ol className="activation-help-steps"><li>{t("activationStep1")}</li><li>{t("activationStep2")}</li><li>{t("activationStep3")}</li></ol>
-          {freePassUrl && !connecting ? <a className="activation-provider-link" href={freePassUrl} target="_blank" rel="noopener noreferrer">{t("activationGoLinkvertise")} <ArrowUpRight size={21} aria-hidden="true" /></a>
-            : <p className="activation-provider-pending">{t("activationLinkPending")}</p>}
-        </section> : null}
+        <p className="ga-entry-getkey">{t("activationNeedKey")} <a href={websiteUrl} target="_blank" rel="noopener noreferrer">{t("activationGetKeyHere")} <ArrowUpRight size={18} aria-hidden="true" /></a></p>
       </div>
     </main> : null}
-    {stage === "validation" || stage === "holding" ? <footer className="ga-access-footer"><BackendStatus /></footer> : null}
+    {entryVisible ? <footer className={`ga-access-footer${stage === "docking" ? " is-leaving" : ""}`}><BackendStatus /></footer> : null}
     {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
-}
-
-// Typography stays live so the wordmark scales sharply alongside the real G/A film.
-function GameAccessWordmark() {
-  return <div className="ga-entry-wordmark"><span>Game</span><span>Access</span></div>;
 }

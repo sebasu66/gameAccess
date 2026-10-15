@@ -6,23 +6,38 @@ import openingAudio from "../public/brand/opening-audio.json";
 // The opening sound ends with silence; the logo never waits for it longer than this.
 export const HOLD_MAX_MS = 900;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
+/** The formed logo in the 1920x1080 hold frame: its visible glyph box and the glyph box of the header logo frame (84x84). */
+const HOLD_GLYPH = { cx: 960, cy: 540.5, height: 499 };
+const HEADER_GLYPH = { height: 48, frame: 84 };
+const COMPACT_MS = 1100;
+/** Where the header logo sits: centred at the top, below the window bar. */
+function headerLogoTarget() {
+ const frame = Math.min(96, Math.max(60, innerWidth * .0421875));
+ const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
+ return { cx: innerWidth / 2, cy: chrome + 2 + frame / 2, glyph: frame * HEADER_GLYPH.height / HEADER_GLYPH.frame };
+}
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
  const [formed, setFormed] = useState(stage !== "intro");
  const [audioState, setAudioState] = useState("idle");
- const [dockShown, setDockShown] = useState(false);
  const [landing, setLanding] = useState(false);
+ const [compactDone, setCompactDone] = useState(false);
  const video = useRef<HTMLVideoElement>(null);
+ const hold = useRef<HTMLImageElement>(null);
  const sound = useRef<HTMLAudioElement | null>(null);
- const started = useRef(false);
+ const compacting = useRef<Animation | null>(null);
  const finished = useRef(false);
- const phase = stage === "docking" ? "dock" : formed ? "hold" : "intro";
+ /** Mounted already past the opening (an open session expired): the logo is simply up there, no flight. */
+ const startedCompact = useRef(stage === "validation" || stage === "docking");
+ const instant = useRef(startedCompact.current);
+ const compactStage = stage === "validation" || stage === "docking";
+ const phase = compactStage ? "compact" : formed ? "hold" : "intro";
  const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
  const reducedRef = useRef(reduced);
  const finishDock = useCallback(() => {
   if (finished.current) return;
   finished.current = true;
-  // The header logo appears right away while the film fades out over it: no pop.
+  // The header logo appears right away while the picture fades out over it: no pop.
   document.body.classList.remove("ga-splash-active");
   window.dispatchEvent(new Event("gameaccess:logo-settled"));
   if (reducedRef.current) { onDocked(); return; }
@@ -51,6 +66,10 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  }, []);
  useEffect(() => {
   if (phase === "intro") {
+   // A replay starts over from the big logo.
+   compacting.current?.cancel(); compacting.current = null;
+   startedCompact.current = false; instant.current = false; finished.current = false;
+   setCompactDone(false); setLanding(false);
    if (reduced) { setFormed(true); return; }
    const timer = window.setTimeout(() => setFormed(true), 12000);
    return () => clearTimeout(timer);
@@ -62,43 +81,41 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
    return () => clearTimeout(timer);
   }
-  if (reduced) { onDockStart(); finishDock(); return; }
-  // Decoder fallback advances the animation only; the gate still requires approval.
-  const timer = window.setTimeout(finishDock, 8000);
-  return () => clearTimeout(timer);
- }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
- const play = () => {
-  if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
-  if (phase !== "dock" || started.current) return;
-  started.current = true;
-  const v = video.current;
-  if (!v) return;
-  setDockShown(true);
-  const target = Array.from(document.querySelectorAll(".ga-header-logo")).map(e => e.getBoundingClientRect()).find(rect => rect.width > 0);
-  const scale = innerWidth / 1920;
-  const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
-  const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
-  const cx = target ? target.x + target.width / 2 : 20 + frame / 2;
-  const cy = target ? target.y + target.height / 2 : chrome + 20 + frame / 2;
-  const x = cx - 64 * scale, y = cy - 54 * scale;
+ }, [phase, reduced, audioState, onIntroReady]);
+ // The big logo shrinks and flies to its place at the top centre; the access panel (or the app) follows it in one movement.
+ useEffect(() => {
+  if (phase !== "compact" || compacting.current) return;
+  const img = hold.current;
+  if (!img) return;
+  const s = innerWidth / 1920;
   const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
-  const ratio = frame / (81 * scale);
-  // The transparent film's individual voxels travel independently; its final
-  // frame is aligned to the visible header logo at every window size.
-  v.animate([
-   { transform: `translate(0px,${initialY}px) scale(1)` },
-   { transform: `translate(${cx - 64 * scale * ratio}px,${cy - 54 * scale * ratio}px) scale(${ratio})` },
-  ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
+  const target = headerLogoTarget();
+  const ratio = target.glyph / (HOLD_GLYPH.height * s);
+  const end = `translate(${target.cx - ratio * HOLD_GLYPH.cx * s}px,${target.cy - ratio * HOLD_GLYPH.cy * s}px) scale(${ratio})`;
+  const duration = reducedRef.current || instant.current ? 0 : COMPACT_MS;
+  const animation = img.animate([{ transform: `translate(0px,${initialY}px) scale(1)` }, { transform: end }],
+   { duration, easing: "cubic-bezier(.5,.02,.18,1)", fill: "forwards" });
+  compacting.current = animation;
+  startedCompact.current = true;
+  const done = () => setCompactDone(true);
+  animation.onfinish = done;
+  if (duration === 0) done();
+ }, [phase]);
+ // Once approved and tucked away at the top, the application takes over.
+ useEffect(() => {
+  if (stage !== "docking" || !compactDone) return;
   onDockStart();
+  const timer = window.setTimeout(finishDock, reducedRef.current ? 0 : 350);
+  return () => clearTimeout(timer);
+ }, [stage, compactDone, onDockStart, finishDock]);
+ const play = () => {
+  if (phase === "intro" && !reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); }
  };
- const away = stage === "holding" || stage === "validation";
- const cls = `gameaccess-splash phase-${phase}${away ? " is-away" : ""}${landing ? " is-landing" : ""}`;
+ const cls = `gameaccess-splash phase-${phase}${landing ? " is-landing" : ""}`;
  // Every layer stays mounted in turn so the picture never goes blank between films.
  return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
-  <img className={`gameaccess-splash-film splash-hold${phase !== "intro" && !dockShown ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
+  <img ref={hold} className={`gameaccess-splash-film splash-hold${phase !== "intro" ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
   {phase === "intro" ? <video key="intro" ref={video} className="gameaccess-splash-film splash-intro" src="/brand/logo-intro.webm"
     muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => setFormed(true)} onEnded={() => setFormed(true)} aria-hidden="true" /> : null}
-  {phase === "dock" ? <video key="dock" ref={video} className={`gameaccess-splash-film splash-dock${dockShown ? " is-on" : ""}`} src="/brand/logo-to-header.webm"
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={finishDock} onEnded={finishDock} aria-hidden="true" /> : null}
  </div>;
 }
