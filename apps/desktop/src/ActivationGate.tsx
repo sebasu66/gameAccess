@@ -6,6 +6,7 @@ import BackendStatus from "./BackendStatus";
 import { openingStage } from "./openingFlow";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
 import type { ActivationStatus, ActivationEnd } from "./activation";
+import GameCoverBackdrop from "./GameCoverBackdrop";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
 import { devAutoLoginKey } from "./devAutoLogin";
@@ -30,6 +31,8 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [docked, setDocked] = useState(false);
   const [dockStarted, setDockStarted] = useState(false);
   const [applicationStarted, setApplicationStarted] = useState(false);
+  /** The logo has finished raining up to the header: from here on only the app (and the key panel, if needed) is on screen. */
+  const [logoLanded, setLogoLanded] = useState(false);
 
   const checkedStage = openingStage({ introReady, verificationReady, approved: Boolean(status?.active), docked });
   // A slow or unreachable server must not leave only the big logo on screen: after a moment the panel explains what is happening.
@@ -40,19 +43,27 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [checkedStage]);
   const stage = checkedStage === "holding" && waited ? "validation" : checkedStage;
-  /** The access panel shows once the logo has settled at the top, and stays just long enough to fade out when access is granted. */
-  const [entryShown, setEntryShown] = useState(false);
-  useEffect(() => { if (stage === "validation") setEntryShown(true); else if (stage === "intro") setEntryShown(false); }, [stage]);
-  const entryVisible = stage === "validation" || (stage === "docking" && entryShown);
+  /** The access panel shows over the real grid once the logo has landed, and fades out when access is granted. */
+  const entryVisible = logoLanded && !status?.active && stage === "validation";
+  const [entryLeaving, setEntryLeaving] = useState(false);
+  const entryWasVisible = useRef(false);
+  useEffect(() => {
+    if (entryVisible) { entryWasVisible.current = true; setEntryLeaving(false); return; }
+    if (!entryWasVisible.current) return;
+    entryWasVisible.current = false;
+    setEntryLeaving(true);
+    const timer = window.setTimeout(() => setEntryLeaving(false), 450);
+    return () => window.clearTimeout(timer);
+  }, [entryVisible]);
+  const entryShown = entryVisible || entryLeaving;
   const completeIntro = useCallback(() => setIntroReady(true), []);
   const startDock = useCallback(() => setDockStarted(true), []);
-  const completeDock = useCallback(() => setDocked(true), []);
+  const completeDock = useCallback(() => { setLogoLanded(true); setDocked(true); }, []);
   useEffect(() => {
-    if (!status?.active) { setDocked(false); setDockStarted(false); }
-    else if (introReady) setApplicationStarted(true);
+    if (status?.active && introReady) setApplicationStarted(true);
   }, [status?.active, introReady]);
   useEffect(() => {
-    const replay = () => { setIntroReady(false); setDocked(false); setDockStarted(false); };
+    const replay = () => { setIntroReady(false); setDocked(false); setDockStarted(false); setLogoLanded(false); };
     window.addEventListener("gameaccess:replay-logo", replay);
     return () => window.removeEventListener("gameaccess:replay-logo", replay);
   }, []);
@@ -225,10 +236,9 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
-    {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}>
-      {stage !== "intro" ? <div className="ga-entry-scrim" aria-hidden="true" /> : null}
-    </div> : null}
-    {entryVisible ? <main className={`activation-gate ga-validation${stage === "docking" ? " is-leaving" : ""}`}>
+    {!logoLanded ? <div className={`ga-opening-background${dockStarted ? " is-docking" : ""}`}><GameCoverBackdrop /></div> : null}
+    {entryShown ? <div className={`ga-opening-background${entryLeaving ? " is-docking" : ""}`} data-stage="validation"><div className="ga-entry-scrim" aria-hidden="true" /></div> : null}
+    {entryShown ? <main className={`activation-gate ga-validation${entryLeaving ? " is-leaving" : ""}`}>
       <div className="ga-entry-layout">
         <div className="ga-entry-content">
           {ended ? <aside className="activation-ended" role="status">
@@ -267,7 +277,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
         <p className="ga-entry-getkey">{t("activationNeedKey")} <a href={websiteUrl} target="_blank" rel="noopener noreferrer">{t("activationGetKeyHere")} <ArrowUpRight size={18} aria-hidden="true" /></a></p>
       </div>
     </main> : null}
-    {entryVisible ? <footer className={`ga-access-footer${stage === "docking" ? " is-leaving" : ""}`}><BackendStatus /></footer> : null}
-    {stage !== "ready" ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
+    {entryShown ? <footer className={`ga-access-footer${entryLeaving ? " is-leaving" : ""}`}><BackendStatus /></footer> : null}
+    {!logoLanded ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }
