@@ -127,21 +127,30 @@ function readCache(): PremiumContent | null {
   catch { return null; }
 }
 
-/** Download the screen's data. Falls back to the last copy saved, then to a minimal built-in one. */
+export const PREMIUM_FETCH_TIMEOUT_MS = 4000;
+
+async function downloadPremiumContent(signal?: AbortSignal): Promise<{ content: PremiumContent; raw: unknown } | null> {
+  const base = await getApiBaseUrl();
+  if (!base) return null;
+  const hint = regionHint();
+  const response = await boundedFetch(fetch, signal)(`${base}/premium/content${hint ? `?hint=${hint}` : ""}`, { cache: "no-store" });
+  if (!response.ok) return null;
+  const raw = await response.json();
+  const content = parsePremiumContent(raw);
+  return content ? { content, raw } : null;
+}
+
+/**
+ * The dialog must never wait on an unreachable or sleeping server, so the whole
+ * download (including finding the server) gets a few seconds and then we show the saved copy.
+ */
 export async function fetchPremiumContent(signal?: AbortSignal): Promise<{ content: PremiumContent; source: PremiumSource }> {
   try {
-    const base = await getApiBaseUrl();
-    if (base) {
-      const hint = regionHint();
-      const response = await boundedFetch(fetch, signal)(`${base}/premium/content${hint ? `?hint=${hint}` : ""}`, { cache: "no-store" });
-      if (response.ok) {
-        const raw = await response.json();
-        const content = parsePremiumContent(raw);
-        if (content) {
-          try { localStorage.setItem(CACHE_KEY, JSON.stringify(raw)); } catch { /* Optional cache. */ }
-          return { content, source: "server" };
-        }
-      }
+    const timeout = new Promise<null>(resolve => window.setTimeout(() => resolve(null), PREMIUM_FETCH_TIMEOUT_MS));
+    const result = await Promise.race([downloadPremiumContent(signal), timeout]);
+    if (result) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(result.raw)); } catch { /* Optional cache. */ }
+      return { content: result.content, source: "server" };
     }
   } catch { /* Offline or server asleep: use what we have. */ }
   const cached = readCache();
