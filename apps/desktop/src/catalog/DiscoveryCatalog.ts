@@ -40,7 +40,11 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
       try {
         const synced = await syncCatalogCache(manifest);
         if (synced) {
-          if (synced.updated) invalidateCatalogMatchingCache();
+          if (synced.updated) {
+            invalidateCatalogMatchingCache();
+            // Open grids and counters run their query again on the new data (see useCatalogQuery).
+            if (typeof window !== "undefined") window.dispatchEvent(new Event("gameaccess:catalog-data-changed"));
+          }
           void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
           return synced;
         }

@@ -451,6 +451,12 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     if (next[gameId] === undefined) delete next[gameId];
     setPreferences(next);
     localStorage.setItem("gameaccess:preferences", JSON.stringify(next));
+    // A liked game found in the catalog grid joins the games kept in memory, so Favoritos shows it right away.
+    if (next[gameId] === 1 && !games.some(game => game.id === gameId)) {
+      void digitalCatalogService.getGamesByCatalogIds([gameId])
+        .then(found => { if (found.length) setGames(current => current.some(game => game.id === gameId) ? current : [...current, ...found]); })
+        .catch(() => undefined);
+    }
     setToast(value === 1 ? (next[gameId] === 1 ? "Añadido a favoritos." : "Quitado de favoritos.") : "Perfecto, veremos menos juegos de este estilo.");
   };
 

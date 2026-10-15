@@ -117,6 +117,18 @@ export class DigitalCatalog {
     };
   }
 
+  /** Games by catalog id (likes and recent games are stored that way). */
+  async getGamesByCatalogIds(ids: number[]): Promise<CatalogGame[]> {
+    if (!ids.length) return [];
+    if (this.options.catalogLoader) {
+      const loaded = await this.options.catalogLoader();
+      const set = new Set(ids);
+      return (loaded as CatalogGame[]).filter(g => set.has(g.id));
+    }
+    const result = await queryCatalogCache({ game_ids: ids, limit: Math.min(1000, ids.length) });
+    return applyBundledCatalogArtwork(this.normalizeGames(result.items));
+  }
+
   async getGamesByAppIds(appIds: number[]): Promise<CatalogGame[]> {
     if (!appIds.length) return [];
     if (this.options.catalogLoader) {

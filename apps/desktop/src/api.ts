@@ -73,9 +73,32 @@ export async function loadHome(): Promise<{games: CatalogGame[]; user: UserSumma
   if (activeIds.length > 0) {
     games = await digitalCatalogService.getGamesByAppIds(activeIds);
   }
+  // Likes and recently opened games are kept by catalog id: without them Favoritos and
+  // "seguir jugando" would be empty, because the full catalog is no longer in memory.
+  const ownIds = storedCatalogIds();
+  if (ownIds.length) {
+    const known = new Set(games.map(game => game.id));
+    const missing = ownIds.filter(id => !known.has(id));
+    if (missing.length) {
+      const extra = await digitalCatalogService.getGamesByCatalogIds(missing).catch(() => [] as CatalogGame[]);
+      games = [...games, ...extra];
+    }
+  }
   currentCatalog = games;
   return {games, user: {id:1, username:"gameaccess", credits:0}, offlineDemo};
 }
+/** Catalog ids the user liked or recently opened (both saved in this browser). */
+function storedCatalogIds(): number[] {
+  const ids = new Set<number>();
+  try {
+    const preferences = JSON.parse(localStorage.getItem("gameaccess:preferences") || "{}") as Record<string, number>;
+    for (const [id, value] of Object.entries(preferences)) if (value === 1) ids.add(Number(id));
+    const recent = JSON.parse(localStorage.getItem("gameaccess:recent") || "[]") as unknown[];
+    for (const id of recent) if (typeof id === "number") ids.add(id);
+  } catch { /* nothing stored */ }
+  return [...ids].filter(id => Number.isSafeInteger(id) && id > 0);
+}
+
 export function findLocalGameForDetails(gameId: number, catalog = currentCatalog) {
   return catalog.find(game => game.id === gameId || game.app_id === gameId);
 }
