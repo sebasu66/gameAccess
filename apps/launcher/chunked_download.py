@@ -125,15 +125,18 @@ class ChunkedDownloader:
     def manifest(self, job_id: str) -> dict:
         return self._call("GET", f"/downloads/viking-chunks/{job_id}")
 
-    def piece_link(self, job_id: str, index: int) -> dict:
-        """A link for one piece; links are asked for in batches (one server call for many pieces)."""
+    def piece_link(self, job_id: str, index: int, refresh: bool = False) -> dict:
+        """A link for one piece; links are asked for in batches (one server call for many pieces).
+
+        `refresh` says the last link did not work, so the server must hand out a new one."""
         with self._links_lock:
             link = self._links.pop(index, None)
-        if link is not None:
+        if link is not None and not refresh:
             return link
         if self._batch_links:
             try:
-                got = self._call("GET", f"/downloads/viking-chunks/{job_id}/links?start={index}&count={self.parallel * 2}")
+                count = 1 if refresh else self.parallel * 2
+                got = self._call("GET", f"/downloads/viking-chunks/{job_id}/links?start={index}&count={count}" + ("&refresh=true" if refresh else ""))
                 with self._links_lock:
                     for item in got.get("links", []):
                         self._links[item["index"]] = item
@@ -142,7 +145,7 @@ class ChunkedDownloader:
                     return link
             except ChunkedDownloadUnavailable:
                 self._batch_links = False  # an older server: one call per piece, as before
-        return self._call("GET", f"/downloads/viking-chunks/{job_id}/pieces/{index}/link")
+        return self._call("GET", f"/downloads/viking-chunks/{job_id}/pieces/{index}/link" + ("?refresh=true" if refresh else ""))
 
     # ------------------------------------------------------------ the download
     def download(self, source_url: str, item_name: str, dest_dir: str, app_id: str, game_name: str) -> str:
@@ -327,7 +330,7 @@ class ChunkedDownloader:
             if context.cancelled.is_set() or self.abort.is_set():
                 return
             try:
-                link = self.piece_link(job_id, index)
+                link = self.piece_link(job_id, index, refresh=attempt > 1)  # a retry means the link did not work
                 digest = hashlib.sha256()
                 written = 0
                 piece_started = time.time()

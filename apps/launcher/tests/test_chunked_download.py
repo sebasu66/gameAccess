@@ -79,7 +79,7 @@ class FakeServer:
         assert headers["Authorization"] == "Bearer tok" and headers["X-GameAccess-Installation"] == "inst"
         if method == "POST":
             return Resp(200, self.manifest())
-        if url.endswith("/link"):
+        if url.split("?")[0].endswith("/link"):
             index = int(url.split("/pieces/")[1].split("/")[0])
             return Resp(200, {"index": index, "url": f"https://cdn/{index}"})
         return Resp(200, self.manifest())
@@ -208,6 +208,9 @@ def test_links_are_asked_for_in_batches_and_an_old_server_falls_back(tmp_path):
     downloader._call = batch_call
     assert [downloader.piece_link("job", i)["url"] for i in range(4)] == ["u0", "u1", "u2", "u3"]
     assert calls == ["/downloads/viking-chunks/job/links?start=0&count=4"]  # one call for four pieces
+
+    downloader.piece_link("job", 0, refresh=True)  # the link did not work: the server is told to give a new one
+    assert calls[-1] == "/downloads/viking-chunks/job/links?start=0&count=1&refresh=true"
 
     old, _ = make(FakeServer([("f", b"1")], 1), tmp_path)
     seen = []
