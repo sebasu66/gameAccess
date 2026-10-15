@@ -235,3 +235,15 @@ body .library-sort-menu button[aria-pressed="true"] { border-color: var(--ga-ora
 body .library-sort-dropdown[open] > summary,
 body .library-sort-dropdown > summary:hover,
 body .library-sort-dropdown > summary:focus-visible { background: #ffffff10; border-color: transparent; box-shadow: none; outline-color: var(--ga-orange); }
+
+/* ---- Header: logo centred at the top, wordmark in the top-left corner; search field and round buttons lifted with soft shadows ---- */
+body.ga-pixel-style .topbar .brand { left: 0; right: 0; margin-inline: auto; z-index: 126; }
+body .ga-header-logo { filter: drop-shadow(0 4px 14px #000c) drop-shadow(0 0 3px #0008); }
+body .ga-header-wordmark { position: fixed; left: var(--ga-logo-margin); top: calc(var(--window-chrome-height, 34px) + var(--ga-logo-margin)); z-index: 126; }
+body .library-catalog-toolbar .global-search {
+  background: #101416f5; color: #d2d6d9;
+  box-shadow: 0 10px 34px #000b, 0 0 0 1px #00000040, 0 0 46px #0008, inset 0 0 0 1px #ff6a0020;
+}
+body .library-catalog-toolbar .global-search input { color: #d2d6d9; }
+body .library-catalog-toolbar .global-search input::placeholder { color: #d2d6d9; opacity: .75; }
+body .library-catalog-tabs button { box-shadow: 0 8px 24px #000a, 0 0 30px #0007; }
