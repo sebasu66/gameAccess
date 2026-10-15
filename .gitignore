@@ -89,3 +89,8 @@ apps/api/courtesy-keys.json.*
 # locally, used to fill our catalog, and deleted; it is never redistributed.
 /.cache/steamdb/
 /.cache/catalog-filled/
+
+# Plugin: su instalador y sus binarios viven en el repo del plugin, no aca
+tools/plugin-installer/bin/
+tools/plugin-installer/obj/
+tools/plugin-installer/plugin-payload.zip
