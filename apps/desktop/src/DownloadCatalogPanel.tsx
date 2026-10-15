@@ -1,4 +1,5 @@
 import FilledIcon from "./FilledIcon";
+import { useCatalogGenreNames } from "./catalogFilterParams";
 import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
@@ -16,8 +17,8 @@ import { gameStateManager } from "./GameStateManager";
 import { getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
-import { genreConceptIds, genreLabel } from "./libraryGenres";
-import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFacets, hasNoActiveFilters, LIBRARY_FEATURE_OPTIONS } from "./librarySearch";
+import { genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
+import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFacets, hasNoActiveFilters, LIBRARY_FEATURE_OPTIONS, SOFTWARE_GENRES } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
@@ -168,7 +169,15 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     width: typeof window === "undefined" ? 1440 : window.innerWidth,
     height: typeof window === "undefined" ? 900 : window.innerHeight,
   }));
-  const facets = useMemo(() => getLibrarySearchFacets(allGames), [allGames.length, allGames[0]?.id]);
+  const memoryFacets = useMemo(() => getLibrarySearchFacets(allGames), [allGames.length, allGames[0]?.id]);
+  // The catalog offers every genre in the database, not only those of the games loaded in memory.
+  const catalogGenreNames = useCatalogGenreNames();
+  const facets = useMemo(() => {
+    if (view === "installed" || !catalogGenreNames.length) return memoryFacets;
+    const softwareIds = new Set(genreConceptIds(SOFTWARE_GENRES));
+    const concepts = [...new Set(genreConceptIds(catalogGenreNames))].filter(id => !genreIsSoftware(id) && !softwareIds.has(id));
+    return { ...memoryFacets, genres: concepts.sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), "es")) };
+  }, [memoryFacets, catalogGenreNames, view]);
   const favoritesCount = useMemo(() => displaySection.games.filter(game => props.preferences?.[game.id] === 1).length, [displaySection.games, props.preferences]);
   useEffect(() => {
     const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });

@@ -13,7 +13,7 @@ import { useParentalLocked } from "./ParentalControlSection";
 import { DEFAULT_LIBRARY_FILTERS, MULTIPLAYER_OPTION_KEYS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 import { queryCatalogCache } from "./catalogCache";
-import { catalogParamsFromFilters } from "./catalogFilterParams";
+import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
 
@@ -90,16 +90,17 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const effective = useMemo(() => applyParentalPolicy(draft), [draft]);
   const localCount = useMemo(() => countFromCatalog ? 0 : filterLibraryGames(games, query, effective).length, [countFromCatalog, games, query, effective]);
   const [catalogCount, setCatalogCount] = useState<number | null>(null);
+  const genreNames = useCatalogGenreNames();
   useEffect(() => {
     if (!countFromCatalog) return;
     let current = true;
     const timer = window.setTimeout(() => {
-      queryCatalogCache({ ...catalogParamsFromFilters(query, effective), limit: 1 })
+      queryCatalogCache({ ...catalogParamsFromFilters(query, effective, genreNames), limit: 1 })
         .then(result => { if (current) setCatalogCount(result.total); })
         .catch(() => { if (current) setCatalogCount(null); });
     }, 150);
     return () => { current = false; window.clearTimeout(timer); };
-  }, [countFromCatalog, query, effective]);
+  }, [countFromCatalog, query, effective, genreNames]);
   const matchCount = countFromCatalog ? catalogCount ?? 0 : localCount;
   /** Adds or removes a multiplayer option. Single player and multiplayer exclude each other. */
   const toggleFeature = (key: LibraryFeatureKey) => setDraft(current => {

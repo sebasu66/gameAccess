@@ -73,6 +73,17 @@ export interface CatalogQueryParams {
   max_age_days?: number;
   include_recent_unrated?: boolean;
   app_ids?: number[];
+  exclude_genres?: string[];
+  exclude_features?: string[];
+  exclude_sources?: string[];
+  content_descriptor_ids?: number[];
+  exclude_content_descriptor_ids?: number[];
+  hide_adult?: boolean;
+  adult_includes_nudity?: boolean;
+  release_year_from?: number;
+  release_year_to?: number;
+  /** Catalog ids (likes and recent games are stored by catalog id, not Steam app id). */
+  game_ids?: number[];
 }
 
 export interface CatalogQueryResult {

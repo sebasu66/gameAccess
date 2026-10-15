@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { queryCatalogCache, type CatalogQueryParams } from "./catalogCache";
 import type { CatalogGame } from "./types";
 
+/** Fired after a catalog sync changed the local database, so open queries run again. */
+export const CATALOG_DATA_CHANGED_EVENT = "gameaccess:catalog-data-changed";
+
 export interface UseCatalogQueryOptions extends CatalogQueryParams {
   debounceMs?: number;
   enabled?: boolean;
@@ -44,44 +47,17 @@ export function useCatalogQuery(options: UseCatalogQueryOptions = {}): UseCatalo
       setRefreshTick(t => t + 1);
     };
     window.addEventListener("gameaccess:sources-changed", onSourcesChanged);
-    return () => window.removeEventListener("gameaccess:sources-changed", onSourcesChanged);
+    window.addEventListener(CATALOG_DATA_CHANGED_EVENT, onSourcesChanged);
+    return () => {
+      window.removeEventListener("gameaccess:sources-changed", onSourcesChanged);
+      window.removeEventListener(CATALOG_DATA_CHANGED_EVENT, onSourcesChanged);
+    };
   }, []);
 
-  const paramsKey = useMemo(() => JSON.stringify({
-    query: options.query,
-    genres: options.genres,
-    features: options.features,
-    sources: options.sources,
-    has_downloads: options.has_downloads,
-    language: options.language,
-    sort_by: options.sort_by,
-    sort_direction: options.sort_direction,
-    limit,
-    offset,
-    min_rating: options.min_rating,
-    max_age_days: options.max_age_days,
-    include_recent_unrated: options.include_recent_unrated,
-    app_ids: options.app_ids,
-    enabled,
-    refreshTick,
-  }), [
-    options.query,
-    options.genres,
-    options.features,
-    options.sources,
-    options.has_downloads,
-    options.language,
-    options.sort_by,
-    options.sort_direction,
-    limit,
-    offset,
-    options.min_rating,
-    options.max_age_days,
-    options.include_recent_unrated,
-    options.app_ids,
-    enabled,
-    refreshTick,
-  ]);
+  // Every query parameter takes part, so a new filter can never be silently ignored.
+  const { debounceMs: _debounce, enabled: _enabled, ...queryOptions } = options;
+  const paramsJson = JSON.stringify({ ...queryOptions, limit, offset });
+  const paramsKey = useMemo(() => JSON.stringify({ paramsJson, enabled, refreshTick }), [paramsJson, enabled, refreshTick]);
 
   useEffect(() => {
     if (!enabled) {
@@ -94,22 +70,7 @@ export function useCatalogQuery(options: UseCatalogQueryOptions = {}): UseCatalo
 
     const timer = window.setTimeout(async () => {
       try {
-        const params: CatalogQueryParams = {
-          query: options.query,
-          genres: options.genres,
-          features: options.features,
-          sources: options.sources,
-          has_downloads: options.has_downloads,
-          language: options.language,
-          sort_by: options.sort_by,
-          sort_direction: options.sort_direction,
-          limit,
-          offset,
-          min_rating: options.min_rating,
-          max_age_days: options.max_age_days,
-          include_recent_unrated: options.include_recent_unrated,
-          app_ids: options.app_ids,
-        };
+        const params = JSON.parse(paramsJson) as CatalogQueryParams;
 
         const result = await queryCatalogCache(params);
         if (reqIdRef.current !== reqId) return;
