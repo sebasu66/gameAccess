@@ -196,6 +196,34 @@ def test_server_refusal_means_use_the_normal_download(tmp_path):
         downloader.download("https://x", "F", str(tmp_path), "1", "F")
 
 
+def test_links_are_asked_for_in_batches_and_an_old_server_falls_back(tmp_path):
+    downloader, _ = make(FakeServer([("f", b"1")], 1), tmp_path, parallel=2)
+    calls = []
+
+    def batch_call(method, path, **kw):
+        calls.append(path)
+        start = int(path.split("start=")[1].split("&")[0])
+        return {"links": [{"index": i, "url": f"u{i}"} for i in range(start, start + 4)]}
+
+    downloader._call = batch_call
+    assert [downloader.piece_link("job", i)["url"] for i in range(4)] == ["u0", "u1", "u2", "u3"]
+    assert calls == ["/downloads/viking-chunks/job/links?start=0&count=4"]  # one call for four pieces
+
+    old, _ = make(FakeServer([("f", b"1")], 1), tmp_path)
+    seen = []
+
+    def old_call(method, path, **kw):
+        seen.append(path)
+        if "/links" in path:
+            raise cd.ChunkedDownloadUnavailable("404")
+        return {"index": 0, "url": "single"}
+
+    old._call = old_call
+    assert old.piece_link("job", 0)["url"] == "single"
+    old.piece_link("job", 1)
+    assert sum("/links" in p for p in seen) == 1  # it stops trying the batch endpoint
+
+
 def test_a_failed_job_without_pieces_raises(tmp_path):
     class Failed(FakeServer):
         def manifest(self):

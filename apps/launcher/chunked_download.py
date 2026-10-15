@@ -84,6 +84,9 @@ class ChunkedDownloader:
     def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep, parallel: int | None = None):
         self.parallel = max(1, parallel or int(os.getenv("GAMEACCESS_CHUNK_DOWNLOADS") or DOWNLOADS_IN_PARALLEL))
         self.live: dict[int, int] = {}
+        self._links: dict[int, dict] = {}
+        self._links_lock = threading.Lock()
+        self._batch_links = True
         self.abort = threading.Event()
         self.context = context
         self.session = session
@@ -123,6 +126,22 @@ class ChunkedDownloader:
         return self._call("GET", f"/downloads/viking-chunks/{job_id}")
 
     def piece_link(self, job_id: str, index: int) -> dict:
+        """A link for one piece; links are asked for in batches (one server call for many pieces)."""
+        with self._links_lock:
+            link = self._links.pop(index, None)
+        if link is not None:
+            return link
+        if self._batch_links:
+            try:
+                got = self._call("GET", f"/downloads/viking-chunks/{job_id}/links?start={index}&count={self.parallel * 2}")
+                with self._links_lock:
+                    for item in got.get("links", []):
+                        self._links[item["index"]] = item
+                    link = self._links.pop(index, None)
+                if link is not None:
+                    return link
+            except ChunkedDownloadUnavailable:
+                self._batch_links = False  # an older server: one call per piece, as before
         return self._call("GET", f"/downloads/viking-chunks/{job_id}/pieces/{index}/link")
 
     # ------------------------------------------------------------ the download
