@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 import httpx
 from .catalog_artwork import ArtworkResolver, apply_assets
 from .catalog_snapshot import stable_json, steam_assets, write_snapshot
+from .catalog_metadata import CATALOG_ALLOWED_PRODUCT_TYPES
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = REPO_ROOT / "deploy/catalog-cache"
@@ -229,6 +230,67 @@ def merge_search(games: dict, rows: list[dict], tag_names: dict):
                 game[field] = True
 
 
+def merge_server_games(games: dict, db_path: Path) -> int:
+    """Add the server's real games that the seed or Steam search missed.
+
+    The server database is the most complete source we own. Only whole games with a
+    resolved name are added (no demos, DLC, soundtracks or "Steam 1234" placeholders),
+    and anything already in the catalog is left untouched, so this only ever adds.
+    """
+    if not db_path.exists():
+        return 0
+    db = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+    try:
+        types = sorted(CATALOG_ALLOWED_PRODUCT_TYPES)
+        rows = db.execute(
+            "SELECT g.id, g.app_id, g.name, g.slug, m.short_description, m.developers_json, m.publishers_json, "
+            "m.recommendation_count, m.metacritic_score, m.release_date, m.steam_review_score, m.steam_review_count, "
+            "m.single_player, m.multiplayer, m.coop, m.online_coop, m.local_coop, m.shared_split_screen, m.mmo, m.pvp "
+            "FROM game g JOIN game_metadata m ON m.game_id = g.id "
+            "WHERE g.active = 1 AND g.app_id IS NOT NULL "
+            f"AND lower(coalesce(m.product_type, '')) IN ({', '.join('?' * len(types))}) "
+            "AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))",
+            types,
+        ).fetchall()
+        missing = [row for row in rows if int(row[1]) not in games]
+        names = {}
+        for table, field in (("game_genre", "genres"), ("game_category", "categories"), ("game_tag", "tags")):
+            for game_id, name in db.execute(f"SELECT game_id, name FROM {table}"):
+                names.setdefault(int(game_id), {}).setdefault(field, []).append(str(name))
+    finally:
+        db.close()
+
+    def listed(value):
+        try:
+            parsed = json.loads(value or "[]")
+        except (TypeError, ValueError):
+            return []
+        return parsed if isinstance(parsed, list) else []
+
+    next_id = max((g["id"] for g in games.values()), default=0) + 1
+    flags = ("single_player", "multiplayer", "coop", "online_coop", "local_coop", "shared_split_screen", "mmo", "pvp")
+    for row in missing:
+        app_id = int(row[1])
+        game = {"id": next_id, "app_id": app_id, "name": row[2], "slug": row[3] or f"steam-{app_id}",
+                "credit_cost_per_hour": 0, "copies_total": 0, "copies_available": 0,
+                "genres": [], "categories": [], "tags": [], "developers": listed(row[5]),
+                "publishers": listed(row[6]), "short_description": row[4] or "",
+                "metadata_state": "server", **steam_assets(app_id)}
+        next_id += 1
+        for key, value in (("recommendation_count", row[7]), ("metacritic_score", row[8]),
+                           ("release_date", row[9]), ("steam_review_score", row[10]),
+                           ("steam_review_count", row[11])):
+            if value is not None:
+                game[key] = value
+        for key, value in zip(flags, row[12:20]):
+            if value is not None:
+                game[key] = bool(value)
+        for field, values in names.get(int(row[0]), {}).items():
+            game[field] = sorted(set(values))
+        games[app_id] = game
+    return len(missing)
+
+
 def cooptimus_features(raw: str, app_id: int) -> dict | None:
     """Accept XML with an exact Steam ID; never join by a fuzzy game name."""
     try:
@@ -308,6 +370,8 @@ def refresh(args):
         names = {int(t["tagid"]): t["name"] for t in remote.get(STORE + "/tagdata/populartags/english", ttl=86400)}
         rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit)
         merge_search(games, rows, names)
+        report["server_games_added"] = merge_server_games(games, args.server_db)
+        LOG.info("Added %s games from the server database", report["server_games_added"])
         report["cooptimus"] = enrich_cooptimus(remote, games, args.cooptimus_limit)
         # Resolve real artwork and official age ratings once here, so no client
         # ever guesses a cover URL or decides adult content from user tags.
@@ -351,6 +415,8 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument("--cache-dir", type=Path, default=CACHE)
     parser.add_argument("--github-ref", default="dev")
+    parser.add_argument("--server-db", type=Path, default=REPO_ROOT / "apps/api/gameaccess.db",
+                        help="Server database whose real games are added when the catalog lacks them.")
     parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--as-of")
     parser.add_argument("--popular-limit", type=int, default=5000)
