@@ -12,6 +12,8 @@ import { applyParentalPolicy } from "./parentalControl";
 import { useParentalLocked } from "./ParentalControlSection";
 import { DEFAULT_LIBRARY_FILTERS, MULTIPLAYER_OPTION_KEYS, CONTENT_FILTER_GROUPS, featureLabel, filterLibraryGames, type LibraryFeatureKey, type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
+import { queryCatalogCache } from "./catalogCache";
+import { catalogParamsFromFilters } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
 
@@ -66,8 +68,10 @@ async function moveMouseTo(x: number, y: number) {
   } catch { /* running in a plain browser */ }
 }
 
-export default function LibraryFilterDialog({ games, query, filters, genres, onApply }: {
+export default function LibraryFilterDialog({ games, query, filters, genres, onApply, countFromCatalog = false }: {
   games: CatalogGame[]; query: string; filters: LibrarySearchFilters; genres: string[];
+  /** Count against the whole catalog (the same query the grid uses), not only the games loaded in memory. */
+  countFromCatalog?: boolean;
   onApply: (filters: LibrarySearchFilters) => void;
 }) {
   const parentalLocked = useParentalLocked();
@@ -84,7 +88,19 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   const ref = useDialogFocus(close);
   // The enforced policy is merged in, so the count describes what the user will actually get.
   const effective = useMemo(() => applyParentalPolicy(draft), [draft]);
-  const matches = filterLibraryGames(games, query, effective);
+  const localCount = useMemo(() => countFromCatalog ? 0 : filterLibraryGames(games, query, effective).length, [countFromCatalog, games, query, effective]);
+  const [catalogCount, setCatalogCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!countFromCatalog) return;
+    let current = true;
+    const timer = window.setTimeout(() => {
+      queryCatalogCache({ ...catalogParamsFromFilters(query, effective), limit: 1 })
+        .then(result => { if (current) setCatalogCount(result.total); })
+        .catch(() => { if (current) setCatalogCount(null); });
+    }, 150);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [countFromCatalog, query, effective]);
+  const matchCount = countFromCatalog ? catalogCount ?? 0 : localCount;
   /** Adds or removes a multiplayer option. Single player and multiplayer exclude each other. */
   const toggleFeature = (key: LibraryFeatureKey) => setDraft(current => {
     const present = current.features.includes(key);
@@ -200,7 +216,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
         </div>
         <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>Tocá lo subrayado para cambiarlo.</p>
       </div>
-      <footer><div role="status" aria-live="polite"><strong>{matches.length} {matches.length === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>Limpiar todo</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matches.length} {matches.length === 1 ? "juego" : "juegos"}</button></footer>
+      <footer><div role="status" aria-live="polite"><strong>{matchCount} {matchCount === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>Limpiar todo</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matchCount} {matchCount === 1 ? "juego" : "juegos"}</button></footer>
     </section>
   </div>, document.body);
 }

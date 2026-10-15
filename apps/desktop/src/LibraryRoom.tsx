@@ -1,3 +1,4 @@
+import { catalogParamsFromFilters } from "./catalogFilterParams";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
@@ -126,19 +127,10 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
 
   const isCatalog = libraryView === "catalog";
   const activeQuery = (searchValue || searchQuery || "").trim();
-  const hasDownloads = searchFilters.features?.includes("has_downloads");
-  const filteredFeatures = searchFilters.features?.filter(f => f !== "has_downloads");
   const catalogQuery = useCatalogQuery({
-    query: activeQuery,
-    genres: searchFilters.genres?.length ? searchFilters.genres : undefined,
-    features: filteredFeatures?.length ? filteredFeatures : undefined,
-    sources: searchFilters.sources?.length ? searchFilters.sources : undefined,
-    has_downloads: hasDownloads ? true : undefined,
+    ...catalogParamsFromFilters(activeQuery, searchFilters),
     sort_by: catalogSort,
     sort_direction: catalogSort === "name" ? "asc" : "desc",
-    min_rating: searchFilters.minReviewScore,
-    max_age_days: searchFilters.maxAgeDays,
-    include_recent_unrated: searchFilters.spareUnprovenGames,
     limit: 1000,
     enabled: isCatalog,
   });
