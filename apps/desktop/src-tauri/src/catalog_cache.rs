@@ -771,6 +771,60 @@ pub struct CatalogQueryParams {
     pub max_age_days: Option<i64>,
     pub include_recent_unrated: Option<bool>,
     pub app_ids: Option<Vec<i64>>,
+    /// Exact genre names (as stored in game_genre) a game must not carry.
+    pub exclude_genres: Option<Vec<String>>,
+    /// Features a game must not have (same keys as `features`).
+    pub exclude_features: Option<Vec<String>>,
+    /// Download sources a game must not be offered by.
+    pub exclude_sources: Option<Vec<String>>,
+    /// Valve content descriptors: at least one required.
+    pub content_descriptor_ids: Option<Vec<i64>>,
+    /// Valve content descriptors: none allowed.
+    pub exclude_content_descriptor_ids: Option<Vec<i64>>,
+    /// Hide adult-only games (server verdict, descriptors 3/4, and 1 when `adult_includes_nudity`).
+    pub hide_adult: Option<bool>,
+    pub adult_includes_nudity: Option<bool>,
+    /// Release year bounds (inclusive).
+    pub release_year_from: Option<i64>,
+    pub release_year_to: Option<i64>,
+    /// Catalog ids (not Steam app ids): likes and recently opened games are stored this way.
+    pub game_ids: Option<Vec<i64>>,
+}
+
+const MULTIPLAYER_CATEGORY_SQL: &str = "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Co-op','Cooperativo','PvP','JcJ','Online PvP','JcJ en línea','Online Co-op','Cooperativo en línea','Shared/Split Screen','Shared/Split Screen Co-op','LAN Co-op','MMO','Multijugador masivo','Cross-Platform Multiplayer','Multijugador multiplataforma'))";
+
+/// SQL condition for one library feature key, or None for keys the query does not know.
+fn feature_clause(feat: &str) -> Option<String> {
+    Some(match feat {
+        "has_downloads" => "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string(),
+        "single_player" => "m.single_player = 1".to_string(),
+        "multiplayer" => format!("(m.multiplayer = 1 OR {})", MULTIPLAYER_CATEGORY_SQL),
+        "coop" => "(m.coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Online Co-op','Cooperativo en línea','LAN Co-op','Shared/Split Screen Co-op')))".to_string(),
+        "online_coop" => "m.online_coop = 1".to_string(),
+        "local_coop" => "m.local_coop = 1".to_string(),
+        "shared_split_screen" => "m.shared_split_screen = 1".to_string(),
+        "mmo" => "m.mmo = 1".to_string(),
+        "pvp" => "(m.pvp = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','Online PvP','JcJ en línea')))".to_string(),
+        "pve" => "m.pve = 1".to_string(),
+        "lan" => "m.lan = 1".to_string(),
+        "cross_platform" => "m.cross_platform = 1".to_string(),
+        _ => return None,
+    })
+}
+
+/// Pushes `values` as numbered parameters and returns "?1,?2,…".
+fn push_placeholders<T: Clone>(sql_params: &mut Vec<SqlValue>, values: &[T], to_sql: impl Fn(T) -> SqlValue) -> String {
+    let mut out = Vec::new();
+    for v in values {
+        out.push(format!("?{}", sql_params.len() + 1));
+        sql_params.push(to_sql(v.clone()));
+    }
+    out.join(",")
+}
+
+/// Valve content descriptors live in the game payload as `content_descriptorids`.
+fn descriptor_exists_sql(list: &str) -> String {
+    format!("EXISTS (SELECT 1 FROM catalog_game cdg, json_each(CASE WHEN json_valid(cdg.payload) THEN cdg.payload ELSE '{{}}' END, '$.content_descriptorids') cd WHERE cdg.id = g.id AND cd.value IN ({}))", list)
 }
 
 #[derive(Debug, Serialize)]
@@ -1151,24 +1205,79 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
 
     if let Some(ref features) = params.features {
         for feat in features {
-            match feat.as_str() {
-                "has_downloads" => {
-                    where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
-                }
-                "single_player" => where_clauses.push("m.single_player = 1".to_string()),
-                "multiplayer" => where_clauses.push(format!("(m.multiplayer = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Co-op','Cooperativo','PvP','JcJ','Online PvP','JcJ en línea','Online Co-op','Cooperativo en línea','Shared/Split Screen','Shared/Split Screen Co-op','LAN Co-op','MMO','Multijugador masivo','Cross-Platform Multiplayer','Multijugador multiplataforma'))")),
-                "coop" => where_clauses.push(format!("(m.coop = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Online Co-op','Cooperativo en línea','LAN Co-op','Shared/Split Screen Co-op'))")),
-                "online_coop" => where_clauses.push("m.online_coop = 1".to_string()),
-                "local_coop" => where_clauses.push("m.local_coop = 1".to_string()),
-                "shared_split_screen" => where_clauses.push("m.shared_split_screen = 1".to_string()),
-                "mmo" => where_clauses.push("m.mmo = 1".to_string()),
-                "pvp" => where_clauses.push(format!("(m.pvp = 1 OR {})", "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','Online PvP','JcJ en línea'))")),
-                "pve" => where_clauses.push("m.pve = 1".to_string()),
-                "lan" => where_clauses.push("m.lan = 1".to_string()),
-                "cross_platform" => where_clauses.push("m.cross_platform = 1".to_string()),
-                _ => {}
+            if let Some(clause) = feature_clause(feat) {
+                where_clauses.push(clause);
             }
         }
+        // "Solo un jugador" is restrictive: a game that also offers multiplayer is not single-player only.
+        if features.iter().any(|f| f == "single_player") {
+            where_clauses.push(format!("NOT (m.multiplayer = 1 OR {})", MULTIPLAYER_CATEGORY_SQL));
+        }
+    }
+
+    if let Some(ref features) = params.exclude_features {
+        for feat in features {
+            if let Some(clause) = feature_clause(feat) {
+                where_clauses.push(format!("NOT ({})", clause));
+            }
+        }
+    }
+
+    if let Some(ref genres) = params.exclude_genres {
+        if !genres.is_empty() {
+            let list = push_placeholders(&mut sql_params, genres, SqlValue::Text);
+            where_clauses.push(format!("NOT EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({}))", list));
+        }
+    }
+
+    if let Some(ref sources) = params.exclude_sources {
+        if !sources.is_empty() {
+            let list = push_placeholders(&mut sql_params, sources, SqlValue::Text);
+            where_clauses.push(format!("NOT EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))", list));
+        }
+    }
+
+    if let Some(ref ids) = params.content_descriptor_ids {
+        if !ids.is_empty() {
+            let list = push_placeholders(&mut sql_params, ids, SqlValue::Integer);
+            where_clauses.push(descriptor_exists_sql(&list));
+        }
+    }
+
+    if let Some(ref ids) = params.exclude_content_descriptor_ids {
+        if !ids.is_empty() {
+            let list = push_placeholders(&mut sql_params, ids, SqlValue::Integer);
+            where_clauses.push(format!("NOT {}", descriptor_exists_sql(&list)));
+        }
+    }
+
+    if params.hide_adult == Some(true) {
+        let ids: Vec<i64> = if params.adult_includes_nudity == Some(true) { vec![1, 3, 4] } else { vec![3, 4] };
+        let list = push_placeholders(&mut sql_params, &ids, SqlValue::Integer);
+        where_clauses.push(format!(
+            "NOT {} AND NOT EXISTS (SELECT 1 FROM catalog_game ag WHERE ag.id = g.id AND json_valid(ag.payload) AND (json_extract(ag.payload, '$.adult_only') = 1 OR CAST(COALESCE(json_extract(ag.payload, '$.required_age'), 0) AS INTEGER) >= 18))",
+            descriptor_exists_sql(&list)
+        ));
+    }
+
+    if let Some(ref ids) = params.game_ids {
+        if ids.is_empty() {
+            where_clauses.push("1 = 0".to_string());
+        } else {
+            let list = push_placeholders(&mut sql_params, ids, SqlValue::Integer);
+            where_clauses.push(format!("g.id IN ({})", list));
+        }
+    }
+
+    if let Some(from) = params.release_year_from {
+        let p_idx = sql_params.len() + 1;
+        where_clauses.push(format!("CAST(strftime('%Y', m.release_date) AS INTEGER) >= ?{}", p_idx));
+        sql_params.push(SqlValue::Integer(from));
+    }
+    if let Some(to) = params.release_year_to {
+        let p_idx = sql_params.len() + 1;
+        where_clauses.push(format!("CAST(strftime('%Y', m.release_date) AS INTEGER) <= ?{}", p_idx));
+        sql_params.push(SqlValue::Integer(to));
     }
 
     if params.has_downloads == Some(true) {
@@ -1591,6 +1700,39 @@ mod tests {
         let result = query_catalog_conn(&conn, &params).unwrap();
         assert_eq!(result.total, 1, "Only game 1 should match strict min_rating >= 6.0 (score >= 60)");
         assert_eq!(result.items[0]["id"], 1);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_exclusions_and_adult() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 10, '{\"id\":1,\"app_id\":10,\"name\":\"Race\",\"genres\":[\"Racing\"],\"single_player\":true}');
+            INSERT INTO catalog_game VALUES(2, 20, '{\"id\":2,\"app_id\":20,\"name\":\"Shoot\",\"genres\":[\"Action\"],\"single_player\":true,\"multiplayer\":true}');
+            INSERT INTO catalog_game VALUES(3, 30, '{\"id\":3,\"app_id\":30,\"name\":\"Adult\",\"genres\":[\"Racing\"],\"content_descriptorids\":[3]}');
+        ").unwrap();
+        ensure_normalized_schema(&conn).unwrap();
+
+        let excluded = query_catalog_conn(&conn, &CatalogQueryParams { exclude_genres: Some(vec!["Racing".into()]), ..Default::default() }).unwrap();
+        assert_eq!(excluded.total, 1);
+        assert_eq!(excluded.items[0]["id"], 2);
+
+        let no_adult = query_catalog_conn(&conn, &CatalogQueryParams { hide_adult: Some(true), ..Default::default() }).unwrap();
+        assert_eq!(no_adult.total, 2);
+
+        let only_adult = query_catalog_conn(&conn, &CatalogQueryParams { content_descriptor_ids: Some(vec![1, 3, 4]), ..Default::default() }).unwrap();
+        assert_eq!(only_adult.total, 1);
+        assert_eq!(only_adult.items[0]["id"], 3);
+
+        let solo = query_catalog_conn(&conn, &CatalogQueryParams { features: Some(vec!["single_player".into()]), ..Default::default() }).unwrap();
+        assert_eq!(solo.total, 1);
+        assert_eq!(solo.items[0]["id"], 1);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
