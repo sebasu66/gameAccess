@@ -17,4 +17,9 @@ describe("gamesWithPossibleSources", () => {
   it("returns nothing for an empty source list", () => {
     expect(gamesWithPossibleSources([], games)).toEqual([]);
   });
+  it("ignores case and repeated spaces, and reads inner capitals both ways", () => {
+    const list = [game(1, "Gunman Reborn"), game(2, "GunMan Chronicles"), game(3, "Dead Space")];
+    const result = gamesWithPossibleSources(["gunman  reborn Free Download", "GUNMAN   CHRONICLES v1", "DeadSpace Free Download"], list);
+    expect(result.map(g => g.id)).toEqual([1, 2, 3]);
+  });
 });
