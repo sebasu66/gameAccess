@@ -14,7 +14,7 @@ const COMPACT_MS = 1100;
 function headerLogoTarget() {
  const frame = Math.min(96, Math.max(60, innerWidth * .0421875));
  const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
- return { cx: innerWidth / 2, cy: chrome + 2 + frame / 2, glyph: frame * HEADER_GLYPH.height / HEADER_GLYPH.frame };
+ return { cx: innerWidth / 2, cy: chrome - 8 + frame / 2, glyph: frame * HEADER_GLYPH.height / HEADER_GLYPH.frame };
 }
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();

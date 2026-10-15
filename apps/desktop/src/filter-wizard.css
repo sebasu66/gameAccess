@@ -237,7 +237,7 @@ body .library-sort-dropdown > summary:hover,
 body .library-sort-dropdown > summary:focus-visible { background: #ffffff10; border-color: transparent; box-shadow: none; outline-color: var(--ga-orange); }
 
 /* ---- Header: logo centred at the top, wordmark in the top-left corner; search field and round buttons lifted with soft shadows ---- */
-body.ga-pixel-style .topbar .brand { left: 0; right: 0; margin-inline: auto; top: calc(var(--window-chrome-height, 34px) + 2px); z-index: 126; }
+body.ga-pixel-style .topbar .brand { left: 0; right: 0; margin-inline: auto; top: calc(var(--window-chrome-height, 34px) - 8px); z-index: 126; }
 body .ga-header-logo { filter: drop-shadow(0 4px 14px #000c) drop-shadow(0 0 3px #0008); }
 body .ga-header-wordmark { position: fixed; left: var(--ga-logo-margin); top: calc(var(--window-chrome-height, 34px) + var(--ga-logo-margin)); z-index: 126; }
 body .library-catalog-toolbar .global-search {

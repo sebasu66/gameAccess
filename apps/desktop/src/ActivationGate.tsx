@@ -2,7 +2,6 @@ import VoxelLogo from "./VoxelLogo";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowUpRight, ChevronRight, KeyRound, Loader2 } from "lucide-react";
 import SplashScreen from "./SplashScreen";
-import GameCoverBackdrop from "./GameCoverBackdrop";
 import BackendStatus from "./BackendStatus";
 import { openingStage } from "./openingFlow";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
@@ -227,7 +226,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
     {stage !== "ready" ? <div className={`ga-opening-background${dockStarted && stage === "docking" ? " is-docking" : ""}`} data-stage={stage}>
-      {entryVisible ? <div className="ga-entry-scrim" aria-hidden="true" /> : <GameCoverBackdrop />}
+      {stage !== "intro" ? <div className="ga-entry-scrim" aria-hidden="true" /> : null}
     </div> : null}
     {entryVisible ? <main className={`activation-gate ga-validation${stage === "docking" ? " is-leaving" : ""}`}>
       <div className="ga-entry-layout">

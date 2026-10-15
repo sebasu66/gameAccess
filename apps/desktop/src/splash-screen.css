@@ -10,7 +10,7 @@
 @media(prefers-reduced-motion:reduce){.gameaccess-splash.is-away,.gameaccess-splash.phase-dock,.gameaccess-splash.is-landing{animation:none}.gameaccess-splash.is-away{opacity:0}}
 .ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
-.ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
+.ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding],.ga-opening-background[data-stage=docking]{background:transparent}
 .activation-showcase{position:absolute;inset:-12%;overflow:hidden}
 .activation-showcase-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:20px;transform:rotate(-7deg);filter:saturate(.75)}
 .activation-showcase-cover{aspect-ratio:2/3;overflow:hidden;border-radius:8px;background:#111318}
