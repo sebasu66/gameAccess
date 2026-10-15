@@ -85,18 +85,18 @@ def run(engine, job_id, source, sink, files, work_dir):
 def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
     job_id = new_job(engine)
     source, sink = FakeSource(), FakeSink(work_dir=tmp_path)
-    run(engine, job_id, source, sink, files_for(300 * MB), tmp_path)
+    run(engine, job_id, source, sink, files_for(3000 * MB), tmp_path)
 
     with Session(engine) as session:
         job = svc.get_job(session, job_id)
         manifest = svc.build_manifest(session, job)
         assert job.status == "ready" and job.completed_at is not None
-        assert manifest["total_bytes"] == 300 * MB
+        assert manifest["total_bytes"] == 3000 * MB
         assert manifest["piece_count"] == manifest["ready_count"] == len(sink.names)
         assert all(p["ready"] and p["sha256"] for p in manifest["pieces"])
         sizes = [p["size"] for p in manifest["pieces"]]
-        assert sum(sizes) == 300 * MB
-        assert sizes[0] == 100 * MB
+        assert sum(sizes) == 3000 * MB
+        assert sizes[0] == 500 * MB
         assert svc.get_ready_piece(session, job_id, 0).viking_hash.startswith("hash-ga-")
         assert svc.get_ready_piece(session, job_id, 999) is None
     assert not list(tmp_path.glob("*.part"))
@@ -126,7 +126,7 @@ def test_a_failed_piece_is_retried(engine, tmp_path):
 def test_a_piece_that_keeps_failing_fails_the_job_and_keeps_ready_pieces(engine, tmp_path):
     job_id = new_job(engine)
     sink = FakeSink(fail_names={f"ga-{job_id[:8]}.p0001"})
-    run(engine, job_id, FakeSource(), sink, files_for(300 * MB), tmp_path)
+    run(engine, job_id, FakeSource(), sink, files_for(3000 * MB), tmp_path)
     with Session(engine) as session:
         job = svc.get_job(session, job_id)
         assert job.status == "failed" and job.error_code == "unexpected_error"
@@ -137,10 +137,10 @@ def test_a_piece_that_keeps_failing_fails_the_job_and_keeps_ready_pieces(engine,
 def test_resume_skips_pieces_that_are_already_ready(engine, tmp_path):
     job_id = new_job(engine)
     sink = FakeSink(fail_names={f"ga-{job_id[:8]}.p0001"})
-    run(engine, job_id, FakeSource(), sink, files_for(300 * MB), tmp_path)
+    run(engine, job_id, FakeSource(), sink, files_for(3000 * MB), tmp_path)
 
     source = FakeSource()
-    run(engine, job_id, source, FakeSink(), files_for(300 * MB), tmp_path)
+    run(engine, job_id, source, FakeSink(), files_for(3000 * MB), tmp_path)
     assert 0 not in source.calls
     with Session(engine) as session:
         job = svc.get_job(session, job_id)

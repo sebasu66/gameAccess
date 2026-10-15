@@ -1,7 +1,7 @@
 """Splits a TorBox download into pieces that grow as the transfer advances.
 
-The first pieces are small so the player can start almost at once; later ones are larger
-because fewer uploads and requests are cheaper once the download is under way.
+The first pieces are smaller so the player can start soon; later ones are 1 GB because fewer
+files, uploads and requests are cheaper once the download is under way.
 """
 from __future__ import annotations
 
@@ -12,10 +12,8 @@ MB = 1024 * 1024
 
 # (share of the whole download that this tier runs up to, piece size in bytes)
 DEFAULT_TIERS: tuple[tuple[float, int], ...] = (
-    (0.10, 100 * MB),
-    (0.30, 250 * MB),
-    (0.60, 400 * MB),
-    (1.00, 600 * MB),
+    (0.10, 500 * MB),
+    (1.00, 1024 * MB),
 )
 
 
