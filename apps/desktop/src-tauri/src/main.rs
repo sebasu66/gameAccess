@@ -19,6 +19,7 @@ mod launcher_runtime;
 mod digital_commands;
 mod execution_profiles;
 mod plugin_registry;
+mod plugin_install;
 
 use std::{env, sync::Mutex};
 
@@ -30,11 +31,15 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
+            plugin_install::receive(&args);
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
             let _=app.emit("gameaccess:launch-request",());
         }))
         .setup(|app| {
-            launch_intent::receive(&env::args().collect::<Vec<_>>());
+            let launch_args = env::args().collect::<Vec<_>>();
+            launch_intent::receive(&launch_args);
+            plugin_install::register_protocol();
+            plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
             plugin_registry::start_registered_plugins();
             Ok(())
