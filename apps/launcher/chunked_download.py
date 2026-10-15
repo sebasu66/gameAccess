@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -21,6 +22,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 import requests
+
+logger = logging.getLogger("digital_downloader")
 
 POLL_SECONDS = 2.0
 PIECE_ATTEMPTS = 4
@@ -146,6 +149,7 @@ class ChunkedDownloader:
         total = 0
         base_done = 0
         last_emit = 0.0
+        last_report = 0.0
         self.abort.clear()
         self.live.clear()
         pool = ThreadPoolExecutor(max_workers=self.parallel)
@@ -206,6 +210,11 @@ class ChunkedDownloader:
                 if time.time() - last_emit >= 0.5 and files_ready:
                     last_emit = time.time()
                     got = sum(sizes.get(i, 0) for i in done) + sum(self.live.values())
+                    if last_emit - last_report >= 15:
+                        last_report = last_emit
+                        ready_now = sum(1 for p in manifest["pieces"] if p["ready"] and p["index"] not in done)
+                        logger.info("Piezas: %s completas, %s bajando, %s listas en el servidor (sin bajar), %s en total",
+                                    len(done), len(inflight), ready_now - len(inflight), len(manifest["pieces"]))
                     speed = int(max(got - base_done, 0) / max(time.time() - started, 0.001))
                     eta = int((total - got) / speed) if speed > 0 else 0
                     if inflight:
@@ -302,6 +311,7 @@ class ChunkedDownloader:
                 link = self.piece_link(job_id, index)
                 digest = hashlib.sha256()
                 written = 0
+                piece_started = time.time()
                 self.live[index] = 0
                 with self.http.get(link["url"], stream=True, timeout=60, allow_redirects=True) as response:
                     if response.status_code != 200:
@@ -321,6 +331,9 @@ class ChunkedDownloader:
                             self.live[index] = written
                 if written != piece["size"] or digest.hexdigest() != piece["sha256"]:
                     raise ChunkedDownloadError("el fragmento llegó incompleto o dañado")
+                took = max(time.time() - piece_started, 0.001)
+                logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s por conexion (%s a la vez)",
+                            index, written / 1048576, took, written / 1048576 / took, len(self.live))
                 with target.open("r+b") as out:
                     out.seek(int(piece["start"]))
                     with part.open("rb") as source:
