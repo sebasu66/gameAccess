@@ -17,6 +17,23 @@ const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
 static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
+/// The last download-source availability the client published. The table that holds it is
+/// TEMP (per connection), and a catalog update replaces the connection, so it is restored from here.
+static LAST_TEMP_SOURCES: Mutex<Vec<(i64, String)>> = Mutex::new(Vec::new());
+
+fn write_temp_sources(conn: &Connection, rows: &[(i64, String)]) -> Result<(), String> {
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM temp_plugin_availability", []).map_err(|e| e.to_string())?;
+    {
+        let mut stmt = tx.prepare_cached(
+            "INSERT OR IGNORE INTO temp_plugin_availability(app_id, source_name) VALUES (?1, ?2)"
+        ).map_err(|e| e.to_string())?;
+        for (app_id, name) in rows {
+            stmt.execute(params![app_id, name]).map_err(|e| e.to_string())?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())
+}
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -1119,6 +1136,11 @@ where
         let conn = Connection::open(&path).map_err(|err| err.to_string())?;
         let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
         ensure_normalized_schema(&conn)?;
+        if let Ok(rows) = LAST_TEMP_SOURCES.lock() {
+            if !rows.is_empty() {
+                write_temp_sources(&conn, &rows)?;
+            }
+        }
         *guard = Some(conn);
     }
     let conn = guard.as_mut().unwrap();
@@ -1128,25 +1150,19 @@ where
 #[tauri::command]
 pub async fn catalog_cache_set_temp_sources(sources: Vec<TempSourceItem>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        with_catalog_conn(|conn| {
-            let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM temp_plugin_availability", []).map_err(|e| e.to_string())?;
-            {
-                let mut stmt = tx.prepare_cached(
-                    "INSERT OR IGNORE INTO temp_plugin_availability(app_id, source_name) VALUES (?1, ?2)"
-                ).map_err(|e| e.to_string())?;
-                for item in sources {
-                    for name in item.source_names {
-                        let trimmed = name.trim();
-                        if !trimmed.is_empty() {
-                            stmt.execute(params![item.app_id, trimmed]).map_err(|e| e.to_string())?;
-                        }
-                    }
+        let mut rows: Vec<(i64, String)> = Vec::new();
+        for item in sources {
+            for name in item.source_names {
+                let trimmed = name.trim();
+                if !trimmed.is_empty() {
+                    rows.push((item.app_id, trimmed.to_string()));
                 }
             }
-            tx.commit().map_err(|e| e.to_string())?;
-            Ok(())
-        })
+        }
+        if let Ok(mut last) = LAST_TEMP_SOURCES.lock() {
+            *last = rows.clone();
+        }
+        with_catalog_conn(|conn| write_temp_sources(conn, &rows))
     })
     .await
     .map_err(|err| format!("Catalog temp sources task failed: {err}"))?

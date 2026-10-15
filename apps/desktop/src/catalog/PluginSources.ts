@@ -52,6 +52,21 @@ function endpoint(plugin: PluginManifest, path: string): string {
 function publish(): void {
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(SOURCES_CHANGED_EVENT));
 }
+
+/**
+ * Copies what is known so far into the catalog database, where the grid's
+ * "con fuente" / source filters are answered. Done during the scan too, so the
+ * filter works before a long scan ends.
+ */
+async function storeKnownSources(): Promise<void> {
+  const items: TempSourceItem[] = [];
+  for (const [id, entry] of availability) {
+    if (entry.count > 0 && entry.names.length) items.push({ app_id: id, source_names: [...new Set(entry.names)] });
+  }
+  await setCatalogTempSources(items).catch(err => {
+    void narrate(`Failed to set catalog temp sources: ${String(err)}`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
+  });
+}
 function validUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const uri = value.trim().replace(/&amp;/gi, "&");
@@ -217,7 +232,7 @@ async function check(games: CatalogGame[], scanKey: string): Promise<Record<numb
         if (epoch !== pluginGeneration()) return;
         applyBulkBatch(batch, data, next, plugin.name);
         if (games.length <= 500 || Date.now() - lastPublished >= 1000) {
-          lastPublished = Date.now(); publish();
+          lastPublished = Date.now(); await storeKnownSources(); publish();
         }
       } catch (error) {
         hadErrors = true;
@@ -228,15 +243,7 @@ async function check(games: CatalogGame[], scanKey: string): Promise<Record<numb
   if (epoch !== pluginGeneration()) return {};
   for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
   void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
-  const tempSources: TempSourceItem[] = [];
-  for (const [id, entry] of next) {
-    if (entry.count > 0 && entry.names.length > 0) {
-      tempSources.push({ app_id: id, source_names: [...new Set(entry.names)] });
-    }
-  }
-  await setCatalogTempSources(tempSources).catch(err => {
-    void narrate(`Failed to set catalog temp sources: ${String(err)}`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
-  });
+  await storeKnownSources();
   publish();
   if (!hadErrors) {
     completedScans.set(scanKey, Date.now());
