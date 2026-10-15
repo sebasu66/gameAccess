@@ -33,7 +33,7 @@ def test_lists_only_running_tasks_and_counts_by_kind(monkeypatch):
             _row("r4", "failed", "torrent", 5),
         ])
         session.commit()
-        data = routes.get_viking_running_tasks(request=None, session=session)
+        data = routes.get_viking_running_tasks(request=None, session=session, local_session=session)
 
     assert data["running_total"] == 2
     assert data["running_direct"] == 1 and data["running_torrents"] == 1

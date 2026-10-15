@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 from .api_schemas import AccessKeyRedeemRequest
 from .api_dependencies import get_session
+from .local_database import local_engine
 from .database import engine
 from .access_keys import canonical_installation_id, redeem_key, session_end_details, utc, valid_session
 from .access_overrides import CourtesySession, courtesy_access_tier, redeem_courtesy_key, valid_courtesy_session
@@ -102,10 +103,10 @@ def activation_status(request: Request, session: Session = Depends(get_session),
         raise HTTPException(401, detail)
     try:
         from .telemetry import record_heartbeat
-        record_heartbeat(
-            session, canonical_installation_id(request.headers.get("X-GameAccess-Installation", "")),
-            courtesy_access_tier(row) if isinstance(row, CourtesySession) else row.access_tier,
-        )
+        installation_id = canonical_installation_id(request.headers.get("X-GameAccess-Installation", ""))
+        access_tier = courtesy_access_tier(row) if isinstance(row, CourtesySession) else row.access_tier
+        with Session(local_engine) as local_session:  # client presence is local per-instance data, not shared Supabase
+            record_heartbeat(local_session, installation_id, access_tier)
     except ValueError:
         pass
     return {"active": True, "expires_at": utc(row.expires_at), "server_time": now_utc(),

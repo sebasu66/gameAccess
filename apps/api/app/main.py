@@ -9,6 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, SQLModel, select
 from .database import engine, database_project_ref, verify_shared_database
+from .local_database import LOCAL_TABLE_NAMES, create_local_tables, local_engine
 from .models import User, Game, AccessEvent, ClientErrorReport
 from .api_schemas import AccessKeyIssueRequest, AccessKeyRenewRequest, AccessKeyRedeemRequest, ClientErrorReportRequest
 from .api_dependencies import get_session
@@ -66,7 +67,9 @@ def startup() -> None:
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
     if os.environ.get("GAMEACCESS_ALLOW_SQLITE_FOR_TESTS") != "1":
         verify_shared_database(engine)
-    SQLModel.metadata.create_all(engine)
+    # The chunk-download/telemetry tables live in their own local SQLite file (local_database.py), not here.
+    SQLModel.metadata.create_all(engine, tables=[t for t in SQLModel.metadata.tables.values() if t.name not in LOCAL_TABLE_NAMES])
+    create_local_tables()
     ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
     with Session(engine) as session:
@@ -76,9 +79,9 @@ def startup() -> None:
     ensure_viking_schema(engine)
     recover_interrupted_viking_requests(engine)
     from .viking_chunk_service import recover_interrupted_chunk_jobs
-    recover_interrupted_chunk_jobs(engine)
+    recover_interrupted_chunk_jobs(local_engine)
     from .telemetry import start_sampler
-    start_sampler(engine)
+    start_sampler(local_engine)
     _start_steam_review_importer()
     from .discovery_service import start_maintenance
     start_maintenance()

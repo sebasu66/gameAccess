@@ -23,8 +23,13 @@ def session():
 
 
 @pytest.fixture(autouse=True)
-def empty_link_cache():
+def empty_link_cache(monkeypatch):
     routes.link_cache.clear()
+
+    async def alive(url):
+        return True
+
+    monkeypatch.setattr(routes, "probe_direct_link", alive)
 
 
 @pytest.fixture(autouse=True)
@@ -36,7 +41,7 @@ def plus_user(monkeypatch):
 
 
 def post(session, url=MAGNET):
-    return asyncio.run(routes.start_chunk_download(routes.ChunkJobRequest(source_url=url, item_name="Portal 2"), None, Response(), session))
+    return asyncio.run(routes.start_chunk_download(routes.ChunkJobRequest(source_url=url, item_name="Portal 2"), None, Response(), session, session))
 
 
 def test_starting_creates_a_job_that_remembers_the_original_link(session, plus_user):
@@ -82,7 +87,7 @@ def test_bad_links_are_rejected(session):
 
 def test_manifest_404_for_unknown_job(session):
     with pytest.raises(HTTPException) as err:
-        asyncio.run(routes.chunk_manifest("nope", None, Response(), session))
+        asyncio.run(routes.chunk_manifest("nope", None, Response(), session, session))
     assert err.value.status_code == 404
 
 
@@ -100,10 +105,10 @@ def test_piece_link_only_for_ready_pieces(session, monkeypatch):
             return "https://dr.vikingfile.com/signed"
 
     monkeypatch.setattr(routes, "create_provider", lambda: FakeProvider())
-    got = asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session))
+    got = asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session, session))
     assert got == {"index": 0, "size": 10, "sha256": "s0", "url": "https://dr.vikingfile.com/signed"}
     with pytest.raises(HTTPException) as err:
-        asyncio.run(routes.chunk_piece_link(job_id, 1, None, Response(), session))
+        asyncio.run(routes.chunk_piece_link(job_id, 1, None, Response(), session, session))
     assert err.value.status_code == 404
 
 
@@ -118,7 +123,7 @@ def test_piece_link_passes_viking_errors_on(session, monkeypatch):
 
     monkeypatch.setattr(routes, "create_provider", lambda: Broken())
     with pytest.raises(HTTPException) as err:
-        asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session))
+        asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session, session))
     assert err.value.status_code == 503
 
 
@@ -134,7 +139,7 @@ def test_start_and_piece_requests_are_recorded_per_client(session, monkeypatch):
             return "https://dr.vikingfile.com/x"
 
     monkeypatch.setattr(routes, "create_provider", lambda: Fake())
-    asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session))
+    asyncio.run(routes.chunk_piece_link(job_id, 0, None, Response(), session, session))
     rows = session.exec(select(ChunkTransfer).order_by(ChunkTransfer.id)).all()
     assert [(r.installation_id, r.kind, r.size_bytes) for r in rows] == [("inst-1", "start", 0), ("inst-1", "piece", 4096)]
     assert rows[1].item_name == "Portal 2"

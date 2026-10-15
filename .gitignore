@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 apps/api/gameaccess.db
+apps/api/viking_local.db
 apps/api/.steam_cache/
 
 # Node / Vite

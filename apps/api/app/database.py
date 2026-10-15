@@ -47,8 +47,10 @@ def create_app_engine(database_url: str | None = None):
     return create_engine(
         url,
         pool_pre_ping=True,
-        pool_size=max(1, int(os.environ.get("GAMEACCESS_DB_POOL_SIZE", "5"))),
-        max_overflow=max(0, int(os.environ.get("GAMEACCESS_DB_MAX_OVERFLOW", "5"))),
+        # The hot download path (chunk jobs/pieces/telemetry) now lives in local_database.py's own SQLite
+        # engine, so this pool only serves license/activation checks: it can stay small.
+        pool_size=max(1, int(os.environ.get("GAMEACCESS_DB_POOL_SIZE", "2"))),
+        max_overflow=max(0, int(os.environ.get("GAMEACCESS_DB_MAX_OVERFLOW", "1"))),
         pool_recycle=max(60, int(os.environ.get("GAMEACCESS_DB_POOL_RECYCLE_SECONDS", "1800"))),
     )
 

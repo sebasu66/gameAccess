@@ -21,6 +21,7 @@ from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request, _admin_activation_access
 from .admin_security import _admin_browser_access
 from .api_dependencies import get_session
+from .local_database import get_local_session
 from .models import VikingDownloadRequest, VikingSourceCache
 from .request_diagnostics import detail
 from .viking_cache_service import (
@@ -516,7 +517,9 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 
 @router.get("/admin/viking-running-tasks")
-def get_viking_running_tasks(request: Request, session: Session = Depends(get_session)) -> dict:
+def get_viking_running_tasks(
+    request: Request, session: Session = Depends(get_session), local_session: Session = Depends(get_local_session),
+) -> dict:
     """Admin-only list of links the server is processing right now (TorBox -> ViKiNG)."""
     _admin_activation_access(request)
     now = _now()
@@ -561,15 +564,15 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
         })
     from .viking_chunk_models import VikingChunkJob
     from .download_events import events_for_jobs, recent_errors, requesting_client
-    live_jobs = session.exec(
+    live_jobs = local_session.exec(
         select(VikingChunkJob).where(VikingChunkJob.status.in_(("preparing", "running"))).order_by(VikingChunkJob.created_at.asc())
     ).all()
     # Same mini log also for jobs that just finished, so a quick one can still be read.
-    recent_jobs = session.exec(
+    recent_jobs = local_session.exec(
         select(VikingChunkJob).where(VikingChunkJob.status.in_(("ready", "failed")), VikingChunkJob.updated_at >= now - timedelta(hours=6))
         .order_by(VikingChunkJob.updated_at.desc()).limit(30)
     ).all()
-    log = events_for_jobs(session, [j.job_id for j in live_jobs] + [j.job_id for j in recent_jobs])
+    log = events_for_jobs(local_session, [j.job_id for j in live_jobs] + [j.job_id for j in recent_jobs])
     for job in live_jobs:
         started = _as_utc(job.created_at) or now
         elapsed = max(0, int((now - started).total_seconds()))
@@ -588,7 +591,7 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
         "request_id": job.job_id, "item_name": job.item_name, "status": job.status, "at": _as_utc(job.updated_at),
         "installation_id": requesting_client(log[job.job_id]), "events": log[job.job_id],
     } for job in recent_jobs]
-    for job in session.exec(
+    for job in local_session.exec(
         select(VikingChunkJob).where(VikingChunkJob.status == "failed", VikingChunkJob.updated_at >= since)
         .order_by(VikingChunkJob.updated_at.desc()).limit(100)
     ).all():
@@ -597,7 +600,7 @@ def get_viking_running_tasks(request: Request, session: Session = Depends(get_se
             "installation_id": "", "status": "failed", "error_code": job.error_code, "flow": "fragmentos", "job_id": job.job_id,
         })
         counts["failed"] = counts.get("failed", 0) + 1
-    errors_by_job = {e["job_id"]: e for e in reversed(recent_errors(session, since))}
+    errors_by_job = {e["job_id"]: e for e in reversed(recent_errors(local_session, since))}
     for failure in failures:
         found = errors_by_job.get(failure.get("job_id", ""))
         if found:

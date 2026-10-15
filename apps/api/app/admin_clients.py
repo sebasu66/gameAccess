@@ -51,22 +51,22 @@ def _key_info(key: AccessKey, now: datetime) -> dict[str, Any]:
     }
 
 
-def _download_tasks(session: Session, ids: list[str], since: datetime) -> dict[str, list[dict[str, Any]]]:
-    """Per client, the downloads it asked for since `since`, newest first."""
+def _download_tasks(local_session: Session, ids: list[str], since: datetime) -> dict[str, list[dict[str, Any]]]:
+    """Per client, the downloads it asked for since `since`, newest first. (Local database: chunk/telemetry tables.)"""
     result: dict[str, list[dict[str, Any]]] = {i: [] for i in ids}
     if not ids:
         return result
-    transfers = session.exec(
+    transfers = local_session.exec(
         select(ChunkTransfer.installation_id, ChunkTransfer.job_id, func.max(ChunkTransfer.item_name), func.min(ChunkTransfer.served_at),
                func.max(ChunkTransfer.served_at), func.count(ChunkTransfer.id), func.coalesce(func.sum(ChunkTransfer.size_bytes), 0))
         .where(ChunkTransfer.installation_id.in_(ids), ChunkTransfer.served_at >= since)
         .group_by(ChunkTransfer.installation_id, ChunkTransfer.job_id)
     ).all()
-    events = session.exec(
+    events = local_session.exec(
         select(DownloadEvent).where(DownloadEvent.installation_id.in_(ids), DownloadEvent.created_at >= since).order_by(DownloadEvent.id)
     ).all()
     job_ids = {t[1] for t in transfers} | {e.job_id for e in events}
-    jobs = {j.job_id: j for j in session.exec(select(VikingChunkJob).where(VikingChunkJob.job_id.in_(job_ids))).all()} if job_ids else {}
+    jobs = {j.job_id: j for j in local_session.exec(select(VikingChunkJob).where(VikingChunkJob.job_id.in_(job_ids))).all()} if job_ids else {}
     last_event: dict[tuple[str, str], DownloadEvent] = {}
     first_event: dict[tuple[str, str], DownloadEvent] = {}
     for e in events:
@@ -96,10 +96,12 @@ def _download_tasks(session: Session, ids: list[str], since: datetime) -> dict[s
     return result
 
 
-def integrated_clients(session: Session, hours: int = 24, limit: int = 200) -> list[dict[str, Any]]:
+def integrated_clients(session: Session, local_session: Session, hours: int = 24, limit: int = 200) -> list[dict[str, Any]]:
+    """`session` is the shared Supabase database (AccessKey/AccessEvent); `local_session` is this
+    instance's local database (ClientPresence/ChunkTransfer/VikingChunkJob/DownloadEvent)."""
     now = _now()
     since = now - timedelta(hours=hours)
-    rows = session.exec(select(ClientPresence).order_by(ClientPresence.last_seen_at.desc()).limit(limit)).all()
+    rows = local_session.exec(select(ClientPresence).order_by(ClientPresence.last_seen_at.desc()).limit(limit)).all()
     ids = [r.installation_id for r in rows]
     keys: dict[str, list[AccessKey]] = {}
     events: dict[str, list[AccessEvent]] = {}
@@ -113,7 +115,7 @@ def integrated_clients(session: Session, hours: int = 24, limit: int = 200) -> l
             bucket = events.setdefault(ev.installation_id, [])
             if len(bucket) < 15:
                 bucket.append(ev)
-    tasks = _download_tasks(session, ids, since)
+    tasks = _download_tasks(local_session, ids, since)
     result = []
     for row in rows:
         seen = _utc(row.last_seen_at)
@@ -140,24 +142,24 @@ def integrated_clients(session: Session, hours: int = 24, limit: int = 200) -> l
     return result
 
 
-def activity_summary(session: Session, hours: int = 24) -> dict[str, Any]:
-    """Bottom block: concurrency, downloads today/this week, a chart and load numbers."""
+def activity_summary(local_session: Session, hours: int = 24) -> dict[str, Any]:
+    """Bottom block: concurrency, downloads today/this week, a chart and load numbers. (Local database.)"""
     now = _now()
-    base = overview(session)
+    base = overview(local_session)
     midnight = now.astimezone(ARGENTINA).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     def started(since: datetime) -> int:
-        return int(session.exec(
+        return int(local_session.exec(
             select(func.count(func.distinct(ChunkTransfer.job_id))).where(ChunkTransfer.kind == "start", ChunkTransfer.served_at >= since)
         ).one() or 0)
 
     def asked_by(since: datetime) -> int:
-        return int(session.exec(
+        return int(local_session.exec(
             select(func.count(func.distinct(ChunkTransfer.installation_id))).where(ChunkTransfer.kind == "start", ChunkTransfer.served_at >= since)
         ).one() or 0)
 
     since = now - timedelta(hours=hours)
-    samples = session.exec(select(ServerSample).where(ServerSample.sampled_at >= since).order_by(ServerSample.sampled_at)).all()
+    samples = local_session.exec(select(ServerSample).where(ServerSample.sampled_at >= since).order_by(ServerSample.sampled_at)).all()
     step = max(1, -(-len(samples) // MAX_BUCKETS))
     series = []
     for i in range(0, len(samples), step):

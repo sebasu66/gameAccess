@@ -32,14 +32,14 @@ def test_a_client_comes_with_key_activation_events_and_its_downloads():
         s.commit()
     log_event(engine, "job1", "ready", "listo", status="ok", installation_id="cli-1", item_name="Portal 2")
     with Session(engine) as s:
-        (client,) = integrated_clients(s, hours=24)
+        (client,) = integrated_clients(s, s, hours=24)
         assert client["online"] and client["downloading"]
         assert client["key"]["state"] == "activa" and client["key"]["tier"] == "plus"
         assert 26 * 86400 < client["key"]["remaining_seconds"] <= 27 * 86400 and len(client["keys"]) == 1
         assert client["activation_events"][0]["action"] == "activation-redeem"
         assert client["tasks"][0]["item_name"] == "Portal 2" and client["tasks"][0]["bytes"] == 1000
         assert client["tasks"][0]["message"] == "listo"
-        assert integrated_clients(s, hours=1)[0]["tasks_count"] == 1
+        assert integrated_clients(s, s, hours=1)[0]["tasks_count"] == 1
         summary = activity_summary(s, 24)
         assert summary["downloads_7d"] == 1 and summary["clients_online"] == 1
 

@@ -6,6 +6,7 @@ import logging
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -13,10 +14,10 @@ from .access_keys import canonical_installation_id
 from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request
 from .api_dependencies import get_session
-from .database import engine
+from .local_database import get_local_session, local_engine
 from .download_events import log_event
 from .telemetry import record_transfer, record_transfers
-from .viking_link_cache import link_cache
+from .viking_link_cache import link_cache, probe_direct_link
 from .viking_cache_service import ProviderFailure, create_provider, normalize_source_url
 from .viking_chunk_service import (
     build_manifest,
@@ -37,6 +38,12 @@ class ChunkJobRequest(BaseModel):
     source_url: str = Field(min_length=1, max_length=8192)
     item_name: str = Field(default="", max_length=300)
     file_name: str = Field(default="", max_length=300)
+
+
+async def _installation_for_plus_async(request: Request, session: Session) -> str:
+    """The license check touches the shared Supabase pool; run it off the event loop so one slow
+    connection does not stall every other request this instance is handling at the same time."""
+    return await run_in_threadpool(_installation_for_plus, request, session)
 
 
 def _installation_for_plus(request: Request, session: Session) -> str:
@@ -60,80 +67,83 @@ def _safe_text(value: str, limit: int) -> str:
 @router.post("/downloads/viking-chunks")
 async def start_chunk_download(
     req: ChunkJobRequest, request: Request, response: Response, session: Session = Depends(get_session),
+    local_session: Session = Depends(get_local_session),
 ) -> dict:
     """Start (or resume, or join) the transfer of a source and return its manifest."""
     response.headers["Cache-Control"] = "no-store"
-    installation_id = _installation_for_plus(request, session)
+    installation_id = await _installation_for_plus_async(request, session)
     try:
         identity = normalize_source_url(req.source_url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
-    job = find_job_for_source(session, identity.fingerprint)
+    job = find_job_for_source(local_session, identity.fingerprint)
     existed = job is not None
     previous_error = job.error_code if job is not None else ""
     # preparing/running/ready: join it. failed (or never run in this process): resume with the same job.
     if job is None:
         job = create_job(
-            session, fingerprint=identity.fingerprint, kind=identity.kind,
+            local_session, fingerprint=identity.fingerprint, kind=identity.kind,
             item_name=_safe_text(req.item_name, 300), source_url=req.source_url.strip(),
         )
     needs_worker = job.status == "failed" or (job.status in ("preparing", "running") and not is_running(job.job_id))
     name = job.item_name or "un juego"
     if not existed:
-        log_event(engine, job.job_id, "request", f"El cliente pidió «{name}»: no estaba en el caché, se prepara desde cero.", installation_id=installation_id, item_name=job.item_name)
+        log_event(local_engine, job.job_id, "request", f"El cliente pidió «{name}»: no estaba en el caché, se prepara desde cero.", installation_id=installation_id, item_name=job.item_name)
     elif needs_worker:
         why = f" (la vez anterior terminó con: {previous_error})" if previous_error else ""
-        log_event(engine, job.job_id, "resume", f"El cliente pidió «{name}»: el trabajo estaba detenido y se reanuda{why}.", installation_id=installation_id, item_name=job.item_name)
+        log_event(local_engine, job.job_id, "resume", f"El cliente pidió «{name}»: el trabajo estaba detenido y se reanuda{why}.", installation_id=installation_id, item_name=job.item_name)
     elif job.status == "ready":
-        log_event(engine, job.job_id, "cache", f"El cliente pidió «{name}»: ya estaba en el caché de Viking, se le respondió con las piezas existentes.", status="ok", installation_id=installation_id, item_name=job.item_name)
+        log_event(local_engine, job.job_id, "cache", f"El cliente pidió «{name}»: ya estaba en el caché de Viking, se le respondió con las piezas existentes.", status="ok", installation_id=installation_id, item_name=job.item_name)
     else:
-        log_event(engine, job.job_id, "request", f"El cliente pidió «{name}»: ya se estaba preparando, se une al mismo trabajo.", installation_id=installation_id, item_name=job.item_name)
+        log_event(local_engine, job.job_id, "request", f"El cliente pidió «{name}»: ya se estaba preparando, se une al mismo trabajo.", installation_id=installation_id, item_name=job.item_name)
     if needs_worker:
         job.status, job.error_code = "preparing", ""
-        session.add(job)
-        session.commit()
+        local_session.add(job)
+        local_session.commit()
         start_job(
-            engine, job.job_id, source_url=job.source_url or req.source_url.strip(), source_kind=identity.kind,
+            local_engine, job.job_id, source_url=job.source_url or req.source_url.strip(), source_kind=identity.kind,
             source_host=identity.host, file_name=_safe_text(req.file_name, 300), fingerprint=identity.fingerprint,
             installation_id=installation_id,
         )
         logger.info("chunk_job_started job=%s client=%s kind=%s", job.job_id[:8], installation_id, identity.kind)
-    session.refresh(job)
-    record_transfer(session, installation_id=installation_id, job_id=job.job_id, kind="start", item_name=job.item_name)
-    return build_manifest(session, job)
+    local_session.refresh(job)
+    record_transfer(local_session, installation_id=installation_id, job_id=job.job_id, kind="start", item_name=job.item_name)
+    return build_manifest(local_session, job)
 
 
 @router.get("/downloads/viking-chunks/{job_id}")
 async def chunk_manifest(
     job_id: str, request: Request, response: Response, session: Session = Depends(get_session),
+    local_session: Session = Depends(get_local_session),
 ) -> dict:
     """The player polls this: which pieces can already be downloaded."""
     response.headers["Cache-Control"] = "no-store"
-    _installation_for_plus(request, session)
-    job = get_job(session, job_id)
+    await _installation_for_plus_async(request, session)
+    job = get_job(local_session, job_id)
     if job is None:
         raise HTTPException(404, "No existe esa descarga.")
-    return build_manifest(session, job)
+    return build_manifest(local_session, job)
 
 
 @router.get("/downloads/viking-chunks/{job_id}/pieces/{index}/link")
 async def chunk_piece_link(
     job_id: str, index: int, request: Request, response: Response, session: Session = Depends(get_session),
+    local_session: Session = Depends(get_local_session), refresh: bool = False,
 ) -> dict:
-    """A fresh direct link for one ready piece (links are signed and expire)."""
+    """A working direct link for one ready piece (`refresh` asks for a new one because the player's did not work)."""
     response.headers["Cache-Control"] = "no-store"
-    installation_id = _installation_for_plus(request, session)
-    piece = get_ready_piece(session, job_id, index)
+    installation_id = await _installation_for_plus_async(request, session)
+    piece = get_ready_piece(local_session, job_id, index)
     if piece is None:
         raise HTTPException(404, "Esa pieza todavía no está lista.")
     try:
-        url = await link_cache.get(piece.viking_hash, create_provider().resolve_viking_direct_link)
+        url = await link_cache.get(piece.viking_hash, create_provider().resolve_viking_direct_link, probe_direct_link, refresh)
     except ProviderFailure as exc:
         raise HTTPException(exc.status_code, exc.public_message) from exc
-    job = get_job(session, job_id)
+    job = get_job(local_session, job_id)
     record_transfer(
-        session, installation_id=installation_id, job_id=job_id, kind="piece", piece_index=piece.piece_index,
+        local_session, installation_id=installation_id, job_id=job_id, kind="piece", piece_index=piece.piece_index,
         size_bytes=piece.size_bytes, item_name=job.item_name if job else "",
     )
     return {"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": url}
@@ -145,18 +155,20 @@ MAX_LINKS_PER_CALL = 50
 @router.get("/downloads/viking-chunks/{job_id}/links")
 async def chunk_piece_links(
     job_id: str, request: Request, response: Response, start: int = 0, count: int = 12,
-    session: Session = Depends(get_session),
+    session: Session = Depends(get_session), local_session: Session = Depends(get_local_session), refresh: bool = False,
 ) -> dict:
     """Direct links for the ready pieces in [start, start+count): one call instead of one per piece.
 
-    Links come from a shared memory cache, so many players asking for the same pieces cost ViKiNG one resolution."""
+    Links come from a shared memory cache and are tried before being handed out; a new one is asked for only when
+    ViKiNG refuses the cached one (or the player sends `refresh` because it did not work for them)."""
     response.headers["Cache-Control"] = "no-store"
-    installation_id = _installation_for_plus(request, session)
+    installation_id = await _installation_for_plus_async(request, session)
     start, count = max(0, start), max(1, min(count, MAX_LINKS_PER_CALL))
-    pieces = get_ready_pieces(session, job_id, start, count)
+    pieces = get_ready_pieces(local_session, job_id, start, count)
     provider = create_provider()
     results = await asyncio.gather(
-        *(link_cache.get(p.viking_hash, provider.resolve_viking_direct_link) for p in pieces), return_exceptions=True,
+        *(link_cache.get(p.viking_hash, provider.resolve_viking_direct_link, probe_direct_link, refresh) for p in pieces),
+        return_exceptions=True,
     )
     links, failure = [], None
     served = []
@@ -171,6 +183,6 @@ async def chunk_piece_links(
     if failure is not None and not links:
         raise HTTPException(failure.status_code, failure.public_message) from failure
     if served:
-        job = get_job(session, job_id)
-        record_transfers(session, installation_id=installation_id, job_id=job_id, item_name=job.item_name if job else "", pieces=served)
+        job = get_job(local_session, job_id)
+        record_transfers(local_session, installation_id=installation_id, job_id=job_id, item_name=job.item_name if job else "", pieces=served)
     return {"links": links}
