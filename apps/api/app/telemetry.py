@@ -123,6 +123,23 @@ def record_transfer(session: Session, *, installation_id: str, job_id: str, kind
         logger.warning("telemetry transfer failed", exc_info=True)
 
 
+def record_transfers(session: Session, *, installation_id: str, job_id: str, item_name: str, pieces: list) -> None:
+    """Many served pieces, one commit (a batch of links is one write, not one per piece)."""
+    try:
+        now = _now()
+        session.add_all([
+            ChunkTransfer(
+                installation_id=installation_id, job_id=job_id, kind="piece", piece_index=p.piece_index,
+                size_bytes=int(p.size_bytes), item_name=item_name[:300], served_at=now,
+            )
+            for p in pieces
+        ])
+        session.commit()
+    except Exception:  # noqa: BLE001
+        session.rollback()
+        logger.warning("telemetry transfers failed", exc_info=True)
+
+
 def take_sample(engine: Engine) -> bool:
     """Store one per-minute reading. Returns False when another instance already stored this minute."""
     now = _now().replace(second=0, microsecond=0)

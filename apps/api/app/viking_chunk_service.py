@@ -221,6 +221,18 @@ def get_ready_piece(session: Session, job_id: str, index: int) -> VikingChunkPie
     return piece if piece is not None and piece.status == "ready" and piece.viking_hash else None
 
 
+def get_ready_pieces(session: Session, job_id: str, start: int, count: int) -> list[VikingChunkPiece]:
+    """The ready pieces with index in [start, start+count), in order (one query for the whole batch)."""
+    return list(session.exec(
+        select(VikingChunkPiece)
+        .where(
+            VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "ready", VikingChunkPiece.viking_hash.is_not(None),
+            VikingChunkPiece.piece_index >= start, VikingChunkPiece.piece_index < start + count,
+        )
+        .order_by(VikingChunkPiece.piece_index)
+    ).all())
+
+
 def recover_interrupted_chunk_jobs(engine: Engine) -> int:
     """After a restart nothing is working on this server's jobs the database calls active; fail them so they resume.
 

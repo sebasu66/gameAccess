@@ -1,6 +1,7 @@
 """Endpoints for the piece-by-piece TorBox -> ViKiNG download (PLUS only)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -14,7 +15,8 @@ from .access_service import _activation_for_request
 from .api_dependencies import get_session
 from .database import engine
 from .download_events import log_event
-from .telemetry import record_transfer
+from .telemetry import record_transfer, record_transfers
+from .viking_link_cache import link_cache
 from .viking_cache_service import ProviderFailure, create_provider, normalize_source_url
 from .viking_chunk_service import (
     build_manifest,
@@ -22,6 +24,7 @@ from .viking_chunk_service import (
     find_job_for_source,
     get_job,
     get_ready_piece,
+    get_ready_pieces,
     is_running,
     start_job,
 )
@@ -125,7 +128,7 @@ async def chunk_piece_link(
     if piece is None:
         raise HTTPException(404, "Esa pieza todavía no está lista.")
     try:
-        url = await create_provider().resolve_viking_direct_link(piece.viking_hash)
+        url = await link_cache.get(piece.viking_hash, create_provider().resolve_viking_direct_link)
     except ProviderFailure as exc:
         raise HTTPException(exc.status_code, exc.public_message) from exc
     job = get_job(session, job_id)
@@ -134,3 +137,40 @@ async def chunk_piece_link(
         size_bytes=piece.size_bytes, item_name=job.item_name if job else "",
     )
     return {"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": url}
+
+
+MAX_LINKS_PER_CALL = 50
+
+
+@router.get("/downloads/viking-chunks/{job_id}/links")
+async def chunk_piece_links(
+    job_id: str, request: Request, response: Response, start: int = 0, count: int = 12,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Direct links for the ready pieces in [start, start+count): one call instead of one per piece.
+
+    Links come from a shared memory cache, so many players asking for the same pieces cost ViKiNG one resolution."""
+    response.headers["Cache-Control"] = "no-store"
+    installation_id = _installation_for_plus(request, session)
+    start, count = max(0, start), max(1, min(count, MAX_LINKS_PER_CALL))
+    pieces = get_ready_pieces(session, job_id, start, count)
+    provider = create_provider()
+    results = await asyncio.gather(
+        *(link_cache.get(p.viking_hash, provider.resolve_viking_direct_link) for p in pieces), return_exceptions=True,
+    )
+    links, failure = [], None
+    served = []
+    for piece, result in zip(pieces, results):
+        if isinstance(result, ProviderFailure):
+            failure = failure or result
+        elif isinstance(result, BaseException):
+            raise result
+        else:
+            links.append({"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": result})
+            served.append(piece)
+    if failure is not None and not links:
+        raise HTTPException(failure.status_code, failure.public_message) from failure
+    if served:
+        job = get_job(session, job_id)
+        record_transfers(session, installation_id=installation_id, job_id=job_id, item_name=job.item_name if job else "", pieces=served)
+    return {"links": links}

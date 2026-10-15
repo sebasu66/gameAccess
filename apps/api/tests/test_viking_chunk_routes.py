@@ -23,6 +23,11 @@ def session():
 
 
 @pytest.fixture(autouse=True)
+def empty_link_cache():
+    routes.link_cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def plus_user(monkeypatch):
     monkeypatch.setattr(routes, "_installation_for_plus", lambda request, session: "inst-1")
     started: list[str] = []
