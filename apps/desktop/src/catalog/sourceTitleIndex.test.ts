@@ -22,4 +22,8 @@ describe("gamesWithPossibleSources", () => {
     const result = gamesWithPossibleSources(["gunman  reborn Free Download", "GUNMAN   CHRONICLES v1", "DeadSpace Free Download"], list);
     expect(result.map(g => g.id)).toEqual([1, 2, 3]);
   });
+  it("ignores trademark symbols in names and titles", () => {
+    const list = [game(1, "Game®"), game(2, "Other Game")];
+    expect(gamesWithPossibleSources(["game™ Free Download"], list).map(g => g.id)).toEqual([1]);
+  });
 });

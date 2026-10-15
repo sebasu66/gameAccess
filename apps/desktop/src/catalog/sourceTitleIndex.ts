@@ -3,7 +3,7 @@ import type { CatalogGame } from "../types";
 /** Same normalisation the source provider uses (examples/source-provider/matcher.js). */
 export function cleanTitle(title: string, split = true): string {
   if (!title) return "";
-  return title.normalize("NFKD").replace(/[̀-ͯ®™©]/g, "")
+  return title.replace(/[®™©℠]/g, "").normalize("NFKD").replace(/[̀-ͯ]/g, "")
     .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
     .replace(split ? /([a-z])([A-Z])/g : /(?!)/g, "$1 $2")
     .replace(/['’]/g, "").replace(/&/g, " and ")
