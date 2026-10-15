@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "title": { "es": "Activar premium", "en": "Activate premium" },
+  "intro": {
+    "es": "Game Access es gratis. Con premium la app procesa las descargas por vos y las acelera, para que no dependas de la velocidad de los torrents.",
+    "en": "Game Access is free. With premium the app processes downloads for you and speeds them up, so you do not depend on torrent speeds."
+  },
+  "plans": [
+    {
+      "id": "boost",
+      "name": { "es": "Aceleración", "en": "Boost" },
+      "price": { "es": "desde 2 USD/mes", "en": "from 2 USD/month" },
+      "perks": {
+        "es": ["10 descargas rápidas por mes", "Sin esperar a que haya seeds"],
+        "en": ["10 fast downloads per month", "No waiting for seeds"]
+      }
+    },
+    {
+      "id": "family",
+      "name": { "es": "Familia", "en": "Family" },
+      "price": { "es": "4 USD/mes", "en": "4 USD/month" },
+      "perks": {
+        "es": ["Hasta 4 descargas en paralelo, 30 al mes", "Multiusuario con control de tiempo para chicos (próximamente)", "Congelado de juegos para ahorrar disco (próximamente)"],
+        "en": ["Up to 4 parallel downloads, 30 per month", "Multi-user with time control for kids (coming soon)", "Game freezing to save disk space (coming soon)"]
+      }
+    }
+  ],
+  "regions": {
+    "default": {
+      "label": { "es": "Otros países", "en": "Other countries" },
+      "methods": [
+        { "label": { "es": "Ver cómo conseguir una llave", "en": "See how to get a key" }, "url": "https://gameaccess.app" }
+      ]
+    },
+    "AR": {
+      "label": { "es": "Argentina", "en": "Argentina" },
+      "methods": [
+        {
+          "label": { "es": "Pagar en pesos", "en": "Pay in pesos" },
+          "note": { "es": "Te explicamos cómo pagar en pesos argentinos.", "en": "We explain how to pay in Argentine pesos." },
+          "url": "https://gameaccess.app"
+        }
+      ]
+    }
+  }
+}

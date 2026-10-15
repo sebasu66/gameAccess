@@ -128,6 +128,8 @@ from .resolver_routes import router as resolver_router
 from .linkvertise_access import router as linkvertise_access_router
 from .discovery_service import router as discovery_router
 from .cooptimus import router as cooptimus_router
+from .premium_routes import router as premium_router
+app.include_router(premium_router)
 app.include_router(steam_search_router)
 app.include_router(resolver_router)
 app.include_router(linkvertise_access_router)

@@ -11,6 +11,7 @@ import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
 import BackendStatus from "./BackendStatus";
+import PremiumEntry from "./PremiumEntry";
 import LanguageSwitch from "./LanguageSwitch";
 import { Globe2, RefreshCw } from "lucide-react";
 import PixelAppearance from "./PixelAppearance";
@@ -94,7 +95,7 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button></div></div> : null}
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button></div></div> : null}
     <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe>
   </>;
 }
