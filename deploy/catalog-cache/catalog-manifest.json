@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "revision": "e2c499094f2fefeb",
-  "generated_at": "2026-10-12T23:44:10.070035+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-e2c499094f2fefeb.sqlite.gz",
-  "sha256": "dcffa81f9b80de6b89d9c9b163da3f7d4a400a11a7de33bfc04fc26d52c04a87",
-  "catalog_count": 41729,
+  "revision": "220e804c306079d8",
+  "generated_at": "2026-10-15T13:22:35.234872+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-220e804c306079d8.sqlite.gz",
+  "sha256": "f30b85d385496ac74408599cd4d66ae96fdc40386f0bd29590a133bdcadc823a",
+  "catalog_count": 43201,
   "detail_count": 677,
-  "compressed_bytes": 7834477,
-  "uncompressed_bytes": 64081920,
+  "compressed_bytes": 8280881,
+  "uncompressed_bytes": 67108864,
   "coverage": {
-    "released_since": "2025-10-10",
-    "through": "2026-10-10",
+    "released_since": "2025-10-15",
+    "through": "2026-10-15",
     "recent_complete": true,
     "recent_count": 27681,
     "popular_limit": 5000,
@@ -20,16 +20,10 @@
       "matched": 0,
       "state": "not-requested"
     },
-    "updated_at": "2026-10-10T14:07:47.108642+00:00",
-    "tagged_count": 34622,
-    "steamdb": {
-      "seen": 191701,
-      "matched": 39655,
-      "categories": 39619,
-      "genres": 39646,
-      "tags": 8501,
-      "review_score": 34519,
-      "review_count": 35398
-    }
+    "updated_at": "2026-10-15T13:22:34.217419+00:00",
+    "tagged_count": 37429,
+    "steam": "skipped",
+    "server_games_added": 1472,
+    "server_fields_filled": 10452
   }
 }
