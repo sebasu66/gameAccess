@@ -5,7 +5,7 @@ vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined
 import { DigitalDownloadService } from "./DigitalDownloadService";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-const game = (id: number): CatalogGame => ({ id, app_id: id, name: `Game ${id}`, slug: String(id), credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, downloadSource: "http://localhost/fixture.bin" });
+const game = (id: number): CatalogGame => ({ id, app_id: id, name: `Game ${id}`, slug: String(id), credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, downloadSource: "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" });
 vi.mock("../activation",()=>({getActivationTier:()=> "base"}));
 vi.mock("../vikingResolver", () => ({ canAccelerate: () => false, resolveVikingDownload: vi.fn().mockResolvedValue(null) }));
 const mock = vi.mocked(invoke);
@@ -188,7 +188,7 @@ describe("Digital download scheduling", () => {
   });
   it("retries the selected plugin source without falling back to catalog metadata", async () => {
     const service = new DigitalDownloadService();
-    const record = {id:1,name:"Game 1",downloadSource:"https://example.test/selected.zip",installProcess:"",playProcess:"",uninstallProcess:"",auto_installed:false};
+    const record = {id:1,name:"Game 1",downloadSource:"magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",installProcess:"",playProcess:"",uninstallProcess:"",auto_installed:false};
     await service.start(game(1), {record});
     service.updateSnapshot({gameId:1,phase:"error",progress:0,error:"network"});
     await service.start(game(1));

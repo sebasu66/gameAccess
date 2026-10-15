@@ -3,12 +3,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const narrate = vi.fn(async (_message: string, _options?: { level?: string; area?: string }) => undefined);
 vi.mock("./narrationLog", () => ({ narrate }));
 vi.mock("./settings", () => ({ getApiBaseUrl: async () => "http://api.test" }));
-vi.mock("./activation", () => ({ readActivationSession: async () => "token", getInstallationId: async () => "install" }));
+let tier: "base" | "plus" | null = "plus";
+vi.mock("./activation", () => ({ readActivationSession: async () => "token", getInstallationId: async () => "install", getActivationTier: () => tier }));
 
-const { canAccelerate, resolveVikingDownload } = await import("./vikingResolver");
+const { canAccelerate, resolveVikingDownload, buildChunkSession } = await import("./vikingResolver");
+const { isTorrentSource } = await import("./torrentSource");
 const messages = () => narrate.mock.calls.map(call => String(call[0]));
 
-afterEach(() => { narrate.mockClear(); vi.unstubAllGlobals(); });
+afterEach(() => { narrate.mockClear(); vi.unstubAllGlobals(); tier = "plus"; });
+
+describe("free mode", () => {
+  it("never calls the server and gives no chunk session unless the key is Plus", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    for (const value of ["base", null] as const) {
+      tier = value;
+      expect(await resolveVikingDownload({ sourceUrl: "magnet:?xt=urn:btih:abc" })).toBeNull();
+      expect(await buildChunkSession()).toBeNull();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+    tier = "plus";
+    expect(await buildChunkSession()).toContain("install");
+  });
+  it("recognizes torrent sources", () => {
+    expect(isTorrentSource("magnet:?xt=urn:btih:abc")).toBe(true);
+    expect(isTorrentSource("https://host/a.torrent?x=1")).toBe(true);
+    expect(isTorrentSource("https://host/file.zip")).toBe(false);
+  });
+});
 
 describe("vikingResolver", () => {
   it("accepts direct links and magnets only", () => {

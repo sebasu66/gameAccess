@@ -2,6 +2,7 @@ import { libraryMembership } from "../libraryMembership";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
+import { isTorrentSource } from "../torrentSource";
 import { downloadMethodFor, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
@@ -270,12 +271,20 @@ export class DigitalDownloadService implements IDownloadProvider {
       throw new Error(errorMsg);
     }
 
+    // Free mode only downloads torrents, with the built-in client at its natural speed.
+    const plus = this.tier() === "plus";
+    if (!plus && /^https?:\/\//i.test(downloadSource) && !isTorrentSource(downloadSource)) {
+      const errorMsg = `El modo gratuito descarga solo por torrent. '${name}' no tiene un torrent disponible; con Plus también se aceptan enlaces directos.`;
+      this.updateSnapshot({ gameId, phase: "error", progress: 0, statusText: "Requiere un torrent (modo gratuito)", error: errorMsg });
+      throw new Error(errorMsg);
+    }
+
     // The launcher downloads the source piece by piece from the server (TorBox -> ViKiNG) and
     // falls back to the normal download by itself when the server cannot serve it.
     const effectiveSource = downloadSource;
     let effectiveDelivery = record?.sourceDelivery;
     let chunkSession: string | null = null;
-    if (hasTauriRuntime() && canAccelerate(downloadSource)) {
+    if (hasTauriRuntime() && plus && canAccelerate(downloadSource)) {
       this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga", bytesDownloaded: 0, bytesTotal: 0 });
       chunkSession = await buildChunkSession();
       if (chunkSession) {

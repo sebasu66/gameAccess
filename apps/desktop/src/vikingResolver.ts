@@ -1,4 +1,4 @@
-import { getInstallationId, readActivationSession } from "./activation";
+import { getActivationTier, getInstallationId, readActivationSession } from "./activation";
 import { narrate } from "./narrationLog";
 import { getApiBaseUrl } from "./settings";
 
@@ -35,6 +35,11 @@ export function canAccelerate(source: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("magnet:?");
 }
 
+/** Only the Plus tier may use the server's acceleration (cache, TorBox, ViKiNG). */
+export function isPlusAccess(): boolean {
+  return getActivationTier() === "plus";
+}
+
 async function readError(response: Response): Promise<string> {
   try {
     const body = await response.json();
@@ -55,6 +60,10 @@ async function readError(response: Response): Promise<string> {
 export async function resolveVikingDownload(request: VikingResolveRequest, waitMs: number = RESOLVE_WAIT_MS): Promise<VikingResolved | null> {
   const area = "DOWNLOAD";
   const source = request.sourceUrl.trim();
+  if (!isPlusAccess()) {
+    void narrate("Modo gratuito: se descarga por torrent sin pasar por el servidor.", { area });
+    return null;
+  }
   if (!canAccelerate(source)) {
     void narrate("Esta fuente no es un enlace directo ni un magnet; se descarga sin pasar por el servidor.", { area });
     return null;
@@ -131,6 +140,8 @@ export async function resolveVikingDownload(request: VikingResolveRequest, waitM
  * (TorBox -> ViKiNG). Returns null when there is no activation, so the normal download runs.
  */
 export async function buildChunkSession(): Promise<string | null> {
+  // Free mode never asks the server to accelerate: it downloads torrents on its own.
+  if (!isPlusAccess()) return null;
   const [api, token, installationId] = await Promise.all([getApiBaseUrl(), readActivationSession(), getInstallationId()]);
   if (!api || !token || !installationId) return null;
   return JSON.stringify({ api, token, installation: installationId });
