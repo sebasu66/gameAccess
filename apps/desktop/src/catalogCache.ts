@@ -98,6 +98,7 @@ export interface TempSourceItem {
 
 export interface CatalogFacetsResult {
   genres: string[];
+  sources?: string[];
 }
 
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
@@ -105,13 +106,12 @@ export async function queryCatalogCache(params: CatalogQueryParams): Promise<Cat
   return invoke<CatalogQueryResult>("catalog_cache_query", { params });
 }
 
-export async function setCatalogTempSources(sources: TempSourceItem[]): Promise<void> {
-  if (!native()) return;
-  await invoke("catalog_cache_set_temp_sources", { sources });
+export async function setCatalogTempSources(_sources: TempSourceItem[]): Promise<void> {
+  // Replaced by persistent catalog_sources_apply (game_sources / download_sources).
 }
 
 export async function getCatalogFacets(): Promise<CatalogFacetsResult> {
-  if (!native()) return { genres: [] };
+  if (!native()) return { genres: [], sources: [] };
   return invoke<CatalogFacetsResult>("catalog_cache_get_facets");
 }
 

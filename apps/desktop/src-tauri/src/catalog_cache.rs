@@ -17,23 +17,6 @@ const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
 static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
-/// The last download-source availability the client published. The table that holds it is
-/// TEMP (per connection), and a catalog update replaces the connection, so it is restored from here.
-static LAST_TEMP_SOURCES: Mutex<Vec<(i64, String)>> = Mutex::new(Vec::new());
-
-fn write_temp_sources(conn: &Connection, rows: &[(i64, String)]) -> Result<(), String> {
-    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM temp_plugin_availability", []).map_err(|e| e.to_string())?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "INSERT OR IGNORE INTO temp_plugin_availability(app_id, source_name) VALUES (?1, ?2)"
-        ).map_err(|e| e.to_string())?;
-        for (app_id, name) in rows {
-            stmt.execute(params![app_id, name]).map_err(|e| e.to_string())?;
-        }
-    }
-    tx.commit().map_err(|e| e.to_string())
-}
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -827,7 +810,7 @@ const MULTIPLAYER_CATEGORY_SQL: &str = "EXISTS (SELECT 1 FROM game_category gc W
 /// SQL condition for one library feature key, or None for keys the query does not know.
 fn feature_clause(feat: &str) -> Option<String> {
     Some(match feat {
-        "has_downloads" => "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string(),
+        "has_downloads" => "EXISTS (SELECT 1 FROM game_sources gs WHERE gs.app_id = g.app_id)".to_string(),
         "single_player" => "m.single_player = 1".to_string(),
         "multiplayer" => format!("(m.multiplayer = 1 OR {})", MULTIPLAYER_CATEGORY_SQL),
         "coop" => "(m.coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Online Co-op','Cooperativo en línea','LAN Co-op','Shared/Split Screen Co-op')))".to_string(),
@@ -864,15 +847,10 @@ pub struct CatalogQueryResult {
     pub total: usize,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct TempSourceItem {
-    pub app_id: i64,
-    pub source_names: Vec<String>,
-}
-
 #[derive(Debug, Serialize)]
 pub struct CatalogFacetsResult {
     pub genres: Vec<String>,
+    pub sources: Vec<String>,
 }
 
 pub fn normalize_release_date(raw: &str) -> Option<String> {
@@ -986,15 +964,7 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
             about_the_game TEXT,
             PRIMARY KEY (game_id, language)
         );
-        CREATE INDEX IF NOT EXISTS ix_game_desc_lang ON game_description(language);
-
-        CREATE TEMP TABLE IF NOT EXISTS temp_plugin_availability (
-            app_id INTEGER NOT NULL,
-            source_name TEXT NOT NULL,
-            PRIMARY KEY (app_id, source_name)
-        );
-        CREATE INDEX IF NOT EXISTS ix_temp_plugin_app_id ON temp_plugin_availability(app_id);
-        CREATE INDEX IF NOT EXISTS ix_temp_plugin_source ON temp_plugin_availability(source_name);"
+        CREATE INDEX IF NOT EXISTS ix_game_desc_lang ON game_description(language);"
     ).map_err(|e| e.to_string())?;
 
     let has_catalog_game: bool = conn.query_row(
@@ -1151,36 +1121,10 @@ where
         let conn = Connection::open(&path).map_err(|err| err.to_string())?;
         let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;");
         ensure_normalized_schema(&conn)?;
-        if let Ok(rows) = LAST_TEMP_SOURCES.lock() {
-            if !rows.is_empty() {
-                write_temp_sources(&conn, &rows)?;
-            }
-        }
         *guard = Some(conn);
     }
     let conn = guard.as_mut().unwrap();
     f(conn)
-}
-
-#[tauri::command]
-pub async fn catalog_cache_set_temp_sources(sources: Vec<TempSourceItem>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut rows: Vec<(i64, String)> = Vec::new();
-        for item in sources {
-            for name in item.source_names {
-                let trimmed = name.trim();
-                if !trimmed.is_empty() {
-                    rows.push((item.app_id, trimmed.to_string()));
-                }
-            }
-        }
-        if let Ok(mut last) = LAST_TEMP_SOURCES.lock() {
-            *last = rows.clone();
-        }
-        with_catalog_conn(|conn| write_temp_sources(conn, &rows))
-    })
-    .await
-    .map_err(|err| format!("Catalog temp sources task failed: {err}"))?
 }
 
 #[tauri::command]
@@ -1194,7 +1138,14 @@ pub async fn catalog_cache_get_facets() -> Result<CatalogFacetsResult, String> {
                 .map_err(|e| e.to_string())?
                 .filter_map(Result::ok)
                 .collect();
-            Ok(CatalogFacetsResult { genres })
+            let mut src_stmt = conn.prepare(
+                "SELECT DISTINCT source_name FROM download_sources WHERE trim(source_name) != '' ORDER BY source_name COLLATE NOCASE ASC"
+            ).map_err(|e| e.to_string())?;
+            let sources: Vec<String> = src_stmt.query_map([], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?
+                .filter_map(Result::ok)
+                .collect();
+            Ok(CatalogFacetsResult { genres, sources })
         })
     })
     .await
@@ -1264,7 +1215,10 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
     if let Some(ref sources) = params.exclude_sources {
         if !sources.is_empty() {
             let list = push_placeholders(&mut sql_params, sources, SqlValue::Text);
-            where_clauses.push(format!("NOT EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))", list));
+            where_clauses.push(format!(
+                "NOT EXISTS (SELECT 1 FROM game_sources gs JOIN download_sources ds INDEXED BY ix_download_sources_key_name ON ds.source_key = gs.source_key WHERE gs.app_id = g.app_id AND ds.source_name IN ({}))",
+                list
+            ));
         }
     }
 
@@ -1312,7 +1266,7 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
     }
 
     if params.has_downloads == Some(true) {
-        where_clauses.push("EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)".to_string());
+        where_clauses.push("EXISTS (SELECT 1 FROM game_sources gs WHERE gs.app_id = g.app_id)".to_string());
     }
 
     if let Some(ref sources) = params.sources {
@@ -1324,7 +1278,7 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
                 sql_params.push(SqlValue::Text(s.clone()));
             }
             where_clauses.push(format!(
-                "EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id AND tpa.source_name IN ({}))",
+                "EXISTS (SELECT 1 FROM game_sources gs JOIN download_sources ds INDEXED BY ix_download_sources_key_name ON ds.source_key = gs.source_key WHERE gs.app_id = g.app_id AND ds.source_name IN ({}))",
                 source_placeholders.join(",")
             ));
         }
@@ -1389,9 +1343,14 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
         format!("WHERE {}", where_clauses.join(" AND "))
     };
 
+    let count_join_meta = if where_sql.contains("m.") {
+        "LEFT JOIN game_metadata m ON m.game_id = g.id"
+    } else {
+        ""
+    };
     let count_sql = format!(
-        "SELECT COUNT(*) FROM game g LEFT JOIN game_metadata m ON m.game_id = g.id {}",
-        where_sql
+        "SELECT COUNT(*) FROM game g {} {}",
+        count_join_meta, where_sql
     );
 
     let param_refs: Vec<&dyn ToSql> = sql_params.iter().map(|s| s as &dyn ToSql).collect();
@@ -1437,8 +1396,8 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
 
     let select_sql = format!(
         "SELECT g.id, g.app_id, cg.payload,
-                COALESCE((SELECT COUNT(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), 0) AS src_count,
-                COALESCE((SELECT json_group_array(DISTINCT tpa.source_name) FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id), '[]') AS src_names,
+                COALESCE((SELECT COUNT(*) FROM game_sources gs WHERE gs.app_id = g.app_id), 0) AS src_count,
+                COALESCE((SELECT json_group_array(DISTINCT ds.source_name) FROM game_sources gs JOIN download_sources ds INDEXED BY ix_download_sources_key_name ON ds.source_key = gs.source_key WHERE gs.app_id = g.app_id), '[]') AS src_names,
                 COALESCE(gd.short_description, gd_def.short_description, m.short_description) AS localized_short_desc
          FROM game g
          LEFT JOIN catalog_game cg ON cg.id = g.id
@@ -1478,8 +1437,10 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
         if let Value::Object(ref mut map) = val {
             map.insert("has_downloads".to_string(), Value::Bool(src_count > 0));
             map.insert("availableSourceCount".to_string(), Value::from(src_count));
+            map.insert("source_count".to_string(), Value::from(src_count));
             let src_names: Value = serde_json::from_str(&src_names_json).unwrap_or(Value::Array(vec![]));
-            map.insert("download_source_names".to_string(), src_names);
+            map.insert("download_source_names".to_string(), src_names.clone());
+            map.insert("source_names".to_string(), src_names);
             if let Some(desc) = localized_desc {
                 if !desc.trim().is_empty() {
                     map.insert("short_description".to_string(), Value::String(desc));
@@ -1586,7 +1547,7 @@ mod tests {
     #[test]
     fn test_normalized_schema_and_temp_plugin_join() {
         let target = temp_target();
-        let conn = Connection::open(&target).unwrap();
+        let mut conn = Connection::open(&target).unwrap();
         conn.execute_batch("
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
             CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
@@ -1601,24 +1562,157 @@ mod tests {
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM game", [], |r| r.get(0)).unwrap();
         assert_eq!(count, 2);
 
-        // Add a temp source for app_id 100
-        conn.execute("INSERT INTO temp_plugin_availability VALUES(100, 'FitGirl')", []).unwrap();
+        // Apply download sources for Alpha Game (app_id 100)
+        crate::source_index::apply_sources_conn(
+            &mut conn,
+            "ga-torrent-provider",
+            "1",
+            true,
+            vec![
+                crate::source_index::SourceIndexEntry {
+                    key: String::new(),
+                    title: "Alpha Game v1.0 [FitGirl Repack]".into(),
+                    source: "FitGirl".into(),
+                    multiplayer: false,
+                },
+                crate::source_index::SourceIndexEntry {
+                    key: String::new(),
+                    title: "Alpha Game Deluxe Edition".into(),
+                    source: "DODI".into(),
+                    multiplayer: false,
+                },
+            ],
+            vec![],
+        )
+        .unwrap();
 
-        // Query filtering by temp plugin source availability
-        let with_downloads: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM game g WHERE EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)",
-            [], |r| r.get(0)
-        ).unwrap();
-        assert_eq!(with_downloads, 1);
+        // Query filtering by has_downloads and source_name
+        let with_downloads = query_catalog_conn(
+            &conn,
+            &CatalogQueryParams {
+                has_downloads: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(with_downloads.total, 1);
+        assert_eq!(with_downloads.items[0]["app_id"], 100);
+        assert_eq!(with_downloads.items[0]["source_count"], 2);
+        assert_eq!(with_downloads.items[0]["availableSourceCount"], 2);
+        let mut names: Vec<String> = serde_json::from_value(with_downloads.items[0]["source_names"].clone()).unwrap();
+        names.sort();
+        assert_eq!(names, vec!["DODI".to_string(), "FitGirl".to_string()]);
 
-        let without_downloads: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM game g WHERE NOT EXISTS (SELECT 1 FROM temp_plugin_availability tpa WHERE tpa.app_id = g.app_id)",
-            [], |r| r.get(0)
-        ).unwrap();
-        assert_eq!(without_downloads, 1);
+        let by_source = query_catalog_conn(
+            &conn,
+            &CatalogQueryParams {
+                sources: Some(vec!["FitGirl".into()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(by_source.total, 1);
+
+        let excluded_source = query_catalog_conn(
+            &conn,
+            &CatalogQueryParams {
+                exclude_sources: Some(vec!["FitGirl".into()]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(excluded_source.total, 1);
+        assert_eq!(excluded_source.items[0]["app_id"], 200);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_84k_sources_40k_games_performance() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);").unwrap();
+        ensure_normalized_schema(&conn).unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        {
+            let mut ins_game = tx
+                .prepare("INSERT INTO game(id, app_id, slug, name, active) VALUES (?1, ?2, ?3, ?4, 1)")
+                .unwrap();
+            let mut ins_meta = tx
+                .prepare("INSERT INTO game_metadata(game_id, release_date, recommendation_count, steam_review_score, steam_review_count) VALUES (?1, '2026-01-15', ?2, 85.0, 500)")
+                .unwrap();
+            for i in 1..=40_000i64 {
+                let app_id = i * 10;
+                ins_game
+                    .execute(params![i, app_id, format!("game-{i}"), format!("Game Title {i}")])
+                    .unwrap();
+                ins_meta.execute(params![i, 40_000 - i]).unwrap();
+            }
+
+            let mut ins_ds = tx
+                .prepare("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES (?1, 'p1', ?2, ?3, 0, '1')")
+                .unwrap();
+            let mut ins_gs = tx
+                .prepare("INSERT INTO game_sources(app_id, source_key, score) VALUES (?1, ?2, 0.95)")
+                .unwrap();
+            let providers = ["FitGirl", "DODI", "SteamRIP", "OnlineFix", "GOG", "ElAmigos"];
+            for s in 1..=84_000i64 {
+                let key = format!("k{s}");
+                let prov = providers[(s as usize) % providers.len()];
+                ins_ds
+                    .execute(params![&key, prov, format!("Release {s}")])
+                    .unwrap();
+                // Link ~28,000 sources across ~14,000 games
+                if s <= 28_000 {
+                    let game_idx = ((s - 1) % 14_000) + 1;
+                    let app_id = game_idx * 10;
+                    let _ = ins_gs.execute(params![app_id, &key]);
+                }
+            }
+        }
+        tx.commit().unwrap();
+
+        // Warm-up / analyze
+        let _ = conn.execute_batch("ANALYZE;");
+
+        let start_has_dl = std::time::Instant::now();
+        let res_has_dl = query_catalog_conn(
+            &conn,
+            &CatalogQueryParams {
+                has_downloads: Some(true),
+                limit: Some(70),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let elapsed_has_dl = start_has_dl.elapsed();
+        assert_eq!(res_has_dl.total, 14_000);
+        assert_eq!(res_has_dl.items.len(), 70);
+        assert!(
+            elapsed_has_dl.as_millis() < 50,
+            "has_downloads query on 40k games / 84k sources took {} ms (expected < 50 ms)",
+            elapsed_has_dl.as_millis()
+        );
+
+        let start_src = std::time::Instant::now();
+        let res_src = query_catalog_conn(
+            &conn,
+            &CatalogQueryParams {
+                sources: Some(vec!["FitGirl".into()]),
+                limit: Some(70),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let elapsed_src = start_src.elapsed();
+        assert!(res_src.total > 0);
+        assert_eq!(res_src.items.len(), 70);
+        assert!(
+            elapsed_src.as_millis() < 50,
+            "sources filter query on 40k games / 84k sources took {} ms (expected < 50 ms)",
+            elapsed_src.as_millis()
+        );
     }
 
     #[test]

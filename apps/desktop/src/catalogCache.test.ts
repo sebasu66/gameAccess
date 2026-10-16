@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { queryCatalogCache, setCatalogTempSources, getCatalogFacets, readCatalogCache } from "./catalogCache";
+import {
+  queryCatalogCache,
+  applyCatalogSources,
+  removePluginCatalogSources,
+  getCatalogFacets,
+  readCatalogCache,
+} from "./catalogCache";
 import { invoke } from "@tauri-apps/api/core";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -78,21 +84,42 @@ describe("catalogCache IPC queries", () => {
     expect(invoke).toHaveBeenCalledWith("catalog_cache_query", { params: { language: "english" } });
   });
 
-  it("forwards setCatalogTempSources to tauri command", async () => {
+  it("forwards applyCatalogSources and removePluginCatalogSources to tauri commands", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({
+      plugin_id: "ga-torrent",
+      revision: "rev-1",
+      sources_total: 1,
+      matched_links: 1,
+    });
+
+    await applyCatalogSources({
+      pluginId: "ga-torrent",
+      revision: "rev-1",
+      full: true,
+      added: [{ key: "k1", title: "Portal 2 Repack", source: "FitGirl", multiplayer: false }],
+    });
+
+    expect(invoke).toHaveBeenCalledWith("catalog_sources_apply", {
+      pluginId: "ga-torrent",
+      revision: "rev-1",
+      full: true,
+      added: [{ key: "k1", title: "Portal 2 Repack", source: "FitGirl", multiplayer: false }],
+      removed: [],
+    });
+
     vi.mocked(invoke).mockResolvedValueOnce(undefined);
-
-    await setCatalogTempSources([{ app_id: 400, source_names: ["FitGirl"] }]);
-
-    expect(invoke).toHaveBeenCalledWith("catalog_cache_set_temp_sources", {
-      sources: [{ app_id: 400, source_names: ["FitGirl"] }],
+    await removePluginCatalogSources("ga-torrent");
+    expect(invoke).toHaveBeenCalledWith("catalog_sources_remove_plugin", {
+      pluginId: "ga-torrent",
     });
   });
 
   it("forwards getCatalogFacets to tauri command", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce({ genres: ["Action", "RPG"] });
+    vi.mocked(invoke).mockResolvedValueOnce({ genres: ["Action", "RPG"], sources: ["FitGirl"] });
 
     const facets = await getCatalogFacets();
     expect(invoke).toHaveBeenCalledWith("catalog_cache_get_facets");
     expect(facets.genres).toEqual(["Action", "RPG"]);
+    expect(facets.sources).toEqual(["FitGirl"]);
   });
 });

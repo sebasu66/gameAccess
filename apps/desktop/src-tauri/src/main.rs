@@ -67,7 +67,6 @@ fn main() {
             catalog_cache::catalog_cache_read_detail,
             catalog_cache::catalog_cache_store_detail,
             catalog_cache::catalog_cache_query,
-            catalog_cache::catalog_cache_set_temp_sources,
             catalog_cache::catalog_cache_get_facets,
             source_index::catalog_sources_apply,
             source_index::catalog_sources_remove_plugin,
