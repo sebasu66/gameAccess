@@ -18,24 +18,65 @@ export const pluginGeneration = () => generation;
 export function subscribePluginStatuses(listener: () => void) {
   listeners.add(listener); return () => { listeners.delete(listener); };
 }
+const HEALTH_TIMEOUT_MS = 5000;
+const MAX_CONSECUTIVE_FAILURES = 3;
+const failureCounts = new Map<string, number>();
+const lastAliveStatuses = new Map<string, PluginStatus>();
+
+export function resetPluginRuntime(): void {
+  statuses = [];
+  signature = "";
+  failureCounts.clear();
+  lastAliveStatuses.clear();
+}
+
 export function providerAvailable(plugin: PluginManifest): boolean {
   return statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint)?.alive !== false;
 }
 async function inspect(plugin: PluginManifest): Promise<PluginStatus> {
-  const offline = { ...plugin, alive: false, revision: "", instanceId: "", dirty: false };
+  const key = `${plugin.id}|${plugin.endpoint}`;
+  const offline: PluginStatus = { ...plugin, alive: false, revision: "", instanceId: "", dirty: false };
+  const recordFailure = (): PluginStatus => {
+    const failures = (failureCounts.get(key) ?? 0) + 1;
+    failureCounts.set(key, failures);
+    const previous = lastAliveStatuses.get(key);
+    if (previous && failures < MAX_CONSECUTIVE_FAILURES) {
+      return previous;
+    }
+    lastAliveStatuses.delete(key);
+    return offline;
+  };
   try {
     const base = plugin.endpoint.replace(/\/+$/, "");
-    const response = await fetch(base + "/api/health", { signal: AbortSignal.timeout(2000), cache: "no-store" });
+    const response = await fetch(base + "/api/health", { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS), cache: "no-store" });
     if (response.status === 404) {
-      const legacy = await fetch(base + "/api/sources", { signal: AbortSignal.timeout(2000), cache: "no-store" });
-      return { ...offline, alive: legacy.ok, revision: String(Math.floor(Date.now() / 30000)) };
+      const legacy = await fetch(base + "/api/sources", { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS), cache: "no-store" });
+      if (!legacy.ok) return recordFailure();
+      failureCounts.set(key, 0);
+      const legacyStatus: PluginStatus = { ...offline, alive: true, revision: String(Math.floor(Date.now() / 30000)) };
+      lastAliveStatuses.set(key, legacyStatus);
+      return legacyStatus;
     }
-    if (!response.ok) return offline;
+    if (!response.ok) return recordFailure();
     const health = await response.json() as Record<string, unknown>;
-    if (typeof health.id === "string" && health.id !== plugin.id) return offline;
-    return { ...plugin, alive: true, revision: String(health.revision ?? Math.floor(Date.now() / 30000)),
-      instanceId: String(health.instanceId ?? ""), dirty: health.dirty === true };
-  } catch { return offline; }
+    if (typeof health.id === "string" && health.id !== plugin.id) {
+      failureCounts.set(key, MAX_CONSECUTIVE_FAILURES);
+      lastAliveStatuses.delete(key);
+      return offline;
+    }
+    failureCounts.set(key, 0);
+    const online: PluginStatus = {
+      ...plugin,
+      alive: true,
+      revision: String(health.revision ?? Math.floor(Date.now() / 30000)),
+      instanceId: String(health.instanceId ?? ""),
+      dirty: health.dirty === true,
+    };
+    lastAliveStatuses.set(key, online);
+    return online;
+  } catch {
+    return recordFailure();
+  }
 }
 export function pollPluginRuntime(): Promise<void> {
   if (polling) return polling;
@@ -43,6 +84,13 @@ export function pollPluginRuntime(): Promise<void> {
     try {
       const manifests = await invoke<PluginManifest[]>("get_registered_plugins");
       const providers = manifests.filter(item => item.type === "source_provider" && /^https?:\/\//.test(item.endpoint));
+      const activeKeys = new Set(providers.map(item => `${item.id}|${item.endpoint}`));
+      for (const k of failureCounts.keys()) {
+        if (!activeKeys.has(k)) failureCounts.delete(k);
+      }
+      for (const k of lastAliveStatuses.keys()) {
+        if (!activeKeys.has(k)) lastAliveStatuses.delete(k);
+      }
       const next = await Promise.all(providers.map(inspect));
       next.sort((a, b) => a.id.localeCompare(b.id) || a.endpoint.localeCompare(b.endpoint));
       const key = JSON.stringify(next);

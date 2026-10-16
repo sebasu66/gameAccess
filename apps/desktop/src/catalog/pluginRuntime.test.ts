@@ -1,15 +1,16 @@
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { pollPluginRuntime, getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
+import { pollPluginRuntime, getPluginStatuses, pluginGeneration, providerAvailable, resetPluginRuntime } from "./PluginRuntime";
 import { getPluginSources, checkPluginSources, invalidatePluginSources, sourceAvailability } from "./PluginSources";
 const plugin = {id:"provider",name:"Provider",endpoint:"http://127.0.0.1:45000",type:"source_provider"};
 const game = {id:700,app_id:700,name:"Fixture",slug:"fixture",credit_cost_per_hour:0,copies_total:0,copies_available:0};
 const health = (revision:number,instanceId="live") => ({ok:true,status:200,json:async()=>({id:plugin.id,revision,instanceId,dirty:false})});
+beforeEach(()=>{resetPluginRuntime();});
 afterEach(()=>{vi.unstubAllGlobals();vi.mocked(invoke).mockReset();});
 describe("Dynamic plugin communication",()=>{
-  it("discovers start, detects catalog revisions, ignores unchanged heartbeats and detects stop",async()=>{
+  it("discovers start, detects catalog revisions, ignores unchanged heartbeats and requires 3 consecutive failures to detect stop",async()=>{
     vi.mocked(invoke).mockResolvedValue([plugin]);
     const request=vi.fn().mockResolvedValue(health(1));
     vi.stubGlobal("fetch",request);
@@ -22,6 +23,10 @@ describe("Dynamic plugin communication",()=>{
     await pollPluginRuntime();
     expect(pluginGeneration()).toBe(first+1);
     request.mockRejectedValue(new Error("stopped"));
+    await pollPluginRuntime();
+    expect(getPluginStatuses()[0].alive).toBe(true);
+    await pollPluginRuntime();
+    expect(getPluginStatuses()[0].alive).toBe(true);
     await pollPluginRuntime();
     expect(providerAvailable(plugin)).toBe(false);
     expect(getPluginStatuses()[0].alive).toBe(false);
@@ -52,6 +57,8 @@ describe("Dynamic plugin communication",()=>{
     const checking=checkPluginSources([game]);
     await vi.waitFor(()=>expect(vi.mocked(fetch)).toHaveBeenCalled());
     vi.stubGlobal("fetch",vi.fn().mockRejectedValue(new Error("offline")));
+    await pollPluginRuntime();
+    await pollPluginRuntime();
     await pollPluginRuntime();
     invalidatePluginSources();
     finish({ok:true,json:async()=>({700:{count:5,sources:["Stale feed"]}})});
