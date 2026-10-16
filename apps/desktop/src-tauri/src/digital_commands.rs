@@ -209,12 +209,12 @@ pub(crate) async fn control_digital_download(app_id: u32, action: String) -> Res
                         return Ok(status);
                     }
                     if ["completed", "cancelled", "error"].contains(&phase) {
-                        return Err("La descarga ya terminÃ³".to_string());
+                        return Err("La descarga ya terminó".to_string());
                     }
                 }
             }
         }
-        Err("El motor no confirmÃ³ la acciÃ³n. El estado se actualizarÃ¡ al recibir su respuesta.".to_string())
+        Err("El motor no confirmó la acción. El estado se actualizará al recibir su respuesta.".to_string())
     }).await.map_err(|err| err.to_string())?
 }
 
@@ -233,8 +233,16 @@ pub(crate) async fn cancel_digital_download(app_id: u32) -> Result<serde_json::V
                 }
             }
         }
+        let tracked = digital_pids().lock().map_err(|err| err.to_string())?.get(&app_id).copied();
+        if tracked.is_none() {
+            // No engine process is running for this download (the app was restarted, or the engine died).
+            // There is nothing left to stop, so the download is simply cancelled instead of failing forever.
+            let status = serde_json::json!({ "appId": app_id, "phase": "cancelled", "progressPercent": 0, "statusText": "Descarga cancelada" });
+            fs::write(&path, status.to_string()).map_err(|err| err.to_string())?;
+            return Ok(status);
+        }
         let pid = digital_pids().lock().map_err(|err| err.to_string())?.get(&app_id).copied()
-            .ok_or_else(|| "No se pudo confirmar la cancelaciÃ³n del proceso".to_string())?;
+            .ok_or_else(|| "No se pudo confirmar la cancelación del proceso".to_string())?;
         #[cfg(target_os = "windows")]
         let result = Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()])
             .creation_flags(CREATE_NO_WINDOW).output().map_err(|err| err.to_string())?;
@@ -248,23 +256,40 @@ pub(crate) async fn cancel_digital_download(app_id: u32) -> Result<serde_json::V
     }).await.map_err(|err| err.to_string())?
 }
 
+/// Status reported when a download's status file cannot be read (empty, zero-filled or not JSON).
+fn corrupt_status(app_id: u32) -> serde_json::Value {
+    serde_json::json!({
+        "appId": app_id.to_string(),
+        "phase": "interrupted",
+        "progressPercent": 0.0,
+        "statusText": "El estado de la descarga se dañó",
+        "error": "El archivo de estado quedó dañado, probablemente por un cierre inesperado. Reintentá la descarga."
+    })
+}
+
 #[tauri::command]
 pub(crate) async fn digital_download_status(app_id: u32) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
         let status_file = launcher.join(".cache").join("digital_downloads").join(format!("{app_id}.json"));
         if status_file.exists() {
-            let content = fs::read_to_string(&status_file).map_err(|err| err.to_string())?;
-            println!("[Rust:digital_download_status] Status file exists for {app_id}: {content}");
-            let mut value: serde_json::Value = serde_json::from_str(&content).map_err(|err| err.to_string())?;
+            let parsed = fs::read(&status_file)
+                .map_err(|err| err.to_string())
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|err| err.to_string()));
+            let mut value = match parsed {
+                Ok(value) if value.is_object() => value,
+                // A crash can leave the status file empty or full of zeros. Report it as interrupted so the
+                // caller stops polling it, instead of failing once a second for as long as the app is open.
+                _ => return Ok(corrupt_status(app_id)),
+            };
             let phase = value["phase"].as_str().unwrap_or("");
             if ["preparing", "downloading", "paused", "installing", "decompressing"].contains(&phase) {
                 let stale = fs::metadata(&status_file).and_then(|m| m.modified()).ok()
                     .and_then(|time| time.elapsed().ok()).map(|elapsed| elapsed.as_secs() > 15).unwrap_or(false);
                 if stale {
                     value["phase"] = serde_json::json!("interrupted");
-                    value["statusText"] = serde_json::json!("El proceso dejÃ³ de responder");
-                    value["error"] = serde_json::json!("El motor no actualizÃ³ su estado. ReintentÃ¡ la descarga.");
+                    value["statusText"] = serde_json::json!("El proceso dejó de responder");
+                    value["error"] = serde_json::json!("El motor no actualizó su estado. Reintentá la descarga.");
                 }
             }
             Ok(value)

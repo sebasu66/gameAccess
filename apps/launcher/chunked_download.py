@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import threading
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import os
 import re
@@ -28,6 +29,7 @@ logger = logging.getLogger("digital_downloader")
 POLL_SECONDS = 2.0
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
+SPEED_WINDOW_SECONDS = 20.0      # speed and time left are measured over this recent window
 STREAM_CHUNK = 1 << 20
 DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-3 MB/s
 NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
@@ -172,6 +174,7 @@ class ChunkedDownloader:
         base_done = 0
         last_emit = 0.0
         last_report = 0.0
+        samples: deque[tuple[float, int]] = deque()
         self.abort.clear()
         self.live.clear()
         pool = ThreadPoolExecutor(max_workers=self.parallel)
@@ -235,9 +238,17 @@ class ChunkedDownloader:
                     if last_emit - last_report >= 15:
                         last_report = last_emit
                         ready_now = sum(1 for p in manifest["pieces"] if p["ready"] and p["index"] not in done)
-                        logger.info("Piezas: %s completas, %s bajando, %s listas en el servidor (sin bajar), %s en total",
-                                    len(done), len(inflight), ready_now - len(inflight), len(manifest["pieces"]))
-                    speed = int(max(got - base_done, 0) / max(time.time() - started, 0.001))
+                        busy = ", ".join(f"#{i} {self.live.get(i, 0) >> 20}/{sizes.get(i, 0) >> 20} MB" for i in sorted(inflight.values()))
+                        logger.info("Piezas: %s completas, %s bajando, %s listas en el servidor (sin bajar), %s en total%s",
+                                    len(done), len(inflight), ready_now - len(inflight), len(manifest["pieces"]),
+                                    f" [{busy}]" if busy else "")
+                    # Speed and time left come from the last few seconds, not from the whole download:
+                    # an average since the start keeps saying "fast" while the last big piece crawls.
+                    samples.append((last_emit, got))
+                    while len(samples) > 2 and last_emit - samples[0][0] > SPEED_WINDOW_SECONDS:
+                        samples.popleft()
+                    span = last_emit - samples[0][0]
+                    speed = int(max(got - samples[0][1], 0) / span) if span >= 2.0 else 0
                     eta = int((total - got) / speed) if speed > 0 else 0
                     if inflight:
                         context.emit_progress(app_id, "downloading", got / total * 100.0 if total else 0.0, got, total, speed, eta,
@@ -363,7 +374,9 @@ class ChunkedDownloader:
                 part.unlink(missing_ok=True)
                 return
             except (requests.RequestException, ChunkedDownloadError, OSError) as exc:
-                last_error = str(exc)
+                last_error = str(exc) or type(exc).__name__
+                logger.warning("Pieza %s: intento %s de %s fallo (%s)%s", index, attempt, PIECE_ATTEMPTS, last_error,
+                               "; se reintenta" if attempt < PIECE_ATTEMPTS else "")
                 self.live[index] = 0
                 part.unlink(missing_ok=True)
                 if attempt < PIECE_ATTEMPTS:

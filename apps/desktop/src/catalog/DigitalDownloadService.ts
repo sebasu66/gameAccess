@@ -14,6 +14,8 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 import { getActivationTier } from "../activation";
 
+/** Consecutive unreadable status checks (one per second) after which a download is reported as interrupted. */
+const MAX_STATUS_FAILURES = 10;
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
 export interface DownloadSpeedSample { time: number; speedBps: number; }
 
@@ -339,11 +341,13 @@ export class DigitalDownloadService implements IDownloadProvider {
       clearInterval(this.pollingIntervals.get(gameId));
     }
     let pending = false;
+    let failures = 0;
     const interval = setInterval(async () => {
       if (!hasTauriRuntime() || pending || !this.running.has(gameId)) return;
       pending = true;
       try {
         const raw = await invoke<any>("digital_download_status", { appId });
+        failures = 0;
         console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
         if (!this.running.has(gameId)) return;
         if (raw && raw.phase) {
@@ -368,9 +372,16 @@ export class DigitalDownloadService implements IDownloadProvider {
           }
         }
       } catch (pollErr) {
-        void narrate(`Digital AppID ${gameId} · consulta de estado: ${String(pollErr)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+        failures += 1;
+        // Log the first failure and then only now and then: one line a second for hours buries everything else.
+        if (failures === 1 || failures % 60 === 0) void narrate(`Digital AppID ${gameId} · consulta de estado (fallo ${failures}): ${String(pollErr)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
         console.warn(`[DigitalDownloaderService:polling] Error during status polling:`, pollErr);
-        // Preserve the last confirmed state on a failed probe.
+        // Keep the last confirmed state on a failed probe, but do not poll an unreadable status forever.
+        if (failures >= MAX_STATUS_FAILURES) {
+          const last = this.activeJobs.get(gameId);
+          this.updateSnapshot({ ...(last ?? { gameId, progress: 0 }), gameId, phase: "interrupted",
+            statusText: "No se pudo leer el estado de la descarga", error: String(pollErr) });
+        }
       } finally {
         pending = false;
       }
