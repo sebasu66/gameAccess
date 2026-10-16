@@ -53,3 +53,5 @@ tipo: log
 - Fix scroll: LibrarySectionShelf ya no recentra cuando la lista se reordena/crece; solo al cambiar el juego seleccionado.
 
 - Seleccionar un juego ya no relanza la consulta completa del catalogo (el descubrimiento de fuentes de un juego publica scope game y useCatalogQuery lo ignora). Entrada: una sola fuente a la vez (teclado o mando 1); el mando solo se escucha en modo pantalla grande y toma el control solo con una pulsacion nueva, no con repeticiones.
+
+- Pico de CPU al descargar: el estado de cada descarga activa se aplicaba por separado cada segundo (varios renders completos por segundo, mas escritura sincrona a localStorage y console.log del estado). Ahora se agrupa en una actualizacion por segundo (cambio de fase inmediato) y se guarda a disco cada 4 s.

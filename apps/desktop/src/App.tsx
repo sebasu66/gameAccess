@@ -201,17 +201,39 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
   useEffect(() => {
     if (getCatalogMode() !== "digital") return;
-    const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
-      const managed = digitalDownloadService.getManagedStatus(snapshot.gameId);
-      if (managed) {
-        setDownloads((current) => ({
-          ...current,
-          [snapshot.gameId]: managed,
-          ...(managed.app_id ? { [managed.app_id]: managed } : {})
-        }));
+    // Every active download reports once a second. Applying each report on its own
+    // re-rendered the whole library several times a second, so progress ticks are
+    // merged into one state update per second; a phase change still applies at once.
+    const pendingIds = new Set<number>();
+    const lastPhase = new Map<number, string>();
+    let timer: number | null = null;
+    const flush = () => {
+      if (timer !== null) { window.clearTimeout(timer); timer = null; }
+      const ids = [...pendingIds];
+      pendingIds.clear();
+      const updates: Array<[number, NonNullable<ReturnType<typeof digitalDownloadService.getManagedStatus>>]> = [];
+      for (const id of ids) {
+        const managed = digitalDownloadService.getManagedStatus(id);
+        if (managed) updates.push([id, managed]);
       }
+      if (!updates.length) return;
+      setDownloads((current) => {
+        const next = { ...current };
+        for (const [id, managed] of updates) {
+          next[id] = managed;
+          if (managed.app_id) next[managed.app_id] = managed;
+        }
+        return next;
+      });
+    };
+    const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
+      pendingIds.add(snapshot.gameId);
+      const phaseChanged = lastPhase.get(snapshot.gameId) !== snapshot.phase;
+      lastPhase.set(snapshot.gameId, snapshot.phase);
+      if (phaseChanged) flush();
+      else if (timer === null) timer = window.setTimeout(flush, 1000);
     });
-    return () => unsub();
+    return () => { unsub(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
 
   // Source/metadata updates do not change the folders we need to check.

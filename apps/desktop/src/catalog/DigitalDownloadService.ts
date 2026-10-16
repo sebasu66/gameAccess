@@ -79,7 +79,14 @@ export class DigitalDownloadService implements IDownloadProvider {
     } catch { /* Invalid saved state must not block catalog startup. */ }
   }
 
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private persistSoon(): void {
+    if (this.persistTimer !== null) return;
+    this.persistTimer = setTimeout(() => { this.persistTimer = null; this.persist(); }, 4000);
+  }
+
   private persist(): void {
+    if (this.persistTimer !== null) { clearTimeout(this.persistTimer); this.persistTimer = null; }
     if (!this.storageKey || typeof localStorage === "undefined") return;
     try {
       localStorage.setItem(this.storageKey, JSON.stringify({
@@ -348,7 +355,6 @@ export class DigitalDownloadService implements IDownloadProvider {
       try {
         const raw = await invoke<any>("digital_download_status", { appId });
         failures = 0;
-        console.log(`[DigitalDownloaderService:polling] Status from Tauri for ${appId}:`, raw);
         if (!this.running.has(gameId)) return;
         if (raw && raw.phase) {
           const snapshot: DownloadProgressSnapshot = {
@@ -555,7 +561,10 @@ export class DigitalDownloadService implements IDownloadProvider {
       void narrate(`Digital AppID ${snapshot.gameId} · job ended (${snapshot.phase}); active=${this.running.size}, queued=${this.queue.length}; scheduler checking the next job.`, { area: "DIGITAL_DOWNLOAD" });
       queueMicrotask(() => { void this.pump(); });
     }
-    this.persist();
+    // Progress ticks arrive every second per download; the stored copy only has to
+    // survive a restart, so it is written at phase changes and otherwise every few seconds.
+    if (previous?.phase !== snapshot.phase) this.persist();
+    else this.persistSoon();
     const subs = this.listeners.get(snapshot.gameId);
     if (subs) {
       for (const listener of subs) {
