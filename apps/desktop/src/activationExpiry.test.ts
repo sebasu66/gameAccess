@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import gateSource from "./ActivationGate.tsx?raw";
-import i18nSource from "./i18n.ts?raw";
+import i18nSource from "./locales/es.ts?raw";
 import {
   ACTIVATION_TIMER_SLICE_MS,
   ACTIVATION_WARNING_MS,

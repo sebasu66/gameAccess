@@ -221,8 +221,8 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
 }
 
 /** Short notice shown when premium ends: the app simply continues in free mode. */
-function endNotice(end: ActivationEnd, t: (key: "activationRevokedTitle" | "activationTimeEndedTitle" | "activationUnavailableTitle") => string): string {
+function endNotice(end: ActivationEnd, t: (key: "activationRevokedTitle" | "activationTimeEnded" | "activationUnavailableTitle") => string): string {
   return end.reason === "revoked" ? t("activationRevokedTitle")
-    : end.reason === "expired" ? t("activationTimeEndedTitle")
+    : end.reason === "expired" ? t("activationTimeEnded")
     : t("activationUnavailableTitle");
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import source from "./main.tsx?raw";
-import i18nSource from "./i18n.ts?raw";
+import i18nSource from "./locales/es.ts?raw";
 
 
 describe("GameAccess catalog refresh control", () => {
