@@ -3,6 +3,7 @@ import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork } from "./bundledArtwork";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { libraryMembership } from "./libraryMembership";
 import { queryCatalogCache } from "./catalogCache";
 import { getCatalogMode } from "./catalogMode";
@@ -52,6 +53,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 
+/** App ids of games with real files in the games folder (empty or partial folders are skipped). */
+async function installedDiskAppIds(): Promise<number[]> {
+  const local = await digitalProcessManager.localGames();
+  const found = (local.games ?? []).filter(game => Number.isSafeInteger(game.id) && game.id > 0);
+  if (!found.length) return [];
+  const result = await digitalProcessManager.snapshot(found as CatalogGame[]);
+  return found.map(game => game.id).filter(id => result.statuses?.[id]?.installed);
+}
 export async function loadHome(): Promise<{games: CatalogGame[]; user: UserSummary; offlineDemo: boolean}> {
   let offlineDemo = false;
   try {
@@ -64,10 +73,13 @@ export async function loadHome(): Promise<{games: CatalogGame[]; user: UserSumma
   if (mode === "local") {
     installedIds = await steamInstalledAppIds().catch(() => []);
   }
+  // Games already installed in the games folder belong in the library even if this browser never tracked them
+  // (restart, cleared storage, files copied by hand): the folder on disk is the source of truth.
+  const diskIds = mode === "digital" ? await installedDiskAppIds().catch(() => [] as number[]) : [];
   const downloadEntries = digitalDownloadService.getDownloads();
   const downloadIds = downloadEntries.map(e => e.game.app_id ?? e.game.id);
   const memberIds = libraryMembership.getGames().map(g => g.app_id ?? g.id);
-  const activeIds = [...new Set([...installedIds, ...downloadIds, ...memberIds])];
+  const activeIds = [...new Set([...installedIds, ...downloadIds, ...memberIds, ...diskIds])];
 
   let games: CatalogGame[] = [];
   if (activeIds.length > 0) {
