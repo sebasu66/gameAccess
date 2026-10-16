@@ -9,10 +9,9 @@ AI_Local_Access, then build/test the exact commit. Preserve user changes.
 
 ## Product boundaries
 
-GameAccess is a game library, Steam discovery catalog and generic torrent/file
-download manager. It does not manage Steam accounts, licenses, rental leases or
-account switching. The former implementation is preserved on
-codex/legacy-steam-licenses; see docs/STEAM_LICENSE_ARCHIVE.md.
+GameAccess is a game library, discovery catalog and generic torrent/file
+download manager. The product definition lives in vault/Proyecto.md; the task
+board in vault/Tareas.md.
 
 BASE permits one active download and PLUS four. Both share the same catalog,
 placements, actions and persistent queue. PLUS source resolution can use the server-side
@@ -24,8 +23,9 @@ Manual links and profiles are user inputs and work without a plugin.
 The GameAccess server never stores or distributes provider feeds, passwords or preparation procedures. The default Download action selects
 their first ranked source. Keep its size in the label and show the available source
 count in brackets. Advanced source choices belong behind the three-dot menu.
-Source-name filters come from live plugins; source availability must not come from
-the discovery database, a Steam disk requirement or a license pool.
+Source-name filters and source availability come from the plugin's source list,
+synchronized into the local database (tables download_sources and game_sources);
+this is the target design, see vault/Tareas.md task B.
 
 ## UX and execution
 
@@ -43,8 +43,8 @@ Log source discovery, download lifecycle, installation and game execution.
 Ship the SQLite discovery seed in every installer, read it before network waits,
 and receive server batches at startup and at most daily. Merge additions and changed
 records transactionally; never delete games or erase known fields with empty data.
-Compare Steam AppID inventories to repair missing records. Activation gates entry
-and session lifetime, not individual actions or catalog loading. Maintain Steam coverage
+Compare Steam AppID inventories to repair missing records. Entry is free
+without a key; the activation key unlocks PLUS, not individual actions or catalog loading. Maintain Steam coverage
 outside the desktop. Record provenance and coverage; unknown features stay unknown.
 Co-Optimus is an optional cached lookup when the game detail opens.
 

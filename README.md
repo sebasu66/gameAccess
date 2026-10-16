@@ -14,18 +14,18 @@ catalog and a generic torrent/file download manager.
 - Game details expose launch configuration and language repair through advanced options.
 - Co-Optimus enrichment is requested only when a user opens the game details.
 
-The earlier Steam account, license, rental and account-switching implementation
-is preserved on [codex/legacy-steam-licenses](https://github.com/sebasu66/gameAccess/tree/codex/legacy-steam-licenses).
-It is excluded from this version. GameAccess activation keys govern this application's
-BASE/PLUS features and do not represent Steam licenses.
+Activation keys unlock the PLUS features of this application.
+
+Project definition: [vault/Proyecto.md](vault/Proyecto.md). Task board: [vault/Tareas.md](vault/Tareas.md).
 
 ## Development
 
 Read [AGENTS.md](AGENTS.md), [the execution protocol](docs/EXECUTION_PROTOCOL.md)
 and [skill.md](skill.md) before implementation. Development uses `dev`; `main`
-holds stable releases. Local agents edit and test the existing checkout first,
-then commit/push on `dev`. GitHub-first is only for remote agents without direct
-filesystem access. Do not create a new branch for each task.
+is only updated when the project is ready for its first live test (there are no
+users yet). Local agents edit and test the existing checkout first, then commit
+and push each verified step to `dev`. GitHub-first is only for remote agents
+without direct filesystem access. Do not create a new branch for each task.
 
 The React/Tauri client is in apps/desktop, the central FastAPI service in apps/api,
 and the bundled torrent/file, installation and execution helpers in apps/launcher.
@@ -38,8 +38,8 @@ npm run tauri -- build
 ```
 
 The NSIS installer includes the Python helpers and compressed SQLite catalog.
-See [discovery maintenance](tools/catalog-cache/README.md),
-[architecture](docs/architecture.md) and [the archive boundary](docs/STEAM_LICENSE_ARCHIVE.md).
+See [discovery maintenance](tools/catalog-cache/README.md) and
+[architecture](docs/architecture.md).
 
 Development references: [module ownership](docs/MODULE_MAP.md) and
 [critical regression batches](docs/TESTING.md).
