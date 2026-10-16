@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { useI18n } from "./i18n";
 
 type Props = {
   query: string;
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export default function SteamGlobalSearch({ query, setQuery }: Props) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(query);
 
@@ -60,12 +62,12 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Buscá tu próximo juego"
+          placeholder={t("uiBuscaTuProximoJuego")}
           autoComplete="off"
-          aria-label="Buscar juegos por título o metadatos"
+          aria-label={t("uiBuscarJuegosPorTitulo")}
         />
         {draft || query ? (
-          <button type="button" onClick={handleClear} aria-label="Limpiar búsqueda">
+          <button type="button" onClick={handleClear} aria-label={t("uiLimpiarBusqueda")}>
             <X size={15} />
           </button>
         ) : null}

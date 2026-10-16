@@ -7,6 +7,7 @@ import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
+import { useI18n } from "./i18n";
 
 export type DownloadMap = Record<number, ManagedDownloadStatus>;
 export type FocusZone = "grid" | "actions";
@@ -35,9 +36,10 @@ export function firstPresent<T>(...values: Array<T | null | undefined>): T | und
 }
 
 function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
+  const { t } = useI18n();
   const state = gameStateManager.resolve(status);
   if (!state.playButtonReady) return null;
-  return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title={t("uiListoParaPresionarJugar")}><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -249,30 +251,32 @@ export function handleGridKey(key: string, context: GridKeyContext) {
 }
 
 export function LibraryHint() {
+  const { t } = useI18n();
   return (
     <div className="library-room-hint">
-      <span>NAVEGAR · FLECHAS</span>
-      <span>IR A TÍTULO · LETRAS</span>
-      <span>ENTRAR / ACTIVAR · ENTER</span>
-      <span>VOLVER · ESC</span>
+      <span>{t("uiNavegarFlechas")}</span>
+      <span>{t("uiIrATituloLetras")}</span>
+      <span>{t("uiEntrarActivarEnter")}</span>
+      <span>{t("uiVolverEsc")}</span>
     </div>
   );
 }
 
 export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<HTMLDivElement>; loading: boolean }) {
+  const { t } = useI18n();
   return (
     <>
       <aside className="library-room-feature">
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
-          <span className="eyebrow">TU BIBLIOTECA</span>
+          <span className="eyebrow">{t("uiTuBiblioteca")}</span>
           <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
           <p>{loading ? "GameAccess está cargando el catálogo y tu biblioteca." : "No hay juegos en esta vista. Buscá un juego en el catálogo y agregalo a tu biblioteca."}</p>
-          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
+          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> {t("uiCargandoBiblioteca")}</span> : null}
         </div>
       </aside>
       <section className="library-room-catalog">
-        <header className="library-room-heading"><small>0 juegos</small></header>
+        <header className="library-room-heading"><small>{t("ui0Juegos")}</small></header>
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />

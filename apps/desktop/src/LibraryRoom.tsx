@@ -65,7 +65,7 @@ interface LibraryRoomProps {
 const IDLE_SHOWCASE_ENABLED = false;
 
 export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -108,6 +108,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const [bigScreen, setBigScreen] = useState(false);
   const previousFullscreen = useRef(false);
   const toggleBigScreen = async () => {
+  const { t } = useI18n();
     const next = !bigScreen;
     setBigScreen(next);
     try {
@@ -635,7 +636,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   ) : null;
 
   return (
-    <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label="Biblioteca">
+    <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame ? (
         <>
@@ -643,7 +644,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
           {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={`Detalles de ${selectedGame.name}`} tabIndex={-1}>
-              <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label="Cerrar detalles"><X size={23} strokeWidth={2.5} /></button>
+              <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
               <button type="button" className="ga-detail-more" aria-label={`Más opciones para ${selectedGame.name}`} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button>
               {detailPanel}
             </div>

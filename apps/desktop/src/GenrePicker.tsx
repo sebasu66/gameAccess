@@ -5,6 +5,7 @@ import { genreLabel } from "./libraryGenres";
 import { normalizeSearchText } from "./libraryText";
 import { ClearButton } from "./SentencePanels";
 import type { TriState } from "./TriStateOption";
+import { useI18n } from "./i18n";
 
 /**
  * The genre list behind "cualquier género": a small search box and an
@@ -17,6 +18,7 @@ export default function GenrePicker({ genres, stateOf, onSet, onClear }: {
   onSet: (genre: string, state: TriState) => void;
   onClear: () => void;
 }) {
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const rows = useMemo(() => {
     const needle = normalizeSearchText(text);
@@ -30,12 +32,12 @@ export default function GenrePicker({ genres, stateOf, onSet, onClear }: {
       <div className="ga-sx-genre-head">
       <label className="ga-sx-search">
         <Search size={15} aria-hidden="true" />
-        <input type="search" value={text} placeholder="Buscar género" aria-label="Buscar género" autoFocus
+        <input type="search" value={text} placeholder={t("uiBuscarGenero")} aria-label={t("uiBuscarGenero")} autoFocus
           onChange={event => setText(event.target.value)} />
       </label>
       <ClearButton onClick={onClear} disabled={!genres.some(genre => stateOf(genre) !== "off")} />
       </div>
-      <ul className="ga-sx-genre-list" aria-label="Géneros">
+      <ul className="ga-sx-genre-list" aria-label={t("uiGeneros")}>
         {rows.map(({ id, label }) => {
           const state = stateOf(id);
           const Icon = genreIcon(id);
@@ -50,7 +52,7 @@ export default function GenrePicker({ genres, stateOf, onSet, onClear }: {
             </li>
           );
         })}
-        {rows.length === 0 ? <li className="ga-sx-empty">Ningún género se llama así.</li> : null}
+        {rows.length === 0 ? <li className="ga-sx-empty">{t("uiNingunGeneroSeLlama")}</li> : null}
       </ul>
     </div>
   );

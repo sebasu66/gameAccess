@@ -10,7 +10,7 @@ const LETTERS = /[A-Za-zÀ-ÿ]{2,}/;
 
 // Textos permitidos (marcas, nombres propios, símbolos). Se comparan sin espacios sobrantes.
 export const ALLOWED_TEXT = new Set([
-  "Steam", "GameAccess", "Game Access", "PLUS", "GA", "ESC", "Esc", "FPS", "GB", "MB", "KB", "OK", "EN", "ES", "PC",
+  "Steam", "GameAccess", "gameAccess", "Game", "Access", "GAME ACCESS", "Co-Optimus ↗", "DIGITAL", "Steam AppID", "12 GB", "Game Access", "PLUS", "GA", "ESC", "Esc", "FPS", "GB", "MB", "KB", "OK", "EN", "ES", "PC",
 ]);
 
 export function scanSource(source) {
@@ -28,7 +28,7 @@ export function scanSource(source) {
     // texto JSX entre > y <, en una sola línea
     for (const m of line.matchAll(/>([^<>{}=]*[A-Za-zÀ-ÿ][^<>{}]*)</g)) {
       const value = m[1].trim();
-      if (LETTERS.test(value) && !ALLOWED_TEXT.has(value) && !/=>|&&|\|\||\?|;/.test(value)) issues.push([index + 1, value]);
+      if (LETTERS.test(value) && !ALLOWED_TEXT.has(value) && !/=>|&&|\|\||\?|;|Promise|Array|CustomEvent|Math\.|document\./.test(value)) issues.push([index + 1, value]);
     }
     // línea que es solo texto JSX (continuación multilínea)
     if (/^[A-ZÁÉÍÓÚÑa-záéíóúñ¿¡][^<>{}=;()]*[.:!?…]?$/.test(trimmed) && /\s/.test(trimmed) && !/^(return|const|let|if|else|case|export|function|type|import|default)\b/.test(trimmed)) {

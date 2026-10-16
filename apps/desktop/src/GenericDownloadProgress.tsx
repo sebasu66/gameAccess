@@ -2,6 +2,7 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 import type { GenericDownloadStatus, ManagedDownloadStatus } from "./downloadTypes";
 import { getAppLocale } from "./i18n";
+import { useI18n } from "./i18n";
 
 export interface DownloadProgressDisplayProps {
   download?: GenericDownloadStatus | ManagedDownloadStatus | null;
@@ -112,6 +113,7 @@ export function GenericDownloadProgressView({
   className = "library-room-active-download",
   showMetrics = true,
 }: DownloadProgressDisplayProps) {
+  const { t } = useI18n();
   if (!download) return null;
 
   const progress = getGenericProgress(download);
@@ -140,7 +142,7 @@ export function GenericDownloadProgressView({
   }
 
   return (
-    <div className={className} aria-label="Progreso de la descarga">
+    <div className={className} aria-label={t("uiProgresoDeLaDescarga")}>
       {rows.map(([label, value]) => (
         <div key={label}>
           <span>{label}</span>

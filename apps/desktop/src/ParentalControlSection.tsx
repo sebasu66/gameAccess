@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Lock, ShieldCheck } from "lucide-react";
 import { getParentalPolicy, isParentalLocked, setParentalPolicy, subscribeParentalPolicy, type ParentalLevel } from "./parentalControl";
+import { useI18n } from "./i18n";
 
 /** Reactive view of the enforced state, for any panel that must reflect it. */
 export function useParentalLocked(): boolean {
@@ -21,6 +22,7 @@ function useParentalPolicy() {
  * disabled while a policy is enforced.
  */
 export default function ParentalControlSection() {
+  const { t } = useI18n();
   const policy = useParentalPolicy();
   const locked = policy.enabled && policy.level !== "off";
   const setLevel = (level: ParentalLevel) => setParentalPolicy({ enabled: level !== "off", level });
@@ -33,10 +35,10 @@ export default function ParentalControlSection() {
     <summary>
       {locked ? <Lock size={12} aria-hidden="true" /> : <ShieldCheck size={12} aria-hidden="true" />}
       Control parental
-      {locked ? <small className="ga-filter-locked-note">activo</small> : null}
+      {locked ? <small className="ga-filter-locked-note">{t("uiActivo")}</small> : null}
     </summary>
     <p className="ga-parental-note">
-      Estos criterios solo <strong>excluyen</strong>. Mientras estén activos, el filtro de contenido queda bloqueado para que no se pueda revelar lo excluido.
+      Estos criterios solo <strong>{t("uiExcluyen")}</strong>. Mientras estén activos, el filtro de contenido queda bloqueado para que no se pueda revelar lo excluido.
     </p>
     <div className="ga-parental-levels">
       {levels.map(({ id, label, detail }) => <label key={id} title={detail}>
@@ -46,7 +48,7 @@ export default function ParentalControlSection() {
     </div>
     <label className="ga-parental-violence">
       <input type="checkbox" checked={policy.hideViolence} onChange={event => setParentalPolicy({ hideViolence: event.target.checked })} />
-      <span>Ocultar también violencia y gore<small>Descriptor 2 de Valve: afecta a juegos como Mortal Kombat o Resident Evil. Es una política aparte, no contenido adulto.</small></span>
+      <span>{t("uiOcultarTambienViolenciaY")}<small>{t("uiDescriptor2DeValve")}</small></span>
     </label>
   </details>;
 }

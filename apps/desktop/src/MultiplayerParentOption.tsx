@@ -1,4 +1,5 @@
 import { Infinity as InfinityIcon } from "lucide-react";
+import { useI18n } from "./i18n";
 
 /**
  * The parent of the multiplayer tree.
@@ -12,12 +13,13 @@ export default function MultiplayerParentOption({ selected, disabled, onToggle }
   disabled: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className={"ga-tree-parent" + (selected ? " is-selected" : "") + (disabled ? " is-branch-disabled" : "")}
       title={disabled ? "No aplica a \"Solo un jugador\"" : "Juegos que admiten multijugador"}>
       <input type="checkbox" checked={selected} disabled={disabled} onChange={onToggle} />
-      <strong>Admite multijugador</strong>
-      <small>Todo lo de abajo es un requisito dentro de este grupo</small>
+      <strong>{t("uiAdmiteMultijugador")}</strong>
+      <small>{t("uiTodoLoDeAbajo")}</small>
     </label>
   );
 }

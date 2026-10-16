@@ -3,6 +3,7 @@ import { Download, ExternalLink, Loader2, ShoppingCart, X } from "lucide-react";
 
 import { loadSteamApp } from "./api";
 import type { SteamMetadata, SteamSearchResult } from "./types";
+import { useI18n } from "./i18n";
 import "./steam-store-detail.css";
 
 function stripHtml(value?: string) {
@@ -41,6 +42,7 @@ type Props = {
 };
 
 export default function SteamStoreDetail({ result, onClose }: Props) {
+  const { t } = useI18n();
   const [steam, setSteam] = useState<SteamMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,16 +81,16 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
   return (
     <div className="modal-backdrop steam-store-backdrop" onMouseDown={onClose}>
       <article className="steam-store-detail" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="close-detail" onClick={onClose} aria-label="Cerrar"><X size={22} /></button>
+        <button className="close-detail" onClick={onClose} aria-label={t("uiCerrar")}><X size={22} /></button>
 
         <section className="steam-store-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           {trailer?.mp4 ? <video className="steam-store-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline /> : null}
           <div className="steam-store-shade" />
           <div className="steam-store-copy">
-            <span className="eyebrow">CATÁLOGO STEAM</span>
+            <span className="eyebrow">{t("uiCatalogoSteam")}</span>
             <h1>{steam?.name || result.name}</h1>
             <div className="steam-store-meta">
-              <span className="steam-store-not-owned">Todavía sin licencia GameAccess</span>
+              <span className="steam-store-not-owned">{t("uiTodaviaSinLicenciaGameaccess")}</span>
               {steam?.release_date ? <span>{steam.release_date}</span> : null}
               {price ? <strong>Steam {price}</strong> : null}
             </div>
@@ -102,20 +104,20 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
                 <ShoppingCart size={21} /> Comprar
               </button>
               {result.steam_url ? (
-                <button className="steam-store-icon-action" onClick={() => window.open(result.steam_url, "_blank", "noopener,noreferrer")} aria-label="Abrir en Steam">
+                <button className="steam-store-icon-action" onClick={() => window.open(result.steam_url, "_blank", "noopener,noreferrer")} aria-label={t("uiAbrirEnSteam")}>
                   <ExternalLink size={18} />
                 </button>
               ) : null}
             </div>
             {message ? <div className="steam-store-message">{message}</div> : null}
             <small className="steam-store-note">
-              La ficha puede verse sin licencia. Compra y descarga son acciones separadas para que GameAccess pueda vincular automáticamente el acceso adquirido y continuar con la instalación.
+              {t("uiLaFichaPuedeVerse")}
             </small>
           </div>
         </section>
 
         <div className="steam-store-body">
-          {loading ? <div className="steam-store-loading"><Loader2 className="spin" size={18} /> Cargando ficha completa desde Steam…</div> : null}
+          {loading ? <div className="steam-store-loading"><Loader2 className="spin" size={18} /> {t("uiCargandoFichaCompletaDesde")}</div> : null}
           {error ? <div className="steam-store-error">No pudimos completar la ficha: {error}</div> : null}
 
           {currentShot?.full ? (
@@ -133,9 +135,9 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
 
           <section className="steam-store-purchase-preview">
             <div>
-              <span>Compra</span>
-              <h3>Una sola ficha, varias formas de conseguir acceso</h3>
-              <p>Hoy mostramos el precio oficial de Steam como referencia. El modelo ya queda preparado para sumar ofertas externas normalizadas, aplicar margen y mostrar una opción de compra dentro de GameAccess.</p>
+              <span>{t("uiCompra")}</span>
+              <h3>{t("uiUnaSolaFichaVarias")}</h3>
+              <p>{t("uiHoyMostramosElPrecio")}</p>
             </div>
             <div className="steam-store-price-box">
               <small>Steam</small>

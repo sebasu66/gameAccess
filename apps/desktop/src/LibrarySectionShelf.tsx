@@ -7,6 +7,7 @@ import { resourceGuard, RESOURCE_LIMITS } from "./ResourceGuard";
 import { computeShelfWindow, type ShelfWindow, type ShelfWindowMetrics } from "./libraryShelfWindow";
 import type { LibrarySection } from "./librarySections";
 import type { CatalogGame } from "./types";
+import { useI18n } from "./i18n";
 
 interface Props {
   section: LibrarySection;
@@ -22,6 +23,7 @@ const FALLBACK_ROW_HEIGHT = 288;
 const FALLBACK_VIEWPORT_HEIGHT = 900;
 
 export default function LibrarySectionShelf({ section, selectedId, renderGame, reset, scrollRoot }: Props) {
+  const { t } = useI18n();
   const [metrics, setMetrics] = useState<ShelfWindowMetrics | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(900);
@@ -204,7 +206,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
     <header className="library-section-heading">
       <div>
         <h2>{section.title} <small>{section.total ?? section.games.length}</small></h2>
-        {section.description ? <span>{section.description}</span> : section.id === "installed" ? <span>Últimos jugados primero</span> : null}
+        {section.description ? <span>{section.description}</span> : section.id === "installed" ? <span>{t("uiUltimosJugadosPrimero")}</span> : null}
       </div>
     </header>
     <div id={`section-${section.id}`} className="library-section-grid" style={{ paddingTop: `${windowRange.paddingTop}px`, paddingBottom: `${windowRange.paddingBottom}px` }}>{visibleGames.map((game, index) => {

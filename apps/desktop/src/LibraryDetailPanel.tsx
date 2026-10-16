@@ -39,6 +39,7 @@ const SCREENSHOT_HOLD_MS = 8_000;
 
 /** Steam approval as a bar that fills on mount and whenever the value changes. */
 function RatingBar({ score, count }: { score?: number | null; count?: number | null }) {
+  const { t } = useI18n();
   const target = typeof score === "number" && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null;
   const [shown, setShown] = useState(0);
   useEffect(() => {
@@ -51,7 +52,7 @@ function RatingBar({ score, count }: { score?: number | null; count?: number | n
   return <div className="ga-detail-rating">
     <strong>{target === null ? "—" : `${Math.round(target)}%`}</strong>
     <div className="ga-rating-main">
-      <div className={`ga-rating-bar is-${tone}`} role="progressbar" aria-label="Valoración de usuarios en Steam" aria-valuemin={0} aria-valuemax={100} aria-valuenow={target === null ? undefined : Math.round(target)}><i style={{ width: `${shown}%` }} /></div>
+      <div className={`ga-rating-bar is-${tone}`} role="progressbar" aria-label={t("uiValoracionDeUsuariosEn")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={target === null ? undefined : Math.round(target)}><i style={{ width: `${shown}%` }} /></div>
       <span>Valoración de usuarios en Steam · {count ? `${count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span>
     </div>
   </div>;
@@ -238,16 +239,18 @@ function InstalledGameShortcut({game}:{game:CatalogGame}) {
 }
 
 function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
+  const { t } = useI18n();
   return (
     <div className="library-room-preferences">
       <span>¿Te gusta?</span>
-      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18} /></button>
-      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18} /></button>
+      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label={t("uiMeGusta")}><ThumbsUp size={18} /></button>
+      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={18} /></button>
     </div>
   );
 }
 
 function LegacyDisplayMedia(props: LegacyMediaProps) {
+  const { t } = useI18n();
   const muted = props.videoMuted || props.videoVolume === 0;
   return (
     <>
@@ -258,7 +261,7 @@ function LegacyDisplayMedia(props: LegacyMediaProps) {
         {props.artwork.layers.map((source, index) => source ? <img key={`hero-${index}-${source}`} className={`library-room-hero-layer ${index === props.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} /> : null)}
         {props.videoSrc ? <video key={props.videoSrc} ref={props.videoRef} className={`library-room-video ${props.readyVideoSrc === props.videoSrc ? "is-ready" : ""}`} src={props.videoSrc} poster={props.movie?.thumbnail} autoPlay muted={props.videoMuted} playsInline preload="auto" onLoadedMetadata={(event) => props.onVideoMetadata(event.currentTarget)} onCanPlay={(event) => props.onVideoReady(event.currentTarget)} onEnded={(event) => props.onVideoMetadata(event.currentTarget)} /> : null}
         <div className="library-room-feature-shade" />
-        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label="Volumen del video" type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
+        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
       </div>
     </>
   );
@@ -362,6 +365,7 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
 }
 
 function MediaControls({ model }: { model: MediaController }) {
+  const { t } = useI18n();
   const toggle = () => {
     if (model.paused && model.reducedMotion && model.videoSrc) model.setState((current) => ({ ...current, phase: "video", videoAvailable: true }));
     model.setPaused((current) => !current);
@@ -369,12 +373,13 @@ function MediaControls({ model }: { model: MediaController }) {
   return (
     <div className="library-room-media-controls">
       <button type="button" onClick={toggle} aria-label={model.paused ? "Reanudar medios" : "Pausar medios"}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
-      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label="Volumen del video" type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
+      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
     </div>
   );
 }
 
 function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const { t } = useI18n();
   const model = useDesktopMedia(game, details);
   return (
     <div className="library-detail-media">
@@ -383,8 +388,8 @@ function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: Gam
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
         {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
-        {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label="Reproducir tráiler" onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
-        <span className="ga-media-badge">Tráiler y capturas</span>
+        {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label={t("uiReproducirTrailer")} onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
+        <span className="ga-media-badge">{t("uiTrailerYCapturas")}</span>
         <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? "Tráiler del juego" : "Capturas del juego"}</span>
         <MediaControls model={model} />
       </div>
@@ -509,20 +514,22 @@ function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus })
 }
 
 function ExtendedDetails({ details }: { details: GameDetails | null }) {
+  const { t } = useI18n();
   const steam = details?.steam;
   const about = steam?.about_the_game || steam?.detailed_description || "";
   const minimum = steam?.minimum_requirements ?? "";
   const recommended = steam?.recommended_requirements ?? "";
   return (
     <div className="library-detail-extended">
-      {about ? <section className="library-room-copy-block"><h3>Acerca del juego</h3><SteamRichText html={about} /></section> : null}
-      {minimum || recommended ? <section className="library-room-requirements-block">{minimum ? <div><h3>Requisitos mínimos</h3><SteamRichText html={minimum} /></div> : null}{recommended ? <div><h3>Requisitos recomendados</h3><SteamRichText html={recommended} /></div> : null}</section> : null}
+      {about ? <section className="library-room-copy-block"><h3>{t("uiAcercaDelJuego")}</h3><SteamRichText html={about} /></section> : null}
+      {minimum || recommended ? <section className="library-room-requirements-block">{minimum ? <div><h3>{t("uiRequisitosMinimos")}</h3><SteamRichText html={minimum} /></div> : null}{recommended ? <div><h3>{t("uiRequisitosRecomendados")}</h3><SteamRichText html={recommended} /></div> : null}</section> : null}
 
     </div>
   );
 }
 
 function DesktopFeature(props: FeaturePanelProps) {
+  const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
   const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
@@ -532,31 +539,31 @@ function DesktopFeature(props: FeaturePanelProps) {
   const installSize = useInstallSize(props.game.app_id);
   const steam = details?.steam;
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "tablet") {
-    return <aside className="library-room-feature"><SteamHeaderArtwork game={props.game} details={details} /><section className="library-detail-essential" aria-label="Resumen esencial del juego"><DesktopDetailMedia game={props.game} details={details} /><section className="library-room-first-row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p></header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section><section className="library-room-second-row"><SteamFacts details={details} game={props.game} /><ActiveDownloadFacts download={props.download} /></section></section><ExtendedDetails details={details} /></aside>;
+    return <aside className="library-room-feature"><SteamHeaderArtwork game={props.game} details={details} /><section className="library-detail-essential" aria-label={t("uiResumenEsencialDelJuego")}><DesktopDetailMedia game={props.game} details={details} /><section className="library-room-first-row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p></header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section><section className="library-room-second-row"><SteamFacts details={details} game={props.game} /><ActiveDownloadFacts download={props.download} /></section></section><ExtendedDetails details={details} /></aside>;
   }
   return (
     <article className="ga-game-detail">
       <SteamHeaderArtwork game={props.game} details={details} />
       <div className="ga-detail-body">
-        <section className="ga-detail-info" aria-label="Información del juego">
-          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{(steam?.genres ?? props.game.genres)?.join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title="Actualizar datos de Steam" aria-label="Actualizar datos de Steam" disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
+        <section className="ga-detail-info" aria-label={t("uiInformacionDelJuego")}>
+          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{(steam?.genres ?? props.game.genres)?.join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
           <h1>{props.game.name}</h1>
           <div className="ga-detail-facts"><span>{steam?.release_date ?? props.game.release_date ?? "Lanzamiento no informado"}</span><span>{installSize}</span><span>{platforms(details)}</span></div>
           <DetailPlayModes game={props.game} details={details} />
           <div className="ga-scroll-frame ga-detail-scroll-frame">
           <div ref={scrollRef} className="ga-detail-scroll">
             <p className="ga-detail-lead">{summary}</p>
-            {detailState.loading ? <span role="status">Cargando ficha de Steam…</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
+            {detailState.loading ? <span role="status">{t("uiCargandoFichaDeSteam")}</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
             <RatingBar score={ratingGame.steam_review_score} count={ratingGame.steam_review_count} />
             <ExtendedDetails details={details} />
-            <section className="ga-detail-metadata"><h3>Más información</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>Etiquetas</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
+            <section className="ga-detail-metadata"><h3>{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
             <ActiveDownloadFacts download={props.download} />
           </div>
-          <CircularScrollbar targetRef={scrollRef} label="Desplazar información del juego" />
+          <CircularScrollbar targetRef={scrollRef} label={t("uiDesplazarInformacionDelJuego")} />
           </div>
-          <div className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label="Me gusta" aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label="No me gusta" aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
+          <div className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label="Videos y capturas"><DesktopDetailMedia game={props.game} details={details} /></section>
+        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /></section>
       </div>
     </article>
   );

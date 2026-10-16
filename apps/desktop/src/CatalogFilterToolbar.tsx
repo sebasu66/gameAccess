@@ -4,6 +4,7 @@ import { activeFilterTags, setCriterionState, type FilterTagGroup } from "./Libr
 import { type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogSort } from "./librarySections";
 import type { CatalogGame } from "./types";
+import { useI18n } from "./i18n";
 
 /**
  * The filter bar above the catalog grid: which filters are active, how to remove
@@ -24,6 +25,7 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   onFiltersChange: (filters: LibrarySearchFilters) => void;
   onOpenFilters: () => void;
 }) {
+  const { t } = useI18n();
   const active = activeFilterTags(filters);
   const clearCriterion = (group: FilterTagGroup, value: string) => {
     if (group === "rating") {
@@ -39,16 +41,16 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
       <button type="button" className="ga-filter-open" aria-haspopup="dialog" onClick={onOpenFilters}>
         <FilledIcon name="genres" />Filtros{active.length ? ` · ${active.length}` : ""}
       </button>
-      <div className="ga-filter-tags" aria-label="Filtros activos">
+      <div className="ga-filter-tags" aria-label={t("uiFiltrosActivos")}>
         {active.length ? active.map(tag => <span key={`${tag.group}:${tag.value}`} className="ga-filter-tag">
           <button type="button" onClick={onOpenFilters}>{tag.label}</button>
           <button type="button" aria-label={`Quitar filtro ${tag.label}`} onClick={() => clearCriterion(tag.group, tag.value)}><X size={13} /></button>
-        </span>) : <span className="ga-filter-any">Todos</span>}
+        </span>) : <span className="ga-filter-any">{t("uiTodos")}</span>}
       </div>
       <span className="ga-footer-divider" aria-hidden="true" />
       <details className="library-sort-dropdown">
         <summary aria-label={`Ordenar por ${selectedSortLabel}`} title={`Ordenar por: ${selectedSortLabel}`}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
-        <div className="library-sort-menu" role="group" aria-label="Criterio de orden">
+        <div className="library-sort-menu" role="group" aria-label={t("uiCriterioDeOrden")}>
           {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
         </div>
       </details>

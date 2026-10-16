@@ -3,6 +3,7 @@ import FancySlider from "./FancySlider";
 import { RELEASE_POSITIONS, RELEASE_STEPS, RELEASE_TRACK, releaseIndexAt, releaseIndexFor, releaseShort } from "./releaseScale";
 import type { TriState } from "./TriStateOption";
 import type { LibraryFeatureKey, LibrarySearchFilters } from "./librarySearch";
+import { useI18n } from "./i18n";
 
 type Chip = { key: LibraryFeatureKey; label: string; Icon: LucideIcon };
 const WHAT: Chip[] = [
@@ -18,6 +19,7 @@ const WHERE: Chip[] = [
 
 /** "Solo un jugador" or "Multijugador" side by side; multijugador opens its modes. */
 export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibrarySearchFilters; onToggle: (key: LibraryFeatureKey) => void; onClear: () => void }) {
+  const { t } = useI18n();
   const single = filters.features.includes("single_player");
   const multi = filters.features.includes("multiplayer");
   const chips = (list: Chip[]) => list.map(({ key, label, Icon }) => {
@@ -39,7 +41,7 @@ export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibraryS
       </div>
       {multi ? <div className="ga-sx-modes">
         <div className="ga-sx-row">{chips(WHAT)}</div>
-        <div className="ga-sx-row"><span className="ga-sx-rowlabel">Se juega</span>{chips(WHERE)}</div>
+        <div className="ga-sx-row"><span className="ga-sx-rowlabel">{t("uiSeJuega")}</span>{chips(WHERE)}</div>
       </div> : null}
     </div>
   );
@@ -47,11 +49,12 @@ export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibraryS
 
 /** The minimum positive-review percentage. */
 export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilters; onChange: (patch: Partial<LibrarySearchFilters>) => void }) {
+  const { t } = useI18n();
   const score = filters.minReviewScore;
   return (
     <div className="ga-sx-slider">
-      <span className="ga-sx-slider-title">Reseñas positivas</span>
-      <FancySlider min={0} max={100} step={5} value={score ?? 0} label="Porcentaje mínimo de reseñas positivas" format={n => n === 0 ? "sin mínimo" : `${n} %`}
+      <span className="ga-sx-slider-title">{t("uiResenasPositivas")}</span>
+      <FancySlider min={0} max={100} step={5} value={score ?? 0} label={t("uiPorcentajeMinimoDeResenas")} format={n => n === 0 ? "sin mínimo" : `${n} %`}
         onChange={value => onChange({ minReviewScore: (value as number) === 0 ? undefined : value as number })} />
     </div>
   );
@@ -59,11 +62,12 @@ export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilter
 
 /** How recent: one slider, a year per step in the past and a month per step near the present. */
 export function DatePanel({ filters, onChange }: { filters: LibrarySearchFilters; onChange: (patch: Partial<LibrarySearchFilters>) => void }) {
+  const { t } = useI18n();
   const index = releaseIndexFor(filters.maxAgeDays);
   return (
     <div className="ga-sx-slider">
-      <span className="ga-sx-slider-title">Lanzamiento</span>
-      <FancySlider min={0} max={RELEASE_TRACK} step={1} value={RELEASE_POSITIONS[index]} label="Cuánto hace que salió el juego"
+      <span className="ga-sx-slider-title">{t("uiLanzamiento")}</span>
+      <FancySlider min={0} max={RELEASE_TRACK} step={1} value={RELEASE_POSITIONS[index]} label={t("uiCuantoHaceQueSalio")}
         format={n => releaseShort(RELEASE_STEPS[releaseIndexAt(n)])}
         onChange={value => onChange({ maxAgeDays: RELEASE_STEPS[releaseIndexAt(value as number)], releaseYearFrom: undefined, releaseYearTo: undefined })} />
     </div>

@@ -1,4 +1,5 @@
 import type { CatalogMode } from "./catalogMode";
+import { useI18n } from "./i18n";
 
 export const CATALOG_TABS: Array<{ id: CatalogMode; label: string }> = [
   { id: "local", label: "Propios" },
@@ -6,8 +7,9 @@ export const CATALOG_TABS: Array<{ id: CatalogMode; label: string }> = [
 ];
 
 export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onChange: (mode: CatalogMode) => void }) {
+  const { t } = useI18n();
   return (
-    <nav className="catalog-tabs" aria-label="Origen del catálogo">
+    <nav className="catalog-tabs" aria-label={t("uiOrigenDelCatalogo")}>
       {CATALOG_TABS.map((tab) => (
         <button
           type="button"

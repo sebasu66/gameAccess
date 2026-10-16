@@ -535,33 +535,33 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const renderMagazine = () => (<>{featured ? (
-          <section className="magazine-view" aria-label="Biblioteca en vista revista">
+          <section className="magazine-view" aria-label={t("uiBibliotecaEnVistaRevista")}>
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
             {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={HERO_AUTOPLAY && !heroPaused} muted={heroMuted} playsInline loop /> : null}
             <div className="hero-shade" />
             <div className="hero-copy">
-              <span className="hero-kicker">TU BIBLIOTECA</span>
+              <span className="hero-kicker">{t("uiTuBiblioteca")}</span>
               <h1>{featured.name}</h1>
-              <p>Seleccionado de tus cuentas conectadas.</p>
+              <p>{t("uiSeleccionadoDeTusCuentas")}</p>
               <div className="hero-actions glass-actions-row">
-                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={!featuredPlayReady || launchBusy} onClick={() => void launchGame(featured)} />
-                <button type="button" className="secondary-button glass-info-button" onClick={() => openGame(featured)}><Info size={19} /> Más información</button>
+                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label={t("uiJugarAhora")} tone="play" pulse disabled={!featuredPlayReady || launchBusy} onClick={() => void launchGame(featured)} />
+                <button type="button" className="secondary-button glass-info-button" onClick={() => openGame(featured)}><Info size={19} /> {t("uiMasInformacion")}</button>
               </div>
             </div>
-            <section  className="hero-media-controls" aria-label="Controles del banner">
-              <button type="button" onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
+            <section  className="hero-media-controls" aria-label={t("uiControlesDelBanner")}>
+              <button type="button" onClick={previousHero} aria-label={t("uiAnterior")}><ChevronLeft size={19} /></button>
               <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
-              <button type="button" onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
+              <button type="button" onClick={nextHero} aria-label={t("uiSiguiente")}><ChevronRight size={19} /></button>
               <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
             </section>
           </div>
-          <section ref={magazineCatalogRef} className="magazine-catalog" aria-label="Juegos recientes y favoritos">
-            <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
+          <section ref={magazineCatalogRef} className="magazine-catalog" aria-label={t("uiJuegosRecientesYFavoritos")}>
+            <div className="magazine-heading"><div><span className="eyebrow">{t("uiRecientesYFavoritos")}</span><h2>{t("uiElegiUnJuego")}</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label={t("uiCambiarAVistaEsfera")}><span /></button></div>
             <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties}>
               {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
             </div>
           </section>
-          <div className="screen-controls-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span></div>
+          <div className="screen-controls-hint"><span>{t("uiNavegarWasdFlechas")}</span><span>{t("uiDetallesEnter")}</span><span>{t("uiBuscarCtrlF")}</span></div>
           </section>
         ) : null}
 
@@ -590,14 +590,14 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         <RenderProbe id="LibraryRoom"><LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} /></RenderProbe>
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
-          {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
+          {loading ? <div className="loading-home"><Loader2 className="spin" /> {t("uiCargandoBiblioteca")}</div> : null}
           
           {offlineDemo ? (
-            <Shelf title="Tu biblioteca" subtitle="Últimos jugados primero · catálogo combinado de tus cuentas locales" games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
+            <Shelf title={t("uiTuBiblioteca2")} subtitle="Últimos jugados primero · catálogo combinado de tus cuentas locales" games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
           ) : <>
-            <Shelf title="Seguí donde estabas" subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title="Nuevos lanzamientos" subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiSeguiDondeEstabas")} subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiNuevosLanzamientos")} subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiTePuedenGustar")} subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
           </>}
         </div>
       </main>

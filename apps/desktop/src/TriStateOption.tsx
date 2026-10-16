@@ -1,4 +1,5 @@
 import { CircleMinus, CirclePlus } from "lucide-react";
+import { useI18n } from "./i18n";
 
 export type TriState = "off" | "include" | "exclude";
 
@@ -23,12 +24,13 @@ export default function TriStateOption({ label, hint, state, locked, lockedTitle
   disabledTitle?: string;
   onSet: (state: TriState) => void;
 }) {
+  const { t } = useI18n();
   const next = (value: TriState) => onSet(state === value ? "off" : value);
   if (locked) {
     return (
       <span className="ga-tristate is-locked" data-state="exclude">
         <span className="ga-tristate-label">{label}{hint ? <small>{hint}</small> : null}</span>
-        <span className="ga-tristate-fixed" title={lockedTitle} aria-label={lockedTitle}>solo excluir</span>
+        <span className="ga-tristate-fixed" title={lockedTitle} aria-label={lockedTitle}>{t("uiSoloExcluir")}</span>
       </span>
     );
   }

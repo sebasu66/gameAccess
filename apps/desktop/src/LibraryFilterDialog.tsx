@@ -16,6 +16,7 @@ import { queryCatalogCache } from "./catalogCache";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
+import { useI18n } from "./i18n";
 
 /** Which filters group owns each criterion, and the positive/negative pair. */
 const GROUPS = {
@@ -74,6 +75,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   countFromCatalog?: boolean;
   onApply: (filters: LibrarySearchFilters) => void;
 }) {
+  const { t } = useI18n();
   const parentalLocked = useParentalLocked();
   const sourceNames = [...new Set([...games.flatMap(game => game.download_source_names ?? []), ...getAllAvailableSourceNames()])].sort();
   const [draft, setDraft] = useState<LibrarySearchFilters>({ ...filters });
@@ -179,24 +181,24 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     <OverlayScreenDimmer panelRef={ref} />
     <section ref={ref} className="ga-filter-dialog ga-wizard" role="dialog" aria-modal="true" aria-labelledby="ga-filter-title">
       <header>
-        <h2 id="ga-filter-title">Filtros</h2>
+        <h2 id="ga-filter-title">{t("uiFiltros")}</h2>
         <div className="ga-sx-corner">
           <div className="ga-sx-chipwrap">
             <span className={"ga-sx-cat" + (draft.features.includes("has_downloads") || sourcesChosen ? " is-on" : "") + (sourcesOpen ? " is-open" : "")}>
               <button type="button" className="ga-sx-cat-main" aria-pressed={draft.features.includes("has_downloads")}
-                title="Pedir que el juego tenga descargas disponibles" onClick={() => toggleFeature("has_downloads")}><Download size={14} aria-hidden="true" />Fuentes de descarga</button>
-              <button type="button" className="ga-sx-cat-more" aria-expanded={sourcesOpen} aria-label="Elegir fuentes una por una" onClick={() => setSourcesOpen(value => !value)}><ChevronDown size={15} aria-hidden="true" /></button>
+                title={t("uiPedirQueElJuego")} onClick={() => toggleFeature("has_downloads")}><Download size={14} aria-hidden="true" />{t("uiFuentesDeDescarga")}</button>
+              <button type="button" className="ga-sx-cat-more" aria-expanded={sourcesOpen} aria-label={t("uiElegirFuentesUnaPor")} onClick={() => setSourcesOpen(value => !value)}><ChevronDown size={15} aria-hidden="true" /></button>
             </span>
-            {sourcesOpen ? <div className="ga-sx-pop" role="group" aria-label="Fuentes de descarga">
-              <div className="ga-sx-bulk"><button type="button" className="ga-sx-clear" onClick={() => setAllSources("include")}><CirclePlus size={13} aria-hidden="true" />Todas</button><ClearButton label="Ninguna" onClick={() => setAllSources("off")} /></div>
-              {sourceNames.length === 0 ? <p className="ga-sx-tip">Todavía no importaste fuentes.</p>
+            {sourcesOpen ? <div className="ga-sx-pop" role="group" aria-label={t("uiFuentesDeDescarga")}>
+              <div className="ga-sx-bulk"><button type="button" className="ga-sx-clear" onClick={() => setAllSources("include")}><CirclePlus size={13} aria-hidden="true" />{t("uiTodas")}</button><ClearButton label={t("uiNinguna")} onClick={() => setAllSources("off")} /></div>
+              {sourceNames.length === 0 ? <p className="ga-sx-tip">{t("uiTodaviaNoImportasteFuentes")}</p>
                 : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
             </div> : null}
           </div>
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? LOCKED_TITLE : undefined}>
-            <PlusMinus label="Contenido adulto" state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
+            <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>
-          <button type="button" aria-label="Cerrar filtros" onClick={close}><X /></button>
+          <button type="button" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
         </div>
       </header>
       <div className="ga-sx-body" ref={bodyRef}>
@@ -215,9 +217,9 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
           {shown === "score" ? <div className="ga-sx-panel is-bare"><ScorePanel filters={draft} onChange={patch} /></div> : null}
           {shown === "date" ? <div className="ga-sx-panel is-bare"><DatePanel filters={draft} onChange={patch} /></div> : null}
         </div>
-        <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>Tocá lo subrayado para cambiarlo.</p>
+        <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>{t("uiTocaLoSubrayadoPara")}</p>
       </div>
-      <footer><div role="status" aria-live="polite"><strong>{matchCount} {matchCount === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>Limpiar todo</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matchCount} {matchCount === 1 ? "juego" : "juegos"}</button></footer>
+      <footer><div role="status" aria-live="polite"><strong>{matchCount} {matchCount === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matchCount} {matchCount === 1 ? "juego" : "juegos"}</button></footer>
     </section>
   </div>, document.body);
 }
