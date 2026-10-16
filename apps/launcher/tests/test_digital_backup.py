@@ -141,3 +141,40 @@ def test_automatic_source_play_ignores_backup_and_password_metadata(tmp_path):
         restore.assert_not_called()
         launch.assert_called_once()
     assert patch_file.read_bytes() == b"modified"
+
+
+def test_options_form_can_turn_off_reapplying_the_backup(tmp_path):
+    from digital_game_options import DigitalGameOptions
+    storage, folder, original = prepare(tmp_path)
+    saved = DigitalGameOptions(storage).save(1, "Fixture Game", {"backupEnabled": False})
+    assert saved["backupEnabled"] is False
+    patch_file = folder / "Game" / "fix.dll"
+    patch_file.write_bytes(b"left alone")
+    with patch("digital_process_runner.subprocess.Popen") as launch, patch.object(DigitalArchiveBackup, "restore") as restore:
+        launch.return_value.pid = 42
+        launch.return_value.returncode = 0
+        assert DigitalProcessRunner(storage).run("play", 1, "Fixture Game")["ok"]
+        restore.assert_not_called()
+    assert patch_file.read_bytes() == b"left alone"
+
+def test_options_form_picks_which_archive_is_reapplied(tmp_path):
+    from digital_game_options import DigitalGameOptions
+    storage, folder, original = prepare(tmp_path)
+    options = DigitalGameOptions(storage)
+    assert "Fixture Game_backup.zip" in options.inspect(1, "Fixture Game")["archives"]
+    saved = options.save(1, "Fixture Game", {"backupArchive": "Fixture Game_backup.zip"})
+    assert saved["backupArchive"] == "Fixture Game_backup.zip"
+    with patch.object(worker, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as launch:
+        launch.return_value.pid = 42
+        launch.return_value.returncode = 0
+        assert DigitalProcessRunner(storage).run("play", 1, "Fixture Game")["ok"]
+    # The chosen archive is applied on the game's main folder, as the form says.
+    assert (folder / "fix.dll").read_bytes() == b"new"
+
+def test_options_form_rejects_a_backup_archive_outside_the_game_folder(tmp_path):
+    from digital_game_options import DigitalGameOptions
+    storage, folder, original = prepare(tmp_path)
+    (tmp_path / "outside.zip").write_bytes(b"x")
+    for bad in ["../outside.zip", "Game/game.exe"]:
+        with pytest.raises(ValueError):
+            DigitalGameOptions(storage).save(1, "Fixture Game", {"backupArchive": bad})

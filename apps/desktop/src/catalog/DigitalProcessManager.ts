@@ -21,6 +21,7 @@ export interface ProcessExecutionResult {
   settings?: DigitalStorageSettings;
   options?: DigitalLaunchOptions;
   executables?: string[];
+  archives?: string[];
   changed?: string[];
   errors?: Array<{file: string; error: string}>;
   games?: Array<{id: number; name: string}>;
@@ -28,7 +29,7 @@ export interface ProcessExecutionResult {
 }
 
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[] }
-export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string }
+export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 

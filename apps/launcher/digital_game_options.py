@@ -45,6 +45,17 @@ def checked_executable(folder, value):
         raise ValueError("El ejecutable no puede estar en un enlace.")
     return target
 
+ARCHIVE_SUFFIXES = (".zip", ".rar", ".7z", ".001")
+
+def checked_archive(folder, value):
+    """An archive inside the game folder, never a link: the file Play re-applies before launching."""
+    candidate = folder / value
+    target = candidate.resolve()
+    if (not target.is_relative_to(folder.resolve()) or not target.is_file()
+            or target.suffix.lower() not in ARCHIVE_SUFFIXES or candidate.is_symlink()):
+        raise ValueError("Selecciona un archivo comprimido dentro de la carpeta del juego.")
+    return target
+
 class DigitalGameOptions:
     def __init__(self, storage):
         self.storage = storage
@@ -55,7 +66,8 @@ class DigitalGameOptions:
     def load(self, app_id):
         path = self.path(app_id)
         saved = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-        return {"executable": "", "arguments": "", "administrator": False, "language": "spanish", **saved}
+        return {"executable": "", "arguments": "", "administrator": False, "language": "spanish",
+                "backupEnabled": True, "backupArchive": "", **saved}
 
     def inspect(self, app_id, name):
         folder = self.storage.folder(app_id, name)
@@ -69,14 +81,26 @@ class DigitalGameOptions:
                     continue
                 if len(executables) >= 250:
                     break
+        archives = []
+        if folder.is_dir():
+            for candidate in folder.rglob("*"):
+                if candidate.is_file() and candidate.suffix.lower() in ARCHIVE_SUFFIXES and not candidate.is_symlink():
+                    archives.append(str(candidate.relative_to(folder)))
+                if len(archives) >= 100:
+                    break
         return {"options": self.load(app_id), "executables": sorted(executables, key=str.lower),
-                "folder": str(folder)}
+                "archives": sorted(archives, key=str.lower), "folder": str(folder)}
 
     def save(self, app_id, name, values):
         options = self.load(app_id)
         options.update({key: values[key] for key in options if key in values})
-        if not isinstance(options["administrator"], bool) or options["language"] not in LANGUAGES:
+        if (not isinstance(options["administrator"], bool) or options["language"] not in LANGUAGES
+                or not isinstance(options["backupEnabled"], bool)):
             raise ValueError("Opciones de ejecución no válidas.")
+        options["backupArchive"] = str(options["backupArchive"]).strip()
+        if options["backupArchive"]:
+            folder = self.storage.folder(app_id, name)
+            options["backupArchive"] = str(checked_archive(folder, options["backupArchive"]).relative_to(folder))
         options["executable"] = str(options["executable"]).strip()
         options["arguments"] = str(options["arguments"]).strip()
         parse_arguments(options["arguments"])

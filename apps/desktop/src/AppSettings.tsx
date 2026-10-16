@@ -1,5 +1,6 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
 import ParentalControlSection from "./ParentalControlSection";
+import GaTabs from "./GaTabs";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
@@ -8,8 +9,8 @@ import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
 const copy = {
- es: { title: "Configuración", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
- en: { title: "Settings", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
+ es: { title: "Configuración", tabGames: "Juegos", tabParental: "Control parental", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
+ en: { title: "Settings", tabGames: "Games", tabParental: "Parental control", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
 };
 function SettingsPanel({ onClose }: { onClose: () => void }) {
  const { locale } = useI18n(); const c = copy[locale];
@@ -20,11 +21,15 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel" role="dialog" aria-modal="true" aria-labelledby="ga-settings-title">
    <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><button type="button" onClick={onClose} aria-label={c.close} data-dialog-initial><X size={20} /></button></header>
-   <div className="ga-settings-content"><DigitalStorageSettings /><ParentalControlSection /><details className="ga-settings-group"><summary>{c.style}</summary>
-    <fieldset><legend>{c.background}</legend>{(["spd", "cob", "blink"] as StyleParam[]).map(slider)}</fieldset>
-    <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
-    <label className="ga-style-toggle"><input type="checkbox" checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>
-    </details><BuildStamp />
+   <div className="ga-settings-content"><GaTabs label={c.title} tabs={[
+    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
+    { id: "parental", label: c.tabParental, content: <ParentalControlSection /> },
+    { id: "style", label: c.tabStyle, content: <>
+      <fieldset><legend>{c.background}</legend>{(["spd", "cob", "blink"] as StyleParam[]).map(slider)}</fieldset>
+      <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
+      <label className="ga-style-toggle"><input type="checkbox" checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>
+    </> },
+   ]} /><BuildStamp />
    </div>
    <footer><p>{c.saved}</p><div><button type="button" onClick={() => { const next = { ...DEFAULT_PIXEL_STYLE }; setStyle(next); savePixelStyle(next); }}><RotateCcw size={16} />{c.reset}</button><button type="button" onClick={() => { onClose(); window.dispatchEvent(new Event("gameaccess:replay-logo")); }}><Play size={16} />{c.replay}</button></div></footer>
   </section>

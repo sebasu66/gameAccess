@@ -70,8 +70,17 @@ class DigitalArchiveBackup:
         return {"archive": backups[0], "destination": root, "needs_password": False} if backups else None
 
     @staticmethod
-    def restore(folder, name, app_id, launcher):
-        info = DigitalArchiveBackup.info(folder, name)
+    def restore(folder, name, app_id, launcher, archive=""):
+        """Re-apply the retained archive. `archive` (relative to the game folder) is the user's
+        explicit choice from the options form and wins over the one recorded at install time."""
+        if archive:
+            root = Path(folder).resolve()
+            chosen = (root / archive).resolve()
+            if not chosen.is_relative_to(root) or not chosen.is_file():
+                raise RuntimeError("El archivo de respaldo elegido ya no existe en la carpeta del juego.")
+            info = {"archive": chosen, "destination": root}
+        else:
+            info = DigitalArchiveBackup.info(folder, name)
         if not info:
             return False
         import digital_downloader as worker

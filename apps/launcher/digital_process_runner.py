@@ -194,9 +194,13 @@ class DigitalProcessRunner:
                 raise ValueError(f"Unknown action '{action}'")
                 
             logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
-            if not auto_installed:
-                logger.info("AppID %s: restoring retained archive before executable discovery", app_id)
-                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher)
+            saved_options = DigitalGameOptions(self.storage).load(app_id)
+            if not auto_installed and saved_options["backupEnabled"]:
+                logger.info("AppID %s: restoring retained archive before executable discovery; archive=%s",
+                            app_id, saved_options["backupArchive"] or "automatic")
+                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, saved_options["backupArchive"])
+            elif not saved_options["backupEnabled"]:
+                logger.info("AppID %s: archive re-apply disabled in game options", app_id)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
                 
