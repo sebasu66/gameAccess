@@ -431,6 +431,8 @@ export const es = {
   playersSolo: "Solo un jugador",
   playersMulti: "Multijugador",
   scoreNoMinimum: "sin mínimo",
+  minReviewsOption: "Mínimo {{n}} reseñas",
+  filterTagMinReviews: "Mín. {{n}} reseñas",
   includeNamed: "Incluir {{name}}",
   excludeNamed: "Excluir {{name}}",
   parentalTitle: "Control parental",

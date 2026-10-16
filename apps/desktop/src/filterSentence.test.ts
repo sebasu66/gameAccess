@@ -16,6 +16,11 @@ describe("filter sentence", () => {
     expect(sentence({ minReviewScore: 60 })).toContain("Con al menos 60 % de reseñas positivas, lanzados en cualquier fecha.");
   });
 
+  it("adds the review floor to the same clause", () => {
+    expect(sentence({ minReviewScore: 60, minReviewCount: 100 })).toContain("Con al menos 60 % de reseñas positivas y 100 reseñas como mínimo, lanzados en cualquier fecha.");
+    expect(sentence({ minReviewCount: 100 })).toContain("Con cualquier puntaje de reseñas, pero con 100 reseñas como mínimo, lanzados en cualquier fecha.");
+  });
+
   it("lists included and excluded genres in natural Spanish", () => {
     expect(sentence({ genres: ["action", "adventure"] })).toContain("juegos de Acción y Aventura, para");
     expect(sentence({ genres: ["action"], excludeGenres: ["horror"] })).toContain("juegos de Acción, pero no de Terror, para");

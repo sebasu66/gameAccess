@@ -433,6 +433,8 @@ export const en: Record<keyof typeof es, string> = {
   playersSolo: "Single player",
   playersMulti: "Multiplayer",
   scoreNoMinimum: "no minimum",
+  minReviewsOption: "At least {{n}} reviews",
+  filterTagMinReviews: "Min. {{n}} reviews",
   includeNamed: "Include {{name}}",
   excludeNamed: "Exclude {{name}}",
   parentalTitle: "Parental control",

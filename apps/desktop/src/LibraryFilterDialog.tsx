@@ -37,7 +37,7 @@ function glueTerms(parts: SentencePart[]): SentencePart[][] {
 }
 
 /** Height each editor needs, so the sentence can make room by moving. */
-const ZONE_HEIGHT: Record<SentenceSlot, number> = { genres: 250, players: 190, score: 96, date: 96 };
+const ZONE_HEIGHT: Record<SentenceSlot, number> = { genres: 250, players: 190, score: 196, date: 96 };
 
 const lockedTitle = () => translate("filterLockedByParental");
 
@@ -201,7 +201,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
           <button type="button" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
         </div>
       </header>
-      <div className="ga-sx-body" ref={bodyRef}>
+      <div className={"ga-sx-body" + (topOpen || bottomOpen ? " has-open" : "")} ref={bodyRef}>
         <div className={"ga-sx-zone is-top" + (topOpen ? " is-open" : "")} style={{ ["--zone-h" as string]: `${ZONE_HEIGHT[shown ?? "genres"]}px` }}>
           {topOpen && shown === "genres" ? <div className="ga-sx-panel"><GenrePicker genres={genres} stateOf={genre => criterionState(draft, "genres", genre)} onSet={(genre, state) => set("genres", genre, state)}
             onClear={() => patch({ genres: [], excludeGenres: [] })} /></div> : null}
@@ -230,12 +230,15 @@ function tagLabel(group: GroupKey, value: string): string {
   return group === "genres" ? genreLabel(value) : value;
 }
 
-export type FilterTagGroup = GroupKey | "rating" | "age";
+export type FilterTagGroup = GroupKey | "rating" | "reviews" | "age";
 
 export function activeFilterTags(filters: LibrarySearchFilters): { group: FilterTagGroup; value: string; label: string; direction: TriState }[] {
   const entries: { group: FilterTagGroup; value: string; label: string; direction: TriState }[] = [];
   if (filters.minReviewScore !== undefined) {
     entries.push({ group: "rating", value: "rating", label: translate("filterTagRating", { n: Math.round(filters.minReviewScore / 10) }), direction: "include" });
+  }
+  if (filters.minReviewCount !== undefined) {
+    entries.push({ group: "reviews", value: "reviews", label: translate("filterTagMinReviews", { n: filters.minReviewCount }), direction: "include" });
   }
   if (filters.maxAgeDays !== undefined) {
     const years = Math.round(filters.maxAgeDays / 365);

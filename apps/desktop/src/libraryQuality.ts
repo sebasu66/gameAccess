@@ -150,6 +150,7 @@ export function hasQualityFilters(filters: LibrarySearchFilters): boolean {
   return Boolean(
     filters.hideAdult || filters.hideViolenceDescriptor
     || filters.minReviewScore !== undefined
+    || filters.minReviewCount !== undefined
     || filters.releaseYearFrom !== undefined || filters.releaseYearTo !== undefined
     || filters.maxAgeDays !== undefined,
   );
@@ -183,6 +184,12 @@ function isUnproven(game: CatalogGame, now: number): boolean {
  * results, which is the failure this whole filter rework exists to remove.
  */
 function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters, now: number): boolean {
+  if (filters.minReviewCount !== undefined) {
+    // A strict floor: it runs before the score bar, so sparing unproven games cannot let a
+    // game with one or two reviews (or none) slip through.
+    const reviews = game.steam_review_count;
+    if (typeof reviews !== "number" || reviews < filters.minReviewCount) return false;
+  }
   if (filters.minReviewScore !== undefined) {
     const score = game.steam_review_score;
     if (filters.spareUnprovenGames) {

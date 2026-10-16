@@ -2,7 +2,7 @@
 .ga-filter-dialog.ga-wizard { width: min(960px, 100%); padding: 22px 36px 24px; }
 .ga-wizard header h2 { margin: 0; font-size: 34px; }
 .ga-wizard .ga-sx-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; padding: 26px 0 8px; }
-.ga-wizard .ga-sx-sentence { margin: 0; text-align: center; font: 600 24px/1.65 Manrope, "Segoe UI", sans-serif; color: #e8edf1; text-wrap: balance; }
+.ga-wizard .ga-sx-sentence { margin: 0; text-align: center; --sx-fs: 26.4px; font: 600 var(--sx-fs)/1.65 Manrope, "Segoe UI", sans-serif; color: #e8edf1; text-wrap: balance; transition: font-size .32s cubic-bezier(.3,.9,.3,1); }
 .ga-wizard .ga-sx-line { display: block; }
 .ga-filter-dialog.ga-wizard .ga-sx-term {
   display: inline; padding: 0 2px; margin: 0; border: 0; border-radius: 4px; background: none; cursor: pointer;
@@ -58,7 +58,7 @@
 .ga-wizard footer { margin-top: 16px; }
 
 @media (max-width: 760px) {
-  .ga-wizard .ga-sx-sentence { font-size: 20px; }
+  .ga-wizard .ga-sx-sentence { --sx-fs: 20px; }
   .ga-filter-dialog.ga-wizard { padding: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .ga-wizard .ga-sx-panel, .ga-wizard .ga-sx-modes { animation: none; } }
@@ -130,10 +130,13 @@
 .ga-wizard .ga-sx-zone.is-bottom { justify-content: flex-start; }
 
 /* ---- v3: compact landscape dialog; the sentence moves to make room for the open editor ---- */
-.ga-filter-dialog.ga-wizard { width: min(980px, 100%); height: auto; padding: 18px 32px 22px; }
+/* Size = the previous layout +10% (980px wide, 440px stage); the stage grows a bit more when the
+   window allows it, so the editors have room above and below the sentence. */
+.ga-filter-dialog.ga-wizard { width: min(1078px, 100%); height: auto; padding: 20px 35px 24px; }
 .ga-wizard header { align-items: center; position: relative; z-index: 5; }
-.ga-wizard .ga-sx-body { position: relative; height: 440px; flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0; }
-.ga-wizard .ga-sx-zone { flex: none; width: min(660px, 100%); height: 0; min-height: 0; overflow: hidden; padding: 0; display: flex; flex-direction: column; transition: height .32s cubic-bezier(.3,.9,.3,1); }
+.ga-wizard .ga-sx-body { position: relative; height: clamp(484px, calc(100svh - 250px), 560px); flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0; }
+.ga-wizard .ga-sx-body.has-open .ga-sx-sentence { font-size: calc(var(--sx-fs) * .85); }
+.ga-wizard .ga-sx-zone { flex: none; width: min(726px, 100%); height: 0; min-height: 0; overflow: hidden; padding: 0; display: flex; flex-direction: column; transition: height .32s cubic-bezier(.3,.9,.3,1); }
 .ga-wizard .ga-sx-zone.is-open { height: var(--zone-h); }
 .ga-wizard .ga-sx-zone.is-top { justify-content: flex-end; padding-bottom: 0; }
 .ga-wizard .ga-sx-zone.is-top.is-open { padding-bottom: 18px; height: calc(var(--zone-h) + 18px); box-sizing: border-box; }
@@ -180,6 +183,13 @@
 .ga-filter-dialog.ga-wizard .ga-sx-cat button.ga-sx-pm { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
 .ga-wizard .ga-sx-cat .ga-sx-pmrow { gap: 2px; }
 .ga-wizard .ga-sx-slider-title { order: 2; margin-top: 2px; }
+
+/* "at least N reviews": a pill under the score slider, drawn like the small clear buttons (same border, type and orange hover) */
+.ga-wizard .ga-sx-check { order: 3; justify-self: center; display: inline-flex; align-items: center; gap: 9px; margin-top: 12px; padding: 7px 16px 7px 12px; border-radius: 999px; border: 1px solid #ffffff22; color: #aeb9c0; font: 700 12px Manrope, sans-serif; cursor: pointer; user-select: none; transition: color .18s, border-color .18s, background-color .18s; }
+.ga-wizard .ga-sx-check:hover { color: #fff; border-color: var(--ga-orange); }
+.ga-wizard .ga-sx-check.is-on { color: #fff; border-color: var(--ga-orange); background: #ff6a001a; }
+.ga-wizard .ga-sx-check:focus-within { outline: 2px solid var(--ga-orange); outline-offset: 3px; }
+.ga-wizard .ga-sx-check input { margin: 0; cursor: pointer; }
 
 /* ---- Shared window chrome: one big title style and one loud red close button ---- */
 body .ga-filter-dialog.ga-wizard header h2,

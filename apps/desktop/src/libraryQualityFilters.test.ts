@@ -11,6 +11,7 @@ import {
   gameMatchesTags,
   parseReleaseDate,
 } from "./librarySearch";
+import { hasQualityFilters } from "./libraryQuality";
 import type { CatalogGame } from "./types";
 
 // Mirrors the real catalog: ISO dates dominate, with a localized minority.
@@ -215,6 +216,21 @@ describe("filterLibraryGames and the hidden notice", () => {
 
   it("removes nothing while no screen or bound is selected", () => {
     expect(filterLibraryGames(games, "", DEFAULT_LIBRARY_FILTERS).map(g => g.id)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("a minimum review count hides games with too few reviews, even new or unrated ones", () => {
+    // Alone: only the games that reached 100 reviews. No count on record does not pass.
+    const floor = filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewCount: 100 });
+    expect(floor.map(g => g.id)).toEqual([1, 3, 6]);
+
+    // With the score bar that spares unproven games, the floor still wins: games 2, 4 and 5 stay out.
+    const both = filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 60, spareUnprovenGames: true, minReviewCount: 100 });
+    expect(both.map(g => g.id)).toEqual([1, 6]);
+    expect(filterLibraryGames(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 60, spareUnprovenGames: true }).map(g => g.id)).toEqual([1, 2, 4, 5, 6]);
+
+    // It counts as an active quality filter and reports what it hid.
+    expect(hasQualityFilters({ ...DEFAULT_LIBRARY_FILTERS, minReviewCount: 100 })).toBe(true);
+    expect(filterLibraryGamesDetailed(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewCount: 100 }).hiddenCount).toBe(3);
   });
 
   it("starts with no bound set, so an untouched panel filters nothing", () => {

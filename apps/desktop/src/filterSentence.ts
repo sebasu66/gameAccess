@@ -85,9 +85,11 @@ export function buildFilterSentence(filters: LibrarySearchFilters, now = new Dat
   }
   line1.push(plain("\u2060."));
 
+  // A review floor reads as part of the same clause, so the line keeps one rhythm.
+  const floor = filters.minReviewCount;
   const line2: SentencePart[] = filters.minReviewScore !== undefined
-    ? [plain("Con al menos "), term(`${filters.minReviewScore} %`, "score"), plain("\u2060 de reseñas positivas, ")]
-    : [plain("Con "), term("cualquier puntaje", "score"), plain("\u2060 de reseñas, ")];
+    ? [plain("Con al menos "), term(`${filters.minReviewScore} %`, "score"), plain(`\u2060 de reseñas positivas${floor !== undefined ? ` y ${floor} reseñas como mínimo` : ""}, `)]
+    : [plain("Con "), term("cualquier puntaje", "score"), plain(`\u2060 de reseñas${floor !== undefined ? `, pero con ${floor} reseñas como mínimo` : ""}, `)];
   line2.push(plain("lanzados "), term(dateWords(filters, now), "date"), plain("\u2060."));
   return [line1, line2];
 }

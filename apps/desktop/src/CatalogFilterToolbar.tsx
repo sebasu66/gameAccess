@@ -30,6 +30,8 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   const clearCriterion = (group: FilterTagGroup, value: string) => {
     if (group === "rating") {
       onFiltersChange({ ...filters, minReviewScore: undefined });
+    } else if (group === "reviews") {
+      onFiltersChange({ ...filters, minReviewCount: undefined });
     } else if (group === "age") {
       onFiltersChange({ ...filters, maxAgeDays: undefined });
     } else {

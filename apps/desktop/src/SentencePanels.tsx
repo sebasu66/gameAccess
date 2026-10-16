@@ -3,6 +3,7 @@ import FancySlider from "./FancySlider";
 import { RELEASE_POSITIONS, RELEASE_STEPS, RELEASE_TRACK, releaseIndexAt, releaseIndexFor, releaseShort } from "./releaseScale";
 import type { TriState } from "./TriStateOption";
 import type { LibraryFeatureKey, LibrarySearchFilters } from "./librarySearch";
+import { MIN_REVIEWS_OPTION } from "./librarySearch";
 import { useI18n, type TranslationKey, translate } from "./i18n";
 
 type Chip = { key: LibraryFeatureKey; label: TranslationKey; Icon: LucideIcon };
@@ -47,15 +48,21 @@ export function PlayersPanel({ filters, onToggle, onClear }: { filters: LibraryS
   );
 }
 
-/** The minimum positive-review percentage. */
+/** The minimum positive-review percentage, with a checkbox that also requires a minimum number of reviews. */
 export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilters; onChange: (patch: Partial<LibrarySearchFilters>) => void }) {
   const { t } = useI18n();
   const score = filters.minReviewScore;
+  const reviewsOn = filters.minReviewCount !== undefined;
   return (
     <div className="ga-sx-slider">
       <span className="ga-sx-slider-title">{t("uiResenasPositivas")}</span>
       <FancySlider min={0} max={100} step={5} value={score ?? 0} label={t("uiPorcentajeMinimoDeResenas")} format={n => n === 0 ? t("scoreNoMinimum") : `${n} %`}
         onChange={value => onChange({ minReviewScore: (value as number) === 0 ? undefined : value as number })} />
+      <label className={"ga-sx-check" + (reviewsOn ? " is-on" : "")}>
+        <input type="checkbox" checked={reviewsOn}
+          onChange={event => onChange({ minReviewCount: event.target.checked ? MIN_REVIEWS_OPTION : undefined })} />
+        {t("minReviewsOption", { n: MIN_REVIEWS_OPTION })}
+      </label>
     </div>
   );
 }

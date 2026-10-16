@@ -65,6 +65,12 @@ export interface LibrarySearchFilters {
   minReviewScore?: number;
   /** With a minimum score: do not hide games that are new or have too few reviews to judge. */
   spareUnprovenGames?: boolean;
+  /**
+   * Minimum number of reviews a game must have (the "at least 100 reviews" checkbox).
+   * Strict: a game with fewer reviews, or with no count at all, is hidden, even a new or
+   * unrated one, so it wins over `spareUnprovenGames`. Undefined means no bar.
+   */
+  minReviewCount?: number;
   /** Earliest release year accepted (inclusive). Undefined means no bound. */
   releaseYearFrom?: number;
   /** Latest release year accepted (inclusive). Undefined means no bound. */
@@ -101,6 +107,9 @@ export const DEFAULT_LIBRARY_FILTERS: LibrarySearchFilters = {
 
 /** Minimum review score (0-100) the library starts with; "Limpiar todo" removes it too. */
 export const DEFAULT_MIN_REVIEW_SCORE = 60;
+
+/** Review count the "minimum reviews" checkbox asks for. Off by default. */
+export const MIN_REVIEWS_OPTION = 100;
 
 /** What the library opens with: no criteria except hiding poorly reviewed games. */
 export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
