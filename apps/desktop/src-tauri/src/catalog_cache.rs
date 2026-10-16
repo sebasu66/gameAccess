@@ -311,14 +311,27 @@ fn merge_metadata(previous: &mut Value, incoming: Value) {
 /// rather than merged, because the incoming list is the whole answer for that
 /// game and a merge would keep values that were removed upstream.
 fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, String)]) -> Result<(), String> {
+    let mut upsert_game = tx.prepare(
+        "INSERT INTO game(id, app_id, slug, name, credit_cost_per_hour, active) VALUES (?1, ?2, ?3, ?4, ?5, 1)
+         ON CONFLICT(id) DO UPDATE SET app_id=excluded.app_id, slug=excluded.slug, name=excluded.name, credit_cost_per_hour=excluded.credit_cost_per_hour"
+    ).map_err(|e|e.to_string())?;
     let mut del_genre = tx.prepare("DELETE FROM game_genre WHERE game_id=?1").map_err(|e|e.to_string())?;
     let mut del_category = tx.prepare("DELETE FROM game_category WHERE game_id=?1").map_err(|e|e.to_string())?;
     let mut del_tag = tx.prepare("DELETE FROM game_tag WHERE game_id=?1").map_err(|e|e.to_string())?;
     let mut ins_genre = tx.prepare("INSERT OR IGNORE INTO game_genre(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
     let mut ins_category = tx.prepare("INSERT OR IGNORE INTO game_category(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
     let mut ins_tag = tx.prepare("INSERT OR IGNORE INTO game_tag(game_id, name) VALUES (?1, ?2)").map_err(|e|e.to_string())?;
+    let mut touched_for_sources: Vec<(i64, String)> = Vec::new();
     for (id, payload) in touched {
         let Ok(game) = serde_json::from_str::<Value>(payload) else { continue };
+        let app_id = game.get("app_id").and_then(Value::as_i64);
+        let name = game.get("name").and_then(Value::as_str).unwrap_or("");
+        let slug = game.get("slug").and_then(Value::as_str).unwrap_or("");
+        let cost = game.get("credit_cost_per_hour").and_then(Value::as_i64).unwrap_or(0);
+        if !name.trim().is_empty() {
+            let _ = upsert_game.execute(params![id, app_id, slug, name, cost]);
+            touched_for_sources.push((app_id.unwrap_or(*id), name.to_string()));
+        }
         let _ = del_genre.execute(params![id]);
         let _ = del_category.execute(params![id]);
         let _ = del_tag.execute(params![id]);
@@ -333,6 +346,7 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
             }
         }
     }
+    crate::source_index::match_games_against_sources(tx, &touched_for_sources)?;
     Ok(())
 }
 
@@ -1121,10 +1135,11 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
             [],
         );
     }
+    crate::source_index::ensure_source_tables(conn)?;
     Ok(())
 }
 
-fn with_catalog_conn<F, R>(f: F) -> Result<R, String>
+pub(crate) fn with_catalog_conn<F, R>(f: F) -> Result<R, String>
 where
     F: FnOnce(&mut Connection) -> Result<R, String>,
 {
@@ -1134,7 +1149,7 @@ where
     if guard.is_none() {
         let path = ready_cache_db_path()?;
         let conn = Connection::open(&path).map_err(|err| err.to_string())?;
-        let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
+        let _ = conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;");
         ensure_normalized_schema(&conn)?;
         if let Ok(rows) = LAST_TEMP_SOURCES.lock() {
             if !rows.is_empty() {

@@ -69,6 +69,8 @@ fn main() {
             catalog_cache::catalog_cache_query,
             catalog_cache::catalog_cache_set_temp_sources,
             catalog_cache::catalog_cache_get_facets,
+            source_index::catalog_sources_apply,
+            source_index::catalog_sources_remove_plugin,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,

@@ -115,3 +115,41 @@ export async function getCatalogFacets(): Promise<CatalogFacetsResult> {
   return invoke<CatalogFacetsResult>("catalog_cache_get_facets");
 }
 
+export interface SourceIndexEntry {
+  key?: string;
+  title: string;
+  source: string;
+  multiplayer?: boolean;
+}
+
+export interface CatalogSourcesApplyParams {
+  pluginId: string;
+  revision: string;
+  full: boolean;
+  added: SourceIndexEntry[];
+  removed?: string[];
+}
+
+export interface CatalogSourcesApplyResult {
+  plugin_id: string;
+  revision: string;
+  sources_total: number;
+  matched_links: number;
+}
+
+export async function applyCatalogSources(params: CatalogSourcesApplyParams): Promise<CatalogSourcesApplyResult | null> {
+  if (!native()) return null;
+  return invoke<CatalogSourcesApplyResult>("catalog_sources_apply", {
+    pluginId: params.pluginId,
+    revision: String(params.revision),
+    full: params.full,
+    added: params.added,
+    removed: params.removed ?? [],
+  });
+}
+
+export async function removePluginCatalogSources(pluginId: string): Promise<void> {
+  if (!native()) return;
+  await invoke("catalog_sources_remove_plugin", { pluginId });
+}
+
