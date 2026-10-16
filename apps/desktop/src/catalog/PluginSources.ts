@@ -155,7 +155,7 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
     diagnostics.debug(`provider=${plugin.id} generation=${epoch} request started`);
     try {
       const params = new URLSearchParams({ app_id: String(keyOf(game)), name: game.name });
-      const response = await fetch(endpoint(plugin, "/api/sources?" + params), { signal: AbortSignal.timeout(8000) });
+      const response = await fetch(endpoint(plugin, "/api/sources?" + params), { signal: AbortSignal.timeout(14000) });
       diagnostics.debug(`provider=${plugin.id} HTTP=${response.status}`);
       if (!response.ok) {
         diagnostics.fail(`Provider HTTP ${response.status}`);
