@@ -76,19 +76,19 @@ export default function BigScreenControls(props: Props) {
     return () => { cancelAnimationFrame(frame); window.clearTimeout(idle); };
   }, []);
   useEffect(() => { if (keyboard) document.querySelector<HTMLElement>(".ga-pad-keyboard button")?.focus({preventScroll:true}); }, [keyboard]);
-  const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? "Salir de pantalla grande" : "Pantalla grande"} title={props.enabled ? "Salir de pantalla grande (F11 / Start)" : "Pantalla grande (F11 / Start)"} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? "Salir" : "Pantalla grande"}</span></button>;
+  const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? t("bigScreenExitShort") : t("bigScreenEnter")}</span></button>;
   return <>
     {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
     {props.enabled ? <div className="ga-pad-hints" aria-label={t("uiControlesDeXbox")}>
-      <span className="ga-pad-connection" role="status"><Gamepad2 size={18}/>{connected ? "Mando conectado" : "Conectá un mando"}</span>
+      <span className="ga-pad-connection" role="status"><Gamepad2 size={18}/>{connected ? t("padConnected") : t("padConnectPrompt")}</span>
       {[
-        ["xbox_button_color_a", "A", "Abrir"], ["xbox_button_color_b", "B", "Volver"],
-        ["xbox_button_color_x", "X", "Buscar"], ["xbox_button_color_y", "Y", "Filtros"],
-        ["xbox_lb", "LB", "Biblioteca"], ["xbox_rb", "RB", "Catálogo"],
-        ["xbox_lt", "LT", "Subir"], ["xbox_rt", "RT", "Bajar"],
-        ["xbox_button_menu", "Menú", "Salir"],
+        ["xbox_button_color_a", "A", t("padOpen")], ["xbox_button_color_b", "B", t("padBack")],
+        ["xbox_button_color_x", "X", t("padSearch")], ["xbox_button_color_y", "Y", t("uiFiltros")],
+        ["xbox_lb", "LB", t("uiBiblioteca")], ["xbox_rb", "RB", t("tabCatalog")],
+        ["xbox_lt", "LT", t("padUp")], ["xbox_rt", "RT", t("padDown")],
+        ["xbox_button_menu", t("padMenuButton"), t("bigScreenExitShort")],
       ].map(([icon, button, label]) => <span className="ga-pad-prompt" key={icon}><img src={`/icons/xbox/${icon}.svg`} alt={button}/>{label}</span>)}
     </div> : null}
-    {keyboard ? <div className={`ga-pad-keyboard-backdrop${keyboardClosing ? " is-closing" : ""}`}><OverlayScreenDimmer panelRef={keyboardPanelRef} /><section ref={keyboardPanelRef} role="dialog" aria-modal="true" aria-label={t("uiBuscarConMando")} className="ga-pad-keyboard" onKeyDown={event => { if(event.key === "Escape") { event.stopPropagation(); closeKeyboard(); } }}><h2>{t("uiBuscarJuegos")}</h2><output>{props.query || "Escribí un título, género o etiqueta"}</output><div>{"ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789".split("").map(letter => <button type="button" key={letter} onClick={()=>props.onQuery(props.query+letter.toLowerCase())}>{letter}</button>)}</div><footer><button onClick={()=>props.onQuery(props.query+" ")}>{t("uiEspacio")}</button><button onClick={()=>props.onQuery(props.query.slice(0,-1))}>{t("uiBorrar")}</button><button onClick={()=>props.onQuery("")}>{t("uiLimpiar")}</button><button onClick={closeKeyboard}>{t("uiVerResultados")}</button></footer></section></div> : null}
+    {keyboard ? <div className={`ga-pad-keyboard-backdrop${keyboardClosing ? " is-closing" : ""}`}><OverlayScreenDimmer panelRef={keyboardPanelRef} /><section ref={keyboardPanelRef} role="dialog" aria-modal="true" aria-label={t("uiBuscarConMando")} className="ga-pad-keyboard" onKeyDown={event => { if(event.key === "Escape") { event.stopPropagation(); closeKeyboard(); } }}><h2>{t("uiBuscarJuegos")}</h2><output>{props.query || t("padSearchPlaceholder")}</output><div>{"ABCDEFGHIJKLMNÑOPQRSTUVWXYZ0123456789".split("").map(letter => <button type="button" key={letter} onClick={()=>props.onQuery(props.query+letter.toLowerCase())}>{letter}</button>)}</div><footer><button onClick={()=>props.onQuery(props.query+" ")}>{t("uiEspacio")}</button><button onClick={()=>props.onQuery(props.query.slice(0,-1))}>{t("uiBorrar")}</button><button onClick={()=>props.onQuery("")}>{t("uiLimpiar")}</button><button onClick={closeKeyboard}>{t("uiVerResultados")}</button></footer></section></div> : null}
   </>;
 }

@@ -16,7 +16,7 @@ export default function MultiplayerParentOption({ selected, disabled, onToggle }
   const { t } = useI18n();
   return (
     <label className={"ga-tree-parent" + (selected ? " is-selected" : "") + (disabled ? " is-branch-disabled" : "")}
-      title={disabled ? "No aplica a \"Solo un jugador\"" : "Juegos que admiten multijugador"}>
+      title={disabled ? t("multiplayerNotWithSolo") : t("multiplayerGames")}>
       <input type="checkbox" checked={selected} disabled={disabled} onChange={onToggle} />
       <strong>{t("uiAdmiteMultijugador")}</strong>
       <small>{t("uiTodoLoDeAbajo")}</small>

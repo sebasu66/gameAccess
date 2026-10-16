@@ -32,7 +32,7 @@ function GameCard({
 
   return (
     <article className={`game-card ${activeDownload ? "is-downloading" : ""}`} style={{ "--download-progress": `${progress}%` } as React.CSSProperties}>
-      <button type="button" className="game-card-main" onClick={() => onOpen(game)} aria-label={`Abrir ${game.name}`}>
+      <button type="button" className="game-card-main" onClick={() => onOpen(game)} aria-label={t("openGameAria", { name: game.name })}>
         <div className="game-card-art">
           {game.capsule_image ? (
             <>
@@ -50,7 +50,7 @@ function GameCard({
           {activeDownload ? (
             <div className="download-card-status">
               <Download size={15} />
-              <strong>{download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando…"}</strong>
+              <strong>{download?.progress != null ? `${Math.round(download.progress)}%` : t("cardPreparing")}</strong>
             </div>
           ) : null}
           {download?.state === "installed" ? <span className="installed-chip"><Check size={12} /> {t("uiListo")}</span> : null}
@@ -65,7 +65,7 @@ function GameCard({
         </div>
       </button>
       {showPreference ? (
-        <section  className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
+        <section  className="preference-controls" aria-label={t("cardPreferenceAria", { name: game.name })}>
           <button type="button" className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label={t("uiMeGusta")}><ThumbsUp size={16} /></button>
           <button type="button" className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={16} /></button>
         </section>

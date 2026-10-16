@@ -42,17 +42,17 @@ export default function TriStateOption({ label, hint, state, locked, lockedTitle
         className={"ga-tristate-button is-include" + (state === "include" ? " is-active" : "")}
         aria-pressed={state === "include"}
         disabled={disabled}
-        title={disabled ? disabledTitle : state === "include" ? `Dejar de exigir ${label}` : `Solo juegos con ${label}`}
+        title={disabled ? disabledTitle : state === "include" ? t("triStopRequiring", { name: label }) : t("triOnlyGamesWith", { name: label })}
         onClick={() => next("include")}
-      ><CirclePlus size={13} aria-hidden="true" /><span className="ga-visually-hidden">Exigir {label}</span></button>
+      ><CirclePlus size={13} aria-hidden="true" /><span className="ga-visually-hidden">{t("triRequire", { name: label })}</span></button>
       <button
         type="button"
         className={"ga-tristate-button is-exclude" + (state === "exclude" ? " is-active" : "")}
         aria-pressed={state === "exclude"}
         disabled={disabled}
-        title={disabled ? disabledTitle : state === "exclude" ? `Dejar de excluir ${label}` : `Excluir juegos con ${label}`}
+        title={disabled ? disabledTitle : state === "exclude" ? t("triStopExcluding", { name: label }) : t("triExcludeGamesWith", { name: label })}
         onClick={() => next("exclude")}
-      ><CircleMinus size={13} aria-hidden="true" /><span className="ga-visually-hidden">Excluir {label}</span></button>
+      ><CircleMinus size={13} aria-hidden="true" /><span className="ga-visually-hidden">{t("excludeNamed", { name: label })}</span></button>
     </span>
   );
 }

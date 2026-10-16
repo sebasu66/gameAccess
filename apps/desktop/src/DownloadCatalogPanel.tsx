@@ -70,11 +70,11 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
   const label = statusLabel(status, progress);
   const style = { "--download-progress": `${progress}%` } as CSSProperties;
   const accessibilityState = active
-    ? ` · descarga ${label}`
+    ? t("cardAriaDownloading", { label })
     : state.playButtonReady
-      ? " · listo para Jugar"
+      ? t("cardAriaReady")
       : "";
-  const favoriteLabel = (favorite ? " · favorito" : "");
+  const favoriteLabel = (favorite ? t("cardAriaFavorite") : "");
   // Raw catalog genres carry duplicates and content labels; show the canonical one.
   const cardGenreId = genreConceptIds(game.genres)[0];
   const cardGenre = cardGenreId ? genreLabel(cardGenreId) : undefined;
@@ -97,7 +97,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
         onClick={() => onSelect(index)}
         onContextMenu={showContextMenu}
         aria-current={selected ? "true" : undefined}
-        aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}${cardGenre ? ` · género ${cardGenre}` : ""}${accessibilityState}${favoriteLabel}`}
+        aria-label={`${t(selected ? "selectedGameAria" : "selectGameAria", { name: game.name })}${cardGenre ? t("cardAriaGenre", { genre: cardGenre }) : ""}${accessibilityState}${favoriteLabel}`}
         tabIndex={-1}
       >
         <span className="library-room-card-art">
@@ -149,10 +149,10 @@ type OpenContextMenu = ContextMenuRequest | null;
 export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const { t } = useI18n();
   const { locale } = useI18n();
-  const section = props.section ?? { id: "catalog" as const, title: "Catálogo", games: props.games, total: props.catalogTotal };
+  const section = props.section ?? { id: "catalog" as const, title: t("tabCatalog"), games: props.games, total: props.catalogTotal };
   const view = props.view ?? "catalog";
   const displaySection = props.catalogUnavailable && view === "catalog"
-    ? { ...section, total: props.catalogTotal ?? section.total, emptyMessage: "En este momento no pudimos conectarnos con el servicio de GameAccess para recuperar la lista de juegos." }
+    ? { ...section, total: props.catalogTotal ?? section.total, emptyMessage: t("catalogUnavailable") }
     : { ...section, total: props.catalogTotal ?? section.total };
   const onViewChange = props.onViewChange ?? (() => undefined);
   const catalogSort = props.catalogSort ?? "steam-popularity";
@@ -193,16 +193,16 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   setCoverCardWidth(coverFloor);
   const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
   const views: { id: LibraryView; label: string }[] = [
-    { id: "catalog", label: "Catálogo" },
-    { id: getCatalogMode() === "digital" ? "library" : "installed", label: "Biblioteca" },
+    { id: "catalog", label: t("tabCatalog") },
+    { id: getCatalogMode() === "digital" ? "library" : "installed", label: t("uiBiblioteca") },
   ];
   const sortOptions: { id: CatalogSort; label: string }[] = [
-    { id: "release-date", label: "Fecha de lanzamiento" },
-    { id: "steam-popularity", label: "Popularidad" },
-    { id: "steam-review-score", label: "Puntuación de reseñas" },
-    { id: "name", label: "Nombre A–Z" },
+    { id: "release-date", label: t("sortRelease") },
+    { id: "steam-popularity", label: t("sortPopularity") },
+    { id: "steam-review-score", label: t("sortReviewScore") },
+    { id: "name", label: t("sortName") },
   ];
-  const selectedSortLabel = sortOptions.find(option => option.id === catalogSort)?.label ?? "Ordenar";
+  const selectedSortLabel = sortOptions.find(option => option.id === catalogSort)?.label ?? t("sortLabel");
 
   const latestStateRef = useRef({ selectedIndex: props.selectedIndex, indexes, onSelect: props.onSelect });
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
           <div className="ga-search-meta">
-            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={locale === "es" ? "Zoom de las portadas" : "Cover zoom"} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
+            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
           </div>
         </div>
         <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>

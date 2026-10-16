@@ -16,7 +16,7 @@ import { queryCatalogCache } from "./catalogCache";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
-import { useI18n } from "./i18n";
+import { useI18n, translate } from "./i18n";
 
 /** Which filters group owns each criterion, and the positive/negative pair. */
 const GROUPS = {
@@ -39,7 +39,7 @@ function glueTerms(parts: SentencePart[]): SentencePart[][] {
 /** Height each editor needs, so the sentence can make room by moving. */
 const ZONE_HEIGHT: Record<SentenceSlot, number> = { genres: 250, players: 190, score: 96, date: 96 };
 
-const LOCKED_TITLE = "Bloqueado por control parental";
+const lockedTitle = () => translate("filterLockedByParental");
 
 /** Read one criterion's current direction. */
 export function criterionState(filters: LibrarySearchFilters, group: GroupKey, value: string): TriState {
@@ -195,7 +195,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
                 : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
             </div> : null}
           </div>
-          <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? LOCKED_TITLE : undefined}>
+          <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>
           <button type="button" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
@@ -219,7 +219,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
         </div>
         <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>{t("uiTocaLoSubrayadoPara")}</p>
       </div>
-      <footer><div role="status" aria-live="polite"><strong>{matchCount} {matchCount === 1 ? "juego" : "juegos"}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>Mostrar {matchCount} {matchCount === 1 ? "juego" : "juegos"}</button></footer>
+      <footer><div role="status" aria-live="polite"><strong>{t(matchCount === 1 ? "gamesCountOne" : "gamesCountMany", { count: matchCount })}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>{t(matchCount === 1 ? "filterShowOne" : "filterShowMany", { count: matchCount })}</button></footer>
     </section>
   </div>, document.body);
 }
@@ -235,11 +235,11 @@ export type FilterTagGroup = GroupKey | "rating" | "age";
 export function activeFilterTags(filters: LibrarySearchFilters): { group: FilterTagGroup; value: string; label: string; direction: TriState }[] {
   const entries: { group: FilterTagGroup; value: string; label: string; direction: TriState }[] = [];
   if (filters.minReviewScore !== undefined) {
-    entries.push({ group: "rating", value: "rating", label: `Rating ≥ ${Math.round(filters.minReviewScore / 10)}`, direction: "include" });
+    entries.push({ group: "rating", value: "rating", label: translate("filterTagRating", { n: Math.round(filters.minReviewScore / 10) }), direction: "include" });
   }
   if (filters.maxAgeDays !== undefined) {
     const years = Math.round(filters.maxAgeDays / 365);
-    entries.push({ group: "age", value: "age", label: years === 1 ? "Último año" : `≤ ${years} años`, direction: "include" });
+    entries.push({ group: "age", value: "age", label: years === 1 ? translate("filterTagLastYear") : translate("filterTagYears", { years }), direction: "include" });
   }
   for (const group of Object.keys(GROUPS) as GroupKey[]) {
     const pair = GROUPS[group];

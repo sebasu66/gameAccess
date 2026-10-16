@@ -27,7 +27,7 @@ export function SessionOverlay({ session, onClose }: { session: SessionView; onC
               <span className={success ? "done" : session.phase === "launching" ? "current" : ""}>{t("uiJuego")}</span>
             </section>
           ) : null}
-          {!active ? <button type="button" className="secondary-button session-close" onClick={onClose}>{success ? "Listo" : "Volver al catálogo"}</button> : null}
+          {!active ? <button type="button" className="secondary-button session-close" onClick={onClose}>{success ? t("sessionDone") : t("sessionBackToCatalog")}</button> : null}
         </div>
       </section>
     </div>

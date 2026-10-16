@@ -138,7 +138,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     } catch (error) {
       setOfflineDemo(true);
       void narrate(`Library catalog refresh failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
-      setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
+      setToast(t("libraryRefreshFailed", { error: error instanceof Error ? error.message : String(error) }));
     } finally { setLoading(false); }
   }, []);
 
@@ -457,7 +457,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         .then(found => { if (found.length) setGames(current => current.some(game => game.id === gameId) ? current : [...current, ...found]); })
         .catch(() => undefined);
     }
-    setToast(value === 1 ? (next[gameId] === 1 ? "Añadido a favoritos." : "Quitado de favoritos.") : "Perfecto, veremos menos juegos de este estilo.");
+    setToast(value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : t("toastFewerLikeThis"));
   };
 
   const startDownload = async (game: CatalogGame) => {
@@ -495,7 +495,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         if (typeof appId !== "number") return;
         const game = libraryGames.find(item => (item.app_id ?? item.id) === appId)
           || games.find(item => (item.app_id ?? item.id) === appId);
-        if (!game) { setToast("El juego del acceso directo no está en la biblioteca."); return; }
+        if (!game) { setToast(t("toastShortcutGameMissing")); return; }
         await launchGame(game,true);
       } catch (error) { if (!stopped) setToast(error instanceof Error ? error.message : String(error)); }
       finally {shortcutBusy.current=false;}
@@ -550,15 +550,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
             </div>
             <section  className="hero-media-controls" aria-label={t("uiControlesDelBanner")}>
               <button type="button" onClick={previousHero} aria-label={t("uiAnterior")}><ChevronLeft size={19} /></button>
-              <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
+              <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? t("heroPlay") : t("heroPause")}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
               <button type="button" onClick={nextHero} aria-label={t("uiSiguiente")}><ChevronRight size={19} /></button>
-              <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+              <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? t("heroUnmute") : t("heroMute")}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
             </section>
           </div>
           <section ref={magazineCatalogRef} className="magazine-catalog" aria-label={t("uiJuegosRecientesYFavoritos")}>
             <div className="magazine-heading"><div><span className="eyebrow">{t("uiRecientesYFavoritos")}</span><h2>{t("uiElegiUnJuego")}</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label={t("uiCambiarAVistaEsfera")}><span /></button></div>
             <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties}>
-              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
+              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={t("openGameAria", { name: game.name })}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
             </div>
           </section>
           <div className="screen-controls-hint"><span>{t("uiNavegarWasdFlechas")}</span><span>{t("uiDetallesEnter")}</span><span>{t("uiBuscarCtrlF")}</span></div>
@@ -584,7 +584,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Tienda siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> {t("offlineBanner")}</div> : null}
 
       <main>
         <RenderProbe id="LibraryRoom"><LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} /></RenderProbe>
@@ -593,11 +593,11 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           {loading ? <div className="loading-home"><Loader2 className="spin" /> {t("uiCargandoBiblioteca")}</div> : null}
           
           {offlineDemo ? (
-            <Shelf title={t("uiTuBiblioteca2")} subtitle="Últimos jugados primero · catálogo combinado de tus cuentas locales" games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
+            <Shelf title={t("uiTuBiblioteca2")} subtitle={t("shelfLibrarySubtitle")} games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
           ) : <>
-            <Shelf title={t("uiSeguiDondeEstabas")} subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title={t("uiNuevosLanzamientos")} subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title={t("uiTePuedenGustar")} subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiSeguiDondeEstabas")} subtitle={t("shelfContinueSubtitle")} games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiNuevosLanzamientos")} subtitle={t("shelfNewSubtitle")} games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiTePuedenGustar")} subtitle={t("shelfSuggestedSubtitle")} games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
           </>}
         </div>
       </main>

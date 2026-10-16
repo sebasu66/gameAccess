@@ -15,8 +15,8 @@ export default function ResourceMeter() {
  if (!enabled || !reading) return null;
  const hot = reading.busyPercent >= RUNTIME_LIMITS.BUSY_WARN_PERCENT || reading.worstFrameMs >= RUNTIME_LIMITS.FRAME_WARN_MS;
  return <div className={"ga-resource-meter" + (hot ? " is-hot" : "")} role="status" aria-label={t("uiUsoDeRecursos")}>
-  <span>{reading.fps} fps</span><span>CPU {reading.busyPercent}%</span><span>peor cuadro {reading.worstFrameMs} ms</span>
-  <span>{reading.heapMb === null ? "memoria n/d" : `${reading.heapMb} MB`}</span>
+  <span>{reading.fps} fps</span><span>CPU {reading.busyPercent}%</span><span>{t("meterWorstFrame", { ms: reading.worstFrameMs })}</span>
+  <span>{reading.heapMb === null ? t("meterNoMemory") : `${reading.heapMb} MB`}</span>
   {reading.renders.length ? <span className="ga-resource-culprits">{reading.renders.join(" · ")}</span> : null}
   {reading.culprits.length ? <span className="ga-resource-culprits">{reading.culprits.join(" · ")}</span> : null}
  </div>;

@@ -27,18 +27,18 @@ export default function ParentalControlSection() {
   const locked = policy.enabled && policy.level !== "off";
   const setLevel = (level: ParentalLevel) => setParentalPolicy({ enabled: level !== "off", level });
   const levels: { id: ParentalLevel; label: string; detail: string }[] = [
-    { id: "off", label: "Sin control", detail: "Todo visible" },
-    { id: "adult-only", label: "Solo adultos", detail: "Oculta el contenido sexual exclusivo para adultos (descriptor 3/4 de Valve)" },
-    { id: "strict", label: "Estricto", detail: "Oculta además el contenido sexual sugerido (descriptor 1), como South Park" },
+    { id: "off", label: t("parentalOff"), detail: t("parentalOffDetail") },
+    { id: "adult-only", label: t("parentalAdultOnly"), detail: t("parentalAdultOnlyDetail") },
+    { id: "strict", label: t("parentalStrict"), detail: t("parentalStrictDetail") },
   ];
   return <details className={"ga-filter-accordion ga-parental" + (locked ? " is-locked" : "")} open={locked}>
     <summary>
       {locked ? <Lock size={12} aria-hidden="true" /> : <ShieldCheck size={12} aria-hidden="true" />}
-      Control parental
+      {t("parentalTitle")}
       {locked ? <small className="ga-filter-locked-note">{t("uiActivo")}</small> : null}
     </summary>
     <p className="ga-parental-note">
-      Estos criterios solo <strong>{t("uiExcluyen")}</strong>. Mientras estén activos, el filtro de contenido queda bloqueado para que no se pueda revelar lo excluido.
+      {t("parentalNoteBefore")}<strong>{t("uiExcluyen")}</strong>{t("parentalNoteAfter")}
     </p>
     <div className="ga-parental-levels">
       {levels.map(({ id, label, detail }) => <label key={id} title={detail}>

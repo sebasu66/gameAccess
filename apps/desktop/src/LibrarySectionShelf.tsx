@@ -216,6 +216,6 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
       if (index !== 0 || !isValidElement(node)) return node;
       return cloneElement(node as ReactElement, { ref: metricCardRef });
     })}</div>
-    {!section.games.length ? <p className="library-section-empty">{section.emptyMessage ?? "No hay juegos en esta vista."}</p> : null}
+    {!section.games.length ? <p className="library-section-empty">{section.emptyMessage ?? t("sectionEmptyDefault")}</p> : null}
   </section>;
 }

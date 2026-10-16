@@ -45,10 +45,10 @@ export default function GenrePicker({ genres, stateOf, onSet, onClear }: {
             <li key={id} className={`is-${state}`}>
               <Icon size={18} aria-hidden="true" />
               <span>{label}</span>
-              <button type="button" className="ga-sx-pm is-include" aria-pressed={state === "include"} title={`Quiero juegos de ${label}`}
-                aria-label={`Incluir ${label}`} onClick={() => onSet(id, state === "include" ? "off" : "include")}><CirclePlus size={18} aria-hidden="true" /></button>
-              <button type="button" className="ga-sx-pm is-exclude" aria-pressed={state === "exclude"} title={`No quiero juegos de ${label}`}
-                aria-label={`Excluir ${label}`} onClick={() => onSet(id, state === "exclude" ? "off" : "exclude")}><CircleMinus size={18} aria-hidden="true" /></button>
+              <button type="button" className="ga-sx-pm is-include" aria-pressed={state === "include"} title={t("genreWantGames", { name: label })}
+                aria-label={t("includeNamed", { name: label })} onClick={() => onSet(id, state === "include" ? "off" : "include")}><CirclePlus size={18} aria-hidden="true" /></button>
+              <button type="button" className="ga-sx-pm is-exclude" aria-pressed={state === "exclude"} title={t("genreDontWantGames", { name: label })}
+                aria-label={t("excludeNamed", { name: label })} onClick={() => onSet(id, state === "exclude" ? "off" : "exclude")}><CircleMinus size={18} aria-hidden="true" /></button>
             </li>
           );
         })}

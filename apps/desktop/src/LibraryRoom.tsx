@@ -151,20 +151,20 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, searchFilters) : catalogQuery.items;
       const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
-        "release-date": "Catálogo · lanzamientos recientes",
-        "steam-popularity": "Catálogo · popularidad en Steam",
-        "steam-review-score": "Catálogo · puntuación de Steam",
-        "name": "Catálogo · A–Z",
+        "release-date": t("catalogTitleRelease"),
+        "steam-popularity": t("catalogTitlePopularity"),
+        "steam-review-score": t("catalogTitleScore"),
+        "name": t("catalogTitleName"),
       };
       const descriptions: Record<CatalogSort, string> = {
-        "release-date": "Todos los juegos ordenados por fecha de lanzamiento, del más reciente al más antiguo.",
-        "steam-popularity": "Todos los juegos ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas).",
-        "steam-review-score": "Todos los juegos ordenados por puntuación de reseñas de Steam.",
-        "name": "Todos los juegos disponibles, ordenados alfabéticamente.",
+        "release-date": t("catalogDescRelease"),
+        "steam-popularity": t("catalogDescPopularity"),
+        "steam-review-score": t("catalogDescScore"),
+        "name": t("catalogDescName"),
       };
       return {
         id: "catalog" as const,
-        title: titles[catalogSort] ?? "Catálogo",
+        title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
         total: memoryOnly ? sourceItems.length : catalogQuery.total,
@@ -180,7 +180,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, searchFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, searchFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -579,7 +579,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     try {
       const result = await cancelManagedDownload(appId, status?.job_id);
       if (!result.supported) {
-        setCancelError(result.message ?? "Esta descarga debe administrarse desde Steam.");
+        setCancelError(result.message ?? t("cancelManagedBySteam"));
         return;
       }
       if (result.status) {
@@ -643,9 +643,9 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
           {auxiliarySurface && selectedGame ? detailPanel : null}
           {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
-            <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={`Detalles de ${selectedGame.name}`} tabIndex={-1}>
+            <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
               <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
-              <button type="button" className="ga-detail-more" aria-label={`Más opciones para ${selectedGame.name}`} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button>
+              <button type="button" className="ga-detail-more" aria-label={t("moreOptionsForAria", { name: selectedGame.name })} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button>
               {detailPanel}
             </div>
             {detailMenu ? (getCatalogMode() === "digital"

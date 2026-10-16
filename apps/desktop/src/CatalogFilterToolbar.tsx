@@ -39,17 +39,17 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   return (
     <div className="library-catalog-filter-actions">
       <button type="button" className="ga-filter-open" aria-haspopup="dialog" onClick={onOpenFilters}>
-        <FilledIcon name="genres" />Filtros{active.length ? ` · ${active.length}` : ""}
+        <FilledIcon name="genres" />{t("uiFiltros")}{active.length ? ` · ${active.length}` : ""}
       </button>
       <div className="ga-filter-tags" aria-label={t("uiFiltrosActivos")}>
         {active.length ? active.map(tag => <span key={`${tag.group}:${tag.value}`} className="ga-filter-tag">
           <button type="button" onClick={onOpenFilters}>{tag.label}</button>
-          <button type="button" aria-label={`Quitar filtro ${tag.label}`} onClick={() => clearCriterion(tag.group, tag.value)}><X size={13} /></button>
+          <button type="button" aria-label={t("removeFilterAria", { label: tag.label })} onClick={() => clearCriterion(tag.group, tag.value)}><X size={13} /></button>
         </span>) : <span className="ga-filter-any">{t("uiTodos")}</span>}
       </div>
       <span className="ga-footer-divider" aria-hidden="true" />
       <details className="library-sort-dropdown">
-        <summary aria-label={`Ordenar por ${selectedSortLabel}`} title={`Ordenar por: ${selectedSortLabel}`}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
+        <summary aria-label={t("sortByAria", { label: selectedSortLabel })} title={t("sortByTitle", { label: selectedSortLabel })}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
         <div className="library-sort-menu" role="group" aria-label={t("uiCriterioDeOrden")}>
           {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
         </div>

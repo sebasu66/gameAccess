@@ -81,7 +81,7 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_
   return (
     <div ref={rootRef} className={`library-vault dome-root ${detailOpen ? "has-detail" : ""}`} role="dialog" aria-modal="true" aria-label={t("uiTuBibliotecaCompleta")} tabIndex={-1} onKeyDown={keyDown}>
       <div className="library-vault-head">
-        <div><span className="eyebrow">{t("uiBibliotecaInmersiva")}</span><h2>{selectedGame?.name ?? "Tus juegos"}</h2><p>{visible.length} juegos en esta vista</p></div>
+        <div><span className="eyebrow">{t("uiBibliotecaInmersiva")}</span><h2>{selectedGame?.name ?? t("sphereYourGames")}</h2><p>{t("sphereGamesInView", { count: visible.length })}</p></div>
         <div className="library-vault-actions">
           <label className="library-search"><Search size={18} onClick={() => setQuery(draftQuery.trim())} style={{ cursor: "pointer" }} /><input ref={searchRef} value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setQuery(draftQuery.trim()); } }} placeholder={t("uiBuscarEnTuBiblioteca")} />{draftQuery || query ? <button type="button" onClick={() => { setDraftQuery(""); setQuery(""); }} aria-label={t("uiLimpiarBusqueda")}><X size={16} /></button> : null}</label>
           <div className="library-search-filters">
@@ -121,13 +121,13 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_
             const offsetX = column - selectedColumn;
             const offsetY = row - selectedRow;
             const selected = index === selectedIndex;
-            return <button type="button" className={`dome-cell ${selected ? "is-selected" : ""}`} key={game.id} style={{ "--dome-x": offsetX, "--dome-y": offsetY } as React.CSSProperties} onClick={() => setSelectedIndex(index)} onDoubleClick={() => onOpen(game)} aria-label={`${selected ? "Seleccionado: " : "Seleccionar "}${game.name}`} aria-current={selected ? "true" : undefined}>
+            return <button type="button" className={`dome-cell ${selected ? "is-selected" : ""}`} key={game.id} style={{ "--dome-x": offsetX, "--dome-y": offsetY } as React.CSSProperties} onClick={() => setSelectedIndex(index)} onDoubleClick={() => onOpen(game)} aria-label={t(selected ? "selectedGameAria" : "selectGameAria", { name: game.name })} aria-current={selected ? "true" : undefined}>
               {game.capsule_image || game.header_image ? <img src={game.capsule_image ?? game.header_image ?? ""} alt="" draggable={false} /> : <span className="dome-cell-fallback"><Gamepad2 size={32} /></span>}<span>{game.name}</span>
             </button>;
           })}
         </div></div>
         <div className="dome-vignette" />
-        {!visible.length ? <div className="library-empty">No encontramos juegos con “{query}”.</div> : null}
+        {!visible.length ? <div className="library-empty">{t("sphereNoMatches", { query })}</div> : null}
       </div>
       {selectedGame ? <div className="dome-selection-readout"><span>{selectedIndex + 1} / {visible.length}</span><strong>{selectedGame.name}</strong><small>{t("uiEnterAbrirFicha")}</small></div> : null}
       <section  className="dome-controls-hint" aria-label={t("uiControlesDeNavegacion")}>{detailOpen ? <><span>{t("uiNavegarAccionesWasdFlechas")}</span><span>{t("uiActivarEnter")}</span><span>{t("uiVolverEsc")}</span></> : <><span>{t("uiNavegarWasdFlechas")}</span><span>{t("uiVerDetallesEnter")}</span><span>{t("uiBuscarCtrlF")}</span><span>{t("uiVolverEsc")}</span></>}</section>

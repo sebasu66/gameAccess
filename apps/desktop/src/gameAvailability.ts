@@ -1,4 +1,5 @@
 import type { CatalogGame } from "./types";
+import { translate } from "./i18n";
 
 export interface PlayAvailability {
   allowed: boolean;
@@ -10,7 +11,7 @@ export function playAvailability(_game: CatalogGame, busy = false): PlayAvailabi
   if (busy) {
     return {
       allowed: false,
-      reason: "GameAccess está preparando otro juego.",
+      reason: translate("availabilityBusyReason"),
     };
   }
   return { allowed: true, reason: null };

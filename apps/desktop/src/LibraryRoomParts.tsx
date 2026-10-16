@@ -7,7 +7,7 @@ import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
-import { useI18n } from "./i18n";
+import { useI18n, translate } from "./i18n";
 
 export type DownloadMap = Record<number, ManagedDownloadStatus>;
 export type FocusZone = "grid" | "actions";
@@ -128,7 +128,7 @@ export function selectedVideo(movie?: SteamMovie) {
 }
 
 export function selectedSummary(details: GameDetails | null) {
-  return firstPresent(details?.steam?.short_description, "Seleccionado de la biblioteca combinada de tus cuentas Steam.") ?? "";
+  return firstPresent(details?.steam?.short_description, translate("selectedFromLibraryFallback")) ?? "";
 }
 
 export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, hasSelection: boolean) {
@@ -142,16 +142,16 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   const state = gameStateManager.resolve(status);
 
   if (state.primaryAction === "wait") {
-    const label = "Procesando…";
+    const label = translate("actionProcessing");
     return [{ label, icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
   if (state.primaryAction === "play") {
     return [{
-      label: "Jugar",
+      label: translate("actionPlay"),
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,
       disabled: busy,
-      reason: busy ? "GameAccess está preparando otra sesión." : null,
+      reason: busy ? translate("actionBusyReason") : null,
       kind: "play",
     }];
   }
@@ -159,7 +159,7 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   if (state.primaryAction === "cancel") {
     const cancelling = state.technicalState === "cancelling";
     return [{
-      label: cancelling ? "Cancelando…" : "Cancelar descarga",
+      label: cancelling ? translate("actionCancelling") : translate("actionCancelDownload"),
       icon: cancelling ? <Loader2 className="spin" size={23} /> : <XCircle size={23} />,
       disabled: cancelling,
       kind: "cancel",
@@ -167,13 +167,13 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   }
 
   if (state.primaryAction === "verify") {
-    return [{ label: "Verificando…", icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
+    return [{ label: translate("actionVerifying"), icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
     const srcCount = (game as any).availableSourceCount ?? 0;
   
   return [{
-    label: "Descargar",
+    label: translate("actionDownload"),
     icon: <Download size={23} />,
     disabled: (!game.app_id && !game.id),
     kind: "download",
@@ -270,8 +270,8 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
           <span className="eyebrow">{t("uiTuBiblioteca")}</span>
-          <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
-          <p>{loading ? "GameAccess está cargando el catálogo y tu biblioteca." : "No hay juegos en esta vista. Buscá un juego en el catálogo y agregalo a tu biblioteca."}</p>
+          <h1>{loading ? t("emptyLibraryPreparing") : t("emptyLibraryTitle")}</h1>
+          <p>{loading ? t("emptyLibraryLoadingBody") : t("emptyLibraryBody")}</p>
           {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> {t("uiCargandoBiblioteca")}</span> : null}
         </div>
       </aside>
@@ -280,8 +280,8 @@ export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<H
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />
-            <strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong>
-            <span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span>
+            <strong>{loading ? t("emptyViewSearching") : t("emptyViewTitle")}</strong>
+            <span>{loading ? t("emptyViewLoadingBody") : t("emptyViewBody")}</span>
           </div>
         </div>
       </section>
@@ -312,7 +312,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
             data-library-game-id={game.id}
             onClick={() => props.onSelect(index)}
             aria-current={index === props.selectedIndex ? "true" : undefined}
-            aria-label={`${index === props.selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
+            aria-label={translate(index === props.selectedIndex ? "selectedGameAria" : "selectGameAria", { name: game.name })}
             tabIndex={-1}
           >
             <span className="library-room-card-art">

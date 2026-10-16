@@ -1,9 +1,9 @@
 import type { CatalogMode } from "./catalogMode";
-import { useI18n } from "./i18n";
+import { useI18n, type TranslationKey } from "./i18n";
 
-export const CATALOG_TABS: Array<{ id: CatalogMode; label: string }> = [
-  { id: "local", label: "Propios" },
-  { id: "digital", label: "Catálogo" },
+export const CATALOG_TABS: Array<{ id: CatalogMode; label: TranslationKey }> = [
+  { id: "local", label: "tabOwn" },
+  { id: "digital", label: "tabCatalog" },
 ];
 
 export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onChange: (mode: CatalogMode) => void }) {
@@ -18,7 +18,7 @@ export default function CatalogTabs({ mode, onChange }: { mode: CatalogMode; onC
           aria-current={mode === tab.id ? "page" : undefined}
           onClick={() => onChange(tab.id)}
         >
-          {tab.label}
+          {t(tab.label)}
         </button>
       ))}
     </nav>
