@@ -5,6 +5,7 @@ mod access_activation;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
+mod source_index;
 mod download_lifecycle;
 mod game_uninstall;
 mod steam_artwork;

@@ -26,6 +26,7 @@ aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
 rsa = { version = "0.9", features = ["sha2"] }
+unicode-normalization = "0.1"
 
 [features]
 default = ["custom-protocol"]
