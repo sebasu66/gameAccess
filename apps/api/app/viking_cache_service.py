@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 import httpx
 
 from .request_diagnostics import detail
+from .torbox_status_board import TorboxStatusBoard
 
 logger = logging.getLogger("gameaccess.viking_cache")
 
@@ -148,6 +149,14 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _progress_fraction(item: dict[str, Any]) -> float:
+    try:
+        progress = float(item.get("progress") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return progress / 100.0 if progress > 1 else progress
+
+
 def _is_finished(item: dict[str, Any]) -> bool:
     if item.get("download_finished") is True:
         return True
@@ -271,6 +280,24 @@ def is_viking_upload_server(url: str) -> bool:
     return parsed.scheme == "https" and (host == "vikingfile.com" or host.endswith(".vikingfile.com"))
 
 
+_BOARDS: dict[tuple[str, Any], TorboxStatusBoard] = {}
+
+
+def _shared_board(provider: "TorBoxVikingProvider", interval: float) -> TorboxStatusBoard:
+    """One board per TorBox account (and per fake transport in tests), shared by every provider instance."""
+    key = (provider.torbox_api_key, provider.transport)
+    board = _BOARDS.get(key)
+    if board is None:
+        board = _BOARDS[key] = TorboxStatusBoard(provider._list_torbox_items, interval=interval)
+    return board
+
+
+def torbox_summary() -> dict[str, Any]:
+    """What TorBox is doing overall, from the shared list (no extra request to TorBox)."""
+    board = _BOARDS.get((os.getenv("TORBOX_API_KEY", "").strip(), None))
+    return board.summary() if board is not None else {"downloading": 0, "queued": 0, "stalled": 0, "ready": 0, "age_seconds": None}
+
+
 class TorBoxVikingProvider:
     """Provider adapter. TorBox credentials are only sent to TorBox, never ViKiNG."""
 
@@ -287,6 +314,8 @@ class TorBoxVikingProvider:
         direct_min_mbps: float | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep_fn: Callable[[float], Any] = asyncio.sleep,
+        stall_seconds: int | None = None,
+        status_board: TorboxStatusBoard | None = None,
     ):
         self.torbox_api_key = (torbox_api_key if torbox_api_key is not None else os.getenv("TORBOX_API_KEY", "")).strip()
         self.viking_user_hash = (viking_user_hash if viking_user_hash is not None else os.getenv("VIKING_USER_HASH", "")).strip()
@@ -298,7 +327,7 @@ class TorBoxVikingProvider:
         )
         self.max_wait_seconds = max(
             1,
-            int(max_wait_seconds if max_wait_seconds is not None else os.getenv("GAMEACCESS_TORBOX_MAX_WAIT_SECONDS", "2700")),
+            int(max_wait_seconds if max_wait_seconds is not None else os.getenv("GAMEACCESS_TORBOX_MAX_WAIT_SECONDS", "10800")),
         )
         self.upload_timeout_seconds = max(
             1,
@@ -310,6 +339,20 @@ class TorBoxVikingProvider:
         )
         self.transport = transport
         self.sleep_fn = sleep_fn
+        # A source is given up on when TorBox shows no progress for this long (not after a fixed wait).
+        self.stall_seconds = max(1, int(stall_seconds if stall_seconds is not None else os.getenv("GAMEACCESS_TORBOX_STALL_SECONDS", "900")))
+        board_interval = poll_interval_seconds if poll_interval_seconds is not None else float(os.getenv("GAMEACCESS_TORBOX_BOARD_SECONDS", "8"))
+        self.status_board = status_board or _shared_board(self, board_interval)
+
+    async def _list_torbox_items(self, kind: str) -> list[dict[str, Any]]:
+        """TorBox's whole download list for one kind: the data behind its dashboard, asked for once per refresh."""
+        path = "/torrents/mylist" if kind == "torrent" else "/webdl/mylist"
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=15.0), transport=self.transport, follow_redirects=False) as client:
+            payload = await self._torbox_json(client, "GET", path, params={"bypass_cache": "true"}, timeout=25.0)
+        data = payload.get("data", [])
+        if isinstance(data, dict):
+            data = [data]
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
 
     @staticmethod
     def _parse_json(response: httpx.Response, code: str, message: str) -> dict[str, Any]:
@@ -645,17 +688,24 @@ class TorBoxVikingProvider:
             "request=%s client=%s stage=torbox_wait provider_id=%s kind=%s",
             request_id, installation_id, item_id, source_kind,
         )
-        deadline = time.monotonic() + self.max_wait_seconds
+        board_kind = "torrent" if source_kind == "torrent" else "web"
+        started = time.monotonic()
+        deadline = started + self.max_wait_seconds
+        last_progress, last_move = -1.0, started
         completed_item: dict[str, Any] = {}
         while True:
-            status_payload = await self._torbox_json(
-                client,
-                "GET",
-                item_path,
-                params={"id": item_id, "bypass_cache": "true"},
-                timeout=25.0,
-            )
-            completed_item = _data_object(status_payload)
+            # The shared board answers for every waiting job (one TorBox request per interval in total).
+            item = await self.status_board.get(board_kind, item_id)
+            if item is None:  # TorBox's list does not show it (yet): ask for this one item
+                status_payload = await self._torbox_json(
+                    client,
+                    "GET",
+                    item_path,
+                    params={"id": item_id, "bypass_cache": "true"},
+                    timeout=25.0,
+                )
+                item = _data_object(status_payload)
+            completed_item = item
             if on_status is not None:
                 try:
                     await on_status(completed_item)
@@ -666,7 +716,15 @@ class TorBoxVikingProvider:
             state = str(completed_item.get("download_state") or completed_item.get("status") or "").lower()
             if state in {"error", "failed", "dead", "cancelled", "canceled"}:
                 raise ProviderFailure("torbox_download_failed", 502, "TorBox no pudo completar la descarga de origen.")
-            remaining = deadline - time.monotonic()
+            now = time.monotonic()
+            progress = _progress_fraction(completed_item)
+            if progress > last_progress or state == "queued":  # waiting in TorBox's own queue is not a stall
+                last_progress, last_move = max(progress, last_progress), now
+            if now - last_move >= self.stall_seconds:
+                if _safe_int(completed_item.get("seeds")) == 0:
+                    raise ProviderFailure("torbox_stalled", 502, "Nadie está compartiendo este torrent y TorBox no avanza. Probá con otra fuente.")
+                raise ProviderFailure("torbox_stalled", 502, "TorBox dejó de avanzar con esta fuente. Probá más tarde o con otra fuente.")
+            remaining = deadline - now
             if remaining <= 0:
                 raise ProviderFailure("torbox_wait_timeout", 504, "La fuente todavía no está lista en TorBox; vuelve a intentarlo.")
             await self.sleep_fn(min(self.poll_interval_seconds, remaining) if self.poll_interval_seconds else 0)

@@ -22,7 +22,7 @@ import httpx
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
-from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxItem, create_provider
+from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxItem, create_provider, torbox_summary
 from .download_events import log_event
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 from .viking_chunk_plan import PlannedPiece, plan_pieces
@@ -481,7 +481,7 @@ def start_job(
                 last_state: list[Any] = [None]
 
                 async def report(torbox_item: dict[str, Any]) -> None:
-                    detail = torbox_detail(torbox_item)
+                    detail = {**torbox_detail(torbox_item), "queue": torbox_summary()}  # what Torbox is doing overall
                     _set_job(engine, job_id, detail=json.dumps(detail))
                     marker = (detail["state"], int(detail["progress"] // 10))
                     if marker != last_state[0]:

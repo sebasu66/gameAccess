@@ -29,6 +29,7 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
 
 ## Descargas y servidor
+- [x] **Espera de Torbox robusta y barata** (Claude, 2026-10-16): un solo tablero compartido (`torbox_status_board.py`) consulta la lista completa de Torbox cada ~8 s para todos los clientes; un fallo pasajero ya no tira el trabajo; una fuente se da por inválida solo si Torbox no avanza 15 min (la cola de Torbox no cuenta); el cliente reintenta solo los errores pasajeros y muestra % real, velocidad y tiempo restante. Falta probar en vivo con una descarga lenta.
 - [ ] Cablear el cliente al endpoint de Viking/Torbox y agregar tests; mostrar en la consola, al apretar Download, la petición, el link procesado y los errores.
 - [ ] Viking Files: cuenta VIP ya paga; pendiente respuesta del administrador por hotlinking (Seba).
 - [ ] Comparar descarga directa vs torrent en el servidor cuando no está en Viking ni cacheado en Torbox.

@@ -35,7 +35,15 @@ DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_D
 NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
 NETWORK_RETRY_SECONDS = 3.0
 MAX_RESUMES = 3                  # times the player asks the server to resume a job that stopped
-RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", ""}
+# Torbox hiccups (a slow answer, a 5xx, a long wait) leave the job failed on the server while Torbox keeps working:
+# asking again resumes the same job, which is what a manual retry used to do.
+RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", "",
+                    "torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"}
+ERROR_WORDS = {
+    "torbox_stalled": "Torbox no avanza con esta fuente (nadie la comparte o se estancó)",
+    "torbox_download_failed": "Torbox no pudo bajar esta fuente",
+    "too_many_files": "la fuente tiene demasiados archivos",
+}
 
 
 class ChunkedDownloadUnavailable(Exception):
@@ -58,7 +66,9 @@ def describe_wait(detail: dict | None, game_name: str = "") -> str:
     extra = f" ({seeds} fuentes)" if seeds else ""
     if progress <= 0 and seeds == 0:
         return "El servidor está buscando fuentes para el juego; si nadie lo comparte puede demorar..."
-    return f"El servidor está reuniendo el juego: {progress:.0f}%{extra}"
+    speed, eta = int(detail.get("speed") or 0), int(detail.get("eta") or 0)
+    more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + (f" · faltan ~{max(1, eta // 60)} min" if eta > 0 else "")
+    return f"El servidor está reuniendo el juego: {progress:.0f}%{extra}{more}"
 
 
 @dataclass(frozen=True)
@@ -206,9 +216,16 @@ class ChunkedDownloader:
                             self.sleep(POLL_SECONDS)
                             last_poll = 0.0
                             continue
-                        raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga ({manifest.get('error') or 'error'})")
+                        code = manifest.get("error") or "error"
+                        raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga: {ERROR_WORDS.get(code, code)} ({code})")
                     if not manifest["pieces"]:
-                        context.emit_progress(app_id, "preparing", 20.0, 0, 0, 0, 0, describe_wait(manifest.get("detail"), game_name))
+                        detail = manifest.get("detail") or {}
+                        # The bar follows what Torbox reports (never 0: the job did start).
+                        waiting = max(1.0, min(99.0, float(detail.get("progress") or 0))) if detail.get("stage") == "torbox" else 20.0
+                        context.emit_progress(app_id, "preparing", waiting, 0, 0, int(detail.get("speed") or 0), int(detail.get("eta") or 0),
+                                              describe_wait(detail, game_name))
+                        if detail.get("stage") == "torbox" and float(detail.get("progress") or 0) > 0:
+                            idle_since = time.time()  # Torbox is moving: the server is not stuck
                         self._idle(idle_since or started)
                         continue
                     if not files_ready:

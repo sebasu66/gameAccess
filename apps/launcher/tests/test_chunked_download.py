@@ -327,3 +327,15 @@ def test_several_pieces_are_downloaded_at_the_same_time(tmp_path):
     assert Path(result).read_bytes() == data
     assert state["peak"] >= 2
     assert list(tmp_path.iterdir()) == [Path(result)]
+
+
+def test_torbox_hiccups_are_resumed_but_a_dead_source_is_not():
+    for code in ("torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"):
+        assert code in cd.RESUMABLE_ERRORS
+    assert "torbox_stalled" not in cd.RESUMABLE_ERRORS
+    assert "nadie la comparte" in cd.ERROR_WORDS["torbox_stalled"]
+
+
+def test_waiting_text_shows_speed_and_time_left_from_torbox():
+    text = cd.describe_wait({"stage": "torbox", "progress": 37.2, "seeds": 4, "speed": 8_000_000, "eta": 720})
+    assert "37%" in text and "4 fuentes" in text and "8.0 MB/s" in text and "12 min" in text
