@@ -13,7 +13,7 @@ actualizado: 2026-10-16
 Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (depende de A); C es independiente.
 - [x] **A. Catálogo sin cargar los ~39.000 juegos en memoria** — consultas por vista (tope 1000), `useCatalogQuery`, filtros por defecto (rating mín. 6, antigüedad máx. ~1 año), aviso de tope. Dueño: Gemini. Verifica: Claude.
   - [ ] Claude: verificación en vivo de A (memoria del WebView < ~500 MB con `C:\DEV\measure.ps1`, CPU en reposo ≈ 0, la búsqueda "a" devuelve ≤ 1000). Revisión por inspección de código ya hecha (2026-10-16).
-- [ ] **B. Fuentes de descarga en la base** — tablas `download_sources` / `game_sources`, matching por nombre portado a Rust con test de contrato, deltas del plugin (`/api/source-index?since=`), filtro "con fuente" por SQL, fin del escaneo por lotes y del parpadeo online/offline. Dueño: Gemini (cliente y plugin). Verifica: Claude.
+- [x] **B. Fuentes de descarga en la base** — tablas `download_sources` / `game_sources`, matching por nombre portado a Rust con test de contrato, deltas del plugin (`/api/source-index?since=`), filtro "con fuente" por SQL, fin del escaneo por lotes y del parpadeo online/offline. Dueño: Gemini (cliente y plugin). Verifica: Claude.
 - [ ] **C. Instalación y detección** — carpeta `<appid>-<nombre>-<status>` (preparing/downloading/installing/ready/ERROR), `error.txt` + formulario de error, desinstalar/abortar borra la carpeta, instalado = carpeta con contenido y status `ready`, backup solo del fix, perfil de ejecución editable. Dueño: Gemini. Verifica: Claude.
 
 ## Pasos ya decididos (ejecutar en orden)
@@ -60,7 +60,8 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Firmar instalador (evitar SmartScreen); backups, rate limiting y revisión legal antes de la beta abierta.
 
 ## Mantenimiento y dudas abiertas
-- [ ] Commitear `TODO_OBSOLETO.md` (renombrado desde `TODO.md`), `AGENTS.md`, `.gitignore`, `docs/gemini-tasks-2026-10-16.md` y `vault/` (hoy sin commit).
+- [x] Commitear la limpieza y la bóveda: `23028b6` (limpieza de la raíz) y `ca31480` (vault, README, skill, AGENTS).
+- [ ] Primer push de `dev` a `origin`: hoy `dev` está 18 commits adelante de `origin/dev` (16 previos + los 2 de hoy). Seba debe aprobarlo antes: el remoto es el repo público `sebasu66/gameAccess` y el vault contiene planes, precios y la estrategia de fuentes.
 - [ ] Seba: confirmar los estados marcados † en `vault/Proyecto.md` (biblioteca, cola de descargas, versión Plus, importador de juegos propios, planes y precios).
 - [x] `README.md` y `skill.md`: quitadas las menciones a la versión vieja de licencias Steam (2026-10-16) y alineados con el vault (entrada libre sin llave, disponibilidad de fuentes desde la base). Corrección: antes anoté por error que seguían con reglas viejas de leases; no los había leído.
 - [ ] Docs viejos que todavía hablan de licencias/leases de Steam (12 archivos, ver [[Limpieza]]): decidir si se archivan en `docs/archivo/`. Dueño: Seba decide, Claude mueve.
