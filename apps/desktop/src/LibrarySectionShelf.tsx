@@ -30,6 +30,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const [resetToken, setResetToken] = useState(0);
   const previousVisibleCountRef = useRef(SECTION_PREVIEW_SIZE);
   const selectionScrollPendingRef = useRef(false);
+  const recenterPendingRef = useRef(false);
   const rootRef = useRef<HTMLElement>(null);
   const cancelTween = useRef<() => void>(() => {});
   const lastColumns = useRef(FALLBACK_COLUMNS);
@@ -146,15 +147,20 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   useLayoutEffect(() => {
     cancelTween.current();
     selectionScrollPendingRef.current = true;
+    recenterPendingRef.current = true;
   }, [selectedId]);
 
   // Keyboard navigation can target a card the window is not mounting yet:
   // scroll it into range first so the selection is always renderable.
   useEffect(() => {
-    if (selectedPosition < 0) return;
+    // Only a change of selected game may move the scroll. A list that reorders
+    // or grows (metadata, favorites, lazy batches) moves the same game to a new
+    // index; recentering on that made clicks jump many rows down.
+    if (selectedPosition < 0 || !recenterPendingRef.current) return;
     const root = scrollRoot.current;
     const grid = rootRef.current?.querySelector<HTMLElement>(".library-section-grid");
     if (!root || !grid) return;
+    recenterPendingRef.current = false;
     const active = metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 };
     const target = computeShelfWindow({
       scrollTop,

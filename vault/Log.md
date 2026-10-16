@@ -49,3 +49,5 @@ tipo: log
 | 2026-10-16 14:55 | Claude | commit | Filtro "mínimo 100 reseñas" (checkbox bajo el slider de reseñas positivas; SQL y filtro en memoria; chip y frase) | commit de este paso |
 | 2026-10-16 14:55 | Claude | commit | Respaldo editable por juego (`backupEnabled`, `backupArchive`) en el formulario Idioma y ejecución; `GaTabs` + `tabs.css` (plantilla de pestañas) en Configuración y en ese formulario; pantalla Filtros +10 % con más aire para los editores | commit de este paso |
 | 2026-10-16 15:30 | Claude | commit | Espera de Torbox: tablero compartido (una consulta a la lista de Torbox cada ~8 s para todos los trabajos), criterio de fuente inválida por falta de avance (15 min), reintento automático del cliente en errores pasajeros, % / velocidad / tiempo restante reales y resumen de Torbox en el detalle del trabajo; API 166 tests OK (falla `test_current_product_routes`, ya fallaba antes), launcher 104 OK | commit de este paso |
+
+- Fix scroll: LibrarySectionShelf ya no recentra cuando la lista se reordena/crece; solo al cambiar el juego seleccionado.
