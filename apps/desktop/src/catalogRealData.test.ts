@@ -43,8 +43,9 @@ describe("real catalog", { timeout: 30_000 }, () => {
       if (!available) skip();
       const raw = new Set(games().flatMap(game => game.genres ?? []));
       const concepts = new Set(games().flatMap(game => genreConceptIds(game.genres)));
-      expect(concepts.size).toBeLessThan(raw.size);
+      expect(concepts.size).toBeLessThanOrEqual(raw.size);
       expect(concepts.size).toBeLessThanOrEqual(75);
+      expect(genreConceptIds(["Racing", "Carreras", "racing ", "RPG", "Role-playing (RPG)", "Rol"])).toEqual(["racing", "rpg"]);
     });
 
     it("offers every genre once, with a unique label", ({ skip }) => {
