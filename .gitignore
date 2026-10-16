@@ -95,3 +95,12 @@ apps/api/courtesy-keys.json.*
 tools/plugin-installer/bin/
 tools/plugin-installer/obj/
 tools/plugin-installer/plugin-payload.zip
+
+# Obsidian: se versiona el contenido de vault/ pero no el estado local del editor
+vault/.obsidian/workspace.json
+vault/.obsidian/workspace-mobile.json
+vault/.obsidian/cache
+vault/.trash/
+
+# Papelera local: archivos movidos de la raíz, no se versionan
+/_papelera/
