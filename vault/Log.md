@@ -51,3 +51,5 @@ tipo: log
 | 2026-10-16 15:30 | Claude | commit | Espera de Torbox: tablero compartido (una consulta a la lista de Torbox cada ~8 s para todos los trabajos), criterio de fuente inválida por falta de avance (15 min), reintento automático del cliente en errores pasajeros, % / velocidad / tiempo restante reales y resumen de Torbox en el detalle del trabajo; API 166 tests OK (falla `test_current_product_routes`, ya fallaba antes), launcher 104 OK | commit de este paso |
 
 - Fix scroll: LibrarySectionShelf ya no recentra cuando la lista se reordena/crece; solo al cambiar el juego seleccionado.
+
+- Seleccionar un juego ya no relanza la consulta completa del catalogo (el descubrimiento de fuentes de un juego publica scope game y useCatalogQuery lo ignora). Entrada: una sola fuente a la vez (teclado o mando 1); el mando solo se escucha en modo pantalla grande y toma el control solo con una pulsacion nueva, no con repeticiones.

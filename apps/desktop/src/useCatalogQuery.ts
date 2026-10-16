@@ -43,7 +43,9 @@ export function useCatalogQuery(options: UseCatalogQueryOptions = {}): UseCatalo
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onSourcesChanged = () => {
+    const onSourcesChanged = (event: Event) => {
+      // One game's source discovery does not change the database answer.
+      if ((event as CustomEvent<{ scope?: string }>).detail?.scope === "game") return;
       setRefreshTick(t => t + 1);
     };
     window.addEventListener("gameaccess:sources-changed", onSourcesChanged);

@@ -110,8 +110,11 @@ async function plugins(): Promise<PluginManifest[]> {
 function endpoint(plugin: PluginManifest, path: string): string {
   return plugin.endpoint.replace(/\/+$/, "") + path;
 }
-function publish(): void {
-  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(SOURCES_CHANGED_EVENT));
+/** `scope: "game"` marks the result of one game's source discovery. Cards update
+ * from it, but the catalog database answer is unchanged, so grids must not
+ * query again (that re-ran the whole 1000-row query on every selection). */
+function publish(scope: "all" | "game" = "all"): void {
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(SOURCES_CHANGED_EVENT, { detail: { scope } }));
 }
 
 function validUrl(value: unknown): value is string {
@@ -184,7 +187,7 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   } else {
     detailSources.delete(keyOf(game));
   }
-  publish();
+  publish("game");
   return sources;
 }
 export function suggestedSource(game: CatalogGame): PluginSource | undefined {
@@ -252,7 +255,14 @@ async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
       signal: AbortSignal.timeout(15000),
       cache: "no-store",
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      void narrate(
+        `Provider '${plugin.name}' · /api/source-index replied HTTP ${response.status}` +
+          (response.status === 404 ? " (the running plugin process predates this route; restart the plugin)." : "."),
+        { area: "DOWNLOAD_SOURCES", level: "WARN" },
+      );
+      return null;
+    }
     return (await response.json()) as PluginSourceIndexResponse;
   };
 

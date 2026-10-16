@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Gamepad2, Maximize, Minimize } from "lucide-react";
 import { GamepadInput, type PadAction } from "./gamepadInput";
+import { InputSourceArbiter } from "./inputSource";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useI18n } from "./i18n";
@@ -33,7 +34,10 @@ export default function BigScreenControls(props: Props) {
   const closeKeyboardRef=useRef(closeKeyboard);closeKeyboardRef.current=closeKeyboard;
   useEffect(() => { if (!props.enabled) setKeyboard(false); }, [props.enabled]);
   useEffect(() => {
-    const input = new GamepadInput(); let frame = 0; let idle = 0; let wasConnected = false; let controller = -1;
+    const input = new GamepadInput(); const arbiter = new InputSourceArbiter();
+    const keyboardUsed = () => arbiter.claim("keyboard");
+    window.addEventListener("keydown", keyboardUsed, true);
+    let frame = 0; let idle = 0; let wasConnected = false; let controller = -1;
     const dispatch = (action: PadAction) => {
       const p = latest.current;
       if (action === "toggle") { if (!dialogScope()) p.onToggle(); return; }
@@ -65,7 +69,14 @@ export default function BigScreenControls(props: Props) {
       if (document.visibilityState === "visible" && document.hasFocus()) {
         const pad = Array.from(navigator.getGamepads?.() ?? []).find(pad => pad?.connected && pad.mapping === "standard");
         if (Boolean(pad) !== wasConnected) { wasConnected = Boolean(pad); setConnected(wasConnected); }
-        if (pad) { if (controller !== pad.index) { input.reset(); controller=pad.index; } input.read(pad,now).forEach(dispatch); }
+        // The controller is only heard in big-screen mode, and only while it owns
+        // the input: a fresh press takes over from the keyboard, repeats do not.
+        if (pad && latest.current.enabled) {
+          if (controller !== pad.index) { input.reset(); controller=pad.index; }
+          const actions = input.read(pad,now);
+          if (actions.some(action => input.fresh.has(action))) arbiter.claim("pad");
+          if (arbiter.allows("pad")) actions.forEach(dispatch);
+        }
         else { input.reset(); controller=-1; }
       } else input.reset();
       // Poll every frame only while a controller is in use; otherwise check a few times a second.
@@ -73,7 +84,7 @@ export default function BigScreenControls(props: Props) {
       else idle = window.setTimeout(() => { frame = requestAnimationFrame(tick); }, 300);
     };
     frame=requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(frame); window.clearTimeout(idle); };
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(idle); window.removeEventListener("keydown", keyboardUsed, true); };
   }, []);
   useEffect(() => { if (keyboard) document.querySelector<HTMLElement>(".ga-pad-keyboard button")?.focus({preventScroll:true}); }, [keyboard]);
   const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? t("bigScreenExitShort") : t("bigScreenEnter")}</span></button>;
