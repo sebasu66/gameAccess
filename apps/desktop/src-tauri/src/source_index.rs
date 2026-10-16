@@ -267,6 +267,7 @@ pub fn ensure_source_tables(conn: &Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS ix_download_sources_plugin ON download_sources(plugin_id);
         CREATE INDEX IF NOT EXISTS ix_download_sources_name ON download_sources(source_name);
         CREATE INDEX IF NOT EXISTS ix_download_sources_key_name ON download_sources(source_key, source_name);
+        CREATE INDEX IF NOT EXISTS ix_download_sources_name_key ON download_sources(source_name, source_key);
 
         CREATE TABLE IF NOT EXISTS game_sources (
             app_id INTEGER NOT NULL,

@@ -1,11 +1,14 @@
 import type { ExecutionProfile } from "./ExecutionProfiles";
-import { pluginGeneration, providerAvailable } from "./PluginRuntime";
+import { getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
-import { gamesWithPossibleSources } from "./sourceTitleIndex";
-import { setCatalogTempSources, type TempSourceItem, readCatalogNames } from "../catalogCache";
+import {
+  applyCatalogSources,
+  removePluginCatalogSources,
+  type SourceIndexEntry,
+} from "../catalogCache";
 
 export interface PluginManifest { id: string; name: string; endpoint: string; type: string; }
 export interface PluginSource {
@@ -17,26 +20,84 @@ export interface PluginSource {
 }
 export interface SourceAvailability { count: number; names: string[]; }
 export const SOURCES_CHANGED_EVENT = "gameaccess:sources-changed";
-const availability = new Map<number, SourceAvailability>();
+const REVISION_STORAGE_PREFIX = "gameaccess:plugin_source_revision:";
 const detailSources = new Map<number, PluginSource[]>();
-const pending = new Map<string, Promise<Record<number, number>>>();
-const completedScans = new Map<string, number>();
-const SCAN_CACHE_MS = 5 * 60 * 1000;
+const appliedRevisions = new Map<string, string>();
+const syncedSessionRevisions = new Map<string, string>();
+const knownSourceNames = new Set<string>();
+let pendingSync: Promise<Record<number, number>> | null = null;
 const keyOf = (game: CatalogGame) => game.app_id ?? game.id;
 
-export function sourceAvailability(game: CatalogGame): SourceAvailability {
-  return availability.get(keyOf(game)) ?? { count: 0, names: [] };
+function getSavedPluginRevision(pluginId: string): string {
+  const inMem = appliedRevisions.get(pluginId);
+  if (inMem !== undefined) return inMem;
+  try {
+    if (typeof localStorage !== "undefined") {
+      const stored = localStorage.getItem(REVISION_STORAGE_PREFIX + pluginId);
+      if (stored) {
+        appliedRevisions.set(pluginId, stored);
+        return stored;
+      }
+    }
+  } catch { /* ignore storage errors */ }
+  return "";
 }
+
+function setSavedPluginRevision(pluginId: string, revision: string): void {
+  appliedRevisions.set(pluginId, revision);
+  try {
+    if (typeof localStorage !== "undefined") {
+      if (revision) localStorage.setItem(REVISION_STORAGE_PREFIX + pluginId, revision);
+      else localStorage.removeItem(REVISION_STORAGE_PREFIX + pluginId);
+    }
+  } catch { /* ignore storage errors */ }
+}
+
+export function setKnownSourceNames(names: Iterable<string>): void {
+  for (const name of names) {
+    if (typeof name === "string" && name.trim()) knownSourceNames.add(name.trim());
+  }
+}
+
+export function sourceAvailability(game: CatalogGame): SourceAvailability {
+  const id = keyOf(game);
+  const detail = detailSources.get(id);
+  if (detail && detail.length > 0) {
+    return {
+      count: detail.length,
+      names: [...new Set(detail.map(source => source.sourceName).filter(Boolean))],
+    };
+  }
+  const names = game.download_source_names ?? game.source_names ?? [];
+  const count =
+    game.availableSourceCount ??
+    game.source_count ??
+    (game.has_downloads ? Math.max(1, names.length) : names.length);
+  return { count, names: [...names] };
+}
+
 export function applySourceAvailability(games: CatalogGame[]): CatalogGame[] {
   let changed = false;
   const next = games.map(game => {
     const entry = sourceAvailability(game);
-    if (game.availableSourceCount === entry.count && JSON.stringify(game.download_source_names) === JSON.stringify(entry.names)) return game;
+    if (
+      game.availableSourceCount === entry.count &&
+      Boolean(game.has_downloads) === (entry.count > 0) &&
+      JSON.stringify(game.download_source_names ?? []) === JSON.stringify(entry.names)
+    ) {
+      return game;
+    }
     changed = true;
-    return { ...game, has_downloads: entry.count > 0, availableSourceCount: entry.count, download_source_names: entry.names };
+    return {
+      ...game,
+      has_downloads: entry.count > 0,
+      availableSourceCount: entry.count,
+      download_source_names: entry.names,
+    };
   });
   return changed ? next : games;
 }
+
 async function plugins(): Promise<PluginManifest[]> {
   try {
     const result = await invoke<PluginManifest[]>("get_registered_plugins");
@@ -53,20 +114,6 @@ function publish(): void {
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new Event(SOURCES_CHANGED_EVENT));
 }
 
-/**
- * Copies what is known so far into the catalog database, where the grid's
- * "con fuente" / source filters are answered. Done during the scan too, so the
- * filter works before a long scan ends.
- */
-async function storeKnownSources(): Promise<void> {
-  const items: TempSourceItem[] = [];
-  for (const [id, entry] of availability) {
-    if (entry.count > 0 && entry.names.length) items.push({ app_id: id, source_names: [...new Set(entry.names)] });
-  }
-  await setCatalogTempSources(items).catch(err => {
-    void narrate(`Failed to set catalog temp sources: ${String(err)}`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
-  });
-}
 function validUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const uri = value.trim().replace(/&amp;/gi, "&");
@@ -129,127 +176,169 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
     seen.add(source.url); return true;
   });
   void narrate(`AppID ${keyOf(game)} · source discovery complete: ${sources.length} distinct option(s); download button ${sources.length ? "available" : "unavailable"}.`, { area: "DOWNLOAD_SOURCES" });
-  detailSources.set(keyOf(game), sources);
-  availability.set(keyOf(game), { count: sources.length, names: [...new Set(sources.map(source => source.sourceName))] });
+  if (sources.length > 0) {
+    detailSources.set(keyOf(game), sources);
+    for (const s of sources) {
+      if (s.sourceName) knownSourceNames.add(s.sourceName);
+    }
+  } else {
+    detailSources.delete(keyOf(game));
+  }
   publish();
   return sources;
 }
 export function suggestedSource(game: CatalogGame): PluginSource | undefined {
   return detailSources.get(keyOf(game))?.[0];
 }
-let matchingCatalog: CatalogGame[] | null = null;
 
 export function invalidateCatalogMatchingCache(): void {
-  matchingCatalog = null;
-}
-
-async function getMatchingCatalog(): Promise<CatalogGame[]> {
-  if (matchingCatalog && matchingCatalog.length > 0) return matchingCatalog;
-  matchingCatalog = await readCatalogNames().catch(() => []);
-  return matchingCatalog;
+  // Matching is now persisted in SQLite via catalog_sources_apply.
 }
 
 export function getAllAvailableSourceNames(): string[] {
-  const names = new Set<string>();
-  for (const entry of availability.values()) {
-    for (const name of entry.names) names.add(name);
+  const names = new Set<string>(knownSourceNames);
+  for (const list of detailSources.values()) {
+    for (const item of list) {
+      if (item.sourceName) names.add(item.sourceName);
+    }
   }
   return [...names].sort();
 }
 
-export async function checkPluginSources(games?: CatalogGame[]): Promise<Record<number, number>> {
-  const candidateGames = (games && games.length) ? games : await getMatchingCatalog();
-  const key = pluginGeneration() + ":" + (games && games.length ? JSON.stringify(games.map(game => [keyOf(game), game.name])) : "all");
-  if (Date.now() - (completedScans.get(key) ?? 0) < SCAN_CACHE_MS) {
-    return Object.fromEntries(candidateGames.map(game => [keyOf(game), sourceAvailability(game).count]));
-  }
-  const existing = pending.get(key);
-  if (existing) return existing;
-  const request = check(candidateGames, key).finally(() => pending.delete(key));
-  pending.set(key, request);
-  return request;
-}
-function bulkAvailability(raw: unknown, providerName: string): SourceAvailability {
-  const object = raw && typeof raw === "object" ? raw as {count?: unknown; sources?: unknown} : {};
-  const value = typeof raw === "number" ? raw : object.count;
-  const count = typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-  if (!count) return {count:0,names:[]};
-  const names = Array.isArray(object.sources) ? object.sources.filter((name): name is string => typeof name === "string") : [];
-  return {count,names:names.length ? names : [providerName]};
+interface PluginSourceIndexResponse {
+  revision?: unknown;
+  full?: unknown;
+  added?: unknown;
+  removed?: unknown;
 }
 
-function applyBulkBatch(batch: CatalogGame[], data: Record<string, unknown>, next: Map<number, SourceAvailability>, providerName: string): void {
-  for (const game of batch) {
-    const received = bulkAvailability(data[String(keyOf(game))], providerName);
-    const entry = next.get(keyOf(game))!;
-    entry.count += received.count;
-    entry.names.push(...received.names);
-    availability.set(keyOf(game), { count: entry.count, names: [...new Set(entry.names)] });
+function normalizeIndexEntries(rawAdded: unknown, fallbackSourceName: string): SourceIndexEntry[] {
+  if (!Array.isArray(rawAdded)) return [];
+  const entries: SourceIndexEntry[] = [];
+  for (const item of rawAdded) {
+    if (!item || typeof item !== "object") continue;
+    const obj = item as Record<string, unknown>;
+    const title = typeof obj.title === "string" ? obj.title.trim() : typeof obj.raw_title === "string" ? obj.raw_title.trim() : "";
+    if (!title) continue;
+    const source = typeof obj.source === "string" && obj.source.trim()
+      ? obj.source.trim()
+      : typeof obj.source_name === "string" && obj.source_name.trim()
+        ? obj.source_name.trim()
+        : fallbackSourceName;
+    entries.push({
+      key: typeof obj.key === "string" && obj.key ? obj.key : undefined,
+      title,
+      source,
+      multiplayer: Boolean(obj.multiplayer),
+    });
   }
+  return entries;
 }
 
-/** Asks the provider for the titles it has sources for (a few thousand). Null when it cannot tell. */
-async function providerTitles(plugin: PluginManifest): Promise<string[] | null> {
-  try {
-    const response = await fetch(endpoint(plugin, "/api/titles"), { signal: AbortSignal.timeout(10000) });
+async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
+  const statuses = getPluginStatuses();
+  const status = statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint);
+  if (status && !status.alive) return;
+
+  const lastRev = getSavedPluginRevision(plugin.id);
+  const currentHealthRev = status?.revision ?? "";
+  if (currentHealthRev && syncedSessionRevisions.get(plugin.id) === currentHealthRev && lastRev === currentHealthRev) {
+    return;
+  }
+
+  const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse | null> => {
+    const query = since ? `?since=${encodeURIComponent(since)}` : "";
+    const response = await fetch(endpoint(plugin, `/api/source-index${query}`), {
+      signal: AbortSignal.timeout(15000),
+      cache: "no-store",
+    });
     if (!response.ok) return null;
-    const data = await response.json() as unknown;
-    return Array.isArray(data) ? data.filter((title): title is string => typeof title === "string") : null;
-  } catch { return null; }
-}
+    return (await response.json()) as PluginSourceIndexResponse;
+  };
 
-async function check(games: CatalogGame[], scanKey: string): Promise<Record<number, number>> {
-  let hadErrors = false;
-  let lastPublished = 0;
-  const epoch = pluginGeneration();
-  const next = new Map<number, SourceAvailability>(games.map(game => [keyOf(game), { count: 0, names: [] }]));
-  const manifests = await plugins();
-  void narrate(`Source availability scan started: ${games.length} game(s), ${manifests.length} provider(s), batches of 100.`, { area: "DOWNLOAD_SOURCES" });
-  if (epoch !== pluginGeneration()) return {};
-  for (const [id, entry] of next) availability.set(id, entry);
-  publish();
-  await Promise.all(manifests.map(async plugin => {
-    // Start from the provider's own list of titles and look those up in the catalog, instead of
-    // asking about every catalog game. Providers without /api/titles are scanned game by game.
-    const titles = await providerTitles(plugin);
-    const toScan = titles ? gamesWithPossibleSources(titles, games) : games;
-    if (titles) void narrate(`Provider '${plugin.name}' lists ${titles.length} source title(s); ${toScan.length} of ${games.length} catalog game(s) may match.`, { area: "DOWNLOAD_SOURCES" });
-    for (let start = 0; start < toScan.length; start += 100) {
-      if (epoch !== pluginGeneration()) return;
-      const batch = toScan.slice(start, start + 100);
-      try {
-        const response = await fetch(endpoint(plugin, "/api/bulk_check"), {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ include_sources: true, games: batch.map(game => ({ id: keyOf(game), name: game.name })) }),
-          signal: AbortSignal.timeout(15000),
+  try {
+    let payload = await fetchIndex(lastRev);
+    if (!payload) return;
+
+    let full = Boolean(payload.full);
+    let added = normalizeIndexEntries(payload.added, plugin.name);
+    let removed = Array.isArray(payload.removed)
+      ? payload.removed.filter((k): k is string => typeof k === "string" && k.length > 0)
+      : [];
+    let revision = String(payload.revision ?? (currentHealthRev || "1"));
+
+    for (const entry of added) {
+      if (entry.source) knownSourceNames.add(entry.source);
+    }
+
+    let applied = await applyCatalogSources({
+      pluginId: plugin.id,
+      revision,
+      full,
+      added,
+      removed,
+    });
+
+    // If a delta was requested with a stored revision from a previous DB, but the local DB has 0 sources,
+    // re-fetch full index once so the DB is populated.
+    if (!full && lastRev && applied && applied.sources_total === 0) {
+      const fullPayload = await fetchIndex("");
+      if (fullPayload) {
+        full = true;
+        added = normalizeIndexEntries(fullPayload.added, plugin.name);
+        removed = [];
+        revision = String(fullPayload.revision ?? revision);
+        for (const entry of added) {
+          if (entry.source) knownSourceNames.add(entry.source);
+        }
+        applied = await applyCatalogSources({
+          pluginId: plugin.id,
+          revision,
+          full: true,
+          added,
+          removed: [],
         });
-        if (!response.ok) {
-          hadErrors = true;
-          void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: HTTP ${response.status}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
-          continue;
-        }
-        const data = await response.json() as Record<string, unknown>;
-        if (epoch !== pluginGeneration()) return;
-        applyBulkBatch(batch, data, next, plugin.name);
-        if (games.length <= 500 || Date.now() - lastPublished >= 1000) {
-          lastPublished = Date.now(); await storeKnownSources(); publish();
-        }
-      } catch (error) {
-        hadErrors = true;
-        void narrate(`Provider '${plugin.name}' · source batch ${start / 100 + 1} failed: ${error instanceof Error ? error.name : "unknown error"}.`, { area: "DOWNLOAD_SOURCES", level: "WARN" });
       }
     }
-  }));
-  if (epoch !== pluginGeneration()) return {};
-  for (const [id, entry] of next) availability.set(id, {count:entry.count,names:[...new Set(entry.names)]});
-  void narrate(`Source availability scan finished: ${[...next.values()].filter(entry => entry.count > 0).length} game(s) with sources.`, { area: "DOWNLOAD_SOURCES" });
-  await storeKnownSources();
-  publish();
-  if (!hadErrors) {
-    completedScans.set(scanKey, Date.now());
-    if (completedScans.size > 4) completedScans.delete(completedScans.keys().next().value!);
+
+    setSavedPluginRevision(plugin.id, revision);
+    syncedSessionRevisions.set(plugin.id, currentHealthRev || revision);
+    if (full || added.length > 0 || removed.length > 0) {
+      publish();
+    }
+  } catch (error) {
+    void narrate(
+      `Provider '${plugin.name}' · source-index sync failed: ${error instanceof Error ? error.name : "unknown error"}.`,
+      { area: "DOWNLOAD_SOURCES", level: "WARN" },
+    );
   }
-  return Object.fromEntries([...next].map(([id, entry]) => [id, entry.count]));
+}
+
+export async function checkPluginSources(_games?: CatalogGame[]): Promise<Record<number, number>> {
+  if (pendingSync) return pendingSync;
+  const run = (async () => {
+    const manifests = await plugins();
+    await Promise.all(manifests.map(plugin => syncPluginIndex(plugin)));
+    return {};
+  })().finally(() => {
+    pendingSync = null;
+  });
+  pendingSync = run;
+  return run;
+}
+
+export const syncPluginSources = checkPluginSources;
+
+export async function unregisterPluginSources(pluginId: string): Promise<void> {
+  setSavedPluginRevision(pluginId, "");
+  syncedSessionRevisions.delete(pluginId);
+  await removePluginCatalogSources(pluginId).catch(err => {
+    void narrate(`Failed to remove catalog sources for plugin '${pluginId}': ${String(err)}`, {
+      area: "DOWNLOAD_SOURCES",
+      level: "WARN",
+    });
+  });
+  publish();
 }
 
 /** Resolve only the chosen option through its own registered provider. */
@@ -275,9 +364,19 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
 }
 
 export function invalidatePluginSources(): void {
-  availability.clear();
-  completedScans.clear();
   detailSources.clear();
-  void setCatalogTempSources([]).catch(() => {});
+  syncedSessionRevisions.clear();
+  appliedRevisions.clear();
+  knownSourceNames.clear();
+  try {
+    if (typeof localStorage !== "undefined") {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(REVISION_STORAGE_PREFIX)) {
+          localStorage.removeItem(key);
+        }
+      }
+    }
+  } catch { /* ignore storage errors */ }
   publish();
 }

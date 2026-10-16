@@ -1,40 +1,112 @@
 vi.mock("../narrationLog", () => ({ narrate: vi.fn(), narrateBatch: vi.fn().mockResolvedValue(undefined) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { checkPluginSources, invalidatePluginSources, getPluginSources, sourceAvailability, applySourceAvailability, preparePluginSource } from "./PluginSources";
+import {
+  checkPluginSources,
+  invalidatePluginSources,
+  getPluginSources,
+  sourceAvailability,
+  applySourceAvailability,
+  preparePluginSource,
+  unregisterPluginSources,
+  getAllAvailableSourceNames,
+} from "./PluginSources";
+import { pollPluginRuntime, resetPluginRuntime } from "./PluginRuntime";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
 import type { CatalogGame } from "../types";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const game = { id: 7, app_id: 700, name: "Example", slug: "example", credit_cost_per_hour: 0, copies_total: 0, copies_available: 0 } satisfies CatalogGame;
 const plugin = { id: "test", name: "Provider", type: "source_provider", endpoint: "http://127.0.0.1:45000/" };
-beforeEach(() => invalidatePluginSources());
+beforeEach(() => {
+  resetPluginRuntime();
+  invalidatePluginSources();
+  (globalThis as any).window = { __TAURI_INTERNALS__: {}, dispatchEvent: vi.fn() };
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.mocked(invoke).mockReset(); });
 describe("External plugin sources", () => {
-  it("reuses a completed scan on focus but refetches after a plugin revision invalidates it", async () => {
-    vi.mocked(invoke).mockResolvedValue([plugin]);
-    // An older provider answers 404 to /api/titles, so each scan is the titles probe plus one bulk batch.
-    const fetcher = vi.fn(async (url: string) => String(url).endsWith("/api/titles") ? {ok:false,json:async()=>({})} : {ok:true,json:async()=>({700:{count:2,sources:["Feed A"]}})});
-    vi.stubGlobal("fetch",fetcher);
-    await checkPluginSources([game]); await checkPluginSources([game]);
-    expect(fetcher).toHaveBeenCalledTimes(2);
-    invalidatePluginSources(); await checkPluginSources([game]);
-    expect(fetcher).toHaveBeenCalledTimes(4);
+  it("syncs /api/source-index once per revision and sends ?since= on subsequent revisions", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === "get_registered_plugins") return [plugin];
+      if (cmd === "catalog_sources_apply") {
+        return { plugin_id: plugin.id, revision: "1-0", sources_total: 2, matched_links: 2 };
+      }
+      return undefined;
+    });
+
+    const fetcher = vi.fn(async (url: string): Promise<any> => {
+      if (url.endsWith("/api/health")) {
+        return { ok: true, status: 200, json: async () => ({ id: plugin.id, revision: "1-0", instanceId: "i1", dirty: false }) };
+      }
+      if (url.endsWith("/api/source-index")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            revision: "1-0",
+            full: true,
+            added: [
+              { key: "k1", title: "Example Repack", source: "Feed A", multiplayer: false },
+              { key: "k2", title: "Example Online-Fix", source: "Feed B", multiplayer: true },
+            ],
+            removed: [] as string[],
+          }),
+        };
+      }
+      throw new Error("Unexpected URL: " + url);
+    });
+    vi.stubGlobal("fetch", fetcher);
+
+    await pollPluginRuntime();
+    await checkPluginSources();
+    await checkPluginSources();
+
+    const indexCalls = fetcher.mock.calls.filter(c => String(c[0]).includes("/api/source-index"));
+    expect(indexCalls).toHaveLength(1);
+    expect(indexCalls[0][0]).toBe("http://127.0.0.1:45000/api/source-index");
+    expect(invoke).toHaveBeenCalledWith("catalog_sources_apply", {
+      pluginId: "test",
+      revision: "1-0",
+      full: true,
+      added: [
+        { key: "k1", title: "Example Repack", source: "Feed A", multiplayer: false },
+        { key: "k2", title: "Example Online-Fix", source: "Feed B", multiplayer: true },
+      ],
+      removed: [],
+    });
+    expect(getAllAvailableSourceNames()).toEqual(["Feed A", "Feed B"]);
+
+    // Advance plugin revision to 2-0 and verify delta sync uses ?since=1-0
+    fetcher.mockImplementation(async (url: string) => {
+      if (url.endsWith("/api/health")) {
+        return { ok: true, status: 200, json: async () => ({ id: plugin.id, revision: "2-0", instanceId: "i1", dirty: false }) };
+      }
+      if (url.includes("/api/source-index?since=1-0")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            revision: "2-0",
+            full: false,
+            added: [{ key: "k3", title: "Another Game", source: "Feed C", multiplayer: false }],
+            removed: ["k1"],
+          }),
+        };
+      }
+      throw new Error("Unexpected URL: " + url);
+    });
+
+    await pollPluginRuntime();
+    await checkPluginSources();
+
+    expect(invoke).toHaveBeenCalledWith("catalog_sources_apply", {
+      pluginId: "test",
+      revision: "2-0",
+      full: false,
+      added: [{ key: "k3", title: "Another Game", source: "Feed C", multiplayer: false }],
+      removed: ["k1"],
+    });
   });
-  it("starts from the provider's title list and only asks about catalog games that can match", async () => {
-    vi.mocked(invoke).mockResolvedValue([plugin]);
-    const bulkBodies: Array<{games:Array<{id:number}>}> = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: {body?: string}) => {
-      if (String(url).endsWith("/api/titles")) return {ok:true,json:async()=>["example v1.2","something else entirely"]};
-      bulkBodies.push(JSON.parse(init?.body ?? "{}"));
-      return {ok:true,json:async()=>({700:{count:1,sources:["Feed A"]}})};
-    }));
-    const others = Array.from({length:250},(_,index)=>({...game,id:2000+index,app_id:2000+index,name:"Unlisted "+index}));
-    await checkPluginSources([game,...others]);
-    expect(bulkBodies).toHaveLength(1);
-    expect(bulkBodies[0].games.map(entry=>entry.id)).toEqual([700]);
-    expect(sourceAvailability(game).count).toBe(1);
-    expect(sourceAvailability(others[0]).count).toBe(0);
-  });
+
   it("uses the Steam AppID, rejects unusable URLs, deduplicates and keeps source-specific sizes", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => [
@@ -50,45 +122,30 @@ describe("External plugin sources", () => {
     expect(pluginDownloadLabel(game, result, "es")).toBe("Descargar (6 GB) [1 fuente]");
     expect(pluginDownloadLabel(game, result, "en")).toBe("Download (6 GB) [1 source]");
   });
-  it("supports named feeds and immutable catalog updates", async () => {
-    vi.mocked(invoke).mockResolvedValue([plugin]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ 700: { count: 3, sources: ["Feed A", "Feed B"] } }) }));
-    expect(await checkPluginSources([game])).toEqual({ 700: 3 });
-    const original = [game];
-    const next = applySourceAvailability(original);
-    expect(next).not.toBe(original); expect(next[0]).not.toBe(game);
-    expect(next[0].download_source_names).toEqual(["Feed A", "Feed B"]);
-    expect(applySourceAvailability(next)).toBe(next);
-  });
-  it("publishes the first batch before the full catalog scan finishes", async () => {
-    vi.mocked(invoke).mockResolvedValue([plugin]);
-    let resolveLast!: (value: unknown) => void;
-    const last = new Promise(resolve => { resolveLast = resolve; });
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce({ok:false,json:async()=>({})})
-      .mockResolvedValueOnce({ok:true,json:async()=>({800:{count:2,sources:["Feed A"]}})})
-      .mockImplementationOnce(()=>last));
-    const games = Array.from({length:101},(_,index)=>({...game,id:800+index,app_id:800+index,name:"Game "+index}));
-    const request = checkPluginSources(games);
-    await vi.waitFor(()=>expect(sourceAvailability(games[0]).count).toBe(2));
-    resolveLast({ok:true,json:async()=>({900:{count:1,sources:["Feed B"]}})});
-    await request;
-    expect(sourceAvailability(games[100]).names).toEqual(["Feed B"]);
-  });
-  it("a failed provider disables current availability", async () => {
+
+  it("preserves persistent SQLite availability when plugin is offline and updates on detail fetch", async () => {
+    const dbGame: CatalogGame = {
+      ...game,
+      has_downloads: true,
+      availableSourceCount: 2,
+      download_source_names: ["FitGirl", "SteamRip"],
+    };
+    expect(sourceAvailability(dbGame)).toEqual({ count: 2, names: ["FitGirl", "SteamRip"] });
+    const unchanged = [dbGame];
+    expect(applySourceAvailability(unchanged)).toBe(unchanged);
+
+    // If plugin is offline, getPluginSources returns [] for live links, but persistent DB availability on dbGame remains intact
     vi.mocked(invoke).mockResolvedValue([plugin]);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-    expect(await getPluginSources(game)).toEqual([]);
+    expect(await getPluginSources(dbGame)).toEqual([]);
+    expect(sourceAvailability(dbGame)).toEqual({ count: 2, names: ["FitGirl", "SteamRip"] });
     expect(sourceAvailability(game).count).toBe(0);
   });
-  it("publishes matched temp sources to SQLite cache via setCatalogTempSources", async () => {
-    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
-    vi.mocked(invoke).mockResolvedValue([plugin]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ 700: { count: 1, sources: ["Feed A"] } }) }));
-    await checkPluginSources([game]);
-    expect(invoke).toHaveBeenCalledWith("catalog_cache_set_temp_sources", {
-      sources: [{ app_id: 700, source_names: ["Feed A"] }],
-    });
+
+  it("removes plugin sources from SQLite when unregisterPluginSources is called", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined);
+    await unregisterPluginSources("test");
+    expect(invoke).toHaveBeenCalledWith("catalog_sources_remove_plugin", { pluginId: "test" });
   });
 });
 

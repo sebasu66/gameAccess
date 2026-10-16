@@ -72,6 +72,8 @@ export interface CatalogQueryParams {
   min_rating?: number;
   max_age_days?: number;
   include_recent_unrated?: boolean;
+  /** Strict floor on the number of reviews; games with fewer (or none on record) are hidden. */
+  min_review_count?: number;
   app_ids?: number[];
   exclude_genres?: string[];
   exclude_features?: string[];
@@ -91,11 +93,6 @@ export interface CatalogQueryResult {
   total: number;
 }
 
-export interface TempSourceItem {
-  app_id: number;
-  source_names: string[];
-}
-
 export interface CatalogFacetsResult {
   genres: string[];
   sources?: string[];
@@ -104,10 +101,6 @@ export interface CatalogFacetsResult {
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
   if (!native()) return { items: [], total: 0 };
   return invoke<CatalogQueryResult>("catalog_cache_query", { params });
-}
-
-export async function setCatalogTempSources(_sources: TempSourceItem[]): Promise<void> {
-  // Replaced by persistent catalog_sources_apply (game_sources / download_sources).
 }
 
 export async function getCatalogFacets(): Promise<CatalogFacetsResult> {

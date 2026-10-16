@@ -21,7 +21,6 @@ export function useCatalogSources(games: CatalogGame[], setGames: Dispatch<SetSt
       const gen = pluginGeneration();
       if (lastGenerationRef.current === gen) return;
       lastGenerationRef.current = gen;
-      invalidatePluginSources();
       void checkPluginSources();
     };
 

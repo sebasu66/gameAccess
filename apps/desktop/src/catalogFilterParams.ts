@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCatalogFacets, type CatalogQueryParams } from "./catalogCache";
+import { setKnownSourceNames } from "./catalog/PluginSources";
 import { getSteamStoreLanguage } from "./i18n";
 import { genreConceptId, genreIsSoftware } from "./libraryGenres";
 import { SOFTWARE_GENRES, type LibrarySearchFilters } from "./librarySearch";
@@ -14,7 +15,11 @@ let genreNamesRequest: Promise<string[]> | null = null;
 export function loadCatalogGenreNames(): Promise<string[]> {
   if (genreNames.length) return Promise.resolve(genreNames);
   genreNamesRequest ??= getCatalogFacets()
-    .then(result => { genreNames = result.genres ?? []; return genreNames; })
+    .then(result => {
+      genreNames = result.genres ?? [];
+      if (Array.isArray(result.sources)) setKnownSourceNames(result.sources);
+      return genreNames;
+    })
     .catch(() => [])
     .finally(() => { genreNamesRequest = null; });
   return genreNamesRequest;
@@ -81,5 +86,6 @@ export function catalogParamsFromFilters(query: string, filters: LibrarySearchFi
     min_rating: filters.minReviewScore,
     max_age_days: filters.maxAgeDays,
     include_recent_unrated: filters.spareUnprovenGames,
+    min_review_count: filters.minReviewCount,
   };
 }

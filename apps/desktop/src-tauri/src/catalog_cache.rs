@@ -784,6 +784,8 @@ pub struct CatalogQueryParams {
     pub min_rating: Option<f32>,
     pub max_age_days: Option<i64>,
     pub include_recent_unrated: Option<bool>,
+    /// Strict floor on the number of reviews. Unlike `min_rating` it never spares new or unrated games.
+    pub min_review_count: Option<i64>,
     pub app_ids: Option<Vec<i64>>,
     /// Exact genre names (as stored in game_genre) a game must not carry.
     pub exclude_genres: Option<Vec<String>>,
@@ -1266,7 +1268,7 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
     }
 
     if params.has_downloads == Some(true) {
-        where_clauses.push("EXISTS (SELECT 1 FROM game_sources gs WHERE gs.app_id = g.app_id)".to_string());
+        where_clauses.push("g.app_id IN (SELECT gs.app_id FROM game_sources gs)".to_string());
     }
 
     if let Some(ref sources) = params.sources {
@@ -1278,7 +1280,7 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
                 sql_params.push(SqlValue::Text(s.clone()));
             }
             where_clauses.push(format!(
-                "EXISTS (SELECT 1 FROM game_sources gs JOIN download_sources ds INDEXED BY ix_download_sources_key_name ON ds.source_key = gs.source_key WHERE gs.app_id = g.app_id AND ds.source_name IN ({}))",
+                "g.app_id IN (SELECT gs.app_id FROM download_sources ds INDEXED BY ix_download_sources_name_key JOIN game_sources gs INDEXED BY ix_game_sources_source_key ON gs.source_key = ds.source_key WHERE ds.source_name IN ({}))",
                 source_placeholders.join(",")
             ));
         }
@@ -1305,6 +1307,14 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
                 ));
             }
             sql_params.push(SqlValue::Real(effective_min_score));
+        }
+    }
+
+    if let Some(min_reviews) = params.min_review_count {
+        if min_reviews > 0 {
+            let p_idx = sql_params.len() + 1;
+            where_clauses.push(format!("COALESCE(m.steam_review_count, 0) >= ?{0}", p_idx));
+            sql_params.push(SqlValue::Integer(min_reviews));
         }
     }
 
@@ -1825,6 +1835,50 @@ mod tests {
         let result = query_catalog_conn(&conn, &params).unwrap();
         assert_eq!(result.total, 1, "Only game 1 should match strict min_rating >= 6.0 (score >= 60)");
         assert_eq!(result.items[0]["id"], 1);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_min_review_count_is_strict() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 10, '{\"id\":1,\"app_id\":10,\"name\":\"G1\",\"steam_review_score\":90,\"steam_review_count\":100}');
+            INSERT INTO catalog_game VALUES(2, 20, '{\"id\":2,\"app_id\":20,\"name\":\"G2\",\"steam_review_score\":90,\"steam_review_count\":99}');
+            INSERT INTO catalog_game VALUES(3, 30, '{\"id\":3,\"app_id\":30,\"name\":\"G3\"}');
+            INSERT INTO catalog_game VALUES(4, 40, '{\"id\":4,\"app_id\":40,\"name\":\"G4\",\"steam_review_score\":40,\"steam_review_count\":2}');
+            INSERT INTO catalog_game VALUES(5, 50, '{\"id\":5,\"app_id\":50,\"name\":\"G5\",\"steam_review_score\":30,\"steam_review_count\":5000}');
+        ").unwrap();
+        ensure_normalized_schema(&conn).unwrap();
+
+        let ids = |params: &CatalogQueryParams| -> Vec<i64> {
+            let mut ids: Vec<i64> = query_catalog_conn(&conn, params).unwrap().items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+            ids.sort();
+            ids
+        };
+
+        // Alone: only games with at least 100 reviews. No count on record does not pass.
+        let floor = CatalogQueryParams { min_review_count: Some(100), ..Default::default() };
+        assert_eq!(ids(&floor), vec![1, 5]);
+
+        // With a score bar that spares unproven games, the floor still wins: game 4 (2 reviews) and
+        // game 3 (none) stay hidden, and game 5 falls to the score bar.
+        let both = CatalogQueryParams {
+            min_rating: Some(6.0),
+            include_recent_unrated: Some(true),
+            min_review_count: Some(100),
+            ..Default::default()
+        };
+        assert_eq!(ids(&both), vec![1]);
+
+        // Zero means no floor.
+        let none = CatalogQueryParams { min_review_count: Some(0), ..Default::default() };
+        assert_eq!(ids(&none), vec![1, 2, 3, 4, 5]);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());

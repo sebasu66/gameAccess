@@ -6,7 +6,7 @@ import { useI18n } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
-import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
+import { getPluginSources, sourceAvailability, type PluginSource } from "./catalog/PluginSources";
 import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
 import type { CatalogGame } from "./types";
 import "./plugin-sources.css";
@@ -49,12 +49,18 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       digitalDownloadService.recordFailure(game, message); setError(message);
     } finally { setStarting(false); }
   };
+  const knownOfflineNames = !current.loading && !current.sources.length ? sourceAvailability(game).names : [];
+  const offlineSourcesLabel = knownOfflineNames.length
+    ? (locale === "es"
+        ? `Fuentes (${knownOfflineNames.join(", ")}) · Abrí el plugin para descargar`
+        : `Sources (${knownOfflineNames.join(", ")}) · Open plugin to download`)
+    : t("sourcesUnavailable");
   return <div className="plugin-download-action">
     <button ref={buttonRef} onFocus={onFocus} type="button" className={className ?? "glass-action download"} data-action="download"
       disabled={disabled || starting || current.loading || !current.sources.length}
       onClick={() => { const source = current.sources[0]; if (source) void start(source); }}>
       <span className="glass-action-icon">{current.loading || starting ? <Loader2 size={23} className="spin" /> : <Download size={23} />}</span>
-      <span className="glass-action-label">{current.loading ? t("sourcesChecking") : current.sources.length ? pluginDownloadLabel(game, current.sources, locale) : t("sourcesUnavailable")}</span>
+      <span className="glass-action-label">{current.loading ? t("sourcesChecking") : current.sources.length ? pluginDownloadLabel(game, current.sources, locale) : offlineSourcesLabel}</span>
     </button>
     <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
@@ -65,6 +71,13 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
           .then(()=>setOpen(false)).catch(err=>setError(String(err)));
       }}>{locale === "es" ? "Crear acceso directo en el escritorio" : "Create desktop shortcut"}</button>
       <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</summary><ManualDownloadForm game={game} onDone={() => setOpen(false)} /></details>
+      {knownOfflineNames.length > 0 && !current.sources.length ? (
+        <p className="source-offline-notice">
+          {locale === "es"
+            ? `Disponible en: ${knownOfflineNames.join(", ")}. Abrí el plugin de fuentes para descargar.`
+            : `Available on: ${knownOfflineNames.join(", ")}. Open the source plugin to download.`}
+        </p>
+      ) : null}
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
         <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>
