@@ -8,6 +8,25 @@ from digital_preferences import DigitalPreferences
 
 LAUNCHER = Path(__file__).resolve().parent
 
+# A game folder is "<appid>-<name>-<status>". The status is only ever written
+# when the game really is in that state, so it can be trusted without
+# re-checking the contents. Older folders ("<appid>-<name>") have no status.
+STATUSES = ("preparing", "downloading", "installing", "ready", "ERROR")
+ERROR_FILE = "error.txt"
+BACKUP_MARKER = ".digital-backup.json"
+
+def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
+    """(app_id, title, status) from a folder name; the app id is the numeric
+    prefix and the status the text after the LAST '-' (titles may contain '-')."""
+    match = re.match(r"^(\d+)-(.*)$", folder_name)
+    if not match:
+        return None, folder_name, None
+    rest = match.group(2)
+    title, _, last = rest.rpartition("-")
+    if title and last in STATUSES:
+        return int(match.group(1)), title, last
+    return int(match.group(1)), rest, None
+
 class DigitalGameStorage:
     def __init__(self, launcher: Path = LAUNCHER):
         self.launcher = Path(launcher).resolve()
@@ -22,16 +41,20 @@ class DigitalGameStorage:
         return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .") or "game"
 
     def folder(self, app_id: int, name: str) -> Path:
-        record = self.registry / f"{int(app_id)}.json"
-        if record.is_file():
-            data = json.loads(record.read_text(encoding="utf-8"))
-            return self.checked(Path(data["folder"]))
-        # Identity comes from the Steam AppID prefix, even after a title rename.
+        # Identity comes from the AppID prefix, never from the title, so a
+        # folder is found whatever its name or status suffix is now.
         matches = [p for root in self.roots if root.is_dir() for p in root.glob(f"{int(app_id)}-*") if p.is_dir()]
         if len(matches) > 1:
             raise ValueError("Hay varias carpetas para este AppID; se necesita un registro de instalación.")
         if matches:
             return self.checked(matches[0])
+        record = self.registry / f"{int(app_id)}.json"
+        if record.is_file():
+            data = json.loads(record.read_text(encoding="utf-8"))
+            registered = Path(data["folder"])
+            checked = self.checked(registered)  # refuses roots and outside paths even if stale
+            if registered.is_dir():
+                return checked
         legacy = next((root / self.folder_name(name) for root in self.roots if (root / self.folder_name(name)).is_dir()), self.root / self.folder_name(name))
         return self.checked(legacy if legacy.is_dir() else self.root / f"{int(app_id)}-{self.folder_name(name)}")
 
@@ -68,12 +91,29 @@ class DigitalGameStorage:
 
     def status(self, app_id: int, name: str) -> dict:
         folder = self.folder(app_id, name)
-        # Archives alone and empty/partial folders are not a runnable download.
-        available = folder.is_dir() and any(
-            p.is_file() and p.name != ".digital-backup.json" and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
-            for p in folder.rglob("*")
-        )
-        return {"folder": str(folder), "installed": available}
+        _, _, state = split_folder_name(folder.name)
+        result = {"folder": str(folder), "installed": False, "state": state}
+        if state == "ready":
+            # The status is only written once the game was unpacked and its
+            # executable found, so it is not re-verified on every query.
+            result["installed"] = folder.is_dir() and any(self.has_content(folder))
+        elif state == "ERROR":
+            error_file = folder / ERROR_FILE
+            if error_file.is_file():
+                result["error"] = error_file.read_text(encoding="utf-8", errors="replace")[:4000]
+        elif state is None:
+            # Folders from before statuses existed: archives alone and
+            # empty/partial folders are not a runnable download.
+            result["installed"] = folder.is_dir() and any(
+                p.is_file() and p.name not in (BACKUP_MARKER, ERROR_FILE) and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
+                for p in folder.rglob("*")
+            )
+        return result
+
+    @staticmethod
+    def has_content(folder: Path):
+        """Entries that are not bookkeeping files (error.txt, backup marker)."""
+        return (item for item in folder.iterdir() if item.name not in (BACKUP_MARKER, ERROR_FILE))
 
     def snapshot(self, games: list[dict]) -> dict:
         # Actual local folders are authoritative; their Steam AppID prefix is
@@ -143,9 +183,8 @@ class DigitalGameStorage:
             if not root.is_dir():
                 continue
             for folder in root.iterdir():
-                match = re.match(r"^(\d+)-", folder.name)
-                if folder.is_dir() and match:
+                app_id, title, _ = split_folder_name(folder.name)
+                if folder.is_dir() and app_id is not None:
                     self.checked(folder)
-                    app_id = int(match[1])
-                    found.setdefault(app_id, {"id": app_id, "name": folder.name[len(match[0]):]})
+                    found.setdefault(app_id, {"id": app_id, "name": title})
         return list(found.values())
