@@ -79,7 +79,7 @@ class DigitalProcessRunner:
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger))
                 if action == "library-list":
                     games = library.list_games()
-                    return {**result, "ok": True, "games": games, "summary": library.summary(games)}
+                    return {**result, "ok": True, "library": games, "summary": library.summary(games)}
                 if action == "library-space":
                     return {**result, "ok": True, "space": library.check_space(int(json.loads(command or "{}").get("bytes", 0)))}
                 if action == "library-batch":

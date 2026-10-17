@@ -58,7 +58,7 @@ def test_runner_actions_expose_the_library(tmp_path):
     storage, lib = library(tmp_path)
     runner = DigitalProcessRunner(storage)
     listed = runner.run("library-list", 0, "")
-    assert listed["ok"] and len(listed["games"]) == 2 and listed["summary"]["count"] == 2
+    assert listed["ok"] and len(listed["library"]) == 2 and listed["summary"]["count"] == 2
     assert runner.run("library-space", 0, "", '{"bytes": 1}')["space"]["ok"]
     done = runner.run("library-batch", 0, "", '{"action": "analyze", "app_ids": [1]}')
     assert done["results"][0]["analysis"]["ready"]

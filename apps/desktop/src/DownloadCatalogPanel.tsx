@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, Loader2, Play, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -22,6 +22,7 @@ import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFa
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
+import GameLibraryManager from "./GameLibraryManager";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
@@ -163,6 +164,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
   const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games.length, props.catalogSort, props.games[0]?.id]);
@@ -351,6 +353,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
+  const managerButton = view === "library" && getCatalogMode() === "digital"
+    ? <button type="button" className="library-back-to-top ga-library-manager-button" onClick={() => setManagerOpen(true)}><HardDrive size={17} /><span>{locale === "en" ? "Library manager" : "Administrar biblioteca"}</span></button> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -363,7 +367,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
-      {props.actionsTarget ? createPortal(<>{filters}{backToTop}</>, props.actionsTarget) : filters}
+      {props.actionsTarget ? createPortal(<>{filters}{managerButton}{backToTop}</>, props.actionsTarget) : filters}
+      {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} /> : null}
       {contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

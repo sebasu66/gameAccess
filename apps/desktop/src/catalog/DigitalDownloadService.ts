@@ -122,6 +122,12 @@ export class DigitalDownloadService implements IDownloadProvider {
   async start(game: CatalogGame, options?: DownloadStartOptions & { record?: DigitalGameRecord }): Promise<void> {
     if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
     const id = game.app_id ?? game.id;
+    const size = game.download_size_bytes;
+    if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
+      // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
+      const room = await digitalProcessManager.librarySpace(size).then(result => result.space, () => undefined);
+      if (room && !room.ok) throw new Error(room.message);
+    }
     const previous = this.activeJobs.get(id);
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
     libraryMembership.add(game);
