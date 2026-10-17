@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from digital_storage import DigitalGameStorage
+import game_journal as journal
 from digital_preferences import DigitalPreferences
 from digital_game_options import DigitalGameOptions, checked_executable, parse_arguments, repair_language, launch_as_administrator
 import logging
@@ -192,6 +193,8 @@ class DigitalProcessRunner:
                 self.storage.uninstall(app_id, name)
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
+            if action == "game-log":
+                return {**result, "ok": True, "log": journal.read(folder)}
             if action == "install-setup":
                 from setup_installer import install_if_needed
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
@@ -205,6 +208,7 @@ class DigitalProcessRunner:
                 raise ValueError(f"Unknown action '{action}'")
                 
             logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
+            journal.note(folder, "play", "solicitado")
             saved_options = DigitalGameOptions(self.storage).load(app_id)
             profile = load_profile(self.storage.launcher, app_id)
             # Either switch can turn the re-apply off; the file the user picks in the form beats the declared one.
@@ -215,6 +219,7 @@ class DigitalProcessRunner:
                 logger.info("AppID %s: re-applying the fix archive before executable discovery; archive=%s",
                             app_id, fix_archive or "automatic")
                 DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, fix_archive)
+                journal.note(folder, "play", f"fix reaplicado: {fix_archive or 'respaldo automático'}")
             elif not reapply:
                 logger.info("AppID %s: fix re-apply disabled in the execution profile/options", app_id)
             if not self.storage.status(app_id, name)["installed"]:
@@ -242,6 +247,7 @@ class DigitalProcessRunner:
                 if executable.suffix.lower() != ".exe":
                     raise ValueError("Selecciona el archivo .exe del juego para ejecutar como administrador.")
                 pid = launch_as_administrator(executable, arguments, executable.parent)
+                journal.note(folder, "play", f"lanzado como administrador: {executable.relative_to(folder)} (pid {pid})")
                 logger.info("AppID %s: Windows accepted administrator launch; pid=%s; executable=%s", app_id, pid, executable)
                 return {**result, "ok": True, "pid": pid, "command": str(executable), "administrator": True}
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
@@ -262,6 +268,7 @@ class DigitalProcessRunner:
                         if process.returncode != 0:
                             logger.warning(f"Ejecutable fallo rapido con codigo {process.returncode}: {executable}")
                             last_error = f"El proceso cerro con codigo {process.returncode}"
+                            journal.note(folder, "play", f"{executable.name} falló al arrancar: código {process.returncode}")
                             continue
                     except subprocess.TimeoutExpired:
                         is_err, err_msg = check_error_dialog(process.pid)
@@ -272,9 +279,11 @@ class DigitalProcessRunner:
                             except Exception:
                                 pass
                             last_error = f"Mostro dialogo de error: {err_msg}"
+                            journal.note(folder, "play", f"{executable.name} mostró un diálogo de error ({err_msg}); se descarta")
                             continue
                             
                     logger.info("AppID %s: launch accepted; pid=%s; executable=%s; cwd=%s", app_id, process.pid, executable, executable.parent)
+                    journal.note(folder, "play", f"lanzado: {executable.relative_to(folder)} (pid {process.pid})")
                     logger.info(f"Ejecucion exitosa confirmada: {executable}")
                     
                     if executable.suffix.lower() != ".bat" and not command.strip():
@@ -307,6 +316,8 @@ class DigitalProcessRunner:
 
         except Exception as error:
             logger.error(f"Error general en run(): {error}")
+            if action == "play" and "folder" in locals():
+                journal.note(folder, "play", f"error: {error}")
             return {**result, "error": str(error)}
 
 def run_process(action, app_id, name, command="", working_dir=None, auto_installed=False):
@@ -314,7 +325,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

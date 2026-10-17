@@ -14,6 +14,7 @@ LAUNCHER = Path(__file__).resolve().parent
 # re-checking the contents. Older folders ("<appid>-<name>") have no status.
 STATUSES = ("preparing", "downloading", "installing", "ready", "ERROR")
 ERROR_FILE = "error.txt"
+from game_journal import JOURNAL_FILE
 BACKUP_MARKER = ".digital-backup.json"
 
 def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
@@ -133,7 +134,7 @@ class DigitalGameStorage:
             # Folders from before statuses existed: archives alone and
             # empty/partial folders are not a runnable download.
             result["installed"] = folder.is_dir() and any(
-                p.is_file() and p.name not in (BACKUP_MARKER, ERROR_FILE) and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
+                p.is_file() and p.name not in (BACKUP_MARKER, ERROR_FILE, JOURNAL_FILE) and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
                 for p in folder.rglob("*")
             )
         return result
@@ -141,7 +142,7 @@ class DigitalGameStorage:
     @staticmethod
     def has_content(folder: Path):
         """Entries that are not bookkeeping files (error.txt, backup marker)."""
-        return (item for item in folder.iterdir() if item.name not in (BACKUP_MARKER, ERROR_FILE))
+        return (item for item in folder.iterdir() if item.name not in (BACKUP_MARKER, ERROR_FILE, JOURNAL_FILE))
 
     def prune_empty(self, min_age_seconds: float = 600) -> list[Path]:
         """Remove leftover EMPTY '<appid>-<name>' folders (no status) that nothing is using.

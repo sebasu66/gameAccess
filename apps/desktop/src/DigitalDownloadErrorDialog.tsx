@@ -4,8 +4,10 @@ import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { digitalErrorMessage } from "./digitalErrors";
 import { reportClientError } from "./narrationLog";
 import {useI18n} from "./i18n";
+import GameRecoveryDialog from "./GameRecoveryDialog";
+import type { CatalogGame } from "./types";
 
-export type DownloadProblem = { key: string; name: string; error: string; reportMessage: string; reported: boolean | null };
+export type DownloadProblem = { key: string; name: string; error: string; reportMessage: string; reported: boolean | null; game?: CatalogGame };
 
 export function DownloadProblemDialog({ problem, onClose }: { problem: DownloadProblem; onClose: () => void }) {
   const {t}=useI18n();
@@ -24,12 +26,13 @@ export default function DigitalDownloadErrorDialog() {
         seen.delete(snapshot.gameId);
         return;
       }
-      const name = digitalDownloadService.getDownloads().find(entry => entry.snapshot.gameId === snapshot.gameId)?.game.name || `Juego ${snapshot.gameId}`;
+      const game = digitalDownloadService.getDownloads().find(entry => entry.snapshot.gameId === snapshot.gameId)?.game;
+      const name = game?.name || `Juego ${snapshot.gameId}`;
       const reportMessage = digitalErrorMessage(snapshot, name);
       if (seen.get(snapshot.gameId) === reportMessage) return;
       seen.set(snapshot.gameId, reportMessage);
       const key = `${snapshot.gameId}:${Date.now()}:${reportMessage}`;
-      setProblems(current => [...current, { key, name, reportMessage, error: snapshot.error || snapshot.statusText || "Error de ejecución", reported: null }]);
+      setProblems(current => [...current, { key, name, game, reportMessage, error: snapshot.error || snapshot.statusText || "Error de ejecución", reported: null }]);
       void reportClientError(reportMessage, "DIGITAL_DOWNLOAD").then(reported => {
         if (mounted) setProblems(current => current.map(problem => problem.key === key ? { ...problem, reported } : problem));
       });
@@ -37,5 +40,8 @@ export default function DigitalDownloadErrorDialog() {
     return () => { mounted = false; unsubscribe(); };
   }, []);
   const problem = problems[0];
-  return problem ? <DownloadProblemDialog key={problem.key} problem={problem} onClose={() => setProblems(current => current.slice(1))} /> : null;
+  const close = () => setProblems(current => current.slice(1));
+  // With the game known, the failure is recoverable: show what failed, the editable parameters, retry or abort.
+  if (problem?.game) return <GameRecoveryDialog key={problem.key} game={problem.game} mode="error" message={problem.error} onClose={close} />;
+  return problem ? <DownloadProblemDialog key={problem.key} problem={problem} onClose={close} /> : null;
 }

@@ -5,6 +5,7 @@ import time
 import shutil
 import threading
 from pathlib import Path
+import game_journal as journal
 from urllib.parse import urlparse, unquote
 from download_source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
 from debrid_client import TorboxClient
@@ -37,6 +38,7 @@ class DownloadPipeline:
             context.cancel_hooks.append(lambda: storage.uninstall(int(app_id), game_name))
         os.makedirs(game_dir, exist_ok=True)
         os.makedirs(dest_dir, exist_ok=True)
+        journal.note(game_dir, "descarga", f"inicio de '{game_name}' (AppID {app_id})")
 
         def set_status(status):
             # The folder name carries the state; explicit destinations keep their name.
@@ -45,6 +47,7 @@ class DownloadPipeline:
                 return
             try:
                 game_dir = str(storage.set_status(int(app_id), game_name, status))
+                journal.note(game_dir, "estado", status)
             except (OSError, ValueError) as rename_error:
                 context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
         set_status("preparing")
@@ -251,6 +254,7 @@ class DownloadPipeline:
             context.logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
             # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
             should_delete_archive = True  # Only the smallest original archive is retained.
+            journal.note(game_dir, "descompresión", "empieza")
             context.logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
             try:
                 extracted = self.extract_archives(
@@ -279,6 +283,7 @@ class DownloadPipeline:
                     shutil.move(str(item), str(target))
             if dest_dir != game_dir and Path(dest_dir).is_dir() and not any(Path(dest_dir).iterdir()):
                 Path(dest_dir).rmdir()
+            journal.note(game_dir, "descompresión", "terminada" if extracted else "sin comprimidos; archivos movidos")
             context.logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
             # Digital is portable: extraction is the installation. Never execute installProcess.
             if context.cancelled.is_set():
@@ -288,8 +293,10 @@ class DownloadPipeline:
             # GOG/Inno `setup*.exe`: installed silently once, before the folder counts as ready.
             from execution_profile import load_profile
             from setup_installer import install_if_needed
-            install_if_needed(Path(game_dir), load_profile(context.launcher_dir, app_id), context.logger,
+            installed_setup = install_if_needed(Path(game_dir), load_profile(context.launcher_dir, app_id), context.logger,
                 lambda text: context.emit_progress(app_id=app_id, phase="decompressing", progress_percent=99.0, status_text=text))
+            if installed_setup:
+                journal.note(game_dir, "instalador", "setup*.exe ejecutado en silencio; archivos del instalador borrados")
             set_status("ready")
             # 5. PHASE: COMPLETED
             final_size = 0
@@ -329,6 +336,7 @@ class DownloadPipeline:
             if any(hint in message.lower() for hint in self.DEAD_SOURCE_HINTS):
                 storage.uninstall(app_id, game_name)
             else:
+                journal.note(storage.folder(app_id, game_name), "error", message)
                 storage.write_error(app_id, game_name, message)
         except Exception as failure:
             self.context.logger.warning("AppID %s: no se pudo registrar el error: %s", app_id, failure)

@@ -6,7 +6,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log";
   app_id: number;
   name?: string;
   pid?: number;
@@ -23,6 +23,7 @@ export interface ProcessExecutionResult {
   executables?: string[];
   archives?: string[];
   changed?: string[];
+  log?: string;
   errors?: Array<{file: string; error: string}>;
   games?: Array<{id: number; name: string}>;
   statuses?: Record<string, { folder: string; installed: boolean }>;
@@ -58,6 +59,7 @@ export class DigitalProcessManager {
   localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
   gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
   saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
+  gameLog(game: CatalogGame) { return this.execute("game-log", game); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
 
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {

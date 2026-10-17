@@ -41,6 +41,7 @@ import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
+import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { PluginIndicator } from "./PluginIndicator";
@@ -108,6 +109,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
+  const [brokenGame, setBrokenGame] = useState<{ game: CatalogGame; message: string } | null>(null);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
@@ -500,7 +502,10 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       if (game.app_id) recordPlayed(game.app_id);
       setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
     } catch (err) {
-      setSession({ game, phase: "error", title: translate("launchError"), detail: err instanceof Error ? err.message : String(err) });
+      const message = err instanceof Error ? err.message : String(err);
+      // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
+      if (isBrokenInstall(message)) { setSession(null); setBrokenGame({ game, message }); }
+      else setSession({ game, phase: "error", title: translate("launchError"), detail: message });
     } finally { setLaunchBusy(false); }
   };
 
@@ -628,6 +633,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
+      {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
       {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}

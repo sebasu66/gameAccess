@@ -4,6 +4,7 @@ Declared by the execution profile (`runSetup`, `setupPattern`, `setupArguments`,
 with `runSetup` unset it is automatic: only when the folder has a setup exe and no game exe."""
 from __future__ import annotations
 import re
+import game_journal as journal
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -82,8 +83,10 @@ def install_if_needed(folder, profile, logger, progress=lambda text: None, runne
     target.mkdir(exist_ok=True)
     progress(f"Instalando con {setup.name}...")
     logger.info("Setup: running %s into %s", setup, target)
+    journal.note(folder, "instalador", f"ejecutando {setup.name} en silencio hacia {TARGET_FOLDER}")
     code = runner(build_command(setup, target, profile), bool(profile.get("runAsAdmin")))
     if code != 0:
+        journal.note(folder, "instalador", f"falló con código {code}")
         raise RuntimeError(f"error intentando instalar {setup.name}: el instalador terminó con código {code}")
     if not has_game_executable(target):
         raise RuntimeError(f"error intentando instalar {setup.name}: terminó pero no dejó ningún ejecutable del juego")
