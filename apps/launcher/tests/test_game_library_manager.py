@@ -7,7 +7,7 @@ import game_journal as journal
 from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 from game_library_manager import GameLibraryManager
-from game_library_manager.disk import folder_size, GIB
+from disk_space import folder_size, GIB
 
 def library(tmp_path):
     storage = DigitalGameStorage(tmp_path)
@@ -33,7 +33,7 @@ def test_space_check_blocks_when_unpacking_would_not_fit(tmp_path):
     storage, lib = library(tmp_path)
     class Usage:  # 10 GB free
         total, used, free = 100 * GIB, 90 * GIB, 10 * GIB
-    with patch("game_library_manager.disk.shutil.disk_usage", return_value=Usage):
+    with patch("disk_space.shutil.disk_usage", return_value=Usage):
         assert lib.check_space(3 * GIB)["ok"]                      # 3*2 + 1 = 7 GB <= 10
         refused = lib.check_space(6 * GIB)                          # 6*2 + 1 = 13 GB > 10
     assert not refused["ok"] and "No hay espacio" in refused["message"] and "13.0 GB" in refused["message"]

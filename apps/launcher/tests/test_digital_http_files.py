@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import digital_downloader as downloader
+from game_download_manager import worker as downloader
 from game_library_manager.storage import DigitalGameStorage
 
 class FixtureHandler(http.server.BaseHTTPRequestHandler):

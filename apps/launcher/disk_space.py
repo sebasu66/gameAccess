@@ -1,4 +1,4 @@
-"""Disk usage for the library: folder sizes, free space and whether a download plus its unpacking fits."""
+"""Shared by the managers: folder sizes, free space and whether a download plus its unpacking fits."""
 from __future__ import annotations
 import os
 import shutil

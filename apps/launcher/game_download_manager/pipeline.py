@@ -7,9 +7,9 @@ import threading
 from pathlib import Path
 import game_journal as journal
 from urllib.parse import urlparse, unquote
-from download_source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
-from debrid_client import TorboxClient
-from chunked_download import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
+from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
+from game_download_manager.debrid import TorboxClient
+from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
 
 class DownloadPipeline:
     def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives):
@@ -254,6 +254,13 @@ class DownloadPipeline:
             context.logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
             # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
             should_delete_archive = True  # Only the smallest original archive is retained.
+            from disk_space import check_space, folder_size
+            downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
+            # The archive is already on disk, so unpacking needs about as much again (factor 1.0).
+            room = check_space(downloaded_bytes, Path(game_dir), Path(dest_dir), factor=1.0)
+            journal.note(game_dir, "espacio", f"descargado {downloaded_bytes} bytes; libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
+            if not room["ok"]:
+                raise RuntimeError(room["message"])
             journal.note(game_dir, "descompresión", "empieza")
             context.logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
             try:

@@ -6,7 +6,7 @@ import time
 import math
 import threading
 import requests
-from download_source_validation import validate_http_file_response
+from game_download_manager.source_validation import validate_http_file_response
 
 class MultiSegmentTracker:
     def __init__(self, context, app_id: str, total_size: int, game_name: str):

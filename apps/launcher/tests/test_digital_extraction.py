@@ -14,7 +14,7 @@ sys.path.insert(0, str(LAUNCHER))
 SEVEN_ZIP = LAUNCHER / "bin" / "7z" / "7z.exe"
 
 def load_worker():
-    spec = importlib.util.spec_from_file_location("digital_worker", LAUNCHER / "digital_downloader.py")
+    spec = importlib.util.spec_from_file_location("digital_worker", LAUNCHER / "game_download_manager" / "worker.py")
     worker = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(worker)
     return worker

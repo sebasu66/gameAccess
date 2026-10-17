@@ -12,8 +12,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
-from digital_downloader import extract_archives_in_path
-import digital_downloader
+from game_download_manager.worker import extract_archives_in_path
+from game_download_manager import worker as digital_downloader
 import zipfile
 
 class DigitalStorageTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class DigitalStorageTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
     def test_unresolved_browser_hoster_is_not_reported_as_installed(self):
-        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("digital_downloader.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--source-delivery", "browser", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
+        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("game_download_manager.worker.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--source-delivery", "browser", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
             digital_downloader.main()
         open_browser.assert_called_once_with("https://gofile.io/file/fixture")
         self.assertTrue(any((call.args[1] if len(call.args)>1 else call.kwargs.get("phase")) == "external" for call in emit.call_args_list))

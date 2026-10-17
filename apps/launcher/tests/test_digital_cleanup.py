@@ -3,7 +3,7 @@ import os
 import time
 from pathlib import Path
 import pytest
-import download_reconciliation as cleanup
+from game_download_manager import reconciliation as cleanup
 
 def test_digital_payload_and_metadata_survive_hygiene_even_with_overlapping_roots(monkeypatch, tmp_path):
     games = tmp_path / "games"

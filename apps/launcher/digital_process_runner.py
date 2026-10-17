@@ -16,7 +16,7 @@ from game_library_manager import GameLibraryManager
 from game_library_manager.preferences import DigitalPreferences
 from game_execution_manager.game_options import DigitalGameOptions, repair_language
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
-from game_execution_manager.extraction import extractor_for
+from game_download_manager.unpack import extractor_for, restorer_for
 import logging
 from flow_diagnostics import FlowDiagnostics
 from logging.handlers import RotatingFileHandler
@@ -139,7 +139,7 @@ class DigitalProcessRunner:
             if not auto_installed and reapply:
                 logger.info("AppID %s: re-applying the fix archive before executable discovery; archive=%s",
                             app_id, fix_archive or "automatic")
-                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, fix_archive)
+                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, fix_archive, restorer_for(self.storage.launcher, app_id))
                 journal.note(folder, "play", f"fix reaplicado: {fix_archive or 'respaldo automático'}")
             elif not reapply:
                 logger.info("AppID %s: fix re-apply disabled in the execution profile/options", app_id)

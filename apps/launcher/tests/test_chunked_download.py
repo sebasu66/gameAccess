@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import chunked_download as cd
+from game_download_manager import chunked as cd
 
 
 @pytest.fixture(autouse=True)

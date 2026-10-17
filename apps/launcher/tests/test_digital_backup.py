@@ -8,8 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from game_execution_manager.fix_backup import DigitalArchiveBackup
 from game_execution_manager.execution_profile import save_profile
 from game_library_manager.storage import DigitalGameStorage
+from game_download_manager.unpack import restorer_for
 from digital_process_runner import DigitalProcessRunner
-import digital_downloader as worker
+from game_download_manager import worker as worker
 
 def prepare(tmp_path):
     storage = DigitalGameStorage(tmp_path)
@@ -85,7 +86,7 @@ def test_preserves_multipart_set_when_retaining_original_backup(tmp_path):
 
 def test_encrypted_original_backup_uses_local_profile_passwords_before_restoration(tmp_path):
     import subprocess
-    seven_zip = Path(worker.__file__).parent / "bin" / "7z" / "7z.exe"
+    seven_zip = Path(__file__).resolve().parents[1] / "bin" / "7z" / "7z.exe"
     if not seven_zip.is_file():
         pytest.skip("7-Zip needed")
     storage = DigitalGameStorage(tmp_path)
@@ -111,7 +112,7 @@ def test_encrypted_original_backup_uses_local_profile_passwords_before_restorati
     completed = replies / "1.json"
     completed.write_text(json.dumps({"phase": "completed"}))
     with patch.object(worker, "find_portable_7z", return_value=str(seven_zip)):
-        assert DigitalArchiveBackup.restore(folder, "Fixture Game", 1, tmp_path)
+        assert DigitalArchiveBackup.restore(folder, "Fixture Game", 1, tmp_path, extract=restorer_for(tmp_path, 1))
     assert payload.read_bytes() == b"encrypted incoming"
     assert reply.exists()
     assert json.loads(completed.read_text())["phase"] == "completed"

@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import libtorrent as lt
-import digital_downloader as downloader
+from game_download_manager import worker as downloader
 
 
 def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):

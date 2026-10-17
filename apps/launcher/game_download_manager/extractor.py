@@ -14,7 +14,7 @@ ARCHIVE_EXTENSIONS = (
 )
 
 def find_portable_7z() -> Optional[str]:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # the launcher folder, where bin/ lives
     candidates = [
         os.path.join(base_dir, "bin", "7z", "7z.exe"),
         os.path.join(base_dir, "bin", "7z.exe"),

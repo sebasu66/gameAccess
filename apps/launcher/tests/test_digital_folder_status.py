@@ -137,7 +137,7 @@ class PruneAndAbortTests(StorageCase):
         self.assertFalse(stale.exists())
 
     def test_cancel_runs_hooks_but_an_error_keeps_the_folder(self):
-        import digital_downloader
+        from game_download_manager import worker as digital_downloader
         from unittest.mock import patch
         calls = []
         try:

@@ -6,7 +6,6 @@ import shutil
 from pathlib import Path
 from atomic_json import write_json
 from .archives import is_secondary_volume
-from .extraction import extract_archive
 
 class DigitalArchiveBackup:
     METADATA = ".digital-backup.json"
@@ -67,9 +66,10 @@ class DigitalArchiveBackup:
         return {"archive": backups[0], "destination": root, "needs_password": False} if backups else None
 
     @staticmethod
-    def restore(folder, name, app_id, launcher, archive=""):
+    def restore(folder, name, app_id, launcher, archive="", extract=None):
         """Re-apply the retained archive. `archive` (relative to the game folder) is the user's
-        explicit choice from the options form and wins over the one recorded at install time."""
+        explicit choice from the options form and wins over the one recorded at install time.
+        `extract(archive, destination)` is injected by the caller (the Download Manager owns extraction)."""
         if archive:
             root = Path(folder).resolve()
             chosen = (root / archive).resolve()
@@ -80,5 +80,5 @@ class DigitalArchiveBackup:
             info = DigitalArchiveBackup.info(folder, name)
         if not info:
             return False
-        extract_archive(launcher, app_id, info["archive"], info["destination"], delete_archive=False, retain_backup=False)
+        extract(info["archive"], info["destination"])
         return True

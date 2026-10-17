@@ -7,7 +7,7 @@ from unittest.mock import patch
 LAUNCHER = Path(__file__).resolve().parents[1]
 
 def test_terminal_status_retries_temporary_sharing_conflict(tmp_path):
-    spec = importlib.util.spec_from_file_location("downloader_status_fixture", LAUNCHER / "digital_downloader.py")
+    spec = importlib.util.spec_from_file_location("downloader_status_fixture", LAUNCHER / "game_download_manager" / "worker.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.LAUNCHER_DIR = tmp_path

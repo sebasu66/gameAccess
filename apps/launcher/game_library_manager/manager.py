@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 import game_journal as journal
 from game_execution_manager import GameExecutionManager
-from .disk import check_space, disk_info, folder_size
+from disk_space import check_space, disk_info, folder_size
 from .storage import split_folder_name
 
 BATCH_ACTIONS = ("uninstall", "repair", "analyze")

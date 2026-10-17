@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from torrent_download_transport import is_libtorrent_noise
+from game_download_manager.torrent_transport import is_libtorrent_noise
 
 
 def test_peer_resets_and_missing_upnp_router_are_noise():

@@ -298,6 +298,10 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
         "INSERT INTO game(id, app_id, slug, name, credit_cost_per_hour, active) VALUES (?1, ?2, ?3, ?4, ?5, 1)
          ON CONFLICT(id) DO UPDATE SET app_id=excluded.app_id, slug=excluded.slug, name=excluded.name, credit_cost_per_hour=excluded.credit_cost_per_hour"
     ).map_err(|e|e.to_string())?;
+    let mut ins_meta = tx.prepare(
+        "INSERT OR REPLACE INTO game_metadata(game_id, release_date, recommendation_count, steam_review_score, steam_review_count, metacritic_score, single_player, multiplayer, coop, online_coop, local_coop, shared_split_screen, mmo, pvp, pve, lan, cross_platform, header_image, capsule_image, hero_image, steam_url, short_description)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)"
+    ).map_err(|e|e.to_string())?;
     let mut del_genre = tx.prepare("DELETE FROM game_genre WHERE game_id=?1").map_err(|e|e.to_string())?;
     let mut del_category = tx.prepare("DELETE FROM game_category WHERE game_id=?1").map_err(|e|e.to_string())?;
     let mut del_tag = tx.prepare("DELETE FROM game_tag WHERE game_id=?1").map_err(|e|e.to_string())?;
@@ -315,6 +319,34 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
             let _ = upsert_game.execute(params![id, app_id, slug, name, cost]);
             touched_for_sources.push((app_id.unwrap_or(*id), name.to_string()));
         }
+        let rel_date = game.get("release_date").and_then(Value::as_str);
+        let norm_date = rel_date.and_then(normalize_release_date);
+        let rel_date_ref = norm_date.as_deref().or(rel_date);
+        let rec_count = game.get("recommendation_count").and_then(Value::as_i64);
+        let rev_score = game.get("steam_review_score").and_then(Value::as_f64);
+        let rev_count = game.get("steam_review_count").and_then(Value::as_i64);
+        let meta_score = game.get("metacritic_score").and_then(Value::as_i64);
+        let sp = i32::from(game.get("single_player").and_then(Value::as_bool) == Some(true));
+        let mp = i32::from(game.get("multiplayer").and_then(Value::as_bool) == Some(true));
+        let coop = i32::from(game.get("coop").and_then(Value::as_bool) == Some(true));
+        let o_coop = i32::from(game.get("online_coop").and_then(Value::as_bool) == Some(true));
+        let l_coop = i32::from(game.get("local_coop").and_then(Value::as_bool) == Some(true));
+        let split = i32::from(game.get("shared_split_screen").and_then(Value::as_bool) == Some(true));
+        let mmo = i32::from(game.get("mmo").and_then(Value::as_bool) == Some(true));
+        let pvp = i32::from(game.get("pvp").and_then(Value::as_bool) == Some(true));
+        let pve = i32::from(game.get("pve").and_then(Value::as_bool) == Some(true));
+        let lan = i32::from(game.get("lan").and_then(Value::as_bool) == Some(true));
+        let cross = i32::from(game.get("cross_platform").and_then(Value::as_bool) == Some(true));
+        let header = game.get("header_image").and_then(Value::as_str);
+        let capsule = game.get("capsule_image").and_then(Value::as_str);
+        let hero = game.get("hero_image").and_then(Value::as_str);
+        let steam_url = game.get("steam_url").and_then(Value::as_str);
+        let short_desc = game.get("short_description").and_then(Value::as_str);
+        let _ = ins_meta.execute(params![
+            id, rel_date_ref, rec_count, rev_score, rev_count, meta_score,
+            sp, mp, coop, o_coop, l_coop, split, mmo, pvp, pve, lan, cross,
+            header, capsule, hero, steam_url, short_desc
+        ]);
         let _ = del_genre.execute(params![id]);
         let _ = del_category.execute(params![id]);
         let _ = del_tag.execute(params![id]);
@@ -769,63 +801,165 @@ pub async fn catalog_cache_store_detail(
     .map_err(|err| format!("Catalog detail cache write task failed: {err}"))?
 }
 
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct CatalogQueryParams {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub genres: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub features: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub has_downloads: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_direction: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub min_rating: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_age_days: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_recent_unrated: Option<bool>,
     /// Strict floor on the number of reviews. Unlike `min_rating` it never spares new or unrated games.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub min_review_count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub app_ids: Option<Vec<i64>>,
     /// Exact genre names (as stored in game_genre) a game must not carry.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_genres: Option<Vec<String>>,
     /// Features a game must not have (same keys as `features`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_features: Option<Vec<String>>,
     /// Download sources a game must not be offered by.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_sources: Option<Vec<String>>,
     /// Valve content descriptors: at least one required.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content_descriptor_ids: Option<Vec<i64>>,
     /// Valve content descriptors: none allowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_content_descriptor_ids: Option<Vec<i64>>,
     /// Hide adult-only games (server verdict, descriptors 3/4, and 1 when `adult_includes_nudity`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hide_adult: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub adult_includes_nudity: Option<bool>,
     /// Release year bounds (inclusive).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub release_year_from: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub release_year_to: Option<i64>,
     /// Catalog ids (not Steam app ids): likes and recently opened games are stored this way.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub game_ids: Option<Vec<i64>>,
 }
 
-const MULTIPLAYER_CATEGORY_SQL: &str = "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Co-op','Cooperativo','PvP','JcJ','Online PvP','JcJ en línea','Online Co-op','Cooperativo en línea','Shared/Split Screen','Shared/Split Screen Co-op','LAN Co-op','MMO','Multijugador masivo','Cross-Platform Multiplayer','Multijugador multiplataforma'))";
+const MULTIPLAYER_CATEGORY_SQL: &str = "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Multijoueur','Multigiocatore','Mehrspieler','Wieloosobowa','Multijogador','多人','Багатокористувацька гра','Co-op','Cooperativo','Кооперативна гра','PvP','JcJ','JxJ','Гравець проти гравця','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі','Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','Shared/Split Screen','Pantalla partida/compartida','Tela compartilhada/dividida','Geteilter Bildschirm','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada','Shared/Split Screen PvP','LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN','LAN PvP','JcJ en rede local (LAN)','JxJ em rede local (LAN)','MMO','Multijugador masivo','Massively Multiplayer','Cross-Platform Multiplayer','Multijugador multiplataforma','Multijogador entre plataformas','Кросплатформова гра'))";
 
 /// SQL condition for one library feature key, or None for keys the query does not know.
 fn feature_clause(feat: &str) -> Option<String> {
     Some(match feat {
         "has_downloads" => "EXISTS (SELECT 1 FROM game_sources gs WHERE gs.app_id = g.app_id)".to_string(),
-        "single_player" => "m.single_player = 1".to_string(),
-        "multiplayer" => format!("(m.multiplayer = 1 OR {})", MULTIPLAYER_CATEGORY_SQL),
-        "coop" => "(m.coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Online Co-op','Cooperativo en línea','LAN Co-op','Shared/Split Screen Co-op')))".to_string(),
-        "online_coop" => "m.online_coop = 1".to_string(),
-        "local_coop" => "m.local_coop = 1".to_string(),
-        "shared_split_screen" => "m.shared_split_screen = 1".to_string(),
-        "mmo" => "m.mmo = 1".to_string(),
-        "pvp" => "(m.pvp = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','Online PvP','JcJ en línea')))".to_string(),
-        "pve" => "m.pve = 1".to_string(),
-        "lan" => "m.lan = 1".to_string(),
-        "cross_platform" => "m.cross_platform = 1".to_string(),
+        "single_player" => "(m.single_player = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Single-player','Un jugador','Solo','Einzelspieler','Um jogador','单人')))".to_string(),
+        "multiplayer" => format!("(m.multiplayer = 1 OR m.coop = 1 OR m.online_coop = 1 OR m.local_coop = 1 OR m.shared_split_screen = 1 OR m.mmo = 1 OR m.pvp = 1 OR m.lan = 1 OR {})", MULTIPLAYER_CATEGORY_SQL),
+        "coop" | "pve" => "(m.coop = 1 OR m.online_coop = 1 OR m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Кооперативна гра','Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada')))".to_string(),
+        "coop_generic" => "(m.coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Кооперативна гра')))".to_string(),
+        "online_coop" => "(m.online_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра')))".to_string(),
+        "local_coop" => "(m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada')))".to_string(),
+        "shared_split_screen" | "local_multiplayer" => "(m.shared_split_screen = 1 OR m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Shared/Split Screen','Pantalla partida/compartida','Tela compartilhada/dividida','Geteilter Bildschirm','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada','Shared/Split Screen PvP')))".to_string(),
+        "online_multiplayer" => "(m.online_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі')))".to_string(),
+        "mmo" => "(m.mmo = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('MMO','Multijugador masivo','Massively Multiplayer')))".to_string(),
+        "pvp" => "(m.pvp = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','JxJ','Гравець проти гравця','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі','LAN PvP','JcJ en rede local (LAN)','JxJ em rede local (LAN)','Shared/Split Screen PvP')))".to_string(),
+        "lan" | "multiplayer_lan" => "(m.lan = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN','LAN PvP','JcJ en rede local (LAN)','JxJ em rede local (LAN)')))".to_string(),
+        "coop_lan" => "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN'))".to_string(),
+        "cross_platform" => "(m.cross_platform = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Cross-Platform Multiplayer','Multijugador multiplataforma','Multijogador entre plataformas','Кросплатформова гра')))".to_string(),
         _ => return None,
     })
+}
+
+fn format_sql_value(val: &SqlValue) -> String {
+    match val {
+        SqlValue::Null => "NULL".to_string(),
+        SqlValue::Integer(i) => i.to_string(),
+        SqlValue::Real(f) => format!("{f}"),
+        SqlValue::Text(s) => format!("'{}'", s.replace('\'', "''")),
+        SqlValue::Blob(b) => format!("X'{}'", b.iter().map(|byte| format!("{byte:02x}")).collect::<String>()),
+    }
+}
+
+fn render_sql_with_params(sql: &str, params: &[SqlValue]) -> String {
+    let mut rendered = sql
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    for idx in (1..=params.len()).rev() {
+        let placeholder = format!("?{idx}");
+        let replacement = format_sql_value(&params[idx - 1]);
+        rendered = rendered.replace(&placeholder, &replacement);
+    }
+    rendered
+}
+
+fn log_catalog_query(
+    params: &CatalogQueryParams,
+    count_sql: &str,
+    count_params: &[SqlValue],
+    select_sql: &str,
+    select_params: &[SqlValue],
+    total: usize,
+    items: &[Value],
+    elapsed: Duration,
+) {
+    let criteria_json = serde_json::to_string(params).unwrap_or_else(|_| format!("{params:?}"));
+    let rendered_count_sql = render_sql_with_params(count_sql, count_params);
+    let rendered_select_sql = render_sql_with_params(select_sql, select_params);
+    let sample_records: Vec<String> = items
+        .iter()
+        .take(25)
+        .map(|item| {
+            let id = item.get("id").and_then(Value::as_i64).unwrap_or(0);
+            let app_id = item.get("app_id").and_then(Value::as_i64).unwrap_or(0);
+            let name = item.get("name").and_then(Value::as_str).unwrap_or("?");
+            let rel = item.get("release_date").and_then(Value::as_str).unwrap_or("-");
+            let score = item
+                .get("steam_review_score")
+                .and_then(Value::as_f64)
+                .map(|s| format!("{s:.0}%"))
+                .unwrap_or_else(|| "-".to_string());
+            let dl = item.get("source_count").and_then(Value::as_i64).unwrap_or(0);
+            format!("{id}(app={app_id},\"{name}\",date={rel},score={score},sources={dl})")
+        })
+        .collect();
+    let more_suffix = if items.len() > 25 {
+        format!(" ... (+{} more in page)", items.len() - 25)
+    } else {
+        String::new()
+    };
+    let lines = vec![
+        format!("CRITERIA: {criteria_json}"),
+        format!("SQL_COUNT: {rendered_count_sql}"),
+        format!("SQL_SELECT: {rendered_select_sql}"),
+        format!(
+            "RESULT: total_matching={total} page_returned={} elapsed_ms={:.2} records=[{}{}]",
+            items.len(),
+            elapsed.as_secs_f64() * 1000.0,
+            sample_records.join(", "),
+            more_suffix
+        ),
+    ];
+    let _ = crate::activity_log::append_narration_lines(lines, "CATALOG_QUERY".into(), "INFO".into());
 }
 
 /// Pushes `values` as numbered parameters and returns "?1,?2,…".
@@ -1107,6 +1241,28 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
             [],
         );
     }
+    // Dates stored unnormalized ("1 ABR 2008") make julianday() NULL and the game fails every
+    // date filter. Repair them from the payload; only rows that are still unreadable are touched.
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT m.game_id, COALESCE(json_extract(cg.payload, '$.release_date'), m.release_date)
+         FROM game_metadata m LEFT JOIN catalog_game cg ON cg.id = m.game_id
+         WHERE (m.release_date IS NULL OR julianday(m.release_date) IS NULL)
+           AND COALESCE(json_extract(cg.payload, '$.release_date'), m.release_date) IS NOT NULL"
+    ) {
+        let fixes: Vec<(i64, String)> = stmt
+            .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)))
+            .map(|rows| rows.flatten().filter_map(|(id, raw)| raw.as_deref().and_then(normalize_release_date).map(|d| (id, d))).collect())
+            .unwrap_or_default();
+        drop(stmt);
+        if !fixes.is_empty() {
+            if let Ok(tx) = conn.unchecked_transaction() {
+                for (id, date) in &fixes {
+                    let _ = tx.execute("UPDATE game_metadata SET release_date=?2 WHERE game_id=?1", params![id, date]);
+                }
+                let _ = tx.commit();
+            }
+        }
+    }
     crate::source_index::ensure_source_tables(conn)?;
     Ok(())
 }
@@ -1155,6 +1311,7 @@ pub async fn catalog_cache_get_facets() -> Result<CatalogFacetsResult, String> {
 }
 
 pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Result<CatalogQueryResult, String> {
+    let started = std::time::Instant::now();
     let mut where_clauses: Vec<String> = Vec::new();
     let mut sql_params: Vec<SqlValue> = Vec::new();
 
@@ -1459,6 +1616,17 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
         }
         items.push(val);
     }
+
+    log_catalog_query(
+        params,
+        &count_sql,
+        &sql_params,
+        &select_sql,
+        &select_params,
+        total,
+        &items,
+        started.elapsed(),
+    );
 
     Ok(CatalogQueryResult { items, total })
 }
