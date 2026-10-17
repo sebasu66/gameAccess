@@ -259,6 +259,11 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
           ...digitalDownloadService.getDownloads().map(entry => entry.game),
         ]);
+        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows.
+        if (!cancelled) for (const game of games) {
+          const id = game.app_id ?? game.id;
+          if (result.statuses?.[id] && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+        }
         if (!cancelled) setDownloads(current => {
           // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
           let next: typeof current | null = null;

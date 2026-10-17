@@ -4,6 +4,7 @@ import GaTabs from "./GaTabs";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
+import { Button } from "./components/ui/button";
 import { Settings, X, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
@@ -31,7 +32,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
     </> },
    ]} /><BuildStamp />
    </div>
-   <footer><p>{c.saved}</p><div><button type="button" onClick={() => { const next = { ...DEFAULT_PIXEL_STYLE }; setStyle(next); savePixelStyle(next); }}><RotateCcw size={16} />{c.reset}</button><button type="button" onClick={() => { onClose(); window.dispatchEvent(new Event("gameaccess:replay-logo")); }}><Play size={16} />{c.replay}</button></div></footer>
+   <footer><p>{c.saved}</p><div><Button onClick={() => { const next = { ...DEFAULT_PIXEL_STYLE }; setStyle(next); savePixelStyle(next); }}><RotateCcw size={16} />{c.reset}</Button><Button onClick={() => { onClose(); window.dispatchEvent(new Event("gameaccess:replay-logo")); }}><Play size={16} />{c.replay}</Button></div></footer>
   </section>
  </div>;
 }
