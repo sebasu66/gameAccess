@@ -3,6 +3,7 @@ No crawl runs inside a catalog request or on the desktop.
 """
 from __future__ import annotations
 from argparse import Namespace
+from contextlib import contextmanager
 from functools import lru_cache
 import gzip
 import hashlib
@@ -11,7 +12,9 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import sqlite3
+import tempfile
 import threading
 
 import httpx
@@ -29,7 +32,8 @@ _stop = threading.Event()
 _worker = None
 _lock = threading.Lock()
 _cached_revision = ""
-_cached_games = []
+_cached_identities: list[int] = []   # Steam ids only: the 42k game payloads are never kept in memory (they cost ~285 MB)
+_cached_inventory = ""
 _status = {"state": "idle"}
 
 
@@ -54,32 +58,64 @@ def package_path(revision: str) -> Path:
     raise HTTPException(404, "Catalog revision not found")
 
 
-def catalog_games() -> list[dict]:
-    global _cached_revision, _cached_games
+@contextmanager
+def snapshot_db(revision: str, expected_sha256: str = ""):
+    """The central package as a SQLite file on disk: it is unzipped to a temp file and read row by row.
+
+    Never `deserialize` it into memory: that holds the whole database (~75 MB) plus a copy while loading, which
+    is what used to push the 512 MB server over its limit together with the parsed games."""
+    source = package_path(revision)
+    if expected_sha256:
+        digest = hashlib.sha256()
+        with source.open("rb") as handle:
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(block)
+        if digest.hexdigest() != expected_sha256:
+            LOG.error("Central catalog package hash mismatch")
+            raise HTTPException(503, "Catalog package failed verification")
+    with tempfile.TemporaryDirectory(prefix="ga-catalog-") as directory:
+        target = Path(directory) / "catalog.sqlite"
+        with gzip.open(source, "rb") as packed, target.open("wb") as unpacked:
+            shutil.copyfileobj(packed, unpacked, 1 << 20)
+        db = sqlite3.connect(target)
+        try:
+            yield db
+        finally:
+            db.close()
+
+
+def iter_catalog_games():
+    """Catalog games one at a time (Steam id exposed as `id`), without ever holding the whole catalog."""
     try:
         info = manifest()
-    except HTTPException:
-        return []
-    with _lock:
-        if info["revision"] == _cached_revision:
-            return _cached_games
-        compressed = package_path(info["revision"]).read_bytes()
-        if hashlib.sha256(compressed).hexdigest() != info["sha256"]:
-            LOG.error("Central catalog package hash mismatch")
-            return _cached_games
-        db = sqlite3.connect(":memory:")
-        try:
-            db.deserialize(gzip.decompress(compressed))
-            games = []
+        with snapshot_db(info["revision"], info["sha256"]) as db:
             for (payload,) in db.execute("SELECT payload FROM catalog_game ORDER BY id"):
                 game = json.loads(payload)
                 game["id"] = game["app_id"] or game["id"]
-                games.append(game)
-        finally:
-            db.close()
-        _cached_revision, _cached_games = info["revision"], games
-        return games
+                yield game
+    except HTTPException:
+        return
 
+
+def catalog_identities() -> tuple[list[int], str]:
+    """Sorted Steam ids and their inventory hash, computed once per revision (a list of ints, not of games)."""
+    global _cached_revision, _cached_identities, _cached_inventory
+    try:
+        info = manifest()
+    except HTTPException:
+        return [], ""
+    with _lock:
+        if info["revision"] != _cached_revision:
+            identities = sorted(game["app_id"] or game["id"] for game in iter_catalog_games())
+            if identities:
+                _cached_revision, _cached_identities = info["revision"], identities
+                _cached_inventory = hashlib.sha256(stable_json(identities).encode()).hexdigest()
+        return _cached_identities, _cached_inventory
+
+
+def catalog_games() -> list[dict]:
+    """Every game as a list. Materializes the catalog: for tests and tools, never for request handlers."""
+    return list(iter_catalog_games())
 
 
 @lru_cache(maxsize=32)
@@ -119,8 +155,7 @@ def client_update(base_revision: str, revision: str):
 @router.get("/library/catalog/manifest", name="discovery_manifest")
 def client_manifest(request: Request, since: str = ""):
     data = manifest()
-    identities = sorted(game["app_id"] or game["id"] for game in catalog_games())
-    data["inventory_sha256"] = hashlib.sha256(stable_json(identities).encode()).hexdigest()
+    data["inventory_sha256"] = catalog_identities()[1]
     if since and since != data["revision"]:
         try:
             compressed = update_batch(since, data["revision"])
@@ -158,21 +193,18 @@ async def reconcile_catalog(request: Request):
         raise HTTPException(400, "Invalid catalog inventory")
     data = manifest()
     identities = set(present)
-    missing = [game for game in catalog_games() if (game["app_id"] or game["id"]) not in identities]
-    # Packages use stable internal IDs; catalog_games exposes Steam IDs to the UI.
-    db = sqlite3.connect(":memory:")
-    try:
-        db.deserialize(gzip.decompress(package_path(data["revision"]).read_bytes()))
-        missing_ids = {game["app_id"] or game["id"] for game in missing}
-        games = [json.loads(row) for (row,) in db.execute("SELECT payload FROM catalog_game")
-                 if (json.loads(row).get("app_id") or json.loads(row)["id"]) in missing_ids]
+    # One pass over the package on disk; packages use stable internal IDs, the UI and the client use Steam IDs.
+    with snapshot_db(data["revision"], data["sha256"]) as db:
+        games = []
+        for (row,) in db.execute("SELECT payload FROM catalog_game ORDER BY id"):
+            game = json.loads(row)
+            if (game.get("app_id") or game["id"]) not in identities:
+                games.append(game)
         internal_ids = {game["id"]: game.get("app_id") for game in games}
         details = [{"game_id": gid, "app_id": internal_ids[gid], "language": lang,
                     "country": country, "payload": json.loads(row)}
                    for gid, lang, country, row in db.execute("SELECT game_id,language,country,payload FROM game_detail")
                    if gid in internal_ids]
-    finally:
-        db.close()
     batch = {"schema_version": 1, "base_revision": base, "revision": data["revision"],
              "games": games, "details": details}
     compressed = gzip.compress(stable_json(batch).encode(), mtime=0)

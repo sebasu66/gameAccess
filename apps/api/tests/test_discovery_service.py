@@ -4,6 +4,10 @@ import json
 from pathlib import Path
 import sqlite3
 import httpx
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
+from app import main
+from app.catalog_metadata import ensure_catalog_schema
 import pytest
 from fastapi import HTTPException
 from app import discovery_service as service
@@ -84,3 +88,39 @@ def test_inventory_diff_repairs_equal_revision_with_missing_game(tmp_path, monke
     batch = json.loads(gzip.decompress(response.content))
     assert [game["app_id"] for game in batch["games"]] == [20]
     assert batch["base_revision"] == batch["revision"] == revision
+
+
+def test_catalog_is_read_from_disk_and_only_identities_are_kept(tmp_path, monkeypatch):
+    rows = [(i, 100 + i, json.dumps({"id": i, "app_id": 100 + i, "name": f"G{i}", "tags": ["x"]})) for i in range(1, 6)]
+    write_snapshot(rows, {}, tmp_path, "fixture")
+    monkeypatch.setattr(service, "ROOT", tmp_path)
+    monkeypatch.setattr(service, "_cached_revision", "")
+    identities, inventory = service.catalog_identities()
+    assert identities == [101, 102, 103, 104, 105]
+    assert inventory == hashlib.sha256(json.dumps(identities, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
+    assert not hasattr(service, "_cached_games")                       # the payloads are never kept between requests
+    streamed = service.iter_catalog_games()
+    assert next(streamed)["id"] == 101 and [g["id"] for g in streamed] == [102, 103, 104, 105]
+    info = service.manifest()
+    with service.snapshot_db(info["revision"], info["sha256"]) as db:
+        assert db.execute("SELECT count(*) FROM catalog_game").fetchone()[0] == 5
+    with pytest.raises(HTTPException):
+        with service.snapshot_db(info["revision"], "0" * 64):
+            pass
+
+
+def test_library_catalog_streams_valid_json(monkeypatch):
+    import asyncio
+    from app import discovery_service
+    from app.catalog_routes import library_catalog
+    monkeypatch.setattr(discovery_service, "iter_catalog_games", lambda: iter([{"id": 1, "app_id": 1, "name": "A"}, {"id": 2, "app_id": 2, "name": "B"}]))
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    main.Game.__table__.create(engine)
+    ensure_catalog_schema(engine)
+    with Session(engine) as session:
+        response = library_catalog(session=session)
+
+        async def collect():
+            return b"".join([chunk.encode() if isinstance(chunk, str) else chunk async for chunk in response.body_iterator])
+        body = asyncio.run(collect())
+    assert [game["name"] for game in json.loads(body)] == ["A", "B"]

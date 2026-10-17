@@ -26,6 +26,8 @@ services:
         sync: false
       - key: VIKING_REMEMBERME
         sync: false
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: GAMEACCESS_CHUNK_MAX_JOBS
         value: "1"
       - key: GAMEACCESS_CHUNK_UPLOADS

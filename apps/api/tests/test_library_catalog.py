@@ -6,7 +6,7 @@ from app.catalog_metadata import ensure_catalog_schema, seed_known_games, upsert
 
 def test_library_metadata_does_not_require_licenses_or_download_sources(monkeypatch):
     from app import discovery_service
-    monkeypatch.setattr(discovery_service, "catalog_games", lambda: [])
+    monkeypatch.setattr(discovery_service, "iter_catalog_games", lambda: iter([]))
     engine = create_engine("sqlite://")
     main.Game.__table__.create(engine)
     ensure_catalog_schema(engine)
@@ -18,7 +18,8 @@ def test_library_metadata_does_not_require_licenses_or_download_sources(monkeypa
     upsert_steam_metadata(engine, 7, {"app_id": 1174180, "type": "game", "genres": ["Action"], "categories": ["Single-player"]})
     # No account, entitlement, source-list or lease tables exist in this database.
     with Session(engine) as session:
-        result = main.library_catalog(session=session)
+        from app.catalog_routes import catalog_rows
+        result = list(catalog_rows(session))
     assert len(result) == 1
     assert result[0]["id"] == result[0]["app_id"] == 1174180
     assert result[0]["name"] == "Fixture"
