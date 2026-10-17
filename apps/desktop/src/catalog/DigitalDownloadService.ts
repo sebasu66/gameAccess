@@ -40,6 +40,9 @@ export class DigitalDownloadService implements IDownloadProvider {
   private jobs = new Map<number, { game: CatalogGame; options?: DownloadStartOptions & { record?: DigitalGameRecord } }>();
   private controls = new Set<number>();
   private speeds = new Map<number, DownloadSpeedSample[]>();
+  /** Games whose download was started in this session. A failure found in state restored at startup is not announced with a dialog. */
+  private readonly startedNow = new Set<number>();
+  startedThisSession(gameId: number): boolean { return this.startedNow.has(gameId); }
   private readonly methods = new Map<number, DownloadMethod>();
   /** How this game is being fetched (shown as a pill), or undefined when not known. */
   getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
@@ -130,6 +133,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     const previous = this.activeJobs.get(id);
     if (previous && !["error", "cancelled", "completed", "interrupted", "external"].includes(previous.phase)) return;
+    this.startedNow.add(id);
     libraryMembership.add(game);
     this.speeds.delete(id);
     this.jobs.set(id, { game, options: options ?? this.jobs.get(id)?.options });

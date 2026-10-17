@@ -22,6 +22,8 @@ export default function DigitalDownloadErrorDialog() {
     const seen = new Map<number, string>();
     let mounted = true;
     const unsubscribe = digitalDownloadService.onGlobalUpdate(snapshot => {
+      // Opening the app must not greet the user with a dialog about an old failure; the library card is flagged instead.
+      if (!digitalDownloadService.startedThisSession(snapshot.gameId)) return;
       if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) {
         seen.delete(snapshot.gameId);
         return;
