@@ -16,6 +16,7 @@ import app_log
 from game_execution_manager import GameExecutionManager
 from disk_space import check_space, disk_info, folder_size
 from game_importer import GameImporter
+from game_scanner import GameScanner
 from .storage import split_folder_name
 
 BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
@@ -68,6 +69,7 @@ class GameLibraryManager:
             for folder in sorted(root.iterdir()):
                 if folder.is_dir() and not folder.is_symlink():
                     games.append(self._entry(folder, with_sizes))
+        games += [self._linked_entry(record, with_sizes) for record in self.storage.linked.all()]
         self._merge_transfers(games, with_sizes)
         flagged = [g for g in games if not g["standard"]]
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
@@ -101,6 +103,19 @@ class GameLibraryManager:
         entry["standard"] = not entry["issues"]
         entry["reclaimable_bytes"] = sum(issue.get("bytes", 0) for issue in entry["issues"])
         entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
+        return entry
+
+    def _linked_entry(self, record: dict, with_sizes: bool) -> dict:
+        """A game that stays where it is: always 'standard' (nothing about it is ours to fix), only launched and counted."""
+        folder = Path(record["path"])
+        status = self.storage.linked.status(record)
+        entry = {"app_id": record["app_id"], "name": record["name"], "state": "linked", "folder": str(folder), "linked": True,
+                 "link_kind": record["kind"], "installed": status["installed"], "needs_repair": False, "error": status.get("error", ""),
+                 "size_bytes": folder_size(folder) if with_sizes and folder.is_dir() else None, "issues": [], "standard": True,
+                 "reclaimable_bytes": 0, "warning": status.get("error", ""), **play_history(self.storage.linked.log_dir(record["app_id"]))}
+        if not status["installed"]:
+            entry["issues"] = [{"code": "missing_link", "message": status["error"]}]
+            entry["standard"] = False
         return entry
 
     def clean_empty(self) -> None:
@@ -146,7 +161,7 @@ class GameLibraryManager:
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
         by_day: dict[str, int] = {}
-        for folder in self.game_folders():
+        for folder in [*self.game_folders(), *self.storage.linked.log_dirs()]:
             for stamp in play_dates(folder):
                 by_day[stamp[:10]] = by_day.get(stamp[:10], 0) + 1
         by_month: dict[str, int] = {}
@@ -156,7 +171,7 @@ class GameLibraryManager:
 
     def plan(self, app_ids: list[int]) -> list[dict]:
         """What fixing each game would do, for the user to review before anything runs."""
-        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None}
+        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")}
         plans = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             if app_id in names:
@@ -184,7 +199,9 @@ class GameLibraryManager:
                 "needs_repair": sum(1 for g in games if g["needs_repair"]),
                 "nonstandard": sum(1 for g in games if not g["standard"]),
                 "partial_downloads": sum(1 for g in games if g.get("partial") or (g.get("transfer_bytes") and not g.get("transfer_active"))),
-                "used_bytes": sum(g["size_bytes"] or 0 for g in games),
+                "used_bytes": sum(g["size_bytes"] or 0 for g in games if not g.get("linked")),
+                "linked_count": sum(1 for g in games if g.get("linked")),
+                "linked_bytes": sum(g["size_bytes"] or 0 for g in games if g.get("linked")),
                 "transfers_bytes": sum(t["size_bytes"] or 0 for t in transfers),
                 "reclaimable_bytes": sum(g["reclaimable_bytes"] for g in games), **disk}
 
@@ -200,8 +217,26 @@ class GameLibraryManager:
     def history(self, app_id: int, name: str) -> str:
         return journal.read(self.storage.folder(app_id, name))
 
-    def import_game(self, source: str, name: str = ""):
-        return self.importer.import_game(source, name)
+    # -- importing games that already exist elsewhere --------------------------------------------------
+    def import_drives(self) -> list[dict]:
+        return GameScanner.drives()
+
+    def import_scan(self, drives: list[str], progress=lambda text: None) -> list[dict]:
+        """Games found on the chosen disks that are not in the library yet."""
+        known = [g["app_id"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
+        exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
+        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives)
+
+    def import_games(self, items: list[dict]) -> list[dict]:
+        """Import each item {app_id, name, path, mode: link|move, kind, executable}; one failure never stops the rest."""
+        results = []
+        for item in items:
+            try:
+                results.append({"app_id": int(item["app_id"]), **self.importer.import_game(int(item["app_id"]), item["name"], item["path"], item.get("mode", "link"), item.get("kind", "folder"), item.get("executable", ""))})
+            except (OSError, ValueError, RuntimeError, KeyError) as error:
+                self.log.error("Import of %s failed: %s", item.get("name"), error)
+                results.append({"app_id": item.get("app_id"), "ok": False, "error": str(error)})
+        return results
 
     def freeze(self, app_id: int, name: str):
         if self.freezer is None:
@@ -214,10 +249,15 @@ class GameLibraryManager:
         self.log.info("Batch %s on %s", action, list(app_ids))
         if action not in BATCH_ACTIONS:
             raise ValueError(f"Acción en lote no soportada: {action}")
-        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None}
+        listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
+        names = {g["app_id"]: g["name"] for g in listed}
+        linked = {g["app_id"] for g in listed if g.get("linked")}
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
+            if app_id in linked and action != "uninstall":
+                results.append({"app_id": app_id, "ok": False, "error": "Es un juego vinculado: sus archivos no se modifican."})
+                continue
             if name is None:
                 results.append({"app_id": app_id, "ok": False, "error": "El juego no está en la biblioteca."})
                 continue

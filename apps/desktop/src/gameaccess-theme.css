@@ -517,7 +517,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 @media (prefers-reduced-motion:reduce) { .ga-dialog-backdrop, .ga-dialog, .ga-dialog-progress { animation:none; } .ga-dialog-spin, .ga-dialog-bar > span { animation-duration:2.4s; } .ga-dialog button { transition:none; } }
 
 /* Screen headers (app-wide): every full-screen view keeps the same title font, colour and margins. */
-.ga-screen-header { display:flex; align-items:center; gap:20px; flex:none; width:100%; max-width:1180px; margin:0 auto; padding:34px 48px 22px; box-sizing:border-box; }
-.ga-screen-title { margin:0; font:400 52px/1 "Bebas Neue", sans-serif; letter-spacing:.02em; color:var(--ga-orange); }
+.ga-screen-header { display:flex; align-items:center; gap:14px; flex:none; width:100%; max-width:1280px; margin:0 auto; padding:34px 48px 22px; box-sizing:border-box; }
+.ga-screen-title { margin:0; white-space:nowrap; font:400 52px/1 "Bebas Neue", sans-serif; letter-spacing:.02em; color:var(--ga-orange); }
 /* The language switch lives in Settings; full-screen managers do not show it. */
 body:has(.ga-screen-header) .ga-global-language { display:none !important; }

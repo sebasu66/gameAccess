@@ -6,7 +6,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "library-list" | "library-plan" | "library-space" | "library-batch";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "library-list" | "library-plan" | "library-space" | "library-batch";
   app_id: number;
   name?: string;
   pid?: number;
@@ -26,6 +26,8 @@ export interface ProcessExecutionResult {
   log?: string;
   analysis?: GameAnalysis;
   library?: LibraryGame[];
+  drives?: ImportDrive[];
+  candidates?: ImportCandidate[];
   transfers?: LibraryTransfer[];
   usage?: LibraryUsage;
   plans?: LibraryPlan[];
@@ -39,13 +41,16 @@ export interface ProcessExecutionResult {
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
 
+export interface ImportDrive { path: string; label: string; total_bytes: number; free_bytes: number }
+export interface ImportCandidate { id: string; name: string; path: string; kind: "steam" | "folder"; source: "steam" | "library" | "downloads"; app_id: number | null; size_bytes: number; executable: string; can_move: boolean }
+export interface ImportItem { app_id: number; name: string; path: string; mode: "link" | "move"; kind: "steam" | "folder"; executable: string }
 export interface LibraryUsage { by_day: Record<string, number>; by_month: Record<string, number> }
 export interface LibraryPlanAction { code: string; label: string; bytes?: number }
 export interface LibraryPlan { app_id: number; name: string; actions: LibraryPlanAction[]; freed_bytes?: number; delete_sources?: boolean; error?: string }
 export interface LibraryIssue { code: string; message: string; bytes?: number }
 export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
-export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string }
-export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; disk_free_bytes?: number; disk_total_bytes?: number }
+export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder" }
+export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
 export type LibraryBatchAction = "uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
@@ -86,6 +91,9 @@ export class DigitalProcessManager {
   libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })); }
   librarySpace(bytes: number) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes })); }
   libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })); }
+  importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
+  importScan(drives: string[]) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives })); }
+  importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
 
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {

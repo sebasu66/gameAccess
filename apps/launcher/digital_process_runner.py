@@ -13,6 +13,7 @@ from game_library_manager.storage import DigitalGameStorage
 import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
+from game_library_manager.linked import run_linked
 from game_library_manager.preferences import DigitalPreferences
 from game_execution_manager.game_options import DigitalGameOptions, repair_language
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
@@ -69,7 +70,7 @@ class DigitalProcessRunner:
             if action == "snapshot":
                 games = json.loads(command)
                 return {"ok": True, "statuses": self.storage.snapshot(games)}
-            if action.startswith("library-"):
+            if action.startswith(("library-", "import-")):
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger))
                 if action == "library-list":
                     games, transfers = library.list_games(), library.transfers()
@@ -81,7 +82,19 @@ class DigitalProcessRunner:
                 if action == "library-batch":
                     request = json.loads(command)
                     return {**result, "ok": True, "results": library.batch(request["action"], request["app_ids"])}
+                if action == "import-drives":
+                    return {**result, "ok": True, "drives": library.import_drives()}
+                if action == "import-scan":
+                    return {**result, "ok": True, "candidates": library.import_scan(json.loads(command or "{}").get("drives", []))}
+                if action == "import-run":
+                    return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
                 raise ValueError(f"Unknown action '{action}'")
+            linked_record = self.storage.linked.get(app_id)
+            if linked_record:
+                # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
+                outcome = run_linked(action, linked_record, self.storage.linked, logger,
+                                     lambda game_folder, game_name: gem.find_candidates(game_folder, game_name, "", [], logger))
+                return {**result, "ok": True, "folder": linked_record["path"], **outcome}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
             diagnostics.debug("Resolved app folder=%s", folder)
@@ -242,7 +255,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "import-drives", "import-scan", "import-run"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

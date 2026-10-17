@@ -23,6 +23,7 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] **Landing en GitHub Pages** (qué es, cómo funciona, FAQ, privacidad, descarga), enlazada desde Patreon; Patreon solo para pago y comunidad.
 - [ ] **Pestaña nueva "Librería"**: estadísticas de uso de juegos por día y por mes (reutilizar `UsageChart` y los datos `usage` de `library-list`). Solo pendiente; el Library Manager ya trae los componentes shadcn/Recharts.
 - [ ] **Selector de idioma ES/EN**: moverlo a Configuración y quitarlo de las pantallas (hoy solo se oculta en las pantallas con `.ga-screen-header`, p. ej. el Library Manager). Usar `.ga-screen-header`/`.ga-screen-title` (gameaccess-theme.css) como cabecera estándar en todas las pantallas completas.
+- [ ] **Importación: pulir**: elegir manualmente el juego del catálogo con buscador (hoy un desplegable con sugerencias), opción «aplicar a todos» vincular/mover, progreso del escaneo por disco, opciones de lanzamiento (ejecutable/argumentos) para juegos vinculados, probar con discos reales y con una biblioteca Steam real.
 
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).

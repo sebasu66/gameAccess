@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from atomic_json import write_json
 from .preferences import DigitalPreferences
+from .linked import LinkedGames
 
 LAUNCHER = Path(__file__).resolve().parent.parent
 
@@ -39,6 +40,7 @@ class DigitalGameStorage:
         self.root = Path(settings["games_root"]).resolve()
         self.roots = list(dict.fromkeys([self.root, *(Path(root).resolve() for root in settings["previous_roots"])]))
         self.registry = self.launcher / ".cache" / "digital_games"
+        self.linked = LinkedGames(self.launcher)
 
     @staticmethod
     def folder_name(name: str) -> str:
@@ -47,6 +49,9 @@ class DigitalGameStorage:
     def folder(self, app_id: int, name: str) -> Path:
         # Identity comes from the AppID prefix, never from the title, so a
         # folder is found whatever its name or status suffix is now.
+        linked = self.linked.get(app_id)
+        if linked:                       # a linked game stays where it is, outside the games roots
+            return Path(linked["path"])
         matches = [p for root in self.roots if root.is_dir() for p in root.glob(f"{int(app_id)}-*") if p.is_dir()]
         if len(matches) > 1:
             raise ValueError("Hay varias carpetas para este AppID; se necesita un registro de instalación.")
@@ -85,6 +90,8 @@ class DigitalGameStorage:
         if status not in STATUSES:
             raise ValueError(f"Estado desconocido: {status}")
         folder = self.folder(app_id, name)
+        if self.linked.get(app_id):
+            return folder                # linked folders are never renamed
         found_id, title, _ = split_folder_name(folder.name)
         if found_id is None:
             title = self.folder_name(name)
@@ -99,6 +106,8 @@ class DigitalGameStorage:
 
     def write_error(self, app_id: int, name: str, message: str) -> Path:
         folder = self.folder(app_id, name)
+        if self.linked.get(app_id):
+            return folder                # nothing is written inside a linked game
         folder.mkdir(parents=True, exist_ok=True)
         journal.note(folder, "ERROR", message)
         return self.set_status(app_id, name, "ERROR")
@@ -115,6 +124,9 @@ class DigitalGameStorage:
             return False
 
     def status(self, app_id: int, name: str) -> dict:
+        linked = self.linked.get(app_id)
+        if linked:
+            return self.linked.status(linked)
         folder = self.folder(app_id, name)
         _, _, state = split_folder_name(folder.name)
         result = {"folder": str(folder), "installed": False, "state": state}
@@ -235,6 +247,8 @@ class DigitalGameStorage:
                     folder = self.folder(int(record.stem), game["name"])
                     registered.setdefault(str(folder), set()).add(record.stem)
         statuses = {}
+        for record in self.linked.all():
+            statuses[str(record["app_id"])] = self.linked.status(record)
         legacy_names = None
         for folder in (folder for root in self.roots if root.is_dir() for folder in root.iterdir()):
             if not folder.is_dir():
@@ -258,6 +272,9 @@ class DigitalGameStorage:
 
     def uninstall(self, app_id: int, name: str) -> Path:
         folder = self.folder(app_id, name)
+        if self.linked.get(app_id):
+            self.linked.unlink(app_id)   # only the link goes; the game's files are not ours to delete
+            return folder
         temporary_root = Path(self.preferences.load()["temporary_root"]).resolve()
         temporary_folders = list(temporary_root.glob(f"{int(app_id)}-*")) if temporary_root.is_dir() else []
         targets = [folder, *temporary_folders]
@@ -285,6 +302,8 @@ class DigitalGameStorage:
                 data = json.loads(record.read_text(encoding="utf-8"))
                 self.folder(int(record.stem), data.get("name", "game"))
                 found[int(record.stem)] = {"id": int(record.stem), "name": data.get("name", "game")}
+        for record in self.linked.all():
+            found[record["app_id"]] = {"id": record["app_id"], "name": record["name"]}
         for root in self.roots:
             if not root.is_dir():
                 continue

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderOpen, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
 import { useI18n } from "../i18n";
 import SteamCover from "../SteamCover";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
@@ -21,6 +21,7 @@ import { DiskBar } from "./Charts";
 import { copy, type LibraryCopy } from "./copy";
 import { demoPlans } from "./demoData";
 import { formatBytes } from "./format";
+import { ImportWizard } from "./ImportWizard";
 import { PlanDialog } from "./PlanDialog";
 
 type Filter = "all" | "outside" | "errors" | "partial";
@@ -32,11 +33,12 @@ type Pending =
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
 const hasError = (game: LibraryGame) => game.issues.some(issue => issue.code === "error");
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
-const needsFix = (game: LibraryGame) => !game.standard && !game.partial;
+const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked;
 
 function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   const badges = [] as JSX.Element[];
-  if (game.partial) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.partialDl}</Badge>);
+  if (game.linked) badges.push(<Badge key="s" variant="info"><Link2 className="size-3" />{c.linked}</Badge>);
+  else if (game.partial) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.partialDl}</Badge>);
   else if (hasError(game)) badges.push(<Badge key="s" variant="destructive"><AlertTriangle className="size-3" />{c.error}</Badge>);
   else if (!game.standard) badges.push(<Badge key="s" variant="warning"><AlertTriangle className="size-3" />{c.outsideStd}</Badge>);
   else if (["installing", "downloading", "preparing"].includes(game.state)) badges.push(<Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c[game.state as "installing"]}</Badge>);
@@ -84,6 +86,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const [expanded, setExpanded] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => { void scanLibrary(); }, []);
@@ -142,7 +145,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-sm bg-muted [&_*]:max-h-full"><SteamCover game={asGame(game)} /></span>
             <span className="grid min-w-0 gap-0.5">
               <span className="flex items-center gap-1 truncate text-sm font-bold">{open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}{game.name}</span>
-              <span className={cn("truncate text-xs", needsFix(game) ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
+              <span className={cn("truncate text-xs", !game.standard ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
             </span>
           </button>
         );
@@ -173,7 +176,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
               {game.transfer_bytes && !game.transfer_active ? <IconAction label={c.discard} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><RotateCcw /></IconAction> : null}
               <IconAction label={c.history} onClick={() => setExpanded(expanded === id ? null : id)}><ScrollText /></IconAction>
               <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
-              <IconAction label={c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
+              <IconAction label={game.linked ? c.unlink : c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
             </>}
           </div>
         );
@@ -186,8 +189,12 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     getRowId: game => String(game.app_id ?? game.folder), getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel(), enableRowSelection: game => game.original.app_id != null,
   });
 
+  const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
+  const pendingIds = pending?.kind === "uninstall" ? pending.ids : [];
+  const allLinked = pendingIds.length > 0 && pendingIds.every(id => linkedIds.has(id));
+  const anyLinked = pendingIds.some(id => linkedIds.has(id));
   const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending)), [pending]);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen), [pending, importOpen]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
     window.addEventListener("keydown", onKey);
@@ -203,10 +210,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
         <header className="ga-screen-header">
           <Button variant="outline" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
           <h2 className="ga-screen-title mr-auto">{c.title}</h2>
+          <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
         </header>
-        <div className="mx-auto flex min-h-0 w-full max-w-[1180px] flex-1 flex-col gap-4 px-12 pb-6">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1280px] flex-1 flex-col gap-4 px-12 pb-6">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Input className="max-w-64" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />
@@ -282,17 +290,18 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
         </div>
       </div>
 
+      {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) void scanLibrary(); }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
       {pending && pending.kind !== "plan" ? (
         <AlertDialog open onOpenChange={open => { if (!open && !busy) setPending(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{pending.kind === "uninstall" ? c.uninstallTitle(pending.ids.length) : c.discardTitle}</AlertDialogTitle>
-              <AlertDialogDescription>{pending.kind === "uninstall" ? c.uninstallBody : pending.restart ? c.restartBody : c.discardBody}</AlertDialogDescription>
+              <AlertDialogTitle>{pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={busy}>{c.cancel}</AlertDialogCancel>
-              <AlertDialogAction disabled={busy} onClick={event => { event.preventDefault(); void confirmPending(); }}>{busy ? c.working : pending.kind === "uninstall" ? c.uninstall : pending.restart ? c.restart : c.discard}</AlertDialogAction>
+              <AlertDialogAction disabled={busy} onClick={event => { event.preventDefault(); void confirmPending(); }}>{busy ? c.working : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

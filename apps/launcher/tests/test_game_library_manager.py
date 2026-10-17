@@ -50,8 +50,6 @@ def test_batch_uninstall_and_repair_continue_after_failures(tmp_path):
 def test_connectors_report_missing_modules(tmp_path):
     storage, lib = library(tmp_path)
     with pytest.raises(NotImplementedError):
-        lib.import_game("D:/games/x")
-    with pytest.raises(NotImplementedError):
         lib.freeze(1, "Alpha")
 
 def test_runner_actions_expose_the_library(tmp_path):

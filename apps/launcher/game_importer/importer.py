@@ -7,12 +7,15 @@ duplicates the game. `plan` says what bringing it up to the standard involves (t
 Importing from a path outside the games folder (copy/move, AppID lookup) will build on `adopt`."""
 from __future__ import annotations
 from pathlib import Path
+import os
+import shutil
 import game_journal as journal
 import app_log
 from game_execution_manager.archives import is_backup_name, pending_archives
 from game_execution_manager.execution_profile import declared_fix_archive, load_profile
 from game_execution_manager.setup_installer import find_setup
-from disk_space import GIB, check_space, folder_size
+from disk_space import GIB, check_space, disk_info, folder_size
+from game_scanner import is_steam_path
 
 # A real fix archive is small; one this big is the downloaded game kept next to its own unpacked copy.
 OBSOLETE_BACKUP_BYTES = 1 * GIB
@@ -105,8 +108,43 @@ class GameImporter:
         return app_id, f"{app_id}-{title}", state
 
     # -- doing it ------------------------------------------------------------------------------
-    def import_game(self, source: str, name: str = ""):
-        raise NotImplementedError("Importar desde otra carpeta todavía no está disponible; por ahora se adaptan las carpetas que ya están en la biblioteca.")
+    def import_game(self, app_id: int, name: str, path: str, mode: str = "link", kind: str = "folder", executable: str = "") -> dict:
+        """Bring a game that lives elsewhere into the library.
+
+        link: it stays where it is; Game Access only launches it and counts its plays (always the case for Steam games).
+        move: its files move into the games folder and are adopted like any other game (never for Steam libraries)."""
+        source = Path(path)
+        if not source.is_dir() or source.is_symlink():
+            raise ValueError("La carpeta del juego no existe.")
+        if any(source.resolve() == r or source.resolve().is_relative_to(r) for r in self.storage.roots):
+            raise ValueError("Ese juego ya está dentro de la biblioteca.")
+        if self.storage.linked.get(app_id) or any(root.glob(f"{int(app_id)}-*") for root in self.storage.roots if root.is_dir()):
+            raise ValueError("Este juego ya está en la biblioteca.")
+        steam = kind == "steam" or is_steam_path(source)
+        if mode not in ("link", "move"):
+            raise ValueError("Modo de importación desconocido.")
+        if mode == "move" and steam:
+            raise ValueError("Los juegos de Steam solo se pueden vincular: moverlos rompería Steam.")
+        if mode == "link":
+            self.storage.linked.link(app_id, name, str(source), "steam" if steam else "folder", executable)
+            self.log.info("AppID %s (%s): linked in place at %s", app_id, name, source)
+            return {"ok": True, "mode": "link"}
+        size = folder_size(source)
+        same_disk = source.resolve().drive.lower() == self.storage.root.drive.lower() and (os.name == "nt" or source.stat().st_dev == self.storage.root.stat().st_dev)
+        if not same_disk and disk_info(self.storage.root)["disk_free_bytes"] < size + GIB:
+            message = "No hay espacio suficiente en el disco de juegos para mover este juego."
+            self.log.error("AppID %s: move refused, %s", app_id, message)
+            return {"ok": False, "error": message}
+        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        if target.exists():
+            raise ValueError("Ya existe una carpeta con ese nombre en la biblioteca.")
+        self.storage.root.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(target))
+        self.storage.register(app_id, name)
+        journal.note(target, "importado", f"movido desde {source}; el historial de antes no está disponible")
+        self.log.info("AppID %s (%s): moved from %s into %s", app_id, name, source, target.name)
+        outcome = self.adopt(app_id, name)
+        return {"mode": "move", **outcome}
 
     def adopt(self, app_id: int, name: str, progress=lambda text: None) -> dict:
         folder = self.storage.folder(app_id, name)
