@@ -212,14 +212,14 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   return (
     <TooltipProvider delayDuration={150}>
       <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
-        <header className="ga-screen-header">
+        <header className="ga-screen-header !max-w-none">
           <Button variant="outline" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
           <h2 className="ga-screen-title mr-auto">{c.title}</h2>
           <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
         </header>
-        <div className="mx-auto flex min-h-0 w-full max-w-[1280px] flex-1 flex-col gap-4 px-12 pb-6">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Input className="max-w-64" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />
