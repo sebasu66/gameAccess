@@ -46,6 +46,14 @@ Get-ChildItem $launcherSource -File |
     Where-Object { $_.Extension -eq ".py" -or $_.Name -eq "requirements.txt" } |
     Copy-Item -Destination $launcherTarget
 
+# Packages (game_execution_manager/, game_library_manager/, ...): mirrored whole so a deleted module never lingers.
+foreach ($package in Get-ChildItem $launcherSource -Directory | Where-Object { $_.Name -ne "tests" -and (Test-Path (Join-Path $_.FullName "__init__.py")) }) {
+    $packageTarget = Join-Path $launcherTarget $package.Name
+    if (Test-Path $packageTarget) { Remove-Item -LiteralPath $packageTarget -Recurse -Force }
+    New-Item -ItemType Directory -Path $packageTarget -Force | Out-Null
+    Get-ChildItem $package.FullName -File -Filter "*.py" | Copy-Item -Destination $packageTarget
+}
+
 $requirementsSha = (Get-GameAccessFileHash $requirements "SHA256").ToUpperInvariant()
 $runtimeReady = $false
 if (Test-Path $marker) {

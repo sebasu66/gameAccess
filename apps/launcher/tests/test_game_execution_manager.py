@@ -5,10 +5,11 @@ from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import game_journal as journal
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
-from execution_profile import save_profile
-from game_execution_manager import GameExecutionManager, GameExecutionError, pending_archives
+from game_execution_manager.execution_profile import save_profile
+from game_execution_manager import GameExecutionManager, GameExecutionError
+from game_execution_manager.archives import pending_archives
 
 LOG = logging.getLogger("gem-test")
 

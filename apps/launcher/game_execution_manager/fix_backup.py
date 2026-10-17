@@ -1,12 +1,12 @@
 """Original smallest Digital archive retained and reapplied before Play."""
 from __future__ import annotations
-import contextlib
-import io
 import json
-import os
 import re
 import shutil
 from pathlib import Path
+from atomic_json import write_json
+from .archives import is_secondary_volume
+from .extraction import extract_archive
 
 class DigitalArchiveBackup:
     METADATA = ".digital-backup.json"
@@ -44,10 +44,7 @@ class DigitalArchiveBackup:
                 shutil.move(str(member), str(target))
         record = {"archive": str(output.relative_to(root)), "destination": str(destination.relative_to(root)),
                   "needs_password": bool(needs_password)}
-        metadata = root / DigitalArchiveBackup.METADATA
-        temporary = metadata.with_suffix(".tmp")
-        temporary.write_text(json.dumps(record), encoding="utf-8")
-        os.replace(temporary, metadata)
+        write_json(root / DigitalArchiveBackup.METADATA, record)
         return output
 
     @staticmethod
@@ -64,7 +61,7 @@ class DigitalArchiveBackup:
         # Support manually retained backups in existing downloads.
         title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
         backups = [p for p in root.rglob(f"{title}_backup.*") if p.is_file()
-                   and not re.search(r"\.part(?!0*1\b)\d+\.rar$|\.(?!001\b)\d{3}$|\.z\d+$", p.name, re.I)]
+                   and not is_secondary_volume(p.name)]
         if len(backups) > 1:
             raise RuntimeError("Hay más de un respaldo para este juego.")
         return {"archive": backups[0], "destination": root, "needs_password": False} if backups else None
@@ -83,17 +80,5 @@ class DigitalArchiveBackup:
             info = DigitalArchiveBackup.info(folder, name)
         if not info:
             return False
-        import digital_downloader as worker
-        worker.LAUNCHER_DIR = Path(launcher)
-        worker.g_app_id = str(app_id)
-        worker.g_cancelled.clear()
-        # Native runner stdout must remain exactly one JSON result.
-        original_emit = worker.emit_json
-        try:
-            worker.emit_json = lambda *_args, **_kwargs: None
-            with contextlib.redirect_stdout(io.StringIO()):
-                worker.extract_archives_in_path(str(info["archive"]), str(info["destination"]),
-                    delete_archive=False, retain_backup=False)
-        finally:
-            worker.emit_json = original_emit
+        extract_archive(launcher, app_id, info["archive"], info["destination"], delete_archive=False, retain_backup=False)
         return True

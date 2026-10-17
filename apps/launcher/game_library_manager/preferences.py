@@ -1,8 +1,8 @@
 """Persistent Digital paths. Existing game roots stay discoverable after a change."""
 from __future__ import annotations
 import json
-import os
 from pathlib import Path
+from atomic_json import write_json
 
 class DigitalPreferences:
     def __init__(self, launcher):
@@ -38,12 +38,5 @@ class DigitalPreferences:
         if old != current["games_root"]:
             roots = list(dict.fromkeys([*roots, old]))
         current["previous_roots"] = [root for root in roots if root != current["games_root"]]
-        self.write(self.path, current)
+        write_json(self.path, current)
         return current
-
-    @staticmethod
-    def write(path, data):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        os.replace(temporary, path)

@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from execution_profile import load_profile, apply_before_play, profile_path, validate_profile
+from game_execution_manager.execution_profile import load_profile, apply_before_play, profile_path, validate_profile
 
 def test_missing_plugin_profile_keeps_generic_play_available(tmp_path):
     assert load_profile(tmp_path,10)["beforePlay"] == []

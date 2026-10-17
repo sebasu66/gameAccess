@@ -1,6 +1,6 @@
 from __future__ import annotations
-from digital_backup import DigitalArchiveBackup
-from execution_profile import load_profile, apply_before_play, executable_matches
+from game_execution_manager.fix_backup import DigitalArchiveBackup
+from game_execution_manager.execution_profile import load_profile, apply_before_play
 import argparse
 import json
 import os
@@ -9,11 +9,14 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 import game_journal as journal
 import game_execution_manager as gem
-from digital_preferences import DigitalPreferences
-from digital_game_options import DigitalGameOptions, checked_executable, parse_arguments, repair_language, launch_as_administrator
+from game_library_manager import GameLibraryManager
+from game_library_manager.preferences import DigitalPreferences
+from game_execution_manager.game_options import DigitalGameOptions, repair_language
+from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
+from game_execution_manager.extraction import extractor_for
 import logging
 from flow_diagnostics import FlowDiagnostics
 from logging.handlers import RotatingFileHandler
@@ -27,43 +30,6 @@ if not logger.handlers:
     logger.addHandler(fh)
 
 
-def check_error_dialog(pid: int) -> tuple[bool, str]:
-    if sys.platform != "win32":
-        return False, ""
-    
-    import ctypes
-    from ctypes import wintypes
-    
-    user32 = ctypes.windll.user32
-    error_found = False
-    reason = ""
-    
-    def enum_windows_proc(hwnd, lParam):
-        nonlocal error_found, reason
-        win_pid = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(win_pid))
-        if win_pid.value == pid:
-            if user32.IsWindowVisible(hwnd):
-                length = user32.GetWindowTextLengthW(hwnd)
-                buff = ctypes.create_unicode_buffer(length + 1)
-                user32.GetWindowTextW(hwnd, buff, length + 1)
-                title = buff.value.lower()
-                
-                class_buff = ctypes.create_unicode_buffer(256)
-                user32.GetClassNameW(hwnd, class_buff, 256)
-                class_name = class_buff.value
-                
-                # Check for standard dialog box or error keywords in title
-                if class_name == "#32770" or any(k in title for k in ["error", "exception", "fail", "fatal", "missing", "message"]):
-                    error_found = True
-                    reason = f"Class '{class_name}', Title '{buff.value}'"
-                    return False # stop enum
-        return True
-        
-    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
-    user32.EnumWindows(EnumWindowsProc(enum_windows_proc), 0)
-    return error_found, reason
-
 class DigitalProcessRunner:
     def __init__(self, storage=None):
         self.storage = storage or DigitalGameStorage()
@@ -74,32 +40,6 @@ class DigitalProcessRunner:
     def get_candidates(self, folder: Path, name: str, command: str, patterns=()) -> list[tuple[Path, list[str]]]:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
-
-    def extract_in_place(self, folder: Path, archive: Path):
-        """Unpack one leftover archive into the game folder with the download worker's extractor."""
-        import io, contextlib
-        import digital_downloader as worker
-        worker.LAUNCHER_DIR = Path(self.storage.launcher)
-        worker.g_cancelled.clear()
-        original_emit = worker.emit_json
-        try:
-            worker.emit_json = lambda *_a, **_k: None
-            with contextlib.redirect_stdout(io.StringIO()):
-                worker.extract_archives_in_path(str(archive), str(folder), delete_archive=True, retain_backup=True)
-        finally:
-            worker.emit_json = original_emit
-
-    def repair(self, manager, app_id, name) -> dict:
-        """The 'wizard': installing while it works, ready when a runnable executable exists, ERROR (in the log) otherwise."""
-        self.storage.set_status(app_id, name, "installing")
-        try:
-            analysis = manager.prepare(app_id, name)
-        except gem.GameExecutionError as error:
-            self.storage.write_error(app_id, name, str(error))
-            return {"ok": False, "error": str(error), "file": error.file}
-        self.storage.set_status(app_id, name, "ready")
-        journal.note(self.storage.folder(app_id, name), "reparación", f"listo; ejecutable {analysis['executable']}")
-        return {"ok": True, "analysis": analysis}
 
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
@@ -135,6 +75,17 @@ class DigitalProcessRunner:
             if action == "snapshot":
                 games = json.loads(command)
                 return {"ok": True, "statuses": self.storage.snapshot(games)}
+            if action.startswith("library-"):
+                library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger))
+                if action == "library-list":
+                    games = library.list_games()
+                    return {**result, "ok": True, "games": games, "summary": library.summary(games)}
+                if action == "library-space":
+                    return {**result, "ok": True, "space": library.check_space(int(json.loads(command or "{}").get("bytes", 0)))}
+                if action == "library-batch":
+                    request = json.loads(command)
+                    return {**result, "ok": True, "results": library.batch(request["action"], request["app_ids"])}
+                raise ValueError(f"Unknown action '{action}'")
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
             diagnostics.debug("Resolved app folder=%s", folder)
@@ -161,12 +112,12 @@ class DigitalProcessRunner:
             if action == "game-log":
                 return {**result, "ok": True, "log": journal.read(folder)}
             if action in ("game-analyze", "game-repair"):
-                manager = gem.GameExecutionManager(self.storage, extractor=self.extract_in_place, logger=logger)
+                manager = gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger)
                 if action == "game-analyze":
                     return {**result, "ok": True, "analysis": manager.analyze(app_id, name)}
-                return {**result, **self.repair(manager, app_id, name)}
+                return {**result, **manager.repair(app_id, name)}
             if action == "install-setup":
-                from setup_installer import install_if_needed
+                from game_execution_manager.setup_installer import install_if_needed
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
                 return {**result, "ok": True, "setup_ran": ran}
             if action == "open-folder":
@@ -295,7 +246,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-space", "library-batch"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

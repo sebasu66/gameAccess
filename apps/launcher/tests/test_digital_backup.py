@@ -5,9 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from digital_backup import DigitalArchiveBackup
-from execution_profile import save_profile
-from digital_storage import DigitalGameStorage
+from game_execution_manager.fix_backup import DigitalArchiveBackup
+from game_execution_manager.execution_profile import save_profile
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 import digital_downloader as worker
 
@@ -149,7 +149,7 @@ def test_automatic_source_play_ignores_backup_and_password_metadata(tmp_path):
 
 
 def test_options_form_can_turn_off_reapplying_the_backup(tmp_path):
-    from digital_game_options import DigitalGameOptions
+    from game_execution_manager.game_options import DigitalGameOptions
     storage, folder, original = prepare(tmp_path)
     saved = DigitalGameOptions(storage).save(1, "Fixture Game", {"backupEnabled": False})
     assert saved["backupEnabled"] is False
@@ -163,7 +163,7 @@ def test_options_form_can_turn_off_reapplying_the_backup(tmp_path):
     assert patch_file.read_bytes() == b"left alone"
 
 def test_options_form_picks_which_archive_is_reapplied(tmp_path):
-    from digital_game_options import DigitalGameOptions
+    from game_execution_manager.game_options import DigitalGameOptions
     storage, folder, original = prepare(tmp_path)
     options = DigitalGameOptions(storage)
     assert "Fixture Game_backup.zip" in options.inspect(1, "Fixture Game")["archives"]
@@ -177,7 +177,7 @@ def test_options_form_picks_which_archive_is_reapplied(tmp_path):
     assert (folder / "fix.dll").read_bytes() == b"new"
 
 def test_options_form_rejects_a_backup_archive_outside_the_game_folder(tmp_path):
-    from digital_game_options import DigitalGameOptions
+    from game_execution_manager.game_options import DigitalGameOptions
     storage, folder, original = prepare(tmp_path)
     (tmp_path / "outside.zip").write_bytes(b"x")
     for bad in ["../outside.zip", "Game/game.exe"]:

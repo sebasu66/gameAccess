@@ -5,10 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
-from digital_preferences import DigitalPreferences
-from digital_game_options import DigitalGameOptions, repair_language, parse_arguments
+from game_library_manager.preferences import DigitalPreferences
+from game_execution_manager.game_options import DigitalGameOptions, repair_language
+from game_execution_manager.launch import parse_arguments
 
 class DigitalOptionsTests(unittest.TestCase):
     def setUp(self):

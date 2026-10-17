@@ -3,8 +3,8 @@
 Declared by the execution profile (`runSetup`, `setupPattern`, `setupArguments`, `runAsAdmin`);
 with `runSetup` unset it is automatic: only when the folder has a setup exe and no game exe."""
 from __future__ import annotations
-import re
 import game_journal as journal
+from .executables import has_game_executable
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -14,7 +14,6 @@ DEFAULT_PATTERN = "setup*.exe"
 DEFAULT_ARGUMENTS = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS"]
 TARGET_FOLDER = "Game"
 TIMEOUT_SECONDS = 2 * 60 * 60
-NOT_A_GAME = re.compile(r"setup|install|unins|redist|crash|report|helper|vc_redist|dxsetup|prereq|dotnet|vcredist", re.I)
 
 
 def find_setup(folder, pattern=DEFAULT_PATTERN):
@@ -23,11 +22,6 @@ def find_setup(folder, pattern=DEFAULT_PATTERN):
                     and not p.name.lower().startswith("unins") and p.resolve().is_relative_to(root) and not p.is_symlink()),
                    key=lambda p: (len(p.relative_to(root).parts), p.name.lower()))
     return found[0] if found else None
-
-
-def has_game_executable(folder):
-    root = Path(folder).resolve()
-    return any(p.is_file() and not NOT_A_GAME.search(str(p.relative_to(root))) for p in root.rglob("*.exe"))
 
 
 def needs_setup(folder, profile):

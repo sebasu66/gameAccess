@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 from digital_downloader import extract_archives_in_path
 import digital_downloader
@@ -59,6 +59,8 @@ class DigitalStorageTests(unittest.TestCase):
         original = Path(__file__).resolve().parents[1]
         for file in [path.name for path in original.glob("*.py")]:
             shutil.copyfile(original / file, launcher / file)
+        for package in [d for d in original.iterdir() if d.is_dir() and (d / "__init__.py").is_file() and d.name != "tests"]:
+            shutil.copytree(package, launcher / package.name, ignore=shutil.ignore_patterns("__pycache__"))
         source = launcher / "source"
         source.mkdir()
         with zipfile.ZipFile(source / "fixture.zip", "w") as archive:

@@ -27,7 +27,7 @@ class DownloadPipeline:
 
         context.logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
 
-        from digital_storage import DigitalGameStorage
+        from game_library_manager.storage import DigitalGameStorage
         storage = DigitalGameStorage()
         game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
         # Explicit destinations keep the established test/CLI contract.

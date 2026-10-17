@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from atomic_json import write_json
 LOG = logging.getLogger("DigitalExecution")
 
 def profile_path(launcher, app_id):
@@ -92,11 +93,7 @@ def apply_before_play(folder, profile):
 def save_profile(launcher, app_id, profile):
     """Validate and write the profile atomically (the form and plugins share this file)."""
     clean = validate_profile(profile)
-    path = profile_path(launcher, app_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(clean, ensure_ascii=False), encoding="utf-8")
-    os.replace(temporary, path)
+    write_json(profile_path(launcher, app_id), clean)
     return clean
 
 def executable_matches(path, patterns):

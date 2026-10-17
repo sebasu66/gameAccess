@@ -65,6 +65,8 @@ def test_runtime_refresh_preserves_game_folders_and_digital_registry(tmp_path):
     requirements = launcher / "requirements.txt"
     requirements.write_bytes(b"fixture")
     (launcher / "fixture.py").write_text("# refreshed runtime source")
+    (launcher / "fixture_manager").mkdir()
+    (launcher / "fixture_manager" / "__init__.py").write_text("# package staged whole")
     runtime = fixture / "apps" / "desktop" / "src-tauri" / "runtime"
     python = runtime / "python"
     python.mkdir(parents=True)
@@ -87,3 +89,4 @@ def test_runtime_refresh_preserves_game_folders_and_digital_registry(tmp_path):
     assert (game_cache / "data").read_bytes() == b"preserve game data"
     assert (registry / "1.json").is_file()
     assert (runtime / "launcher" / "fixture.py").is_file()
+    assert (runtime / "launcher" / "fixture_manager" / "__init__.py").is_file()

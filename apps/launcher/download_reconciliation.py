@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 
 RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent / ".gameaccess"))
 DOWNLOAD_ROOT = RUNTIME_ROOT / "downloads"

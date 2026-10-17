@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import game_journal as journal
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 
 def test_note_appends_lines_and_never_raises(tmp_path):

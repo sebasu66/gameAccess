@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 
 

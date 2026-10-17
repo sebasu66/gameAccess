@@ -5,19 +5,16 @@ from the library, or a future import of games outside the catalog):
 
     analyze -> empty | extract | setup | blocked | ready
     prepare -> loops: extract archives, run the silent installer, then require a runnable executable
+    repair  -> prepare + the folder status (installing -> ready, or ERROR with the reason in the log)
 
-Every action is written to the game's own log (game_journal). Callers own the folder status
-(preparing/installing/ready/ERROR); this module only inspects, acts and reports."""
+Every action is written to the game's own log (game_journal)."""
 from __future__ import annotations
-import re
-from pathlib import Path
 import game_journal as journal
-from execution_profile import load_profile, executable_matches
-from setup_installer import find_setup, install_if_needed, has_game_executable
+from .archives import pending_archives
+from .execution_profile import load_profile
+from .executables import find_candidates, has_game_executable
+from .setup_installer import find_setup, install_if_needed
 
-BACKUP_NAME = re.compile(r"_backup(?:\.|$)|^backup for .*\.zip$", re.I)
-ARCHIVE = re.compile(r"\.(?:zip|rar|7z|tar|tar\.gz|tgz|001)$", re.I)
-NOT_A_GAME = r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq"
 MAX_ROUNDS = 4
 
 
@@ -28,73 +25,10 @@ class GameExecutionError(RuntimeError):
         self.file = file
 
 
-def rank_executable(exe_path: Path, game_name: str) -> float:
-    score = 0.0
-    exe_name = exe_path.stem.lower()
-    g_name = game_name.lower()
-    if exe_name in g_name or g_name in exe_name:
-        score += 10.0
-    for word in re.findall(r"\w+", g_name):
-        if len(word) > 2 and word in exe_name:
-            score += 5.0
-    if len(exe_path.parents) >= 2 and exe_path.parent == exe_path.parents[-2]:
-        score += 2.0
-    return score
-
-
-def find_candidates(folder: Path, name: str, command: str = "", patterns=(), logger=None) -> list[tuple[Path, list[str]]]:
-    """Executables worth trying, best first: explicit command, remembered one, play.bat, then heuristics + profile patterns."""
-    import shlex
-    folder = Path(folder)
-    if command.strip():
-        if re.search(r"[&|<>\r\n]|steam:", command, re.I):
-            raise ValueError("Comando rechazado: contiene caracteres prohibidos.")
-        parts = shlex.split(command, posix=False)
-        executable = (folder / parts[0].strip('"')).resolve()
-        if executable.is_relative_to(folder) and executable.is_file():
-            return [(executable, [p.strip('"') for p in parts[1:]])]
-    marker = folder / ".gameaccess_exe"
-    if marker.is_file():
-        try:
-            target = (folder / marker.read_text(encoding="utf-8").strip()).resolve()
-            if target.is_file() and target.is_relative_to(folder.resolve()):
-                return [(target, [])]
-        except Exception:
-            pass
-    play_bat = folder / "play.bat"
-    if play_bat.is_file():
-        return [(play_bat, [])]
-    candidates = [p for p in folder.rglob("*.exe") if not re.search(NOT_A_GAME, str(p.relative_to(folder)), re.I)]
-    if not candidates:
-        raise ValueError("No se encontraron ejecutables validos en la carpeta.")
-    candidates.sort(key=lambda p: rank_executable(p, name), reverse=True)
-    if patterns:
-        # The profile's list is tried first, in its own order; GAMENAME stands for the game's name.
-        plain = re.sub(r"[^A-Za-z0-9]+", "", name)
-        expanded = [pattern for raw in patterns for pattern in dict.fromkeys(
-            [re.sub("GAMENAME", name, raw, flags=re.I), re.sub("GAMENAME", plain, raw, flags=re.I)])]
-        preferred = executable_matches(candidates, expanded)
-        candidates = preferred + [c for c in candidates if c not in preferred]
-    if logger:
-        logger.info("Se probaran %s ejecutables en orden: %s", len(candidates), [p.name for p in candidates])
-    return [(c.resolve(), []) for c in candidates]
-
-
-def pending_archives(folder: Path) -> list[Path]:
-    """Archives still lying in the folder that are not the retained fix backup (first volume only)."""
-    found = []
-    for path in Path(folder).rglob("*"):
-        if not path.is_file() or path.is_symlink() or not ARCHIVE.search(path.name) or BACKUP_NAME.search(path.name):
-            continue
-        if re.search(r"\.part(?!0*1\b)\d+\.rar$", path.name, re.I):
-            continue
-        found.append(path)
-    return sorted(found, key=lambda p: (len(p.relative_to(folder).parts), p.name.lower()))
-
-
 class GameExecutionManager:
     def __init__(self, storage, extractor=None, installer=None, logger=None):
-        """`extractor(folder, archive_path)` unpacks one archive into the folder (None = extraction already done by the caller)."""
+        """`storage` provides folder/status/has_content; `extractor(folder, archive)` unpacks one
+        archive (None = extraction was already done by the caller); `installer` runs setup exes."""
         self.storage = storage
         self.extractor = extractor
         self.installer = installer
@@ -121,8 +55,7 @@ class GameExecutionManager:
 
     def prepare(self, app_id: int, name: str, progress=lambda text: None) -> dict:
         """Do whatever is needed so the game can run. Raises GameExecutionError when nothing more can be done."""
-        folder = self.storage.folder(app_id, name)
-        journal.note(folder, "analisis", "empieza el análisis de la carpeta")
+        journal.note(self.storage.folder(app_id, name), "analisis", "empieza el análisis de la carpeta")
         extraction_tried = False
         for _ in range(MAX_ROUNDS):
             folder = self.storage.folder(app_id, name)
@@ -154,6 +87,18 @@ class GameExecutionManager:
         if not final["ready"]:
             raise GameExecutionError(final["warning"])
         return final
+
+    def repair(self, app_id: int, name: str, progress=lambda text: None) -> dict:
+        """The wizard: `installing` while it works, `ready` when a runnable executable exists, `ERROR` otherwise."""
+        self.storage.set_status(app_id, name, "installing")
+        try:
+            analysis = self.prepare(app_id, name, progress)
+        except GameExecutionError as error:
+            self.storage.write_error(app_id, name, str(error))
+            return {"ok": False, "error": str(error), "file": error.file}
+        self.storage.set_status(app_id, name, "ready")
+        journal.note(self.storage.folder(app_id, name), "reparación", f"listo; ejecutable {analysis['executable']}")
+        return {"ok": True, "analysis": analysis}
 
 
 class _NullLogger:

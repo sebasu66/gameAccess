@@ -1,5 +1,6 @@
 """Archive discovery, extraction and existing backup/cleanup policy."""
 from __future__ import annotations
+from game_execution_manager.archives import is_backup_name, is_secondary_volume
 import os
 import re
 import shutil
@@ -108,7 +109,7 @@ class ArchiveExtractor:
     def request_archive_passwords(self):
         """Use only the local user/plugin profile; never contact the central server."""
         context = self.context
-        from execution_profile import load_profile
+        from game_execution_manager.execution_profile import load_profile
         passwords = load_profile(context.launcher_dir, context.app_id)["archivePasswords"]
         context.logger.info("AppID %s: archive extraction using optional local profile; credentials are not logged", context.app_id)
         if not passwords:
@@ -166,14 +167,7 @@ class ArchiveExtractor:
                 for f in files:
                     full_path = os.path.join(root, f)
                     if is_archive(full_path):
-                        fn = f.lower()
-                        if (fn.startswith("backup for ") and fn.endswith(".zip")) or re.search(r"_backup(?:\.|$)", fn):
-                            continue
-                        if re.search(r"\.part(?!0*1\b)\d+\.rar$", fn):
-                            continue
-                        if re.search(r"\.(?!001\b)\d{3}$", fn):
-                            continue
-                        if re.search(r"\.z\d+$", fn):
+                        if is_backup_name(f) or is_secondary_volume(f):
                             continue
                         archives_to_extract.append(full_path)
 
@@ -186,7 +180,7 @@ class ArchiveExtractor:
         fix_name = ""
         if not auto_installed and retain_backup:
             try:
-                from execution_profile import load_profile, declared_fix_archive
+                from game_execution_manager.execution_profile import load_profile, declared_fix_archive
                 fix_name = os.path.basename(declared_fix_archive(load_profile(context.launcher_dir, context.app_id))).lower()
             except Exception as error:
                 context.logger.warning("AppID %s: no se pudo leer el perfil para el respaldo: %s", context.app_id, error)
@@ -309,7 +303,7 @@ class ArchiveExtractor:
                     raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
             if success and is_fix(arc) and retain_backup and not auto_installed:
-                from digital_backup import DigitalArchiveBackup
+                from game_execution_manager.fix_backup import DigitalArchiveBackup
                 DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
                     bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")), source_root=source_root)
             elif success and delete_archive:

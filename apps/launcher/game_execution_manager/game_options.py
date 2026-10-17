@@ -1,60 +1,16 @@
 """Game-specific launch choices and reversible language repairs."""
 from __future__ import annotations
-import ctypes
 import json
 import re
-import shlex
 import shutil
-import subprocess
-import sys
 from pathlib import Path
-from digital_preferences import DigitalPreferences
+from atomic_json import write_json
+from .archives import ARCHIVE_SUFFIXES, checked_archive
+from .launch import checked_executable, parse_arguments
 
 LANGUAGES = {"spanish": ("es", "ES"), "english": ("en", "US"),
              "portuguese": ("pt", "BR"), "french": ("fr", "FR"), "german": ("de", "DE")}
 LANGUAGE_KEY = re.compile(r"(?im)^([ \t]*(?:language|locale|gamelanguage|languageid)[ \t]*=[ \t]*)([\"']?)([a-zA-Z][a-zA-Z0-9_-]*)([\"']?)")
-
-def parse_arguments(value):
-    if "\n" in value or "\r" in value or "\x00" in value:
-        raise ValueError("Los argumentos no pueden contener saltos de línea.")
-    if sys.platform != "win32":
-        return shlex.split(value)
-    from ctypes import wintypes
-    shell = ctypes.WinDLL("shell32", use_last_error=True)
-    shell.CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
-    shell.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
-    count = ctypes.c_int()
-    argv = shell.CommandLineToArgvW('game.exe ' + value, ctypes.byref(count))
-    if not argv:
-        raise ctypes.WinError(ctypes.get_last_error())
-    try:
-        return [argv[i] for i in range(1, count.value)]
-    finally:
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.LocalFree.argtypes = [ctypes.c_void_p]
-        kernel.LocalFree.restype = ctypes.c_void_p
-        kernel.LocalFree(argv)
-
-def checked_executable(folder, value):
-    candidate = folder / value
-    target = candidate.resolve()
-    if not target.is_relative_to(folder.resolve()) or not target.is_file() or target.suffix.lower() != ".exe":
-        raise ValueError("Selecciona un archivo .exe dentro de la carpeta del juego.")
-    if candidate.is_symlink() or any(p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
-                                     for p in [candidate, *candidate.parents] if p != folder.parent):
-        raise ValueError("El ejecutable no puede estar en un enlace.")
-    return target
-
-ARCHIVE_SUFFIXES = (".zip", ".rar", ".7z", ".001")
-
-def checked_archive(folder, value):
-    """An archive inside the game folder, never a link: the file Play re-applies before launching."""
-    candidate = folder / value
-    target = candidate.resolve()
-    if (not target.is_relative_to(folder.resolve()) or not target.is_file()
-            or target.suffix.lower() not in ARCHIVE_SUFFIXES or candidate.is_symlink()):
-        raise ValueError("Selecciona un archivo comprimido dentro de la carpeta del juego.")
-    return target
 
 class DigitalGameOptions:
     def __init__(self, storage):
@@ -107,7 +63,7 @@ class DigitalGameOptions:
         if options["executable"]:
             folder = self.storage.folder(app_id, name)
             options["executable"] = str(checked_executable(folder, options["executable"]).relative_to(folder))
-        DigitalPreferences.write(self.path(app_id), options)
+        write_json(self.path(app_id), options)
         return options
 
 def language_value(current, language, filename):
@@ -162,37 +118,3 @@ def repair_language(folder, language, logger, known_only=False):
             logger.warning("Language repair failed: %s: %s", path, error)
     return {"changed": changes, "errors": errors}
 
-def launch_as_administrator(executable, arguments, working_dir):
-    """Use Windows UAC; cancellation is reported, never retried as a different exe."""
-    if sys.platform != "win32":
-        raise ValueError("La ejecución como administrador solo está disponible en Windows.")
-    from ctypes import wintypes
-    class ShellExecuteInfo(ctypes.Structure):
-        _fields_ = [("cbSize", wintypes.DWORD), ("fMask", wintypes.ULONG), ("hwnd", wintypes.HWND),
-                    ("lpVerb", wintypes.LPCWSTR), ("lpFile", wintypes.LPCWSTR),
-                    ("lpParameters", wintypes.LPCWSTR), ("lpDirectory", wintypes.LPCWSTR),
-                    ("nShow", ctypes.c_int), ("hInstApp", wintypes.HINSTANCE),
-                    ("lpIDList", ctypes.c_void_p), ("lpClass", wintypes.LPCWSTR),
-                    ("hkeyClass", wintypes.HKEY), ("dwHotKey", wintypes.DWORD),
-                    ("hIcon", wintypes.HANDLE), ("hProcess", wintypes.HANDLE)]
-    shell = ctypes.WinDLL("shell32", use_last_error=True)
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    shell.ShellExecuteExW.argtypes = [ctypes.POINTER(ShellExecuteInfo)]
-    shell.ShellExecuteExW.restype = wintypes.BOOL
-    kernel.GetProcessId.argtypes = [wintypes.HANDLE]
-    kernel.GetProcessId.restype = wintypes.DWORD
-    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel.CloseHandle.restype = wintypes.BOOL
-    info = ShellExecuteInfo()
-    info.cbSize, info.fMask = ctypes.sizeof(info), 0x40 | 0x100
-    info.lpVerb, info.lpFile = "runas", str(executable)
-    info.lpParameters, info.lpDirectory, info.nShow = subprocess.list2cmdline(arguments), str(working_dir), 1
-    if not shell.ShellExecuteExW(ctypes.byref(info)):
-        error = ctypes.get_last_error()
-        if error == 1223:
-            raise ValueError("Se canceló la autorización de administrador.")
-        raise ctypes.WinError(error)
-    pid = kernel.GetProcessId(info.hProcess) if info.hProcess else None
-    if info.hProcess:
-        kernel.CloseHandle(info.hProcess)
-    return pid

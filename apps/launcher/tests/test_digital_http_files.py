@@ -8,7 +8,7 @@ import pytest
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import digital_downloader as downloader
-from digital_storage import DigitalGameStorage
+from game_library_manager.storage import DigitalGameStorage
 
 class FixtureHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):

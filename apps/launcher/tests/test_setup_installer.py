@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from setup_installer import find_setup, needs_setup, install_if_needed, build_command
+from game_execution_manager.setup_installer import find_setup, needs_setup, install_if_needed, build_command
 
 LOG = logging.getLogger("setup-test")
 

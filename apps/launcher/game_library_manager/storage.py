@@ -5,9 +5,10 @@ import re
 import shutil
 import time
 from pathlib import Path
-from digital_preferences import DigitalPreferences
+from atomic_json import write_json
+from .preferences import DigitalPreferences
 
-LAUNCHER = Path(__file__).resolve().parent
+LAUNCHER = Path(__file__).resolve().parent.parent
 
 # A game folder is "<appid>-<name>-<status>". The status is only ever written
 # when the game really is in that state, so it can be trusted without
@@ -75,10 +76,7 @@ class DigitalGameStorage:
         folder = self.folder(app_id, name)
         folder.mkdir(parents=True, exist_ok=True)
         self.registry.mkdir(parents=True, exist_ok=True)
-        record = self.registry / f"{int(app_id)}.json"
-        temporary = record.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"folder": str(folder), "name": name}), encoding="utf-8")
-        temporary.replace(record)
+        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(folder), "name": name})
         return folder
 
     def set_status(self, app_id: int, name: str, status: str) -> Path:
@@ -96,10 +94,7 @@ class DigitalGameStorage:
                 raise ValueError("Ya existe una carpeta con ese estado para este juego.")
             folder.rename(target)
         self.registry.mkdir(parents=True, exist_ok=True)
-        record = self.registry / f"{int(app_id)}.json"
-        temporary = record.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"folder": str(target), "name": name}), encoding="utf-8")
-        temporary.replace(record)
+        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(target), "name": name})
         return target
 
     def write_error(self, app_id: int, name: str, message: str) -> Path:
