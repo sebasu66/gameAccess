@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from digital_backup import DigitalArchiveBackup
+from execution_profile import save_profile
 from digital_storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 import digital_downloader as worker
@@ -19,11 +20,13 @@ def prepare(tmp_path):
     with zipfile.ZipFile(folder / "patch.zip", "w") as archive:
         archive.writestr("fix.dll", b"new")
     original = (folder / "patch.zip").read_bytes()
+    save_profile(tmp_path, 1, {"decompressEachRun": True, "decompressFile": "patch.zip"})
+    worker.LAUNCHER_DIR, worker.g_app_id = Path(tmp_path), "1"
     with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
         worker.extract_archives_in_path(str(folder), str(folder), game_name="Fixture Game")
     return storage, folder, original
 
-def test_keeps_original_smallest_archive_renamed_and_deletes_other_archives(tmp_path):
+def test_keeps_only_the_declared_fix_archive_renamed_and_deletes_other_archives(tmp_path):
     storage, folder, original = prepare(tmp_path)
     backup = folder / "Fixture Game_backup.zip"
     assert backup.read_bytes() == original
@@ -93,16 +96,18 @@ def test_encrypted_original_backup_uses_local_profile_passwords_before_restorati
     subprocess.run([str(seven_zip), "a", str(archive), str(payload), "-pfixture-password", "-mhe=on", "-y"],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15)
     payload.unlink()
+    save_profile(tmp_path, 1, {"decompressEachRun": True, "decompressFile": "patch.7z"})
+    worker.LAUNCHER_DIR, worker.g_app_id = Path(tmp_path), "1"
     with patch.object(worker, "find_portable_7z", return_value=str(seven_zip)), patch.object(worker, "emit_progress"):
         worker.extract_archives_in_path(str(archive), str(folder), password="fixture-password", game_name="Fixture Game")
     assert DigitalArchiveBackup.info(folder, "Fixture Game")["needs_password"]
     payload.write_bytes(b"changed")
     replies = tmp_path / ".cache" / "digital_downloads"
-    replies.mkdir(parents=True)
+    replies.mkdir(parents=True, exist_ok=True)
     profile = tmp_path / ".cache" / "execution_profiles" / "1.json"
-    profile.parent.mkdir(parents=True)
+    profile.parent.mkdir(parents=True, exist_ok=True)
     reply = profile
-    reply.write_text(json.dumps({"archivePasswords": ["wrong", "fixture-password"], "beforePlay": []}))
+    reply.write_text(json.dumps({"archivePasswords": ["wrong", "fixture-password"], "beforePlay": [], "decompressEachRun": True, "decompressFile": "patch.7z"}))
     completed = replies / "1.json"
     completed.write_text(json.dumps({"phase": "completed"}))
     with patch.object(worker, "find_portable_7z", return_value=str(seven_zip)):
@@ -178,3 +183,30 @@ def test_options_form_rejects_a_backup_archive_outside_the_game_folder(tmp_path)
     for bad in ["../outside.zip", "Game/game.exe"]:
         with pytest.raises(ValueError):
             DigitalGameOptions(storage).save(1, "Fixture Game", {"backupArchive": bad})
+
+
+def test_without_a_declared_fix_no_archive_is_retained(tmp_path):
+    storage = DigitalGameStorage(tmp_path)
+    folder = storage.register(1, "Fixture Game")
+    with zipfile.ZipFile(folder / "main.zip", "w") as archive:
+        archive.writestr("Game/game.exe", b"main" * 10000)
+    worker.LAUNCHER_DIR, worker.g_app_id = Path(tmp_path), "1"
+    with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
+        worker.extract_archives_in_path(str(folder), str(folder), game_name="Fixture Game")
+    assert (folder / "Game" / "game.exe").is_file()
+    assert not list(folder.glob("*_backup*")) and not (folder / "main.zip").exists()
+
+def test_declared_fix_is_applied_after_the_game_even_if_it_is_the_larger_file(tmp_path):
+    storage = DigitalGameStorage(tmp_path)
+    folder = storage.register(1, "Fixture Game")
+    with zipfile.ZipFile(folder / "main.zip", "w") as archive:
+        archive.writestr("Game/game.exe", b"x")
+        archive.writestr("Game/fix.dll", b"old")
+    with zipfile.ZipFile(folder / "crack.zip", "w") as archive:
+        archive.writestr("Game/fix.dll", b"new" + b"0" * 50000)
+    save_profile(tmp_path, 1, {"decompressEachRun": True, "decompressFile": "crack.zip"})
+    worker.LAUNCHER_DIR, worker.g_app_id = Path(tmp_path), "1"
+    with patch.object(worker, "find_portable_7z", return_value=None), patch.object(worker, "emit_progress"):
+        worker.extract_archives_in_path(str(folder), str(folder), game_name="Fixture Game")
+    assert (folder / "Game" / "fix.dll").read_bytes().startswith(b"new")
+    assert (folder / "Fixture Game_backup.zip").is_file() and not (folder / "main.zip").exists()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from digital_backup import DigitalArchiveBackup
-from execution_profile import load_profile, apply_before_play
+from execution_profile import load_profile, apply_before_play, executable_matches
 import argparse
 import json
 import os
@@ -84,7 +84,7 @@ class DigitalProcessRunner:
             
         return score
 
-    def get_candidates(self, folder: Path, name: str, command: str) -> list[tuple[Path, list[str]]]:
+    def get_candidates(self, folder: Path, name: str, command: str, patterns=()) -> list[tuple[Path, list[str]]]:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         
         if command.strip():
@@ -124,6 +124,13 @@ class DigitalProcessRunner:
             raise ValueError("No se encontraron ejecutables validos en la carpeta.")
             
         candidates.sort(key=lambda p: self.rank_executable(p, name), reverse=True)
+        if patterns:
+            # The profile's list is tried first, in its own order; GAMENAME stands for the game's name.
+            plain = re.sub(r"[^A-Za-z0-9]+", "", name)
+            expanded = [pattern for raw in patterns for pattern in dict.fromkeys(
+                [re.sub("GAMENAME", name, raw, flags=re.I), re.sub("GAMENAME", plain, raw, flags=re.I)])]
+            preferred = executable_matches(candidates, expanded)
+            candidates = preferred + [c for c in candidates if c not in preferred]
         
         logger.info(f"Se probaran {len(candidates)} ejecutables en orden: {[p.name for p in candidates]}")
         return [(c.resolve(), []) for c in candidates]
@@ -185,6 +192,10 @@ class DigitalProcessRunner:
                 self.storage.uninstall(app_id, name)
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
+            if action == "install-setup":
+                from setup_installer import install_if_needed
+                ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
+                return {**result, "ok": True, "setup_ran": ran}
             if action == "open-folder":
                 if not folder.is_dir():
                     raise ValueError("No existe la carpeta descargada.")
@@ -195,17 +206,21 @@ class DigitalProcessRunner:
                 
             logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
             saved_options = DigitalGameOptions(self.storage).load(app_id)
-            if not auto_installed and saved_options["backupEnabled"]:
-                logger.info("AppID %s: restoring retained archive before executable discovery; archive=%s",
-                            app_id, saved_options["backupArchive"] or "automatic")
-                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, saved_options["backupArchive"])
-            elif not saved_options["backupEnabled"]:
-                logger.info("AppID %s: archive re-apply disabled in game options", app_id)
+            profile = load_profile(self.storage.launcher, app_id)
+            # Either switch can turn the re-apply off; the file the user picks in the form beats the declared one.
+            declared = profile.get("decompressFile", "")
+            reapply = saved_options["backupEnabled"] and (profile["decompressEachRun"] if declared else True)
+            fix_archive = saved_options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
+            if not auto_installed and reapply:
+                logger.info("AppID %s: re-applying the fix archive before executable discovery; archive=%s",
+                            app_id, fix_archive or "automatic")
+                DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, fix_archive)
+            elif not reapply:
+                logger.info("AppID %s: fix re-apply disabled in the execution profile/options", app_id)
             if not self.storage.status(app_id, name)["installed"]:
                 raise ValueError("El juego no esta descargado y descomprimido en su carpeta Digital.")
                 
             # Apply optional local profile before executable discovery.
-            profile = load_profile(self.storage.launcher, app_id)
             logger.info("AppID %s: applying optional execution profile; steps=%s", app_id, len(profile["beforePlay"]))
             diagnostics.debug("Execution profile loaded; preparation_steps=%s", len(profile["beforePlay"]))
             apply_before_play(folder, profile)
@@ -217,11 +232,12 @@ class DigitalProcessRunner:
             if options["executable"]:
                 candidates = [(checked_executable(folder, options["executable"]), parse_arguments(options["arguments"]))]
             else:
-                candidates = self.get_candidates(folder, name, command)
+                candidates = self.get_candidates(folder, name, command, profile.get("executablePatterns", []))
                 extra = parse_arguments(options["arguments"])
                 candidates = [(exe, [*arguments, *extra]) for exe, arguments in candidates]
-            diagnostics.debug("Candidates=%s administrator=%s", [str(exe) for exe, _ in candidates], options["administrator"])
-            if options["administrator"]:
+            administrator = options["administrator"] or profile.get("runAsAdmin", False)
+            diagnostics.debug("Candidates=%s administrator=%s", [str(exe) for exe, _ in candidates], administrator)
+            if administrator:
                 executable, arguments = candidates[0]
                 if executable.suffix.lower() != ".exe":
                     raise ValueError("Selecciona el archivo .exe del juego para ejecutar como administrador.")
@@ -298,7 +314,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

@@ -285,6 +285,11 @@ class DownloadPipeline:
                 self.cleanup_on_cancel()
             if not args.destination_dir and not any(storage.has_content(Path(game_dir))):
                 raise RuntimeError("La descarga terminó pero no se obtuvo ningún archivo del juego.")
+            # GOG/Inno `setup*.exe`: installed silently once, before the folder counts as ready.
+            from execution_profile import load_profile
+            from setup_installer import install_if_needed
+            install_if_needed(Path(game_dir), load_profile(context.launcher_dir, app_id), context.logger,
+                lambda text: context.emit_progress(app_id=app_id, phase="decompressing", progress_percent=99.0, status_text=text))
             set_status("ready")
             # 5. PHASE: COMPLETED
             final_size = 0

@@ -181,9 +181,19 @@ class ArchiveExtractor:
             return False
 
         # Treat multipart volumes as one archive; only their first volume is extracted.
+        # Only the fix archive declared by the execution profile is retained (and re-applied on
+        # every Play). Without a declaration nothing is kept, so a full game is never backed up.
+        fix_name = ""
+        if not auto_installed and retain_backup:
+            try:
+                from execution_profile import load_profile, declared_fix_archive
+                fix_name = os.path.basename(declared_fix_archive(load_profile(context.launcher_dir, context.app_id))).lower()
+            except Exception as error:
+                context.logger.warning("AppID %s: no se pudo leer el perfil para el respaldo: %s", context.app_id, error)
+        is_fix = lambda path: bool(fix_name) and os.path.basename(path).lower() == fix_name
         if not auto_installed:
-            archives_to_extract.sort(key=lambda path: (-os.path.getsize(path), path.lower()))
-            context.logger.debug(f"Modo normal: Se ordenaron {len(archives_to_extract)} archivos por tamaño descendente.")
+            archives_to_extract.sort(key=lambda path: (is_fix(path), -os.path.getsize(path), path.lower()))
+            context.logger.debug(f"Modo normal: {len(archives_to_extract)} archivos por tamaño descendente; el fix declarado ({fix_name or 'ninguno'}) va al final.")
         else:
             context.logger.debug(f"Modo auto_installed: Se respeta el orden natural de {len(archives_to_extract)} archivos.")
 
@@ -298,7 +308,7 @@ class ArchiveExtractor:
                 if not success:
                     raise RuntimeError(f"No hay un extractor disponible para {arc_name}")
 
-            if success and idx == total - 1 and retain_backup and not auto_installed:
+            if success and is_fix(arc) and retain_backup and not auto_installed:
                 from digital_backup import DigitalArchiveBackup
                 DigitalArchiveBackup.retain(arc, dest_dir, extraction_dir, game_name,
                     bool((candidate_password if seven_zip else effective_password) not in (None, "", "-")), source_root=source_root)

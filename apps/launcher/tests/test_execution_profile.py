@@ -31,3 +31,23 @@ def test_profile_passwords_loaded_from_local_file_without_server(tmp_path):
     path=profile_path(tmp_path,10);path.parent.mkdir(parents=True)
     path.write_text(json.dumps({"archivePasswords":["fixture"],"beforePlay":[]}))
     assert load_profile(tmp_path,10)["archivePasswords"]==["fixture"]
+
+
+def test_form_fields_default_and_validate(tmp_path):
+    profile = load_profile(tmp_path, 5)
+    assert profile["decompressEachRun"] is False and profile["decompressFile"] == ""
+    assert profile["executablePatterns"] == [] and profile["runAsAdmin"] is False
+    for bad in ({"decompressFile": "../x.zip"}, {"decompressFile": "C:/x.zip"}, {"executablePatterns": ["..\\a.exe"]},
+                {"executablePatterns": [""]}, {"runAsAdmin": "yes"}, {"decompressEachRun": 1}):
+        with pytest.raises(ValueError):
+            validate_profile(bad)
+
+
+def test_executable_patterns_come_first_in_profile_order(tmp_path):
+    from digital_process_runner import DigitalProcessRunner
+    for rel in ("Game/Other.exe", "Game/My Game Launcher.exe", "Game/MyGame.exe", "Game/unins000.exe"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_bytes(b"x")
+    runner = DigitalProcessRunner.__new__(DigitalProcessRunner)
+    ordered = [exe.name for exe, _ in runner.get_candidates(tmp_path.resolve(), "My Game", "", ["*LAUNCHER*.EXE", "GAMENAME.EXE"])]
+    assert ordered[:2] == ["My Game Launcher.exe", "MyGame.exe"] and "unins000.exe" not in ordered

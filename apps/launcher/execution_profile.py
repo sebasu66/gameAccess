@@ -24,12 +24,32 @@ def validate_profile(value):
             raise ValueError("Operación de perfil no soportada.")
         if step["type"] == "run" and (not isinstance(step.get("arguments", []), list) or any(not isinstance(arg, str) for arg in step.get("arguments", []))):
             raise ValueError("Los argumentos del ejecutable deben ser una lista.")
-    return {**value, "version": 1, "archivePasswords": passwords, "beforePlay": steps}
+    decompress_file = value.get("decompressFile", "")
+    if not isinstance(decompress_file, str) or len(decompress_file) > 512 or ".." in Path(decompress_file).parts or Path(decompress_file).is_absolute():
+        raise ValueError("El archivo a descomprimir debe ser una ruta dentro de la carpeta del juego.")
+    patterns = value.get("executablePatterns", [])
+    if not isinstance(patterns, list) or len(patterns) > 32 or any(not isinstance(p, str) or not p.strip() or len(p) > 260 or re.search(r"[\\/:]|\.\.", p) for p in patterns):
+        raise ValueError("Los archivos a probar deben ser nombres o patrones como GAME.EXE o *LAUNCHER*.EXE.")
+    setup_pattern = value.get("setupPattern", "")
+    if not isinstance(setup_pattern, str) or len(setup_pattern) > 260 or re.search(r"[\\/:]|\.\.", setup_pattern):
+        raise ValueError("El patrón del instalador debe ser un nombre como setup*.exe.")
+    setup_args = value.get("setupArguments", [])
+    if not isinstance(setup_args, list) or len(setup_args) > 32 or any(not isinstance(a, str) or len(a) > 260 or re.search(r"[\r\n\x00]", a) for a in setup_args):
+        raise ValueError("Los argumentos del instalador deben ser una lista de texto.")
+    if "runSetup" in value and value["runSetup"] is not None and not isinstance(value["runSetup"], bool):
+        raise ValueError("El campo runSetup debe ser verdadero, falso o vacío.")
+    for flag in ("decompressEachRun", "runAsAdmin"):
+        if flag in value and not isinstance(value[flag], bool):
+            raise ValueError(f"El campo {flag} debe ser verdadero o falso.")
+    return {**value, "version": 1, "archivePasswords": passwords, "beforePlay": steps,
+            "decompressEachRun": bool(value.get("decompressEachRun", False)), "decompressFile": decompress_file.strip(),
+            "executablePatterns": [p.strip() for p in patterns], "runAsAdmin": bool(value.get("runAsAdmin", False)),
+            "runSetup": value.get("runSetup"), "setupPattern": setup_pattern.strip(), "setupArguments": setup_args}
 
 def load_profile(launcher, app_id):
     path = profile_path(launcher, app_id)
     if not path.is_file():
-        return {"version": 1, "archivePasswords": [], "beforePlay": []}
+        return validate_profile({})
     return validate_profile(json.loads(path.read_text(encoding="utf-8-sig")))
 
 def apply_before_play(folder, profile):
@@ -67,3 +87,28 @@ def apply_before_play(folder, profile):
             LOG.info("Profile preparation: starting %s", executable.relative_to(root))
             subprocess.run([str(executable), *step.get("arguments", [])], cwd=executable.parent, shell=False, check=True, timeout=60)
             LOG.info("Profile preparation: process completed")
+
+
+def save_profile(launcher, app_id, profile):
+    """Validate and write the profile atomically (the form and plugins share this file)."""
+    clean = validate_profile(profile)
+    path = profile_path(launcher, app_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(clean, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, path)
+    return clean
+
+def executable_matches(path, patterns):
+    """Candidates whose file name matches one of the profile patterns, in pattern order (case-insensitive)."""
+    from fnmatch import fnmatch
+    ordered = []
+    for pattern in patterns:
+        for candidate in path:
+            if fnmatch(Path(candidate).name.lower(), pattern.lower()) and candidate not in ordered:
+                ordered.append(candidate)
+    return ordered
+
+def declared_fix_archive(profile):
+    """The archive name a profile declares as the fix, or '' (nothing is then retained)."""
+    return profile.get("decompressFile", "") if profile.get("decompressEachRun") else ""
