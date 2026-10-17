@@ -92,6 +92,16 @@ class DigitalControlsTest(unittest.TestCase):
                 if attempt == 19:
                     raise
                 time.sleep(0.05)
+    def test_cancel_left_by_an_earlier_worker_does_not_stop_a_new_download(self):
+        self.command("cancel")
+        old = time.time() - 600
+        os.utime(self.control, (old, old))
+        self.start()
+        self.wait_for(lambda s: s.get("phase") == "downloading" and s.get("bytesDownloaded", 0) > 65536)
+        time.sleep(1.5)
+        self.assertEqual(self.snapshot().get("phase"), "downloading")
+        self.command("cancel")
+        self.wait_for(lambda s: s.get("phase") == "cancelled")
     def test_pause_resume_and_cancel_real_transfer(self):
         self.start()
         self.wait_for(lambda s: s.get("phase") == "downloading" and s.get("bytesDownloaded", 0) > 65536)

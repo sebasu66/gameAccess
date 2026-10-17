@@ -63,6 +63,9 @@ def wait_if_paused():
     if torrent_paused and g_torrent_session is not None and not g_cancelled.is_set():
         g_torrent_session.resume()
 
+_STARTED_AT = time.time()
+
+
 def watch_controls():
     control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
     last_request = None
@@ -76,6 +79,9 @@ def watch_controls():
                     emit_json(dict(g_last_payload))
             last_heartbeat = time.monotonic()
         try:
+            # A request left by an earlier worker (a cancel, say) must not stop a download that is resuming now.
+            if control_file.stat().st_mtime < _STARTED_AT - 1:
+                continue
             control = json.loads(control_file.read_text(encoding="utf-8"))
             if control.get("requestId") == last_request:
                 continue
