@@ -179,6 +179,47 @@ class DigitalGameStorage:
                     continue
         return removed
 
+    def remove_empty(self, app_id: int, folder: Path) -> None:
+        """Remove a game folder that holds nothing (the temporary download, if any, is left alone)."""
+        folder = self.checked(folder)
+        if any(folder.iterdir()):
+            raise ValueError("La carpeta no está vacía.")
+        folder.rmdir()
+        (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)
+
+    def transfers(self) -> list[dict]:
+        """Downloads sitting in the temporary root, and whether a worker is alive on each right now."""
+        temporary = Path(self.preferences.load()["temporary_root"]).resolve()
+        found = []
+        if not temporary.is_dir():
+            return found
+        now = time.time()
+        for folder in sorted(temporary.iterdir()):
+            app_id, title, _ = split_folder_name(folder.name)
+            if app_id is None or not folder.is_dir() or folder.is_symlink():
+                continue
+            live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+            found.append({"app_id": app_id, "name": title, "folder": str(folder),
+                          "active": live.is_file() and now - live.stat().st_mtime < 120})
+        return found
+
+    def discard_transfer(self, app_id: int) -> None:
+        """Delete the leftover temporary download of a game that has no live worker."""
+        temporary = Path(self.preferences.load()["temporary_root"]).resolve()
+        targets = [t for t in self.transfers() if t["app_id"] == int(app_id)]
+        if any(t["active"] for t in targets):
+            raise ValueError("La descarga está en curso; cancélala antes de descartarla.")
+        for target in targets:
+            folder = Path(target["folder"]).resolve()
+            if folder == temporary or not folder.is_relative_to(temporary):
+                raise ValueError("La carpeta está fuera del directorio permitido.")
+            if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
+                raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
+            shutil.rmtree(folder)
+        for leftover in ((self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
+                         (self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
+            leftover.unlink(missing_ok=True)
+
     def snapshot(self, games: list[dict]) -> dict:
         # Actual local folders are authoritative; their Steam AppID prefix is
         # the lookup key. Names are only display labels, never fuzzy matches.

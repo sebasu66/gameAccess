@@ -33,6 +33,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { getCatalogMode } from "./catalogMode";
+import { scanLibrary } from "./libraryScan";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
@@ -76,6 +77,8 @@ function playToastBeep(): void {
 
 export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
+  // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
+  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary(); }, []);
   const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);

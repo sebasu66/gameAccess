@@ -10,6 +10,7 @@ from the library, or a future import of games outside the catalog):
 Every action is written to the game's own log (game_journal)."""
 from __future__ import annotations
 import game_journal as journal
+import app_log
 from .archives import pending_archives
 from .execution_profile import load_profile
 from .executables import find_candidates, has_game_executable
@@ -33,6 +34,7 @@ class GameExecutionManager:
         self.extractor = extractor
         self.installer = installer
         self.logger = logger
+        self.log = app_log.manager_logger("execution")
 
     def analyze(self, app_id: int, name: str) -> dict:
         """Side-effect-free diagnosis: {state, ready, warning, needs: [...], executable}."""
@@ -71,6 +73,7 @@ class GameExecutionManager:
                     try:
                         self.extractor(folder, archive)
                     except Exception as error:
+                        self.log.error("AppID %s: extracting %s failed: %s", app_id, archive.name, error)
                         raise GameExecutionError(f"error intentando descomprimir {archive.name}: {error}", archive.name) from error
                 continue
             if result["state"] in ("extract", "setup"):
@@ -81,10 +84,12 @@ class GameExecutionManager:
                         if install_if_needed(folder, profile, self.logger or _NullLogger(), progress, **({"runner": self.installer} if self.installer else {})):
                             continue
                     except RuntimeError as error:
+                        self.log.error("AppID %s: installer %s failed: %s", app_id, setup.name, error)
                         raise GameExecutionError(str(error), setup.name) from error
             break
         final = self.analyze(app_id, name)
         if not final["ready"]:
+            self.log.error("AppID %s: cannot run: %s", app_id, final["warning"])
             raise GameExecutionError(final["warning"])
         return final
 
@@ -94,9 +99,11 @@ class GameExecutionManager:
         try:
             analysis = self.prepare(app_id, name, progress)
         except GameExecutionError as error:
+            self.log.error("AppID %s: repair failed: %s", app_id, error)
             self.storage.write_error(app_id, name, str(error))
             return {"ok": False, "error": str(error), "file": error.file}
         self.storage.set_status(app_id, name, "ready")
+        self.log.info("AppID %s: repaired, executable %s", app_id, analysis["executable"])
         journal.note(self.storage.folder(app_id, name), "reparación", f"listo; ejecutable {analysis['executable']}")
         return {"ok": True, "analysis": analysis}
 

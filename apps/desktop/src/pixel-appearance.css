@@ -134,3 +134,6 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-library-table { width: 100%; border-collapse: collapse; } .ga-library-table th, .ga-library-table td { text-align: left; padding: 6px 8px; vertical-align: top; }
 .ga-library-table tr[data-broken] td { background: rgba(255, 170, 0, .12); }
 .ga-library-warning { display: inline-flex; align-items: center; gap: 4px; color: #ffb000; }
+.ga-card-flag { margin-top: 2px; font-size: .75em; color: #ffb000; line-height: 1.2; }
+.ga-library-summary { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.ga-library-leftovers { margin-top: 16px; } .ga-library-leftovers li { display: flex; gap: 12px; align-items: center; margin: 4px 0; }

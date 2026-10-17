@@ -5,18 +5,20 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
 
     GameExecutionManager  -> analyze / repair a game          (game_execution_manager)
     game_journal          -> per-game history and play counts (game_journal)
-    GameImporter          -> bring games from outside the catalog (not implemented yet)
+    GameImporter          -> bring a folder up to the standard (adopt); import from outside later (game_importer)
     Freezer               -> compress rarely used games         (not implemented yet)
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
 from pathlib import Path
 import game_journal as journal
+import app_log
 from game_execution_manager import GameExecutionManager
 from disk_space import check_space, disk_info, folder_size
+from game_importer import GameImporter
 from .storage import split_folder_name
 
-BATCH_ACTIONS = ("uninstall", "repair", "analyze")
+BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
 
 
 def play_history(folder: Path) -> dict:
@@ -34,7 +36,8 @@ class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None):
         self.storage = storage
         self.manager = manager or GameExecutionManager(storage)
-        self.importer = importer
+        self.log = app_log.manager_logger("library")
+        self.importer = importer or GameImporter(storage, self.manager)
         self.freezer = freezer
 
     # -- inventory -------------------------------------------------------------------------
@@ -46,44 +49,83 @@ class GameLibraryManager:
         return found
 
     def list_games(self, with_sizes: bool = True) -> list[dict]:
+        """The scan: every folder in the games roots with its state, size and what keeps it from the standard."""
         games = []
-        for folder in self.game_folders():
-            app_id, title, state = split_folder_name(folder.name)
-            status = self.storage.status(app_id, title)
-            entry = {"app_id": app_id, "name": title, "state": state or "legacy", "folder": str(folder),
-                     "installed": bool(status.get("installed")), "needs_repair": bool(status.get("needs_repair")),
-                     "error": status.get("error", ""), "size_bytes": folder_size(folder) if with_sizes else None,
-                     **play_history(folder)}
-            if state == "ready" and not entry["needs_repair"]:
-                entry["warning"] = ""
-            else:
-                entry["warning"] = entry["error"] or (self.manager.analyze(app_id, title)["warning"] if entry["needs_repair"] else "")
-            games.append(entry)
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in sorted(root.iterdir()):
+                if folder.is_dir() and not folder.is_symlink():
+                    games.append(self._entry(folder, with_sizes))
+        flagged = [g for g in games if not g["standard"]]
+        self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
+                      [(g["name"], [i["code"] for i in g["issues"]]) for g in flagged][:50])
         return games
 
-    def summary(self, games: list[dict] | None = None) -> dict:
+    def _entry(self, folder: Path, with_sizes: bool) -> dict:
+        app_id, title, state = split_folder_name(folder.name)
+        entry = {"app_id": app_id, "name": title, "state": state or ("legacy" if app_id is not None else "unrecognized"),
+                 "folder": str(folder), "installed": False, "needs_repair": False, "error": "",
+                 "size_bytes": folder_size(folder) if with_sizes else None, "plays": 0, "last_played": ""}
+        if app_id is None:
+            entry["issues"] = self.importer.issues(None, folder, None, None)
+        else:
+            try:
+                status = self.storage.status(app_id, title)
+            except ValueError as error:
+                status = {}
+                entry["issues"] = [{"code": "duplicate_folder", "message": str(error)}]
+            entry.update(installed=bool(status.get("installed")), needs_repair=bool(status.get("needs_repair")),
+                         error=status.get("error", ""), **play_history(folder))
+            if "issues" not in entry:
+                # Folders still downloading or installing are not a problem: they are just not finished.
+                if state in (None, "ready", "ERROR"):
+                    analysis = self.manager.analyze(app_id, title)
+                    entry["issues"] = self.importer.issues(app_id, folder, state, analysis)
+                    if state == "ERROR":
+                        entry["issues"].insert(0, {"code": "error", "message": entry["error"] or "Terminó con error."})
+                else:
+                    entry["issues"] = []
+        entry["standard"] = not entry["issues"]
+        entry["reclaimable_bytes"] = sum(issue.get("bytes", 0) for issue in entry["issues"])
+        entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
+        return entry
+
+    def transfers(self, with_sizes: bool = True) -> list[dict]:
+        """Unfinished downloads in the temporary root, which also take disk space."""
+        found = self.storage.transfers()
+        for item in found:
+            item["size_bytes"] = folder_size(Path(item["folder"])) if with_sizes else None
+        return found
+
+    def summary(self, games: list[dict] | None = None, transfers: list[dict] | None = None) -> dict:
         games = self.list_games() if games is None else games
+        transfers = self.transfers() if transfers is None else transfers
         by_state: dict[str, int] = {}
         for game in games:
             by_state[game["state"]] = by_state.get(game["state"], 0) + 1
         disk = disk_info(self.storage.root)
         return {"count": len(games), "by_state": by_state,
                 "needs_repair": sum(1 for g in games if g["needs_repair"]),
-                "used_bytes": sum(g["size_bytes"] or 0 for g in games), **disk}
+                "nonstandard": sum(1 for g in games if not g["standard"]),
+                "used_bytes": sum(g["size_bytes"] or 0 for g in games),
+                "transfers_bytes": sum(t["size_bytes"] or 0 for t in transfers),
+                "reclaimable_bytes": sum(g["reclaimable_bytes"] for g in games), **disk}
 
     # -- space check -------------------------------------------------------------------------
     def check_space(self, download_bytes: int) -> dict:
         """Can this download and its unpacking fit? Called before any download starts."""
-        return check_space(download_bytes, self.storage.root, Path(self.storage.preferences.load()["temporary_root"]))
+        room = check_space(download_bytes, self.storage.root, Path(self.storage.preferences.load()["temporary_root"]))
+        if not room["ok"]:
+            self.log.warning("Download refused (%s bytes): %s", download_bytes, room["message"])
+        return room
 
     # -- history and connectors ------------------------------------------------------------------
     def history(self, app_id: int, name: str) -> str:
         return journal.read(self.storage.folder(app_id, name))
 
     def import_game(self, source: str, name: str = ""):
-        if self.importer is None:
-            raise NotImplementedError("La importación de juegos todavía no está disponible.")
-        return self.importer.import_game(source, name, self)
+        return self.importer.import_game(source, name)
 
     def freeze(self, app_id: int, name: str):
         if self.freezer is None:
@@ -93,9 +135,12 @@ class GameLibraryManager:
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
         """Run one action on many games; one failure never stops the rest."""
+        self.log.info("Batch %s on %s", action, list(app_ids))
         if action not in BATCH_ACTIONS:
             raise ValueError(f"Acción en lote no soportada: {action}")
-        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False)}
+        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None}
+        if action == "discard_transfer":
+            names = {t["app_id"]: t["name"] for t in self.storage.transfers()}
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
@@ -106,11 +151,18 @@ class GameLibraryManager:
                 if action == "uninstall":
                     self.storage.uninstall(app_id, name)
                     results.append({"app_id": app_id, "ok": True})
+                elif action == "discard_transfer":
+                    self.storage.discard_transfer(app_id)
+                    results.append({"app_id": app_id, "ok": True})
+                elif action == "adopt":
+                    results.append({"app_id": app_id, **self.importer.adopt(app_id, name)})
                 elif action == "repair":
                     outcome = self.manager.repair(app_id, name)
                     results.append({"app_id": app_id, **outcome})
                 else:
                     results.append({"app_id": app_id, "ok": True, "analysis": self.manager.analyze(app_id, name)})
             except (OSError, ValueError, RuntimeError) as error:
+                self.log.error("Batch %s AppID %s failed: %s", action, app_id, error)
                 results.append({"app_id": app_id, "ok": False, "error": str(error)})
+        self.log.info("Batch %s done: %s ok, %s failed", action, sum(1 for r in results if r.get("ok")), sum(1 for r in results if not r.get("ok")))
         return results

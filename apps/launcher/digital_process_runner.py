@@ -19,15 +19,9 @@ from game_execution_manager.launch import checked_executable, parse_arguments, l
 from game_download_manager.unpack import extractor_for, restorer_for
 import logging
 from flow_diagnostics import FlowDiagnostics
-from logging.handlers import RotatingFileHandler
 
-os.makedirs("logs", exist_ok=True)
-logger = logging.getLogger("DigitalExecution")
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    fh = RotatingFileHandler("logs/execution.log", maxBytes=1024*1024, backupCount=0, encoding="utf-8")
-    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(fh)
+import app_log
+logger = app_log.configure()
 
 
 class DigitalProcessRunner:
@@ -78,8 +72,8 @@ class DigitalProcessRunner:
             if action.startswith("library-"):
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger))
                 if action == "library-list":
-                    games = library.list_games()
-                    return {**result, "ok": True, "library": games, "summary": library.summary(games)}
+                    games, transfers = library.list_games(), library.transfers()
+                    return {**result, "ok": True, "library": games, "transfers": transfers, "summary": library.summary(games, transfers)}
                 if action == "library-space":
                     return {**result, "ok": True, "space": library.check_space(int(json.loads(command or "{}").get("bytes", 0)))}
                 if action == "library-batch":

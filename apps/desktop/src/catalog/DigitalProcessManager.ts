@@ -26,6 +26,7 @@ export interface ProcessExecutionResult {
   log?: string;
   analysis?: GameAnalysis;
   library?: LibraryGame[];
+  transfers?: LibraryTransfer[];
   summary?: LibrarySummary;
   space?: LibrarySpace;
   results?: Array<{ app_id: number; ok: boolean; error?: string }>;
@@ -36,10 +37,12 @@ export interface ProcessExecutionResult {
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
 
-export interface LibraryGame { app_id: number; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string }
-export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; used_bytes: number; disk_free_bytes?: number; disk_total_bytes?: number }
+export interface LibraryIssue { code: string; message: string; bytes?: number }
+export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
+export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string }
+export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; disk_free_bytes?: number; disk_total_bytes?: number }
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
-export type LibraryBatchAction = "uninstall" | "repair" | "analyze";
+export type LibraryBatchAction = "uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[] }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }

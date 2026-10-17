@@ -23,6 +23,7 @@ import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameLibraryManager from "./GameLibraryManager";
+import { useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
@@ -64,8 +65,9 @@ interface DownloadGameCardProps {
 }
 
 const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const state = gameStateManager.resolve(status);
+  const flag = useLibraryFlag(game.app_id ?? undefined);
   const active = state.transferActive;
   const progress = downloadManager.progress(status);
   const label = statusLabel(status, progress);
@@ -111,6 +113,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
         </span>
       </button>
       <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
+      {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
     </div>
   );
 });

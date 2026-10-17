@@ -37,11 +37,8 @@ LAUNCHER_DIR = Path(__file__).resolve().parent.parent
 
 log_dir = LAUNCHER_DIR / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
-logger = logging.getLogger("digital_downloader")
-logger.setLevel(logging.INFO)
-handler = RotatingFileHandler(log_dir / "downloads.log", maxBytes=1048576, backupCount=0, encoding="utf-8")
-handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-logger.addHandler(handler)
+import app_log
+logger = app_log.configure("digital_downloader", "downloads.log", log_dir)
 
 # Ensure stdout uses UTF-8 and auto-flushes
 if sys.stdout.encoding.lower() != 'utf-8':
