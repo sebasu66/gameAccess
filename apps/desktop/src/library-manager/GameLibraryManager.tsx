@@ -33,7 +33,7 @@ type Pending =
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
 const hasError = (game: LibraryGame) => game.issues.some(issue => issue.code === "error");
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
-const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked;
+const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 
 function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   const badges = [] as JSX.Element[];
@@ -167,13 +167,13 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
         const catalogGame = findCatalogGame(game);
         return (
           <div className="flex items-center justify-end gap-0.5">
-            {game.partial && !game.transfer_active ? <>
-              <IconAction label={catalogGame ? c.resume : c.cannotResume} disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>
-              <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction>
-              <IconAction label={c.discard} destructive disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
+            {(game.partial || isUnfinished(game)) && !game.transfer_active ? <>
+              <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>
+              {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction> : null}
+              <IconAction label={c.discardAll} destructive disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
+              {!game.partial ? <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction> : null}
             </> : game.partial ? null : <>
               {needsFix(game) && id != null ? <IconAction label={c.fix} disabled={busy} onClick={() => void askPlan([id])}><Wand2 className="text-primary" /></IconAction> : null}
-              {game.transfer_bytes && !game.transfer_active ? <IconAction label={c.discard} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><RotateCcw /></IconAction> : null}
               <IconAction label={c.history} onClick={() => setExpanded(expanded === id ? null : id)}><ScrollText /></IconAction>
               <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
               <IconAction label={game.linked ? c.unlink : c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>

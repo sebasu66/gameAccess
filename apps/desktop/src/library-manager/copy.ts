@@ -1,7 +1,7 @@
 export const copy = {
   es: {
     title: "Administrador de biblioteca", back: "Volver", scan: "Escanear", scanning: "Escaneando…", fixAll: "Corregir todo", fix: "Corregir", fixSelected: "Corregir",
-    uninstall: "Desinstalar", openFolder: "Abrir carpeta", history: "Historial", resume: "Retomar", restart: "Descartar y reiniciar", discard: "Descartar",
+    uninstall: "Desinstalar", openFolder: "Abrir carpeta", history: "Historial", resume: "Retomar", resumePieces: "Retomar: continúa por partes desde donde quedó", resumeOther: "Retomar: reanuda y verifica lo ya descargado", discardAll: "Borrar la descarga por completo", restart: "Descartar y reiniciar", discard: "Descartar",
     search: "Buscar juego…", all: "Todos", outside: "Fuera de estándar", errors: "Con error", partial: "Descargas sin terminar",
     game: "Juego", size: "Tamaño", status: "Estado", plays: "Partidas", actions: "Acciones", selected: (n: number) => `${n} seleccionados`, clear: "Quitar selección",
     ready: "Listo", outsideStd: "Fuera de estándar", error: "Error", downloading: "Descargando", partialDl: "Descarga sin terminar", installing: "Instalando", preparing: "Preparando",
@@ -28,7 +28,7 @@ export const copy = {
   },
   en: {
     title: "Library manager", back: "Back", scan: "Scan", scanning: "Scanning…", fixAll: "Fix all", fix: "Fix", fixSelected: "Fix",
-    uninstall: "Uninstall", openFolder: "Open folder", history: "History", resume: "Resume", restart: "Discard and restart", discard: "Discard",
+    uninstall: "Uninstall", openFolder: "Open folder", history: "History", resume: "Resume", resumePieces: "Resume: continues by pieces from where it stopped", resumeOther: "Resume: continues and verifies what was already downloaded", discardAll: "Delete the download completely", restart: "Discard and restart", discard: "Discard",
     search: "Search game…", all: "All", outside: "Outside the standard", errors: "With error", partial: "Unfinished downloads",
     game: "Game", size: "Size", status: "Status", plays: "Plays", actions: "Actions", selected: (n: number) => `${n} selected`, clear: "Clear selection",
     ready: "Ready", outsideStd: "Outside the standard", error: "Error", downloading: "Downloading", partialDl: "Unfinished download", installing: "Installing", preparing: "Preparing",

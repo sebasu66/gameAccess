@@ -21,7 +21,7 @@ export const demoGames: LibraryGame[] = [
   row(363860, "MythForce", 7.1, legacy({ installed: false, transfer_bytes: 7.4 * GB, issues: [{ code: "extract", message: "Hay archivos comprimidos sin descomprimir." }], warning: "Hay archivos comprimidos sin descomprimir." })),
   row(3905450, "WheelMates", 7.2, { plays: 2 }),
   row(42910, "Magicka", 2.9, { state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando descomprimir Magicka.rar: contraseña incorrecta", issues: [{ code: "error", message: "error intentando descomprimir Magicka.rar: contraseña incorrecta" }] }),
-  row(1245620, "ELDEN RING", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 69.6 * GB }),
+  row(1245620, "ELDEN RING", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 69.6 * GB, unfinished: true, transfer_kind: "pieces" }),
   row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
 ];

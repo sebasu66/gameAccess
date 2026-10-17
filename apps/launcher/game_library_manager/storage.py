@@ -211,7 +211,9 @@ class DigitalGameStorage:
             if app_id is None or not folder.is_dir() or folder.is_symlink():
                 continue
             live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
-            found.append({"app_id": app_id, "name": title, "folder": str(folder),
+            # Pieces downloaded from our server keep a state file: they continue exactly where they stopped.
+            kind = "pieces" if any(folder.glob(".ga-state-*.json")) else "other"
+            found.append({"app_id": app_id, "name": title, "folder": str(folder), "kind": kind,
                           "active": live.is_file() and now - live.stat().st_mtime < 120})
         return found
 

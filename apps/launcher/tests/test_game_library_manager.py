@@ -61,3 +61,21 @@ def test_runner_actions_expose_the_library(tmp_path):
     done = runner.run("library-batch", 0, "", '{"action": "analyze", "app_ids": [1]}')
     assert done["results"][0]["analysis"]["ready"]
     assert folder_size(tmp_path / "games") > 0
+
+
+def test_unfinished_download_is_never_offered_a_fix(tmp_path):
+    storage, lib = library(tmp_path)
+    temporary = Path(storage.preferences.load()["temporary_root"])
+    pieces = temporary / "2-Beta-downloading"
+    pieces.mkdir(parents=True)
+    (pieces / ".ga-state-abcd1234.json").write_text("{}", "utf-8")
+    (pieces / "data.bin").write_bytes(b"z" * 5)
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert games[2]["unfinished"] and games[2]["transfer_kind"] == "pieces" and not games[1]["unfinished"]
+    plan = lib.plan([2])[0]
+    assert plan["actions"] == [] and "descarga" in plan["error"]
+    result = lib.batch("adopt", [2])[0]
+    assert not result["ok"] and "descarga" in result["error"]
+    assert pieces.exists()
+    (pieces / ".ga-state-abcd1234.json").unlink()
+    assert {g["app_id"]: g for g in lib.list_games()}[2]["transfer_kind"] == "other"

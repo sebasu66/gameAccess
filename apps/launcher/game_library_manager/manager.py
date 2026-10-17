@@ -43,6 +43,9 @@ def play_history(folder: Path) -> dict:
     return {"plays": plays, "last_played": last}
 
 
+UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."
+
+
 class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None):
         self.storage = storage
@@ -148,15 +151,19 @@ class GameLibraryManager:
             size = folder_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
             if row is not None:
-                row["transfer_bytes"], row["transfer_active"] = size, item["active"]
+                row["transfer_bytes"], row["transfer_active"], row["transfer_kind"] = size, item["active"], item["kind"]
+                row["unfinished"] = True
                 continue
             games.append({"app_id": item["app_id"], "name": item["name"], "state": "downloading" if item["active"] else "partial",
                           "folder": item["folder"], "installed": False, "needs_repair": False, "error": "", "size_bytes": 0,
                           "plays": 0, "last_played": "", "issues": [], "standard": True, "reclaimable_bytes": 0, "warning": "",
-                          "transfer_bytes": size, "transfer_active": item["active"], "partial": True})
+                          "transfer_bytes": size, "transfer_active": item["active"], "transfer_kind": item["kind"], "partial": True, "unfinished": True})
         for game in games:
             game.setdefault("transfer_bytes", 0)
             game.setdefault("transfer_active", False)
+            game.setdefault("transfer_kind", "")
+            # A folder still downloading or installing is also unfinished: nothing can be fixed until it ends.
+            game["unfinished"] = bool(game.get("unfinished")) or game.get("state") in ("preparing", "downloading", "installing")
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
@@ -171,10 +178,14 @@ class GameLibraryManager:
 
     def plan(self, app_ids: list[int]) -> list[dict]:
         """What fixing each game would do, for the user to review before anything runs."""
-        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")}
+        listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")]
+        names = {g["app_id"]: g["name"] for g in listed}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
         plans = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
-            if app_id in names:
+            if app_id in unfinished:
+                plans.append({"app_id": app_id, "name": names[app_id], "actions": [], "error": UNFINISHED_MESSAGE})
+            elif app_id in names:
                 try:
                     plans.append(self.importer.plan(app_id, names[app_id]))
                 except (OSError, ValueError) as error:
@@ -252,6 +263,7 @@ class GameLibraryManager:
         listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
         names = {g["app_id"]: g["name"] for g in listed}
         linked = {g["app_id"] for g in listed if g.get("linked")}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
@@ -260,6 +272,9 @@ class GameLibraryManager:
                 continue
             if name is None:
                 results.append({"app_id": app_id, "ok": False, "error": "El juego no está en la biblioteca."})
+                continue
+            if app_id in unfinished and action in ("adopt", "repair"):
+                results.append({"app_id": app_id, "ok": False, "error": UNFINISHED_MESSAGE})
                 continue
             try:
                 if action == "uninstall":
