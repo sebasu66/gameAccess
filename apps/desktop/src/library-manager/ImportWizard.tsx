@@ -3,6 +3,7 @@ import { ArrowLeft, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "
 import CircularScrollbar from "../CircularScrollbar";
 import { digitalProcessManager, type ImportCandidate, type ImportDrive, type ImportItem } from "../catalog/DigitalProcessManager";
 import { libraryDemo } from "../libraryScan";
+import { addReadyGameToLibrary } from "../libraryMembership";
 import type { CatalogGame } from "../types";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -68,6 +69,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
     try {
       const outcome: Array<{ app_id: number; ok: boolean; error?: string }> = libraryDemo() ? items.map(item => ({ app_id: item.app_id, ok: true })) : (await digitalProcessManager.importRun(items)).results ?? [];
       imported.current = outcome.some(item => item.ok);
+      outcome.forEach((item, index) => { if (item.ok && !libraryDemo()) addReadyGameToLibrary(item.app_id, items[index]?.name ?? String(item.app_id), catalog); });
       setResults(outcome.map((item, index) => ({ name: items[index]?.name ?? String(item.app_id), ok: item.ok, error: item.error })));
     } catch (failure) { setResults(items.map(item => ({ name: item.name, ok: false, error: String(failure) }))); }
     setStep("done");

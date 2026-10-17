@@ -44,3 +44,11 @@ export function useLibraryGames() {
 export function useLibraryBusy() {
   return useSyncExternalStore(libraryMembership.subscribe, libraryMembership.isBusy, libraryMembership.isBusy);
 }
+
+/** A game that became ready outside the normal download flow (fixed or imported) joins the library; the catalog entry is preferred for its cover and data. */
+export function addReadyGameToLibrary(appId: number, name: string, catalog: CatalogGame[] = []) {
+  try {
+    const game = catalog.find(item => (item.app_id ?? item.id) === appId) ?? ({ id: appId, app_id: appId, name } as CatalogGame);
+    libraryMembership.add(game);
+  } catch { /* the library is busy: the next refresh keeps the game on disk and it can be added later */ }
+}

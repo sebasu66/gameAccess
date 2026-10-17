@@ -22,6 +22,7 @@ import { copy, type LibraryCopy } from "./copy";
 import { demoPlans } from "./demoData";
 import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
+import { addReadyGameToLibrary } from "../libraryMembership";
 import { PlanDialog } from "./PlanDialog";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
@@ -118,6 +119,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     setBusy(true); setMessage(c.working);
     try {
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
+      if (action === "adopt" && !libraryDemo()) results.forEach(row => { const found = games.find(game => game.app_id === row.app_id); if (row.ok && found) addReadyGameToLibrary(row.app_id, found.name, catalog); });
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
       setSelection({});
     } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
