@@ -24,6 +24,9 @@ import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
 import { PlanDialog } from "./PlanDialog";
 
+/** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
+const notifyLibraryChanged = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("focus")); };
+
 type Filter = "all" | "outside" | "errors" | "partial";
 type Pending =
   | { kind: "plan"; plans: LibraryPlan[]; ids: number[] }
@@ -117,7 +120,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
       setSelection({});
-    } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); setPending(null); await scanLibrary(); }
+    } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
   };
   const confirmPending = async () => {
     if (!pending) return;
@@ -290,7 +293,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
         </div>
       </div>
 
-      {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) void scanLibrary(); }} /> : null}
+      {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
       {pending && pending.kind !== "plan" ? (
         <AlertDialog open onOpenChange={open => { if (!open && !busy) setPending(null); }}>
