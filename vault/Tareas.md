@@ -22,6 +22,7 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] **Traducciones es/en completas e instalador NSIS profesional.** Traducciones: avanzadas según `git log` (`f72557e` catálogos es/en con test de paridad, `79f52da` y `bbfe815` etiquetas movidas a los catálogos, script de control); falta confirmar que no queden textos fijos y la selección automática de idioma por ubicación (verifica Claude). Instalador NSIS pendiente: idioma automático y registro del protocolo `gameaccess://`.
 - [ ] **Landing en GitHub Pages** (qué es, cómo funciona, FAQ, privacidad, descarga), enlazada desde Patreon; Patreon solo para pago y comunidad.
 - [ ] **Pestaña nueva "Librería"**: estadísticas de uso de juegos por día y por mes (reutilizar `UsageChart` y los datos `usage` de `library-list`). Solo pendiente; el Library Manager ya trae los componentes shadcn/Recharts.
+- [ ] **Selector de idioma ES/EN**: moverlo a Configuración y quitarlo de las pantallas (hoy solo se oculta en las pantallas con `.ga-screen-header`, p. ej. el Library Manager). Usar `.ga-screen-header`/`.ga-screen-title` (gameaccess-theme.css) como cabecera estándar en todas las pantallas completas.
 
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).

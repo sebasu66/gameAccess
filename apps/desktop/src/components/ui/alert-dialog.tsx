@@ -10,7 +10,7 @@ export const AlertDialogContent = React.forwardRef<React.ElementRef<typeof Alert
   ({ className, ...props }, ref) => (
     <AlertDialogPrimitive.Portal>
       <AlertDialogPrimitive.Overlay className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-      <AlertDialogPrimitive.Content ref={ref} className={cn("fixed left-1/2 top-1/2 z-[1101] flex max-h-[85vh] w-[min(640px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border border-border bg-card p-6 font-sans text-foreground shadow-2xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95", className)} {...props} />
+      <AlertDialogPrimitive.Content ref={ref} className={cn("fixed inset-0 z-[1101] m-auto flex h-fit max-h-[85vh] w-[min(640px,92vw)] flex-col gap-4 rounded-lg border border-border bg-card p-6 font-sans text-foreground shadow-2xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95", className)} {...props} />
     </AlertDialogPrimitive.Portal>
   ),
 );

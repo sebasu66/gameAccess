@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderOpen, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
 import { useI18n } from "../i18n";
@@ -13,11 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
 import { Progress } from "../components/ui/progress";
-import { ScrollArea } from "../components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/cn";
-import { DiskChart, SizeChart, UsageChart } from "./Charts";
+import { DiskBar } from "./Charts";
 import { copy, type LibraryCopy } from "./copy";
 import { demoPlans } from "./demoData";
 import { formatBytes } from "./format";
@@ -76,13 +76,14 @@ function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
 
 export default function GameLibraryManager({ onClose, catalog = [], onInstall }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void }) {
   const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
-  const { games, summary, usage, scanning, error } = useLibraryScan();
+  const { games, summary, scanning, error } = useLibraryScan();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "size", desc: true }]);
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [expanded, setExpanded] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   useEffect(() => { void scanLibrary(); }, []);
@@ -193,35 +194,20 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     return () => window.removeEventListener("keydown", onKey);
   }, [escapeGuard, onClose]);
 
-  const stat = (label: string, value: string, tone = "") => <Card><CardHeader className="pb-1"><CardTitle>{label}</CardTitle></CardHeader><CardContent className="pt-0"><span className={cn("font-sans text-2xl font-extrabold tabular-nums", tone)}>{value}</span></CardContent></Card>;
+  const stat = (label: string, value: string, tone = "") => <div className="grid gap-0.5 rounded-lg border border-border bg-card px-4 py-2.5"><span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span><span className={cn("font-sans text-xl font-extrabold tabular-nums", tone)}>{value}</span></div>;
   const filters: [Filter, string, number][] = [["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial]];
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
-        <header className="flex flex-none items-center gap-4 border-b border-border px-6 py-3">
+      <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
+        <header className="ga-screen-header">
           <Button variant="outline" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
-          <h2 className="m-0 mr-auto font-display text-5xl font-normal leading-none tracking-wide text-primary">{c.title}</h2>
+          <h2 className="ga-screen-title mr-auto">{c.title}</h2>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
         </header>
-        <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] gap-5 p-5 max-[900px]:grid-cols-1 max-[900px]:grid-rows-[auto_minmax(0,1fr)]">
-          <ScrollArea className="min-h-0 max-[900px]:max-h-[38vh]">
-            <aside className="grid gap-3 pr-3">
-              {summary ? <div className="grid grid-cols-2 gap-3">
-                {stat(c.games, String(summary.count))}
-                {stat(c.used, formatBytes(summary.used_bytes))}
-                {stat(c.partialStat, formatBytes(summary.transfers_bytes), summary.transfers_bytes ? "text-info" : "")}
-                {stat(c.free, formatBytes(summary.disk_free_bytes), "text-success")}
-                {stat(c.broken, String(summary.nonstandard), summary.nonstandard ? "text-warning" : "")}
-                {stat(c.reclaim, formatBytes(summary.reclaimable_bytes), summary.reclaimable_bytes ? "text-warning" : "")}
-              </div> : null}
-              {summary ? <DiskChart summary={summary} c={c} /> : null}
-              <SizeChart games={games} c={c} />
-              <UsageChart usage={usage} c={c} />
-            </aside>
-          </ScrollArea>
-          <section className="flex min-h-0 min-w-0 flex-col gap-3">
+        <div className="mx-auto flex min-h-0 w-full max-w-[1180px] flex-1 flex-col gap-4 px-12 pb-6">
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Input className="max-w-64" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />
               <div className="flex flex-wrap gap-1.5">
@@ -238,7 +224,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             </div>
             {message ? <p role="status" className="m-0 rounded-md border border-border bg-card px-3 py-2 text-sm">{message}</p> : null}
             {error ? <p role="alert" className="m-0 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-[#ff6b75]">{error}</p> : null}
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-card/40 [scrollbar-color:#3a4552_transparent] [scrollbar-width:thin]">
+            <div className="relative min-h-[200px] flex-1 rounded-lg border border-border bg-card/40">
+              <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden pr-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map(group => (
@@ -278,8 +265,20 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
                     })}
                 </TableBody>
               </Table>
+              </div>
+              <CircularScrollbar targetRef={scrollRef} label={c.title} />
             </div>
           </section>
+          {summary ? <div className="grid flex-none gap-3">
+            <div className="grid grid-cols-5 gap-3 max-[900px]:grid-cols-2">
+              {stat(c.games, String(summary.count))}
+              {stat(c.used, formatBytes(summary.used_bytes))}
+              {stat(c.partialStat, formatBytes(summary.transfers_bytes), summary.transfers_bytes ? "text-info" : "")}
+              {stat(c.broken, String(summary.nonstandard), summary.nonstandard ? "text-warning" : "")}
+              {stat(c.reclaim, formatBytes(summary.reclaimable_bytes), summary.reclaimable_bytes ? "text-warning" : "")}
+            </div>
+            <DiskBar summary={summary} c={c} />
+          </div> : null}
         </div>
       </div>
 

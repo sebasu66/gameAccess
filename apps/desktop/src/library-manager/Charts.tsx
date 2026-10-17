@@ -9,40 +9,33 @@ import { formatBytes } from "./format";
 
 const GB = 1024 ** 3;
 
-/** Donut: what the library takes, what could be recovered, unfinished downloads and what is still free. */
-export function DiskChart({ summary, c }: { summary: LibrarySummary; c: LibraryCopy }) {
-  const data = useMemo(() => {
-    const reclaim = summary.reclaimable_bytes;
-    return [
-      { key: "games", name: c.libraryGames, value: Math.max(0, summary.used_bytes - reclaim) },
-      { key: "duplicates", name: c.duplicates, value: reclaim },
-      { key: "unfinished", name: c.unfinished, value: summary.transfers_bytes },
-      { key: "free", name: c.free, value: summary.disk_free_bytes ?? 0 },
-    ].filter(item => item.value > 0);
-  }, [summary, c]);
-  const config: ChartConfig = { games: { label: c.libraryGames, color: "#ff6a00" }, duplicates: { label: c.duplicates, color: "#ffb000" }, unfinished: { label: c.unfinished, color: "#569cff" }, free: { label: c.free, color: "#34c778" } };
+/** One long bar: what the library takes, recoverable duplicates, unfinished downloads, other files and what is free. */
+export function DiskBar({ summary, c }: { summary: LibrarySummary; c: LibraryCopy }) {
+  const free = summary.disk_free_bytes ?? 0;
+  const reclaim = summary.reclaimable_bytes;
+  const games = Math.max(0, summary.used_bytes - reclaim);
+  const known = games + reclaim + summary.transfers_bytes + free;
+  const total = Math.max(summary.disk_total_bytes ?? 0, known);
+  const parts = [
+    { key: "games", name: c.libraryGames, value: games, color: "#ff6a00" },
+    { key: "duplicates", name: c.duplicates, value: reclaim, color: "#ffb000" },
+    { key: "unfinished", name: c.unfinished, value: summary.transfers_bytes, color: "#569cff" },
+    { key: "other", name: c.otherUse, value: total - known, color: "#5b6672" },
+    { key: "free", name: c.free, value: free, color: "#34c778" },
+  ].filter(part => part.value > 0);
   return (
-    <Card>
-      <CardHeader><CardTitle>{c.diskChart}</CardTitle></CardHeader>
-      <CardContent>
-        <ChartContainer config={config} className="aspect-square max-h-48 w-full">
-          <PieChart>
-            <ChartTooltip content={<ChartTooltipContent config={config} formatValue={formatBytes} />} />
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius="58%" outerRadius="92%" stroke="none" paddingAngle={2}>
-              {data.map(item => <Cell key={item.key} fill={config[item.key].color} />)}
-            </Pie>
-          </PieChart>
-        </ChartContainer>
-        <ul className="m-0 mt-2 grid list-none gap-1 p-0">
-          {data.map(item => (
-            <li key={item.key} className="flex items-center justify-between gap-2 text-xs">
-              <span className="flex items-center gap-2 text-muted-foreground"><i className="inline-block size-2.5 rounded-[3px]" style={{ background: config[item.key].color }} />{item.name}</span>
-              <b className="tabular-nums">{formatBytes(item.value)}</b>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
+    <div className="grid gap-2">
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={c.diskChart}>
+        {parts.map(part => <span key={part.key} title={`${part.name}: ${formatBytes(part.value)}`} style={{ width: `${(part.value / total) * 100}%`, background: part.color }} />)}
+      </div>
+      <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-1 p-0">
+        {parts.map(part => (
+          <li key={part.key} className="flex items-center gap-2 text-xs text-muted-foreground">
+            <i className="inline-block size-2.5 rounded-[3px]" style={{ background: part.color }} />{part.name}<b className="tabular-nums text-foreground">{formatBytes(part.value)}</b>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
