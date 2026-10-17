@@ -32,6 +32,9 @@ class DownloadPipeline:
         # Explicit destinations keep the established test/CLI contract.
         dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
+        if not args.destination_dir and not args.extract_only:
+            # Aborting removes the game folder, its record and the partial download.
+            context.cancel_hooks.append(lambda: storage.uninstall(int(app_id), game_name))
         os.makedirs(game_dir, exist_ok=True)
         os.makedirs(dest_dir, exist_ok=True)
 

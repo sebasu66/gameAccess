@@ -102,6 +102,7 @@ def watch_controls():
 g_active_subprocess: Optional[subprocess.Popen] = None
 g_torrent_session = None
 g_temp_files: List[str] = []
+g_cancel_hooks: List[Any] = []
 g_app_id: str = ""
 g_diagnostics = None
 
@@ -244,6 +245,12 @@ def cleanup_on_cancel(signum=None, frame=None, error_message=None):
     if error_message:
         emit_error(g_app_id, error_message)
     else:
+        # Aborting a download removes the whole game folder (it used to leave an empty one behind).
+        for hook in list(g_cancel_hooks):
+            try:
+                hook()
+            except Exception:
+                logger.warning("AppID %s: cancel cleanup failed", g_app_id, exc_info=True)
         emit_progress(g_app_id, "cancelled", 0, status_text="Descarga cancelada")
     sys.exit(1 if error_message else 130)
 
@@ -281,6 +288,7 @@ def _context():
         archive_enclosing_folder=archive_enclosing_folder,
         get_process=lambda: g_active_subprocess, set_process=_set_process,
         get_torrent=lambda: g_torrent_session, set_torrent=_set_torrent,
+        cancel_hooks=g_cancel_hooks,
     )
 
 

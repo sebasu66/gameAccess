@@ -22,7 +22,7 @@ class FolderNameTests(unittest.TestCase):
         self.assertEqual(split_folder_name("Game-ready"), (None, "Game-ready", None))
 
 
-class FolderStatusTests(unittest.TestCase):
+class StorageCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="digital-status-fixture-")
         self.storage = DigitalGameStorage(Path(self.temp.name))
@@ -38,6 +38,8 @@ class FolderStatusTests(unittest.TestCase):
             (folder / file).write_bytes(b"fixture")
         return folder
 
+
+class FolderStatusTests(StorageCase):
     def test_ready_with_content_is_installed_without_scanning_for_payload(self):
         self.make("5-My Game-ready", files=("anything.dat",))
         status = self.storage.status(5, "Other title")
@@ -91,6 +93,62 @@ class FolderStatusTests(unittest.TestCase):
         names = {game["id"]: game["name"] for game in self.storage.local_games()}
         self.assertEqual(names[13], "Some-Title")
         self.assertEqual(names[14], "Half-Life 2")
+
+
+class PruneAndAbortTests(StorageCase):
+    def old(self, folder, seconds=3600):
+        import os, time
+        stamp = time.time() - seconds
+        os.utime(folder, (stamp, stamp))
+
+    def test_prune_removes_only_old_empty_folders_without_status(self):
+        stale = self.make("20-Stale", files=())
+        self.old(stale)
+        keep = {
+            "full": self.make("21-Full", files=("game.exe",)),
+            "young": self.make("22-Young", files=()),
+            "downloading": self.make("23-Waiting-downloading", files=()),
+            "error": self.make("24-Failed-ERROR", files=()),
+            "not-a-game": self.make("Documents", files=()),
+        }
+        for folder in keep.values():
+            self.old(folder)
+        self.old(keep["young"], seconds=5)
+        removed = self.storage.prune_empty()
+        self.assertEqual([path.name for path in removed], ["20-Stale"])
+        self.assertFalse(stale.exists())
+        self.assertTrue(all(folder.exists() for folder in keep.values()))
+
+    def test_prune_keeps_a_folder_whose_worker_is_still_alive(self):
+        folder = self.make("25-Busy", files=())
+        self.old(folder)
+        status = self.storage.launcher / ".cache" / "digital_downloads"
+        status.mkdir(parents=True)
+        (status / "25.json").write_text("{}")
+        self.assertEqual(self.storage.prune_empty(), [])
+        self.assertTrue(folder.exists())
+        self.old(status / "25.json", seconds=3600)
+        self.assertEqual(len(self.storage.prune_empty()), 1)
+
+    def test_snapshot_cleans_leftovers_on_the_way(self):
+        stale = self.make("26-Stale", files=())
+        self.old(stale)
+        self.runner.run("snapshot", 0, "", json.dumps([{"id": 26, "name": "Stale"}]))
+        self.assertFalse(stale.exists())
+
+    def test_cancel_runs_hooks_but_an_error_keeps_the_folder(self):
+        import digital_downloader
+        from unittest.mock import patch
+        calls = []
+        try:
+            for message in (None, "boom"):
+                digital_downloader.g_cancel_hooks[:] = [lambda: calls.append(message)]
+                with patch.object(digital_downloader, "emit_progress"), patch.object(digital_downloader, "emit_error"), self.assertRaises(SystemExit):
+                    digital_downloader.cleanup_on_cancel(error_message=message)
+        finally:
+            digital_downloader.g_cancel_hooks[:] = []
+            digital_downloader.g_cancelled.clear()
+        self.assertEqual(calls, [None])
 
 
 if __name__ == "__main__":

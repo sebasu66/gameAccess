@@ -1,5 +1,5 @@
 """Runtime port used by transports and extraction, independent of CLI globals."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Any
 
@@ -20,6 +20,8 @@ class DownloadContext:
     set_process: Callable
     get_torrent: Callable
     set_torrent: Callable
+    # Run when the user cancels (not on errors): e.g. remove the game folder.
+    cancel_hooks: list = field(default_factory=list)
 
     @property
     def active_subprocess(self):

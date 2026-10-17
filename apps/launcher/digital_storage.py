@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import time
 from pathlib import Path
 from digital_preferences import DigitalPreferences
 
@@ -115,11 +116,49 @@ class DigitalGameStorage:
         """Entries that are not bookkeeping files (error.txt, backup marker)."""
         return (item for item in folder.iterdir() if item.name not in (BACKUP_MARKER, ERROR_FILE))
 
+    def prune_empty(self, min_age_seconds: float = 600) -> list[Path]:
+        """Remove leftover EMPTY '<appid>-<name>' folders (no status) that nothing is using.
+
+        Folders with a status are never touched: an empty 'downloading' folder
+        is normal while the files still sit in the temporary root. A folder is
+        also kept while its worker is alive (the status file is rewritten every
+        second) or while it is young."""
+        removed = []
+        now = time.time()
+        for root in self.roots:
+            if not root.is_dir():
+                continue
+            for folder in root.iterdir():
+                app_id, _, state = split_folder_name(folder.name)
+                if app_id is None or state is not None:
+                    continue
+                try:
+                    if not folder.is_dir() or folder.is_symlink() or any(folder.iterdir()):
+                        continue
+                    if now - folder.stat().st_mtime < min_age_seconds:
+                        continue
+                    live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+                    if live.is_file() and now - live.stat().st_mtime < 120:
+                        continue
+                    folder.rmdir()
+                    record = self.registry / f"{app_id}.json"
+                    if record.is_file():
+                        try:
+                            if Path(json.loads(record.read_text(encoding="utf-8")).get("folder", "")) == folder:
+                                record.unlink()
+                        except (OSError, ValueError):
+                            pass
+                    removed.append(folder)
+                except OSError:
+                    continue
+        return removed
+
     def snapshot(self, games: list[dict]) -> dict:
         # Actual local folders are authoritative; their Steam AppID prefix is
         # the lookup key. Names are only display labels, never fuzzy matches.
         if not any(root.is_dir() for root in self.roots):
             return {}
+        self.prune_empty()
         games_by_id = {str(int(game["id"])): game for game in games}
         registered = {}
         if self.registry.is_dir():
