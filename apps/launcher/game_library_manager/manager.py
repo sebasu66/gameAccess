@@ -21,6 +21,16 @@ from .storage import split_folder_name
 BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
 
 
+def play_dates(folder: Path) -> list[str]:
+    """Timestamps ('YYYY-MM-DD HH:MM:SS') of every launch recorded in the game's log."""
+    found = []
+    for line in journal.read(folder).splitlines():
+        parts = line.split(" | ", 2)
+        if len(parts) == 3 and parts[1] == "play" and parts[2].startswith("lanzado"):
+            found.append(parts[0])
+    return found
+
+
 def play_history(folder: Path) -> dict:
     """Play count and last launch, read from the game's own log (the future play-time limiter links here)."""
     plays, last = 0, ""
@@ -50,6 +60,7 @@ class GameLibraryManager:
 
     def list_games(self, with_sizes: bool = True) -> list[dict]:
         """The scan: every folder in the games roots with its state, size and what keeps it from the standard."""
+        self.clean_empty()
         games = []
         for root in self.storage.roots:
             if not root.is_dir():
@@ -57,6 +68,7 @@ class GameLibraryManager:
             for folder in sorted(root.iterdir()):
                 if folder.is_dir() and not folder.is_symlink():
                     games.append(self._entry(folder, with_sizes))
+        self._merge_transfers(games, with_sizes)
         flagged = [g for g in games if not g["standard"]]
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
                       [(g["name"], [i["code"] for i in g["issues"]]) for g in flagged][:50])
@@ -91,6 +103,69 @@ class GameLibraryManager:
         entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
         return entry
 
+    def clean_empty(self) -> None:
+        """Empty game folders and empty temporary downloads are deleted without asking: they hold nothing."""
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in sorted(root.iterdir()):
+                app_id, _, state = split_folder_name(folder.name)
+                if app_id is None or state not in (None, "ready", "ERROR") or not folder.is_dir() or folder.is_symlink():
+                    continue
+                try:
+                    if not any(self.storage.has_content(folder)):
+                        self.storage.remove_empty(app_id, folder)
+                        self.log.info("Empty folder removed: %s", folder.name)
+                except (OSError, ValueError) as error:
+                    self.log.error("Could not remove empty folder %s: %s", folder.name, error)
+        for item in self.storage.transfers():
+            if not item["active"] and folder_size(Path(item["folder"])) == 0:
+                try:
+                    self.storage.discard_transfer(item["app_id"])
+                    self.log.info("Empty temporary download removed: %s", Path(item["folder"]).name)
+                except (OSError, ValueError) as error:
+                    self.log.error("Could not remove empty download %s: %s", item["folder"], error)
+
+    def _merge_transfers(self, games: list[dict], with_sizes: bool) -> None:
+        """One row per game: an unfinished download is part of its game's row, or a row of its own when the game is not installed."""
+        by_id = {g["app_id"]: g for g in games if g["app_id"] is not None}
+        for item in self.storage.transfers():
+            size = folder_size(Path(item["folder"])) if with_sizes else None
+            row = by_id.get(item["app_id"])
+            if row is not None:
+                row["transfer_bytes"], row["transfer_active"] = size, item["active"]
+                continue
+            games.append({"app_id": item["app_id"], "name": item["name"], "state": "downloading" if item["active"] else "partial",
+                          "folder": item["folder"], "installed": False, "needs_repair": False, "error": "", "size_bytes": 0,
+                          "plays": 0, "last_played": "", "issues": [], "standard": True, "reclaimable_bytes": 0, "warning": "",
+                          "transfer_bytes": size, "transfer_active": item["active"], "partial": True})
+        for game in games:
+            game.setdefault("transfer_bytes", 0)
+            game.setdefault("transfer_active", False)
+
+    def usage(self) -> dict:
+        """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
+        by_day: dict[str, int] = {}
+        for folder in self.game_folders():
+            for stamp in play_dates(folder):
+                by_day[stamp[:10]] = by_day.get(stamp[:10], 0) + 1
+        by_month: dict[str, int] = {}
+        for day, count in by_day.items():
+            by_month[day[:7]] = by_month.get(day[:7], 0) + count
+        return {"by_day": dict(sorted(by_day.items())), "by_month": dict(sorted(by_month.items()))}
+
+    def plan(self, app_ids: list[int]) -> list[dict]:
+        """What fixing each game would do, for the user to review before anything runs."""
+        names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None}
+        plans = []
+        for app_id in dict.fromkeys(int(i) for i in app_ids):
+            if app_id in names:
+                try:
+                    plans.append(self.importer.plan(app_id, names[app_id]))
+                except (OSError, ValueError) as error:
+                    plans.append({"app_id": app_id, "name": names[app_id], "actions": [], "error": str(error)})
+        return plans
+
     def transfers(self, with_sizes: bool = True) -> list[dict]:
         """Unfinished downloads in the temporary root, which also take disk space."""
         found = self.storage.transfers()
@@ -105,9 +180,10 @@ class GameLibraryManager:
         for game in games:
             by_state[game["state"]] = by_state.get(game["state"], 0) + 1
         disk = disk_info(self.storage.root)
-        return {"count": len(games), "by_state": by_state,
+        return {"count": sum(1 for g in games if not g.get("partial")), "by_state": by_state,
                 "needs_repair": sum(1 for g in games if g["needs_repair"]),
                 "nonstandard": sum(1 for g in games if not g["standard"]),
+                "partial_downloads": sum(1 for g in games if g.get("partial") or (g.get("transfer_bytes") and not g.get("transfer_active"))),
                 "used_bytes": sum(g["size_bytes"] or 0 for g in games),
                 "transfers_bytes": sum(t["size_bytes"] or 0 for t in transfers),
                 "reclaimable_bytes": sum(g["reclaimable_bytes"] for g in games), **disk}
@@ -139,8 +215,6 @@ class GameLibraryManager:
         if action not in BATCH_ACTIONS:
             raise ValueError(f"Acción en lote no soportada: {action}")
         names = {g["app_id"]: g["name"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None}
-        if action == "discard_transfer":
-            names = {t["app_id"]: t["name"] for t in self.storage.transfers()}
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)

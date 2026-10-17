@@ -37,11 +37,14 @@ def test_scan_names_every_reason_a_folder_is_not_standard(messy):
     codes = [issue["code"] for issue in gamma["issues"]]
     assert codes == ["no_status", "no_log", "obsolete_backup"] and not gamma["standard"]
     assert gamma["reclaimable_bytes"] == 800
-    assert [i["code"] for i in games["Delta"]["issues"]] == ["empty"]
+    assert "Delta" not in games and not (storage.root / "8-Delta").exists()      # empty folders are removed on scan
     assert [i["code"] for i in games["Random Folder"]["issues"]] == ["bad_name"] and games["Random Folder"]["app_id"] is None
     summary = lib.summary()
-    assert summary["nonstandard"] == 3 and summary["reclaimable_bytes"] == 800 and summary["transfers_bytes"] == 300
+    assert summary["nonstandard"] == 2 and summary["reclaimable_bytes"] == 800 and summary["transfers_bytes"] == 300
     assert [t["app_id"] for t in lib.transfers()] == [9]
+    epsilon = games["Epsilon"]                                                    # an unfinished download is one row, not a second list
+    assert epsilon["partial"] and epsilon["state"] == "partial" and epsilon["transfer_bytes"] == 300 and epsilon["standard"]
+    assert summary["count"] == 2 and summary["partial_downloads"] == 1
 
 
 def test_adopting_brings_a_folder_to_the_standard_and_starts_its_log(messy):
@@ -56,11 +59,52 @@ def test_adopting_brings_a_folder_to_the_standard_and_starts_its_log(messy):
     assert again["standard"] and again["state"] == "ready"
 
 
-def test_adopting_removes_empty_folders_and_leaves_the_download_alone(messy):
+def test_empty_folders_and_empty_downloads_are_deleted_automatically_but_real_downloads_stay(messy):
     storage, lib = messy
-    assert lib.batch("adopt", [8])[0]["ok"]
+    (storage.launcher / ".cache" / "digital_transfers" / "11-Empty Transfer").mkdir()
+    lib.list_games()
     assert not (storage.root / "8-Delta").exists()
+    assert not (storage.launcher / ".cache" / "digital_transfers" / "11-Empty Transfer").exists()
     assert (storage.launcher / ".cache" / "digital_transfers" / "9-Epsilon").is_dir()
+
+
+def test_plan_lists_every_action_before_anything_runs_and_adopt_follows_it(messy):
+    storage, lib = messy
+    plan = lib.plan([7])[0]
+    codes = [a["code"] for a in plan["actions"]]
+    assert codes == ["create_log", "find_executable", "delete_source", "rename"] and plan["freed_bytes"] == 800
+    assert any("Gamma_backup.rar" in a["label"] for a in plan["actions"]) and any(a["label"].endswith("7-Gamma-ready") for a in plan["actions"])
+    assert (storage.root / "7-Gamma" / "Gamma_backup.rar").exists()               # planning changes nothing
+    assert lib.batch("adopt", [7])[0]["freed_bytes"] == 800
+
+
+def test_the_delete_sources_setting_keeps_everything_when_off(messy):
+    storage, lib = messy
+    storage.preferences.save({"delete_download_sources": False})
+    games = {g["name"]: g for g in lib.list_games()}
+    assert "obsolete_backup" not in [i["code"] for i in games["Gamma"]["issues"]]
+    plan = lib.plan([7])[0]
+    assert "delete_source" not in [a["code"] for a in plan["actions"]] and plan["freed_bytes"] == 0
+    result = lib.batch("adopt", [7])[0]
+    assert result["ok"] and result["freed_bytes"] == 0
+    assert (storage.folder(7, "Gamma") / "Gamma_backup.rar").exists()
+
+
+def test_setting_defaults_to_on_and_the_declared_fix_is_listed_as_kept(messy):
+    storage, lib = messy
+    assert storage.preferences.load()["delete_download_sources"] is True
+    from game_execution_manager.execution_profile import save_profile
+    save_profile(storage.launcher, 7, {"decompressFile": "Gamma_backup.rar", "decompressEachRun": True})
+    plan = lib.plan([7])[0]
+    assert [a["code"] for a in plan["actions"]].count("keep") == 1 and "delete_source" not in [a["code"] for a in plan["actions"]]
+
+
+def test_usage_counts_launches_per_day_and_month(messy):
+    storage, lib = messy
+    folder = storage.folder(7, "Gamma")
+    (folder / journal.JOURNAL_FILE).write_text("2026-10-01 10:00:00 | play | lanzado: a\n2026-10-01 12:00:00 | play | lanzado: a\n2026-11-02 09:00:00 | play | lanzado: a\n2026-11-02 09:01:00 | analisis | x\n", encoding="utf-8")
+    usage = lib.usage()
+    assert usage["by_day"] == {"2026-10-01": 2, "2026-11-02": 1} and usage["by_month"] == {"2026-10": 2, "2026-11": 1}
 
 
 def test_a_declared_fix_archive_is_never_treated_as_a_duplicate(messy):

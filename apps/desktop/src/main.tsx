@@ -15,6 +15,8 @@ import PremiumEntry from "./PremiumEntry";
 import LanguageSwitch from "./LanguageSwitch";
 import { Globe2, RefreshCw } from "lucide-react";
 import PixelAppearance from "./PixelAppearance";
+import GameLibraryManager from "./library-manager/GameLibraryManager";
+import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
@@ -42,6 +44,7 @@ import "./filter-wizard.css";
 import "./tabs.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
+import "./library-manager/library-manager.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.
@@ -106,7 +109,9 @@ void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalo
 const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");
 
-ReactDOM.createRoot(root).render(
+if (libraryDemo()) {
+  ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
+} else ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><ResourceMeter /><NativeAccessBoundary />
     <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></AppCrashBoundary>

@@ -182,9 +182,9 @@ class DigitalGameStorage:
     def remove_empty(self, app_id: int, folder: Path) -> None:
         """Remove a game folder that holds nothing (the temporary download, if any, is left alone)."""
         folder = self.checked(folder)
-        if any(folder.iterdir()):
+        if any(self.has_content(folder)):
             raise ValueError("La carpeta no está vacía.")
-        folder.rmdir()
+        shutil.rmtree(folder)  # only bookkeeping files (log, backup marker) can be left in it
         (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)
 
     def transfers(self) -> list[dict]:

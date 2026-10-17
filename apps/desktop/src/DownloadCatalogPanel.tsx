@@ -22,7 +22,7 @@ import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFa
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
-import GameLibraryManager from "./GameLibraryManager";
+import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
@@ -371,7 +371,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
       {props.actionsTarget ? createPortal(<>{filters}{managerButton}{backToTop}</>, props.actionsTarget) : filters}
-      {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} /> : null}
+      {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} catalog={props.allGames} onInstall={props.onInstall} /> : null}
       {contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

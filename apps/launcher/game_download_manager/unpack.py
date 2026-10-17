@@ -23,9 +23,15 @@ def extract_archive(launcher, app_id, archive, destination, *, delete_archive: b
         worker.emit_json = original_emit
 
 
+def delete_sources(launcher) -> bool:
+    """The user's setting "delete download sources" (on by default)."""
+    from game_library_manager.preferences import DigitalPreferences
+    return bool(DigitalPreferences(launcher).load().get("delete_download_sources", True))
+
+
 def extractor_for(launcher, app_id):
     """The `extractor(folder, archive)` callable the Game Execution Manager expects."""
-    return lambda folder, archive: extract_archive(launcher, app_id, archive, folder, delete_archive=True, retain_backup=True)
+    return lambda folder, archive: extract_archive(launcher, app_id, archive, folder, delete_archive=delete_sources(launcher), retain_backup=True)
 
 
 def restorer_for(launcher, app_id):

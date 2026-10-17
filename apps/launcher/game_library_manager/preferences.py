@@ -13,7 +13,9 @@ class DigitalPreferences:
         data = json.loads(self.path.read_text(encoding="utf-8")) if self.path.is_file() else {}
         return {"games_root": str(self.launcher / "games"),
                 "temporary_root": str(self.launcher / ".cache" / "digital_transfers"),
-                "previous_roots": [], **data}
+                "previous_roots": [],
+                # Delete the downloaded archives/installers once the game is unpacked (the declared fix archive is always kept).
+                "delete_download_sources": True, **data}
 
     def save(self, values):
         current = self.load()
@@ -30,6 +32,8 @@ class DigitalPreferences:
             if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
                 raise ValueError("La carpeta no puede ser un enlace.")
             current[key] = str(path)
+        if "delete_download_sources" in values:
+            current["delete_download_sources"] = bool(values["delete_download_sources"])
         games, temporary = Path(current["games_root"]), Path(current["temporary_root"])
         if games == temporary or games.is_relative_to(temporary) or temporary.is_relative_to(games):
             raise ValueError("Los juegos y las descargas temporales necesitan carpetas separadas.")

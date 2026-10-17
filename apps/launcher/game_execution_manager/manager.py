@@ -36,6 +36,11 @@ class GameExecutionManager:
         self.logger = logger
         self.log = app_log.manager_logger("execution")
 
+    def delete_sources(self) -> bool:
+        """The user's setting: remove downloaded archives/installers once they have been used."""
+        preferences = getattr(self.storage, "preferences", None)
+        return bool(preferences.load().get("delete_download_sources", True)) if preferences else True
+
     def analyze(self, app_id: int, name: str) -> dict:
         """Side-effect-free diagnosis: {state, ready, warning, needs: [...], executable}."""
         folder = self.storage.folder(app_id, name)
@@ -81,7 +86,7 @@ class GameExecutionManager:
                 setup = find_setup(folder, profile.get("setupPattern") or "setup*.exe")
                 if setup is not None:
                     try:
-                        if install_if_needed(folder, profile, self.logger or _NullLogger(), progress, **({"runner": self.installer} if self.installer else {})):
+                        if install_if_needed(folder, profile, self.logger or _NullLogger(), progress, remove_sources=self.delete_sources(), **({"runner": self.installer} if self.installer else {})):
                             continue
                     except RuntimeError as error:
                         self.log.error("AppID %s: installer %s failed: %s", app_id, setup.name, error)

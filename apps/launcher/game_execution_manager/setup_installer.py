@@ -67,7 +67,7 @@ def remove_installer_files(setup):
             item.unlink(missing_ok=True)
 
 
-def install_if_needed(folder, profile, logger, progress=lambda text: None, runner=run_installer):
+def install_if_needed(folder, profile, logger, progress=lambda text: None, runner=run_installer, remove_sources: bool = True):
     """Run the installer once if needed. Raises RuntimeError with a user-readable message on failure."""
     folder = Path(folder).resolve()
     setup = needs_setup(folder, profile)
@@ -84,6 +84,7 @@ def install_if_needed(folder, profile, logger, progress=lambda text: None, runne
         raise RuntimeError(f"error intentando instalar {setup.name}: el instalador terminó con código {code}")
     if not has_game_executable(target):
         raise RuntimeError(f"error intentando instalar {setup.name}: terminó pero no dejó ningún ejecutable del juego")
-    remove_installer_files(setup)
-    logger.info("Setup: %s finished; installer files removed", setup.name)
+    if remove_sources:
+        remove_installer_files(setup)
+    logger.info("Setup: %s finished; installer files %s", setup.name, "removed" if remove_sources else "kept")
     return True

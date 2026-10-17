@@ -10,7 +10,7 @@
   text-decoration-color: #ff6a0099; transition: background-color .15s, text-decoration-color .15s;
 }
 .ga-filter-dialog.ga-wizard .ga-sx-term:hover, .ga-filter-dialog.ga-wizard .ga-sx-term.is-open { background: #ff6a0022; text-decoration-color: var(--ga-orange); }
-
+.ga-wizard .ga-sx-zone {
   width: min(620px, 100%); margin-top: 22px; min-height: 290px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
   animation: ga-sx-in .18s ease-out;
 }

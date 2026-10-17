@@ -253,7 +253,7 @@ class DownloadPipeline:
                 context.temp_files.remove(target_content_path)
             context.logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
             # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
-            should_delete_archive = True  # Only the smallest original archive is retained.
+            should_delete_archive = bool(storage.preferences.load().get("delete_download_sources", True))  # The declared fix archive is retained either way.
             from disk_space import check_space, folder_size
             downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
             # The archive is already on disk, so unpacking needs about as much again (factor 1.0).
