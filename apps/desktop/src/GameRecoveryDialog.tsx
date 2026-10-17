@@ -30,9 +30,9 @@ export function suggestionFor(message: string, mode: RecoveryMode, locale: "es" 
 
 const copy = {
   es: { error: "No se pudo completar", broken: "El juego parece mal instalado", file: "Archivo en proceso", suggestion: "Qué probar", params: "Parámetros de automatización",
-    retry: "Intentar de nuevo", abort: "Cancelar y abortar todo", reinstall: "Reinstalar", remove: "Borrar el juego", close: "Cerrar", working: "Trabajando…", saved: "Parámetros guardados." },
+    retry: "Intentar de nuevo", repair: "Reparar automáticamente", repaired: "Listo: el juego está preparado para ejecutarse.", abort: "Cancelar y abortar todo", reinstall: "Reinstalar", remove: "Borrar el juego", close: "Cerrar", working: "Trabajando…", saved: "Parámetros guardados." },
   en: { error: "Could not complete", broken: "The game looks badly installed", file: "File being processed", suggestion: "What to try", params: "Automation parameters",
-    retry: "Try again", abort: "Cancel and abort everything", reinstall: "Reinstall", remove: "Delete the game", close: "Close", working: "Working…", saved: "Parameters saved." },
+    retry: "Try again", repair: "Repair automatically", repaired: "Done: the game is ready to run.", abort: "Cancel and abort everything", reinstall: "Reinstall", remove: "Delete the game", close: "Close", working: "Working…", saved: "Parameters saved." },
 };
 
 export default function GameRecoveryDialog({ game, mode, message, onClose }: { game: CatalogGame; mode: RecoveryMode; message: string; onClose: () => void }) {
@@ -57,6 +57,15 @@ export default function GameRecoveryDialog({ game, mode, message, onClose }: { g
   const abort = () => run(async () => { await digitalDownloadService.cancel(appId).catch(() => undefined); await digitalProcessManager.executeUninstall(game); });
   const retry = () => run(async () => { await digitalDownloadService.start(game); });
   const reinstall = () => run(async () => { await digitalProcessManager.executeUninstall(game); await digitalDownloadService.start(game); });
+  const repair = async () => {
+    setBusy(true); setFailure(""); setNote(c.working);
+    try {
+      await saveAutomation(appId, automation);
+      const result = await digitalProcessManager.repairGame(game);
+      setNote(result.analysis?.ready ? c.repaired : "");
+    } catch (error) { setFailure(String(error instanceof Error ? error.message : error)); setNote(""); }
+    finally { setBusy(false); }
+  };
   const file = fileInProgress(message);
   return <div className="ga-settings-backdrop" onPointerDown={event => event.stopPropagation()}>
     <section ref={ref} className="ga-settings-panel ga-game-config" role="alertdialog" aria-modal="true" aria-labelledby="game-recovery-title">
@@ -71,6 +80,7 @@ export default function GameRecoveryDialog({ game, mode, message, onClose }: { g
       </div>
       <footer>
         <button type="button" disabled={busy} onClick={onClose} data-dialog-initial>{c.close}</button>
+        <button type="button" disabled={busy} onClick={() => void repair()}>{c.repair}</button>
         {mode === "broken"
           ? <><button type="button" disabled={busy} onClick={() => void abort()}>{c.remove}</button><button type="button" disabled={busy} onClick={() => void reinstall()}>{c.reinstall}</button></>
           : <><button type="button" disabled={busy} onClick={() => void abort()}>{c.abort}</button><button type="button" disabled={busy} onClick={() => void retry()}>{c.retry}</button></>}

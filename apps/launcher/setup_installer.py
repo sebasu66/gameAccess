@@ -12,7 +12,7 @@ from pathlib import Path
 
 DEFAULT_PATTERN = "setup*.exe"
 DEFAULT_ARGUMENTS = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS"]
-TARGET_FOLDER = "Installed"
+TARGET_FOLDER = "Game"
 TIMEOUT_SECONDS = 2 * 60 * 60
 NOT_A_GAME = re.compile(r"setup|install|unins|redist|crash|report|helper|vc_redist|dxsetup|prereq|dotnet|vcredist", re.I)
 

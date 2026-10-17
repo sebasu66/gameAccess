@@ -1,5 +1,6 @@
 import DigitalGameOptions from "./DigitalGameOptions";
 import DigitalGameLog from "./DigitalGameLog";
+import GameRecoveryDialog from "./GameRecoveryDialog";
 import { useI18n } from "./i18n";
 import { libraryMembership, useLibraryBusy, useLibraryGames } from "./libraryMembership";
 import { removeLibraryGame } from "./libraryActions";
@@ -48,6 +49,7 @@ export default function DigitalGameContextMenu({
   const inLibrary = libraryMembership.has(request.game);
   const [configuring, setConfiguring] = useState(false);
   const [showingLog, setShowingLog] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
@@ -133,7 +135,7 @@ export default function DigitalGameContextMenu({
 
   return (
     <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
-      {!dialog && !configuring && !showingLog ? (
+      {!dialog && !configuring && !showingLog && !repairing ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -166,6 +168,7 @@ export default function DigitalGameContextMenu({
             <FolderOpen size={16} /> Abrir carpeta de instalación
           </button>
           <button type="button" role="menuitem" disabled={!canUninstall} onClick={() => setConfiguring(true)}>{label.options}</button>
+          {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { libraryMembership.add(request.game); onClose(); }}>{label.add}</button>}
@@ -179,6 +182,7 @@ export default function DigitalGameContextMenu({
           </button>
         </div>
       ) : null}
+      {repairing ? <GameRecoveryDialog game={request.game} mode="broken" message={request.status?.repair_warning || (locale === "es" ? "El juego no está listo para ejecutarse." : "The game is not ready to run.")} onClose={onClose} /> : null}
       {showingLog ? <DigitalGameLog game={request.game} onClose={onClose} /> : null}
       {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}
       {dialog ? (

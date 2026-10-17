@@ -6,7 +6,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair";
   app_id: number;
   name?: string;
   pid?: number;
@@ -24,11 +24,15 @@ export interface ProcessExecutionResult {
   archives?: string[];
   changed?: string[];
   log?: string;
+  analysis?: GameAnalysis;
+  file?: string;
+  needs_repair?: boolean;
   errors?: Array<{file: string; error: string}>;
   games?: Array<{id: number; name: string}>;
   statuses?: Record<string, { folder: string; installed: boolean }>;
 }
 
+export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[] }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }
 
@@ -59,6 +63,8 @@ export class DigitalProcessManager {
   localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
   gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
   saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
+  analyzeGame(game: CatalogGame) { return this.execute("game-analyze", game); }
+  repairGame(game: CatalogGame) { return this.execute("game-repair", game); }
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
 

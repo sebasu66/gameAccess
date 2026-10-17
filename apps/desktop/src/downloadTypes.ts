@@ -47,6 +47,9 @@ export interface GenericDownloadStatus {
 export type ManagedDownloadStatus = Omit<SteamDownloadStatus, "state"> & {
   state: ManagedDownloadState;
   statusText?: string | null;
+  /** The game folder exists but is not runnable (ERROR, leftovers, installer only): offer the repair wizard. */
+  needs_repair?: boolean;
+  repair_warning?: string | null;
   job_id?: string | null;
   worker_pid?: number | null;
 };

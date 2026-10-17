@@ -313,7 +313,8 @@ export class DigitalCatalog {
     if (active && !["installed", "not-installed"].includes(active.state)) return active;
     const status = await digitalProcessManager.status(game);
     return { app_id: id, state: status.installed ? "installed" : "not-installed", progress: status.installed ? 100 : null,
-      bytes_downloaded: null, bytes_total: null, installed: Boolean(status.installed) };
+      bytes_downloaded: null, bytes_total: null, installed: Boolean(status.installed),
+      needs_repair: Boolean(status.needs_repair), repair_warning: status.needs_repair ? (status.error ?? null) : null };
   }
 
   private normalizeGames(list: Partial<CatalogGame & DigitalGameRecord>[]): CatalogGame[] {

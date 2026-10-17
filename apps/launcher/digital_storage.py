@@ -14,6 +14,7 @@ LAUNCHER = Path(__file__).resolve().parent
 # re-checking the contents. Older folders ("<appid>-<name>") have no status.
 STATUSES = ("preparing", "downloading", "installing", "ready", "ERROR")
 ERROR_FILE = "error.txt"
+import game_journal as journal
 from game_journal import JOURNAL_FILE
 BACKUP_MARKER = ".digital-backup.json"
 
@@ -104,7 +105,7 @@ class DigitalGameStorage:
     def write_error(self, app_id: int, name: str, message: str) -> Path:
         folder = self.folder(app_id, name)
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / ERROR_FILE).write_text(message, encoding="utf-8")
+        journal.note(folder, "ERROR", message)
         return self.set_status(app_id, name, "ERROR")
 
     @staticmethod
@@ -127,9 +128,10 @@ class DigitalGameStorage:
             # executable found, so it is not re-verified on every query.
             result["installed"] = folder.is_dir() and any(self.has_content(folder))
         elif state == "ERROR":
+            # The reason lives in the game's own log; error.txt is only read for folders from before the log existed.
             error_file = folder / ERROR_FILE
-            if error_file.is_file():
-                result["error"] = error_file.read_text(encoding="utf-8", errors="replace")[:4000]
+            result["error"] = (journal.last(folder, "ERROR") or (error_file.read_text(encoding="utf-8", errors="replace") if error_file.is_file() else ""))[:4000]
+            result["needs_repair"] = True
         elif state is None:
             # Folders from before statuses existed: archives alone and
             # empty/partial folders are not a runnable download.
@@ -137,6 +139,7 @@ class DigitalGameStorage:
                 p.is_file() and p.name not in (BACKUP_MARKER, ERROR_FILE, JOURNAL_FILE) and not re.search(r"\.(?:zip|rar|7z|tar|gz|torrent|part|tmp|download|\d{3})$", p.name, re.I) and self.is_payload(p)
                 for p in folder.rglob("*")
             )
+            result["needs_repair"] = not result["installed"] and folder.is_dir() and any(self.has_content(folder))
         return result
 
     @staticmethod

@@ -43,8 +43,8 @@ def test_silent_install_into_installed_folder_then_cleanup(tmp_path):
     runner = fake_runner()
     assert install_if_needed(folder, {"runAsAdmin": True}, LOG, runner=runner)
     command, as_admin = runner.calls[0]
-    assert as_admin and "/VERYSILENT" in command and command[-1] == f"/DIR={folder.resolve() / 'Installed'}"
-    assert (folder / "Installed" / "TrailOut.exe").is_file()
+    assert as_admin and "/VERYSILENT" in command and command[-1] == f"/DIR={folder.resolve() / 'Game'}"
+    assert (folder / "Game" / "TrailOut.exe").is_file()
     assert not list(folder.glob("setup_*"))
 
 def test_failure_keeps_installer_and_reports_it(tmp_path):

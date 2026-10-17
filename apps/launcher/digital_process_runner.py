@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from digital_storage import DigitalGameStorage
 import game_journal as journal
+import game_execution_manager as gem
 from digital_preferences import DigitalPreferences
 from digital_game_options import DigitalGameOptions, checked_executable, parse_arguments, repair_language, launch_as_administrator
 import logging
@@ -68,73 +69,37 @@ class DigitalProcessRunner:
         self.storage = storage or DigitalGameStorage()
 
     def rank_executable(self, exe_path: Path, game_name: str) -> float:
-        score = 0.0
-        exe_name = exe_path.stem.lower()
-        g_name = game_name.lower()
-        
-        if exe_name in g_name or g_name in exe_name:
-            score += 10.0
-            
-        g_words = re.findall(r'\w+', g_name)
-        for w in g_words:
-            if len(w) > 2 and w in exe_name:
-                score += 5.0
-                
-        if len(exe_path.parents) >= 2 and exe_path.parent == exe_path.parents[-2]:
-            score += 2.0
-            
-        return score
+        return gem.rank_executable(exe_path, game_name)
 
     def get_candidates(self, folder: Path, name: str, command: str, patterns=()) -> list[tuple[Path, list[str]]]:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
-        
-        if command.strip():
-            if re.search(r"[&|<>\r\n]|steam:", command, re.I):
-                raise ValueError("Comando rechazado: contiene caracteres prohibidos.")
-            parts = shlex.split(command, posix=False)
-            candidate = folder / parts[0].strip('"')
-            executable = candidate.resolve()
-            arguments = [p.strip('"') for p in parts[1:]]
-            if executable.is_relative_to(folder) and executable.is_file():
-                logger.info(f"Candidato desde playProcess explicito: {executable}")
-                return [(executable, arguments)]
-                
-        exe_marker = folder / ".gameaccess_exe"
-        if exe_marker.is_file():
-            try:
-                rel_path = exe_marker.read_text(encoding="utf-8").strip()
-                exe_target = (folder / rel_path).resolve()
-                if exe_target.is_file() and exe_target.is_relative_to(folder.resolve()):
-                    logger.info(f"Encontrado marcador .gameaccess_exe apuntando a: {exe_target}")
-                    return [(exe_target, [])]
-            except Exception:
-                pass
+        return gem.find_candidates(folder, name, command, patterns, logger)
 
-        play_bat = folder / "play.bat"
-        if play_bat.is_file():
-            logger.info("Encontrado play.bat en la carpeta, usandolo como fallback.")
-            return [(play_bat, [])]
-            
-        logger.info("Iniciando descubrimiento heuristico de ejecutables...")
-        all_exes = list(folder.rglob("*.exe"))
-        
-        blacklist = r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq"
-        candidates = [p for p in all_exes if not re.search(blacklist, str(p.relative_to(folder)), re.I)]
-        
-        if not candidates:
-            raise ValueError("No se encontraron ejecutables validos en la carpeta.")
-            
-        candidates.sort(key=lambda p: self.rank_executable(p, name), reverse=True)
-        if patterns:
-            # The profile's list is tried first, in its own order; GAMENAME stands for the game's name.
-            plain = re.sub(r"[^A-Za-z0-9]+", "", name)
-            expanded = [pattern for raw in patterns for pattern in dict.fromkeys(
-                [re.sub("GAMENAME", name, raw, flags=re.I), re.sub("GAMENAME", plain, raw, flags=re.I)])]
-            preferred = executable_matches(candidates, expanded)
-            candidates = preferred + [c for c in candidates if c not in preferred]
-        
-        logger.info(f"Se probaran {len(candidates)} ejecutables en orden: {[p.name for p in candidates]}")
-        return [(c.resolve(), []) for c in candidates]
+    def extract_in_place(self, folder: Path, archive: Path):
+        """Unpack one leftover archive into the game folder with the download worker's extractor."""
+        import io, contextlib
+        import digital_downloader as worker
+        worker.LAUNCHER_DIR = Path(self.storage.launcher)
+        worker.g_cancelled.clear()
+        original_emit = worker.emit_json
+        try:
+            worker.emit_json = lambda *_a, **_k: None
+            with contextlib.redirect_stdout(io.StringIO()):
+                worker.extract_archives_in_path(str(archive), str(folder), delete_archive=True, retain_backup=True)
+        finally:
+            worker.emit_json = original_emit
+
+    def repair(self, manager, app_id, name) -> dict:
+        """The 'wizard': installing while it works, ready when a runnable executable exists, ERROR (in the log) otherwise."""
+        self.storage.set_status(app_id, name, "installing")
+        try:
+            analysis = manager.prepare(app_id, name)
+        except gem.GameExecutionError as error:
+            self.storage.write_error(app_id, name, str(error))
+            return {"ok": False, "error": str(error), "file": error.file}
+        self.storage.set_status(app_id, name, "ready")
+        journal.note(self.storage.folder(app_id, name), "reparación", f"listo; ejecutable {analysis['executable']}")
+        return {"ok": True, "analysis": analysis}
 
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
@@ -195,6 +160,11 @@ class DigitalProcessRunner:
                 return {**result, "ok": True, "exit_code": 0}
             if action == "game-log":
                 return {**result, "ok": True, "log": journal.read(folder)}
+            if action in ("game-analyze", "game-repair"):
+                manager = gem.GameExecutionManager(self.storage, extractor=self.extract_in_place, logger=logger)
+                if action == "game-analyze":
+                    return {**result, "ok": True, "analysis": manager.analyze(app_id, name)}
+                return {**result, **self.repair(manager, app_id, name)}
             if action == "install-setup":
                 from setup_installer import install_if_needed
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
@@ -325,7 +295,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

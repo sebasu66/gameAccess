@@ -28,3 +28,11 @@ def read(folder, max_chars: int = 60000) -> str:
         return ""
     text = path.read_text(encoding="utf-8", errors="replace")
     return text[-max_chars:]
+
+def last(folder, step: str) -> str:
+    """Detail of the most recent journal line for `step` ('' if none)."""
+    for line in reversed(read(folder).splitlines()):
+        parts = line.split(" | ", 2)
+        if len(parts) == 3 and parts[1] == step:
+            return parts[2]
+    return ""

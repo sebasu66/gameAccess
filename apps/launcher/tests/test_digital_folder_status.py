@@ -61,7 +61,7 @@ class FolderStatusTests(StorageCase):
                     item.unlink()
                 folder.rmdir()
 
-    def test_error_state_exposes_error_txt(self):
+    def test_error_state_still_reads_a_legacy_error_txt(self):
         folder = self.make("8-Broken-ERROR", files=("error.txt",))
         (folder / "error.txt").write_text("error intentando descomprimir a.rar", encoding="utf-8")
         status = self.storage.status(8, "Broken")
@@ -176,6 +176,9 @@ class SetStatusTests(StorageCase):
         self.assertEqual(result["state"], "ERROR")
         self.assertFalse(result["installed"])
         self.assertIn("descomprimir a.rar", result["error"])
+        self.assertTrue(result["needs_repair"])
+        self.assertFalse((folder / "error.txt").exists())
+        self.assertIn("| ERROR | error intentando descomprimir a.rar: CRC", (folder / "gameaccess-log.txt").read_text(encoding="utf-8"))
 
     def test_empty_preparing_leftovers_are_pruned_but_downloading_ones_are_kept(self):
         import os
