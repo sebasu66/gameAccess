@@ -248,7 +248,8 @@ def maintain_once():
         refresh(Namespace(seed_dir=current_directory(), output_dir=ROOT,
                           cache_dir=ROOT / "requests", as_of=None, days=365,
                           popular_limit=5000, cooptimus_limit=0, enrichment_file=None,
-                          delay=1.1, github_ref="dev", keep_old=True))
+                          delay=1.1, github_ref="dev", keep_old=True,
+                          no_steam=False, server_db=ROOT / "no-server-db.sqlite"))
         _status.update(state="ready", revision=manifest()["revision"])
         LOG.info("Central discovery package ready: revision=%s count=%s", manifest()["revision"], manifest()["catalog_count"])
     except Exception:
