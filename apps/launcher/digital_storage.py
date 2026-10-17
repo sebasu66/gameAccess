@@ -79,6 +79,33 @@ class DigitalGameStorage:
         temporary.replace(record)
         return folder
 
+    def set_status(self, app_id: int, name: str, status: str) -> Path:
+        """Rename '<id>-<title>[-<old>]' to '<id>-<title>-<status>' and keep the
+        registry pointing at it. Returns the (possibly unchanged) folder."""
+        if status not in STATUSES:
+            raise ValueError(f"Estado desconocido: {status}")
+        folder = self.folder(app_id, name)
+        found_id, title, _ = split_folder_name(folder.name)
+        if found_id is None:
+            title = self.folder_name(name)
+        target = self.checked(folder.with_name(f"{int(app_id)}-{title}-{status}"))
+        if target != folder:
+            if target.exists():
+                raise ValueError("Ya existe una carpeta con ese estado para este juego.")
+            folder.rename(target)
+        self.registry.mkdir(parents=True, exist_ok=True)
+        record = self.registry / f"{int(app_id)}.json"
+        temporary = record.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"folder": str(target), "name": name}), encoding="utf-8")
+        temporary.replace(record)
+        return target
+
+    def write_error(self, app_id: int, name: str, message: str) -> Path:
+        folder = self.folder(app_id, name)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / ERROR_FILE).write_text(message, encoding="utf-8")
+        return self.set_status(app_id, name, "ERROR")
+
     @staticmethod
     def is_payload(path: Path) -> bool:
         if path.suffix.lower() in ('.html', '.htm'):
@@ -130,7 +157,7 @@ class DigitalGameStorage:
                 continue
             for folder in root.iterdir():
                 app_id, _, state = split_folder_name(folder.name)
-                if app_id is None or state is not None:
+                if app_id is None or state not in (None, "preparing"):
                     continue
                 try:
                     if not folder.is_dir() or folder.is_symlink() or any(folder.iterdir()):

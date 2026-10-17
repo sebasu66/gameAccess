@@ -151,5 +151,42 @@ class PruneAndAbortTests(StorageCase):
         self.assertEqual(calls, [None])
 
 
+class SetStatusTests(StorageCase):
+    def test_set_status_renames_in_place_and_keeps_the_registry_pointing_at_it(self):
+        self.storage.register(9, "Half-Life 2")
+        first = self.storage.set_status(9, "Half-Life 2", "preparing")
+        self.assertEqual(first.name, "9-Half-Life 2-preparing")
+        second = self.storage.set_status(9, "Half-Life 2", "downloading")
+        self.assertEqual(second.name, "9-Half-Life 2-downloading")
+        self.assertEqual(self.storage.folder(9, "other title"), second)
+        record = json.loads((self.storage.registry / "9.json").read_text(encoding="utf-8"))
+        self.assertEqual(Path(record["folder"]), second)
+        self.assertEqual(len([p for p in self.storage.root.iterdir()]), 1)
+
+    def test_set_status_rejects_unknown_states(self):
+        self.storage.register(9, "Game")
+        with self.assertRaises(ValueError):
+            self.storage.set_status(9, "Game", "done")
+
+    def test_write_error_marks_the_folder_and_status_reports_the_message(self):
+        self.storage.register(5, "Broken")
+        folder = self.storage.write_error(5, "Broken", "error intentando descomprimir a.rar: CRC")
+        self.assertTrue(folder.name.endswith("-ERROR"))
+        result = self.storage.status(5, "Broken")
+        self.assertEqual(result["state"], "ERROR")
+        self.assertFalse(result["installed"])
+        self.assertIn("descomprimir a.rar", result["error"])
+
+    def test_empty_preparing_leftovers_are_pruned_but_downloading_ones_are_kept(self):
+        import os
+        for status in ("preparing", "downloading"):
+            folder = self.storage.root / f"{3 if status == 'preparing' else 4}-G-{status}"
+            folder.mkdir(parents=True)
+            os.utime(folder, (1, 1))
+        self.storage.prune_empty()
+        names = sorted(p.name for p in self.storage.root.iterdir())
+        self.assertEqual(names, ["4-G-downloading"])
+
+
 if __name__ == "__main__":
     unittest.main()

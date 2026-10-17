@@ -38,6 +38,17 @@ class DownloadPipeline:
         os.makedirs(game_dir, exist_ok=True)
         os.makedirs(dest_dir, exist_ok=True)
 
+        def set_status(status):
+            # The folder name carries the state; explicit destinations keep their name.
+            nonlocal game_dir
+            if args.destination_dir:
+                return
+            try:
+                game_dir = str(storage.set_status(int(app_id), game_name, status))
+            except (OSError, ValueError) as rename_error:
+                context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
+        set_status("preparing")
+
         control_file = context.launcher_dir / ".cache" / "digital_downloads" / f"{app_id}.control.json"
         threading.Thread(target=self.watch_controls, daemon=True).start()
 
@@ -229,6 +240,7 @@ class DownloadPipeline:
                 progress_percent=100.0,
                 status_text="Descarga finalizada. Preparando instalación..."
             )
+            set_status("installing")
 
             context.wait_if_paused()
             if context.cancelled.is_set():
@@ -240,15 +252,21 @@ class DownloadPipeline:
             # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
             should_delete_archive = True  # Only the smallest original archive is retained.
             context.logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
-            extracted = self.extract_archives(
-                target_path=target_content_path or dest_dir,
-                dest_dir=game_dir,
-                source_root=dest_dir,
-                password=args.password,
-                delete_archive=should_delete_archive,
-                game_name=game_name,
-                auto_installed=args.auto_installed
-            )
+            try:
+                extracted = self.extract_archives(
+                    target_path=target_content_path or dest_dir,
+                    dest_dir=game_dir,
+                    source_root=dest_dir,
+                    password=args.password,
+                    delete_archive=should_delete_archive,
+                    game_name=game_name,
+                    auto_installed=args.auto_installed
+                )
+            except Exception as extraction_error:
+                if context.cancelled.is_set():
+                    raise
+                archive_name = os.path.basename(target_content_path or dest_dir)
+                raise RuntimeError(f"error intentando descomprimir {archive_name}: {extraction_error}") from extraction_error
 
             if context.cancelled.is_set():
                 self.cleanup_on_cancel()
@@ -265,6 +283,9 @@ class DownloadPipeline:
             # Digital is portable: extraction is the installation. Never execute installProcess.
             if context.cancelled.is_set():
                 self.cleanup_on_cancel()
+            if not args.destination_dir and not any(storage.has_content(Path(game_dir))):
+                raise RuntimeError("La descarga terminó pero no se obtuvo ningún archivo del juego.")
+            set_status("ready")
             # 5. PHASE: COMPLETED
             final_size = 0
             if target_content_path and os.path.exists(target_content_path):
@@ -291,4 +312,18 @@ class DownloadPipeline:
                 context.logger.error(f"Error fatal durante la descarga de '{game_name}': {e}", exc_info=True)
             else:
                 context.logger.info(f"Descarga cancelada por el usuario: '{game_name}'")
+            if not context.cancelled.is_set() and not args.destination_dir:
+                self.record_failure(storage, int(app_id), game_name, str(e))
             self.cleanup_on_cancel(error_message=None if context.cancelled.is_set() else str(e))
+
+    DEAD_SOURCE_HINTS = ("404", "410", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
+
+    def record_failure(self, storage, app_id, game_name, message):
+        """Dead source: nothing worth keeping, remove the folder. Otherwise keep it as ERROR with error.txt."""
+        try:
+            if any(hint in message.lower() for hint in self.DEAD_SOURCE_HINTS):
+                storage.uninstall(app_id, game_name)
+            else:
+                storage.write_error(app_id, game_name, message)
+        except Exception as failure:
+            self.context.logger.warning("AppID %s: no se pudo registrar el error: %s", app_id, failure)
