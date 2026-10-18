@@ -15,7 +15,7 @@ import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
 from game_library_manager.preferences import DigitalPreferences
-from game_execution_manager.game_options import DigitalGameOptions, repair_language
+from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
 from game_download_manager.unpack import extractor_for, restorer_for
 import logging
@@ -107,7 +107,7 @@ class DigitalProcessRunner:
                 return {**result, "ok": True, "options": options}
             if action == "repair-language":
                 options = game_options.load(app_id)
-                repaired = repair_language(folder, options["language"], logger)
+                repaired = repair_language(folder, effective_language(options), logger)
                 return {**result, "ok": True, **repaired}
             if action == "status":
                 backup = None if auto_installed else DigitalArchiveBackup.info(folder, name)
@@ -161,7 +161,7 @@ class DigitalProcessRunner:
             apply_before_play(folder, profile)
             diagnostics.debug("Before-play preparation finished")
             options = game_options.load(app_id)
-            self.patch_crack_language(folder, options["language"])
+            self.patch_crack_language(folder, effective_language(options))
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
             if options["executable"]:

@@ -4,6 +4,8 @@ import GameRecoveryDialog from "./GameRecoveryDialog";
 import { useI18n } from "./i18n";
 import { libraryMembership, useLibraryBusy, useLibraryGames } from "./libraryMembership";
 import { removeLibraryGame } from "./libraryActions";
+import { notify } from "./toasts";
+import { translate } from "./i18n";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { SOURCES_CHANGED_EVENT, sourceAvailability } from "./catalog/PluginSources";
@@ -119,9 +121,11 @@ export default function DigitalGameContextMenu({
     try {
       if (removing) {
         await removeLibraryGame(request.game);
+        notify(translate("toastLibraryRemoved", { name: request.game.name }), { tone: "success" });
         setProgress({ phase: "done", label: "Listo: el juego ya no está en tu biblioteca.", detail: "Sus archivos locales también se borraron." });
       } else {
         const { folder } = await service.uninstall(request.game);
+        notify(translate("toastGameUninstalled", { name: request.game.name }), { tone: "success" });
         setProgress({ phase: "done", label: "Carpeta borrada. El juego se desinstaló.", detail: folder });
       }
     } catch (error) {
@@ -171,7 +175,7 @@ export default function DigitalGameContextMenu({
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
-            : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { libraryMembership.add(request.game); onClose(); }}>{label.add}</button>}
+            : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { try { libraryMembership.add(request.game); notify(translate("toastLibraryAdded", { name: request.game.name }), { tone: "success" }); } catch (error) { notify(translate("toastActionFailed", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); } onClose(); }}>{label.add}</button>}
           <button
             type="button"
             role="menuitem"

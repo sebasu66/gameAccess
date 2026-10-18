@@ -479,4 +479,13 @@ export const es = {
   toastDownloadFailed: "No se pudo descargar {{name}}",
   toastDownloadInterrupted: "Se interrumpió la descarga de {{name}}",
   toastDownloadCancelled: "Descarga de {{name}} cancelada",
+  toastLibraryAdded: "{{name}} se agregó a tu biblioteca",
+  toastLibraryRemoved: "{{name}} se quitó de tu biblioteca",
+  toastGameUninstalled: "{{name}} se desinstaló",
+  toastLibraryFixed: "Juegos corregidos: {{ok}}",
+  toastLibraryUninstalled: "Juegos desinstalados: {{ok}}",
+  toastTransferDiscarded: "Se descartó la descarga de {{name}}",
+  toastGamesImported: "Juegos importados: {{ok}}",
+  toastBatchFailures: "{{summary}} · con error: {{failed}}",
+  toastActionFailed: "No se pudo completar la acción: {{error}}",
 } as const;

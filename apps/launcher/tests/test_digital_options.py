@@ -8,7 +8,7 @@ from unittest.mock import patch
 from game_library_manager.storage import DigitalGameStorage
 from digital_process_runner import DigitalProcessRunner
 from game_library_manager.preferences import DigitalPreferences
-from game_execution_manager.game_options import DigitalGameOptions, repair_language
+from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.launch import parse_arguments
 
 class DigitalOptionsTests(unittest.TestCase):
@@ -40,6 +40,13 @@ class DigitalOptionsTests(unittest.TestCase):
                                   (self.folder, self.folder / "temp")]:
             with self.assertRaises(ValueError):
                 self.storage.preferences.save({**settings,"games_root":str(games),"temporary_root":str(temporary)})
+
+    def test_game_language_follows_the_app_unless_the_game_pins_one(self):
+        with patch.dict("os.environ", {"GAMEACCESS_APP_LANGUAGE": "english"}):
+            self.assertEqual(effective_language({"language": ""}), "english")
+            self.assertEqual(effective_language({"language": "german"}), "german")
+        with patch.dict("os.environ", {"GAMEACCESS_APP_LANGUAGE": ""}):
+            self.assertEqual(effective_language({"language": ""}), "spanish")
 
     def test_manual_language_repair_preserves_encoding_comments_and_original_backup(self):
         ini = self.folder / "user.ini"

@@ -481,4 +481,13 @@ export const en: Record<keyof typeof es, string> = {
   toastDownloadFailed: "Could not download {{name}}",
   toastDownloadInterrupted: "The download of {{name}} was interrupted",
   toastDownloadCancelled: "Download of {{name}} cancelled",
+  toastLibraryAdded: "{{name}} was added to your library",
+  toastLibraryRemoved: "{{name}} was removed from your library",
+  toastGameUninstalled: "{{name}} was uninstalled",
+  toastLibraryFixed: "Games fixed: {{ok}}",
+  toastLibraryUninstalled: "Games uninstalled: {{ok}}",
+  toastTransferDiscarded: "The download of {{name}} was discarded",
+  toastGamesImported: "Games imported: {{ok}}",
+  toastBatchFailures: "{{summary}} · failed: {{failed}}",
+  toastActionFailed: "The action could not be completed: {{error}}",
 };

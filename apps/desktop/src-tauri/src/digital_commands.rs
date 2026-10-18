@@ -20,6 +20,7 @@ pub(crate) async fn run_digital_process(
     command: String,
     working_dir: Option<String>,
     auto_installed: Option<bool>,
+    language: Option<String>,
 ) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
@@ -43,6 +44,10 @@ pub(crate) async fn run_digital_process(
         }
 
         if auto_installed == Some(true) { cmd.arg("--auto-installed"); }
+        // The app's language: games that follow it get their INI language set to it before play.
+        if let Some(language) = language.as_deref().map(str::trim).filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_alphabetic())) {
+            cmd.env("GAMEACCESS_APP_LANGUAGE", language);
+        }
         if let Some(ref cwd) = working_dir {
             cmd.arg("--working-dir").arg(cwd);
         }

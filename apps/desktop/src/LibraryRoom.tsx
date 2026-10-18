@@ -35,6 +35,7 @@ import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySe
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
@@ -577,7 +578,22 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   };
 
   const confirmCancellation = async () => {
-    if (!cancelGame?.app_id || cancelling) return;
+    if (!cancelGame || cancelling) return;
+    if (getCatalogMode() === "digital") {
+      // The same call as the Cancel button of the downloads screen; the Steam path below is for the local catalog.
+      setCancelling(true);
+      setCancelError(null);
+      try {
+        await digitalDownloadService.cancel(cancelGame.app_id ?? cancelGame.id);
+        setCancelGame(null);
+      } catch (error) {
+        setCancelError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setCancelling(false);
+      }
+      return;
+    }
+    if (!cancelGame.app_id) return;
     const appId = cancelGame.app_id;
     const status = effectiveDownloads[appId];
     setCancelling(true);

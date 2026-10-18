@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
+import { getSteamStoreLanguage } from "../i18n";
 import { ensureExecutionProfile } from "./ExecutionProfiles";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
@@ -121,7 +122,7 @@ export class DigitalProcessManager {
           await ensureExecutionProfile(appId);
         }
         const result = await invoke<ProcessExecutionResult>("run_digital_process", {
-          action, appId, name, command, workingDir: null, autoInstalled,
+          action, appId, name, command, workingDir: null, autoInstalled, language: getSteamStoreLanguage(),
         });
         if (!result.ok) throw new Error(result.error || result.stderr || `El proceso terminó con código ${result.exit_code ?? "desconocido"}`);
         if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} completed; ok=${result.ok}, pid=${result.pid ?? "none"}, exit=${result.exit_code ?? "running"}; folder=${result.folder ?? "unknown"}.`, { area: "DIGITAL_EXECUTION" });

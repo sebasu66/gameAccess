@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
-import { useI18n } from "../i18n";
+import { translate, useI18n } from "../i18n";
+import { notify } from "../toasts";
 import SteamCover from "../SteamCover";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
 import { libraryDemo, scanLibrary, useLibraryScan } from "../libraryScan";
@@ -80,6 +81,22 @@ function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   return <pre className="m-0 max-h-48 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed text-muted-foreground">{text === null ? c.working : text || c.noHistory}</pre>;
 }
 
+/** One toast per Library Manager action, saying how many games it changed and how many failed. */
+function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
+  if (!results.length) return;
+  const ok = results.filter(row => row.ok).length;
+  const failed = results.length - ok;
+  if (action === "discard_transfer") {
+    const row = results[0];
+    const name = games.find(game => game.app_id === row.app_id)?.name ?? `#${row.app_id}`;
+    if (row.ok) notify(translate("toastTransferDiscarded", { name }), { tone: "success" });
+    else notify(translate("toastActionFailed", { error: row.error || name }), { tone: "error" });
+    return;
+  }
+  const summary = translate(action === "adopt" ? "toastLibraryFixed" : "toastLibraryUninstalled", { ok });
+  notify(failed ? translate("toastBatchFailures", { summary, failed }) : summary, { tone: !failed ? "success" : ok ? "warning" : "error" });
+}
+
 export default function GameLibraryManager({ onClose, catalog = [], onInstall }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void }) {
   const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
@@ -121,8 +138,9 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
       if (action === "adopt" && !libraryDemo()) results.forEach(row => { const found = games.find(game => game.app_id === row.app_id); if (row.ok && found) addReadyGameToLibrary(row.app_id, found.name, catalog); });
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
+      announceBatch(action, results, games);
       setSelection({});
-    } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
+    } catch (failure) { setMessage(String(failure)); notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
   };
   const confirmPending = async () => {
     if (!pending) return;
