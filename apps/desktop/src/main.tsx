@@ -1,5 +1,4 @@
 import ActivityConsole from "./ActivityConsole";
-import ResourceMeter from "./ResourceMeter";
 import RenderProbe from "./RenderProbe";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -113,7 +112,7 @@ if (libraryDemo()) {
   ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><ResourceMeter /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><NativeAccessBoundary />
     <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></AppCrashBoundary>
   </React.StrictMode>,
 );
