@@ -123,24 +123,28 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
     return () => resizeObserver.disconnect();
   }, [scrollRoot, totalCount, resetToken, metricCard]);
 
+  const windowInputs = useRef({ viewportHeight, totalCount, metrics, windowRange });
+  windowInputs.current = { viewportHeight, totalCount, metrics, windowRange };
   useEffect(() => {
     const root = scrollRoot.current;
     if (!root) return;
-    let frame = 0;
+    // Scroll fires several times per frame. Rendering the shelf on each one re-rendered every
+    // mounted card (hundreds of renders a second, 5 fps); only a new card window needs a render.
     const onScroll = () => {
-      setScrollTop(root.scrollTop);
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        setScrollTop(root.scrollTop);
+      const { viewportHeight, totalCount, metrics, windowRange } = windowInputs.current;
+      const next = computeShelfWindow({
+        scrollTop: root.scrollTop,
+        viewportHeight,
+        totalCount,
+        metrics: metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 },
+        maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+        previewLimit: metrics ? undefined : SECTION_PREVIEW_SIZE,
       });
+      if (next.startIndex !== windowRange.startIndex || next.endIndex !== windowRange.endIndex) setScrollTop(root.scrollTop);
     };
     setScrollTop(root.scrollTop);
     root.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      root.removeEventListener("scroll", onScroll);
-    };
+    return () => root.removeEventListener("scroll", onScroll);
   }, [scrollRoot]);
 
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);

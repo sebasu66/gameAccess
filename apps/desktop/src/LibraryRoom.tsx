@@ -549,13 +549,17 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     if (handled) event.preventDefault();
   };
 
-  const onSelectGame = (index: number, openDetails = true) => {
-    const gameId = displayGames[index]?.id ?? null;
+  // Stable on purpose: every card receives it, and a new function each render defeated the cards' memo,
+  // so a selection change re-rendered the whole grid.
+  const displayGamesRef = useRef(displayGames);
+  displayGamesRef.current = displayGames;
+  const onSelectGame = useCallback((index: number, openDetails = true) => {
+    const gameId = displayGamesRef.current[index]?.id ?? null;
     setSelectedGameId(gameId);
     setDetailRequestedGameId(gameId);
     setFocusZone("grid");
     if (openDetails && gameId != null) setDetailOpen(true);
-  };
+  }, []);
 
   const dismissCompletion = async (play: boolean) => {
     const entry = completionQueue[0];
