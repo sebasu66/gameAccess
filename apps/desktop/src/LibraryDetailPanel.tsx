@@ -5,7 +5,7 @@ import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
 
-import {useI18n} from "./i18n";
+import {translate, useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
@@ -39,7 +39,7 @@ const SCREENSHOT_HOLD_MS = 8_000;
 
 /** Steam approval as a bar that fills on mount and whenever the value changes. */
 function RatingBar({ score, count }: { score?: number | null; count?: number | null }) {
-  const { t } = useI18n();
+  const { t, localeTag } = useI18n();
   const target = typeof score === "number" && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null;
   const [shown, setShown] = useState(0);
   useEffect(() => {
@@ -53,7 +53,7 @@ function RatingBar({ score, count }: { score?: number | null; count?: number | n
     <strong>{target === null ? "—" : `${Math.round(target)}%`}</strong>
     <div className="ga-rating-main">
       <div className={`ga-rating-bar is-${tone}`} role="progressbar" aria-label={t("uiValoracionDeUsuariosEn")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={target === null ? undefined : Math.round(target)}><i style={{ width: `${shown}%` }} /></div>
-      <span>Valoración de usuarios en Steam · {count ? `${count.toLocaleString("es")} reseñas` : "Sin puntuación disponible"}</span>
+      <span>{t("steamReviewsLabel", { value: count ? t("steamReviewsCount", { count: count.toLocaleString(localeTag) }) : t("noScore") })}</span>
     </div>
   </div>;
 }
@@ -424,86 +424,89 @@ function SteamHeaderArtwork({ game, details }: { game: CatalogGame; details: Gam
 
 /** Only single-player / multiplayer capabilities belong in the detail view. */
 function DetailPlayModes({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const { t } = useI18n();
   const categories = details?.steam?.categories ?? game.categories ?? [];
   const normalized = categories.map(normalizeSearchText);
   const evidence = { ...game, categories };
   const has = (key: LibraryFeatureKey, expressions: string[]) => gameMatchesLibraryFeature(evidence, key)
     || normalized.some(value => expressions.some(expression => value.includes(expression)));
   const modes = [
-    { key: "single_player", label: "Un jugador", Icon: User, visible: has("single_player", ["un jugador", "single-player", "single player"]) },
-    { key: "local_coop", label: "Co-op Local", Icon: Monitor, visible: has("local_coop", ["cooperativo local", "local co-op", "cooperativo de pantalla", "shared/split screen co-op"]) },
-    { key: "coop_lan", label: "Co-op LAN", Icon: Network, visible: has("coop_lan", ["lan co-op", "cooperativo lan"]) },
-    { key: "online_coop", label: "Co-op Online", Icon: Users, visible: has("online_coop", ["cooperativo en linea", "online co-op"]) },
-    { key: "local_multiplayer", label: "Multiplayer Local", Icon: Monitor, visible: has("local_multiplayer", ["jcj de pantalla", "shared/split screen pvp"]) },
-    { key: "multiplayer_lan", label: "Multiplayer LAN", Icon: Network, visible: has("multiplayer_lan", ["lan pvp"]) },
-    { key: "online_multiplayer", label: "Multiplayer Online", Icon: Users, visible: has("online_multiplayer", []) },
+    { key: "single_player", label: t("modeSingle"), Icon: User, visible: has("single_player", ["un jugador", "single-player", "single player"]) },
+    { key: "local_coop", label: t("modeCoopLocal"), Icon: Monitor, visible: has("local_coop", ["cooperativo local", "local co-op", "cooperativo de pantalla", "shared/split screen co-op"]) },
+    { key: "coop_lan", label: t("modeCoopLan"), Icon: Network, visible: has("coop_lan", ["lan co-op", "cooperativo lan"]) },
+    { key: "online_coop", label: t("modeCoopOnline"), Icon: Users, visible: has("online_coop", ["cooperativo en linea", "online co-op"]) },
+    { key: "local_multiplayer", label: t("modeMultiLocal"), Icon: Monitor, visible: has("local_multiplayer", ["jcj de pantalla", "shared/split screen pvp"]) },
+    { key: "multiplayer_lan", label: t("modeMultiLan"), Icon: Network, visible: has("multiplayer_lan", ["lan pvp"]) },
+    { key: "online_multiplayer", label: t("modeMultiOnline"), Icon: Users, visible: has("online_multiplayer", []) },
     { key: "mmo", label: "MMO", Icon: Globe, visible: has("mmo", ["multijugador masivo", "mmo", "massively multiplayer"]) },
   ];
   // General Steam flags are useful when the source has no local/online subtype.
-  if (!modes.some(mode => mode.key.includes("coop") && mode.visible) && has("coop", ["cooperativo", "co-op"])) modes.push({ key: "coop", label: "Cooperativo", Icon: Users, visible: true });
-  if (!modes.some(mode => mode.key.includes("multiplayer") && mode.visible) && has("multiplayer", ["multijugador", "multi-player"])) modes.push({ key: "multiplayer", label: "Multijugador", Icon: Users, visible: true });
+  if (!modes.some(mode => mode.key.includes("coop") && mode.visible) && has("coop", ["cooperativo", "co-op"])) modes.push({ key: "coop", label: t("modeCoop"), Icon: Users, visible: true });
+  if (!modes.some(mode => mode.key.includes("multiplayer") && mode.visible) && has("multiplayer", ["multijugador", "multi-player"])) modes.push({ key: "multiplayer", label: t("modeMulti"), Icon: Users, visible: true });
   return <div className="ga-detail-modes">{modes.filter(mode => mode.visible).map(({ key, label, Icon }) => <span key={key}><Icon aria-hidden="true" />{label}</span>)}</div>;
 }
 
 function platforms(details: GameDetails | null): string {
   const steam = details?.steam;
-  if (!steam) return "No informado";
-  return [steam.windows ? "Windows" : null, steam.mac ? "macOS" : null, steam.linux ? "Linux" : null].filter(Boolean).join(" · ") || "No informado";
+  if (!steam) return translate("notReported");
+  return [steam.windows ? "Windows" : null, steam.mac ? "macOS" : null, steam.linux ? "Linux" : null].filter(Boolean).join(" · ") || translate("notReported");
 }
 
 function compactValue(values?: string[], limit = 3): string {
-  if (!values?.length) return "No informado";
+  if (!values?.length) return translate("notReported");
   return values.length > limit ? values.join(" · ") : values.join(" · ");
 }
 
 function useInstallSize(appId: number | null): string {
-  const [size, setSize] = useState("No informado");
+  const { t, localeTag } = useI18n();
+  const [size, setSize] = useState(t("notReported"));
   useEffect(() => {
     if (!appId) {
-      setSize("No informado");
+      setSize(t("notReported"));
       return;
     }
     let active = true;
-    setSize("Consultando…");
+    setSize(t("sizeChecking"));
     void steamDownloadMetrics(appId).then(metrics => {
       if (!active) return;
       const installedBytes = metrics.installed_size_bytes;
       const estimatedBytes = metrics.estimated_install_size_bytes;
       const bytes = installedBytes ?? estimatedBytes;
       if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) {
-        setSize("No informado");
+        setSize(t("notReported"));
         return;
       }
-      const amount = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(bytes / 1_000_000_000);
-      setSize(`${installedBytes != null ? "" : "≈ "}${amount} GB${installedBytes != null ? "" : " · estimado"}`);
+      const amount = new Intl.NumberFormat(localeTag, { maximumFractionDigits: 1 }).format(bytes / 1_000_000_000);
+      setSize(`${installedBytes != null ? "" : "≈ "}${amount} GB${installedBytes != null ? "" : t("sizeEstimated")}`);
     });
     return () => { active = false; };
-  }, [appId]);
+  }, [appId, t, localeTag]);
   return size;
 }
 
 function SteamFacts({ details, game }: { details: GameDetails | null; game: CatalogGame }) {
+  const { t, localeTag } = useI18n();
   const steam = details?.steam;
   game = details ?? game;
   const installSize = useInstallSize(game.app_id);
   const rating = typeof game.steam_review_score === "number"
-    ? `${Math.round(game.steam_review_score)}% positivas${game.steam_review_count ? ` · ${new Intl.NumberFormat("es").format(game.steam_review_count)} reseñas` : ""}`
-    : "Sin puntuación disponible";
+    ? t("scoreWithReviews", { score: Math.round(game.steam_review_score), count: game.steam_review_count ? new Intl.NumberFormat(localeTag).format(game.steam_review_count) : "0" })
+    : t("noScore");
   const recommendations = steam?.recommendation_count ?? game.recommendation_count;
   const facts = [
-    ["Tamaño", installSize],
-    ["Género", compactValue(steam?.genres)],
-    ["Valoración de usuarios", rating],
-    ["Recomendaciones Steam", typeof recommendations === "number" ? new Intl.NumberFormat("es").format(recommendations) : "No informado"],
-    ["Idiomas", plainText(steam?.supported_languages) || "No informado"],
-    ["Desarrollador", compactValue(steam?.developers, 2)],
-    ["Editor", compactValue(steam?.publishers, 2)],
-    ["Lanzamiento", steam?.release_date || "No informado"],
-    ["Plataformas", platforms(details)],
-    ["Categorías Steam", compactValue(steam?.categories ?? game.categories)],
-    ["Logros", steam?.achievement_count != null ? String(steam.achievement_count) : "No informado"],
-    ["Metacritic", steam?.metacritic?.score != null ? String(steam.metacritic.score) + "/100" : "No informado"],
-    ["Precio Steam", steam?.is_free ? "Gratis" : steam?.price?.final_formatted ?? "No informado"],
+    [t("factSize"), installSize],
+    [t("factGenre"), compactValue(steam?.genres)],
+    [t("factUserRating"), rating],
+    [t("factRecommendations"), typeof recommendations === "number" ? new Intl.NumberFormat(localeTag).format(recommendations) : t("notReported")],
+    [t("factLanguages"), plainText(steam?.supported_languages) || t("notReported")],
+    [t("factDeveloper"), compactValue(steam?.developers, 2)],
+    [t("factPublisher"), compactValue(steam?.publishers, 2)],
+    [t("factRelease"), steam?.release_date || t("notReported")],
+    [t("factPlatforms"), platforms(details)],
+    [t("factSteamCategories"), compactValue(steam?.categories ?? game.categories)],
+    [t("factAchievements"), steam?.achievement_count != null ? String(steam.achievement_count) : t("notReported")],
+    ["Metacritic", steam?.metacritic?.score != null ? String(steam.metacritic.score) + "/100" : t("notReported")],
+    [t("factSteamPrice"), steam?.is_free ? t("factFree") : steam?.price?.final_formatted ?? t("notReported")],
   ];
   return <dl className="library-room-game-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
@@ -535,7 +538,7 @@ function DesktopFeature(props: FeaturePanelProps) {
   const details = detailState.details;
   const ratingGame = details ?? props.game;
   const description = plainText(details?.steam?.short_description);
-  const summary = description || (detailState.loading ? "Cargando descripción de Steam…" : "Descripción no disponible");
+  const summary = description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"));
   const installSize = useInstallSize(props.game.app_id);
   const steam = details?.steam;
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "tablet") {

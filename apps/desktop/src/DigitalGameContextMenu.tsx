@@ -100,7 +100,7 @@ export default function DigitalGameContextMenu({
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDialog({ title: "No se pudo abrir la carpeta", message, tone: "error" });
+      setDialog({ title: translate("openFolderFailed"), message, tone: "error" });
     }
   };
 
@@ -108,8 +108,8 @@ export default function DigitalGameContextMenu({
     if (!canUninstall) return;
     setRemoving(false);
     setDialog({
-      title: `¿Desinstalar ${request.game.name}?`,
-      message: "Se administrará la eliminación de los archivos del juego en este equipo.",
+      title: translate("uninstallTitle", { name: request.game.name }),
+      message: translate("uninstallBody"),
       tone: "warning",
     });
   };
@@ -117,21 +117,21 @@ export default function DigitalGameContextMenu({
   const confirmUninstall = async () => {
     setUninstalling(true);
     // The dialog stays open and narrates the work, then shows the result.
-    setProgress({ phase: "working", label: removing ? "Quitando el juego de tu biblioteca…" : "Borrando carpeta…", detail: request.game.name });
+    setProgress({ phase: "working", label: translate(removing ? "uninstallRemoving" : "uninstallDeleting"), detail: request.game.name });
     try {
       if (removing) {
         await removeLibraryGame(request.game);
         notify(translate("toastLibraryRemoved", { name: request.game.name }), { tone: "success" });
-        setProgress({ phase: "done", label: "Listo: el juego ya no está en tu biblioteca.", detail: "Sus archivos locales también se borraron." });
+        setProgress({ phase: "done", label: translate("uninstallLibraryDone"), detail: translate("uninstallLibraryDoneDetail") });
       } else {
         const { folder } = await service.uninstall(request.game);
         notify(translate("toastGameUninstalled", { name: request.game.name }), { tone: "success" });
-        setProgress({ phase: "done", label: "Carpeta borrada. El juego se desinstaló.", detail: folder });
+        setProgress({ phase: "done", label: translate("uninstallFolderDone"), detail: folder });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setProgress(null);
-      setDialog({ title: removing ? label.removed : "No se pudo iniciar la desinstalación", message, tone: "error" });
+      setDialog({ title: removing ? label.removed : translate("uninstallFailed"), message, tone: "error" });
     } finally {
       setUninstalling(false);
     }
