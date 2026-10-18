@@ -12,7 +12,7 @@
 .plugin-indicator-item{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 12px;border:1px solid #ffffff25;border-radius:8px;background:#171c20;color:#cbd1d5;font:600 11px Manrope,sans-serif;min-width:0}
 .plugin-indicator-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plugin-indicator-item i{width:7px;height:7px;flex:none;border-radius:50%;background:#7e858a}
-.plugin-indicator-item[data-connected=true] i{background:#ff8a35}
+.plugin-indicator-item[data-connected=true] i{background:#3ddc84}
 .ga-console-toggle{position:fixed!important;left:140px;right:auto;bottom:13px}
 .catalog-bottom-actions>.catalog-refresh-button{position:absolute!important;right:210px;bottom:13px}
 .ga-big-screen-toggle{position:fixed!important;left:260px!important;bottom:13px!important}

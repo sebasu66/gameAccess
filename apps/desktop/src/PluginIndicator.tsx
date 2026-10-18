@@ -11,8 +11,8 @@ export function PluginIndicator() {
 
   return <div className="plugin-indicator-group" role="status" aria-live="polite">
     {plugins.slice(0, 3).map(p => <span key={p.id} className="plugin-indicator-item" data-connected={p.alive}
-      title={p.name + " · " + (p.alive ? (locale === "es" ? "Conectado" : "Connected") : (locale === "es" ? "Desconectado" : "Disconnected"))}>
-      <i aria-hidden="true" /><span>{p.name}</span>
+      title={`Download sources plugin (${p.name}) · ` +(p.alive ? (locale === "es" ? "Conectado" : "Connected") : (locale === "es" ? "Desconectado" : "Disconnected"))}>
+      <i aria-hidden="true" /><span>Download sources plugin</span>
     </span>)}
     {plugins.length > 3 && <span>+{plugins.length - 3}</span>}
   </div>;
