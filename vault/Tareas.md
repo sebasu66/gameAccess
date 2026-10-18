@@ -33,6 +33,11 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
 
 ## Descargas y servidor
+- [ ] **Decisión torrent directo vs Torbox → Viking por piezas** (Claude, pedido por Seba 2026-10-18). Hoy todo torrent iba a Torbox sin medir nada.
+  - [x] Plan de piezas: las 5 primeras de 100 MB; después ~1/10 del juego, mínimo 100 MB, tope 500 MB (primer 10 %) y 1 GB.
+  - [ ] El servidor retoma desde la pieza a la que llegó el cliente (trabajo perdido tras reinicio = 404); el cliente vuelve a pedir la que quedó a medias y las siguientes.
+  - [ ] El cliente mide el torrent con libtorrent (seeds, velocidad, tamaño). Directo si: BASE, < 5 GB, ≥ 20 seeds o ≥ 5 MB/s. Si es PLUS, ≥ 5 GB y lento: piezas por servidor. Cacheado en Torbox: piezas.
+  - [ ] Sacar el camino viejo en que el cliente usa Torbox con su propia clave (`pipeline.py`).
 - [x] **Espera de Torbox robusta y barata** (Claude, 2026-10-16): un solo tablero compartido (`torbox_status_board.py`) consulta la lista completa de Torbox cada ~8 s para todos los clientes; un fallo pasajero ya no tira el trabajo; una fuente se da por inválida solo si Torbox no avanza 15 min (la cola de Torbox no cuenta); el cliente reintenta solo los errores pasajeros y muestra % real, velocidad y tiempo restante. Falta probar en vivo con una descarga lenta.
 - [ ] Cablear el cliente al endpoint de Viking/Torbox y agregar tests; mostrar en la consola, al apretar Download, la petición, el link procesado y los errores.
 - [ ] Viking Files: cuenta VIP ya paga; pendiente respuesta del administrador por hotlinking (Seba).

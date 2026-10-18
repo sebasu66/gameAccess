@@ -1,4 +1,4 @@
-from app.viking_chunk_plan import DEFAULT_TIERS, MB, PlannedPiece, piece_size_at, plan_pieces
+from app.viking_chunk_plan import DEFAULT_TIERS, MB, MIN_PIECE, QUICK_PIECES, PlannedPiece, piece_size_at, plan_pieces
 
 GB = 1024 * MB
 
@@ -15,20 +15,27 @@ def test_pieces_cover_every_byte_once_and_never_cross_files():
     assert [p.index for p in pieces] == list(range(len(pieces)))
 
 
-def test_first_pieces_are_500_mb_and_then_they_grow_to_1_gb():
+def test_first_five_pieces_are_100_mb_and_then_they_grow_to_1_gb():
     pieces = plan_pieces([20 * GB])
     sizes = [p.size for p in pieces]
-    assert sizes[0] == 500 * MB
+    assert sizes[:QUICK_PIECES] == [100 * MB] * 5
+    assert sizes[QUICK_PIECES] == 500 * MB
     assert max(sizes) <= 1 * GB * 1.25
     assert sizes[-2] >= 1 * GB or sizes[-1] >= 1 * GB
-    # Sizes never shrink from one tier to the next (ignoring the folded tail of the file).
-    tier_sizes = [piece_size_at(sum(s for s in sizes[:i]), 20 * GB) for i in range(len(sizes))]
-    assert tier_sizes == sorted(tier_sizes)
+    # Sizes never shrink from one piece to the next (ignoring the folded tail of the file).
+    assert sizes[:-1] == sorted(sizes[:-1])
+
+
+def test_after_the_quick_pieces_a_piece_is_a_tenth_of_the_game_but_never_under_100_mb():
+    assert [p.size for p in plan_pieces([2 * GB])][QUICK_PIECES] == 2 * GB // 10
+    small = plan_pieces([405_850_134])  # Enter the Gungeon: one 400 MB file now streams in 4 pieces
+    assert [p.size for p in small][:3] == [MIN_PIECE] * 3 and len(small) == 4
+    assert min(p.size for p in plan_pieces([800 * MB])) >= MIN_PIECE // 4  # only a folded tail can be smaller
 
 
 def test_a_ten_gb_game_needs_far_fewer_uploads_than_flat_100_mb_pieces():
     pieces = plan_pieces([10 * GB])
-    assert len(pieces) < 15
+    assert len(pieces) <= 16  # 5 quick pieces of 100 MB, then 500 MB and 1 GB
     assert len(pieces) < (10 * GB) // (100 * MB) / 5
 
 
@@ -40,14 +47,15 @@ def test_small_files_are_one_piece_and_empty_files_are_skipped():
 
 
 def test_a_small_leftover_is_folded_into_the_last_piece():
-    pieces = plan_pieces([500 * MB + 10 * MB])
-    assert len(pieces) == 1 and pieces[0].size == 510 * MB
-    pieces = plan_pieces([500 * MB + 200 * MB])
-    assert [p.size for p in pieces] == [500 * MB, 200 * MB]
+    pieces = plan_pieces([100 * MB + 10 * MB])
+    assert len(pieces) == 1 and pieces[0].size == 110 * MB
+    pieces = plan_pieces([100 * MB + 40 * MB])
+    assert [p.size for p in pieces] == [100 * MB, 40 * MB]
 
 
 def test_tiers_follow_the_share_of_the_whole_download():
     total = 10 * GB
+    assert piece_size_at(0, total, index=0) == MIN_PIECE
     assert piece_size_at(0, total) == 500 * MB
     assert piece_size_at(int(total * 0.15), total) == 1 * GB
     assert piece_size_at(int(total * 0.90), total) == 1 * GB

@@ -96,7 +96,7 @@ def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
         assert all(p["ready"] and p["sha256"] for p in manifest["pieces"])
         sizes = [p["size"] for p in manifest["pieces"]]
         assert sum(sizes) == 3000 * MB
-        assert sizes[0] == 500 * MB
+        assert sizes[0] == 100 * MB  # the first pieces are small so the player starts soon
         assert svc.get_ready_piece(session, job_id, 0).viking_hash.startswith("hash-ga-")
         assert svc.get_ready_piece(session, job_id, 999) is None
     assert not list(tmp_path.glob("*.part"))
