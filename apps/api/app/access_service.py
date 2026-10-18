@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, Request
 from sqlmodel import Session
 from .models import AccessEvent
-from .admin_auth import admin_authenticated
+from .admin_auth import admin_authenticated, admin_password
 from .access_keys import AccessKey, valid_session
 from .access_overrides import CourtesySession, valid_courtesy_session
 _access_logger = logging.getLogger("gameaccess.access")
@@ -19,8 +19,8 @@ def now_utc() -> datetime:
 def _admin_activation_access(request: Request) -> None:
     if admin_authenticated(request):
         return
-    configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
-    if len(configured) < 32:
+    configured = admin_password()
+    if not configured:
         raise HTTPException(503, "Activation key issuance is not configured")
     supplied = request.headers.get("X-GameAccess-Admin-Token", "")
     if not secrets.compare_digest(supplied, configured):

@@ -12,6 +12,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 COOKIE = "gameaccess_admin_session"
 SESSION_SECONDS = 12 * 60 * 60
+MIN_ADMIN_PASSWORD_LENGTH = 8
+
+def admin_password():
+    """Clave de administración configurada, o "" si falta o es más corta que el mínimo (8 caracteres)."""
+    configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
+    return configured if len(configured) >= MIN_ADMIN_PASSWORD_LENGTH else ""
 
 def local_admin_request(request):
     hosts = {"127.0.0.1", "::1", "localhost"}
@@ -32,8 +38,8 @@ def session_cookie(secret):
 def admin_authenticated(request):
     if local_admin_request(request):
         return True
-    secret = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
-    if len(secret) < 32:
+    secret = admin_password()
+    if not secret:
         return False
     supplied = request.headers.get("X-GameAccess-Admin-Token", "")
     if supplied and secrets.compare_digest(supplied, secret):
@@ -49,7 +55,7 @@ def admin_authenticated(request):
 
 LOGIN_HTML = """<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Administración</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#06090d;color:#eef4f8;font:15px system-ui}main{width:min(400px,80vw);padding:32px;border:1px solid #26313c;border-radius:16px;background:#0c1118}h1{font-size:26px}p{color:#9cabbc;line-height:1.5}label{display:block;margin:24px 0 8px}input,button{box-sizing:border-box;width:100%;padding:12px;border:1px solid #34454b;border-radius:8px;font:inherit}input{background:#06090d;color:white}button{margin-top:18px;background:#65f0b2;color:#06150f;cursor:pointer}#error{color:#ffb5ab}</style>
-<main><h1>Administración</h1><p>Ingresá una vez para acceder a todo el panel.</p><form id="login"><label for="token">Token de administración</label><input id="token" type="password" autocomplete="current-password" required autofocus><button>Ingresar</button><p id="error" role="alert"></p></form></main>
+<main><h1>Administración</h1><p>Ingresá una vez para acceder a todo el panel.</p><form id="login"><label for="token">Clave de administración</label><input id="token" type="password" autocomplete="current-password" required autofocus><button>Ingresar</button><p id="error" role="alert"></p></form></main>
 <script>document.getElementById('login').onsubmit=async e=>{e.preventDefault();const input=document.getElementById('token');try{const response=await fetch('/admin-session/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:input.value})});const body=await response.json();input.value='';if(!response.ok)throw new Error(body.detail||'No se pudo iniciar sesión.');location.assign('/admin-console/')}catch(error){document.getElementById('error').textContent=error.message}};</script></html>"""
 
 def install_admin_auth(app):
@@ -77,15 +83,15 @@ def install_admin_auth(app):
 
     @app.post("/admin-session/login", include_in_schema=False)
     async def login(request: Request):
-        secret = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
-        if len(secret) < 32:
+        secret = admin_password()
+        if not secret:
             return JSONResponse({"detail": "El servidor no tiene configurado el acceso administrativo."}, status_code=503)
         try:
             supplied = (await request.json()).get("token", "")
         except (ValueError, AttributeError):
             supplied = ""
         if not isinstance(supplied, str) or not secrets.compare_digest(supplied, secret):
-            return JSONResponse({"detail": "Token de administración incorrecto."}, status_code=401)
+            return JSONResponse({"detail": "Clave de administración incorrecta."}, status_code=401)
         response = JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
         response.set_cookie(COOKIE, session_cookie(secret), max_age=SESSION_SECONDS, httponly=True, secure=request.url.scheme == "https", samesite="strict")
         return response

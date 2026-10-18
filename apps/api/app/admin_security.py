@@ -1,17 +1,16 @@
 """Admin security."""
 from __future__ import annotations
 import base64
-import os
 import secrets
 from fastapi import HTTPException, Request
-from .admin_auth import admin_authenticated
+from .admin_auth import admin_authenticated, admin_password
 
 def _admin_browser_access(request: Request) -> None:
     if admin_authenticated(request):
         return
-    configured = os.environ.get("GAMEACCESS_ADMIN_TOKEN", "")
+    configured = admin_password()
     challenge = {"WWW-Authenticate": 'Basic realm="GameAccess client errors"'}
-    if len(configured) < 32:
+    if not configured:
         raise HTTPException(503, "Client error viewer is not configured")
     authorization = request.headers.get("Authorization", "")
     if not authorization.startswith("Basic "):
