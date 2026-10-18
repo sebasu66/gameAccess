@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Iterable, Protocol
 from uuid import uuid4
 
 import httpx
@@ -233,6 +233,16 @@ def get_ready_pieces(session: Session, job_id: str, start: int, count: int) -> l
     ).all())
 
 
+def missing_for(session: Session, job: VikingChunkJob, have: set[int]) -> bool:
+    """Whether a player that already holds `have` still needs a piece this job has not put on ViKiNG.
+
+    A job can end "partial": it skipped the pieces the player who asked for it already had (a resumed download)."""
+    if job.status != "partial":
+        return False
+    pieces = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job.job_id)).all()
+    return any(p.status != "ready" and p.piece_index not in have for p in pieces)
+
+
 def recover_interrupted_chunk_jobs(engine: Engine) -> int:
     """After a restart nothing is working on this server's jobs the database calls active; fail them so they resume.
 
@@ -333,9 +343,12 @@ async def _transfer(
 async def run_chunk_job(
     engine: Engine, job_id: str, *,
     prepare: Callable[[], Awaitable[tuple[PieceSource, list[dict[str, Any]]]]],
-    sink: PieceSink, work_dir: Path, installation_id: str = "",
+    sink: PieceSink, work_dir: Path, installation_id: str = "", skip: Iterable[int] = (),
 ) -> None:
-    """Prepare the source, plan the pieces and move every missing one to ViKiNG."""
+    """Prepare the source, plan the pieces and move every missing one to ViKiNG.
+
+    `skip` are pieces the player who asked already holds (a download resumed after the server lost its job):
+    they are not uploaded, and the job ends "partial" so whoever needs them later gets them uploaded."""
     source: Any = None
 
     def note(step: str, message: str, status: str = "info") -> None:
@@ -353,15 +366,21 @@ async def run_chunk_job(
             raise ProviderFailure("torbox_no_files", 502, "TorBox no informó los archivos de esta fuente.")
         ready = _install_plan(engine, job_id, files, plan)
         _set_job(engine, job_id, status="running", error_code="")
-        pending = [p for p in plan if p.index not in ready]
-        logger.info("chunk_job_running job=%s pieces=%s pending=%s", job_id[:8], len(plan), len(pending))
-        note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas).")
+        held = set(skip) - ready
+        pending = [p for p in plan if p.index not in ready and p.index not in held]
+        logger.info("chunk_job_running job=%s pieces=%s pending=%s client_has=%s", job_id[:8], len(plan), len(pending), len(held))
+        has = f", el cliente ya tiene {len(held)}" if held else ""
+        note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas{has}).")
         await _transfer(
             engine, job_id, pending, source, sink, work_dir,
             lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id), note=note,
         )
-        _set_job(engine, job_id, status="ready", completed_at=_now())
-        note("ready", f"Listo: las {len(plan)} piezas están disponibles para el cliente.", "ok")
+        if held:
+            _set_job(engine, job_id, status="partial", completed_at=_now())
+            note("ready", f"Listo: subidas las {len(pending)} piezas que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
+        else:
+            _set_job(engine, job_id, status="ready", completed_at=_now())
+            note("ready", f"Listo: las {len(plan)} piezas están disponibles para el cliente.", "ok")
         logger.info("chunk_job_ready job=%s", job_id[:8])
     except asyncio.CancelledError:
         _fail_job(engine, job_id, "server_stopped")
@@ -465,6 +484,7 @@ def is_running(job_id: str) -> bool:
 def start_job(
     engine: Engine, job_id: str, *, source_url: str, source_kind: str, source_host: str, file_name: str,
     fingerprint: str, installation_id: str, provider: TorBoxVikingProvider | None = None, work_dir: Path | None = None,
+    skip: Iterable[int] = (),
 ) -> asyncio.Task:
     """Run the job in the background. Only a few jobs move data at once; the rest wait as "preparing"."""
     global _slots
@@ -498,7 +518,7 @@ def start_job(
                     )
                     return TorboxRangeSource(worker, api_client, item, files), files
 
-                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(), installation_id=installation_id)
+                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(), installation_id=installation_id, skip=skip)
 
     task = asyncio.create_task(runner())
     _running[job_id] = task

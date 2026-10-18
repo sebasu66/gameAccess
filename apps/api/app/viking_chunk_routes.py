@@ -27,6 +27,7 @@ from .viking_chunk_service import (
     get_ready_piece,
     get_ready_pieces,
     is_running,
+    missing_for,
     start_job,
 )
 
@@ -38,6 +39,8 @@ class ChunkJobRequest(BaseModel):
     source_url: str = Field(min_length=1, max_length=8192)
     item_name: str = Field(default="", max_length=300)
     file_name: str = Field(default="", max_length=300)
+    # Pieces the player already downloaded (a resumed download): they are not uploaded again for it.
+    have_pieces: list[int] = Field(default_factory=list, max_length=20000)
 
 
 async def _installation_for_plus_async(request: Request, session: Session) -> str:
@@ -86,14 +89,20 @@ async def start_chunk_download(
             local_session, fingerprint=identity.fingerprint, kind=identity.kind,
             item_name=_safe_text(req.item_name, 300), source_url=req.source_url.strip(),
         )
-    needs_worker = job.status == "failed" or (job.status in ("preparing", "running") and not is_running(job.job_id))
+    have = {i for i in req.have_pieces if i >= 0}
+    # failed, or "partial" without a piece this player lacks, or left unattended by a restart: run it again.
+    needs_worker = (
+        job.status == "failed"
+        or missing_for(local_session, job, have)
+        or (job.status in ("preparing", "running") and not is_running(job.job_id))
+    )
     name = job.item_name or "un juego"
     if not existed:
         log_event(local_engine, job.job_id, "request", f"El cliente pidió «{name}»: no estaba en el caché, se prepara desde cero.", installation_id=installation_id, item_name=job.item_name)
     elif needs_worker:
         why = f" (la vez anterior terminó con: {previous_error})" if previous_error else ""
         log_event(local_engine, job.job_id, "resume", f"El cliente pidió «{name}»: el trabajo estaba detenido y se reanuda{why}.", installation_id=installation_id, item_name=job.item_name)
-    elif job.status == "ready":
+    elif job.status in ("ready", "partial"):
         log_event(local_engine, job.job_id, "cache", f"El cliente pidió «{name}»: ya estaba en el caché de Viking, se le respondió con las piezas existentes.", status="ok", installation_id=installation_id, item_name=job.item_name)
     else:
         log_event(local_engine, job.job_id, "request", f"El cliente pidió «{name}»: ya se estaba preparando, se une al mismo trabajo.", installation_id=installation_id, item_name=job.item_name)
@@ -104,7 +113,7 @@ async def start_chunk_download(
         start_job(
             local_engine, job.job_id, source_url=job.source_url or req.source_url.strip(), source_kind=identity.kind,
             source_host=identity.host, file_name=_safe_text(req.file_name, 300), fingerprint=identity.fingerprint,
-            installation_id=installation_id,
+            installation_id=installation_id, skip=have,
         )
         logger.info("chunk_job_started job=%s client=%s kind=%s", job.job_id[:8], installation_id, identity.kind)
     local_session.refresh(job)

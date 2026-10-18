@@ -339,3 +339,77 @@ def test_torbox_hiccups_are_resumed_but_a_dead_source_is_not():
 def test_waiting_text_shows_speed_and_time_left_from_torbox():
     text = cd.describe_wait({"stage": "torbox", "progress": 37.2, "seeds": 4, "speed": 8_000_000, "eta": 720})
     assert "37%" in text and "4 fuentes" in text and "8.0 MB/s" in text and "12 min" in text
+
+
+class ForgetfulServer(FakeServer):
+    """Loses the job once (a restarted server) after the first piece was handed out."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.posts, self.fetched, self.forgot = [], [], False
+
+    def request(self, method, url, headers=None, timeout=None, json=None):
+        if method == "POST":
+            self.posts.append(json)
+        elif self.fetched and not self.forgot and "/links" not in url and "/link" not in url:
+            self.forgot = True
+            self.calls.append((method, url))
+            return Resp(404, {"detail": "No existe esa descarga."})
+        return super().request(method, url, headers=headers, timeout=timeout, json=json)
+
+    def get(self, url, **kw):
+        self.fetched.append(int(url.rsplit("/", 1)[1]))
+        return super().get(url, **kw)
+
+
+def test_a_server_that_lost_the_job_is_asked_again_with_the_pieces_already_on_disk(tmp_path):
+    data = bytes(range(256)) * 400
+    server = ForgetfulServer([("f.bin", data)], 25_600)
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("magnet:?xt=urn:btih:" + "b" * 40, "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert server.forgot and len(server.posts) == 2
+    assert server.posts[0]["have_pieces"] == [] and server.posts[1]["have_pieces"] == [0]
+    assert sorted(server.fetched) == [0, 1, 2, 3]  # no piece was downloaded twice
+
+
+def test_pieces_from_an_interrupted_run_are_kept_when_the_plan_is_the_same(tmp_path):
+    data = bytes(range(256)) * 400
+    source = "magnet:?xt=urn:btih:" + "c" * 40
+    server = ForgetfulServer([("f.bin", data)], 25_600)
+    server.forgot = True  # this one does not lose the job
+    downloader, _ = make(server, tmp_path)
+    plan = {i: (0, i * 25_600, 25_600) for i in range(4)}
+    (tmp_path / "f.bin").write_bytes(data[:51_200] + b"\0" * (len(data) - 51_200))
+    key = hashlib.sha1(source.encode()).hexdigest()
+    downloader._save_state(tmp_path / f".ga-state-{key[:12]}.json", source, "oldjob", {0, 1}, plan)
+    result = downloader.download(source, "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert server.posts[0]["have_pieces"] == [0, 1] and sorted(server.fetched) == [2, 3]
+
+
+def test_a_partial_job_is_resumed_for_the_pieces_this_player_lacks(tmp_path):
+    data = b"p" * 4000
+    server = FakeServer([("f.bin", data)], 1000)
+    posts = []
+    plain_manifest = server.manifest
+
+    def manifest():
+        m = plain_manifest()
+        if not posts[1:]:  # until the player asks again, piece 3 was skipped (another player had it)
+            m["status"] = "partial"
+            m["pieces"][3]["ready"], m["pieces"][3]["sha256"] = False, ""
+        return m
+
+    server.manifest = manifest
+    original = server.request
+
+    def request(method, url, headers=None, timeout=None, json=None):
+        if method == "POST":
+            posts.append(json)
+        return original(method, url, headers=headers, timeout=timeout, json=json)
+
+    server.request = request
+    downloader, _ = make(server, tmp_path)
+    assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
+    assert posts[1]["have_pieces"] == [0, 1, 2]

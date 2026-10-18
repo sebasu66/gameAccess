@@ -79,6 +79,35 @@ def test_a_ready_job_is_served_without_new_work(session, plus_user):
     assert post(session)["status"] == "ready" and len(plus_user) == 1
 
 
+def _add_pieces(session, job_id, ready):
+    for index in range(4):
+        session.add(VikingChunkPiece(job_id=job_id, piece_index=index, file_index=0, start_byte=index * 10, size_bytes=10,
+                                     status="ready" if index in ready else "pending", viking_hash="h" if index in ready else None,
+                                     updated_at=svc._now()))
+    session.commit()
+
+
+def test_a_resumed_download_tells_the_server_which_pieces_the_player_already_has(session, monkeypatch):
+    skips = []
+    monkeypatch.setattr(routes, "start_job", lambda engine, job_id, **kw: skips.append(set(kw["skip"])))
+    request = routes.ChunkJobRequest(source_url=MAGNET, item_name="Portal 2", have_pieces=[0, 1])
+    asyncio.run(routes.start_chunk_download(request, None, Response(), session, session))
+    assert skips == [{0, 1}]
+
+
+def test_a_partial_job_runs_again_only_for_a_player_that_lacks_a_skipped_piece(session, plus_user):
+    first = post(session)
+    job = svc.get_job(session, first["job_id"])
+    job.status = "partial"  # an earlier player already had pieces 0 and 1, so only 2 and 3 went to ViKiNG
+    session.add(job)
+    session.commit()
+    _add_pieces(session, job.job_id, ready={2, 3})
+    has_them = routes.ChunkJobRequest(source_url=MAGNET, item_name="Portal 2", have_pieces=[0, 1])
+    assert asyncio.run(routes.start_chunk_download(has_them, None, Response(), session, session))["status"] == "partial"
+    assert len(plus_user) == 1
+    assert post(session)["status"] == "preparing" and len(plus_user) == 2  # a new player needs 0 and 1
+
+
 def test_bad_links_are_rejected(session):
     with pytest.raises(HTTPException) as err:
         post(session, "magnet:?dn=sin-hash")

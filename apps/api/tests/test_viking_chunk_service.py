@@ -75,11 +75,26 @@ def files_for(*sizes: int) -> list[dict]:
     return [{"id": i, "name": f"f{i}.bin", "size": s} for i, s in enumerate(sizes)]
 
 
-def run(engine, job_id, source, sink, files, work_dir):
+def run(engine, job_id, source, sink, files, work_dir, skip=()):
     async def prepare():
         return source, files
 
-    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=sink, work_dir=work_dir))
+    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=sink, work_dir=work_dir, skip=skip))
+
+
+def test_pieces_the_player_already_has_are_not_uploaded_and_the_job_ends_partial(engine, tmp_path):
+    job_id = new_job(engine)
+    source, sink = FakeSource(), FakeSink()
+    run(engine, job_id, source, sink, files_for(400 * MB), tmp_path, skip={0, 1})
+    assert sorted(source.calls) == [2, 3]
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        assert job.status == "partial"
+        assert not svc.missing_for(session, job, {0, 1})
+        assert svc.missing_for(session, job, {0})  # a player without piece 1 makes the job run again
+    run(engine, job_id, FakeSource(), sink, files_for(400 * MB), tmp_path)  # that run uploads only what is missing
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"
 
 
 def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
