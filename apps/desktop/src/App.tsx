@@ -46,34 +46,11 @@ import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { PluginIndicator } from "./PluginIndicator";
+import { notify } from "./toasts";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
   Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
-
-function playToastBeep(): void {
-  try {
-    const AudioContextCtor = window.AudioContext
-      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextCtor) return;
-    const context = new AudioContextCtor();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const now = context.currentTime;
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(880, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.13);
-    oscillator.onended = () => { void context.close(); };
-  } catch {
-    // The visual notification is authoritative; audio is optional.
-  }
-}
 
 export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
@@ -108,7 +85,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  // Every message goes through the app-wide toast stack (see Toaster).
+  const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
@@ -289,13 +267,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     window.addEventListener("focus", refreshDigital);
     return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
   }, [digitalFolderKey]);
-
-  useEffect(() => {
-    if (!toast) return;
-    playToastBeep();
-    const timer = window.setTimeout(() => setToast(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
 
   const relevantCatalogGames = useMemo(() => {
     const activeAppIds = new Set([
@@ -644,7 +615,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
-      {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
   );
 }

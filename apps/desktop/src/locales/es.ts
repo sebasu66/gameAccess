@@ -472,4 +472,11 @@ export const es = {
   multiplayerGames: "Juegos que admiten multijugador",
   meterWorstFrame: "peor cuadro {{ms}} ms",
   meterNoMemory: "memoria n/d",
+  toastRegion: "Notificaciones",
+  toastDismiss: "Cerrar notificación",
+  toastDownloadStarted: "Descargando {{name}}",
+  toastDownloadCompleted: "{{name}} está listo para jugar",
+  toastDownloadFailed: "No se pudo descargar {{name}}",
+  toastDownloadInterrupted: "Se interrumpió la descarga de {{name}}",
+  toastDownloadCancelled: "Descarga de {{name}} cancelada",
 } as const;

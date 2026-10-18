@@ -474,4 +474,11 @@ export const en: Record<keyof typeof es, string> = {
   multiplayerGames: "Games that support multiplayer",
   meterWorstFrame: "worst frame {{ms}} ms",
   meterNoMemory: "memory n/a",
+  toastRegion: "Notifications",
+  toastDismiss: "Dismiss notification",
+  toastDownloadStarted: "Downloading {{name}}",
+  toastDownloadCompleted: "{{name}} is ready to play",
+  toastDownloadFailed: "Could not download {{name}}",
+  toastDownloadInterrupted: "The download of {{name}} was interrupted",
+  toastDownloadCancelled: "Download of {{name}} cancelled",
 };
