@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "revision": "220e804c306079d8",
-  "generated_at": "2026-10-15T13:22:35.234872+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-220e804c306079d8.sqlite.gz",
-  "sha256": "f30b85d385496ac74408599cd4d66ae96fdc40386f0bd29590a133bdcadc823a",
-  "catalog_count": 43201,
+  "revision": "0388b3e2ebc70737",
+  "generated_at": "2026-10-18T09:20:27.455604+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-0388b3e2ebc70737.sqlite.gz",
+  "sha256": "b62861a57f5f60e47f8402f7b25aca1020812fb5441fba66c75f20e79a83af0a",
+  "catalog_count": 44052,
   "detail_count": 677,
-  "compressed_bytes": 8280881,
-  "uncompressed_bytes": 67108864,
+  "compressed_bytes": 11707328,
+  "uncompressed_bytes": 77180928,
   "coverage": {
-    "released_since": "2025-10-15",
-    "through": "2026-10-15",
+    "released_since": "2025-10-18",
+    "through": "2026-10-18",
     "recent_complete": true,
-    "recent_count": 27681,
+    "recent_count": 28126,
     "popular_limit": 5000,
     "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
     "cooptimus": {
@@ -20,10 +20,22 @@
       "matched": 0,
       "state": "not-requested"
     },
-    "updated_at": "2026-10-15T13:22:34.217419+00:00",
-    "tagged_count": 37429,
-    "steam": "skipped",
-    "server_games_added": 1472,
-    "server_fields_filled": 10452
+    "artwork": {
+      "matched": 43979,
+      "capsule": 43966,
+      "hero": 41774,
+      "header": 43950,
+      "missing": 73,
+      "descriptors": 10194,
+      "adult_only": 2449,
+      "nudity": 3892,
+      "categories": 43904,
+      "requests": 882,
+      "cache_hits": 0
+    },
+    "server_games_added": 0,
+    "server_fields_filled": 0,
+    "updated_at": "2026-10-18T09:20:25.788304+00:00",
+    "tagged_count": 38286
   }
 }
