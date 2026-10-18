@@ -19,7 +19,7 @@ import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
-import { narrate, startNarrationSession } from "./narrationLog";
+import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
@@ -103,6 +103,7 @@ function CatalogShell() {
   </>;
 }
 
+startClientErrorReporting();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");
