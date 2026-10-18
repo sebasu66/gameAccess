@@ -1,4 +1,5 @@
 import { libraryMembership } from "../libraryMembership";
+import { translate } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
@@ -139,7 +140,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.jobs.set(id, { game, options: options ?? this.jobs.get(id)?.options });
     this.queue.push(id);
     void narrate(`Digital AppID ${id} · queued at position ${this.queue.length}; active=${this.running.size}, limit=${this.maxParallelDownloads}.`, { area: "DIGITAL_DOWNLOAD" });
-    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: "En cola" });
+    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
     await this.pump();
   }
 
@@ -154,7 +155,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.queue = [];
     for (const id of queued) {
       const snapshot = this.activeJobs.get(id);
-      if (snapshot) this.updateSnapshot({...snapshot,phase:"paused",statusText:"Acceso terminado · descarga pausada"});
+      if (snapshot) this.updateSnapshot({...snapshot,phase:"paused",statusText:translate("dlsPaused")});
     }
     await Promise.allSettled([...this.running].map(id => this.pause(id)));
     this.persist();
@@ -172,7 +173,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       try {
         await this.launch(job.game, job.options);
       } catch (error) {
-        this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: "No se pudo iniciar", error: String(error) });
+        this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: translate("dlsStartFailed"), error: String(error) });
       }
     }
   }
@@ -181,7 +182,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const phase = this.activeJobs.get(gameId)?.phase;
     if (phase === "queued") {
       this.queue = this.queue.filter(id => id !== gameId);
-      this.updateSnapshot({ ...this.activeJobs.get(gameId)!, phase: "paused", statusText: "En cola · pausada" });
+      this.updateSnapshot({ ...this.activeJobs.get(gameId)!, phase: "paused", statusText: translate("dlsQueuedPaused") });
       return;
     }
     if (phase !== "downloading" && phase !== "preparing") return;
@@ -195,7 +196,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       await this.control(gameId, "resume");
     } else {
       this.queue.push(gameId);
-      this.updateSnapshot({ ...this.activeJobs.get(gameId)!, phase: "queued", statusText: "En cola" });
+      this.updateSnapshot({ ...this.activeJobs.get(gameId)!, phase: "queued", statusText: translate("dlsQueued") });
       await this.pump();
     }
   }
@@ -265,7 +266,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       gameId,
       phase: "preparing",
       progress: 0,
-      statusText: "Iniciando gestor de descarga...",
+      statusText: translate("dlsStartingManager"),
       bytesDownloaded: 0,
       bytesTotal: 0,
     };
@@ -284,7 +285,7 @@ export class DigitalDownloadService implements IDownloadProvider {
         gameId,
         phase: "error",
         progress: 0,
-        statusText: "Sin fuentes de descarga disponibles",
+        statusText: translate("dlsNoSources"),
         error: errorMsg,
       });
       throw new Error(errorMsg);
@@ -294,7 +295,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const plus = this.tier() === "plus";
     if (!plus && /^https?:\/\//i.test(downloadSource) && !isTorrentSource(downloadSource)) {
       const errorMsg = `El modo gratuito descarga solo por torrent. '${name}' no tiene un torrent disponible; con Plus también se aceptan enlaces directos.`;
-      this.updateSnapshot({ gameId, phase: "error", progress: 0, statusText: "Requiere un torrent (modo gratuito)", error: errorMsg });
+      this.updateSnapshot({ gameId, phase: "error", progress: 0, statusText: translate("dlsNeedsTorrent"), error: errorMsg });
       throw new Error(errorMsg);
     }
 
@@ -304,7 +305,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     let effectiveDelivery = record?.sourceDelivery;
     let chunkSession: string | null = null;
     if (hasTauriRuntime() && plus && canAccelerate(downloadSource)) {
-      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: "Preparando la descarga", bytesDownloaded: 0, bytesTotal: 0 });
+      this.updateSnapshot({ gameId, phase: "preparing", progress: 0, statusText: translate("dlsPreparing"), bytesDownloaded: 0, bytesTotal: 0 });
       chunkSession = await buildChunkSession();
       if (chunkSession) {
         effectiveDelivery = "download";
@@ -340,7 +341,7 @@ export class DigitalDownloadService implements IDownloadProvider {
           gameId,
           phase: "error",
           progress: 0,
-          statusText: "Error al iniciar proceso de descarga",
+          statusText: translate("dlsStartProcessError"),
           error: String(err),
         });
         throw err;
@@ -396,7 +397,7 @@ export class DigitalDownloadService implements IDownloadProvider {
         if (failures >= MAX_STATUS_FAILURES) {
           const last = this.activeJobs.get(gameId);
           this.updateSnapshot({ ...(last ?? { gameId, progress: 0 }), gameId, phase: "interrupted",
-            statusText: "No se pudo leer el estado de la descarga", error: String(pollErr) });
+            statusText: translate("dlsStatusReadError"), error: String(pollErr) });
         }
       } finally {
         pending = false;
@@ -440,11 +441,11 @@ export class DigitalDownloadService implements IDownloadProvider {
     try {
       if (this.running.has(gameId)) {
         const appId = this.jobs.get(gameId)?.options?.record?.id ?? this.getRecord(gameId)?.id ?? gameId;
-        this.updateSnapshot({ ...previous, phase: "cancelling", statusText: "Cancelando…" });
+        this.updateSnapshot({ ...previous, phase: "cancelling", statusText: translate("dlsCancelling") });
         try {
           const result = await invoke<{ phase: string }>("cancel_digital_download", { appId });
           if (result.phase === "completed" || this.activeJobs.get(gameId)?.phase === "completed") {
-            this.updateSnapshot({ ...previous, phase: "completed", progress: 100, statusText: "Listo para jugar" });
+            this.updateSnapshot({ ...previous, phase: "completed", progress: 100, statusText: translate("dlsReady") });
             return;
           }
         } catch (error) {
@@ -455,7 +456,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       } else {
         this.queue = this.queue.filter(id => id !== gameId);
       }
-      this.updateSnapshot({ ...previous, phase: "cancelled", speedBps: 0, etaSeconds: undefined, statusText: "Descarga cancelada", error: null });
+      this.updateSnapshot({ ...previous, phase: "cancelled", speedBps: 0, etaSeconds: undefined, statusText: translate("dlsCancelled"), error: null });
     } finally {
       this.controls.delete(gameId);
     }
@@ -480,7 +481,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       throw new Error("Aborte la descarga antes de desinstalar el juego.");
     }
     const result = await digitalProcessManager.executeUninstall(game);
-    this.updateSnapshot({ gameId: id, phase: "cancelled", progress: 0, statusText: "Juego desinstalado" });
+    this.updateSnapshot({ gameId: id, phase: "cancelled", progress: 0, statusText: translate("dlsUninstalled") });
     return { folder: result?.folder };
   }
 
@@ -526,7 +527,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   recordFailure(game: CatalogGame, error: string): void {
     const id = game.app_id ?? game.id;
     if (!this.jobs.has(id)) this.jobs.set(id, { game });
-    this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: "No se pudo descargar el juego", error });
+    this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: translate("dlsDownloadFailed"), error });
   }
 
   private reportFailure(snapshot: DownloadProgressSnapshot): void {

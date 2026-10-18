@@ -1,4 +1,5 @@
 import { saveExecutionProfile, ensureExecutionProfile } from "./ExecutionProfiles";
+import { translate } from "../i18n";
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
 import { queryCatalogCache, readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
@@ -221,7 +222,7 @@ export class DigitalCatalog {
       steam: {
         app_id: game.app_id ?? game.id,
         name: game.name,
-        short_description: game.short_description ?? "Catálogo Digital.",
+        short_description: game.short_description ?? translate("catalogDigitalFallback"),
         background: game.hero_image ?? undefined,
         genres: game.genres,
         categories: game.categories,
