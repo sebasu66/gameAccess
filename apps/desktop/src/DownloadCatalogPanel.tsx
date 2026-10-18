@@ -170,7 +170,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [managerOpen, setManagerOpen] = useState(false);
   const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
-  const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games.length, props.catalogSort, props.games[0]?.id]);
+  // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
+  // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
+  const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games]);
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [viewport, setViewport] = useState(() => ({

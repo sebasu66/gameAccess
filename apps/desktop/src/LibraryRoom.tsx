@@ -555,10 +555,12 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   displayGamesRef.current = displayGames;
   const onSelectGame = useCallback((index: number, openDetails = true) => {
     const gameId = displayGamesRef.current[index]?.id ?? null;
+    // An index outside the list must not clear the selection: that sent the grid back to the first game.
+    if (gameId == null) return;
     setSelectedGameId(gameId);
     setDetailRequestedGameId(gameId);
     setFocusZone("grid");
-    if (openDetails && gameId != null) setDetailOpen(true);
+    if (openDetails) setDetailOpen(true);
   }, []);
 
   const dismissCompletion = async (play: boolean) => {
