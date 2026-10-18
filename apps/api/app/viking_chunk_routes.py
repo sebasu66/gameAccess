@@ -18,7 +18,7 @@ from .local_database import get_local_session, local_engine
 from .download_events import log_event
 from .telemetry import record_transfer, record_transfers
 from .viking_link_cache import link_cache, probe_direct_link
-from .viking_cache_service import ProviderFailure, create_provider, normalize_source_url
+from .viking_cache_service import ProviderFailure, create_provider, magnet_infohash, normalize_source_url
 from .viking_chunk_service import (
     build_manifest,
     create_job,
@@ -119,6 +119,37 @@ async def start_chunk_download(
     local_session.refresh(job)
     record_transfer(local_session, installation_id=installation_id, job_id=job.job_id, kind="start", item_name=job.item_name)
     return build_manifest(local_session, job)
+
+
+class ChunkPeekRequest(BaseModel):
+    source_url: str = Field(min_length=1, max_length=8192)
+
+
+@router.post("/downloads/viking-chunks/peek")
+async def peek_chunk_source(
+    req: ChunkPeekRequest, request: Request, response: Response, session: Session = Depends(get_session),
+    local_session: Session = Depends(get_local_session),
+) -> dict:
+    """Whether the server can serve this source at once, before the player measures the torrent itself.
+
+    "viking": its pieces are already on ViKiNG; "torbox": TorBox already holds the torrent. Nothing is started."""
+    response.headers["Cache-Control"] = "no-store"
+    await _installation_for_plus_async(request, session)
+    try:
+        identity = normalize_source_url(req.source_url)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    job = find_job_for_source(local_session, identity.fingerprint)
+    if job is not None and job.status in ("ready", "partial", "running"):
+        return {"ready": True, "where": "viking"}
+    info_hash = magnet_infohash(req.source_url)
+    if info_hash:
+        try:
+            if await create_provider().torbox_has_cached(info_hash):
+                return {"ready": True, "where": "torbox"}
+        except ProviderFailure:
+            pass  # unknown: the player decides by measuring the torrent
+    return {"ready": False, "where": ""}
 
 
 @router.get("/downloads/viking-chunks/{job_id}")

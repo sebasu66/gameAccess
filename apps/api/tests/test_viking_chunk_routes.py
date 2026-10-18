@@ -172,3 +172,27 @@ def test_start_and_piece_requests_are_recorded_per_client(session, monkeypatch):
     rows = session.exec(select(ChunkTransfer).order_by(ChunkTransfer.id)).all()
     assert [(r.installation_id, r.kind, r.size_bytes) for r in rows] == [("inst-1", "start", 0), ("inst-1", "piece", 4096)]
     assert rows[1].item_name == "Portal 2"
+
+
+def peek(session, url=MAGNET):
+    return asyncio.run(routes.peek_chunk_source(routes.ChunkPeekRequest(source_url=url), None, Response(), session, session))
+
+
+def test_peek_says_whether_the_server_can_serve_the_source_at_once(session, plus_user, monkeypatch):
+    cached: list[str] = []
+
+    class Provider:
+        async def torbox_has_cached(self, info_hash):
+            cached.append(info_hash)
+            return info_hash == "a" * 40
+
+    monkeypatch.setattr(routes, "create_provider", lambda: Provider())
+    assert peek(session) == {"ready": True, "where": "torbox"}
+    other = "magnet:?xt=urn:btih:" + "b" * 40
+    assert peek(session, other) == {"ready": False, "where": ""}
+    job = svc.get_job(session, post(session, other)["job_id"])
+    job.status = "ready"
+    session.add(job)
+    session.commit()
+    assert peek(session, other) == {"ready": True, "where": "viking"}
+    assert len(plus_user) == 1  # peeking never starts work

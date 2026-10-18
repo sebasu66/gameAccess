@@ -87,7 +87,6 @@ pub(crate) async fn start_digital_download(
     download_source: String,
     source_delivery: Option<String>,
     install_process: String,
-    torbox_key: Option<String>,
     chunk_session: Option<String>,
     keep_archive: Option<bool>,
     auto_installed: Option<bool>,
@@ -135,12 +134,6 @@ pub(crate) async fn start_digital_download(
 
         // Digital archives are extracted in place; catalog installation commands are ignored.
         let _ = install_process;
-
-        if let Some(ref key) = torbox_key {
-            if !key.trim().is_empty() {
-                cmd.arg("--torbox-key").arg(key.trim());
-            }
-        }
 
         // Credentials for the piece-by-piece download travel in the environment, not in the command line.
         if let Some(ref session) = chunk_session {

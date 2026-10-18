@@ -268,7 +268,6 @@ from game_download_manager.extractor import ARCHIVE_EXTENSIONS, find_portable_7z
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_http_file_response, validate_downloaded_file
 from game_download_manager.http_transport import HttpDownloadTransport
 from game_download_manager.torrent_transport import TorrentDownloadTransport
-from game_download_manager.debrid import TorboxClient
 from game_download_manager.context import DownloadContext
 
 
@@ -326,7 +325,6 @@ def main():
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
-    parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
     parser.add_argument("--connections", "-n", type=int, default=4, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")

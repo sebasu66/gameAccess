@@ -134,6 +134,20 @@ class ChunkedDownloader:
             return response.json()
         raise ChunkedDownloadError("el servidor no respondió")
 
+    def peek(self, source_url: str) -> str:
+        """Where the server already holds this source ("viking" or "torbox"), or "" (also when it cannot tell).
+
+        One quick call, no retries: when the server does not answer the player just measures the torrent."""
+        try:
+            response = self.http.request("POST", f"{self.session.api}/downloads/viking-chunks/peek", headers=self._headers(),
+                                         timeout=20, json={"source_url": source_url})
+            if response.status_code != 200:
+                return ""
+            body = response.json()
+            return str(body.get("where") or "") if body.get("ready") else ""
+        except (requests.RequestException, ValueError, AttributeError):
+            return ""
+
     def start(self, source_url: str, item_name: str, file_name: str = "", have: Any = ()) -> dict:
         """Start, join or resume the job; `have` are the pieces already on disk, which the server does not upload again."""
         return self._call("POST", "/downloads/viking-chunks", json={

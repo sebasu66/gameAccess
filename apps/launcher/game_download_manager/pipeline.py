@@ -8,7 +8,7 @@ from pathlib import Path
 import game_journal as journal
 from urllib.parse import urlparse, unquote
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
-from game_download_manager.debrid import TorboxClient
+from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
 
 class DownloadPipeline:
@@ -19,6 +19,57 @@ class DownloadPipeline:
         self.download_http = download_http
         self.download_torrent = download_torrent
         self.extract_archives = extract_archives
+
+    def server_or_torrent(self, args, download_source, is_torrent, dest_dir, app_id, game_name):
+        """PLUS: download through the server (TorBox -> ViKiNG pieces) or let the torrent run here.
+
+        Returns (path from the server, path from the torrent, cancelled). Both paths are None when the
+        caller should run the normal download (no session, or the server could not serve it)."""
+        context = self.context
+        chunk_path = torrent_path = None
+        chunk_session = ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION"))
+        # Only PLUS players get a session: they can ask the server, which streams the game back in pieces.
+        use_server = bool(chunk_session) and args.source_delivery != "browser" and (
+            is_torrent or download_source.lower().startswith(("http://", "https://")))
+        if use_server and is_torrent:
+            # A torrent the server already holds is streamed from it. Any other one is measured first:
+            # it stays with the player when it is small, well seeded or already fast.
+            where = self.chunked(chunk_session).peek(download_source)
+            if where:
+                context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
+            else:
+                probe = TorrentProbe()
+
+                def decide(*sample):
+                    verdict = probe.decide(*sample)
+                    if verdict == "keep":
+                        context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
+                    return verdict
+
+                context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
+                try:
+                    torrent_path = self.download_torrent(
+                        torrent_source=download_source, dest_dir=dest_dir, app_id=app_id, game_name=game_name, probe=decide)
+                    if not torrent_path or context.cancelled.is_set():
+                        return None, None, True
+                    return None, torrent_path, False
+                except SwitchToServer as why:
+                    context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
+        if use_server:
+            context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
+            try:
+                chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
+                if context.cancelled.is_set():
+                    return None, None, True
+                context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
+            except ChunkedDownloadUnavailable as unavailable:
+                context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
+            except ChunkedDownloadError as failure:
+                context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+        return chunk_path or None, None, False
+
+    def chunked(self, session):
+        return ChunkedDownloader(self.context, session)
 
     def run(self, args):
         context = self.context
@@ -112,96 +163,25 @@ class DownloadPipeline:
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)
                     context.emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
                     return
-                chunk_path = None
-                chunk_session = ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION"))
-                if chunk_session and args.source_delivery != "browser" and (is_torrent or download_source.lower().startswith(("http://", "https://"))):
-                    context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
-                    try:
-                        chunk_path = ChunkedDownloader(context, chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
-                        if context.cancelled.is_set():
-                            self.cleanup_on_cancel()
-                            return
-                        context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
-                    except ChunkedDownloadUnavailable as unavailable:
-                        context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
-                    except ChunkedDownloadError as failure:
-                        context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+                chunk_path, torrent_path, cancelled = self.server_or_torrent(args, download_source, is_torrent, dest_dir, app_id, game_name)
+                if cancelled:
+                    self.cleanup_on_cancel()
+                    return
                 if chunk_path:
                     target_content_path = chunk_path
+                elif torrent_path:
+                    target_content_path = torrent_path
                 elif is_torrent:
-                    torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
-                    use_torbox = False
-
-                    if torbox_key:
-                        context.logger.info("Tipo de descarga: Red P2P mediante servidor de alta velocidad (Torbox/Boxtop)")
-                        try:
-                            tb = TorboxClient(torbox_key)
-                            context.emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
-
-                            is_cached = tb.check_cached(download_source)
-                            if is_cached:
-                                context.emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
-
-                            # Submit package to high-speed cloud resolver
-                            torrent_id = tb.add_torrent(download_source)
-                            context.emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
-
-                            # Poll cloud status until completed/cached (up to 30 attempts)
-                            tb_attempts = 0
-                            while not context.cancelled.is_set() and tb_attempts < 30:
-                                tb_attempts += 1
-                                status = tb.get_status(torrent_id)
-                                if status:
-                                    is_finished = status.get("download_finished", False)
-                                    state = status.get("download_state", "unknown")
-                                    progress = status.get("progress", 0.0)
-                                    pct = progress if progress > 1.0 else progress * 100
-
-                                    context.emit_progress(
-                                        app_id=app_id,
-                                        phase="preparing",
-                                        progress_percent=min(pct * 0.25 + 22.0, 48.0),
-                                        status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
-                                    )
-
-                                    if is_finished or state in ("completed", "cached") or pct >= 100.0:
-                                        raw_files = status.get("files") or []
-                                        files = [f for f in raw_files if isinstance(f, dict)]
-                                        t_name = status.get("name", "game_package")
-
-                                        if len(files) == 1:
-                                            f_obj = files[0]
-                                            target_filename = f_obj.get("name") or t_name
-                                            file_id = f_obj.get("id")
-                                            download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
-                                        else:
-                                            target_filename = f"{t_name}.zip"
-                                            download_url = tb.request_link(torrent_id, zip_link=True)
-                                        use_torbox = True
-                                        break
-                                time.sleep(2)
-                        except Exception as tb_err:
-                            context.logger.warning(f"Error al conectar con servidor TorBox/Boxtop: {tb_err}")
-                            context.emit_progress(
-                                app_id=app_id,
-                                phase="preparing",
-                                progress_percent=15.0,
-                                status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
-                            )
-                            use_torbox = False
-
-                    # If TorBox is unavailable or has no key, fall back to direct torrent download
-                    if not use_torbox or not download_url:
-                        context.logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
-                        target_content_path = self.download_torrent(
-                            torrent_source=download_source,
-                            dest_dir=dest_dir,
-                            app_id=app_id,
-                            game_name=game_name
-                        )
-                        if not target_content_path or context.cancelled.is_set():
-                            self.cleanup_on_cancel()
-                            return
+                    context.logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
+                    target_content_path = self.download_torrent(
+                        torrent_source=download_source,
+                        dest_dir=dest_dir,
+                        app_id=app_id,
+                        game_name=game_name
+                    )
+                    if not target_content_path or context.cancelled.is_set():
+                        self.cleanup_on_cancel()
+                        return
                 else:
                     context.logger.info("Tipo de descarga: Descarga directa por HTTP/HTTPS")
                     download_url = download_source
@@ -209,7 +189,7 @@ class DownloadPipeline:
                     target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
 
 
-                # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
+                # 2. PHASE: SEGMENTED HTTP DOWNLOADING (direct HTTP links)
                 if download_url:
                     out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
                     context.temp_files.append(out_filepath)

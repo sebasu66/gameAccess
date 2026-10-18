@@ -299,8 +299,9 @@ export class DigitalDownloadService implements IDownloadProvider {
       throw new Error(errorMsg);
     }
 
-    // The launcher downloads the source piece by piece from the server (TorBox -> ViKiNG) and
-    // falls back to the normal download by itself when the server cannot serve it.
+    // With a session the launcher picks the route: a torrent that is small, well seeded or fast is downloaded
+    // directly; a big slow one (or one the server already holds) comes piece by piece from the server
+    // (TorBox -> ViKiNG). It falls back to the normal download by itself when the server cannot serve it.
     const effectiveSource = downloadSource;
     let effectiveDelivery = record?.sourceDelivery;
     let chunkSession: string | null = null;
@@ -328,7 +329,6 @@ export class DigitalDownloadService implements IDownloadProvider {
           sourceDelivery: effectiveDelivery,
           installProcess,
           autoInstalled: record?.auto_installed === true,
-          torboxKey: options?.torboxKey,
           chunkSession,
           keepArchive: options?.keepArchive,
         });

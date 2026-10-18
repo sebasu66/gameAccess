@@ -5,10 +5,13 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import libtorrent as lt
+import pytest
+from game_download_manager.route_decision import SwitchToServer
 from game_download_manager import worker as downloader
 
 
-def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
+def _local_magnet(tmp_path, monkeypatch):
+    """A fixture torrent seeded on localhost; returns (magnet, output dir, payload, stop the seed)."""
     seed_dir = tmp_path / "seed"
     output_dir = tmp_path / "download"
     seed_dir.mkdir()
@@ -54,8 +57,8 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
             return handle
         def pop_alerts(self):
             return self.session.pop_alerts()
-        def remove_torrent(self, handle):
-            self.session.remove_torrent(handle)
+        def remove_torrent(self, handle, *flags):
+            self.session.remove_torrent(handle, *flags)
 
     monkeypatch.setattr(lt, "session", LocalSession)
     monkeypatch.setattr(downloader, "g_cancelled", threading.Event())
@@ -63,6 +66,29 @@ def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
     monkeypatch.setattr(downloader, "g_temp_files", [])
     monkeypatch.setattr(downloader, "emit_progress", lambda *args, **kwargs: None)
     magnet = downloader.normalize_download_source(lt.make_magnet_uri(info))
+    return magnet, output_dir, payload, lambda: seed.remove_torrent(seed_handle)
+
+
+def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
+    magnet, output_dir, payload, stop = _local_magnet(tmp_path, monkeypatch)
     result = downloader.download_direct_torrent(magnet, str(output_dir), "987654322", "Local fixture")
     assert Path(result).read_bytes() == payload
-    seed.remove_torrent(seed_handle)
+    stop()
+
+
+def test_a_torrent_handed_to_the_server_stops_and_leaves_no_files(tmp_path, monkeypatch):
+    magnet, output_dir, _, stop = _local_magnet(tmp_path, monkeypatch)
+    samples = []
+
+    def probe(elapsed, total, seeds, done):
+        samples.append((total, seeds))
+        return "server"
+
+    with pytest.raises(SwitchToServer):
+        downloader.download_direct_torrent(magnet, str(output_dir), "987654323", "Local fixture", probe=probe)
+    stop()
+    assert samples and samples[0][0] > 0  # the probe saw the size once the metadata arrived
+    deadline = time.monotonic() + 10
+    while list(output_dir.rglob("*.bin")) and time.monotonic() < deadline:
+        time.sleep(0.1)  # libtorrent deletes files in the background
+    assert not list(output_dir.rglob("*.bin"))
