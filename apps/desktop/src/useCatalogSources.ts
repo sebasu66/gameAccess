@@ -1,6 +1,9 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { CatalogGame } from "./types";
-import { applySourceAvailability, checkPluginSources, invalidatePluginSources, SOURCES_CHANGED_EVENT } from "./catalog/PluginSources";
+import { applySourceAvailability, SOURCES_CHANGED_EVENT } from "./catalog/PluginSources";
+import { runPluginSourcesTask } from "./centralDialog/pluginTask";
+import { listen } from "@tauri-apps/api/event";
+import { hasTauriRuntime } from "./native";
 import { monitorPluginRuntime, PLUGINS_CHANGED_EVENT, pluginGeneration } from "./catalog/PluginRuntime";
 
 export function useCatalogSources(games: CatalogGame[], setGames: Dispatch<SetStateAction<CatalogGame[]>>) {
@@ -21,7 +24,7 @@ export function useCatalogSources(games: CatalogGame[], setGames: Dispatch<SetSt
       const gen = pluginGeneration();
       if (lastGenerationRef.current === gen) return;
       lastGenerationRef.current = gen;
-      void checkPluginSources();
+      void runPluginSourcesTask();
     };
 
     window.addEventListener(SOURCES_CHANGED_EVENT, changed);
@@ -30,10 +33,15 @@ export function useCatalogSources(games: CatalogGame[], setGames: Dispatch<SetSt
 
     const initialGen = pluginGeneration();
     lastGenerationRef.current = initialGen;
-    void checkPluginSources();
+    void runPluginSourcesTask();
+    // A plugin installed while the app is open is started by the app and synced at once (no restart needed).
+    const stopInstalled = hasTauriRuntime()
+      ? listen("gameaccess:plugin-installed", () => void runPluginSourcesTask({ waitForPlugin: true })).catch(() => () => undefined)
+      : Promise.resolve(() => undefined);
 
     return () => {
       stopped = true;
+      void stopInstalled.then(stop => stop());
       stopMonitoring();
       window.removeEventListener(SOURCES_CHANGED_EVENT, changed);
       window.removeEventListener(PLUGINS_CHANGED_EVENT, pluginChanged);

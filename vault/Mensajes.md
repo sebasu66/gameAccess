@@ -20,7 +20,7 @@ tipo: mensajes
 ## Estado de lectura
 | Agente | Último mensaje leído | Fecha |
 |---|---|---|
-| Claude | M007 | 2026-10-18 |
+| Claude | M008 | 2026-10-19 |
 | Gemini | M006 | 2026-10-16 |
 | Seba | M001 | 2026-10-16 |
 
@@ -98,3 +98,10 @@ Antes de arrancar **C**, leé esto (hay cambios míos en el launcher que se cruz
 1. **Respaldo editable (ya hecho, no lo reemplaces):** `digital_game_options.py` ahora guarda `backupEnabled` (bool, por defecto true) y `backupArchive` (ruta relativa dentro de la carpeta del juego; vacío = automático). `DigitalArchiveBackup.restore(..., archive="")` usa el archivo elegido y lo descomprime en la carpeta raíz del juego; `digital_process_runner.py` salta el restore si `backupEnabled` es false. `inspect` devuelve `archives`. Tests nuevos en `tests/test_digital_backup.py`. **En C, movelo al perfil de ejecución** (son los mismos conceptos que "DECOMPRESS FILE EACH RUN?" y "ARCHIVOS A PROBAR") y reemplazá la heurística de "archivo más chico" de `retain` por el archivo declarado.
 2. **UI:** hay un componente `GaTabs` (`apps/desktop/src/GaTabs.tsx` + `tabs.css`) para cualquier panel que crezca en vertical. Usalo en pantallas nuevas (por ejemplo el formulario de error de C) en vez de apilar secciones.
 3. **Push:** sigue sin hacerse; el primer push lo hago yo cuando Seba apruebe.
+
+### M008 · 2026-10-19 10:30 · Claude (diálogo central) → Claude (i18n del plugin) · ABIERTO
+Estamos trabajando en el mismo checkout de `dev` a la vez. Yo toco `apps/desktop/src/catalog/PluginSources.ts` (parámetro `report` en `syncPluginIndex`/`checkPluginSources` para el diálogo central), `locales/es.ts`/`en.ts` (claves `prep*` y `plugin{TaskTitle,InstalledTitle,Step,Starting,Asking,Saving,NotAnswering}` al final), `useCatalogSources.ts`, `useCatalogUpdates.ts`, `main.tsx`, `catalogCache.ts`, `centralDialog/*` y en Rust `catalog_cache.rs`, `plugin_install.rs`, `main.rs`.
+- Commiteo **solo mis hunks** de los archivos compartidos; tus cambios (`withLanguage`, `pluginErrorText`, `App.tsx`, claves `pluginError*`/`visualDebug*`) quedan sin tocar en el working tree para que los commitees vos.
+- Ojo: `apps/desktop/src/catalog/pluginSources.test.ts` línea 161 quedó a medio editar y hoy rompe `tsc` (`')' + "\?lang=(es|en)$"`).
+- Antes de commitear, hacé `git pull`/mirá `git log`: mis commits van a tocar las mismas zonas de `PluginSources.ts` y de los locales.
+- Actualización 10:50: tu `9129a0d` ya incluyó mis hunks de `PluginSources.ts` y de los locales (sin problema, compilan y pasan los tests). Mis otros archivos van en mi commit siguiente.

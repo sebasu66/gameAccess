@@ -14,6 +14,12 @@ export async function syncCatalogCache(manifestUrl: string): Promise<CatalogCach
   return invoke<CatalogCacheSyncResult>("catalog_cache_sync", { manifestUrl });
 }
 
+/** Installs (or updates from) the catalog database that ships with the app; reports gameaccess:catalog-progress. */
+export async function prepareCatalogCache(): Promise<{ installed: boolean; revision: string; catalog_count: number } | null> {
+  if (!native()) return null;
+  return invoke("catalog_prepare");
+}
+
 export async function readCatalogCache(language?: string): Promise<CatalogGame[]> {
   if (!native()) return [];
   return invoke<CatalogGame[]>("catalog_cache_read", { language });

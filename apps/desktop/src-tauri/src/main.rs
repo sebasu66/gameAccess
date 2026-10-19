@@ -45,6 +45,7 @@ fn main() {
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
+            plugin_install::attach(app.handle().clone());
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
@@ -70,6 +71,7 @@ fn main() {
             access_commands::activation_save_session,
             access_commands::activation_clear_session,
             catalog_cache::catalog_cache_sync,
+            catalog_cache::catalog_prepare,
             catalog_cache::catalog_cache_read,
             catalog_cache::catalog_cache_read_names,
             catalog_cache::catalog_cache_upsert_game,

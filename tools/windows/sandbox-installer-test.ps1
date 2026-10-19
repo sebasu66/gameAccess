@@ -58,7 +58,22 @@ if (Test-Path `$exe) {
     Remove-Item Env:GAMEACCESS_SELF_TEST_OUT
     Write-Host 'Opening the app like a player for $RunSeconds s...'
     `$app = Start-Process `$exe -PassThru
-    Start-Sleep -Seconds $RunSeconds
+    # Screenshots of the first seconds: the startup preparation dialog, the welcome, the library.
+    Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+    # Without this, a scaled display (125-150 %) is captured only in part.
+    Add-Type 'using System.Runtime.InteropServices; public class GaDpi { [DllImport("user32.dll")] public static extern bool SetProcessDPIAware(); }'
+    [void][GaDpi]::SetProcessDPIAware()
+    `$shotAt = @(3, 8, 15, 30, 60)
+    `$waited = 0
+    foreach (`$second in `$shotAt) {
+        if (`$second -ge $RunSeconds) { break }
+        Start-Sleep -Seconds (`$second - `$waited); `$waited = `$second
+        `$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        `$bitmap = New-Object System.Drawing.Bitmap `$bounds.Width, `$bounds.Height
+        [System.Drawing.Graphics]::FromImage(`$bitmap).CopyFromScreen(`$bounds.Location, [System.Drawing.Point]::Empty, `$bounds.Size)
+        `$bitmap.Save("`$out\screen-`$('{0:d2}' -f `$second)s.png"); `$bitmap.Dispose()
+    }
+    Start-Sleep -Seconds ([Math]::Max(0, $RunSeconds - `$waited))
     `$alive = -not `$app.HasExited
     Write-Host "App still running after $RunSeconds s: `$alive"
     Get-Process | Where-Object { `$_.Path -like "`$target*" } | ForEach-Object { Write-Host "  process: `$(`$_.Name) `$([int](`$_.WorkingSet64 / 1MB)) MB" }

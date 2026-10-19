@@ -13,9 +13,10 @@ async function appVersion(): Promise<string> {
  * Shows the announcements this player has not seen (the welcome on the first run, then news) once the app is
  * ready, and returns a function that shows all of them again (the "News" button).
  */
-export function useAnnouncements(): () => void {
+export function useAnnouncements(ready = true): () => void {
   const loaded = useRef<{ entries: AnnouncementEntry[]; version: string } | null>(null);
   useEffect(() => {
+    if (!ready) return;
     let alive = true;
     void Promise.all([loadAnnouncements(), appVersion()]).then(([entries, version]) => {
       loaded.current = { entries, version };
@@ -23,7 +24,7 @@ export function useAnnouncements(): () => void {
       centralDialog.showAnnouncements(unseenAnnouncements(entries, getAppLocale(), version), markAnnouncementsSeen);
     });
     return () => { alive = false; };
-  }, []);
+  }, [ready]);
   return useCallback(() => {
     const show = (entries: AnnouncementEntry[], version: string) =>
       centralDialog.showAnnouncements(presentAnnouncements(entries, getAppLocale(), version).reverse(), markAnnouncementsSeen);
