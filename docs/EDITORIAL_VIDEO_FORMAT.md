@@ -1,6 +1,6 @@
 # Protocolo editorial para videos de juegos
 
-Versión 2 · 2026-10-19  
+Versión 2 · 2026-10-19
 Idioma inicial: español latinoamericano. Cada idioma se produce como una versión independiente con guion, voz, subtítulos y tiempos propios. El video publicado y la ficha de Game Access deben compartir la misma pieza y el mismo expediente factual.
 
 ## Propósito y criterio editorial
