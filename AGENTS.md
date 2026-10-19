@@ -13,6 +13,10 @@ La carpeta `vault/` (se abre con Obsidian) es la fuente de verdad del proyecto. 
 
 Al cerrar una tarea: tildarla en `Tareas.md`, registrar el commit en `Log.md` y leer `Mensajes.md` antes de empezar la siguiente.
 
+## Diseño de la interfaz (obligatorio para cambios visuales)
+
+Antes de crear o cambiar pantallas, diálogos, paneles o botones de `apps/desktop`, leé `docs/GUI_DESIGN.md` (tokens, componentes y lista de comprobación) y usá la skill `.claude/skills/gameaccess-gui-design`. La ficha de juego es la referencia visual. Un solo botón de cierre (`ga-close`), acciones principales en naranja, botones de una fila con la misma altura, paneles de vidrio con borde degradado.
+
 ## Local and remote development workflow
 
 GameAccess uses `dev` for development and `main` for stable releases. Work on the existing `dev` branch; do not create a branch or worktree for each task. Do not delete historical branches or move work into `main` without an explicit request.
