@@ -15,8 +15,9 @@ from pathlib import Path
 from typing import Any
 
 from game_library_manager.storage import DigitalGameStorage
+from launcher_data import data_dir
 
-RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (Path(__file__).resolve().parent.parent / ".gameaccess"))
+RUNTIME_ROOT = Path(os.environ.get("GAMEACCESS_DATA_DIR") or (data_dir(Path(__file__).resolve().parent.parent) / ".gameaccess"))
 DOWNLOAD_ROOT = RUNTIME_ROOT / "downloads"
 STATUS_ROOT = DOWNLOAD_ROOT / "status"
 LOG_ROOT = DOWNLOAD_ROOT / "logs"

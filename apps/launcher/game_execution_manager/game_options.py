@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 from .archives import ARCHIVE_SUFFIXES, checked_archive
 from .launch import checked_executable, parse_arguments
 
@@ -19,7 +20,7 @@ class DigitalGameOptions:
         self.storage = storage
 
     def path(self, app_id):
-        return self.storage.launcher / ".cache" / "digital_launch" / f"{int(app_id)}.json"
+        return data_dir(self.storage.launcher) / ".cache" / "digital_launch" / f"{int(app_id)}.json"
 
     def load(self, app_id):
         path = self.path(app_id)

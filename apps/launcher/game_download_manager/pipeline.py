@@ -6,6 +6,7 @@ import shutil
 import threading
 from pathlib import Path
 import game_journal as journal
+from launcher_data import data_dir
 from urllib.parse import urlparse, unquote
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
@@ -107,12 +108,12 @@ class DownloadPipeline:
                 context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
         set_status("preparing")
 
-        control_file = context.launcher_dir / ".cache" / "digital_downloads" / f"{app_id}.control.json"
+        control_file = data_dir(context.launcher_dir) / ".cache" / "digital_downloads" / f"{app_id}.control.json"
         threading.Thread(target=self.watch_controls, daemon=True).start()
 
         # Clean any stale status file from previous runs
         try:
-            old_status = context.launcher_dir / ".cache" / "digital_downloads" / f"{app_id}.json"
+            old_status = data_dir(context.launcher_dir) / ".cache" / "digital_downloads" / f"{app_id}.json"
             if old_status.is_file():
                 old_status.unlink()
         except Exception:

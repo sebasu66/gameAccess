@@ -33,9 +33,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from game_download_manager.queue_manager import DownloadQueue, Job, QueueError
+from launcher_data import data_dir
 
 LAUNCHER_DIR = Path(__file__).resolve().parent.parent
-STATUS_DIR = LAUNCHER_DIR / ".cache" / "digital_downloads"
+STATUS_DIR = data_dir(LAUNCHER_DIR) / ".cache" / "digital_downloads"
 CREATE_NO_WINDOW = 0x08000000
 
 

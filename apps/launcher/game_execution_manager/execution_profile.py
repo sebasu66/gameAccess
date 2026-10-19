@@ -6,10 +6,11 @@ import re
 import subprocess
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 LOG = logging.getLogger("DigitalExecution")
 
 def profile_path(launcher, app_id):
-    return Path(launcher) / ".cache" / "execution_profiles" / f"{int(app_id)}.json"
+    return data_dir(launcher) / ".cache" / "execution_profiles" / f"{int(app_id)}.json"
 
 def validate_profile(value):
     if not isinstance(value, dict):

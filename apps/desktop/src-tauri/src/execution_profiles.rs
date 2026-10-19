@@ -2,13 +2,13 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use crate::launcher_runtime::find_launcher_dir;
+use crate::launcher_runtime::{find_launcher_dir, launcher_data_dir};
 use crate::activity_log::NARRATION_LOG_LOCK;
 
 pub(crate) fn execution_profile_path(app_id: u32) -> Result<PathBuf, String> {
     if app_id == 0 { return Err("Invalid game identity".into()); }
     let launcher = find_launcher_dir().ok_or("Could not locate launcher")?;
-    let dir = launcher.join(".cache").join("execution_profiles");
+    let dir = launcher_data_dir(&launcher).join(".cache").join("execution_profiles");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join(format!("{app_id}.json")))
 }

@@ -31,11 +31,12 @@ import requests
 
 import logging
 from flow_diagnostics import FlowDiagnostics, FlowLogger
+from launcher_data import data_dir
 from logging.handlers import RotatingFileHandler
 
 LAUNCHER_DIR = Path(__file__).resolve().parent.parent
 
-log_dir = LAUNCHER_DIR / "logs"
+log_dir = data_dir(LAUNCHER_DIR) / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
 import app_log
 logger = app_log.configure("digital_downloader", "downloads.log", log_dir)
@@ -67,7 +68,7 @@ _STARTED_AT = time.time()
 
 
 def watch_controls():
-    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
+    control_file = data_dir(LAUNCHER_DIR) / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
     last_request = None
     last_heartbeat = time.monotonic()
     while not g_cancelled.wait(0.1):
@@ -141,7 +142,7 @@ def _write_status(payload: dict):
     try:
         app_id = payload.get("appId") or g_app_id
         if app_id:
-            status_dir = LAUNCHER_DIR / ".cache" / "digital_downloads"
+            status_dir = data_dir(LAUNCHER_DIR) / ".cache" / "digital_downloads"
             status_dir.mkdir(parents=True, exist_ok=True)
             status_file = status_dir / f"{app_id}.json"
             temp_file = status_dir / f"{app_id}.json.tmp"

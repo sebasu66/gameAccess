@@ -27,6 +27,7 @@ mod download_queue;
 use std::{env, sync::Mutex};
 
 fn main() {
+    launcher_runtime::configure_launcher_data();
     app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
     let visual_debug_dir = visual_debug::visual_debug_session_dir();

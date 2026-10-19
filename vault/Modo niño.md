@@ -27,7 +27,7 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 - **La cuenta del adulto debe tener contraseña**; si no, el niño cambia de usuario desde la pantalla de inicio.
 
 ## Instalación y datos para varios usuarios
-Hoy Game Access se instala **por usuario**: `bundle.windows.nsis` en `apps/desktop/src-tauri/tauri.conf.json` no define `installMode` (Tauri usa `currentUser`) y todos los datos van a `%LOCALAPPDATA%` / `%APPDATA%`.
+Desde 2026-10-19 (MN.1) Game Access se instala **para toda la PC** en `Program Files\gameAccess`; el estado del launcher va a `%LOCALAPPDATA%\gameAccess\launcher` y las carpetas de juegos y descargas elegidas en el instalador a `HKLM\Software\gameAccess`. Lo que sigue describe el resto del diseño.
 
 Cambio previsto:
 - **Instalación para toda la PC** (`"installMode": "perMachine"`, en `Program Files`): el niño no puede modificar ni reemplazar el ejecutable que hace de escritorio. Instalar y actualizar piden administrador; las actualizaciones las hace el adulto.

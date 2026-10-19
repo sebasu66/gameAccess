@@ -135,3 +135,21 @@ def test_linking_the_same_folder_twice_is_not_an_error(disk, library):
     assert again["ok"] and again.get("already")
     other = lib.import_games([{**item, "path": str(disk / "Games" / "Alpha")}])[0]
     assert not other["ok"] and "otra carpeta" in other["error"]
+
+
+def test_scan_reads_the_appid_left_by_emulators_and_fixes(tmp_path, monkeypatch):
+    monkeypatch.setattr(scanner_module, "MIN_GAME_BYTES", 500)
+    disk = tmp_path / "disk"
+    fix = _game(disk / "Games" / "Fixed", "fixed.exe") / "Fixed" / "Binaries" / "Win64"   # Unreal: four levels down
+    fix.mkdir(parents=True)
+    (fix / "OnlineFix.ini").write_text("[Main]\nRealAppId=2569760\nFakeAppId=480\n")
+    (_game(disk / "Games" / "Codex", "codex.exe") / "steam_emu.ini").write_text("[Settings]\n;AppId=1\nAppId=12345\n", encoding="utf-16")
+    (_game(disk / "Games" / "Cold", "cold.exe") / "ColdClientLoader.ini").write_text("[SteamClient]\n# AppId=9\nAppId=278080\n")
+    (_game(disk / "Games" / "Goldberg", "gold.exe") / "steam_appid.txt").write_text("1664220\n")
+    (_game(disk / "Games" / "Spacewar", "space.exe") / "steam_appid.txt").write_text("480")    # the placeholder AppID
+    found = {g["name"]: (g["app_id"], g["app_id_file"]) for g in GameScanner().scan([str(disk)])}
+    assert found["Fixed"] == (2569760, "OnlineFix.ini")
+    assert found["Codex"] == (12345, "steam_emu.ini")
+    assert found["Cold"] == (278080, "ColdClientLoader.ini")
+    assert found["Goldberg"] == (1664220, "steam_appid.txt")
+    assert found["Spacewar"] == (None, "")

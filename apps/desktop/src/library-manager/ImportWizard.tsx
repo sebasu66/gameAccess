@@ -132,7 +132,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
                             <option value="">{c.wzNoMatch}</option>
                             {row.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
                           </select>
-                        ) : <span className="text-xs text-muted-foreground">{catalogName.get(candidate.app_id) ?? `AppID ${candidate.app_id}`}</span>}
+                        ) : <span className="text-xs text-muted-foreground">{catalogName.get(candidate.app_id) ?? `AppID ${candidate.app_id}`}{candidate.app_id_file ? ` · ${c.wzDetected(candidate.app_id_file)}` : ""}</span>}
                       </div>
                       <div className="grid justify-items-end gap-1">
                         <b className="text-sm tabular-nums">{formatBytes(candidate.size_bytes)}</b>

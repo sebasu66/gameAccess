@@ -10,7 +10,7 @@ use gameaccess_desktop::native_core::{MachineProfile, RuntimePrerequisites, Stea
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-use crate::launcher_runtime::find_launcher_dir;
+use crate::launcher_runtime::{find_launcher_dir, launcher_data_dir};
 
 #[tauri::command]
 pub(crate) async fn steam_installed() -> Result<bool, String> {
@@ -178,7 +178,7 @@ pub(crate) async fn steam_store_metadata(app_id: u32, language: Option<String>, 
 #[tauri::command]
 pub(crate) async fn steam_metadata_worker_start(app_ids: Vec<u32>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let roots = find_launcher_dir().map(|path| vec![path.join("games")]).unwrap_or_default();
+        let roots = find_launcher_dir().map(|path| configured_game_roots(&path)).unwrap_or_default();
         steam_metadata_worker::start(app_ids, roots);
     }).await.map_err(|err| err.to_string())
 }
@@ -191,4 +191,14 @@ pub(crate) async fn steam_metadata_worker_poll() -> Result<serde_json::Value, St
 #[tauri::command]
 pub(crate) async fn steam_metadata_catalog_cache(app_ids: Vec<u32>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || native_core::steam_metadata_catalog_cache(&app_ids)).await.map_err(|err| err.to_string())
+}
+
+/// The games folders saved in the launcher settings, plus the built-in one of a development checkout.
+fn configured_game_roots(launcher: &std::path::Path) -> Vec<PathBuf> {
+    let settings = fs::read(launcher_data_dir(launcher).join(".cache").join("digital-settings.json")).ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok()).unwrap_or_default();
+    let mut roots = vec![launcher.join("games")];
+    roots.extend(settings["games_root"].as_str().map(PathBuf::from));
+    roots.extend(settings["previous_roots"].as_array().into_iter().flatten().filter_map(|root| root.as_str()).map(PathBuf::from));
+    roots
 }

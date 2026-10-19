@@ -18,6 +18,15 @@ PROGRAM_FILES = {"program files", "program files (x86)"}
 IGNORED_EXE = re.compile(r"^(unins|setup|install|vcredist|vc_redist|dxsetup|dotnet|crashreport|crashhandler|unitycrash|ue4prereq|oalinst|redist|launcher_updater)|crash|helper|updater|uninstall", re.I)
 TECH_DIRS = {"bin", "bin32", "bin64", "binaries", "win32", "win64", "x86", "x64", "game", "release", "shipping", "windows", "retail", "system", "engine"}
 IGNORED_DIRS = {"_commonredist", "redist", "__macosx", "$recycle.bin", "system volume information", "windows"}
+# Files that Steam emulators and fixes leave in the game folder, with the game's real AppID. Earlier ones win:
+# OnlineFix.ini also carries FakeAppId (usually 480, Spacewar), so only RealAppId counts.
+APP_ID_FILES = {"onlinefix.ini": re.compile(r"^\s*RealAppId\s*=\s*(\d+)", re.I | re.M),
+                "steam_emu.ini": re.compile(r"^\s*AppId\s*=\s*(\d+)", re.I | re.M),
+                "coldclientloader.ini": re.compile(r"^\s*AppId\s*=\s*(\d+)", re.I | re.M),
+                "steam_appid.txt": re.compile(r"^\s*(\d+)\s*$", re.M)}
+FAKE_APP_IDS = {0, 480}
+MAX_APP_ID_FILE_BYTES = 64 * 1024
+APP_ID_FILE_DEPTH = 5        # Unreal games keep them in <Game>\<Project>\Binaries\Win64
 
 
 def _plain(text: str) -> str:
@@ -43,6 +52,19 @@ def _is_file(path: Path) -> bool:
 def is_steam_path(path) -> bool:
     """Inside a Steam library ('.../steamapps/...'): Steam owns that structure, so it must never be moved or renamed."""
     return any(part.lower() == "steamapps" for part in Path(path).parts)
+
+
+def _declared_app_id(path: str, name: str) -> int | None:
+    """The AppID written in an emulator/fix file (`AppId=`, `RealAppId=`, or the bare number of steam_appid.txt)."""
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read(MAX_APP_ID_FILE_BYTES)
+    except OSError:
+        return None
+    text = raw.decode("utf-16", errors="replace") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", errors="replace")
+    match = APP_ID_FILES[name].search(text)
+    app_id = int(match.group(1)) if match else 0
+    return None if app_id in FAKE_APP_IDS else app_id
 
 
 def _acf(text: str, key: str) -> str:
@@ -171,7 +193,7 @@ class GameScanner:
             folder = steamapps / "common" / installdir
             if not (app_id.isdigit() and installdir and _is_dir(folder)):
                 continue
-            size, _, _ = self._measure(folder)
+            size, _, _, _ = self._measure(folder)
             games.append({"id": self._key(folder), "name": name or installdir, "path": str(folder), "kind": "steam", "source": "steam",
                           "app_id": int(app_id), "size_bytes": size, "executable": "", "can_move": False})
         return games
@@ -182,11 +204,11 @@ class GameScanner:
             return []
         if is_steam_path(folder):
             return []                       # Steam libraries are read through their manifests
-        size, top, deeper = self._measure(folder)
+        size, top, deeper, declared = self._measure(folder)
         if size < MIN_GAME_BYTES:
             return []
         if top:                              # an exe right in the folder: this is the game
-            return [self._candidate(folder, source, size, top)]
+            return [self._candidate(folder, source, size, top, declared)]
         children = []
         if depth < 2:                        # otherwise it may be a folder of games (Repacks\Game)
             for sub in self._subdirs(folder):
@@ -194,16 +216,19 @@ class GameScanner:
                     children += self._collect(sub, source, depth + 1)
         if children:
             return children
-        return [self._candidate(folder, source, size, deeper)] if deeper else []
+        return [self._candidate(folder, source, size, deeper, declared)] if deeper else []
 
     @staticmethod
-    def _candidate(folder: Path, source: str, size: int, executable: str) -> dict:
+    def _candidate(folder: Path, source: str, size: int, executable: str, declared: tuple[int, str] | None = None) -> dict:
+        app_id, app_id_file = declared or (None, "")
         return {"id": GameScanner._key(folder), "name": folder.name, "path": str(folder), "kind": "folder", "source": source,
-                "app_id": None, "size_bytes": size, "executable": executable, "can_move": True}
+                "app_id": app_id, "app_id_file": app_id_file, "size_bytes": size, "executable": executable, "can_move": True}
 
-    def _measure(self, folder: Path) -> tuple[int, str, str]:
-        """(bytes, biggest game .exe directly in the folder, biggest one within three levels) without crawling forever."""
+    def _measure(self, folder: Path) -> tuple[int, str, str, tuple[int, str] | None]:
+        """(bytes, biggest game .exe directly in the folder, biggest one within three levels, (AppID, file) declared by an
+        emulator/fix file within five levels) without crawling forever."""
         total, files, best, best_size, top, top_size = 0, 0, "", 0, "", 0
+        declared: dict[str, tuple[int, str]] = {}   # lower-case file name -> (AppID, file name as written)
         stack = [(str(folder), 0)]
         while stack and files < MAX_FILES:
             current, depth = stack.pop()
@@ -222,14 +247,20 @@ class GameScanner:
                             continue
                         files += 1
                         total += size
-                        if depth <= 3 and entry.name.lower().endswith(".exe") and not IGNORED_EXE.search(entry.name):
+                        lowered = entry.name.lower()
+                        if depth <= APP_ID_FILE_DEPTH and lowered in APP_ID_FILES and lowered not in declared:
+                            app_id = _declared_app_id(entry.path, lowered)
+                            if app_id:
+                                declared[lowered] = (app_id, entry.name)
+                        if depth <= 3 and lowered.endswith(".exe") and not IGNORED_EXE.search(entry.name):
                             if size > best_size:
                                 best, best_size = entry.path, size
                             if depth == 0 and size > top_size:
                                 top, top_size = entry.path, size
             except OSError:
                 continue
-        return total, top, best
+        file = next((name for name in APP_ID_FILES if name in declared), "")
+        return total, top, best, declared.get(file)
 
     @staticmethod
     def _key(folder: Path) -> str:

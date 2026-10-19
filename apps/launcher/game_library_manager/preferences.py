@@ -3,16 +3,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir, default_games_root, default_temporary_root, installed
+
 
 class DigitalPreferences:
     def __init__(self, launcher):
         self.launcher = Path(launcher).resolve()
-        self.path = self.launcher / ".cache" / "digital-settings.json"
+        self.path = data_dir(self.launcher) / ".cache" / "digital-settings.json"
+
+    def defaults(self):
+        """An installed app uses the installer's folders (or `C:/juegos_GameAccess` and `Downloads/GameAccessDownloads`);
+        a development checkout keeps its built-in folders inside the launcher."""
+        if installed():
+            return {"games_root": str(default_games_root()), "temporary_root": str(default_temporary_root())}
+        return {"games_root": str(self.launcher / "games"), "temporary_root": str(self.launcher / ".cache" / "digital_transfers")}
 
     def load(self):
         data = json.loads(self.path.read_text(encoding="utf-8")) if self.path.is_file() else {}
-        return {"games_root": str(self.launcher / "games"),
-                "temporary_root": str(self.launcher / ".cache" / "digital_transfers"),
+        return {**self.defaults(),
                 "previous_roots": [],
                 # Delete the downloaded archives/installers once the game is unpacked (the declared fix archive is always kept).
                 "delete_download_sources": True, **data}

@@ -45,7 +45,10 @@
           "English",
           "Spanish"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installMode": "perMachine",
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/hooks.nsh"
       }
     },
     "resources": {

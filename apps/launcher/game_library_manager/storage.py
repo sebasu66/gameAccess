@@ -6,6 +6,7 @@ import shutil
 import time
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 from .preferences import DigitalPreferences
 from .linked import LinkedGames
 
@@ -35,11 +36,12 @@ def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
 class DigitalGameStorage:
     def __init__(self, launcher: Path = LAUNCHER):
         self.launcher = Path(launcher).resolve()
+        self.data = data_dir(self.launcher)
         self.preferences = DigitalPreferences(self.launcher)
         settings = self.preferences.load()
         self.root = Path(settings["games_root"]).resolve()
         self.roots = list(dict.fromkeys([self.root, *(Path(root).resolve() for root in settings["previous_roots"])]))
-        self.registry = self.launcher / ".cache" / "digital_games"
+        self.registry = self.data / ".cache" / "digital_games"
         self.linked = LinkedGames(self.launcher)
 
     @staticmethod
@@ -175,7 +177,7 @@ class DigitalGameStorage:
                         continue
                     if now - folder.stat().st_mtime < min_age_seconds:
                         continue
-                    live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+                    live = self.data / ".cache" / "digital_downloads" / f"{app_id}.json"
                     if live.is_file() and now - live.stat().st_mtime < 120:
                         continue
                     folder.rmdir()
@@ -210,7 +212,7 @@ class DigitalGameStorage:
             app_id, title, _ = split_folder_name(folder.name)
             if app_id is None or not folder.is_dir() or folder.is_symlink():
                 continue
-            live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+            live = self.data / ".cache" / "digital_downloads" / f"{app_id}.json"
             # Pieces downloaded from our server keep a state file: they continue exactly where they stopped.
             kind = "pieces" if any(folder.glob(".ga-state-*.json")) else "other"
             found.append({"app_id": app_id, "name": title, "folder": str(folder), "kind": kind,
@@ -230,8 +232,8 @@ class DigitalGameStorage:
             if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
                 raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
             shutil.rmtree(folder)
-        for leftover in ((self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
-                         (self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
+        for leftover in ((self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
+                         (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
             leftover.unlink(missing_ok=True)
 
     def snapshot(self, games: list[dict]) -> dict:
@@ -292,7 +294,7 @@ class DigitalGameStorage:
                 shutil.rmtree(target)
         (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)
         # Avoid rediscovering an obsolete completed transfer after deletion.
-        (self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.json").unlink(missing_ok=True)
+        (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json").unlink(missing_ok=True)
         return folder
 
     def local_games(self):
