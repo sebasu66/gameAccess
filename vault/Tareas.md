@@ -34,7 +34,7 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).
 - [ ] Registro de tiempo de juego (solo grabar, sin límites todavía).
-- [ ] Detalle del juego enriquecido: videos de gameplay/walkthroughs y notas de prensa.
+- [ ] Detalle del juego enriquecido: videos editoriales por Steam AppID/idioma, gameplay/walkthroughs y notas de prensa. El protocolo editorial v2 está documentado en `docs/EDITORIAL_VIDEO_FORMAT.md`; sigue pendiente diseñar e implementar el registro del video publicado y su reproducción en la ficha.
 - [ ] Congelado de juegos (freezer): comprimir un juego de forma fácil de descomprimir.
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
 
