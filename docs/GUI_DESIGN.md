@@ -36,7 +36,7 @@ Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cál
 - Padding de diálogo y panel: 28 px. Padding de panel compacto (dentro de un diálogo): 16 px.
 - Gap entre botones de una fila: 10 px. Entre secciones: 24 px.
 - Radios: **botones y campos 8 px**, paneles y diálogos 12 px, chips 16 px (pastilla).
-- Ningún radio de 5 px ni de 50 % salvo el botón de cierre, que es circular.
+- Ningún radio de 50 % salvo el botón de cierre, que es circular. Radio de 5 px solo en los botones solo-icono de la fila de la ficha y en `ga-back`.
 
 ## 4. Componentes
 
@@ -88,15 +88,32 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.10 Insignia de estado
 - Pastilla de 20 px, texto 11 px, color según estado: naranja (en curso), verde (listo), rojo (error), gris (sin estado).
 
+### 4.11 Botón volver `ga-back` (pantallas completas)
+- Pantallas completas (gestor de descargas, gestor de biblioteca): no tienen botón cerrar; tienen **botón volver** arriba a la derecha, en el lugar del cerrar.
+- Flecha y texto ("Volver" / "Back"). Rojo con el mismo fondo, borde y resplandor que `ga-close`.
+- **Alto 54 px** y radio **5 px**, igual que los pulgares de la ficha de juego.
+- Escape lo activa, igual que el cerrar de un overlay.
+
+### 4.12 Overlay y pantalla completa
+- **Overlay** (panel flotante, con borde): tiene `ga-close` arriba a la derecha, vidrio esmerilado y borde degradado (§4.6). Escape lo cierra.
+- **Pantalla completa** (gestor de descargas, gestor de biblioteca): no tiene cerrar sino `ga-back` (§4.11). Escape vuelve.
+- **Excepción:** los diálogos chicos que muestran la imagen del juego (p. ej. ejecutar un juego) conservan su fondo difuminado con la imagen. No se cambian.
+
+### 4.13 Foco por teclado (Tab)
+- **Entran en el ciclo de Tab:** todos los `button` visibles y habilitados (acción principal, cancelar, cerrar, volver, tres puntos, tienda, pulgares, botones de grilla y de cada fila).
+- **Salen del ciclo de Tab** (`tabIndex={-1}`; siguen funcionando con el mouse): sliders (`input type="range"`), casillas (`input type="checkbox"`), controles de grilla que no son botones, barras de desplazamiento, imágenes, videos y bloques de texto desplazables.
+- Si una pantalla necesita que otro control entre en el ciclo, se pide primero y se documenta aquí.
+
 ## 5. Reglas de uso
 
-1. Un diálogo tiene exactamente un botón de cierre `ga-close` y, como mucho, una acción principal naranja.
+1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
 2. Los botones de una misma fila comparten altura (44 px fuera de la ficha; 54 px dentro de la ficha, incluidos los solo-icono).
 3. Los textos salen de `t("clave")`. Nada en español o inglés fijo en el JSX.
 4. Los íconos de acción llevan `aria-label` traducido; los botones solo-icono llevan `title`.
 5. Los estados vacíos usan texto muted centrado, sin ilustraciones.
 6. El tamaño grande (`.ga-big-screen`) aumenta la altura mínima de botones a 44 px; no reduce tipografía.
 7. No introducir nuevos colores: si falta uno, se agrega a la tabla de tokens.
+8. Tab recorre todos los botones y ningún otro control (§4.13).
 
 ## 6. Lista de comprobación para revisar una pantalla
 

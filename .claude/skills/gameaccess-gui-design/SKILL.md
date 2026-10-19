@@ -26,11 +26,18 @@ Si esta skill y ese documento se contradicen, manda el documento; avisa al usuar
 7. Verifica con `npm run check:i18n`, `npx tsc --noEmit -p tsconfig.json` y `npx vitest run`.
 8. Si cambiaste el aspecto de una pantalla, pásala por la lista de comprobación (§6 del documento) antes de dar el cambio por terminado.
 
+## Foco, Escape y pantallas completas
+
+- Overlay (panel flotante): `ga-close` arriba a la derecha, Escape lo cierra.
+- Pantalla completa (gestor de descargas, gestor de biblioteca): `ga-back` arriba a la derecha, con flecha y texto; Escape lo activa.
+- Tab recorre todos los `button`. Sliders, casillas, controles de grilla, barras de desplazamiento, imágenes y videos llevan `tabIndex={-1}`.
+- Los diálogos chicos con la imagen del juego de fondo no se cambian.
+
 ## Errores frecuentes que hay que evitar
 
 - Agregar una X suelta sin círculo para cerrar: no. Siempre `ga-close`.
 - Botón de confirmación en gris o blanco: la acción principal es naranja.
-- Botón solo-icono de otra altura que sus vecinos: 44 × 44 px.
+- Botón solo-icono de otra altura que sus vecinos: 44 × 44 px fuera de la ficha; 48 × 54 px en la fila de la ficha.
 - Panel sin borde degradado ni vidrio: usa `ga-panel`.
-- Radios de 5 px o 50 % en botones: 8 px; el círculo es solo para `ga-close`.
+- Radios de 8 px en botones de acción. Excepciones con 5 px: los pulgares y tienda de la ficha, y `ga-back`. El círculo es solo para `ga-close`.
 - Títulos en Manrope: los títulos son Bebas Neue naranja.

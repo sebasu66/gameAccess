@@ -46,3 +46,15 @@ button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
   width: 48px; min-width: 48px; height: 54px; min-height: 54px; padding: 0;
   border: 1px solid #ffffff20; border-radius: 5px;
 }
+
+/* Full-screen back button (download manager, library manager): top right, where the close control sits in overlays.
+   Same height and corner radius as the thumbs in the game detail row, same red as the close control. */
+button.ga-back {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none;
+  height: 54px; min-height: 54px; padding: 0 18px;
+  border: 1px solid #ff6b75; border-radius: 5px;
+  background: #e5202e; color: #fff; box-shadow: 0 0 14px #e5202e88;
+  font: 700 14px Manrope, sans-serif; cursor: pointer;
+}
+button.ga-back:hover { background: #ff3342; box-shadow: 0 0 20px #ff3342cc; }
+button.ga-back:focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }

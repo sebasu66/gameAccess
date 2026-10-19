@@ -47,7 +47,7 @@ export default function ParentalControlSection() {
       </label>)}
     </div>
     <label className="ga-parental-violence">
-      <input type="checkbox" checked={policy.hideViolence} onChange={event => setParentalPolicy({ hideViolence: event.target.checked })} />
+      <input type="checkbox" tabIndex={-1} checked={policy.hideViolence} onChange={event => setParentalPolicy({ hideViolence: event.target.checked })} />
       <span>{t("uiOcultarTambienViolenciaY")}<small>{t("uiDescriptor2DeValve")}</small></span>
     </label>
   </details>;

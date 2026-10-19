@@ -56,7 +56,7 @@ export default function CircularScrollbar({ targetRef, label }: { targetRef: Ref
   };
   if (maximum <= 1) return null;
   const value = targetRef.current?.scrollTop ?? 0;
-  return <div ref={trackRef} className="ga-circle-scrollbar" role="scrollbar" tabIndex={0}
+  return <div ref={trackRef} className="ga-circle-scrollbar" role="scrollbar" tabIndex={-1}
     aria-label={label} aria-controls={targetRef.current?.id || id} aria-orientation="vertical"
     aria-valuemin={0} aria-valuemax={Math.round(maximum)} aria-valuenow={Math.round(Math.min(maximum, value))}
     onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); moveTo(event.clientY); }}

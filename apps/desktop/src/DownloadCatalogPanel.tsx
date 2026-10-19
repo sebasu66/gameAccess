@@ -336,7 +336,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
           <div className="ga-search-meta">
-            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
+            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" tabIndex={-1} min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
           </div>
         </div>
         <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>

@@ -113,7 +113,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
   return <section ref={dialogRef} className={`digital-downloads-screen${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label={t("downloadsManager")}>
     <header className="digital-downloads-heading">
       <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length})}</p></div>
-      <button type="button" className="digital-download-back" data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")}><X size={18} />{t("close")}</button>
+      <button type="button" className="digital-download-back ga-back" data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")}><X size={18} />{t("close")}</button>
     </header>
     <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}

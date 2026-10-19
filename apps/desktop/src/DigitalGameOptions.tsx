@@ -48,7 +48,7 @@ export default function DigitalGameOptions({game,onClose,disabled=false}:{game:C
     </>},{id:"launch",label:c.tabLaunch,content:<>
      <label className="ga-path-control"><span>{c.exe}</span><select value={options.executable} disabled={locked} onChange={event=>setOptions({...options,executable:event.target.value})}><option value="">{c.automatic}</option>{options.executable&&!executables.includes(options.executable)?<option value={options.executable}>{options.executable}</option>:null}{executables.map(executable=><option key={executable} value={executable}>{executable}</option>)}</select></label>
      <label className="ga-path-control"><span>{c.args}</span><input value={options.arguments} disabled={locked} onChange={event=>setOptions({...options,arguments:event.target.value})} placeholder='-windowed'/></label>
-     <label className="ga-style-toggle"><input type="checkbox" checked={options.administrator} disabled={locked} onChange={event=>setOptions({...options,administrator:event.target.checked})}/>{c.admin}</label><p>{c.adminHint}</p>
+     <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={options.administrator} disabled={locked} onChange={event=>setOptions({...options,administrator:event.target.checked})}/>{c.admin}</label><p>{c.adminHint}</p>
     </>},{id:"backup",label:c.tabBackup,content:<>
      <AutomationForm value={automation} onChange={setAutomation} archives={archives} disabled={locked}/>
     </>}]}/>
