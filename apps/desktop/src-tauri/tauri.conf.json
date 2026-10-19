@@ -39,6 +39,13 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
         "silent": true
+      },
+      "nsis": {
+        "languages": [
+          "English",
+          "Spanish"
+        ],
+        "displayLanguageSelector": false
       }
     },
     "resources": {
