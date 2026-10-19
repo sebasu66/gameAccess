@@ -205,16 +205,18 @@ def emit_progress(
         "route": g_route,
     })
 
-def emit_error(app_id: str, error_message: str):
+def emit_error(app_id: str, error_message: str, error_code: str = "", error_detail=None):
+    """`error_code` names failures the app explains in its own words (e.g. "not_a_game", with the content kinds found)."""
     emit_json({
         "type": "error",
         "appId": str(app_id),
         "phase": "error",
         "error": error_message,
-        "statusText": f"Error: {error_message}"
+        "statusText": f"Error: {error_message}",
+        **({"errorCode": error_code, "errorDetail": error_detail or []} if error_code else {}),
     })
 
-def cleanup_on_cancel(signum=None, frame=None, error_message=None):
+def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code="", error_detail=None):
     """Graceful cleanup handler for SIGINT/SIGTERM."""
     global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
@@ -249,7 +251,7 @@ def cleanup_on_cancel(signum=None, frame=None, error_message=None):
                 pass
 
     if error_message:
-        emit_error(g_app_id, error_message)
+        emit_error(g_app_id, error_message, error_code, error_detail)
     else:
         # Aborting a download removes the whole game folder (it used to leave an empty one behind).
         for hook in list(g_cancel_hooks):
@@ -330,6 +332,8 @@ def main():
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source-delivery", choices=("download", "browser"), default="download")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Explicit HTTP/HTTPS link or magnet supplied manually or by a plugin")
+    parser.add_argument("--source-title", default="", help="The download as its source names it (shown with the install)")
+    parser.add_argument("--source-provider", default="", help="Where the source came from (feed or site name)")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")

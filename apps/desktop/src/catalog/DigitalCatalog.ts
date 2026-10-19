@@ -28,6 +28,9 @@ export interface DigitalGameRecord {
   id: number;
   downloadSource: string;
   sourceDelivery?: "browser" | "download";
+  /** The chosen download as its source names it ("Game v1.2 - Repack") and the source's name. */
+  sourceTitle?: string;
+  sourceProvider?: string;
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
@@ -277,6 +280,7 @@ export class DigitalCatalog {
     const record = this.ensureRecord(game);
     const effectiveRecord: DigitalGameRecord = {
       name: game.name, id: appId, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
+      sourceTitle: selected.title, sourceProvider: selected.sourceName || selected.pluginName,
       installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
     digitalDownloadService.registerRecords([effectiveRecord]);

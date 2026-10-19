@@ -23,7 +23,7 @@ import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
-import { useLibraryFlag } from "./libraryScan";
+import { useLibraryEntry, useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
@@ -68,6 +68,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
   const { t, locale } = useI18n();
   const state = gameStateManager.resolve(status);
   const flag = useLibraryFlag(game.app_id ?? undefined);
+  const entry = useLibraryEntry(game.app_id ?? undefined);
   const active = state.transferActive;
   const progress = downloadManager.progress(status);
   const label = statusLabel(status, progress);
@@ -113,6 +114,8 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
         </span>
       </button>
       <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
+      {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
+      {state.playButtonReady && entry?.source_title ? <div className="ga-card-source" title={t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title })}>{entry.source_title}</div> : null}
       {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
     </div>
   );

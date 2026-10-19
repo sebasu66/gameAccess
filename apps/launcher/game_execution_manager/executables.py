@@ -9,6 +9,29 @@ from .execution_profile import executable_matches
 NOT_A_GAME = re.compile(r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq|dotnet|vcredist", re.I)
 
 
+# Anything that can start a program, installers included. A download with none of these cannot be a game.
+RUNNABLE_SUFFIXES = {".exe", ".bat", ".cmd", ".msi", ".com"}
+CONTENT_KINDS = {
+    "audio": {".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac", ".opus", ".wma", ".ape", ".cue"},
+    "images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".psd", ".svg"},
+    "video": {".mp4", ".mkv", ".avi", ".webm", ".mov", ".wmv", ".m4v"},
+    "documents": {".pdf", ".txt", ".nfo", ".doc", ".docx", ".epub", ".html", ".htm", ".md", ".rtf"},
+}
+
+
+def not_a_game(folder: Path) -> list[str] | None:
+    """None when the folder may hold a game (it has something runnable, or archives still to unpack). Otherwise what it
+    holds instead, e.g. ["audio", "images"] for a soundtrack and artbook: such a download is not a game at all."""
+    from .archives import pending_archives
+    root = Path(folder)
+    files = [p for p in root.rglob("*") if p.is_file() and not p.is_symlink()]
+    if any(p.suffix.lower() in RUNNABLE_SUFFIXES for p in files) or pending_archives(root):
+        return None
+    suffixes = {p.suffix.lower() for p in files}
+    kinds = [kind for kind, known in CONTENT_KINDS.items() if suffixes & known]
+    return kinds or ["other"]
+
+
 def has_game_executable(folder: Path) -> bool:
     root = Path(folder).resolve()
     return any(p.is_file() and not NOT_A_GAME.search(str(p.relative_to(root))) for p in root.rglob("*.exe"))

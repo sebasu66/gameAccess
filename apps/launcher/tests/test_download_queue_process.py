@@ -133,3 +133,43 @@ def test_pause_resume_and_resume_after_closing_with_real_processes(tmp_path):
             manager.process.kill()
         server.shutdown()
         server.server_close()
+
+
+def _zip(files: dict) -> bytes:
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w", zipfile.ZIP_STORED) as archive:
+        for name, data in files.items():
+            archive.writestr(name, data)
+    return payload.getvalue()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the workers use the Windows launcher layout")
+def test_the_source_name_is_kept_and_a_download_that_is_not_a_game_is_removed(tmp_path):
+    launcher = isolated_launcher(tmp_path)
+    game = slow_server(_zip({"Game/game.exe": os.urandom(400_000)}))
+    extras = slow_server(_zip({"Extras/OST/01 Theme.mp3": os.urandom(300_000), "Extras/Artbook.pdf": b"%PDF-1.4"}))
+    manager = Manager(launcher)
+    try:
+        manager.call("/config", {"tier": "plus"})
+        manager.call("/jobs", {"appId": 990002, "name": "Source Test", "sourceTitle": "Source Test v1.2 - Repack",
+                               "sourceProvider": "Fixture feed", "source": f"http://127.0.0.1:{game.server_address[1]}/Game.zip"})
+        done = manager.wait(lambda j: j["state"] == "done", timeout=90)
+        assert done["phase"] == "completed", done
+        record = json.loads((launcher / ".cache" / "digital_games" / "990002.json").read_text(encoding="utf-8"))
+        assert record["source"] == {"title": "Source Test v1.2 - Repack", "provider": "Fixture feed"}
+        manager.call("/jobs/990002/remove", {})
+
+        manager.call("/jobs", {"appId": 990003, "name": "Extras Test", "source": f"http://127.0.0.1:{extras.server_address[1]}/Extras.zip"})
+        failed = manager.wait(lambda j: j["state"] == "done", timeout=90)
+        assert failed["phase"] == "error" and failed["status"].get("errorCode") == "not_a_game", failed
+        assert failed["status"]["errorDetail"] == ["audio", "documents"]
+        assert not list((launcher / "games").glob("990003-*"))
+        assert not (launcher / ".cache" / "digital_games" / "990003.json").exists()
+    finally:
+        try:
+            manager.close()
+        except Exception:
+            manager.process.kill()
+        for server in (game, extras):
+            server.shutdown()
+            server.server_close()

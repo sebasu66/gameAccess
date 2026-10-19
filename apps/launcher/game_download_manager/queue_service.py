@@ -64,6 +64,10 @@ class ProcessWorkers:
             command.append("--auto-installed")
         if job.keep_archive:
             command.append("--keep-archive")
+        if job.source_title:
+            command += ["--source-title", job.source_title]
+        if job.source_provider:
+            command += ["--source-provider", job.source_provider]
         env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         env.pop("GAMEACCESS_CHUNK_SESSION", None)
         if chunk_session:
@@ -165,7 +169,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                 elif self.path == "/jobs":
                     queue.enqueue(int(body["appId"]), str(body.get("name") or ""), str(body.get("source") or ""),
                                   str(body.get("delivery") or "download"), bool(body.get("autoInstalled")),
-                                  bool(body.get("keepArchive")))
+                                  bool(body.get("keepArchive")), str(body.get("sourceTitle") or ""),
+                                  str(body.get("sourceProvider") or ""))
                 elif self.path == "/suspend":
                     queue.suspend()
                 elif self.path == "/shutdown":

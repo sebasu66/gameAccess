@@ -79,11 +79,44 @@ class DigitalGameStorage:
             raise ValueError("La carpeta Digital no puede ser un enlace.")
         return resolved
 
+    def _record(self, app_id: int) -> dict:
+        try:
+            return json.loads((self.registry / f"{int(app_id)}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _write_record(self, app_id: int, folder: Path, name: str) -> None:
+        """The install record keeps what else it knows (the download source) when the folder or name changes."""
+        self.registry.mkdir(parents=True, exist_ok=True)
+        write_json(self.registry / f"{int(app_id)}.json", {**self._record(app_id), "folder": str(folder), "name": name})
+
+    def set_source(self, app_id: int, title: str, provider: str) -> None:
+        """Which download this install came from, as its source names it ("Elden Ring v1.10 - FitGirl", "SteamRIP"):
+        two downloads of the same game can be different versions that cannot play online together."""
+        record = self._record(app_id)
+        if record:
+            record["source"] = {"title": title.strip(), "provider": provider.strip()}
+            write_json(self.registry / f"{int(app_id)}.json", record)
+
+    def source(self, app_id: int) -> dict:
+        source = self._record(app_id).get("source")
+        return source if isinstance(source, dict) else {}
+
+    def queued_downloads(self) -> set[int]:
+        """Games the Download Manager still has to download (queued, paused or running), from its saved queue: a
+        queued download may have no temporary files yet."""
+        try:
+            data = json.loads((self.data / ".cache" / "digital_downloads" / "queue.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return set()
+        return {int(job["app_id"]) for job in data.get("jobs", []) if isinstance(job, dict) and str(job.get("app_id", "")).isdigit()
+                and job.get("state") not in ("done", "cancelling")}
+
     def register(self, app_id: int, name: str) -> Path:
         folder = self.folder(app_id, name)
         folder.mkdir(parents=True, exist_ok=True)
         self.registry.mkdir(parents=True, exist_ok=True)
-        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(folder), "name": name})
+        self._write_record(app_id, folder, name)
         return folder
 
     def set_status(self, app_id: int, name: str, status: str) -> Path:
@@ -103,7 +136,7 @@ class DigitalGameStorage:
                 raise ValueError("Ya existe una carpeta con ese estado para este juego.")
             folder.rename(target)
         self.registry.mkdir(parents=True, exist_ok=True)
-        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(target), "name": name})
+        self._write_record(app_id, target, name)
         return target
 
     def write_error(self, app_id: int, name: str, message: str) -> Path:

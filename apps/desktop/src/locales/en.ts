@@ -648,4 +648,13 @@ export const en: Record<keyof typeof es, string> = {
   pluginNotAnswering: "The plugin does not answer. Check it is installed and try again.",
   pluginTooOld: "This version of {{name}} is too old to send its source list. Update it from its page (Install button) and try again.",
   pluginIndexFailed: "{{name}} could not send its source list. Try again.",
+  cardSourceHint: "Installed version, as {{provider}} names it: {{title}}",
+  cardSourceUnknown: "the download source",
+  notAGameTitle: "{{name}}: this is not a game",
+  notAGameBody: "What was downloaded is not a game: it has no executable or installer, only {{kinds}}. It was deleted from the Game Access games folder and was not added to the library.\n\nWe recommend looking for another download source for this game.",
+  notAGameKindAudio: "music or audio",
+  notAGameKindImages: "images",
+  notAGameKindVideo: "video files",
+  notAGameKindDocuments: "documents",
+  notAGameKindOther: "other files",
 };

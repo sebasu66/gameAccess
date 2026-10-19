@@ -94,6 +94,8 @@ class GameLibraryManager:
                 entry["issues"] = [{"code": "duplicate_folder", "message": str(error)}]
             entry.update(installed=bool(status.get("installed")), needs_repair=bool(status.get("needs_repair")),
                          error=status.get("error", ""), **play_history(folder))
+            source = self.storage.source(app_id)
+            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""))
             if "issues" not in entry:
                 # Folders still downloading or installing are not a problem: they are just not finished.
                 if state in (None, "ready", "ERROR"):
@@ -147,6 +149,7 @@ class GameLibraryManager:
     def _merge_transfers(self, games: list[dict], with_sizes: bool) -> None:
         """One row per game: an unfinished download is part of its game's row, or a row of its own when the game is not installed."""
         by_id = {g["app_id"]: g for g in games if g["app_id"] is not None}
+        queued = self.storage.queued_downloads()
         for item in self.storage.transfers():
             size = folder_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
@@ -164,6 +167,10 @@ class GameLibraryManager:
             game.setdefault("transfer_kind", "")
             # A folder still downloading or installing is also unfinished: nothing can be fixed until it ends.
             game["unfinished"] = bool(game.get("unfinished")) or game.get("state") in ("preparing", "downloading", "installing")
+            # A download waiting in the queue (or paused before it wrote anything) is pending too: the folder must not be
+            # fixed or marked ready until it ends.
+            game["queued"] = game.get("app_id") in queued
+            game["unfinished"] = game["unfinished"] or game["queued"]
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""

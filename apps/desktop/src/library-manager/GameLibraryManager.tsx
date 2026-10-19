@@ -36,7 +36,7 @@ type Pending =
   | { kind: "discard"; game: LibraryGame; restart: boolean };
 
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
-const hasError = (game: LibraryGame) => game.issues.some(issue => issue.code === "error");
+const hasError = (game: LibraryGame) => !game.unfinished && game.issues.some(issue => issue.code === "error");
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 
@@ -44,6 +44,8 @@ function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   const badges = [] as JSX.Element[];
   if (game.linked) badges.push(<Badge key="s" variant="info"><Link2 className="size-3" />{c.linked}</Badge>);
   else if (game.partial) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.partialDl}</Badge>);
+  // Still in the Download Manager (queued, paused or running): its folder is not judged until the download ends.
+  else if (game.unfinished && !isUnfinished(game)) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.pendingDl}</Badge>);
   else if (hasError(game)) badges.push(<Badge key="s" variant="destructive"><AlertTriangle className="size-3" />{c.error}</Badge>);
   else if (!game.standard) badges.push(<Badge key="s" variant="warning"><AlertTriangle className="size-3" />{c.outsideStd}</Badge>);
   else if (["installing", "downloading", "preparing"].includes(game.state)) badges.push(<Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c[game.state as "installing"]}</Badge>);
@@ -54,6 +56,7 @@ function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
 
 function subline(game: LibraryGame, c: LibraryCopy): string {
   if (game.partial) return `${c.partialDl}: ${formatBytes(game.transfer_bytes)}`;
+  if (game.unfinished && !game.standard) return c.pendingHint;
   if (!game.standard) return game.issues[0]?.message ?? game.warning;
   if (game.last_played) return game.last_played.slice(0, 10);
   return "";
@@ -168,7 +171,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-sm bg-muted [&_*]:max-h-full"><SteamCover game={asGame(game)} /></span>
             <span className="grid min-w-0 gap-0.5">
               <span className="flex items-center gap-1 truncate text-sm font-bold">{open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}{game.name}</span>
-              <span className={cn("truncate text-xs", !game.standard ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
+              <span className={cn("truncate text-xs", !game.standard && !game.unfinished ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
             </span>
           </button>
         );
@@ -287,7 +290,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
                         </TableRow>,
                         open ? <TableRow key={`${row.id}-detail`} className="bg-background/60 hover:bg-background/60"><TableCell /><TableCell colSpan={columns.length - 1}>
                           <div className="grid gap-3 py-1">
-                            {game.issues.length ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.whatNeeds}</b>
+                            {game.issues.length && !game.unfinished ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.whatNeeds}</b>
                               <ul className="m-0 grid list-none gap-1 p-0">{game.issues.map(issue => <li key={issue.code} className="flex items-center gap-2 text-sm"><AlertTriangle className="size-3.5 text-warning" />{issue.message}{issue.bytes ? <b className="text-xs text-muted-foreground">({formatBytes(issue.bytes)})</b> : null}</li>)}</ul></div> : null}
                             {!game.partial ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.historyTitle}</b><History game={game} c={c} /></div> : null}
                           </div>

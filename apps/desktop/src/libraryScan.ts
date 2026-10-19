@@ -31,8 +31,15 @@ export function useLibraryScan(): LibraryScanState {
   return useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, libraryScanState, libraryScanState);
 }
 
+/** The scanned library row of an installed game (its folder, the download it came from). */
+export function useLibraryEntry(appId?: number): LibraryGame | undefined {
+  const scan = useLibraryScan();
+  return appId == null ? undefined : scan.games.find(game => game.app_id === appId);
+}
+
 /** What keeps this game from the standard, or undefined when it is fine / not scanned yet. */
 export function useLibraryFlag(appId?: number): LibraryGame | undefined {
   const scan = useLibraryScan();
-  return appId == null ? undefined : scan.games.find(game => game.app_id === appId && !game.standard);
+  // A download still pending is not a problem yet: nothing can be fixed until it ends.
+  return appId == null ? undefined : scan.games.find(game => game.app_id === appId && !game.standard && !game.unfinished);
 }

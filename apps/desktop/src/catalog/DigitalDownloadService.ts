@@ -162,6 +162,8 @@ export class DigitalDownloadService implements IDownloadProvider {
       speedBps: phase === "downloading" ? number("speedBps") ?? 0 : 0,
       etaSeconds: phase === "downloading" ? number("etaSeconds") ?? 0 : 0,
       error: job.error || undefined,
+      errorCode: typeof status.errorCode === "string" ? status.errorCode : undefined,
+      errorDetail: Array.isArray(status.errorDetail) ? status.errorDetail.map(String) : undefined,
     };
   }
 
@@ -235,6 +237,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.apply(await this.queue.enqueue({
         appId, name, source, delivery: accelerated ? "download" : record?.sourceDelivery ?? "download",
         autoInstalled: record?.auto_installed === true, keepArchive: jobOptions?.keepArchive,
+        sourceTitle: record?.sourceTitle, sourceProvider: record?.sourceProvider,
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -79,3 +79,24 @@ def test_unfinished_download_is_never_offered_a_fix(tmp_path):
     assert pieces.exists()
     (pieces / ".ga-state-abcd1234.json").unlink()
     assert {g["app_id"]: g for g in lib.list_games()}[2]["transfer_kind"] == "other"
+
+
+def test_the_install_keeps_the_name_its_download_source_gave_it(tmp_path):
+    storage, lib = library(tmp_path)
+    storage.set_source(1, "Alpha v1.2 - Repack", "SteamRIP")
+    storage.set_status(1, "Alpha", "ERROR")          # moving or renaming the folder keeps the source
+    storage.set_status(1, "Alpha", "ready")
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert (games[1]["source_title"], games[1]["source_provider"]) == ("Alpha v1.2 - Repack", "SteamRIP")
+    assert games[2]["source_title"] == ""             # downloaded before sources were recorded
+
+
+def test_a_download_waiting_in_the_queue_cannot_be_fixed_or_marked_ready(tmp_path):
+    storage, lib = library(tmp_path)
+    queue = storage.data / ".cache" / "digital_downloads" / "queue.json"
+    queue.parent.mkdir(parents=True, exist_ok=True)
+    queue.write_text('{"order": [2], "jobs": [{"app_id": 2, "state": "waiting"}]}', encoding="utf-8")
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert games[2]["queued"] and games[2]["unfinished"] and not games[1]["unfinished"]
+    assert lib.plan([2])[0]["error"] and lib.plan([2])[0]["actions"] == []
+    assert lib.batch("adopt", [2])[0]["ok"] is False

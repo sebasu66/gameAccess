@@ -61,6 +61,10 @@ export interface DownloadProgressSnapshot {
 
   /** Error message if phase === "error" */
   error?: string | null;
+
+  /** A failure the app explains in its own words: "not_a_game" (errorDetail = what the download held instead). */
+  errorCode?: string;
+  errorDetail?: string[];
 }
 
 /**

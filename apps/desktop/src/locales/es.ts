@@ -646,4 +646,13 @@ export const es = {
   pluginNotAnswering: "El plugin no responde. Revisá que esté instalado y volvé a intentar.",
   pluginTooOld: "Esta versión de {{name}} es vieja y no puede pasar su lista de fuentes. Actualizalo desde su página (botón Instalar) y volvé a intentar.",
   pluginIndexFailed: "{{name}} no pudo pasar su lista de fuentes. Volvé a intentar.",
+  cardSourceHint: "Versión instalada, como la nombra {{provider}}: {{title}}",
+  cardSourceUnknown: "la fuente de descarga",
+  notAGameTitle: "{{name}}: esto no es un juego",
+  notAGameBody: "Lo que se descargó no es un juego: no tiene ningún ejecutable ni instalador, solo {{kinds}}. Se borró de la carpeta de juegos de Game Access y no se agregó a la biblioteca.\n\nTe recomendamos buscar otra fuente de descarga para este juego.",
+  notAGameKindAudio: "música o audio",
+  notAGameKindImages: "imágenes",
+  notAGameKindVideo: "videos",
+  notAGameKindDocuments: "documentos",
+  notAGameKindOther: "otros archivos",
 } as const;

@@ -12,6 +12,13 @@ from game_download_manager.source_validation import normalize_download_source, i
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
 
+class NotAGameError(RuntimeError):
+    """The download holds no executable or installer at all (only music, artwork, documents...)."""
+    def __init__(self, kinds: list[str]):
+        self.kinds = kinds
+        super().__init__("Lo que se descargó no es un juego: no tiene ningún ejecutable ni instalador.")
+
+
 class DownloadPipeline:
     def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives):
         self.context = context
@@ -89,6 +96,8 @@ class DownloadPipeline:
         # Explicit destinations keep the established test/CLI contract.
         dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
+        if not args.destination_dir and (getattr(args, "source_title", "") or getattr(args, "source_provider", "")):
+            storage.set_source(int(app_id), args.source_title, args.source_provider)
         if not args.destination_dir and not args.extract_only:
             # Aborting removes the game folder, its record and the partial download.
             context.cancel_hooks.append(lambda: storage.uninstall(int(app_id), game_name))
@@ -284,6 +293,12 @@ class DownloadPipeline:
                 self.cleanup_on_cancel()
             if not args.destination_dir and not any(storage.has_content(Path(game_dir))):
                 raise RuntimeError("La descarga terminó pero no se obtuvo ningún archivo del juego.")
+            # Music, artwork or a manual is not a game: no executable at all (not even an installer) and nothing to unpack.
+            if not args.destination_dir:
+                from game_execution_manager.executables import not_a_game
+                kinds = not_a_game(Path(game_dir))
+                if kinds:
+                    raise NotAGameError(kinds)
             # Game Execution Manager: silent setup*.exe if needed, then a runnable executable is required.
             if not args.destination_dir:
                 from game_execution_manager import GameExecutionManager, GameExecutionError
@@ -314,6 +329,15 @@ class DownloadPipeline:
             context.logger.info(f"=== DESCARGA COMPLETADA EXITOSAMENTE: '{game_name}' ===")
             sys.exit(0)
 
+        except NotAGameError as e:
+            # Nothing in it can run: it is removed from the games folder (and the temporary download with it), never
+            # offered as installed or for repair. The app tells the player to look for another source.
+            context.logger.warning("AppID %s: '%s' is not a game (%s); the folder is removed", app_id, game_name, ", ".join(e.kinds))
+            try:
+                storage.uninstall(int(app_id), game_name)
+            except Exception as failure:
+                context.logger.warning("AppID %s: could not remove the non-game download: %s", app_id, failure)
+            self.cleanup_on_cancel(error_message=str(e), error_code="not_a_game", error_detail=e.kinds)
         except Exception as e:
             if not context.cancelled.is_set():
                 context.logger.error(f"Error fatal durante la descarga de '{game_name}': {e}", exc_info=True)

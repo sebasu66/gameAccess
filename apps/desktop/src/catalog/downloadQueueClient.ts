@@ -35,6 +35,9 @@ export interface EnqueueOrder {
   delivery?: string;
   autoInstalled?: boolean;
   keepArchive?: boolean;
+  /** The download as its source names it, and where it came from: kept with the install. */
+  sourceTitle?: string;
+  sourceProvider?: string;
 }
 
 /** The Download Manager refused an order; the message is meant for the player. */
