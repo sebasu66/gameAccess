@@ -119,10 +119,9 @@ export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
   spareUnprovenGames: true,
 };
 
-/** Default catalog filters: min rating 60 (>= 6) and max age 1 year (365 days). */
+/** Default catalog filters: min rating 60 (>= 6), any release date (one year back hid too much of the catalog). */
 export const INITIAL_CATALOG_FILTERS: LibrarySearchFilters = {
   ...INITIAL_LIBRARY_FILTERS,
-  maxAgeDays: 365,
 };
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
