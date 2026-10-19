@@ -74,6 +74,14 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Validar con mando físico el modo Pantalla grande (`docs/BIG_SCREEN_CONTROLS.md`).
 - [ ] Auditoría de teclado/foco; acción primaria Descargar/Cancelar/Jugar sin contradicciones; reconciliar estado tras cerrar y reabrir.
 - [ ] Nice-to-have: "me gusta / no me gusta" para juegos afines y recomendados.
+- [x] Los diálogos del inicio esperan a que termine la animación del logo (`4f29862`).
+- [x] Jugar desde el detalle cierra primero el detalle y después muestra el diálogo de ejecución (`4f29862`).
+- [ ] Al ejecutar un juego, el foco pasa al juego; cuando el juego termina, vuelve a Game Access.
+- [ ] Medir cuánto tiempo corre cada juego (estadística de uso) y mostrar un historial/calendario de cuánto y cuándo se jugó cada juego.
+- [x] Importador del Library Manager: una carpeta ilegible (`WpSystem`) cortaba el escaneo de todo el disco y solo aparecía 1 juego; ahora encuentra 122 en la PC de Seba. Vincular dos veces la misma carpeta ya no da error (`b96bb5c`).
+- [ ] Seba: probar el importador en la app (escaneo completo y "Vincular" de un juego de Steam); no pude reproducir el "ya está en la biblioteca" en una biblioteca limpia.
+- [x] Sincronización con el plugin: el plugin publicado (1.0.0) no tenía `/api/source-index` y la app fallaba en silencio; ahora el diálogo central dice el motivo y ofrece Reintentar; los plugins corren sin ventana (`3a01bbb`).
+- [ ] Publicar Source Manager 1.0.1 (repo `Gizi789/source_manager`): commits locales `3786eda` (índice de fuentes, `messages.js` en la build) y `a6d9854` (sin ventana dentro de Game Access, sin pedido de firewall) listos; falta push, release v1.0.1 (zip + instalador + sha256) y actualizar el enlace con el nuevo SHA-256 en `docs/index.html`. Necesita permiso de Seba (publicación pública).
 
 ## Release
 - [ ] Instalador exacto desde el commit probado (commit, hash, build stamp); instalación en VM limpia; revisar textos visibles; logo/splash nuevo en el instalador.

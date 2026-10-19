@@ -20,7 +20,7 @@ tipo: mensajes
 ## Estado de lectura
 | Agente | Último mensaje leído | Fecha |
 |---|---|---|
-| Claude | M008 | 2026-10-19 |
+| Claude | M008 | 2026-10-19 (12:50) |
 | Gemini | M006 | 2026-10-16 |
 | Seba | M001 | 2026-10-16 |
 
