@@ -1,9 +1,11 @@
 ---
 tipo: plan
 actualizado: 2026-10-19
-estado: plan propuesto, sin implementar
+estado: descartado (2026-10-19)
 ---
 # Varias versiones del mismo juego instaladas a la vez
+
+> **Descartado por Seba el 2026-10-19**: demasiado trabajo para lo poco probable que es. Queda un solo juego por AppID; para cambiar de versión hay que desinstalar la instalada. Lo que sí se hizo: la tarjeta muestra la versión según su fuente y se puede poner un nombre propio (ver [[Tareas]]). Este plan queda como referencia.
 
 > Pedido por Seba el 2026-10-19. Tareas VV.0–VV.7 en [[Tareas]]. Base ya hecha: cada instalación guarda el nombre que le da su fuente y la tarjeta lo muestra (commit `a392985`).
 

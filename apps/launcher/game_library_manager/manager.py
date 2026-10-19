@@ -95,7 +95,7 @@ class GameLibraryManager:
             entry.update(installed=bool(status.get("installed")), needs_repair=bool(status.get("needs_repair")),
                          error=status.get("error", ""), **play_history(folder))
             source = self.storage.source(app_id)
-            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""))
+            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""), label=self.storage.label(app_id))
             if "issues" not in entry:
                 # Folders still downloading or installing are not a problem: they are just not finished.
                 if state in (None, "ready", "ERROR"):
@@ -117,7 +117,8 @@ class GameLibraryManager:
         entry = {"app_id": record["app_id"], "name": record["name"], "state": "linked", "folder": str(folder), "linked": True,
                  "link_kind": record["kind"], "installed": status["installed"], "needs_repair": False, "error": status.get("error", ""),
                  "size_bytes": folder_size(folder) if with_sizes and folder.is_dir() else None, "issues": [], "standard": True,
-                 "reclaimable_bytes": 0, "warning": status.get("error", ""), **play_history(self.storage.linked.log_dir(record["app_id"]))}
+                 "reclaimable_bytes": 0, "warning": status.get("error", ""), "label": str(record.get("label") or ""),
+                 **play_history(self.storage.linked.log_dir(record["app_id"]))}
         if not status["installed"]:
             entry["issues"] = [{"code": "missing_link", "message": status["error"]}]
             entry["standard"] = False

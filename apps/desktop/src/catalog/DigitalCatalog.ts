@@ -17,6 +17,11 @@ import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
 
+/** The game is already installed: the player has to uninstall it before installing another version. */
+export class GameAlreadyInstalledError extends Error {
+  constructor(name: string) { super(translate("downloadAlreadyInstalled", { name })); this.name = "GameAlreadyInstalledError"; }
+}
+
 export interface DigitalCatalogSyncResult {
   updated: boolean;
   revision: string;
@@ -269,6 +274,8 @@ export class DigitalCatalog {
 
   async download(game: CatalogGame, source?: PluginSource | string): Promise<void> {
     if (this.options.downloadHandler) return this.options.downloadHandler(game);
+    // One install per game: another version needs the installed one removed first (Library Manager or Uninstall).
+    if (await this.isInstalled(game).catch(() => false)) throw new GameAlreadyInstalledError(game.name);
     const selected = typeof source === "string"
       ? (await this.getSources(game)).find(item => item.url === source)
       : source ?? (await this.getSources(game))[0];

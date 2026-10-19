@@ -33,6 +33,9 @@ def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
         return int(match.group(1)), title, last
     return int(match.group(1)), rest, None
 
+MAX_LABEL = 120
+
+
 class DigitalGameStorage:
     def __init__(self, launcher: Path = LAUNCHER):
         self.launcher = Path(launcher).resolve()
@@ -101,6 +104,30 @@ class DigitalGameStorage:
     def source(self, app_id: int) -> dict:
         source = self._record(app_id).get("source")
         return source if isinstance(source, dict) else {}
+
+    def set_label(self, app_id: int, name: str, label: str) -> str:
+        """The player's own name for the game in their library (only shown there; the catalog is not touched).
+        An empty label goes back to the default: the game as its download source names it."""
+        label = " ".join(str(label or "").split())[:MAX_LABEL]
+        linked = self.linked.get(app_id)
+        record = linked if linked else self._record(app_id)
+        if not record:
+            folder = self.folder(app_id, name)
+            if not folder.is_dir():
+                raise ValueError("El juego no está en la biblioteca.")
+            record = {"folder": str(folder), "name": name}
+        if label:
+            record["label"] = label
+        else:
+            record.pop("label", None)
+        target = self.linked.dir if linked else self.registry
+        target.mkdir(parents=True, exist_ok=True)
+        write_json(target / f"{int(app_id)}.json", record)
+        return label
+
+    def label(self, app_id: int) -> str:
+        record = self.linked.get(app_id) or self._record(app_id)
+        return str(record.get("label") or "")
 
     def queued_downloads(self) -> set[int]:
         """Games the Download Manager still has to download (queued, paused or running), from its saved queue: a

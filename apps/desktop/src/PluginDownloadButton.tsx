@@ -3,7 +3,7 @@ import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
 import { useI18n } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
 import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
@@ -46,7 +46,8 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     try { await digitalCatalogService.download(game, source); setOpen(false); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      digitalDownloadService.recordFailure(game, message); setError(message);
+      if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
+      setError(message);
     } finally { setStarting(false); }
   };
   return <div className="plugin-download-action">

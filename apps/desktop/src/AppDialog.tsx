@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Info, Loader2 } from "lucide-react";
 
 import { useDialogFocus } from "./dialogFocus";
@@ -17,9 +18,11 @@ interface AppDialogProps {
   onClose: () => void;
   /** Shows what a confirmed action is doing inside this same dialog, then its result. */
   progress?: { phase: "working" | "done"; label: string; detail?: string };
+  /** Extra content under the message, such as a text field. */
+  children?: ReactNode;
 }
 
-export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, onCancelAction, cancelDisabled = false, confirmDisabled = false, initialAction = "cancel", onConfirm, onClose, progress }: AppDialogProps) {
+export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, onCancelAction, cancelDisabled = false, confirmDisabled = false, initialAction = "cancel", onConfirm, onClose, progress, children }: AppDialogProps) {
   const dialogRef = useDialogFocus(onClose);
   const { t } = useI18n();
   const isAlert = tone === "warning" || tone === "error";
@@ -40,6 +43,7 @@ export default function AppDialog({ title, message, tone = "info", confirmLabel,
           {working ? <span className="ga-dialog-bar" aria-hidden="true"><span /></span> : null}
           {progress.detail ? <small>{progress.detail}</small> : null}
         </div> : <p id="app-dialog-message">{message}</p>}
+        {progress ? null : children}
         {working ? null : <div className="ga-dialog-actions" role="group" aria-label={actionsLabel}>
           {onConfirm && !done ? <>
             <button type="button" className="ga-dialog-secondary" data-dialog-initial={initialAction === "cancel" ? "" : undefined} disabled={cancelDisabled} onClick={onCancelAction ?? onClose}>{cancelLabel ?? t("back")}</button>

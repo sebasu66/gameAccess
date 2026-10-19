@@ -12,6 +12,8 @@ import { SOURCES_CHANGED_EVENT, sourceAvailability } from "./catalog/PluginSourc
 import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
 
 import AppDialog from "./AppDialog";
+import RenameGameDialog from "./RenameGameDialog";
+import { useLibraryEntry } from "./libraryScan";
 import { digitalCatalogService, type DigitalCatalog } from "./catalog/DigitalCatalog";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { gameStateManager } from "./GameStateManager";
@@ -45,10 +47,12 @@ export default function DigitalGameContextMenu({
   onInstall,
   onPlay,
 }: Props) {
-  const {locale} = useI18n();
+  const {locale, t} = useI18n();
   useLibraryGames();
   const libraryBusy = useLibraryBusy();
   const inLibrary = libraryMembership.has(request.game);
+  const entry = useLibraryEntry(request.game.app_id ?? undefined);
+  const [renaming, setRenaming] = useState(false);
   const [configuring, setConfiguring] = useState(false);
   const [showingLog, setShowingLog] = useState(false);
   const [repairing, setRepairing] = useState(false);
@@ -139,7 +143,7 @@ export default function DigitalGameContextMenu({
 
   return (
     <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
-      {!dialog && !configuring && !showingLog && !repairing ? (
+      {!dialog && !configuring && !showingLog && !repairing && !renaming ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -172,6 +176,7 @@ export default function DigitalGameContextMenu({
             <FolderOpen size={16} /> Abrir carpeta de instalación
           </button>
           <button type="button" role="menuitem" disabled={!canUninstall} onClick={() => setConfiguring(true)}>{label.options}</button>
+          <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
@@ -187,6 +192,7 @@ export default function DigitalGameContextMenu({
         </div>
       ) : null}
       {repairing ? <GameRecoveryDialog game={request.game} mode="broken" message={request.status?.repair_warning || (locale === "es" ? "El juego no está listo para ejecutarse." : "The game is not ready to run.")} onClose={onClose} /> : null}
+      {renaming ? <RenameGameDialog game={request.game} current={entry?.label ?? ""} onClose={onClose} /> : null}
       {showingLog ? <DigitalGameLog game={request.game} onClose={onClose} /> : null}
       {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}
       {dialog ? (

@@ -89,6 +89,8 @@ class DigitalProcessRunner:
                 if action == "import-run":
                     return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
                 raise ValueError(f"Unknown action '{action}'")
+            if action == "set-label":
+                return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
             linked_record = self.storage.linked.get(app_id)
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
@@ -255,7 +257,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "import-drives", "import-scan", "import-run"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "import-drives", "import-scan", "import-run", "set-label"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

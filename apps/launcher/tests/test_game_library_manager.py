@@ -100,3 +100,23 @@ def test_a_download_waiting_in_the_queue_cannot_be_fixed_or_marked_ready(tmp_pat
     assert games[2]["queued"] and games[2]["unfinished"] and not games[1]["unfinished"]
     assert lib.plan([2])[0]["error"] and lib.plan([2])[0]["actions"] == []
     assert lib.batch("adopt", [2])[0]["ok"] is False
+
+
+def test_the_player_can_rename_a_game_in_their_library_only(tmp_path):
+    storage, lib = library(tmp_path)
+    runner = DigitalProcessRunner(storage)
+    assert runner.run("set-label", 1, "Alpha", "  Alpha   (la de Juan) ")["label"] == "Alpha (la de Juan)"
+    storage.set_status(1, "Alpha", "ERROR")                  # the label survives folder renames
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert games[1]["label"] == "Alpha (la de Juan)" and games[1]["name"] == "Alpha"
+    assert storage.set_label(2, "Beta", "Beta mod") == "Beta mod"   # a legacy folder without a record gets one
+    linked = tmp_path / "outside" / "Gamma"
+    linked.mkdir(parents=True)
+    storage.linked.link(3, "Gamma", str(linked))
+    storage.set_label(3, "Gamma", "Gamma de Steam")
+    assert {g["app_id"]: g for g in lib.list_games()}[3]["label"] == "Gamma de Steam"
+    assert storage.linked.get(3)["path"] == str(linked.resolve())   # the link itself is unchanged
+    storage.set_label(1, "Alpha", "")                         # empty: back to the source's name
+    assert {g["app_id"]: g for g in lib.list_games()}[1]["label"] == ""
+    with pytest.raises(ValueError):
+        storage.set_label(99, "Nope", "x")

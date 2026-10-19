@@ -34,7 +34,7 @@ import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { getCatalogMode } from "./catalogMode";
 import { scanLibrary } from "./libraryScan";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DigitalDownloadToast from "./DigitalDownloadToast";
@@ -467,7 +467,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      digitalDownloadService.recordFailure(game, message); setToast(message);
+      if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
+      setToast(message);
     }
   };
 

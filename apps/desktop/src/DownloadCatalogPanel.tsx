@@ -115,7 +115,9 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
       </button>
       <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
       {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
-      {state.playButtonReady && entry?.source_title ? <div className="ga-card-source" title={t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title })}>{entry.source_title}</div> : null}
+      {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
+      {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
+        {entry.label || [entry.source_provider, entry.source_title].filter(Boolean).join(" · ")}</div> : null}
       {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
     </div>
   );
