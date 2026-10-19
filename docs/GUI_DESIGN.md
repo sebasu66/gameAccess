@@ -117,5 +117,5 @@ Aplicado el 2026-10-19 (`apps/desktop/src/ga-design.css` y clases en los compone
 Sin cambios a propósito: **la ficha de juego** (referencia). Su botón de cierre y su fila de acciones se quedan como están.
 
 Pendiente de verificar en la app (no se pudo ver renderizado):
-- Alto de los botones "…", tienda y pulgares frente a la acción principal; la regla de este documento es 44 px fuera de la ficha.
+- Botones solo-icono de la fila de la ficha ("…", tienda, pulgares): ya en 48 × 54 px por regla de `ga-design.css`; falta confirmar en la app.
 - Panel de descarga de la biblioteca: falta confirmar si usa `ga-panel`.
