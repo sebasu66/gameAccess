@@ -42,7 +42,6 @@ export class DigitalDownloadService implements IDownloadProvider {
   private appIds = new Map<number, number>();
   private positions = new Map<number, number>();
   private lastState: QueueState | null = null;
-  private accessSuspended = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private polling = false;
   private speeds = new Map<number, DownloadSpeedSample[]>();
@@ -53,9 +52,11 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** How this game is being fetched (shown as a pill), or undefined when not known. */
   getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
   getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
-  get maxParallelDownloads(): number { return this.lastState?.limit ?? (this.tier() === "plus" ? 4 : 1); }
-  /** The plan downloads run under (shown as a pill), or null without an activation. */
-  planTier(): "base" | "plus" | null { return this.tier(); }
+  get maxParallelDownloads(): number { return this.lastState?.limit ?? (this.plan() === "plus" ? 4 : 1); }
+  /** The plan downloads run under (shown as a pill). Without a key the app is in free mode, which is BASE: one
+   *  download at a time, torrents only. */
+  planTier(): "base" | "plus" { return this.plan(); }
+  private plan(): "base" | "plus" { return this.tier() === "plus" ? "plus" : "base"; }
 
   constructor(
     private storageKey?: string,
@@ -135,7 +136,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   private async syncConfig(): Promise<void> {
-    const tier = this.accessSuspended ? null : this.tier();
+    const tier = this.plan();
     try {
       const session = tier === "plus" && hasTauriRuntime() ? await buildChunkSession() : null;
       this.apply(await this.queue.configure(tier, session));
@@ -223,7 +224,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     // PLUS can have a source accelerated by the server: the Download Manager needs the session to ask for it.
     let accelerated = false;
-    if (this.tier() === "plus" && canAccelerate(source)) {
+    if (this.plan() === "plus" && canAccelerate(source)) {
       const session = await buildChunkSession();
       if (session) {
         accelerated = true;
@@ -249,14 +250,14 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   async refreshParallelLimit(): Promise<void> {
-    if (this.tier()) this.accessSuspended = false;
     await this.syncConfig();
   }
 
-  /** The activation ended: nothing may run or start until a valid key is entered again. */
+  /** PLUS ended: what was downloading pauses and the app goes on in free mode (BASE). The player can resume a
+   *  torrent; a direct link needs PLUS again (the Download Manager says so). */
   async suspendForAccessEnd(): Promise<void> {
-    this.accessSuspended = true;
     this.apply(await this.queue.suspend());
+    this.apply(await this.queue.configure("base", null));
   }
 
   async pause(gameId: number): Promise<void> {
@@ -266,7 +267,6 @@ export class DigitalDownloadService implements IDownloadProvider {
   }
 
   async resume(gameId: number): Promise<void> {
-    if (this.accessSuspended || (hasTauriRuntime() && !this.tier())) throw new Error("Ingresa una llave válida para reanudar la descarga.");
     if (this.activeJobs.get(gameId)?.phase !== "paused") return;
     this.apply(await this.queue.resume(this.appIdOf(gameId)));
   }

@@ -138,6 +138,9 @@ class DownloadQueue:
             job = self._job(app_id)
             if job.state != "paused":
                 return
+            if self.tier != "plus" and job.delivery != "browser" and job.source.lower().startswith(("http://", "https://")) and not is_torrent(job.source):
+                # PLUS ended (or the app is in free mode): a direct link waits paused until PLUS is back.
+                raise QueueError(f"El modo gratuito descarga solo por torrent. '{job.name}' es un enlace directo: se reanuda con Plus.")
             job.state, job.phase = "waiting", "queued"
             self.order.append(app_id)
             self.pump()

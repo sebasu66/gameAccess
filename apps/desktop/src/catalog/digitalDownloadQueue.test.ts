@@ -37,6 +37,19 @@ describe("Digital downloads through the Download Manager", () => {
     expect(service.getDownloadMethod(1)).toBe("torrent");
   });
 
+  it("without a key (free mode) downloads run as BASE: the plan is configured and a paused torrent resumes", async () => {
+    const queue = new FakeDownloadQueue();
+    queue.tier = null;
+    const service = new DigitalDownloadService(undefined, () => null, queue);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queue.orders.find(order => order.action === "configure")?.body).toMatchObject({ tier: "base" });
+    expect(service.planTier()).toBe("base");
+    await service.start(game(1));
+    await service.pause(1);
+    await service.resume(1);
+    expect(queue.orders.map(order => order.action)).toContain("resume");
+  });
+
   it("shows the Download Manager's refusal to the player", async () => {
     const { service } = setup("base");
     await expect(service.start(game(1, "https://host/game.zip"))).rejects.toThrow("solo por torrent");
@@ -143,7 +156,7 @@ describe("Digital downloads through the Download Manager", () => {
     expect(service.getDownloads().map(entry => entry.game.name)).toEqual(["Restored"]);
   });
 
-  it("on activation end asks the Download Manager to suspend and shows the pending downloads paused", async () => {
+  it("on PLUS end pauses what was running and goes on in free mode (BASE), where a torrent can be resumed", async () => {
     const { queue, service } = setup("base");
     await service.start(game(1)); await service.start(game(2));
     queue.set(1, "downloading");
@@ -152,7 +165,9 @@ describe("Digital downloads through the Download Manager", () => {
     expect(queue.orders.filter(order => order.action === "suspend")).toHaveLength(1);
     expect((await service.getStatus(1)).phase).toBe("paused");
     expect((await service.getStatus(2)).phase).toBe("paused");
-    await expect(service.resume(1)).rejects.toThrow("llave");
+    expect(queue.orders.at(-1)).toMatchObject({ action: "configure", body: { tier: "base", chunkSession: null } });
+    await service.resume(1);
+    expect((await service.getStatus(1)).phase).toBe("queued");
   });
 
   it("records only actual speed samples and bounds their lifetime", async () => {

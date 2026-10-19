@@ -228,3 +228,21 @@ def test_the_local_service_requires_the_session_token():
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_after_plus_ends_a_torrent_resumes_in_base_but_a_direct_link_waits_for_plus():
+    q, w = queue("plus")
+    q.enqueue(1, "Torrent", MAGNET)
+    q.enqueue(2, "Direct", "https://host/game.zip")
+    q.suspend()                      # PLUS ended: everything pauses...
+    q.configure("base", None)        # ...and the app goes on in free mode
+    states = lambda: {job["appId"]: job["state"] for job in q.snapshot()["jobs"]}
+    assert states() == {1: "paused", 2: "paused"}
+    q.resume(1)
+    assert states()[1] == "active"
+    with pytest.raises(QueueError, match="Plus"):
+        q.resume(2)
+    assert states()[2] == "paused"
+    q.configure("plus", "session")
+    q.resume(2)
+    assert states()[2] == "active"
