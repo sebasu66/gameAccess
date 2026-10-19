@@ -24,6 +24,22 @@ def _plain(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
 
 
+def _is_dir(path: Path) -> bool:
+    """Like Path.is_dir, but a folder Windows will not let us read (WpSystem, protected app folders) is just skipped:
+    one unreadable folder must never stop the scan of the whole disk."""
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def is_steam_path(path) -> bool:
     """Inside a Steam library ('.../steamapps/...'): Steam owns that structure, so it must never be moved or renamed."""
     return any(part.lower() == "steamapps" for part in Path(path).parts)
@@ -73,7 +89,7 @@ class GameScanner:
         found: dict[str, dict] = {}
         for drive in drives:
             root = Path(drive)
-            if not root.is_dir():
+            if not _is_dir(root):
                 continue
             self.progress(f"Buscando en {drive}")
             try:
@@ -100,9 +116,10 @@ class GameScanner:
 
     def _subdirs(self, folder: Path) -> list[Path]:
         try:
-            return sorted(p for p in folder.iterdir() if p.is_dir() and not p.is_symlink() and p.name.lower() not in IGNORED_DIRS)
+            entries = list(folder.iterdir())
         except OSError:
             return []
+        return sorted(p for p in entries if p.name.lower() not in IGNORED_DIRS and _is_dir(p) and not p.is_symlink())
 
     def _containers(self, root: Path) -> list[tuple[Path, str]]:
         """The usual places, whatever their capitalisation or accents: games folders at the disk root, Downloads, Program Files\\Steam."""
@@ -126,20 +143,20 @@ class GameScanner:
         libraries = []
         for folder, _ in self._containers(root):
             for candidate in (folder / "steamapps", folder / "Steam" / "steamapps"):
-                if candidate.is_dir():
+                if _is_dir(candidate):
                     libraries.append(candidate)
             for sub in self._subdirs(folder):
-                if (sub / "steamapps").is_dir():
+                if _is_dir(sub / "steamapps"):
                     libraries.append(sub / "steamapps")
         for folder in self._subdirs(root):
-            if (folder / "steamapps").is_dir():
+            if _is_dir(folder / "steamapps"):
                 libraries.append(folder / "steamapps")
         for steamapps in list(libraries):
             vdf = steamapps / "libraryfolders.vdf"
-            if vdf.is_file():
+            if _is_file(vdf):
                 for path in re.findall(r'"path"\s+"([^"]+)"', vdf.read_text(encoding="utf-8", errors="replace")):
                     extra = Path(path.replace("\\\\", "\\")) / "steamapps"
-                    if extra.is_dir() and Path(extra.drive + "\\" if extra.drive else "/") == root:
+                    if _is_dir(extra) and Path(extra.drive + "\\" if extra.drive else "/") == root:
                         libraries.append(extra)
         return list(dict.fromkeys(p.resolve() for p in libraries))
 
@@ -152,7 +169,7 @@ class GameScanner:
             except OSError:
                 continue
             folder = steamapps / "common" / installdir
-            if not (app_id.isdigit() and installdir and folder.is_dir()):
+            if not (app_id.isdigit() and installdir and _is_dir(folder)):
                 continue
             size, _, _ = self._measure(folder)
             games.append({"id": self._key(folder), "name": name or installdir, "path": str(folder), "kind": "steam", "source": "steam",

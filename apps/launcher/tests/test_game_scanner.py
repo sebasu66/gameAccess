@@ -111,3 +111,27 @@ def test_scan_through_the_library_hides_what_is_already_imported(disk, library):
     names = {g["name"] for g in lib.import_scan([str(disk)])}
     assert "Half Game" not in names and {"Alpha", "Beta", "Gamma"} <= names
     assert lib.import_drives() and all({"path", "total_bytes", "free_bytes"} <= set(d) for d in lib.import_drives())
+
+
+def test_one_unreadable_folder_does_not_stop_the_scan_of_the_disk(disk, monkeypatch):
+    # Windows refuses to read some folders (WpSystem gives WinError 1337); before, that ended the scan of the disk.
+    (disk / "WpSystem").mkdir()
+    real = Path.is_dir
+
+    def is_dir(self):
+        if "WpSystem" in self.parts:
+            raise OSError(1337, "La estructura del identificador de seguridad no es válida")
+        return real(self)
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+    assert {g["name"] for g in GameScanner().scan([str(disk)])} == {"Alpha", "Gamma", "Beta", "Half Game"}
+
+
+def test_linking_the_same_folder_twice_is_not_an_error(disk, library):
+    _, lib = library
+    steam = str(disk / "SteamLibrary" / "steamapps" / "common" / "Half")
+    item = {"app_id": 100, "name": "Half Game", "path": steam, "mode": "link", "kind": "steam"}
+    assert lib.import_games([item])[0]["ok"]
+    again = lib.import_games([item])[0]
+    assert again["ok"] and again.get("already")
+    other = lib.import_games([{**item, "path": str(disk / "Games" / "Alpha")}])[0]
+    assert not other["ok"] and "otra carpeta" in other["error"]
