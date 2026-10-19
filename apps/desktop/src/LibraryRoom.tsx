@@ -429,6 +429,13 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     });
   });
 
+  /** The run dialog is shown on its own: an open game detail closes first (its exit takes 180 ms), then the game starts. */
+  const playGame = (game: CatalogGame) => {
+    if (!detailOpen) return onPlay(game);
+    closeGameDetail();
+    window.setTimeout(() => void onPlay(game), 200);
+  };
+
   // Tab (handled by LibraryInputController) flips between Catalog and Library.
   useEffect(() => {
     if (auxiliarySurface) return;
@@ -487,7 +494,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     const action = actions[index];
     if (!action || action.disabled || !selectedGame) return;
     playUiSound("activate");
-    if (action.kind === "play") void onPlay(selectedGame);
+    if (action.kind === "play") void playGame(selectedGame);
     else if (action.kind === "download") {
       // Without the download plugin the button in that place is "View on Steam".
       const node = actionRefs.current?.[index];
@@ -576,7 +583,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     try {
       await acknowledgeDownloadCompletion(entry.record.job_id);
       setCompletionQueue((current) => current.filter((item) => item.record.job_id !== entry.record.job_id));
-      if (play) void onPlay(entry.game);
+      if (play) void playGame(entry.game);
     } finally {
       completionHandlingRef.current.delete(entry.record.job_id);
     }
@@ -678,10 +685,10 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               {detailPanel}
             </div>
             {detailMenu ? (getCatalogMode() === "digital"
-              ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />
-              : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />) : null}
+              ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
+              : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { CheckCircle2, Circle, Gamepad2, Loader2, Megaphone, MinusCircle, XCircle } from "lucide-react";
 import { useI18n } from "../i18n";
 import { centralDialog, type DialogState, type TaskStep } from "./centralDialog";
+import { useOpeningSettled } from "./openingSettled";
 import "./central-dialog.css";
 
 /** Paragraphs, "## " headings, "- " bullets and **bold**: the only formatting announcements use (no HTML). */
@@ -47,6 +48,7 @@ export default function CentralDialogView() {
   const [state, setState] = useState<DialogState>(() => centralDialog.snapshot());
   const [page, setPage] = useState(0);
   const [, tick] = useState(0);
+  const openingSettled = useOpeningSettled();
   useEffect(() => centralDialog.subscribe(setState), []);
   useEffect(() => setPage(0), [state.announcements]);
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function CentralDialogView() {
 
   const task = state.taskVisible ? state.task : null;
   const announcement = !state.task ? state.announcements[page] : undefined;
-  if (!task && !announcement) return null;
+  if ((!task && !announcement) || !openingSettled) return null;
 
   if (task) {
     const current = task.steps.find(step => step.state === "running");
