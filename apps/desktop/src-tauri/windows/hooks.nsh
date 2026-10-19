@@ -156,3 +156,37 @@ FunctionEnd
     CreateDirectory $GaGamesDir
   ${EndIf}
 !macroend
+
+; Uninstalling Game Access also removes the source plugins it installed. Plugins live in each user's
+; %APPDATA%\GameAccess\plugins (see plugin_install.rs) and keep running as their own process, so they are
+; stopped first. Skipped when the uninstaller runs as part of an update (/UPDATE).
+!define GA_PROFILES "SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process | Where-Object { $$_.Path -like '*\GameAccess\plugins\*' } | Stop-Process -Force"`
+    Pop $0
+    Sleep 1000
+    SetShellVarContext current
+    RMDir /r "$APPDATA\GameAccess\plugins"
+    RMDir "$APPDATA\GameAccess"
+    DeleteRegKey HKCU "Software\Classes\gameaccess"
+    !insertmacro SetContext
+    SetRegView 64
+    StrCpy $1 0
+    ga_profiles_loop:
+      EnumRegKey $2 HKLM "${GA_PROFILES}" $1
+      StrCmp $2 "" ga_profiles_done
+      ReadRegStr $3 HKLM "${GA_PROFILES}\$2" "ProfileImagePath"
+      ExpandEnvStrings $3 $3
+      ${If} $3 != ""
+      ${AndIf} ${FileExists} "$3\AppData\Roaming\GameAccess\plugins\*.*"
+        RMDir /r "$3\AppData\Roaming\GameAccess\plugins"
+        RMDir "$3\AppData\Roaming\GameAccess"
+      ${EndIf}
+      IntOp $1 $1 + 1
+      Goto ga_profiles_loop
+    ga_profiles_done:
+    SetRegView lastused
+  ${EndIf}
+!macroend

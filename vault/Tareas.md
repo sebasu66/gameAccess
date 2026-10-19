@@ -42,6 +42,14 @@ Decidido con Seba 2026-10-19: cuenta local estándar para el niño con Game Acce
 - [ ] **MN.5 Tiempo y cierre**: contar tiempo por juego y por día, avisos previos ("quedan 5 minutos"), cerrar el juego y la sesión al agotarse; relanzar Game Access si se cuelga.
 - [ ] **MN.6 (Opcional) Servicio SYSTEM**: lleva el tiempo sin que el niño pueda tocarlo y, si hicieron falta, vigila procesos (ETW + firma digital) como refuerzo.
 
+## Plugin como script (diseño en [[Plugin como script]]; acordado con Seba 2026-10-19)
+Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una carpeta `manifest.json` + `provider.js` que Game Access ejecuta en una ventana oculta aislada. Orden:
+- [x] **PS.0 Transición** (Claude, 2026-10-19; sin probar desinstalando): el desinstalador cierra los procesos del plugin y borra `%APPDATA%\GameAccess\plugins` de cada usuario y el protocolo `gameaccess://` (salvo en actualizaciones), en `windows/hooks.nsh`.
+- [ ] **PS.1 Formato**: definir `manifest.json` (id, nombre, versión, hosts permitidos, intervalo) y el resultado (mismo contrato que `/api/source-index`, con revisión y deltas); test de contrato.
+- [ ] **PS.2 Cargador en Game Access**: ventana oculta sin capabilities de Tauri salvo un canal de resultados validado por esquema, navegación limitada a los hosts del manifiesto; corre al abrir la app y cada tanto mientras está abierta. Basado en el patrón de `query_cooptimus`.
+- [ ] **PS.3 Carpeta e instalación**: plugins en `%LOCALAPPDATA%\gameAccess\plugins`; `gameaccess://install-plugin` instala el zip chico (ya verifica SHA-256); desinstalar = borrar la carpeta; quitar el arranque de procesos y el `endpoint`/`pid` cuando el formato viejo deje de usarse.
+- [ ] **PS.4 Repo del plugin** (con la cuenta del plugin): portar la lógica del Electron a `provider.js` + `manifest.json` y publicar el release nuevo.
+
 ## Descargas y servidor
 - [x] **Descargas: indicadores verídicos, cola y botón sin plugin** (Claude, 2026-10-18; falta prueba de Seba en la app). El launcher informa la ruta real (`route`: midiendo / torrent directo / acelerada · Viking / directa) y la pantalla de Descargas la muestra junto a una píldora PLUS/BASE; pausar libera el lugar (BASE 1, PLUS 4) y la pausada espera su turno; Subir/Bajar en la cola. Detalle sin plugin instalado y sincronizado: Jugar (instalado) o "Ver en Steam"; con plugin, la descarga de siempre y "Ver en Steam" chico al lado.
 - [x] Mover la cola y el límite BASE/PLUS de `DigitalDownloadService.ts` al Download Manager del launcher (hecho 2026-10-19; falta prueba de Seba descargando en la app) (un proceso administrador; la app solo muestra y ordena). Pedido de Seba: toda la lógica de descargas dentro del Download Manager.
@@ -98,6 +106,7 @@ Decidido con Seba 2026-10-19: cuenta local estándar para el niño con Game Acce
 - [ ] Instalador exacto desde el commit probado (commit, hash, build stamp); instalación en VM limpia; revisar textos visibles; logo/splash nuevo en el instalador.
 - [ ] Smoke test de release (catálogo corrupto, assets faltantes, tipos no-juego); empaquetar artwork estático; trailers on-demand.
 - [ ] Firmar instalador (evitar SmartScreen); backups, rate limiting y revisión legal antes de la beta abierta.
+- [ ] **Instalar por winget** (`winget install GameAccess`; Seba 2026-10-19): manifiesto en `microsoft/winget-pkgs` con la URL del instalador del release y su SHA-256, cuando haya releases en `main` y el instalador esté firmado. Opcional: `install.ps1` para `irm … | iex` (baja el último release, verifica el SHA-256, corre `/S` y acepta las carpetas como parámetros); solo como alternativa para usuarios técnicos, porque los antivirus desconfían de ese patrón. El camino principal sigue siendo el botón de descarga de la página.
 
 ## Mantenimiento y dudas abiertas
 - [x] Commitear la limpieza y la bóveda: `23028b6` (limpieza de la raíz) y `ca31480` (vault, README, skill, AGENTS).
