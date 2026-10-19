@@ -1,6 +1,6 @@
 ---
 tipo: proyecto
-actualizado: 2026-10-16
+actualizado: 2026-10-19
 ---
 # Game Access — definición del proyecto
 
@@ -56,7 +56,7 @@ Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se 
 | Aviso "¿descarga lenta?" | Planeado |
 | Detalle enriquecido (videos de gameplay, notas de prensa) | Planeado |
 | Congelado de juegos (manual y automático) | Planeado |
-| Multiusuario con control de acceso y límite de tiempo para niños | Planeado (plan de 4 USD) |
+| Multiusuario con control de acceso y límite de tiempo para niños (modo niño: Game Access como escritorio de la cuenta de Windows del niño) | Diseñado, sin implementar (plan de 4 USD; ver [[Modo niño]]) |
 | Autoactualización segura con reversión | Planeado (obligatoria antes del primer build público) |
 | Instalador profesional y traducción es/en completa | Planeado |
 | Página web pública (qué es, cómo funciona, FAQ, descarga) | Planeado |

@@ -1,6 +1,6 @@
 ---
 tipo: tareas
-actualizado: 2026-10-16
+actualizado: 2026-10-19
 ---
 # Tareas pendientes — Game Access
 
@@ -31,6 +31,15 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Detalle del juego enriquecido: videos de gameplay/walkthroughs y notas de prensa.
 - [ ] Congelado de juegos (freezer): comprimir un juego de forma fácil de descomprimir.
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
+
+## Modo niño (diseño en [[Modo niño]]; no implementar hasta que Seba lo pida)
+Decidido con Seba 2026-10-19: cuenta local estándar para el niño con Game Access como escritorio (modo quiosco); el adulto usa Game Access normal en su cuenta. Orden:
+- [ ] **MN.1 Instalación para toda la PC**: `"installMode": "perMachine"` en `tauri.conf.json` (`Program Files`); comprobar que la autoactualización sigue funcionando (pide administrador) y que los datos por usuario siguen en `%LOCALAPPDATA%`.
+- [ ] **MN.2 Prueba de concepto del quiosco**: a mano, una cuenta local estándar de prueba con Game Access como shell (`HKCU\...\Winlogon\Shell`), Administrador de tareas deshabilitado y `net user /times`; confirmar en Windows 11 Home y Pro. Anotar vías de escape encontradas (Steam, diálogos de archivo).
+- [ ] **MN.3 Detección del modo**: leer el SID de la sesión y `ProgramData\GameAccess\familia.json` (solo lectura para usuarios); en cuenta de niño, interfaz restringida (solo juegos permitidos y tiempo restante; sin configuración, tienda, descargas ni importador; "Salir" cierra la sesión).
+- [ ] **MN.4 Control parental en modo adulto**: elegir/crear la cuenta del niño, juegos, horarios, límites y PIN; aplicar con Game Access relanzado elevado (crear cuenta, shell, `DisableTaskMgr`, horario de inicio de sesión, `familia.json`). Guía para la Vista familiar de Steam y carpeta compartida de juegos.
+- [ ] **MN.5 Tiempo y cierre**: contar tiempo por juego y por día, avisos previos ("quedan 5 minutos"), cerrar el juego y la sesión al agotarse; relanzar Game Access si se cuelga.
+- [ ] **MN.6 (Opcional) Servicio SYSTEM**: lleva el tiempo sin que el niño pueda tocarlo y, si hicieron falta, vigila procesos (ETW + firma digital) como refuerzo.
 
 ## Descargas y servidor
 - [x] **Descargas: indicadores verídicos, cola y botón sin plugin** (Claude, 2026-10-18; falta prueba de Seba en la app). El launcher informa la ruta real (`route`: midiendo / torrent directo / acelerada · Viking / directa) y la pantalla de Descargas la muestra junto a una píldora PLUS/BASE; pausar libera el lugar (BASE 1, PLUS 4) y la pausada espera su turno; Subir/Bajar en la cola. Detalle sin plugin instalado y sincronizado: Jugar (instalado) o "Ver en Steam"; con plugin, la descarga de siempre y "Ver en Steam" chico al lado.
