@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "revision": "0388b3e2ebc70737",
-  "generated_at": "2026-10-18T09:20:27.455604+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-0388b3e2ebc70737.sqlite.gz",
-  "sha256": "b62861a57f5f60e47f8402f7b25aca1020812fb5441fba66c75f20e79a83af0a",
-  "catalog_count": 44052,
+  "revision": "21ddffee4b838169",
+  "generated_at": "2026-10-19T10:23:36.616912+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-21ddffee4b838169.sqlite.gz",
+  "sha256": "91760718cebbf0193c4323d060cde84f0749b2bf774de13ff59372dcef6cb340",
+  "catalog_count": 44093,
   "detail_count": 677,
-  "compressed_bytes": 11707328,
-  "uncompressed_bytes": 77180928,
+  "compressed_bytes": 11719311,
+  "uncompressed_bytes": 77250560,
   "coverage": {
-    "released_since": "2025-10-18",
-    "through": "2026-10-18",
+    "released_since": "2025-10-19",
+    "through": "2026-10-19",
     "recent_complete": true,
-    "recent_count": 28126,
+    "recent_count": 28135,
     "popular_limit": 5000,
     "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
     "cooptimus": {
@@ -21,21 +21,21 @@
       "state": "not-requested"
     },
     "artwork": {
-      "matched": 43979,
-      "capsule": 43966,
-      "hero": 41774,
-      "header": 43950,
+      "matched": 44020,
+      "capsule": 44007,
+      "hero": 41815,
+      "header": 43991,
       "missing": 73,
-      "descriptors": 10194,
-      "adult_only": 2449,
-      "nudity": 3892,
-      "categories": 43904,
+      "descriptors": 10203,
+      "adult_only": 2452,
+      "nudity": 3896,
+      "categories": 43945,
       "requests": 882,
       "cache_hits": 0
     },
     "server_games_added": 0,
     "server_fields_filled": 0,
-    "updated_at": "2026-10-18T09:20:25.788304+00:00",
-    "tagged_count": 38286
+    "updated_at": "2026-10-19T10:23:34.486780+00:00",
+    "tagged_count": 38327
   }
 }
