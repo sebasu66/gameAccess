@@ -406,9 +406,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       }
       setSession(null); setSelected(null); setLibraryOpen(false);
       const manifest = await finishVisualDebug({ session_dir: config.session_dir, created_at: new Date().toISOString(), results });
-      setToast(`Depuración visual completada: ${manifest}`);
+      setToast(t("visualDebugDone", { manifest }));
     };
-    void run().catch((error) => setToast(`La depuración visual falló: ${error instanceof Error ? error.message : String(error)}`));
+    void run().catch((error) => setToast(t("visualDebugFailed", { error: error instanceof Error ? error.message : String(error) })));
   }, [loading, games, orderedLibrary]);
 
   const magazineGames = orderedLibrary;

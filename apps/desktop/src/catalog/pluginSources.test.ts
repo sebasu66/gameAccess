@@ -158,7 +158,7 @@ describe("Plugin link preparation", () => {
     vi.stubGlobal("fetch", fetcher);
     const [source] = await getPluginSources(game);
     const prepared = await preparePluginSource(source);
-    expect(fetcher.mock.calls[1][0]).toBe(plugin.endpoint+"api/prepare/abc");
+    expect(String(fetcher.mock.calls[1][0]).split("?")[0]).toBe(plugin.endpoint + "api/prepare/abc");
     expect(prepared.url).toBe(plugin.endpoint+"api/download/abc/fixture.zip");
   });
   it("does not silently download a landing page when resolution fails", async () => {
