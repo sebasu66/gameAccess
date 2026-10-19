@@ -52,6 +52,7 @@ import "./tabs.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
 import "./library-manager/library-manager.css";
+import "./ga-design.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.

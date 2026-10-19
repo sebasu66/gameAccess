@@ -1,0 +1,39 @@
+/* Game Access design system: shared close button, primary button and glass panel.
+   Values come from docs/GUI_DESIGN.md. Loaded last so these rules win over older per-screen rules. */
+
+/* Close control: one red circle, 38 px, in every dialog and panel (the game detail keeps its own placement). */
+button.ga-close {
+  display: grid; place-items: center; flex: none;
+  width: 38px; height: 38px; min-width: 38px; min-height: 38px; padding: 0;
+  border: 1px solid #ff6b75; border-radius: 50%;
+  background: #e5202e; color: #fff; box-shadow: 0 0 14px #e5202e88;
+  cursor: pointer;
+}
+button.ga-close:hover { background: #ff3342; box-shadow: 0 0 20px #ff3342cc; }
+button.ga-close:focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }
+
+/* Primary action: orange, 44 px high, dark text. */
+button.ga-btn-primary {
+  height: 44px; padding: 0 18px; border: 1px solid #ff6a00; border-radius: 8px;
+  background: #ff6a00; color: #140a02; font: 700 14px Manrope, sans-serif;
+  cursor: pointer; transition: transform 140ms ease, background-color 140ms ease;
+}
+button.ga-btn-primary:hover:not(:disabled) { background: #ff8230; transform: translateY(-1px); }
+button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Glass panel with the light gradient ring used by the detail dialog. */
+.ga-panel {
+  position: relative;
+  background: rgba(21, 25, 29, .94);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid transparent; border-radius: 12px;
+}
+.ga-panel::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}

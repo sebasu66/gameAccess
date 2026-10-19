@@ -81,7 +81,7 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
   return (
     <div className="modal-backdrop steam-store-backdrop" onMouseDown={onClose}>
       <article className="steam-store-detail" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="close-detail" onClick={onClose} aria-label={t("uiCerrar")}><X size={22} /></button>
+        <button className="close-detail ga-close" onClick={onClose} aria-label={t("uiCerrar")}><X size={22} /></button>
 
         <section className="steam-store-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           {trailer?.mp4 ? <video className="steam-store-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline /> : null}

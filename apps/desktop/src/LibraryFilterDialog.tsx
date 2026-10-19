@@ -198,7 +198,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>
-          <button type="button" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
+          <button type="button" className="ga-close" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
         </div>
       </header>
       <div className={"ga-sx-body" + (topOpen || bottomOpen ? " has-open" : "")} ref={bodyRef}>

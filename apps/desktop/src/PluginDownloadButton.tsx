@@ -58,8 +58,8 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     </button>
     <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
-    {open && <section className="source-selector-panel" aria-label={t("sourcesChoose")}>
-      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
+    {open && <section className="source-selector-panel ga-panel" aria-label={t("sourcesChoose")}>
+      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" className="ga-close" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
       <button type="button" aria-expanded={manualOpen} onClick={() => setManualOpen(value => !value)}>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</button>
       {manualOpen && <ManualDownloadForm game={game} onDone={() => { setManualOpen(false); setOpen(false); }} />}
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}

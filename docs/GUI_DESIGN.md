@@ -107,10 +107,15 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - [ ] Ningún texto está en un solo idioma fijo (revisar en `es` y en `en`).
 - [ ] Probado en `es`, `en` y en ventana de 1024 px de ancho.
 
-## 7. Pendiente de aplicar en el código
+## 7. Estado de aplicación
 
-Estado al 2026-10-19 (revisión con capturas):
-- Hay tres botones de cierre distintos: círculo rojo (detalle, filtros), cuadrado redondeado rojo (configuración, ayuda) y X suelta (premium, importación, panel de fuentes). Unificar en `ga-close`.
-- Botón "Activar" de premium en gris: debe ser `ga-btn-primary`.
-- Botones "…", tienda y pulgares no coinciden en alto con la acción principal.
-- Paneles de fuentes y de descarga sin borde degradado ni vidrio.
+Aplicado el 2026-10-19 (`apps/desktop/src/ga-design.css` y clases en los componentes):
+- `ga-close` en diálogos y paneles: ayuda, configuración, registro del juego, premium, filtros, descarga completada, biblioteca, ficha de tienda, panel de fuentes.
+- `ga-btn-primary` en la acción "Activar" de premium.
+- `ga-panel` en el panel de fuentes (vidrio y borde degradado).
+
+Sin cambios a propósito: **la ficha de juego** (referencia). Su botón de cierre y su fila de acciones se quedan como están.
+
+Pendiente de verificar en la app (no se pudo ver renderizado):
+- Alto de los botones "…", tienda y pulgares frente a la acción principal; la regla de este documento es 44 px fuera de la ficha.
+- Panel de descarga de la biblioteca: falta confirmar si usa `ga-panel`.

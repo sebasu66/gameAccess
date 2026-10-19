@@ -95,7 +95,7 @@ export default function PremiumEntry() {
       <section className="ga-premium-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header>
           <h2 id={titleId}><Sparkles size={20} aria-hidden="true" />{content.title[lang]}</h2>
-          <button type="button" onClick={() => setOpen(false)} aria-label={c.close}><X size={20} /></button>
+          <button type="button" className="ga-close" onClick={() => setOpen(false)} aria-label={c.close}><X size={20} /></button>
         </header>
         {source === "loading" ? <p className="ga-premium-note"><Loader2 className="spin" size={16} aria-hidden="true" /> {c.loading}</p> : <>
           <p>{content.intro[lang]}</p>
@@ -125,7 +125,7 @@ export default function PremiumEntry() {
             <input id={titleId + "-key"} ref={input} value={key} onChange={event => setKey(event.target.value)}
               autoComplete="off" spellCheck={false} placeholder={c.keyPlaceholder} disabled={busy || done}
               aria-describedby={error ? titleId + "-error" : undefined} />
-            <button type="submit" className="primary" disabled={busy || done || !key.trim()}>
+            <button type="submit" className="primary ga-btn-primary" disabled={busy || done || !key.trim()}>
               {busy ? <Loader2 className="spin" size={16} aria-hidden="true" /> : null}{busy ? c.checking : c.submit}
             </button>
           </div>
