@@ -66,8 +66,25 @@ jobs:
       # installer payload below so stale UI contract tests cannot suppress releases.
 
       - name: Build Windows installer
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         working-directory: apps/desktop
         run: npm run tauri build
+
+      # A release build looks for updates (channel "release") and is signed so installed clients accept it.
+      - name: Build signed release installer
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: apps/desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_GAMEACCESS_CHANNEL: release
+          GAMEACCESS_CHANNEL: release
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "The TAURI_SIGNING_PRIVATE_KEY secret is missing: releases must be signed." }
+          # tauri.release.conf.json adds the signed updater artifacts (.sig) on top of tauri.conf.json.
+          npm run tauri build -- --config src-tauri/tauri.release.conf.json
+          if ($LASTEXITCODE -ne 0) { throw "Signed build failed." }
 
       - name: Verify installer payload
         shell: pwsh
@@ -110,6 +127,52 @@ jobs:
             throw "Installer payload contains forbidden local/runtime cache paths: $($forbidden[0].FullName)"
           }
 
+      # The installed app must start: launcher, embedded Python and catalog seed in place.
+      - name: Self-test the installed app
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP "ga-installed"
+          Start-Process $installer.FullName -ArgumentList '/S', "/D=$target" -Wait
+          $report = Join-Path $env:RUNNER_TEMP "self-test.json"
+          $env:GAMEACCESS_SELF_TEST_OUT = $report
+          $run = Start-Process (Join-Path $target "gameaccess-desktop.exe") -ArgumentList '--self-test' -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report }
+          if ($run.ExitCode -ne 0) { throw "Installed app failed its self-test (exit $($run.ExitCode))." }
+
+      # An update must keep the player's games, library and settings, which live inside the install folder.
+      - name: Verify an update keeps the player's data
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $new = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $previousDir = Join-Path $env:RUNNER_TEMP "previous-release"
+          New-Item -ItemType Directory -Force $previousDir | Out-Null
+          gh release download --repo $env:GITHUB_REPOSITORY --pattern "*-setup.exe" --dir $previousDir 2>$null
+          $old = Get-ChildItem "$previousDir/*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $old) { Write-Host "No published release yet: the update path is tested by reinstalling this build over itself."; $old = $new }
+          $target = Join-Path $env:RUNNER_TEMP "ga-update"
+          Start-Process $old.FullName -ArgumentList '/S', "/D=$target" -Wait
+          $launcher = Join-Path $target "runtime/launcher"
+          $markers = @("games/Marker Game-ready/game.bin", ".cache/digital-settings.json", ".gameaccess/marker.txt")
+          foreach ($relative in $markers) {
+            $path = Join-Path $launcher $relative
+            New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+            Set-Content -LiteralPath $path -Value "kept"
+          }
+          # The same arguments the updater uses for a silent update.
+          Start-Process $new.FullName -ArgumentList '/S', '/UPDATE', "/D=$target" -Wait
+          foreach ($relative in $markers) {
+            $path = Join-Path $launcher $relative
+            if (-not (Test-Path -LiteralPath $path)) { throw "The update deleted player data: $relative" }
+          }
+          $env:GAMEACCESS_SELF_TEST_OUT = Join-Path $env:RUNNER_TEMP "update-self-test.json"
+          $run = Start-Process (Join-Path $target "gameaccess-desktop.exe") -ArgumentList '--self-test' -Wait -PassThru
+          if ($run.ExitCode -ne 0) { throw "The updated app failed its self-test." }
+          Write-Host "Player data survived the update and the updated app passed its self-test."
+
       - name: Read application version
         id: version
         shell: pwsh
@@ -140,8 +203,26 @@ jobs:
           $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
           if (-not $installer) { throw "NSIS installer not found." }
 
+          $signature = Get-Item "$($installer.FullName).sig" -ErrorAction SilentlyContinue
+          if (-not $signature) { throw "The installer signature is missing." }
+
+          # What installed clients read (releases/latest/download/latest.json): it points at this tag's installer.
+          $manifest = Join-Path $env:RUNNER_TEMP "latest.json"
+          @{
+            version = $env:APP_VERSION
+            notes = "Game Access v$env:APP_VERSION"
+            pub_date = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = (Get-Content -LiteralPath $signature.FullName -Raw).Trim()
+                url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$($installer.Name)"
+              }
+            }
+          } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifest -Encoding UTF8
+
+          # Published as a pre-release: clients only see it after promote-release.yml (or a manual promotion).
           gh release view $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Game Access v$env:APP_VERSION" --generate-notes
+            gh release create $env:GITHUB_REF_NAME --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Game Access v$env:APP_VERSION" --generate-notes --prerelease
           }
-          gh release upload $env:GITHUB_REF_NAME $installer.FullName --repo $env:GITHUB_REPOSITORY --clobber
+          gh release upload $env:GITHUB_REF_NAME $installer.FullName $signature.FullName $manifest --repo $env:GITHUB_REPOSITORY --clobber

@@ -11,6 +11,8 @@ import NativeAccessBoundary from "./NativeAccessBoundary";
 import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
+import UpdateGate from "./UpdateGate";
+import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
 import LanguageSwitch from "./LanguageSwitch";
@@ -117,8 +119,10 @@ if (libraryDemo()) {
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><NativeAccessBoundary />
-    <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></AppCrashBoundary>
+    <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );
 
 void startLocalAutomation();
+// The native watchdog installs a pending update by itself if the interface never gets this far.
+reportFrontendAlive();

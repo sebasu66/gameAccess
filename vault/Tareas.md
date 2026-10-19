@@ -33,6 +33,10 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
 
 ## Descargas y servidor
+- [ ] **Producción en `main` con auto-update** (Claude, pedido por Seba 2026-10-18). Orden: auto-update → pantalla de preparación al arrancar → `main` como producción.
+  - [x] Auto-update obligatorio (Tauri updater, firma, diálogo con progreso, vigía nativo si la interfaz no arranca, autoprueba `--self-test`, release como pre-release + `promote-release.yml`, prueba de que la actualización conserva juegos/datos). Probado en Windows Sandbox. Falta: Seba carga el secreto `TAURI_SIGNING_PRIVATE_KEY` en GitHub y guarda copia de la clave.
+  - [ ] Primer arranque y actualizaciones de base/fuentes en un solo proceso en primer plano, con diálogo y barra de progreso; la app bloqueada hasta terminar.
+  - [ ] Adelantar `main` al último `dev` estable; Render de producción con deploy manual desde `main`; clientes de producción leen servidor y catálogo desde `main`; el job del catálogo publica también en `main`.
 - [x] **Decisión torrent directo vs Torbox → Viking por piezas** (Claude, pedido por Seba 2026-10-18; falta prueba en vivo de Seba con un juego grande y poco compartido). Hoy todo torrent iba a Torbox sin medir nada.
   - [x] Plan de piezas: las 5 primeras de 100 MB; después ~1/10 del juego, mínimo 100 MB, tope 500 MB (primer 10 %) y 1 GB.
   - [x] El servidor retoma desde la pieza a la que llegó el cliente (trabajo perdido tras reinicio = 404); el cliente vuelve a pedir la que quedó a medias y las siguientes.

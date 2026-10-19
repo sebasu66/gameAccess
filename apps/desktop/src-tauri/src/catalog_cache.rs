@@ -157,6 +157,14 @@ fn ready_cache_db_path() -> Result<PathBuf, String> {
     ready_cache_db_path_unlocked()
 }
 
+/// The installed catalog, installing the bundled seed if needed (used by the release self-test).
+pub(crate) fn self_test_catalog() -> Result<PathBuf, String> {
+    let path = ready_cache_db_path()?;
+    let size = fs::metadata(&path).map_err(|err| format!("Catalog missing after install: {err}"))?.len();
+    if size == 0 { return Err("Catalog database is empty".to_string()); }
+    Ok(path)
+}
+
 fn ready_cache_db_path_unlocked() -> Result<PathBuf, String> {
     let target = cache_db_path()?;
     reconcile_cache_sidecars(&target)?;

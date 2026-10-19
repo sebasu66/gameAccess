@@ -21,10 +21,12 @@ mod digital_commands;
 mod execution_profiles;
 mod plugin_registry;
 mod plugin_install;
+mod app_update;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
     let visual_debug_dir = visual_debug::visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
@@ -36,6 +38,9 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
             let _=app.emit("gameaccess:launch-request",());
         }))
+        // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
@@ -43,6 +48,7 @@ fn main() {
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
             plugin_registry::start_registered_plugins();
+            app_update::start_watchdog(app.handle().clone());
             Ok(())
         })
         .manage(automation_state)
@@ -51,6 +57,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
+            app_update::app_frontend_alive,
             access_commands::activation_installation_id,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
