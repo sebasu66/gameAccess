@@ -7,7 +7,43 @@ fn activation_dir() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
+/// The identity a key is bound to on its first activation: this Windows installation. It is derived from Windows'
+/// own MachineGuid, so a key copied to another PC (even with the activation folder) is refused there, and the same
+/// key keeps working after Game Access is reinstalled or from another Windows account on the same PC.
 pub fn installation_id() -> Result<String, String> {
+    static MACHINE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    if let Some(id) = MACHINE.get_or_init(|| machine_guid().map(|guid| machine_installation_id(&guid))) {
+        return Ok(id.clone());
+    }
+    file_installation_id()
+}
+
+/// A UUID that names the Windows installation without revealing its MachineGuid.
+fn machine_installation_id(machine_guid: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(format!("gameaccess-installation:{}", machine_guid.trim().to_ascii_lowercase()).as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hash[..16]);
+    uuid::Builder::from_custom_bytes(bytes).into_uuid().to_string()
+}
+
+#[cfg(windows)]
+fn machine_guid() -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("reg")
+        .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+        .creation_flags(0x0800_0000)
+        .output().ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let guid = text.lines().find(|line| line.trim_start().starts_with("MachineGuid"))?.split_whitespace().last()?.to_string();
+    uuid::Uuid::parse_str(&guid).ok().map(|_| guid)
+}
+
+#[cfg(not(windows))]
+fn machine_guid() -> Option<String> { None }
+
+/// Fallback when Windows does not give its MachineGuid: a random identity kept in the user's data folder.
+fn file_installation_id() -> Result<String, String> {
     let path = activation_dir()?.join("installation-id");
     if !path.exists() {
         let candidate = uuid::Uuid::new_v4().to_string();
@@ -218,5 +254,26 @@ mod tests {
             access_key: Some("GA-REGULAR-TEST-1234".into()) };
         let cached = decode_cache(serde_json::to_string(&value).unwrap()).unwrap();
         assert_eq!(cached.access_key.as_deref(), Some("GA-REGULAR-TEST-1234"));
+    }
+}
+
+#[cfg(test)]
+mod machine_identity_tests {
+    use super::*;
+
+    #[test]
+    fn the_identity_is_a_stable_uuid_per_windows_and_hides_the_machine_guid() {
+        let guid = "8a1d6c2e-3f4b-4c5d-9e6f-7a8b9c0d1e2f";
+        let id = machine_installation_id(guid);
+        assert_eq!(id, machine_installation_id(&guid.to_uppercase()));
+        assert_ne!(id, machine_installation_id("11111111-2222-3333-4444-555555555555"));
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+        assert!(!id.contains("8a1d6c2e"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn this_pc_has_a_machine_guid() {
+        assert!(machine_guid().is_some());
     }
 }

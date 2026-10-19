@@ -18,6 +18,7 @@ class AccessKeyIssueRequest(BaseModel):
     duration_months: Optional[int] = Field(default=None, ge=1, le=60)
     key_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
     count: int = Field(default=1, ge=1, le=100)
+    label: Optional[str] = Field(default=None, max_length=80)
 
 
 class AccessKeyRenewRequest(BaseModel):

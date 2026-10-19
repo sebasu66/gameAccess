@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from .models import AccessEvent
 from .api_schemas import AccessKeyIssueRequest, AccessKeyRenewRequest
 from .api_dependencies import get_session
-from .access_keys import AccessKey, issue_keys, utc
+from .access_keys import AccessKey, issue_keys, release_key, utc
 from .access_service import now_utc, _admin_activation_access
 
 router = APIRouter()
@@ -26,6 +26,7 @@ def create_access_keys(req: AccessKeyIssueRequest, request: Request, session: Se
         key_ttl_hours=req.key_ttl_hours,
         expires_at=req.expires_at,
         access_tier=req.access_tier,
+        label=req.label,
     )
     return {"keys": [{"id": key_id, "key": key} for key_id, key in keys]}
 
@@ -45,6 +46,7 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "expires_at": row.expires_at,
         "revoked_at": row.revoked_at,
         "installation_id": row.installation_id,
+        "label": row.label,
     } for row in rows]}
 
 
@@ -69,6 +71,18 @@ def renew_access_key(key_id: int, req: AccessKeyRenewRequest, request: Request, 
     session.add(row)
     session.commit()
     return {"id": row.id, "access_tier": row.access_tier, "expires_at": utc(row.expires_at)}
+
+
+@router.post("/admin/access-keys/{key_id}/release")
+def release_access_key(key_id: int, request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    try:
+        row = release_key(session, key_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return {"id": row.id, "released": True}
 
 
 @router.post("/admin/access-keys/{key_id}/revoke")

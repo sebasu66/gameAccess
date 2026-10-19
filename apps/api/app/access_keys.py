@@ -32,6 +32,8 @@ class AccessKey(SQLModel, table=True):
     installation_id: Optional[str] = SQLField(default=None, index=True)
     session_hash: Optional[str] = SQLField(default=None, index=True)
     revoked_at: Optional[datetime] = None
+    # Who the key was given to ("Juan, tester"); only shown in the admin console.
+    label: Optional[str] = None
 
 
 def utc(value: datetime) -> datetime:
@@ -85,6 +87,7 @@ def issue_keys(
     key_ttl_hours: int = 24,
     expires_at: datetime | None = None,
     access_tier: str | None = None,
+    label: str | None = None,
 ) -> list[tuple[int, str]]:
     if sum(value is not None for value in (hours, months, expires_at)) != 1:
         raise ValueError("Specify exactly one access expiry or duration")
@@ -106,6 +109,7 @@ def issue_keys(
                 created_at=created_at,
                 expires_at=utc(expires_at) if expires_at is not None else None,
                 key_expires_at=utc(expires_at) if expires_at is not None else created_at + timedelta(hours=key_ttl_hours),
+                label=(label or "").strip()[:80] or None,
             )
             try:
                 # The database unique index is authoritative. Retry collisions
@@ -127,6 +131,9 @@ def issue_keys(
 def ensure_access_key_schema(engine) -> None:
     """Add pending-key expiry to existing databases without resetting them."""
     columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
+    if "label" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE accesskey ADD COLUMN label VARCHAR"))
     if "access_tier" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE accesskey ADD COLUMN access_tier VARCHAR NOT NULL DEFAULT 'base'"))
@@ -189,6 +196,21 @@ def redeem_key(session: Session, printable: str, installation_id: str) -> tuple[
         raise ValueError("This key is already active on another installation")
     session.commit()
     return token, expires_at
+
+
+def release_key(session: Session, key_id: int) -> AccessKey:
+    """Free an activated key from its Windows installation (the tester reinstalled Windows or changed PC): the old
+    installation's session ends and the key can be activated once more. Its end date does not change."""
+    row = session.get(AccessKey, key_id)
+    if row is None:
+        raise LookupError("Activation key not found")
+    if row.revoked_at is not None:
+        raise ValueError("A revoked key cannot be released")
+    row.installation_id = None
+    row.session_hash = None
+    session.add(row)
+    session.commit()
+    return row
 
 
 def valid_session(session: Session, token: str, installation_id: str) -> AccessKey | None:

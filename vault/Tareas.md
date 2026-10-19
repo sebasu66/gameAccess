@@ -84,6 +84,9 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [ ] Logs de la app dentro del proyecto (`apps/launcher/logs` o `api/logs`).
 
 ## Premium y comercial (Paso 1 hecho, falta cerrar)
+- [x] **Llaves para testers** (Claude, pedido por Seba 2026-10-19; falta desplegar el servidor y probar con un amigo): en `/admin`, sección "Llaves para testers": nombre del tester, fecha de fin (por defecto un mes) y cantidad → llaves PLUS hasta esa fecha. La primera activación la ata a ese Windows; en otro la rechaza. "Desvincular" la libera si el tester reinstala Windows (no cambia la fecha). La lista muestra para quién es y su Windows (8 primeros caracteres).
+  - Cliente: el identificador de instalación sale ahora del `MachineGuid` de Windows (hash, no se envía el GUID), no de un archivo al azar en `%LOCALAPPDATA%`. Copiar la carpeta de activación a otra PC ya no sirve. Las activaciones hechas antes con el identificador viejo hay que hacerlas de nuevo (no hay usuarios todavía).
+- [ ] Pendiente previo: `tests/test_current_product_routes.py` falla también sin estos cambios (quedan rutas `/downloads` o `/pool` que el test prohíbe).
 - [ ] Seba: pasar las URLs reales de Patreon y de pago en pesos (hoy todo apunta al placeholder `https://gameaccess.app`).
 - [ ] Reiniciar/redeployar el API para publicar `/premium/content` y ver el diálogo con planes en vivo; revisar los textos de planes (2 y 4 USD).
 - [ ] Probar la clave en vivo contra el server real desde el diálogo nuevo.
