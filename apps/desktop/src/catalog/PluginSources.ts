@@ -267,27 +267,28 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
     return;
   }
 
-  const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse | null> => {
+  const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse> => {
     const query = since ? `?since=${encodeURIComponent(since)}` : "";
     const response = await fetch(endpoint(plugin, `/api/source-index${query}`), {
-      signal: AbortSignal.timeout(15000),
+      // The first, full index can hold tens of thousands of entries; a delta is small.
+      signal: AbortSignal.timeout(since ? 15000 : 90000),
       cache: "no-store",
     });
     if (!response.ok) {
       void narrate(
         `Provider '${plugin.name}' · /api/source-index replied HTTP ${response.status}` +
-          (response.status === 404 ? " (the running plugin process predates this route; restart the plugin)." : "."),
+          (response.status === 404 ? " (this plugin version has no source index; it must be updated)." : "."),
         { area: "DOWNLOAD_SOURCES", level: "WARN" },
       );
-      return null;
+      // A plugin without the index (404) is an old version: the player has to update it, retrying will not help.
+      throw new Error(translate(response.status === 404 ? "pluginTooOld" : "pluginIndexFailed", { name: plugin.name }));
     }
     return (await response.json()) as PluginSourceIndexResponse;
   };
 
   try {
     report(translate("pluginAsking", { name: plugin.name }));
-    let payload = await fetchIndex(lastRev);
-    if (!payload) return;
+    const payload = await fetchIndex(lastRev);
 
     let full = Boolean(payload.full);
     let added = normalizeIndexEntries(payload.added, plugin.name);
@@ -314,22 +315,20 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
     // re-fetch full index once so the DB is populated.
     if (!full && lastRev && applied && applied.sources_total === 0) {
       const fullPayload = await fetchIndex("");
-      if (fullPayload) {
-        full = true;
-        added = normalizeIndexEntries(fullPayload.added, plugin.name);
-        removed = [];
-        revision = String(fullPayload.revision ?? revision);
-        for (const entry of added) {
-          if (entry.source) knownSourceNames.add(entry.source);
-        }
-        applied = await applyCatalogSources({
-          pluginId: plugin.id,
-          revision,
-          full: true,
-          added,
-          removed: [],
-        });
+      full = true;
+      added = normalizeIndexEntries(fullPayload.added, plugin.name);
+      removed = [];
+      revision = String(fullPayload.revision ?? revision);
+      for (const entry of added) {
+        if (entry.source) knownSourceNames.add(entry.source);
       }
+      applied = await applyCatalogSources({
+        pluginId: plugin.id,
+        revision,
+        full: true,
+        added,
+        removed: [],
+      });
     }
 
     setSavedPluginRevision(plugin.id, revision);
@@ -339,9 +338,12 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
     }
   } catch (error) {
     void narrate(
-      `Provider '${plugin.name}' · source-index sync failed: ${error instanceof Error ? error.name : "unknown error"}.`,
+      `Provider '${plugin.name}' · source-index sync failed: ${error instanceof Error ? error.message : "unknown error"}.`,
       { area: "DOWNLOAD_SOURCES", level: "WARN" },
     );
+    // The player has to know: without the index the plugin's games show no downloads.
+    if (error instanceof Error && error.name !== "TypeError" && error.name !== "TimeoutError") throw error;
+    throw new Error(translate("pluginIndexFailed", { name: plugin.name }));
   }
 }
 
@@ -349,7 +351,10 @@ export async function checkPluginSources(_games?: CatalogGame[], report?: Source
   if (pendingSync) return pendingSync;
   const run = (async () => {
     const manifests = await plugins();
-    await Promise.all(manifests.map(plugin => syncPluginIndex(plugin, report)));
+    // Each plugin syncs on its own; one that fails does not hold back the others, and the failure is reported.
+    const results = await Promise.allSettled(manifests.map(plugin => syncPluginIndex(plugin, report)));
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
     return {};
   })().finally(() => {
     pendingSync = null;

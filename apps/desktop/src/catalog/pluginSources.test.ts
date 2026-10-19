@@ -10,6 +10,7 @@ import {
   preparePluginSource,
   unregisterPluginSources,
   getAllAvailableSourceNames,
+  sourcePluginReady,
 } from "./PluginSources";
 import { pollPluginRuntime, resetPluginRuntime } from "./PluginRuntime";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
@@ -105,6 +106,18 @@ describe("External plugin sources", () => {
       added: [{ key: "k3", title: "Another Game", source: "Feed C", multiplayer: false }],
       removed: ["k1"],
     });
+  });
+
+  it("an old plugin without /api/source-index is reported (it must be updated) and nothing counts as synced", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => (cmd === "get_registered_plugins" ? [plugin] : undefined));
+    vi.stubGlobal("fetch", vi.fn(async (url: string): Promise<any> => {
+      if (url.endsWith("/api/health")) return { ok: true, status: 200, json: async () => ({ id: plugin.id, revision: "5-0" }) };
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+    await pollPluginRuntime();
+    await expect(checkPluginSources()).rejects.toThrow(/Provider/);
+    expect(invoke).not.toHaveBeenCalledWith("catalog_sources_apply", expect.anything());
+    await expect(sourcePluginReady()).resolves.toBe(false);
   });
 
   it("uses the Steam AppID, rejects unusable URLs, deduplicates and keeps source-specific sizes", async () => {

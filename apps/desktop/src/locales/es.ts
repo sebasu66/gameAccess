@@ -645,4 +645,6 @@ export const es = {
   pluginAsking: "Pidiendo las fuentes a {{name}}",
   pluginSaving: "Guardando las fuentes de {{name}}",
   pluginNotAnswering: "El plugin no responde. Revisá que esté instalado y volvé a intentar.",
+  pluginTooOld: "Esta versión de {{name}} es vieja y no puede pasar su lista de fuentes. Actualizalo desde su página (botón Instalar) y volvé a intentar.",
+  pluginIndexFailed: "{{name}} no pudo pasar su lista de fuentes. Volvé a intentar.",
 } as const;

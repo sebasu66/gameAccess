@@ -647,4 +647,6 @@ export const en: Record<keyof typeof es, string> = {
   pluginAsking: "Asking {{name}} for its sources",
   pluginSaving: "Saving the sources of {{name}}",
   pluginNotAnswering: "The plugin does not answer. Check it is installed and try again.",
+  pluginTooOld: "This version of {{name}} is too old to send its source list. Update it from its page (Install button) and try again.",
+  pluginIndexFailed: "{{name}} could not send its source list. Try again.",
 };

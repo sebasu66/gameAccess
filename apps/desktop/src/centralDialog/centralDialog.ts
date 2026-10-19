@@ -124,22 +124,32 @@ class CentralDialog {
     return ready;
   }
 
-  /** Runs the steps in order. A failed step does not stop the next ones; the failures are shown at the end. */
-  async runTask(title: string, steps: StepRunner[]): Promise<{ failed: string[] }> {
+  /**
+   * Runs the steps in order. A failed step does not stop the next ones; the failures are shown at the end.
+   * With `canRetry`, the player can run the failed steps again from the failure.
+   */
+  async runTask(title: string, steps: StepRunner[], options: { canRetry?: boolean } = {}): Promise<{ failed: string[] }> {
     const task = await this.beginTask(title, steps);
-    const failed: string[] = [];
-    for (const step of steps) {
-      task.start(step.id);
-      try {
-        const result = await step.run((done, total, detail, unit) => task.progress(step.id, done, total, detail, unit));
-        task.finish(step.id, result === "skipped" ? "skipped" : "done");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        task.finish(step.id, "failed", message);
-        failed.push(`${step.label}: ${message}`);
+    let pending = steps;
+    let failed: string[] = [];
+    for (;;) {
+      const again: StepRunner[] = [];
+      failed = [];
+      for (const step of pending) {
+        task.start(step.id);
+        try {
+          const result = await step.run((done, total, detail, unit) => task.progress(step.id, done, total, detail, unit));
+          task.finish(step.id, result === "skipped" ? "skipped" : "done");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          task.finish(step.id, "failed", message);
+          failed.push(`${step.label}: ${message}`);
+          again.push(step);
+        }
       }
+      if (!failed.length || (await task.fail(failed.join("\n"), options.canRetry)) !== "retry") break;
+      pending = again;
     }
-    if (failed.length) await task.fail(failed.join("\n"));
     task.end();
     return { failed };
   }

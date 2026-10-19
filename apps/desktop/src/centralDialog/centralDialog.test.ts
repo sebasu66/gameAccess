@@ -48,6 +48,22 @@ describe("central dialog: tasks", () => {
     expect(dialog.snapshot().task).toBeNull();
   });
 
+  it("with canRetry the player can run only the failed steps again", async () => {
+    const dialog = new CentralDialog();
+    let attempts = 0;
+    const ran: string[] = [];
+    const task = dialog.runTask("T", [
+      { id: "a", label: "A", run: async () => { attempts++; if (attempts === 1) throw new Error("vieja"); } },
+      { id: "b", label: "B", run: async () => { ran.push("b"); } },
+    ], { canRetry: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(dialog.snapshot().task).toMatchObject({ failure: "A: vieja", canRetry: true });
+    dialog.answerFailure("retry");
+    await expect(task).resolves.toEqual({ failed: [] });
+    expect(attempts).toBe(2);
+    expect(ran).toEqual(["b"]);
+  });
+
   it("runs tasks one after another", async () => {
     const dialog = new CentralDialog();
     const order: string[] = [];

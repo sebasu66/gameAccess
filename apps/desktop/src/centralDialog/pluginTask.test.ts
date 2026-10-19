@@ -4,6 +4,7 @@ let statuses: Array<{ type: string; alive: boolean }> = [];
 const polls = vi.fn(async () => undefined);
 vi.mock("../catalog/PluginRuntime", () => ({ getPluginStatuses: () => statuses, pollPluginRuntime: () => polls() }));
 const check = vi.fn();
+vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../catalog/PluginSources", () => ({ checkPluginSources: (games: unknown, report: unknown) => check(games, report) }));
 
 import { centralDialog } from "./centralDialog";
@@ -39,5 +40,27 @@ describe("plugin sources in the central dialog", () => {
     vi.useRealTimers();
     expect(polls.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(check).toHaveBeenCalledOnce();
+  });
+
+  it("a failed sync is shown with retry; the same failure in a later automatic sync only goes to the log", async () => {
+    statuses = [{ type: "source_provider", alive: true }];
+    check.mockRejectedValue(new Error("Esta versión es vieja"));
+    const first = runPluginSourcesTask();
+    await vi.waitFor(() => expect(centralDialog.snapshot().task?.failure).toContain("Esta versión es vieja"));
+    expect(centralDialog.snapshot().task?.canRetry).toBe(true);
+
+    check.mockResolvedValueOnce({}); // the player updated the plugin and retries
+    centralDialog.answerFailure("retry");
+    await first;
+    expect(check).toHaveBeenCalledTimes(2);
+
+    check.mockRejectedValue(new Error("Otra falla"));
+    const second = runPluginSourcesTask();
+    await vi.waitFor(() => expect(centralDialog.snapshot().task?.failure).toContain("Otra falla"));
+    centralDialog.answerFailure("continue");
+    await second;
+    await runPluginSourcesTask(); // same failure again: not shown twice
+    expect(centralDialog.snapshot().task).toBeNull();
+    expect(check).toHaveBeenCalledTimes(4);
   });
 });

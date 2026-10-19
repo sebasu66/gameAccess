@@ -1,4 +1,4 @@
-<#
+﻿<#
   Installs a GameAccess installer inside Windows Sandbox (a clean, disposable Windows) and checks that it works
   without anything this development machine has installed (Python, Node, Rust, VC++ runtimes, the checkout).
 
@@ -8,10 +8,12 @@
 
   .\tools\windows\sandbox-installer-test.ps1                    # newest installer in the Tauri bundle folder
   .\tools\windows\sandbox-installer-test.ps1 -Installer X.exe   # a given installer (for example a downloaded release)
+  .\tools\windows\sandbox-installer-test.ps1 -PluginZip X.zip    # also a plugin package, unpacked before the app opens
 #>
 [CmdletBinding()]
 param(
     [string]$Installer,
+    [string]$PluginZip,
     [string]$OutDir,
     [ValidateRange(30, 3600)][int]$RunSeconds = 180,
     [ValidateRange(5, 120)][int]$TimeoutMinutes = 30
@@ -38,6 +40,7 @@ $inbox = Join-Path $work 'in'
 if (-not $OutDir) { $OutDir = Join-Path $work 'out' }
 New-Item -ItemType Directory -Force -Path $inbox, $OutDir | Out-Null
 Copy-Item -LiteralPath $Installer -Destination (Join-Path $inbox 'GameAccess-setup.exe')
+if ($PluginZip) { Copy-Item -LiteralPath (Resolve-Path -LiteralPath $PluginZip).Path -Destination (Join-Path $inbox 'plugin.zip') }
 
 # Runs inside the sandbox at logon.
 @"
@@ -56,6 +59,13 @@ if (Test-Path `$exe) {
     `$test = Start-Process `$exe -ArgumentList '--self-test' -Wait -PassThru
     Write-Host "Self-test exit: `$(`$test.ExitCode)"
     Remove-Item Env:GAMEACCESS_SELF_TEST_OUT
+    if (Test-Path 'C:\in\plugin.zip') {
+        # Same place and layout as an install from the plugin's page.
+        `$plugins = "`$env:APPDATA\GameAccess\plugins"
+        New-Item -ItemType Directory -Force -Path `$plugins | Out-Null
+        tar -xf 'C:\in\plugin.zip' -C `$plugins
+        Write-Host "Plugin unpacked into `$plugins"
+    }
     Write-Host 'Opening the app like a player for $RunSeconds s...'
     `$app = Start-Process `$exe -PassThru
     # Screenshots of the first seconds: the startup preparation dialog, the welcome, the library.
@@ -74,6 +84,13 @@ if (Test-Path `$exe) {
         `$bitmap.Save("`$out\screen-`$('{0:d2}' -f `$second)s.png"); `$bitmap.Dispose()
     }
     Start-Sleep -Seconds ([Math]::Max(0, $RunSeconds - `$waited))
+    if (Test-Path 'C:\in\plugin.zip') {
+        `$manifest = Get-Content "`$env:APPDATA\GameAccess\plugins\torrent_provider.json" -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        if (`$manifest) {
+            try { Write-Host "Plugin health: `$((Invoke-WebRequest "`$(`$manifest.endpoint)/api/health" -UseBasicParsing -TimeoutSec 10).Content)" } catch { Write-Host "Plugin health failed: `$_" }
+            try { Write-Host "Plugin source-index: HTTP `$((Invoke-WebRequest "`$(`$manifest.endpoint)/api/source-index" -UseBasicParsing -TimeoutSec 60).StatusCode)" } catch { Write-Host "Plugin source-index failed: `$_" }
+        } else { Write-Host 'The plugin did not register its endpoint' }
+    }
     `$alive = -not `$app.HasExited
     Write-Host "App still running after $RunSeconds s: `$alive"
     Get-Process | Where-Object { `$_.Path -like "`$target*" } | ForEach-Object { Write-Host "  process: `$(`$_.Name) `$([int](`$_.WorkingSet64 / 1MB)) MB" }
