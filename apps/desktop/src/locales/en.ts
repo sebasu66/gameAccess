@@ -525,7 +525,6 @@ export const en: Record<keyof typeof es, string> = {
   factRelease: "Release",
   factSize: "Size",
   factFree: "Free",
-  createDesktopShortcut: "Create desktop shortcut",
   cancelOpenedSteam: "Steam manages this download. GameAccess opened Steam so you can cancel it.",
   modeSingle: "Single player",
   modeCoop: "Co-op",

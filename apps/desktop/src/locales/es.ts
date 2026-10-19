@@ -523,7 +523,6 @@ export const es = {
   factRelease: "Lanzamiento",
   factSize: "Tamaño",
   factFree: "Gratis",
-  createDesktopShortcut: "Crear acceso directo en el escritorio",
   cancelOpenedSteam: "Steam administra esta descarga. GameAccess abrió Steam para que puedas cancelarla.",
   modeSingle: "Un jugador",
   modeCoop: "Cooperativo",

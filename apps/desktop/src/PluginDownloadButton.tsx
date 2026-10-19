@@ -1,4 +1,3 @@
-import {invoke} from "@tauri-apps/api/core";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
@@ -22,6 +21,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
   const [open, setOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
   const key = String(game.app_id ?? game.id) + "|" + game.name;
   const current = result.key === key ? result : { sources: [], loading: true };
   useEffect(() => {
@@ -60,11 +60,8 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
     {open && <section className="source-selector-panel" aria-label={t("sourcesChoose")}>
       <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
-      <button type="button" onClick={() => {
-        void invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name})
-          .then(()=>setOpen(false)).catch(err=>setError(String(err)));
-      }}>{locale === "es" ? "Crear acceso directo en el escritorio" : "Create desktop shortcut"}</button>
-      <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</summary><ManualDownloadForm game={game} onDone={() => setOpen(false)} /></details>
+      <button type="button" aria-expanded={manualOpen} onClick={() => setManualOpen(value => !value)}>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</button>
+      {manualOpen && <ManualDownloadForm game={game} onDone={() => { setManualOpen(false); setOpen(false); }} />}
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
         <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>
