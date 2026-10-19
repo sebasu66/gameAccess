@@ -29,6 +29,23 @@ El plugin pasa a ser **una carpeta con datos y un script**, sin ejecutable:
 - **Instalar** es copiar unos KB, verificados con SHA-256 (el enlace `gameaccess://install-plugin` ya lo hace), sin permisos de administrador. **Desinstalar** es borrar la carpeta. No hay procesos ni puertos.
 - **Carpeta**: `%LOCALAPPDATA%\gameAccess\plugins`, junto a los datos del launcher (`%LOCALAPPDATA%\gameAccess\launcher`). Es por usuario porque Program Files no se puede escribir sin administrador. Hoy los plugins van a `%APPDATA%\GameAccess\plugins` (`plugin_install.rs`, `plugin_registry.rs`).
 
+## Qué pasa con cada función del plugin actual
+Revisado en el `app.asar` del plugin instalado (2026-10-19).
+
+| Función actual | En la versión script |
+|---|---|
+| Leer los feeds de `sources_config.json`, a veces con páginas ocultas (`main.js`) | Igual, en la ventana oculta de Game Access |
+| Emparejar y ordenar fuentes (`matcher.js`, `source-ranking.js`) | Igual (JavaScript común) |
+| Perfiles de ejecución: hash de `OnlineFix.ini`, contraseñas de archivos (`execution-profiles.js`) | Igual: son datos del plugin |
+| Caché de feeds (`feed-cache.js`) | Igual, en la carpeta del plugin |
+| **Seeds por UDP scrape a los trackers** (`seeds.js`, BEP 15) | **Servicio de Game Access**: una página no abre UDP. Game Access responde "seeds de este magnet" con libtorrent, que ya está en el launcher |
+| **Enlace directo de sitios de descarga** (`gofile.js`, `links.js`: abre la página e intercepta `will-download`) | **Servicio de Game Access**: "abrí esta página y devolveme el enlace de descarga", en su propia ventana y solo con hosts del manifiesto |
+| Pantalla propia (`index.html`: lista de feeds) | Sección del plugin en Configuración de Game Access, generada desde `manifest.json` (campos declarados) |
+| Autoactualización (`electron-updater`) | La hace Game Access: zip nuevo verificado por SHA-256 |
+| Servidor `127.0.0.1:45000` y control de procesos (`instance.js`) | Desaparecen |
+
+Lo único que se pierde es que el plugin trabaje con Game Access cerrado. Los dos servicios son genéricos (cualquier plugin los puede usar), así Game Access sigue sin saber nada de fuentes concretas.
+
 ## Lo que hay que cuidar
 1. **Aislamiento.** Game Access ejecuta código de un tercero. La ventana del plugin:
    - no tiene acceso a los comandos de Tauri (sin capabilities), salvo un único canal para entregar resultados (validados por esquema);
