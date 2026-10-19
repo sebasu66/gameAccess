@@ -12,11 +12,13 @@ import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
 import UpdateGate from "./UpdateGate";
+import CentralDialogView from "./centralDialog/CentralDialogView";
+import { useAnnouncements } from "./centralDialog/useAnnouncements";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
 import LanguageSwitch from "./LanguageSwitch";
-import { Globe2, RefreshCw } from "lucide-react";
+import { Globe2, Megaphone, RefreshCw } from "lucide-react";
 import PixelAppearance from "./PixelAppearance";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
@@ -81,6 +83,7 @@ function CatalogShell() {
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
   const [refreshing, setRefreshing] = React.useState(false);
+  const showNews = useAnnouncements();
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
@@ -102,7 +105,7 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button></div></div> : null}
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button><button type="button" className="ga-dock-btn" onClick={showNews} aria-label={t("newsButtonTitle")} title={t("newsButtonTitle")}><Megaphone size={20} aria-hidden="true" /><span>{t("newsButton")}</span></button></div></div> : null}
     <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe>
   </>;
 }
@@ -118,7 +121,7 @@ if (libraryDemo()) {
   ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><CentralDialogView /><NativeAccessBoundary />
     <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );

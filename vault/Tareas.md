@@ -37,6 +37,11 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] Mover la cola y el límite BASE/PLUS de `DigitalDownloadService.ts` al Download Manager del launcher (hecho 2026-10-19; falta prueba de Seba descargando en la app) (un proceso administrador; la app solo muestra y ordena). Pedido de Seba: toda la lógica de descargas dentro del Download Manager.
 - [ ] **Producción en `main` con auto-update** (Claude, pedido por Seba 2026-10-18). Orden: auto-update → pantalla de preparación al arrancar → `main` como producción.
   - [x] Auto-update obligatorio (Tauri updater, firma, diálogo con progreso, vigía nativo si la interfaz no arranca, autoprueba `--self-test`, release como pre-release + `promote-release.yml`, prueba de que la actualización conserva juegos/datos). Probado en Windows Sandbox. Falta: Seba carga el secreto `TAURI_SIGNING_PRIVATE_KEY` en GitHub y guarda copia de la clave.
+  - [ ] **Diálogo central** (pedido de Seba 2026-10-19): procesos largos con pasos y progreso + tablón de anuncios.
+    - [x] Diálogo, anuncios (bienvenida y novedades desde `apps/desktop/public/announcements.json` en `main`, copia incluida en la app; cada uno se ve una vez; botón Novedades) y actualización de la app dentro del diálogo. **Seba: reemplazar el borrador de bienvenida (`"draft": true`).**
+    - [ ] Base del catálogo al arrancar y cada 24 h dentro del diálogo, con progreso real desde Rust.
+    - [ ] Plugin recién instalado: sincronizar sus fuentes en el diálogo, sin reiniciar.
+    - [ ] Catálogo en Releases de GitHub con deltas, para que la primera sincronización sea chica.
   - [ ] Primer arranque y actualizaciones de base/fuentes en un solo proceso en primer plano, con diálogo y barra de progreso; la app bloqueada hasta terminar. El plugin es opcional y se instala a mano desde su página: el diálogo solo sincroniza fuentes si ya está instalado.
   - [ ] Adelantar `main` al último `dev` estable; Render de producción con deploy manual desde `main`; clientes de producción leen servidor y catálogo desde `main`; el job del catálogo publica también en `main`.
 - [x] **Decisión torrent directo vs Torbox → Viking por piezas** (Claude, pedido por Seba 2026-10-18; falta prueba en vivo de Seba con un juego grande y poco compartido). Hoy todo torrent iba a Torbox sin medir nada.
