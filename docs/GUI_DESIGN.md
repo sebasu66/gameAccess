@@ -57,7 +57,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.3 Botón secundario `ga-btn-secondary`
 - Fondo `#ffffff08`, borde 1 px `#ffffff25`, texto blanco. **Altura 44 px** (igual que el principal), radio 8 px.
 - Hover: fondo `#ffffff14`.
-- Botón solo con icono (`…`, favoritos, pulgares, tienda): **44 × 44 px**, misma forma y borde que el secundario. Mismo alto que el texto de la fila: nunca más bajo ni más alto.
+- Botón solo con icono fuera de la ficha (p. ej. cerrar otros menús, acciones de listas): **44 × 44 px**, misma forma y borde que el secundario.
+- Botón solo con icono dentro de la fila de la ficha (`…`, tienda, pulgares): **48 × 54 px**, mismo tamaño para los tres, con radio 5 px (`ga-design.css`).
 
 ### 4.4 Acción de la ficha de juego `ga-glass-action`
 - Exclusivo de la ficha de juego (la fila de Descargar / Jugar / Librería). **Altura 54 px**, radio 8 px, icono de 27 px.
@@ -90,7 +91,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` y, como mucho, una acción principal naranja.
-2. Los botones de una misma fila comparten altura (44 px fuera de la ficha; 54 px dentro).
+2. Los botones de una misma fila comparten altura (44 px fuera de la ficha; 54 px dentro de la ficha, incluidos los solo-icono).
 3. Los textos salen de `t("clave")`. Nada en español o inglés fijo en el JSX.
 4. Los íconos de acción llevan `aria-label` traducido; los botones solo-icono llevan `title`.
 5. Los estados vacíos usan texto muted centrado, sin ilustraciones.
