@@ -90,6 +90,10 @@ if (Test-Path `$exe) {
             try { Write-Host "Plugin health: `$((Invoke-WebRequest "`$(`$manifest.endpoint)/api/health" -UseBasicParsing -TimeoutSec 10).Content)" } catch { Write-Host "Plugin health failed: `$_" }
             try { Write-Host "Plugin source-index: HTTP `$((Invoke-WebRequest "`$(`$manifest.endpoint)/api/source-index" -UseBasicParsing -TimeoutSec 60).StatusCode)" } catch { Write-Host "Plugin source-index failed: `$_" }
         } else { Write-Host 'The plugin did not register its endpoint' }
+        # Anything bound beyond 127.0.0.1 makes Windows ask the player for a firewall exception.
+        `$pluginPids = @(Get-Process | Where-Object { `$_.Path -like "`$env:APPDATA\GameAccess\plugins*" } | ForEach-Object { `$_.Id })
+        Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Where-Object { `$pluginPids -contains `$_.OwningProcess } | ForEach-Object { Write-Host "  plugin UDP `$(`$_.LocalAddress):`$(`$_.LocalPort)" }
+        Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { `$pluginPids -contains `$_.OwningProcess } | ForEach-Object { Write-Host "  plugin TCP listen `$(`$_.LocalAddress):`$(`$_.LocalPort)" }
     }
     `$alive = -not `$app.HasExited
     Write-Host "App still running after $RunSeconds s: `$alive"
@@ -122,7 +126,7 @@ Write-Host "Starting Windows Sandbox (results in $OutDir)..."
 Start-Process $wsb
 $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
 while (-not (Test-Path (Join-Path $OutDir 'done.txt'))) {
-    if ((Get-Date) -gt $deadline) { throw "The sandbox run did not finish within $TimeoutMinutes minutes. Partial results: $OutDir" }
+    if ((Get-Date) -gt $deadline) { Get-Process -Name 'WindowsSandbox*' -ErrorAction SilentlyContinue | Stop-Process -Force; throw "The sandbox run did not finish within $TimeoutMinutes minutes. Partial results: $OutDir" }
     Start-Sleep -Seconds 5
 }
 Get-Process -Name 'WindowsSandbox*' -ErrorAction SilentlyContinue | Stop-Process -Force
