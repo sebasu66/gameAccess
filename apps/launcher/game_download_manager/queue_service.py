@@ -9,6 +9,7 @@ request must carry the session token in `X-GameAccess-Token`. Orders and state a
 
     GET  /state                          queue and every download's phase
     POST /config     {tier, chunkSession} the plan and the PLUS server session
+    POST /suspend                         the activation ended: pending downloads pause, nothing starts
     POST /jobs       {appId, name, source, delivery, autoInstalled, keepArchive}
     POST /jobs/<id>/pause | resume | cancel | remove
     POST /jobs/<id>/move {delta}
@@ -164,6 +165,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     queue.enqueue(int(body["appId"]), str(body.get("name") or ""), str(body.get("source") or ""),
                                   str(body.get("delivery") or "download"), bool(body.get("autoInstalled")),
                                   bool(body.get("keepArchive")))
+                elif self.path == "/suspend":
+                    queue.suspend()
                 elif self.path == "/shutdown":
                     self._reply(200, {"ok": True})
                     on_shutdown()

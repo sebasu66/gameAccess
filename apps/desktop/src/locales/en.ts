@@ -619,4 +619,6 @@ export const en: Record<keyof typeof es, string> = {
   downloadsMoveUpAria: "Move {{name}} earlier in the queue",
   downloadsMoveDownAria: "Move {{name}} later in the queue",
   detailViewOnSteam: "View on Steam",
+  dlsUserPaused: "Paused",
+  dlsLost: "The download manager no longer had this download; retry it",
 };

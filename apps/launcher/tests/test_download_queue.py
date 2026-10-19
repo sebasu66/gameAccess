@@ -187,6 +187,21 @@ def test_closing_the_app_resumes_running_downloads_first_and_keeps_paused_ones(t
     assert again.workers.started == [1]  # the one that was running comes back first
 
 
+def test_when_the_activation_ends_everything_pauses_and_nothing_starts():
+    q, w = queue("plus")
+    for app_id in (1, 2, 3, 4, 5):
+        q.enqueue(app_id, f"G{app_id}", MAGNET)
+    q.suspend()
+    assert sorted(app_id for app_id, action in w.controls if action == "pause") == [1, 2, 3, 4]
+    assert {job["state"] for job in q.snapshot()["jobs"]} == {"paused"} and phases(q)[5] == "paused"  # running ones show "paused" once their worker confirms
+    w.report(1, "completed")
+    q.tick()
+    assert w.started == [1, 2, 3, 4]  # no place is refilled without a plan
+    q.configure("plus", "session")
+    q.resume(5)
+    assert w.started == [1, 2, 3, 4, 5]
+
+
 def test_the_local_service_requires_the_session_token():
     q, w = queue("base")
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(q, "t" * 20, lambda: None))

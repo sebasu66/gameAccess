@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { FakeDownloadQueue } from "./fakeDownloadQueue";
 import { DigitalDownloadService } from "./DigitalDownloadService";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
@@ -68,8 +69,10 @@ describe("DigitalDownloadService", () => {
   });
 
   it("transitions to cancelled on cancel", async () => {
-    const service = new DigitalDownloadService();
+    const queue = new FakeDownloadQueue();
+    const service = new DigitalDownloadService(undefined, undefined, queue);
     service.updateSnapshot({ gameId: 2592160, phase: "queued", progress: 0 });
+    queue.jobs.set(2592160, { appId: 2592160, name: "G", phase: "queued", state: "waiting", position: 0, error: "", status: {}, route: "" });
     await service.cancel(2592160);
 
     const status = await service.getStatus(2592160);

@@ -70,7 +70,23 @@ pub(crate) fn run_self_test_if_requested() {
     match &launcher {
         Some(dir) => {
             let python = launcher_runtime::find_launcher_python(dir);
-            if !python.is_file() { failures.push(format!("python missing: {}", python.display())); }
+            if !python.is_file() {
+                failures.push(format!("python missing: {}", python.display()));
+            } else {
+                // The Download Manager (the download queue) must import with the packaged Python.
+                let mut check = std::process::Command::new(&python);
+                check.current_dir(dir).args(["-c", "import game_download_manager.queue_service"]);
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    check.creation_flags(0x0800_0000);
+                }
+                match check.status() {
+                    Ok(status) if status.success() => {}
+                    Ok(status) => failures.push(format!("Download Manager does not import (exit {status})")),
+                    Err(err) => failures.push(format!("Download Manager check failed: {err}")),
+                }
+            }
         }
         None => failures.push("launcher directory not found".to_string()),
     }

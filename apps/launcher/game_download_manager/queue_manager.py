@@ -85,6 +85,19 @@ class DownloadQueue:
             self.chunk_session = chunk_session or None
             self.pump()
 
+    def suspend(self) -> None:
+        """The activation ended: nothing runs or starts until a plan is configured again; pending downloads pause."""
+        with self.lock:
+            self.tier, self.chunk_session = None, None
+            for job in self.jobs.values():
+                if job.state == "active":
+                    self.workers.control(job.app_id, "pause")
+                    job.state = "paused"
+                elif job.state == "waiting":
+                    job.state, job.phase = "paused", "paused"
+            self.order.clear()
+            self._save()
+
     # ------------------------------------------------------------------ orders
     def enqueue(self, app_id: int, name: str, source: str, delivery: str = "download",
                 auto_installed: bool = False, keep_archive: bool = False) -> Job:

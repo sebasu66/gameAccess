@@ -6,7 +6,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 use crate::{access_activation, access_policy};
-use crate::digital_commands::{digital_pids, write_digital_control};
+use crate::download_queue;
 use crate::launcher_runtime::{find_launcher_dir, find_launcher_python};
 use crate::activity_log::append_narration_lines;
 
@@ -37,8 +37,8 @@ pub(crate) fn start_access_watchdog(app: tauri::AppHandle) {
         std::thread::sleep(std::time::Duration::from_secs(1));
         access_policy::finish_ended(|| {
             let _ = access_activation::clear_session();
-            let ids: Vec<u32> = digital_pids().lock().map(|pids|pids.keys().copied().collect()).unwrap_or_default();
-            for id in ids { let _ = write_digital_control(id,"pause"); }
+            // The Download Manager pauses every pending download and starts nothing until a new activation.
+            download_queue::suspend();
             let _ = append_narration_lines(vec!["GameAccess access ended; transfers paused and managed functions locked. Game processes are left running.".into()],"ACCESS".into(),"INFO".into());
             if let Some(window) = foreground.get_webview_window("main") { let _=window.set_fullscreen(false); }
             let _ = foreground.emit("gameaccess:access-ended", ());

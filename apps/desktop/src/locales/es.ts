@@ -617,4 +617,6 @@ export const es = {
   downloadsMoveUpAria: "Adelantar {{name}} en la cola",
   downloadsMoveDownAria: "Atrasar {{name}} en la cola",
   detailViewOnSteam: "Ver en Steam",
+  dlsUserPaused: "Pausada",
+  dlsLost: "El gestor de descargas ya no tenía esta descarga; reintentala",
 } as const;

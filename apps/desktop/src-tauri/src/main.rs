@@ -22,6 +22,7 @@ mod execution_profiles;
 mod plugin_registry;
 mod plugin_install;
 mod app_update;
+mod download_queue;
 
 use std::{env, sync::Mutex};
 
@@ -58,6 +59,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
             app_update::app_frontend_alive,
+            download_queue::download_queue_request,
             access_commands::activation_installation_id,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
@@ -115,17 +117,11 @@ fn main() {
             visual_debug::finish_visual_debug,
             visual_debug::set_visual_debug_viewport,
             digital_commands::run_digital_process,
-            digital_commands::start_digital_download,
-            digital_commands::cancel_digital_download,
-            digital_commands::control_digital_download,
-            digital_commands::digital_download_status,
             digital_commands::query_digital_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
-    // Workers are independent processes; explicitly pause owned transfers on app exit.
-    if let Ok(pids)=digital_commands::digital_pids().lock() {
-        for id in pids.keys() { let _=digital_commands::write_digital_control(*id,"pause"); }
-    }
+    // The Download Manager stops its workers without deleting anything; they resume when the app opens again.
+    download_queue::shutdown();
     plugin_registry::stop_all_plugins();
 }
