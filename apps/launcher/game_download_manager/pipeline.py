@@ -36,6 +36,7 @@ class DownloadPipeline:
             # it stays with the player when it is small, well seeded or already fast.
             where = self.chunked(chunk_session).peek(download_source)
             if where:
+                context.set_route("accelerated")
                 context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
             else:
                 probe = TorrentProbe()
@@ -43,9 +44,11 @@ class DownloadPipeline:
                 def decide(*sample):
                     verdict = probe.decide(*sample)
                     if verdict == "keep":
+                        context.set_route("torrent")
                         context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
                     return verdict
 
+                context.set_route("measuring")
                 context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
                 try:
                     torrent_path = self.download_torrent(
@@ -56,6 +59,7 @@ class DownloadPipeline:
                 except SwitchToServer as why:
                     context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
         if use_server:
+            context.set_route("accelerated")
             context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
             try:
                 chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
@@ -172,6 +176,7 @@ class DownloadPipeline:
                 elif torrent_path:
                     target_content_path = torrent_path
                 elif is_torrent:
+                    context.set_route("torrent")
                     context.logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
                     target_content_path = self.download_torrent(
                         torrent_source=download_source,
@@ -183,6 +188,7 @@ class DownloadPipeline:
                         self.cleanup_on_cancel()
                         return
                 else:
+                    context.set_route("direct")
                     context.logger.info("Tipo de descarga: Descarga directa por HTTP/HTTPS")
                     download_url = download_source
                     parsed = urlparse(download_url)

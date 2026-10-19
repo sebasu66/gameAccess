@@ -41,6 +41,11 @@ pub(crate) fn open_steam_run(app_id: u32) -> Result<(), String> {
     native_core::open_steam_run(app_id)
 }
 
+#[tauri::command]
+pub(crate) fn open_steam_store(app_id: u32) -> Result<(), String> {
+    native_core::open_steam_store(app_id)
+}
+
 pub(crate) fn quoted_vdf_value(text: &str, key: &str) -> Option<String> {
     for line in text.lines() {
         let parts: Vec<&str> = line.split('"').collect();

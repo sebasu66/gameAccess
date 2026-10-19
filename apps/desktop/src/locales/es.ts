@@ -612,4 +612,9 @@ export const es = {
   updateFailedBody: "La actualización falló: {{error}}. Podés reintentar o seguir con esta versión por ahora.",
   updateRetry: "Reintentar",
   updateContinue: "Seguir con esta versión",
+  downloadsMoveUp: "Subir",
+  downloadsMoveDown: "Bajar",
+  downloadsMoveUpAria: "Adelantar {{name}} en la cola",
+  downloadsMoveDownAria: "Atrasar {{name}} en la cola",
+  detailViewOnSteam: "Ver en Steam",
 } as const;

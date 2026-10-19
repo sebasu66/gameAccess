@@ -2,11 +2,11 @@ import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
 import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
-import {downloadMethodLabel} from "./downloadMethod";
+import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
@@ -71,12 +71,16 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const bars = downloadBars(snapshot);
     const method = service.getDownloadMethod?.(gameId);
     const methodText = method ? downloadMethodLabel(method, locale) : null;
+    const tier = service.planTier?.();
+    const plan = tier ? planLabel(tier, locale) : null;
+    const position = service.queuePosition?.(gameId) ?? -1;
+    const queueLength = queue.filter(item => item.snapshot.phase === "queued").length;
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
-        <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${index + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
+        <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
         <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
@@ -96,6 +100,8 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         <button type="button" className="digital-download-dismiss" disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t(terminal(entry) ? "downloadsRemoveAria" : "downloadsCancelAria", {name:game.name})} title={t(terminal(entry) ? "downloadsRemove" : "downloadsCancel")} onClick={() => void run(gameId, () => service.remove(gameId))}><X size={18} /></button>
         {phase === "external" ? <button type="button" disabled={busy.includes(gameId)} aria-label={t("downloadsOpenExternalLink")} onClick={() => void run(gameId, () => service.start(game))}><ExternalLink size={16} />{busy.includes(gameId) ? t("downloadsLaunching") : t("downloadsOpenExternalLink")}</button> : null}
         {phase === "completed" ? <button type="button" className="ga-download-play" disabled={busy.includes(gameId)} aria-label={t("downloadsPlayAria",{name:game.name})} onClick={() => void run(gameId, async () => { if(onPlay) await onPlay(game); else await service.play(game); })}><Play size={20} fill="currentColor"/>{busy.includes(gameId) ? t("downloadsLaunching") : t("downloadsPlay")}</button> : null}
+        {phase === "queued" && position > 0 ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsMoveUpAria",{name:game.name})} title={t("downloadsMoveUp")} onClick={() => service.moveInQueue(gameId, -1)}><ArrowUp size={16} />{t("downloadsMoveUp")}</button> : null}
+        {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsMoveDownAria",{name:game.name})} title={t("downloadsMoveDown")} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} />{t("downloadsMoveDown")}</button> : null}
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
         {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />{t("downloadsResume")}</button> : null}
         {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}

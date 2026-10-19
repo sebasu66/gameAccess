@@ -92,6 +92,7 @@ fn main() {
             steam_commands::open_steam_client,
             steam_commands::open_steam_install,
             steam_commands::open_steam_run,
+            steam_commands::open_steam_store,
             steam_commands::open_game_install_folder,
             game_uninstall::uninstall_game,
             // Freeze/thaw commands are intentionally not registered while the feature is disabled.

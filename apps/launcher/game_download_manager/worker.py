@@ -107,6 +107,7 @@ g_torrent_session = None
 g_temp_files: List[str] = []
 g_cancel_hooks: List[Any] = []
 g_app_id: str = ""
+g_route: str = ""
 g_diagnostics = None
 
 def emit_json(payload: dict):
@@ -199,7 +200,8 @@ def emit_progress(
         "totalBytes": int(total_bytes),
         "speedBps": int(speed_bps),
         "etaSeconds": int(eta_seconds),
-        "statusText": clean_text
+        "statusText": clean_text,
+        "route": g_route,
     })
 
 def emit_error(app_id: str, error_message: str):
@@ -281,6 +283,11 @@ def _set_torrent(value):
     g_torrent_session = value
 
 
+def _set_route(route):
+    global g_route
+    g_route = str(route or "")
+
+
 def _context():
     return DownloadContext(
         launcher_dir=LAUNCHER_DIR, app_id=g_app_id, cancelled=g_cancelled,
@@ -290,7 +297,7 @@ def _context():
         archive_enclosing_folder=archive_enclosing_folder,
         get_process=lambda: g_active_subprocess, set_process=_set_process,
         get_torrent=lambda: g_torrent_session, set_torrent=_set_torrent,
-        cancel_hooks=g_cancel_hooks,
+        cancel_hooks=g_cancel_hooks, set_route=_set_route,
     )
 
 

@@ -50,6 +50,10 @@ class Ctx:
     def __init__(self):
         self.cancelled = threading.Event()
         self.logger = logging.getLogger("test-route")
+        self.routes = []
+
+    def set_route(self, route):
+        self.routes.append(route)
 
     def emit_progress(self, *args, **kwargs):
         pass
@@ -86,6 +90,7 @@ def test_a_torrent_the_server_already_holds_is_streamed_from_it(plus):
     chunks = FakeChunks(where="torbox")
     p = pipeline(lambda **kw: pytest.fail("the torrent must not start"), chunks)
     assert p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == ("C:/games/from-server", None, False)
+    assert p.context.routes[-1] == "accelerated"
 
 
 def test_a_torrent_worth_downloading_directly_stays_with_the_player(plus):
@@ -95,8 +100,10 @@ def test_a_torrent_worth_downloading_directly_stays_with_the_player(plus):
         assert probe(0.0, 2 * GiB, 1, 0) == "keep"
         return "C:/games/from-torrent"
 
-    assert pipeline(torrent, chunks).server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == (None, "C:/games/from-torrent", False)
+    p = pipeline(torrent, chunks)
+    assert p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == (None, "C:/games/from-torrent", False)
     assert chunks.downloads == []
+    assert p.context.routes == ["measuring", "torrent"]  # the player sees what is really happening
 
 
 def test_a_slow_big_torrent_is_handed_to_the_server(plus):
@@ -105,8 +112,10 @@ def test_a_slow_big_torrent_is_handed_to_the_server(plus):
     def torrent(probe, **kw):
         raise SwitchToServer("el torrent no conviene bajarlo directo")
 
-    assert pipeline(torrent, chunks).server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == ("C:/games/from-server", None, False)
+    p = pipeline(torrent, chunks)
+    assert p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == ("C:/games/from-server", None, False)
     assert chunks.downloads == [MAGNET]
+    assert p.context.routes == ["measuring", "accelerated"]
 
 
 def test_without_plus_nothing_is_decided_here(monkeypatch):

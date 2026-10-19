@@ -488,7 +488,12 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     if (!action || action.disabled || !selectedGame) return;
     playUiSound("activate");
     if (action.kind === "play") void onPlay(selectedGame);
-    else if (action.kind === "download") void onDownload(selectedGame);
+    else if (action.kind === "download") {
+      // Without the download plugin the button in that place is "View on Steam".
+      const node = actionRefs.current?.[index];
+      if (node?.dataset.action === "steam") node.click();
+      else void onDownload(selectedGame);
+    }
     else if (action.kind === "cancel") {
       setCancelError(null);
       setCancelling(false);

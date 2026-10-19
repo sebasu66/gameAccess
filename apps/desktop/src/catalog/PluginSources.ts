@@ -107,6 +107,20 @@ async function plugins(): Promise<PluginManifest[]> {
     return [];
   }
 }
+/**
+ * Whether a download-sources plugin is installed and has synced its index at least once. The plugin is optional
+ * and installed by hand from its page; until then the game detail offers Play or "View on Steam" instead of a
+ * download button (the synced sources stay usable while the plugin is closed).
+ */
+export async function sourcePluginReady(): Promise<boolean> {
+  try {
+    const registered = await invoke<PluginManifest[]>("get_registered_plugins");
+    return registered.some(plugin => plugin.type === "source_provider" && getSavedPluginRevision(plugin.id) !== "");
+  } catch {
+    return false;
+  }
+}
+
 function endpoint(plugin: PluginManifest, path: string): string {
   return plugin.endpoint.replace(/\/+$/, "") + path;
 }

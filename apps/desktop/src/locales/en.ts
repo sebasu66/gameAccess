@@ -614,4 +614,9 @@ export const en: Record<keyof typeof es, string> = {
   updateFailedBody: "The update failed: {{error}}. You can retry or keep using this version for now.",
   updateRetry: "Retry",
   updateContinue: "Keep this version",
+  downloadsMoveUp: "Move up",
+  downloadsMoveDown: "Move down",
+  downloadsMoveUpAria: "Move {{name}} earlier in the queue",
+  downloadsMoveDownAria: "Move {{name}} later in the queue",
+  detailViewOnSteam: "View on Steam",
 };

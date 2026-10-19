@@ -1,5 +1,7 @@
 import {invoke} from "@tauri-apps/api/core";
-import {MoreHorizontal} from "lucide-react";
+import {MoreHorizontal, Store} from "lucide-react";
+import { openSteamStore } from "./native";
+import { usePluginReady } from "./usePluginReady";
 import CooptimusDetails from "./CooptimusDetails";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
@@ -208,10 +210,25 @@ function actionClass(action: LibraryAction, selected: boolean): string {
   return `glass-action ${kind} ${selected ? "is-selected" : ""}`.trim();
 }
 
+function SteamStoreButton({ game, primary, className, buttonRef, onFocus }: { game: CatalogGame; primary?: boolean; className?: string; buttonRef?: (node: HTMLButtonElement | null) => void; onFocus?: () => void }) {
+  const { t } = useI18n();
+  const appId = game.app_id ?? 0;
+  if (!appId) return null;
+  return <button type="button" ref={buttonRef} onFocus={onFocus} data-action="steam" title={t("detailViewOnSteam")} aria-label={t("detailViewOnSteam")}
+    className={primary ? className : "source-options-toggle steam-store-small"} onClick={() => void openSteamStore(appId)}>
+    {primary ? <><span className="glass-action-icon"><Store size={23} /></span><span className="glass-action-label">{t("detailViewOnSteam")}</span></> : <Store size={20} />}
+  </button>;
+}
+
 function ActionButtons(props: FeaturePanelProps) {
   const { t } = useI18n();
+  // The download plugin is optional and installed by hand: until it is installed and synced the detail never
+  // says "no download sources"; it offers Play (installed games) or the Steam store page.
+  const pluginReady = usePluginReady() === true;
   return <div className="library-room-actions glass-actions-row">
-    {props.actions.map((action, index) => action.kind === "download"
+    {props.actions.map((action, index) => action.kind === "download" && !pluginReady
+      ? <SteamStoreButton key="steam" game={props.game} primary className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : action.kind === "download"
       ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
       : <button type="button" key={action.kind}
         ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
@@ -222,6 +239,7 @@ function ActionButtons(props: FeaturePanelProps) {
         <span className="glass-action-icon">{action.icon}</span>
         <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
       </button>)}
+  {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
   {!props.actions.some(action=>action.kind==="download") && <InstalledGameShortcut game={props.game} />}
   </div>;
 }

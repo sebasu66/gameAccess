@@ -56,6 +56,35 @@ describe("Digital download scheduling", () => {
     await service.resume(5);
     expect((await service.getStatus(5)).phase).toBe("queued");
   });
+  it("BASE: pausing the running download lets the next one start, and the paused one waits for its place", async () => {
+    const service = new DigitalDownloadService(undefined, () => "base");
+    await Promise.all([1, 2].map(id => service.start(game(id))));
+    const starts = () => mock.mock.calls.filter(call => call[0] === "start_digital_download").length;
+    expect(starts()).toBe(1);
+    service.updateSnapshot({ gameId: 1, phase: "downloading", progress: 30 });
+    await service.pause(1);
+    expect(mock).toHaveBeenCalledWith("control_digital_download", { appId: 1, action: "pause" });
+    expect(starts()).toBe(2); // game 2 took the free place
+    service.updateSnapshot({ gameId: 1, phase: "paused", progress: 30 });
+    await service.resume(1);
+    expect((await service.getStatus(1)).phase).toBe("queued"); // no free place: it waits
+    expect(mock.mock.calls.filter(call => call[1] && (call[1] as { action?: string }).action === "resume")).toHaveLength(0);
+    service.updateSnapshot({ gameId: 2, phase: "completed", progress: 100 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mock).toHaveBeenCalledWith("control_digital_download", { appId: 1, action: "resume" }); // the same process resumes
+    expect(starts()).toBe(2);
+  });
+  it("reorders the queue: the first ones start first", async () => {
+    const service = new DigitalDownloadService(undefined, () => "base");
+    await Promise.all([1, 2, 3, 4].map(id => service.start(game(id))));
+    expect([2, 3, 4].map(id => service.queuePosition(id))).toEqual([0, 1, 2]);
+    service.moveInQueue(4, -1); service.moveInQueue(4, -1);
+    service.moveInQueue(4, -1); // already first: nothing changes
+    expect([4, 2, 3].map(id => service.queuePosition(id))).toEqual([0, 1, 2]);
+    service.updateSnapshot({ gameId: 1, phase: "completed", progress: 100 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mock.mock.calls.filter(call => call[0] === "start_digital_download").at(-1)?.[1]).toMatchObject({ appId: 4 });
+  });
   it("waits for backend snapshots before showing paused or resumed", async () => {
     const service = new DigitalDownloadService(undefined, () => "plus");
     await service.start(game(1));
