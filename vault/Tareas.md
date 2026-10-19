@@ -63,8 +63,8 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [ ] Seba: pasar las URLs reales de Patreon y de pago en pesos (hoy todo apunta al placeholder `https://gameaccess.app`).
 - [ ] Reiniciar/redeployar el API para publicar `/premium/content` y ver el diálogo con planes en vivo; revisar los textos de planes (2 y 4 USD).
 - [ ] Probar la clave en vivo contra el server real desde el diálogo nuevo.
-- [ ] Probar el instalador `.exe` del plugin y el botón de la página (Seba). Plugin en `https://github.com/Gizi789/source_manager`.
-- [ ] Cuenta `gh`: la activa quedó `Gizi789`; volver a `sebasu66` (`gh auth switch -u sebasu66`).
+- [ ] Probar el instalador `.exe` del plugin y el botón de la página (Seba).
+- [ ] Cuenta `gh`: la activa quedó la del plugin; volver a `sebasu66` (`gh auth switch -u sebasu66`).
 
 ## UI y cliente
 - [ ] Diseño Digital aprobado: aceptación visual y validación de ficha/descargas con datos reales (detalle del diseño en `TODO_OBSOLETO.md`, sección P1; mockup en `docs/design/gameaccess-ui-2026-10-06/`).
@@ -81,8 +81,8 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] Importador del Library Manager: una carpeta ilegible (`WpSystem`) cortaba el escaneo de todo el disco y solo aparecía 1 juego; ahora encuentra 122 en la PC de Seba. Vincular dos veces la misma carpeta ya no da error (`b96bb5c`).
 - [ ] Seba: probar el importador en la app (escaneo completo y "Vincular" de un juego de Steam); no pude reproducir el "ya está en la biblioteca" en una biblioteca limpia.
 - [x] Sincronización con el plugin: el plugin publicado (1.0.0) no tenía `/api/source-index` y la app fallaba en silencio; ahora el diálogo central dice el motivo y ofrece Reintentar; los plugins corren sin ventana (`3a01bbb`).
-- [x] Publicado Source Manager 1.0.1 (`Gizi789/source_manager`, release v1.0.1 marcado como último; la página del botón Instalar apunta a v1.0.1 con SHA-256 `5af57e3a…`, verificado contra la descarga).
-- [ ] Seba: probar el botón Instalar de https://gizi789.github.io/source_manager/ con Game Access abierto (instala, sincroniza sin reiniciar, sin ventana ni firewall).
+- [x] Publicado Source Manager 1.0.1 (repo nuevo del plugin, release v1.0.1 marcado como último; la página del botón Instalar apunta a v1.0.1 con SHA-256 `5af57e3a…`, verificado contra la descarga).
+- [ ] Seba: probar el botón Instalar de la página del plugin con Game Access abierto (instala, sincroniza sin reiniciar, sin ventana ni firewall).
 
 ## Release
 - [ ] Instalador exacto desde el commit probado (commit, hash, build stamp); instalación en VM limpia; revisar textos visibles; logo/splash nuevo en el instalador.

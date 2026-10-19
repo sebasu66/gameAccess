@@ -33,7 +33,7 @@ Planes (borrador, a confirmar †): 2 USD/mes = 10 descargas rápidas; 4 USD/mes
 - **Cliente de escritorio** — `apps/desktop`: Tauri (Rust) + React/TypeScript. Guarda el catálogo en una base SQLite local y la sincroniza con el servidor por snapshot y diferencias.
 - **Launcher** — `apps/launcher` (Python): descarga, descompresión, instalación y ejecución de los juegos.
 - **Servidor** — `apps/api` (Python, desplegado en Render, base en Supabase): catálogo central, contenido premium y procesamiento de links (Plus).
-- **Plugin de fuentes** — repo aparte `github.com/Gizi789/source_manager`: open source, gratis y **opcional**. Aporta las fuentes de descarga de cada juego. Sin plugin, el usuario igual puede cargar links y perfiles de ejecución a mano.
+- **Plugin de fuentes** — repo aparte, de otra cuenta (ver memoria local de Claude, no se nombra acá): open source, gratis y **opcional**. Aporta las fuentes de descarga de cada juego. Sin plugin, el usuario igual puede cargar links y perfiles de ejecución a mano.
 
 ## Catálogo
 Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se usa solo como identificador y para traer metadata (título, géneros, reseñas, imágenes). La base inicial salió de un dump offline; el servidor la mantiene al día y cada cliente guarda un subconjunto que sincroniza de forma aditiva.
