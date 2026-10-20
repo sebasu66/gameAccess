@@ -16,6 +16,7 @@ from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
 from game_library_manager.preferences import DigitalPreferences
 from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
+from game_execution_manager.onlinefix_flag import OnlineFixFlag
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
 from game_download_manager.unpack import extractor_for, restorer_for
 import logging
@@ -147,6 +148,8 @@ class DigitalProcessRunner:
             declared = profile.get("decompressFile", "")
             reapply = saved_options["backupEnabled"] and (profile["decompressEachRun"] if declared else True)
             fix_archive = saved_options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
+            onlinefix = OnlineFixFlag(self.storage.data / ".cache" / "digital_launch" / f"{int(app_id)}-onlinefix.json", logger)
+            onlinefix.learn(folder)
             if not auto_installed and reapply:
                 logger.info("AppID %s: re-applying the fix archive before executable discovery; archive=%s",
                             app_id, fix_archive or "automatic")
@@ -164,6 +167,7 @@ class DigitalProcessRunner:
             diagnostics.debug("Before-play preparation finished")
             options = game_options.load(app_id)
             self.patch_crack_language(folder, effective_language(options))
+            onlinefix.restore(folder)
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
             if options["executable"]:
