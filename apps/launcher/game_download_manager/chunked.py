@@ -26,7 +26,8 @@ import requests
 
 logger = logging.getLogger("digital_downloader")
 
-POLL_SECONDS = 2.0
+POLL_SECONDS = 5.0               # asking the server what is ready while nothing is downloading
+INFLIGHT_POLL_SECONDS = 3.0      # and while pieces are downloading (a thousand players must stay cheap for the server)
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
 SPEED_WINDOW_SECONDS = 20.0      # speed and time left are measured over this recent window
@@ -239,7 +240,7 @@ class ChunkedDownloader:
                 polled = False
                 if len(inflight) < self.parallel:
                     now = time.time()
-                    if last_poll == 0.0 or now - last_poll >= (1.0 if inflight else POLL_SECONDS):
+                    if last_poll == 0.0 or now - last_poll >= (INFLIGHT_POLL_SECONDS if inflight else POLL_SECONDS):
                         last_poll, polled = now, True
                         try:
                             manifest = self.manifest(job_id)
@@ -444,7 +445,20 @@ class ChunkedDownloader:
                 logger.info("Pieza %s: enlace %s", index, link["url"])  # lets the same piece be compared in a browser
                 piece_started = time.time()
                 self.live[index] = 0
-                peak = self._fetch_piece(link["url"], piece, part)
+                if not piece.get("sha256"):
+                    # A whole file ViKiNG imported by itself: the server never saw its bytes, so there is no hash
+                    # to check (the archive's own checksums are checked when it is extracted). It goes straight
+                    # into its place: a file of several GB is not copied a second time.
+                    peak, written = self._fetch_piece(link["url"], piece, target, offset=int(piece["start"]))
+                    if context.cancelled.is_set() or self.abort.is_set():
+                        return
+                    if written != piece["size"]:
+                        raise ChunkedDownloadError("el archivo llegó incompleto")
+                    took = max(time.time() - piece_started, 0.001)
+                    logger.info("Archivo %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s a la vez)",
+                                index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
+                    return
+                peak, _ = self._fetch_piece(link["url"], piece, part)
                 if context.cancelled.is_set() or self.abort.is_set():
                     return
                 digest = hashlib.sha256()
@@ -473,16 +487,18 @@ class ChunkedDownloader:
                     self.sleep(1.5 * attempt)
         raise ChunkedDownloadError(f"no se pudo bajar el fragmento {index}: {last_error}")
 
-    def _fetch_piece(self, url: str, piece: dict, part: Path) -> int:
-        """Download one piece into `part` over several range connections; return the most used at once.
+    def _fetch_piece(self, url: str, piece: dict, part: Path, offset: int | None = None) -> tuple[int, int]:
+        """Download one piece into `part` over several range connections; return the most connections used at
+        once and the bytes written. With `offset` the bytes go into `part` (the final file) from there on.
 
         A piece starts on one connection. Once ViKiNG shows it honours ranges, every free connection takes half of
         the largest range still left, so a slow connection keeps handing its bytes to faster ones (the last piece
         no longer crawls on one slow connection). A server that ignores ranges sends the piece on one connection."""
         context = self.context
         index, size = piece["index"], int(piece["size"])
-        with part.open("wb") as handle:
-            handle.truncate(size)
+        if offset is None:
+            with part.open("wb") as handle:
+                handle.truncate(size)
         ranges: list[list[int]] = [[0, size - 1, 0]]   # start, end (inclusive), written
         owned: set[int] = set()                         # ranges a connection is working on
         lock = threading.Lock()
@@ -497,7 +513,7 @@ class ChunkedDownloader:
 
         def run(slot: int) -> None:
             try:
-                self._fetch_range(url, ranges[slot], part, lock, ranged, stop, index, ranges)
+                self._fetch_range(url, ranges[slot], part, lock, ranged, stop, index, ranges, offset or 0)
             except BaseException as exc:  # noqa: BLE001 - reported to the piece, which retries the range
                 with lock:
                     errors.append(exc)
@@ -561,10 +577,10 @@ class ChunkedDownloader:
             stop.set()  # connections still running (cancel, error) stop at their next block
             for thread in threads:
                 thread.join()
-        return peak
+        return peak, sum(r[2] for r in ranges)
 
     def _fetch_range(self, url: str, r: list[int], part: Path, lock: threading.Lock, ranged: threading.Event,
-                     stop: threading.Event, index: int, ranges: list[list[int]]) -> None:
+                     stop: threading.Event, index: int, ranges: list[list[int]], offset: int = 0) -> None:
         """One connection: download bytes r[0]+r[2]..r[1] of the piece. The end may move closer while it runs
         (another connection took the second half); it stops there."""
         context = self.context
@@ -598,7 +614,7 @@ class ChunkedDownloader:
                         finished = r[0] + r[2] > r[1]
                         self.live[index] = sum(x[2] for x in ranges)
                     if take:
-                        handle.seek(at)
+                        handle.seek(offset + at)
                         handle.write(take)
                     if finished:
                         return

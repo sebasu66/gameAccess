@@ -14,6 +14,7 @@ from game_download_manager import chunked as cd
 @pytest.fixture(autouse=True)
 def fast_polling(monkeypatch):
     monkeypatch.setattr(cd, "POLL_SECONDS", 0.0)
+    monkeypatch.setattr(cd, "INFLIGHT_POLL_SECONDS", 0.0)
 
 
 class Ctx:
@@ -503,3 +504,41 @@ def test_connections_are_shared_by_all_pieces(tmp_path, small_splits, monkeypatc
     downloader, _ = make(server, tmp_path, parallel=4)
     assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
     assert server.peak <= 3
+
+
+class ImportedServer(RangedServer):
+    """Remote mode: one piece per file, imported by ViKiNG, so the manifest carries no hash."""
+
+    def manifest(self):
+        body = super().manifest()
+        for piece in body["pieces"]:
+            piece["sha256"] = ""
+        return body
+
+
+def test_whole_files_imported_by_viking_go_straight_into_place(tmp_path, small_splits):
+    first, second = bytes(range(256)) * 4096, bytes(range(255, -1, -1)) * 1024
+    server = ImportedServer([("a.rar", first), ("b.rar", second)], 10 ** 9)  # one piece per file
+    downloader, _ = make(server, tmp_path, parallel=2)
+    result = downloader.download("https://x/f.bin", "Game", str(tmp_path), "1", "Game")
+    folder = Path(result)
+    assert (folder / "a.rar").read_bytes() == first and (folder / "b.rar").read_bytes() == second
+    assert server.peak >= 2  # split over several connections like any piece
+    assert not [p for p in tmp_path.rglob("*") if p.name.endswith(".part") or p.name.startswith(".ga-")]
+
+
+def test_a_short_imported_file_is_downloaded_again(tmp_path, small_splits):
+    data = bytes(range(256)) * 1024
+    server = ImportedServer([("a.rar", data)], 10 ** 9)
+    original, cut = server.get, {"left": 1}
+
+    def short_once(url, **kw):
+        response = original(url, **kw)
+        if cut["left"] and response.status_code == 206:
+            cut["left"] -= 1
+            return Resp(206, data=data[:10], headers=response.headers)  # the connection drops after 10 bytes
+        return response
+
+    server.get = short_once
+    downloader, _ = make(server, tmp_path)
+    assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data

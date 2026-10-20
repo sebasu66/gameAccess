@@ -600,6 +600,25 @@ class TorBoxVikingProvider:
             raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
         return link
 
+    async def remote_upload_to_viking(self, link: str, name: str, folder: str = "") -> dict[str, Any]:
+        """Ask ViKiNG to download `link` itself into `folder` (no byte goes through this server).
+
+        ViKiNG streams progress lines while it imports, so only the time between lines is limited."""
+        timeout = httpx.Timeout(None, connect=20.0, read=float(self.upload_timeout_seconds), write=30.0, pool=20.0)
+        async with httpx.AsyncClient(timeout=timeout, transport=self.transport, follow_redirects=False) as client:
+            server_payload = await self._viking_json(client, "GET", VIKING_API_BASE + "/get-server", timeout=20.0)
+            upload_server = str(server_payload.get("server") or "")
+            if not is_viking_upload_server(upload_server):
+                raise ProviderFailure("viking_invalid_upload_server", 502, "ViKiNG devolvió un servidor de carga inválido.")
+            data = {"link": link, "user": self.viking_user_hash, "name": name, **({"path": folder} if folder else {})}
+            try:
+                response = await client.post(upload_server, data=data)
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_upload_timeout", 504, "ViKiNG tardó demasiado en importar el archivo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_upload_failed", 502, "No se pudo completar la carga remota en ViKiNG.") from exc
+        return parse_viking_upload_response(response)
+
     async def upload_file_to_viking(self, path: "Path", name: str, folder: str = "") -> dict[str, Any]:
         """Upload a local file to ViKiNG with a normal multipart upload and return its JSON result."""
         timeout = httpx.Timeout(

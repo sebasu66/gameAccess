@@ -315,3 +315,68 @@ def test_a_piece_bigger_than_the_disk_budget_still_goes(engine, tmp_path, monkey
     run(engine, job_id, FakeSource(), FakeSink(), files_for(250 * MB), tmp_path)
     with Session(engine) as session:
         assert svc.get_job(session, job_id).status == "ready"
+
+
+class FakeImporter:
+    """ViKiNG importing TorBox files by itself; counts the imports running at once."""
+
+    def __init__(self, fail_first: dict[int, int] | None = None):
+        self.calls: list[tuple[int, str, str, bool]] = []
+        self.fail_first = dict(fail_first or {})
+        self.active = self.peak = 0
+
+    async def import_file(self, piece, name, folder="", refresh=False):
+        self.calls.append((piece.index, name, folder, refresh))
+        self.active += 1
+        self.peak = max(self.peak, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            if self.fail_first.get(piece.index, 0) > 0:
+                self.fail_first[piece.index] -= 1
+                raise RuntimeError("viking hiccup")
+            return f"hash-{name}"
+        finally:
+            self.active -= 1
+
+
+def run_remote(engine, job_id, importer, files, work_dir):
+    source = FakeSource()
+
+    async def prepare():
+        return source, files
+
+    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=FakeSink(), work_dir=work_dir,
+                                  importer=lambda _source: importer))
+    return source
+
+
+def test_remote_mode_has_viking_import_every_file_without_touching_its_bytes(engine, tmp_path):
+    job_id = new_job(engine)
+    importer = FakeImporter()
+    source = run_remote(engine, job_id, importer, files_for(3000 * MB, 0, 700 * MB), tmp_path)
+    assert source.calls == []  # this server never read a byte
+    assert sorted(c[0] for c in importer.calls) == [0, 1]  # the empty file needs no piece
+    assert {c[2] for c in importer.calls} == {f"GameAccess/{job_id[:8]}"}
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        manifest = svc.build_manifest(session, job)
+        assert job.status == "ready"
+        assert [(p["file_index"], p["start"], p["size"]) for p in manifest["pieces"]] == [(0, 0, 3000 * MB), (2, 0, 700 * MB)]
+        assert all(p["ready"] and p["sha256"] == "" for p in manifest["pieces"])
+        assert svc.get_ready_piece(session, job_id, 1).viking_hash == f"hash-ga-{job_id[:8]}.p0001"
+
+
+def test_remote_imports_run_several_at_once(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_IMPORTS", "3")
+    importer = FakeImporter()
+    run_remote(engine, new_job(engine), importer, files_for(*([500 * MB] * 7)), tmp_path)
+    assert importer.peak == 3 and len(importer.calls) == 7
+
+
+def test_a_failed_import_is_retried_with_a_new_torbox_link(engine, tmp_path):
+    job_id = new_job(engine)
+    importer = FakeImporter(fail_first={0: 1})
+    run_remote(engine, job_id, importer, files_for(500 * MB), tmp_path)
+    assert [c[3] for c in importer.calls] == [False, True]  # the retry refreshes the link
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"

@@ -36,6 +36,10 @@ FETCHES_IN_PARALLEL = 2       # pieces read from TorBox at the same time (GAMEAC
 UPLOADS_IN_PARALLEL = 3       # pieces going up to ViKiNG at the same time (GAMEACCESS_CHUNK_UPLOADS)
 MAX_PIECES_ON_DISK = FETCHES_IN_PARALLEL + UPLOADS_IN_PARALLEL
 DISK_BUDGET_MB = 2000         # piece files on disk at once, all together (GAMEACCESS_CHUNK_DISK_MB); one piece always fits
+IMPORTS_IN_PARALLEL = 4       # files ViKiNG imports from TorBox at once in remote mode (GAMEACCESS_CHUNK_IMPORTS)
+# "remote": ViKiNG downloads each TorBox file itself (no byte goes through this server, which only coordinates);
+# "pieces": this server reads byte ranges from TorBox and uploads them (the player starts sooner on one big file).
+DEFAULT_MODE = "remote"       # GAMEACCESS_CHUNK_MODE
 LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
@@ -52,6 +56,20 @@ def _now() -> datetime:
 class PieceSource(Protocol):
     async def fetch(self, piece: PlannedPiece, dest: Path) -> str:
         """Write the bytes of the piece to `dest` and return their sha256 (hex)."""
+
+
+class RemoteImporter(Protocol):
+    async def import_file(self, piece: PlannedPiece, name: str, folder: str = "", refresh: bool = False) -> str:
+        """Have ViKiNG fetch the whole file of the piece by itself and return the id (hash) ViKiNG gave it."""
+
+
+def whole_file_plan(sizes: list[int]) -> list[PlannedPiece]:
+    """Remote mode: one piece per file, the whole file (empty files need no piece)."""
+    plan: list[PlannedPiece] = []
+    for file_index, size in enumerate(int(s) for s in sizes):
+        if size > 0:
+            plan.append(PlannedPiece(len(plan), file_index, 0, size - 1))
+    return plan
 
 
 class PieceSink(Protocol):
@@ -387,10 +405,52 @@ async def _transfer(
         raise
 
 
+async def _import_remote(
+    engine: Engine, job_id: str, pending: list[PlannedPiece], importer: RemoteImporter,
+    name_for: Callable[[PlannedPiece], str], folder: str = "", imports: int | None = None,
+    note: Callable[..., None] | None = None,
+) -> None:
+    """Have ViKiNG import up to `imports` files at once; each one is ready for players as soon as ViKiNG has it."""
+    workers = max(1, imports if imports is not None else int(os.getenv("GAMEACCESS_CHUNK_IMPORTS") or IMPORTS_IN_PARALLEL))
+    slots = asyncio.Semaphore(workers)
+    total, finished, every = len(pending), 0, max(1, len(pending) // 10)
+    loop = asyncio.get_running_loop()
+
+    async def one(piece: PlannedPiece) -> None:
+        nonlocal finished
+        async with slots:
+            started = loop.time()
+            tries = {"n": 0}
+
+            async def attempt() -> str:
+                tries["n"] += 1
+                return await importer.import_file(piece, name_for(piece), folder, refresh=tries["n"] > 1)
+
+            viking_hash = await _retry(attempt)
+            took = max(loop.time() - started, 0.001)
+            _mark_piece_ready(engine, job_id, piece.index, "", viking_hash)
+            logger.info("chunk_imported job=%s piece=%s mb=%.0f seconds=%.1f mbps=%.1f attempts=%s",
+                        job_id[:8], piece.index, piece.size / 1e6, took, piece.size / 1e6 / took, tries["n"])
+            finished += 1
+            if note is not None and (finished == 1 or finished == total or finished % every == 0):
+                note("viking", f"Paso 2 · Archivo {piece.index + 1} ya está en Viking ({finished} de {total}); "
+                               f"Viking lo bajó de Torbox a {piece.size / 1e6 / took:.1f} MB/s ({workers} a la vez).")
+
+    tasks = [asyncio.create_task(one(piece)) for piece in pending]
+    try:
+        await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
 async def run_chunk_job(
     engine: Engine, job_id: str, *,
     prepare: Callable[[], Awaitable[tuple[PieceSource, list[dict[str, Any]]]]],
     sink: PieceSink, work_dir: Path, installation_id: str = "", skip: Iterable[int] = (),
+    importer: Callable[[PieceSource], RemoteImporter] | None = None,
 ) -> None:
     """Prepare the source, plan the pieces and move every missing one to ViKiNG.
 
@@ -408,7 +468,8 @@ async def run_chunk_job(
         note("torbox", f"Paso 1 · Torbox ya tiene el juego ({len(files)} archivo{'s' if len(files) != 1 else ''}).", "ok")
         if len(files) > MAX_FILES:
             raise ProviderFailure("too_many_files", 422, "Esta fuente tiene demasiados archivos para enviarla por piezas.")
-        plan = plan_pieces([int(f["size"]) for f in files])
+        remote = importer(source) if importer is not None else None
+        plan = whole_file_plan([int(f["size"]) for f in files]) if remote else plan_pieces([int(f["size"]) for f in files])
         if not plan:
             raise ProviderFailure("torbox_no_files", 502, "TorBox no informó los archivos de esta fuente.")
         ready = _install_plan(engine, job_id, files, plan)
@@ -418,10 +479,11 @@ async def run_chunk_job(
         logger.info("chunk_job_running job=%s pieces=%s pending=%s client_has=%s", job_id[:8], len(plan), len(pending), len(held))
         has = f", el cliente ya tiene {len(held)}" if held else ""
         note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas{has}).")
-        await _transfer(
-            engine, job_id, pending, source, sink, work_dir,
-            lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id), note=note,
-        )
+        name_for = lambda p: f"ga-{job_id[:8]}.p{p.index:04d}"  # noqa: E731
+        if remote is not None:
+            await _import_remote(engine, job_id, pending, remote, name_for, viking_folder(job_id), note=note)
+        else:
+            await _transfer(engine, job_id, pending, source, sink, work_dir, name_for, viking_folder(job_id), note=note)
         if held:
             _set_job(engine, job_id, status="partial", completed_at=_now())
             note("ready", f"Listo: subidas las {len(pending)} piezas que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
@@ -502,6 +564,24 @@ class TorboxRangeSource:
         return digest.hexdigest()
 
 
+class VikingRemoteImport:
+    """Remote mode: ViKiNG downloads each file from its TorBox link (a retry asks TorBox for a new link)."""
+
+    def __init__(self, provider: TorBoxVikingProvider, source: "TorboxRangeSource"):
+        self.provider, self.source = provider, source
+
+    async def import_file(self, piece: PlannedPiece, name: str, folder: str = "", refresh: bool = False) -> str:
+        link = await self.source._link(piece.file_index, refresh=refresh)
+        result = await self.provider.remote_upload_to_viking(link, name, folder)
+        file_hash = str(result.get("hash") or "").strip()
+        if not file_hash:
+            raise ProviderFailure("viking_upload_invalid_response", 502, "ViKiNG no devolvió el identificador del archivo.")
+        size = int(result.get("size") or 0)
+        if size and size != piece.size:
+            raise RuntimeError(f"ViKiNG importó {size} bytes de {piece.size}")
+        return file_hash
+
+
 class VikingFileSink:
     def __init__(self, provider: TorBoxVikingProvider):
         self.provider = provider
@@ -565,7 +645,10 @@ def start_job(
                     )
                     return TorboxRangeSource(worker, api_client, item, files), files
 
-                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(), installation_id=installation_id, skip=skip)
+                mode = (os.getenv("GAMEACCESS_CHUNK_MODE") or DEFAULT_MODE).strip().lower()
+                importer = (lambda source: VikingRemoteImport(worker, source)) if mode == "remote" else None
+                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(),
+                                    installation_id=installation_id, skip=skip, importer=importer)
 
     task = asyncio.create_task(runner())
     _running[job_id] = task
