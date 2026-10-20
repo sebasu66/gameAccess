@@ -31,7 +31,11 @@ PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
 SPEED_WINDOW_SECONDS = 20.0      # speed and time left are measured over this recent window
 STREAM_CHUNK = 1 << 20
-DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-3 MB/s
+DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-8 MB/s
+CONNECTIONS = 16                 # connections to ViKiNG at once, all pieces together (GAMEACCESS_CHUNK_CONNECTIONS)
+CONNECTIONS_PER_PIECE = 6        # a piece lives on one ViKiNG server, which answers 429 from about 7 connections
+MIN_SPLIT_BYTES = 8 << 20        # a range is only split in two when each half keeps at least this much
+RANGE_FAILURES = 8               # failed connections a piece tolerates before the whole piece is tried again
 NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
 NETWORK_RETRY_SECONDS = 3.0
 MAX_RESUMES = 3                  # times the player asks the server to resume a job that stopped
@@ -100,6 +104,7 @@ def safe_name(name: str, fallback: str) -> str:
 class ChunkedDownloader:
     def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep, parallel: int | None = None):
         self.parallel = max(1, parallel or int(os.getenv("GAMEACCESS_CHUNK_DOWNLOADS") or DOWNLOADS_IN_PARALLEL))
+        self.connections = threading.BoundedSemaphore(max(1, int(os.getenv("GAMEACCESS_CHUNK_CONNECTIONS") or CONNECTIONS)))
         self.live: dict[int, int] = {}
         self._links: dict[int, dict] = {}
         self._links_lock = threading.Lock()
@@ -437,31 +442,21 @@ class ChunkedDownloader:
             try:
                 link = self.piece_link(job_id, index, refresh=attempt > 1)  # a retry means the link did not work
                 logger.info("Pieza %s: enlace %s", index, link["url"])  # lets the same piece be compared in a browser
-                digest = hashlib.sha256()
-                written = 0
                 piece_started = time.time()
                 self.live[index] = 0
-                with self.http.get(link["url"], stream=True, timeout=60, allow_redirects=True) as response:
-                    if response.status_code != 200:
-                        raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
-                    if "text/html" in response.headers.get("content-type", "").lower():
-                        raise ChunkedDownloadError("el enlace devolvió una página y no el archivo")
-                    with part.open("wb") as handle:
-                        for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
-                            context.wait_if_paused()
-                            if context.cancelled.is_set() or self.abort.is_set():
-                                return
-                            if not chunk:
-                                continue
-                            handle.write(chunk)
-                            digest.update(chunk)
-                            written += len(chunk)
-                            self.live[index] = written
+                peak = self._fetch_piece(link["url"], piece, part)
+                if context.cancelled.is_set() or self.abort.is_set():
+                    return
+                digest = hashlib.sha256()
+                with part.open("rb") as handle:
+                    for block in iter(lambda: handle.read(STREAM_CHUNK), b""):
+                        digest.update(block)
+                written = part.stat().st_size
                 if written != piece["size"] or digest.hexdigest() != piece["sha256"]:
                     raise ChunkedDownloadError("el fragmento llegó incompleto o dañado")
                 took = max(time.time() - piece_started, 0.001)
-                logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s por conexion (%s a la vez)",
-                            index, written / 1048576, took, written / 1048576 / took, len(self.live))
+                logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s piezas a la vez)",
+                            index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
                 with target.open("r+b") as out:
                     out.seek(int(piece["start"]))
                     with part.open("rb") as source:
@@ -477,3 +472,137 @@ class ChunkedDownloader:
                 if attempt < PIECE_ATTEMPTS:
                     self.sleep(1.5 * attempt)
         raise ChunkedDownloadError(f"no se pudo bajar el fragmento {index}: {last_error}")
+
+    def _fetch_piece(self, url: str, piece: dict, part: Path) -> int:
+        """Download one piece into `part` over several range connections; return the most used at once.
+
+        A piece starts on one connection. Once ViKiNG shows it honours ranges, every free connection takes half of
+        the largest range still left, so a slow connection keeps handing its bytes to faster ones (the last piece
+        no longer crawls on one slow connection). A server that ignores ranges sends the piece on one connection."""
+        context = self.context
+        index, size = piece["index"], int(piece["size"])
+        with part.open("wb") as handle:
+            handle.truncate(size)
+        ranges: list[list[int]] = [[0, size - 1, 0]]   # start, end (inclusive), written
+        owned: set[int] = set()                         # ranges a connection is working on
+        lock = threading.Lock()
+        ranged = threading.Event()
+        stop = threading.Event()
+        errors: list[Exception] = []
+        threads: list[threading.Thread] = []
+        cap, failures, peak = CONNECTIONS_PER_PIECE, 0, 0
+
+        def left(r: list[int]) -> int:
+            return r[1] - (r[0] + r[2]) + 1
+
+        def run(slot: int) -> None:
+            try:
+                self._fetch_range(url, ranges[slot], part, lock, ranged, stop, index, ranges)
+            except BaseException as exc:  # noqa: BLE001 - reported to the piece, which retries the range
+                with lock:
+                    errors.append(exc)
+            finally:
+                with lock:
+                    owned.discard(slot)
+                self.connections.release()
+
+        def free_range() -> int | None:
+            """A range no connection is working on (not started yet, or its connection failed)."""
+            return next((i for i, r in enumerate(ranges) if left(r) > 0 and i not in owned), None)
+
+        def split() -> int | None:
+            """Hand the second half of the largest range being downloaded to a new connection."""
+            largest = max(owned, key=lambda i: left(ranges[i]), default=None)
+            if not ranged.is_set() or largest is None or left(ranges[largest]) < 2 * MIN_SPLIT_BYTES:
+                return None
+            r = ranges[largest]
+            middle = r[0] + r[2] + left(r) // 2
+            ranges.append([middle, r[1], 0])
+            r[1] = middle - 1
+            return len(ranges) - 1
+
+        last: Exception | None = None
+        try:
+            while not (context.cancelled.is_set() or self.abort.is_set()):
+                with lock:
+                    threads = [t for t in threads if t.is_alive()]
+                    if not owned and all(left(r) <= 0 for r in ranges):
+                        break
+                    fatal = next((exc for exc in errors if not isinstance(exc, Exception)), None)
+                    if fatal is not None:
+                        raise fatal  # the app is closing (KeyboardInterrupt, SystemExit): not a network error to retry
+                    for exc in errors:
+                        failures, last = failures + 1, exc
+                        if "429" in str(exc):
+                            cap = max(1, len(owned))  # ViKiNG wants fewer connections on this server
+                    errors.clear()
+                    if failures > RANGE_FAILURES:
+                        raise ChunkedDownloadError(f"conexiones fallidas: {last}")
+                    wants = len(owned) < cap
+                    alone = not owned
+                # The first connection waits for a free slot; more connections are added only when one is free.
+                if wants and self.connections.acquire(timeout=0.25 if alone else 0.001):
+                    with lock:
+                        slot = free_range()
+                        if slot is None:
+                            slot = split()
+                        if slot is not None:
+                            owned.add(slot)
+                            peak = max(peak, len(owned))
+                    if slot is None:
+                        self.connections.release()
+                    else:
+                        thread = threading.Thread(target=run, args=(slot,), daemon=True)
+                        threads.append(thread)
+                        thread.start()
+                        continue
+                stop.wait(0.05)
+        finally:
+            stop.set()  # connections still running (cancel, error) stop at their next block
+            for thread in threads:
+                thread.join()
+        return peak
+
+    def _fetch_range(self, url: str, r: list[int], part: Path, lock: threading.Lock, ranged: threading.Event,
+                     stop: threading.Event, index: int, ranges: list[list[int]]) -> None:
+        """One connection: download bytes r[0]+r[2]..r[1] of the piece. The end may move closer while it runs
+        (another connection took the second half); it stops there."""
+        context = self.context
+        with lock:
+            position, end = r[0] + r[2], r[1]
+        if position > end:
+            return
+        headers = {"Range": f"bytes={position}-{end}", "Accept-Encoding": "identity"}
+        with self.http.get(url, stream=True, timeout=60, allow_redirects=True, headers=headers) as response:
+            if response.status_code == 429:
+                raise ChunkedDownloadError("demasiadas conexiones (429)")
+            if response.status_code == 206:
+                if not str(response.headers.get("content-range", "")).lower().startswith(f"bytes {position}-"):
+                    raise ChunkedDownloadError("el servidor no respetó el rango pedido")
+                ranged.set()
+            elif response.status_code != 200 or position != 0:
+                raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
+            if "text/html" in response.headers.get("content-type", "").lower():
+                raise ChunkedDownloadError("el enlace devolvió una página y no el archivo")
+            with part.open("r+b") as handle:
+                for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
+                    context.wait_if_paused()
+                    if context.cancelled.is_set() or self.abort.is_set() or stop.is_set():
+                        return
+                    if not chunk:
+                        continue
+                    with lock:
+                        at = r[0] + r[2]
+                        take = chunk[: max(r[1] - at + 1, 0)]
+                        r[2] += len(take)
+                        finished = r[0] + r[2] > r[1]
+                        self.live[index] = sum(x[2] for x in ranges)
+                    if take:
+                        handle.seek(at)
+                        handle.write(take)
+                    if finished:
+                        return
+        with lock:
+            complete = r[0] + r[2] > r[1]
+        if not complete:
+            raise ChunkedDownloadError("la conexión se cortó antes de terminar")

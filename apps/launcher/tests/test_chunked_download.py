@@ -84,7 +84,7 @@ class FakeServer:
             return Resp(200, {"index": index, "url": f"https://cdn/{index}"})
         return Resp(200, self.manifest())
 
-    def get(self, url, stream=True, timeout=None, allow_redirects=True):
+    def get(self, url, stream=True, timeout=None, allow_redirects=True, headers=None):
         index = int(url.rsplit("/", 1)[1])
         data = self.pieces[index][2]
         if self.corrupt_once == index:
@@ -413,3 +413,93 @@ def test_a_partial_job_is_resumed_for_the_pieces_this_player_lacks(tmp_path):
     downloader, _ = make(server, tmp_path)
     assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
     assert posts[1]["have_pieces"] == [0, 1, 2]
+
+
+class RangedServer(FakeServer):
+    """ViKiNG honouring ranges, streaming in small blocks; `slow` connections (by start byte) crawl."""
+
+    def __init__(self, *args, slow_starts=(), refuse_extra=False, ignore_ranges=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.slow_starts, self.refuse_extra, self.ignore_ranges = set(slow_starts), refuse_extra, ignore_ranges
+        self.lock = threading.Lock()
+        self.active = self.peak = 0
+        self.served = {}   # start byte -> bytes sent
+
+    def get(self, url, stream=True, timeout=None, allow_redirects=True, headers=None):
+        import time as _time
+
+        index = int(url.rsplit("/", 1)[1])
+        data = self.pieces[index][2]
+        first, last = (int(x) for x in headers["Range"].split("=")[1].split("-"))
+        server = self
+        if self.ignore_ranges:
+            return Resp(200, data=data)
+        with self.lock:
+            if self.refuse_extra and self.active >= 2:
+                return Resp(429)
+            self.active += 1
+            self.peak = max(self.peak, self.active)
+
+        class Streamed(Resp):
+            def iter_content(self, chunk_size=1):
+                try:
+                    for at in range(first, last + 1, 16_384):
+                        _time.sleep(0.05 if first in server.slow_starts else 0.002)
+                        block = data[at:min(at + 16_384, last + 1)]
+                        with server.lock:
+                            server.served[first] = server.served.get(first, 0) + len(block)
+                        yield block
+                finally:
+                    with server.lock:
+                        server.active -= 1
+
+        return Streamed(206, data=b"", headers={"content-type": "application/octet-stream",
+                                                "content-range": f"bytes {first}-{last}/{len(data)}"})
+
+
+@pytest.fixture
+def small_splits(monkeypatch):
+    monkeypatch.setattr(cd, "MIN_SPLIT_BYTES", 32_768)
+
+
+def test_a_piece_is_downloaded_over_several_range_connections(tmp_path, small_splits):
+    data = bytes(range(256)) * 4096  # 1 MB, one piece
+    server = RangedServer([("f.bin", data)], len(data))
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert 2 <= server.peak <= cd.CONNECTIONS_PER_PIECE
+    assert list(tmp_path.iterdir()) == [Path(result)]
+
+
+def test_a_slow_connection_hands_its_bytes_to_faster_ones(tmp_path, small_splits):
+    data = bytes(range(256)) * 4096
+    server = RangedServer([("f.bin", data)], len(data), slow_starts={0})  # the first connection crawls
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert server.served[0] < len(data) / 4  # the others took most of what it started with
+
+
+def test_a_server_that_ignores_ranges_sends_the_piece_on_one_connection(tmp_path, small_splits):
+    data = bytes(range(256)) * 4096
+    server = RangedServer([("f.bin", data)], len(data), ignore_ranges=True)
+    downloader, _ = make(server, tmp_path)
+    assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
+
+
+def test_too_many_connections_429_only_lowers_the_connections(tmp_path, small_splits):
+    data = bytes(range(256)) * 4096
+    server = RangedServer([("f.bin", data)], len(data), refuse_extra=True)
+    downloader, _ = make(server, tmp_path)
+    assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
+    assert server.peak <= 2
+
+
+def test_connections_are_shared_by_all_pieces(tmp_path, small_splits, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_CONNECTIONS", "3")
+    data = bytes(range(256)) * 4096
+    server = RangedServer([("f.bin", data)], len(data) // 4)
+    downloader, _ = make(server, tmp_path, parallel=4)
+    assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
+    assert server.peak <= 3
