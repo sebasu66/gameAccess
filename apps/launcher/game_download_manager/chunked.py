@@ -436,6 +436,7 @@ class ChunkedDownloader:
                 return
             try:
                 link = self.piece_link(job_id, index, refresh=attempt > 1)  # a retry means the link did not work
+                logger.info("Pieza %s: enlace %s", index, link["url"])  # lets the same piece be compared in a browser
                 digest = hashlib.sha256()
                 written = 0
                 piece_started = time.time()
