@@ -119,14 +119,14 @@ def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
     assert sink.folders == {f"GameAccess/{job_id[:8]}"}
 
 
-def test_at_most_two_pieces_sit_on_disk(engine, tmp_path):
+def test_pieces_on_disk_are_limited(engine, tmp_path):
     job_id = new_job(engine)
     run(engine, job_id, FakeSource(), FakeSink(work_dir=tmp_path), files_for(3000 * MB), tmp_path)
     # the sink peeks at the disk on every upload
     sink = FakeSink(work_dir=tmp_path)
     job2 = new_job(engine)
     run(engine, job2, FakeSource(), sink, files_for(3000 * MB), tmp_path)
-    assert 0 < sink.peak_files <= svc.UPLOADS_IN_PARALLEL + 1
+    assert 0 < sink.peak_files <= svc.MAX_PIECES_ON_DISK
 
 
 def test_a_failed_piece_is_retried(engine, tmp_path):
@@ -273,3 +273,45 @@ def test_uploads_run_in_parallel_and_pieces_may_finish_out_of_order(engine, tmp_
         job = svc.get_job(session, job_id)
         manifest = svc.build_manifest(session, job)
         assert job.status == "ready" and manifest["ready_count"] == manifest["piece_count"]
+
+
+class SlowSource(FakeSource):
+    """TorBox taking a while per piece; counts the reads running at once."""
+
+    def __init__(self):
+        super().__init__()
+        self.active = self.peak = 0
+
+    async def fetch(self, piece, dest):
+        self.active += 1
+        self.peak = max(self.peak, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            return await super().fetch(piece, dest)
+        finally:
+            self.active -= 1
+
+
+def test_several_pieces_are_read_from_torbox_at_once(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_FETCHES", "3")
+    source, sink = SlowSource(), FakeSink(work_dir=tmp_path)
+    run(engine, new_job(engine), source, sink, files_for(3000 * MB), tmp_path)
+    assert source.peak == 3
+    assert sorted(source.calls) == list(range(len(sink.names)))  # every piece once
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_the_disk_budget_holds_back_reads(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_FETCHES", "4")
+    monkeypatch.setenv("GAMEACCESS_CHUNK_DISK_MB", "150")  # one 100 MB piece at a time
+    source = SlowSource()
+    run(engine, new_job(engine), source, FakeSink(), files_for(400 * MB), tmp_path)
+    assert source.peak == 1
+
+
+def test_a_piece_bigger_than_the_disk_budget_still_goes(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_DISK_MB", "10")
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(), files_for(250 * MB), tmp_path)
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"

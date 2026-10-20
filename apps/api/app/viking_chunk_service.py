@@ -32,8 +32,10 @@ logger = logging.getLogger("gameaccess.viking_chunks")
 MAX_FILES = 200            # a source with more files than this is not worth splitting
 PIECE_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 3.0
+FETCHES_IN_PARALLEL = 2       # pieces read from TorBox at the same time (GAMEACCESS_CHUNK_FETCHES)
 UPLOADS_IN_PARALLEL = 3       # pieces going up to ViKiNG at the same time (GAMEACCESS_CHUNK_UPLOADS)
-MAX_PIECES_ON_DISK = UPLOADS_IN_PARALLEL + 1
+MAX_PIECES_ON_DISK = FETCHES_IN_PARALLEL + UPLOADS_IN_PARALLEL
+DISK_BUDGET_MB = 2000         # piece files on disk at once, all together (GAMEACCESS_CHUNK_DISK_MB); one piece always fits
 LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
@@ -283,52 +285,97 @@ async def _retry(factory: Callable[[], Awaitable[Any]]) -> Any:
 async def _transfer(
     engine: Engine, job_id: str, pending: list[PlannedPiece], source: PieceSource, sink: PieceSink,
     work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "", uploads: int | None = None,
-    note: Callable[..., None] | None = None,
+    note: Callable[..., None] | None = None, fetches: int | None = None, disk_budget: int | None = None,
 ) -> None:
-    """Fetch pieces one after another while up to `uploads` of them go up to ViKiNG at once.
+    """Read up to `fetches` pieces from TorBox at once while up to `uploads` go up to ViKiNG at once.
 
-    At most `uploads + 1` piece files exist on disk at any moment.
+    Pieces are started in order, so the first ones are ready first. At most `fetches + uploads` piece files
+    exist on disk, and together they stay under `disk_budget` bytes (a piece bigger than that goes alone).
+    Each stage logs its speed, so the slow one shows in the log.
     """
     workers = max(1, uploads if uploads is not None else int(os.getenv("GAMEACCESS_CHUNK_UPLOADS") or UPLOADS_IN_PARALLEL))
-    slots = asyncio.Semaphore(workers + 1)
+    readers = max(1, fetches if fetches is not None else int(os.getenv("GAMEACCESS_CHUNK_FETCHES") or FETCHES_IN_PARALLEL))
+    budget = disk_budget if disk_budget is not None else int(os.getenv("GAMEACCESS_CHUNK_DISK_MB") or DISK_BUDGET_MB) << 20
+    slots = asyncio.Semaphore(readers + workers)
+    disk = asyncio.Condition()
+    on_disk = 0
     queue: asyncio.Queue = asyncio.Queue()
+    todo = list(pending)
     total, finished, every = len(pending), 0, max(1, len(pending) // 10)
+    timing = {"fetch_bytes": 0, "fetch_seconds": 0.0, "upload_bytes": 0, "upload_seconds": 0.0}
+    loop = asyncio.get_running_loop()
 
-    async def producer() -> None:
+    async def reserve(size: int) -> None:
+        nonlocal on_disk
+        async with disk:
+            await disk.wait_for(lambda: on_disk == 0 or on_disk + size <= budget)
+            on_disk += size
+
+    async def free(size: int) -> None:
+        nonlocal on_disk
+        async with disk:
+            on_disk -= size
+            disk.notify_all()
+
+    def speed(stage: str) -> float:
+        seconds = timing[f"{stage}_seconds"]
+        return timing[f"{stage}_bytes"] / seconds / 1e6 if seconds > 0 else 0.0
+
+    async def reader() -> None:
+        while todo:
+            piece = todo.pop(0)
+            await slots.acquire()
+            await reserve(piece.size)
+            path = work_dir / f"{job_id}-{piece.index:04d}.part"
+            started = loop.time()
+            try:
+                sha = await _retry(lambda: source.fetch(piece, path))
+            except BaseException:
+                path.unlink(missing_ok=True)
+                await free(piece.size)
+                slots.release()
+                raise
+            took = max(loop.time() - started, 0.001)
+            timing["fetch_bytes"] += piece.size
+            timing["fetch_seconds"] += took
+            logger.info("chunk_fetched job=%s piece=%s mb=%.0f seconds=%.1f mbps=%.1f",
+                        job_id[:8], piece.index, piece.size / 1e6, took, piece.size / 1e6 / took)
+            await queue.put((piece, path, sha))
+
+    async def readers_then_stop() -> None:
         try:
-            for piece in pending:
-                await slots.acquire()
-                path = work_dir / f"{job_id}-{piece.index:04d}.part"
-                try:
-                    sha = await _retry(lambda: source.fetch(piece, path))
-                except BaseException:
-                    path.unlink(missing_ok=True)
-                    slots.release()
-                    raise
-                await queue.put((piece, path, sha))
+            await asyncio.gather(*(reader() for _ in range(readers)))
         finally:
             for _ in range(workers):
                 await queue.put(None)
 
     async def consumer() -> None:
+        nonlocal finished
         while True:
             item = await queue.get()
             if item is None:
                 return
             piece, path, sha = item
+            started = loop.time()
             try:
                 viking_hash = await _retry(lambda: sink.upload(path, name_for(piece), folder))
+                took = max(loop.time() - started, 0.001)
+                timing["upload_bytes"] += piece.size
+                timing["upload_seconds"] += took
                 _mark_piece_ready(engine, job_id, piece.index, sha, viking_hash)
-                logger.info("chunk_ready job=%s piece=%s size=%s", job_id[:8], piece.index, piece.size)
-                nonlocal finished
+                logger.info("chunk_ready job=%s piece=%s size=%s upload_seconds=%.1f upload_mbps=%.1f",
+                            job_id[:8], piece.index, piece.size, took, piece.size / 1e6 / took)
                 finished += 1
                 if note is not None and (finished == 1 or finished == total or finished % every == 0):
-                    note("viking", f"Paso 2 · Pieza {piece.index + 1} ya está en Viking ({finished} de {total} pendientes).")
+                    note("viking", f"Paso 2 · Pieza {piece.index + 1} ya está en Viking ({finished} de {total} pendientes). "
+                                   f"Por conexión: Torbox {speed('fetch'):.1f} MB/s, subida a Viking {speed('upload'):.1f} MB/s "
+                                   f"({readers} lecturas y {workers} subidas a la vez).")
             finally:
                 path.unlink(missing_ok=True)
+                await free(piece.size)
                 slots.release()
 
-    tasks = [asyncio.create_task(producer())] + [asyncio.create_task(consumer()) for _ in range(workers)]
+    tasks = [asyncio.create_task(readers_then_stop())] + [asyncio.create_task(consumer()) for _ in range(workers)]
     try:
         await asyncio.gather(*tasks)
     except BaseException:
