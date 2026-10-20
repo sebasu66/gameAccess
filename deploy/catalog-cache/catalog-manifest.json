@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "revision": "21ddffee4b838169",
-  "generated_at": "2026-10-19T10:23:36.616912+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-21ddffee4b838169.sqlite.gz",
-  "sha256": "91760718cebbf0193c4323d060cde84f0749b2bf774de13ff59372dcef6cb340",
-  "catalog_count": 44093,
+  "revision": "33517a90b4c1c058",
+  "generated_at": "2026-10-20T09:55:01.142251+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-33517a90b4c1c058.sqlite.gz",
+  "sha256": "c75cc20bbdd78d87cb8b7d1c076b49df15f466df5f8e490d6d5102da572db858",
+  "catalog_count": 44178,
   "detail_count": 677,
-  "compressed_bytes": 11719311,
-  "uncompressed_bytes": 77250560,
+  "compressed_bytes": 11741079,
+  "uncompressed_bytes": 77381632,
   "coverage": {
-    "released_since": "2025-10-19",
-    "through": "2026-10-19",
+    "released_since": "2025-10-20",
+    "through": "2026-10-20",
     "recent_complete": true,
-    "recent_count": 28135,
+    "recent_count": 28204,
     "popular_limit": 5000,
     "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
     "cooptimus": {
@@ -21,21 +21,21 @@
       "state": "not-requested"
     },
     "artwork": {
-      "matched": 44020,
-      "capsule": 44007,
-      "hero": 41815,
-      "header": 43991,
+      "matched": 44105,
+      "capsule": 44092,
+      "hero": 41900,
+      "header": 44076,
       "missing": 73,
-      "descriptors": 10203,
-      "adult_only": 2452,
-      "nudity": 3896,
-      "categories": 43945,
-      "requests": 882,
+      "descriptors": 10222,
+      "adult_only": 2457,
+      "nudity": 3902,
+      "categories": 44030,
+      "requests": 884,
       "cache_hits": 0
     },
     "server_games_added": 0,
     "server_fields_filled": 0,
-    "updated_at": "2026-10-19T10:23:34.486780+00:00",
-    "tagged_count": 38327
+    "updated_at": "2026-10-20T09:54:59.621802+00:00",
+    "tagged_count": 38412
   }
 }
