@@ -363,8 +363,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
+  // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
+  const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <button type="button" className="library-back-to-top ga-library-manager-button" onClick={() => setManagerOpen(true)}><HardDrive size={17} /><span>{locale === "en" ? "Library manager" : "Administrar biblioteca"}</span></button> : null;
+    ? <button type="button" className="ga-dock-btn ga-library-manager-button" onClick={() => setManagerOpen(true)} aria-label={t("libraryManagerButton")} title={t("libraryManagerButton")}><HardDrive size={20} aria-hidden="true" /><span>{t("libraryManagerButton")}</span></button> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -377,7 +379,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
-      {props.actionsTarget ? createPortal(<>{filters}{managerButton}{backToTop}</>, props.actionsTarget) : filters}
+      {props.actionsTarget ? createPortal(<>{filters}{backToTop}</>, props.actionsTarget) : filters}
+      {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
       {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} catalog={props.allGames} onInstall={props.onInstall} /> : null}
       {contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (

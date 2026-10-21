@@ -272,6 +272,7 @@ export const es = {
   uiZoom: "Zoom",
   uiColeccionesDeJuegos: "Colecciones de juegos",
   uiVolverArriba: "Volver arriba",
+  libraryManagerButton: "Administrar biblioteca",
   uiDesplazarJuegos: "Desplazar juegos",
   uiProgresoDeLaDescarga: "Progreso de la descarga",
   uiGeneros: "Géneros",

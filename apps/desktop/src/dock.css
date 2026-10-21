@@ -32,6 +32,7 @@
 .ga-dock .catalog-refresh-button[aria-busy="true"] svg { animation: ga-download-spin 1.5s linear infinite; }
 .ga-dock .catalog-refresh-button:disabled { cursor: wait; opacity: .55; }
 /* Visual order, whatever order React mounted them in. */
+.ga-dock .ga-library-manager-button { order: 0; }
 .ga-dock .digital-download-nav { order: 1; }
 .ga-dock .ga-settings-fab { order: 2; }
 .ga-dock .catalog-refresh-button { order: 3; }

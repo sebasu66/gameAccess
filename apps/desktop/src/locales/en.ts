@@ -274,6 +274,7 @@ export const en: Record<keyof typeof es, string> = {
   uiZoom: "Zoom",
   uiColeccionesDeJuegos: "Game collections",
   uiVolverArriba: "Back to top",
+  libraryManagerButton: "Library manager",
   uiDesplazarJuegos: "Scroll games",
   uiProgresoDeLaDescarga: "Download progress",
   uiGeneros: "Genres",
