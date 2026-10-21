@@ -542,3 +542,42 @@ def test_a_short_imported_file_is_downloaded_again(tmp_path, small_splits):
     server.get = short_once
     downloader, _ = make(server, tmp_path)
     assert Path(downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")).read_bytes() == data
+
+
+class SealedTorboxServer(ImportedServer):
+    """While ViKiNG imports, the server hands out TorBox links sealed for the player's session."""
+
+    sealed_for = "tok"
+
+    def request(self, method, url, headers=None, timeout=None, json=None):
+        if url.split("?")[0].endswith("/link"):
+            from game_download_manager.link_sealing import seal
+            index = int(url.split("/pieces/")[1].split("/")[0])
+            secret = f"https://cdn/{index}?token=account-api-key"
+            return Resp(200, {"index": index, "source": "torbox", "sealed": seal(secret, self.sealed_for, "inst")})
+        return super().request(method, url, headers=headers, timeout=timeout, json=json)
+
+    def get(self, url, **kw):
+        assert url.endswith("?token=account-api-key")  # the player opened the sealed link
+        return super().get(url.split("?")[0], **kw)
+
+
+def test_a_sealed_torbox_link_is_opened_in_memory_and_never_logged(tmp_path, small_splits, caplog):
+    import logging
+    data = bytes(range(256)) * 2048
+    server = SealedTorboxServer([("a.rar", data)], 10 ** 9)
+    downloader, _ = make(server, tmp_path)
+    with caplog.at_level(logging.DEBUG, logger="digital_downloader"):
+        result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data
+    assert "account-api-key" not in caplog.text and "token=" not in caplog.text
+    assert "desde torbox (cdn)" in caplog.text
+
+
+def test_a_link_sealed_for_another_session_is_refused(tmp_path, small_splits):
+    data = bytes(range(256)) * 1024
+    server = SealedTorboxServer([("a.rar", data)], 10 ** 9)
+    server.sealed_for = "someone-else"
+    downloader, _ = make(server, tmp_path)
+    with pytest.raises((cd.ChunkedDownloadError, cd.ChunkedDownloadUnavailable)):
+        downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")

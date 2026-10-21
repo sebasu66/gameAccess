@@ -77,7 +77,8 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [ ] Cablear el cliente al endpoint de Viking/Torbox y agregar tests; mostrar en la consola, al apretar Download, la petición, el link procesado y los errores.
 - [ ] Viking Files: cuenta VIP ya paga; pendiente respuesta del administrador por hotlinking (Seba).
 - [ ] Comparar descarga directa vs torrent en el servidor cuando no está en Viking ni cacheado en Torbox.
-- [ ] Retransmisor online (Torbox no debe ver muchas IPs de clientes); links de piezas en archivo, no en Supabase; piezas de 500 MB → 1 GB; aguantar ~100 usuarios.
+- [ ] Aguantar ~100 usuarios: links de piezas en archivo, no en Supabase. (2026-10-21: ya no hace falta esconder IPs de clientes de Torbox; su ayuda dice que no rastrea IPs y permite compartir con amigos y familia. El límite real es de volumen: 10/20/30 TB por mes según plan, con 3 avisos que rotan la clave y ban al cuarto.)
+- [ ] **Cuentas de Torbox (decisión de Seba 2026-10-21):** una sola cuenta + Viking como caché hasta el primer aviso de Torbox; entonces evaluar más cuentas u otros debrid en paralelo. El programa Partners de Torbox es para proyectos con base de usuarios: verlo más adelante.
 - [ ] Tabla de tareas en ejecución en la web del servidor.
 - [ ] Servidor en Render funcionando igual que en local.
 - [ ] Publicar deltas del catálogo en el servidor (`kind: "delta"`, `base_revision`, `revision`) — spec en `docs/game-access-todo.md`.

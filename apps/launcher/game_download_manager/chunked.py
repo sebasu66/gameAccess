@@ -24,6 +24,8 @@ from typing import Any, Callable
 
 import requests
 
+from game_download_manager.link_sealing import SealError, unseal
+
 logger = logging.getLogger("digital_downloader")
 
 POLL_SECONDS = 5.0               # asking the server what is ready while nothing is downloading
@@ -431,6 +433,15 @@ class ChunkedDownloader:
         with self._links_lock:
             self._links.clear()
 
+    def _open_link(self, link: dict) -> str:
+        """The URL to download: a TorBox link arrives sealed for this session and is opened only in memory."""
+        if link.get("sealed"):
+            try:
+                return unseal(link["sealed"], self.session.token, self.session.installation)
+            except SealError as exc:
+                raise ChunkedDownloadError("el enlace no se pudo abrir") from exc
+        return link["url"]
+
     def _download_piece(self, job_id: str, piece: dict, target: Path, work: Path) -> None:
         """Runs in a worker thread: download one piece, verify it and write it at its place."""
         context = self.context
@@ -442,14 +453,16 @@ class ChunkedDownloader:
                 return
             try:
                 link = self.piece_link(job_id, index, refresh=attempt > 1)  # a retry means the link did not work
-                logger.info("Pieza %s: enlace %s", index, link["url"])  # lets the same piece be compared in a browser
+                url = self._open_link(link)
+                # Only the host: a TorBox link carries the account's key and must never reach a log.
+                logger.info("Pieza %s: desde %s (%s)", index, link.get("source") or "viking", requests.utils.urlparse(url).hostname)
                 piece_started = time.time()
                 self.live[index] = 0
                 if not piece.get("sha256"):
                     # A whole file ViKiNG imported by itself: the server never saw its bytes, so there is no hash
                     # to check (the archive's own checksums are checked when it is extracted). It goes straight
                     # into its place: a file of several GB is not copied a second time.
-                    peak, written = self._fetch_piece(link["url"], piece, target, offset=int(piece["start"]))
+                    peak, written = self._fetch_piece(url, piece, target, offset=int(piece["start"]))
                     if context.cancelled.is_set() or self.abort.is_set():
                         return
                     if written != piece["size"]:
@@ -458,7 +471,7 @@ class ChunkedDownloader:
                     logger.info("Archivo %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s a la vez)",
                                 index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
                     return
-                peak, _ = self._fetch_piece(link["url"], piece, part)
+                peak, _ = self._fetch_piece(url, piece, part)
                 if context.cancelled.is_set() or self.abort.is_set():
                     return
                 digest = hashlib.sha256()

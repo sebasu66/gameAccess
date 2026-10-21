@@ -18,6 +18,7 @@ from .local_database import get_local_session, local_engine
 from .download_events import log_event
 from .telemetry import record_transfer, record_transfers
 from .viking_link_cache import link_cache, probe_direct_link
+from .link_sealing import seal
 from .viking_cache_service import ProviderFailure, create_provider, magnet_infohash, normalize_source_url
 from .viking_chunk_service import (
     build_manifest,
@@ -26,6 +27,8 @@ from .viking_chunk_service import (
     get_job,
     get_ready_piece,
     get_ready_pieces,
+    get_torbox_pieces,
+    torbox_source,
     is_running,
     missing_for,
     start_job,
@@ -61,6 +64,26 @@ def _installation_for_plus(request: Request, session: Session) -> str:
     if tier != "plus":
         raise HTTPException(403, "La descarga por piezas requiere el plan PLUS.")
     return installation_id
+
+
+async def _sealed_torbox_links(job_id: str, pieces: list, request: Request, refresh: bool) -> list[dict]:
+    """TorBox links for pieces ViKiNG is still importing, sealed for this player's session (a TorBox link carries
+    the account's API key, so it never travels in plain text)."""
+    source = torbox_source(job_id)
+    if source is None or not pieces:
+        return []
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    installation = request.headers.get("X-GameAccess-Installation", "")
+    links = []
+    for piece in pieces:
+        try:
+            url = await source._link(piece.file_index, refresh=refresh)
+        except ProviderFailure:
+            continue  # the player waits for ViKiNG
+        links.append({"index": piece.piece_index, "size": piece.size_bytes, "sha256": "", "source": "torbox",
+                      "sealed": seal(url, token, installation)})
+    return links
 
 
 def _safe_text(value: str, limit: int) -> str:
@@ -176,6 +199,9 @@ async def chunk_piece_link(
     installation_id = await _installation_for_plus_async(request, session)
     piece = get_ready_piece(local_session, job_id, index)
     if piece is None:
+        sealed = await _sealed_torbox_links(job_id, get_torbox_pieces(local_session, job_id, index, 1), request, refresh)
+        if sealed:
+            return sealed[0]
         raise HTTPException(404, "Esa pieza todavía no está lista.")
     try:
         url = await link_cache.get(piece.viking_hash, create_provider().resolve_viking_direct_link, probe_direct_link, refresh)
@@ -220,6 +246,7 @@ async def chunk_piece_links(
         else:
             links.append({"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": result})
             served.append(piece)
+    links += await _sealed_torbox_links(job_id, get_torbox_pieces(local_session, job_id, start, count), request, refresh)
     if failure is not None and not links:
         raise HTTPException(failure.status_code, failure.public_message) from failure
     if served:

@@ -44,6 +44,15 @@ LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
 
+# While ViKiNG imports a job's files, players get each file straight from TorBox (sealed link) instead of waiting:
+# job_id -> the TorBox source of the running import. In memory only: after a restart the player waits for ViKiNG.
+_torbox_sources: dict[str, Any] = {}
+
+
+def torbox_source(job_id: str) -> Any:
+    return _torbox_sources.get(job_id)
+
+
 def viking_folder(job_id: str) -> str:
     """One ViKiNG folder per job keeps the pieces of a game together and out of the account root."""
     return f"GameAccess/{job_id[:8]}"
@@ -214,6 +223,7 @@ def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
     pieces = session.exec(
         select(VikingChunkPiece).where(VikingChunkPiece.job_id == job.job_id).order_by(VikingChunkPiece.piece_index)
     ).all()
+    from_torbox = job.job_id in _torbox_sources
     return {
         "job_id": job.job_id,
         "status": job.status,
@@ -227,7 +237,8 @@ def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
         "pieces": [
             {
                 "index": p.piece_index, "file_index": p.file_index, "start": p.start_byte, "size": p.size_bytes,
-                "sha256": p.sha256 if p.status == "ready" else "", "ready": p.status == "ready",
+                "sha256": p.sha256 if p.status == "ready" else "",
+                "ready": p.status == "ready" or (from_torbox and p.status == "pending"),
             }
             for p in pieces
         ],
@@ -249,6 +260,18 @@ def get_ready_pieces(session: Session, job_id: str, start: int, count: int) -> l
             VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "ready", VikingChunkPiece.viking_hash.is_not(None),
             VikingChunkPiece.piece_index >= start, VikingChunkPiece.piece_index < start + count,
         )
+        .order_by(VikingChunkPiece.piece_index)
+    ).all())
+
+
+def get_torbox_pieces(session: Session, job_id: str, start: int, count: int) -> list[VikingChunkPiece]:
+    """Pieces in [start, start+count) still being imported, which players get from TorBox meanwhile."""
+    if job_id not in _torbox_sources:
+        return []
+    return list(session.exec(
+        select(VikingChunkPiece)
+        .where(VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "pending",
+               VikingChunkPiece.piece_index >= start, VikingChunkPiece.piece_index < start + count)
         .order_by(VikingChunkPiece.piece_index)
     ).all())
 
@@ -481,7 +504,11 @@ async def run_chunk_job(
         note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas{has}).")
         name_for = lambda p: f"ga-{job_id[:8]}.p{p.index:04d}"  # noqa: E731
         if remote is not None:
-            await _import_remote(engine, job_id, pending, remote, name_for, viking_folder(job_id), note=note)
+            _torbox_sources[job_id] = source  # players start from TorBox while ViKiNG imports
+            try:
+                await _import_remote(engine, job_id, pending, remote, name_for, viking_folder(job_id), note=note)
+            finally:
+                _torbox_sources.pop(job_id, None)
         else:
             await _transfer(engine, job_id, pending, source, sink, work_dir, name_for, viking_folder(job_id), note=note)
         if held:
