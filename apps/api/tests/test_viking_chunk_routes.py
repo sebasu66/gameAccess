@@ -33,6 +33,15 @@ def empty_link_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def nothing_on_viking(monkeypatch):
+    """The ViKiNG folder of every source is empty unless a test says otherwise."""
+    async def none(engine, fingerprint, **kw):
+        return None
+
+    monkeypatch.setattr(routes, "restore_from_viking", none)
+
+
+@pytest.fixture(autouse=True)
 def plus_user(monkeypatch):
     monkeypatch.setattr(routes, "_installation_for_plus", lambda request, session: "inst-1")
     started: list[str] = []
@@ -196,3 +205,21 @@ def test_peek_says_whether_the_server_can_serve_the_source_at_once(session, plus
     session.commit()
     assert peek(session, other) == {"ready": True, "where": "viking"}
     assert len(plus_user) == 1  # peeking never starts work
+
+
+def test_a_source_the_server_forgot_is_served_from_its_viking_map_without_new_work(session, plus_user, monkeypatch):
+    asked: list[tuple[str, str]] = []
+
+    async def restored(engine, fingerprint, source_url="", **kw):
+        asked.append((fingerprint, source_url))
+        job = svc.create_job(session, fingerprint=fingerprint, kind="torrent", item_name="Portal 2")
+        job.status = "ready"
+        session.add(job)
+        session.commit()
+        return job.job_id
+
+    monkeypatch.setattr(routes, "restore_from_viking", restored)
+    manifest = post(session)
+    assert manifest["status"] == "ready" and plus_user == []  # nothing to import: ViKiNG already has it
+    assert asked[0][1] == MAGNET
+    assert peek(session) == {"ready": True, "where": "viking"} and len(asked) == 1  # known now: no new lookup

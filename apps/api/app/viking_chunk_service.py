@@ -26,6 +26,7 @@ from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxI
 from .download_events import log_event
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 from .viking_chunk_plan import PlannedPiece, plan_pieces
+from .viking_map import MapStore, VikingMapStore, folder_for, map_document, piece_name
 from . import resource_governor
 
 logger = logging.getLogger("gameaccess.viking_chunks")
@@ -52,11 +53,6 @@ _torbox_sources: dict[str, Any] = {}
 
 def torbox_source(job_id: str) -> Any:
     return _torbox_sources.get(job_id)
-
-
-def viking_folder(job_id: str) -> str:
-    """One ViKiNG folder per job keeps the pieces of a game together and out of the account root."""
-    return f"GameAccess/{job_id[:8]}"
 
 
 def _now() -> datetime:
@@ -217,6 +213,12 @@ def _mark_piece_ready(engine: Engine, job_id: str, index: int, sha256: str, viki
             _touch(job)
             session.add(job)
         session.commit()
+
+
+def _ready_hashes(engine: Engine, job_id: str) -> dict[int, str]:
+    with Session(engine) as session:
+        pieces = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "ready")).all()
+        return {p.piece_index: p.sha256 for p in pieces if p.sha256}
 
 
 def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
@@ -495,9 +497,12 @@ async def run_chunk_job(
     engine: Engine, job_id: str, *,
     prepare: Callable[[], Awaitable[tuple[PieceSource, list[dict[str, Any]]]]],
     sink: PieceSink, work_dir: Path, installation_id: str = "", skip: Iterable[int] = (),
-    importer: Callable[[PieceSource], RemoteImporter] | None = None,
+    importer: Callable[[PieceSource], RemoteImporter] | None = None, maps: MapStore | None = None,
 ) -> None:
     """Prepare the source, plan the pieces and move every missing one to ViKiNG.
+
+    The pieces go to the source's own ViKiNG folder, with the map that lets a server that forgot the source
+    (Render wipes its disk on every deploy) find them again (viking_map.py).
 
     `skip` are pieces the player who asked already holds (a download resumed after the server lost its job):
     they are not uploaded, and the job ends "partial" so whoever needs them later gets them uploaded."""
@@ -518,21 +523,29 @@ async def run_chunk_job(
         if not plan:
             raise ProviderFailure("torbox_no_files", 502, "TorBox no informó los archivos de esta fuente.")
         ready = _install_plan(engine, job_id, files, plan)
+        with Session(engine) as session:
+            job = get_job(session, job_id)
+        fingerprint = job.source_fingerprint if job is not None else job_id
+        folder = folder_for(fingerprint)
+        if maps is not None and job is not None:
+            await maps.save(folder, map_document(job, files, plan, _ready_hashes(engine, job_id)))
         _set_job(engine, job_id, status="running", error_code="")
         held = set(skip) - ready
         pending = [p for p in plan if p.index not in ready and p.index not in held]
         logger.info("chunk_job_running job=%s pieces=%s pending=%s client_has=%s", job_id[:8], len(plan), len(pending), len(held))
         has = f", el cliente ya tiene {len(held)}" if held else ""
         note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas{has}).")
-        name_for = lambda p: f"ga-{job_id[:8]}.p{p.index:04d}"  # noqa: E731
+        name_for = lambda p: piece_name(fingerprint, p.index)  # noqa: E731
         if remote is not None:
             _torbox_sources[job_id] = source  # players start from TorBox while ViKiNG imports
             try:
-                await _import_remote(engine, job_id, pending, remote, name_for, viking_folder(job_id), note=note)
+                await _import_remote(engine, job_id, pending, remote, name_for, folder, note=note)
             finally:
                 _torbox_sources.pop(job_id, None)
         else:
-            await _transfer(engine, job_id, pending, source, sink, work_dir, name_for, viking_folder(job_id), note=note)
+            await _transfer(engine, job_id, pending, source, sink, work_dir, name_for, folder, note=note)
+            if maps is not None and job is not None:  # this server hashed the pieces: the map now carries them
+                await maps.save(folder, map_document(job, files, plan, _ready_hashes(engine, job_id)))
         if held:
             _set_job(engine, job_id, status="partial", completed_at=_now())
             note("ready", f"Listo: subidas las {len(pending)} piezas que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
@@ -697,7 +710,8 @@ def start_job(
                 mode = (os.getenv("GAMEACCESS_CHUNK_MODE") or DEFAULT_MODE).strip().lower()
                 importer = (lambda source: VikingRemoteImport(worker, source)) if mode == "remote" else None
                 await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(),
-                                    installation_id=installation_id, skip=skip, importer=importer)
+                                    installation_id=installation_id, skip=skip, importer=importer,
+                                    maps=VikingMapStore(worker))
 
     task = asyncio.create_task(runner())
     _running[job_id] = task

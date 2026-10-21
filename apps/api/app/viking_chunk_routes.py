@@ -18,6 +18,7 @@ from .local_database import get_local_session, local_engine
 from .download_events import log_event
 from .telemetry import record_transfer, record_transfers
 from .viking_link_cache import link_cache, probe_direct_link
+from .viking_map import VikingMapStore, restore_from_viking
 from .link_sealing import seal
 from .viking_cache_service import ProviderFailure, create_provider, magnet_infohash, normalize_source_url
 from .viking_chunk_service import (
@@ -90,6 +91,17 @@ def _safe_text(value: str, limit: int) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
 
+async def _known_or_restored(local_session: Session, fingerprint: str, source_url: str = ""):
+    """The job of a source; one this server forgot (Render wipes its disk on every deploy) comes back from
+    the map kept in its ViKiNG folder, so ViKiNG does not import the same game again."""
+    job = find_job_for_source(local_session, fingerprint)
+    if job is None and await restore_from_viking(
+        local_session.get_bind(), fingerprint, source_url=source_url, store_factory=lambda: VikingMapStore(create_provider()),
+    ):
+        job = find_job_for_source(local_session, fingerprint)
+    return job
+
+
 @router.post("/downloads/viking-chunks")
 async def start_chunk_download(
     req: ChunkJobRequest, request: Request, response: Response, session: Session = Depends(get_session),
@@ -103,7 +115,7 @@ async def start_chunk_download(
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
-    job = find_job_for_source(local_session, identity.fingerprint)
+    job = await _known_or_restored(local_session, identity.fingerprint, source_url=req.source_url.strip())
     existed = job is not None
     previous_error = job.error_code if job is not None else ""
     # preparing/running/ready: join it. failed (or never run in this process): resume with the same job.
@@ -162,7 +174,7 @@ async def peek_chunk_source(
         identity = normalize_source_url(req.source_url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    job = find_job_for_source(local_session, identity.fingerprint)
+    job = await _known_or_restored(local_session, identity.fingerprint)
     if job is not None and job.status in ("ready", "partial", "running"):
         return {"ready": True, "where": "viking"}
     info_hash = magnet_infohash(req.source_url)

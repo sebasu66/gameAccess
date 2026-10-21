@@ -643,6 +643,54 @@ class TorBoxVikingProvider:
                 raise ProviderFailure("viking_upload_failed", 502, "No se pudo subir el archivo a ViKiNG.") from exc
         return parse_viking_upload_response(response)
 
+    async def list_viking_folder(self, folder: str, max_pages: int = 50) -> list[dict[str, Any]]:
+        """The files ViKiNG holds in exactly `folder` (not its subfolders), as {"hash", "name", "size", "created"}."""
+        files: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=False) as client:
+            page, last = 1, 1
+            while page <= min(last, max_pages):
+                try:
+                    response = await client.post(
+                        VIKING_API_BASE + "/list-files", data={"user": self.viking_user_hash, "page": page, "path": folder},
+                    )
+                except httpx.HTTPError as exc:
+                    raise ProviderFailure("viking_list_failed", 502, "No se pudo listar la carpeta en ViKiNG.") from exc
+                payload = self._parse_json(response, "viking_list_failed", "No se pudo listar la carpeta en ViKiNG.")
+                for entry in payload.get("files") or []:
+                    if isinstance(entry, dict) and entry.get("hash"):
+                        files.append({"hash": str(entry["hash"]), "name": str(entry.get("name") or ""),
+                                      "size": _safe_int(entry.get("size")), "created": str(entry.get("created") or "")})
+                last = _safe_int(payload.get("maxPages"))
+                page += 1
+        return files
+
+    async def delete_viking_file(self, file_hash: str) -> None:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=False) as client:
+            try:
+                response = await client.post(VIKING_API_BASE + "/delete-file", data={"user": self.viking_user_hash, "hash": file_hash})
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_delete_failed", 502, "No se pudo borrar el archivo en ViKiNG.") from exc
+        payload = self._parse_json(response, "viking_delete_failed", "No se pudo borrar el archivo en ViKiNG.")
+        if payload.get("error") != "success":
+            raise ProviderFailure("viking_delete_failed", 502, "No se pudo borrar el archivo en ViKiNG.")
+
+    async def read_viking_file(self, file_hash: str, limit: int = 4 * 1024 * 1024) -> bytes:
+        """The bytes of a small ViKiNG file (a few MB at most), through its direct link."""
+        link = await self.resolve_viking_direct_link(file_hash)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=True) as client:
+            try:
+                async with client.stream("GET", link) as response:
+                    if response.status_code != 200:
+                        raise ProviderFailure("viking_read_failed", 502, "ViKiNG no entregó el archivo.")
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > limit:
+                            raise ProviderFailure("viking_read_too_large", 502, "El archivo de ViKiNG es más grande de lo esperado.")
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_read_failed", 502, "No se pudo leer el archivo de ViKiNG.") from exc
+        return bytes(body)
+
     async def _torbox_submit_and_wait(
         self,
         client: httpx.AsyncClient,
