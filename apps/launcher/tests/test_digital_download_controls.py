@@ -49,25 +49,27 @@ class DigitalControlsTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="gameaccess-digital-test-")
         self.app_id = str(900000000 + uuid.uuid4().int % 90000000)
-        self.status = LAUNCHER / ".cache" / "digital_downloads" / f"{self.app_id}.json"
+        # The worker keeps its status and log in a data folder of its own, so the failure fixture
+        # never reaches the real logs/downloads.log that the desktop activity console reads.
+        self.data = Path(self.temp.name) / "data"
+        self.destination = Path(self.temp.name) / "games"
+        self.status = self.data / ".cache" / "digital_downloads" / f"{self.app_id}.json"
         self.control = self.status.with_name(f"{self.app_id}.control.json")
         self.process = None
     def tearDown(self):
         if self.process and self.process.poll() is None:
             self.process.kill()
             self.process.wait(timeout=5)
-        for path in (self.status, self.control, self.status.with_suffix(".json.tmp")):
-            path.unlink(missing_ok=True)
         self.temp.cleanup()
     def start(self, path="/fixture.bin", install=None):
         args = [sys.executable, str(LAUNCHER / "digital_downloader.py"),
                 "--app-id", self.app_id, "--name", "Local test fixture", "--source",
                 f"http://127.0.0.1:{self.server.server_port}{path}", "--connections", "1",
-                "--destination-dir", self.temp.name]
+                "--destination-dir", str(self.destination)]
         if install:
             args.extend(["--install-process", install])
         self.process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        env=dict(os.environ, TORBOX_API_KEY=""))
+                                        env=dict(os.environ, TORBOX_API_KEY="", GAMEACCESS_LAUNCHER_DATA=str(self.data)))
     def snapshot(self):
         try:
             return json.loads(self.status.read_text(encoding="utf-8"))
@@ -82,6 +84,7 @@ class DigitalControlsTest(unittest.TestCase):
             time.sleep(0.05)
         self.fail(f"Status did not reach expected condition: {self.snapshot()}")
     def command(self, action):
+        self.control.parent.mkdir(parents=True, exist_ok=True)
         temp = self.control.with_suffix(".tmp")
         temp.write_text(json.dumps({"action": action, "requestId": str(uuid.uuid4())}), encoding="utf-8")
         for attempt in range(20):
@@ -119,13 +122,13 @@ class DigitalControlsTest(unittest.TestCase):
         self.wait_for(lambda s: s.get("phase") == "cancelled")
         self.process.wait(timeout=5)
         self.assertNotEqual(self.process.returncode, 0)
-        self.assertFalse((Path(self.temp.name) / "fixture.bin").exists())
+        self.assertFalse((self.destination / "fixture.bin").exists())
     def test_completion_has_real_bytes(self):
         self.start()
         result = self.wait_for(lambda s: s.get("phase") == "completed")
         self.process.wait(timeout=5)
         self.assertEqual(self.process.returncode, 0)
-        data = (Path(self.temp.name) / "fixture.bin").read_bytes()
+        data = (self.destination / "fixture.bin").read_bytes()
         self.assertEqual(hashlib.sha256(data).digest(), hashlib.sha256(PAYLOAD).digest())
         self.assertEqual(result["bytesDownloaded"], len(PAYLOAD))
     def test_error_is_not_cancelled(self):
