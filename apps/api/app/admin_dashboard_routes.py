@@ -15,6 +15,7 @@ from .local_database import get_local_session
 from .admin_clients import activity_summary, integrated_clients
 from .telemetry import client_history, clients, overview
 from .viking_chunk_service import default_work_dir
+from .resource_governor import current as current_governor
 
 router = APIRouter(tags=["Admin dashboard"])
 
@@ -31,6 +32,15 @@ def api_overview(request: Request, response: Response, local_session: Session = 
     _admin_activation_access(request)
     response.headers["Cache-Control"] = "no-store"
     return overview(local_session, default_work_dir())
+
+
+@router.get("/admin/api/resources")
+def api_resources(request: Request, response: Response) -> dict:
+    """The month's outbound traffic against its budget, and the CPU, as the resource governor sees them."""
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    governor = current_governor()
+    return governor.snapshot() if governor else {"running": False}
 
 
 @router.get("/admin/api/clients")

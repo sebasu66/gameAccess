@@ -51,6 +51,7 @@ ERROR_WORDS = {
     "torbox_stalled": "Torbox no avanza con esta fuente (nadie la comparte o se estancó)",
     "torbox_download_failed": "Torbox no pudo bajar esta fuente",
     "too_many_files": "la fuente tiene demasiados archivos",
+    "server_budget_exhausted": "el servidor llegó a su límite de tráfico del mes",
 }
 
 

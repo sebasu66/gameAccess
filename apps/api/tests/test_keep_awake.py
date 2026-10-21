@@ -10,7 +10,7 @@ class Answer:
         self.status_code = status
 
 
-def test_it_pings_its_own_public_health_address_on_each_interval():
+def test_it_pings_its_own_public_address_on_each_interval():
     asked = []
     stop = threading.Event()
 
@@ -21,7 +21,7 @@ def test_it_pings_its_own_public_health_address_on_each_interval():
         return Answer(200)
 
     keep_awake.run("https://gameaccess-api-dev.onrender.com/", 0.01, stop, get)
-    assert asked == ["https://gameaccess-api-dev.onrender.com/health"] * 3
+    assert asked == ["https://gameaccess-api-dev.onrender.com/ping"] * 3
 
 
 def test_a_failed_ping_is_logged_and_does_not_stop_the_loop():
@@ -39,3 +39,10 @@ def test_it_only_starts_on_render_and_can_be_turned_off(monkeypatch):
     monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://x.onrender.com")
     monkeypatch.setenv("GAMEACCESS_KEEP_AWAKE", "0")
     assert keep_awake.start() is False
+
+
+def test_ping_answers_with_nothing():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    response = TestClient(app).get("/ping")
+    assert response.status_code == 204 and response.content == b""

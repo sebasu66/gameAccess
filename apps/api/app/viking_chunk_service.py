@@ -26,6 +26,7 @@ from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxI
 from .download_events import log_event
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 from .viking_chunk_plan import PlannedPiece, plan_pieces
+from . import resource_governor
 
 logger = logging.getLogger("gameaccess.viking_chunks")
 
@@ -362,11 +363,22 @@ async def _transfer(
         seconds = timing[f"{stage}_seconds"]
         return timing[f"{stage}_bytes"] / seconds / 1e6 if seconds > 0 else 0.0
 
+    governor = resource_governor.current()
+
     async def reader() -> None:
         while todo:
             piece = todo.pop(0)
             await slots.acquire()
             await reserve(piece.size)
+            # The piece will go up to ViKiNG through this server: it waits while the CPU is busy and needs the
+            # month's traffic budget to allow it (resource_governor.py).
+            if governor is not None:
+                while not governor.cpu_ok():
+                    await _sleep(2)
+                if not governor.approve(piece.size):
+                    await free(piece.size)
+                    slots.release()
+                    raise ProviderFailure("server_budget_exhausted", 503, "El servidor llegó a su límite de tráfico del mes.")
             path = work_dir / f"{job_id}-{piece.index:04d}.part"
             started = loop.time()
             try:
@@ -375,6 +387,8 @@ async def _transfer(
                 path.unlink(missing_ok=True)
                 await free(piece.size)
                 slots.release()
+                if governor is not None:
+                    governor.release(piece.size, sent=False)
                 raise
             took = max(loop.time() - started, 0.001)
             timing["fetch_bytes"] += piece.size
@@ -398,8 +412,10 @@ async def _transfer(
                 return
             piece, path, sha = item
             started = loop.time()
+            sent = False
             try:
                 viking_hash = await _retry(lambda: sink.upload(path, name_for(piece), folder))
+                sent = True
                 took = max(loop.time() - started, 0.001)
                 timing["upload_bytes"] += piece.size
                 timing["upload_seconds"] += took
@@ -415,6 +431,8 @@ async def _transfer(
                 path.unlink(missing_ok=True)
                 await free(piece.size)
                 slots.release()
+                if governor is not None:
+                    governor.release(piece.size, sent=sent)
 
     tasks = [asyncio.create_task(readers_then_stop())] + [asyncio.create_task(consumer()) for _ in range(workers)]
     try:
@@ -423,6 +441,10 @@ async def _transfer(
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        while not queue.empty():  # pieces read but never uploaded give their budget back
+            item = queue.get_nowait()
+            if item is not None and governor is not None:
+                governor.release(item[0].size, sent=False)
         for leftover in work_dir.glob(f"{job_id}-*.part"):
             leftover.unlink(missing_ok=True)
         raise
