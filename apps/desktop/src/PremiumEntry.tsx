@@ -11,18 +11,18 @@ import "./premium.css";
 
 const copy = {
   es: {
-    button: "Activar premium", close: "Cerrar", haveKey: "Ya tengo una llave", keyLabel: "Tu llave",
+    button: "Activar PLUS", close: "Cerrar", haveKey: "Ya tengo una llave", keyLabel: "Tu llave",
     keyPlaceholder: "Pegá tu llave acá", submit: "Activar", checking: "Verificando…",
-    how: "Cómo conseguir premium", loading: "Cargando información…", saved: "Sin conexión: mostrando la última información guardada.",
+    how: "Cómo conseguir PLUS", loading: "Cargando información…", saved: "Sin conexión: mostrando la última información guardada.",
     noServer: "No se pudo conectar con el servidor. Probá de nuevo en un momento.", failed: "No se pudo activar la llave.",
-    region: "Zona de pago", done: "¡Listo! Premium activado.",
+    region: "Zona de pago", done: "¡Listo! PLUS activado.",
   },
   en: {
-    button: "Activate premium", close: "Close", haveKey: "I already have a key", keyLabel: "Your key",
+    button: "Activate PLUS", close: "Close", haveKey: "I already have a key", keyLabel: "Your key",
     keyPlaceholder: "Paste your key here", submit: "Activate", checking: "Checking…",
-    how: "How to get premium", loading: "Loading information…", saved: "Offline: showing the last saved information.",
+    how: "How to get PLUS", loading: "Loading information…", saved: "Offline: showing the last saved information.",
     noServer: "Could not reach the server. Try again in a moment.", failed: "The key could not be activated.",
-    region: "Payment region", done: "Done! Premium is on.",
+    region: "Payment region", done: "Done! PLUS is on.",
   },
 } satisfies Record<Lang, Record<string, string>>;
 
@@ -102,7 +102,7 @@ export default function PremiumEntry() {
           {source !== "server" ? <p className="ga-premium-note">{c.saved}</p> : null}
           {content.plans.length ? <ul className="ga-premium-plans">
             {content.plans.map(plan => <li key={plan.id}>
-              <strong>{plan.name[lang]}</strong><span className="ga-premium-price">{plan.price[lang]}</span>
+              <strong>{plan.name[lang]}</strong>
               <ul>{plan.perks[lang].map(perk => <li key={perk}>{perk}</li>)}</ul>
             </li>)}
           </ul> : null}

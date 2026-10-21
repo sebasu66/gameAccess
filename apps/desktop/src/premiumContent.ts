@@ -1,18 +1,19 @@
 /**
  * The "Activar premium" screen is described by data downloaded from the server,
- * so its text, prices and ways to pay can change without shipping a new client.
+ * so its text and ways to pay can change without shipping a new client.
  *
  * The client only draws that data with its own components. It never runs code or
  * HTML from the server, and it only opens links whose host is on the allow-list.
  */
 import { getApiBaseUrl, boundedFetch } from "./settings";
+import { PLUS_URL } from "./projectConfig";
 
 export const PREMIUM_ACTIVATED_EVENT = "gameaccess:premium-activated";
 
 export type Lang = "es" | "en";
 export type Text = Record<Lang, string>;
 export interface PremiumMethod { label: Text; note?: Text; url: string }
-export interface PremiumPlan { id: string; name: Text; price: Text; perks: Record<Lang, string[]> }
+export interface PremiumPlan { id: string; name: Text; perks: Record<Lang, string[]> }
 export interface PremiumContent {
   version: 1;
   title: Text;
@@ -25,7 +26,7 @@ export interface PremiumContent {
 }
 export type PremiumSource = "server" | "cache" | "default";
 
-const websiteUrl = import.meta.env.VITE_GAMEACCESS_WEBSITE_URL?.trim() || "https://gameaccess.app";
+const websiteUrl = PLUS_URL;
 const CACHE_KEY = "gameaccess:premium-content";
 
 /** Hosts a payment or information link may point to. */
@@ -64,13 +65,12 @@ export function parsePremiumContent(raw: unknown): PremiumContent | null {
   for (const entry of value.plans.slice(0, 6)) {
     const plan = entry as Record<string, unknown>;
     const name = text(plan?.name, 80);
-    const price = text(plan?.price, 80);
     const perks = plan?.perks as Record<string, unknown> | undefined;
-    if (typeof plan?.id !== "string" || !name || !price || !perks) return null;
+    if (typeof plan?.id !== "string" || !name || !perks) return null;
     if (!Array.isArray(perks.es) || !Array.isArray(perks.en)) return null;
     const es = perks.es.filter((item): item is string => typeof item === "string" && item.length <= 200).slice(0, 8);
     const en = perks.en.filter((item): item is string => typeof item === "string" && item.length <= 200).slice(0, 8);
-    plans.push({ id: plan.id.slice(0, 40), name, price, perks: { es, en } });
+    plans.push({ id: plan.id.slice(0, 40), name, perks: { es, en } });
   }
   const regions: PremiumContent["regions"] = {};
   for (const [code, entry] of Object.entries(value.regions as Record<string, unknown>).slice(0, 12)) {
@@ -95,10 +95,10 @@ export function parsePremiumContent(raw: unknown): PremiumContent | null {
 /** Used when the server cannot be reached and nothing was saved before. */
 export const DEFAULT_PREMIUM_CONTENT: PremiumContent = {
   version: 1,
-  title: { es: "Activar premium", en: "Activate premium" },
+  title: { es: "Activar PLUS", en: "Activate PLUS" },
   intro: {
-    es: "Con premium la app procesa las descargas por vos y las acelera. Conseguí tu llave en la web.",
-    en: "With premium the app processes downloads for you and speeds them up. Get your key on the website.",
+    es: "Con PLUS la app procesa las descargas por vos y las acelera. Conseguí tu llave en la web.",
+    en: "With PLUS the app processes downloads for you and speeds them up. Get your key on the website.",
   },
   plans: [],
   regions: {

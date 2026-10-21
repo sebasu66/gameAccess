@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PREMIUM_CONTENT, isAllowedLink, methodsFor, parsePremiumContent } from "./premiumContent";
+import { PLUS_URL } from "./projectConfig";
 
 const text = (value: string) => ({ es: value, en: value });
 const valid = () => ({
@@ -50,6 +51,6 @@ describe("premium content", () => {
 
   it("the built-in fallback is itself valid", () => {
     expect(parsePremiumContent(DEFAULT_PREMIUM_CONTENT)).not.toBeNull();
-    expect(isAllowedLink("https://gameaccess.app")).toBe(true);
+    expect(isAllowedLink(PLUS_URL)).toBe(true);
   });
 });
