@@ -4,6 +4,9 @@ import { useI18n } from "./i18n";
 export function backendStatusPresentation(kind: BackendConnectionKind | null, locale: "es" | "en") {
  return { connected: kind === "local" || kind === "remote", label: kind === "local" ? "Local" : kind === "remote" ? (locale === "es" ? "Conectado" : "Connected") : (locale === "es" ? "Desconectado" : "Disconnected") };
 }
+// How often the footer status asks the server whether it is up. Keeping the server awake is not this check's job
+// (it would grow with the number of players); once a minute is enough for the status to stay honest.
+export const STATUS_CHECK_MS = 60_000;
 export default function BackendStatus() {
  const { locale } = useI18n();
  const [kind,setKind] = useState<BackendConnectionKind | null>(null);
@@ -12,7 +15,7 @@ export default function BackendStatus() {
   const refresh = async (force = false) => {
    try { const result = await getBackendConnection(force); if (!cancelled) setKind(result.kind); }
    catch { if (!cancelled) setKind("offline"); }
-   finally { if (!cancelled) timer = window.setTimeout(() => void refresh(true),5000); }
+   finally { if (!cancelled) timer = window.setTimeout(() => void refresh(true), STATUS_CHECK_MS); }
   };
   void refresh();
   return () => { cancelled = true; if (timer !== undefined) clearTimeout(timer); };
