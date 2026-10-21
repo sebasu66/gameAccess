@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
 import CircularScrollbar from "../CircularScrollbar";
 import { digitalProcessManager, type ImportCandidate, type ImportDrive, type ImportItem } from "../catalog/DigitalProcessManager";
 import { libraryDemo } from "../libraryScan";
+import { queryCatalogCache } from "../catalogCache";
 import { addReadyGameToLibrary } from "../libraryMembership";
 import { notify } from "../toasts";
 import { translate } from "../i18n";
@@ -13,7 +14,7 @@ import { Checkbox } from "../components/ui/checkbox";
 import { cn } from "../lib/cn";
 import type { LibraryCopy } from "./copy";
 import { formatBytes } from "./format";
-import { suggest } from "./matching";
+import { duplicateRows, suggest } from "./matching";
 
 type Step = "drives" | "scanning" | "results" | "importing" | "done";
 interface Row { candidate: ImportCandidate; choice: number | null; mode: "link" | "move"; picked: boolean; options: Array<{ id: number; name: string }> }
@@ -33,6 +34,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("");
   const [results, setResults] = useState<Array<{ name: string; ok: boolean; error?: string }>>([]);
+  const [cacheNames, setCacheNames] = useState<Map<number, string>>(new Map());
   const scrollRef = useRef<HTMLDivElement>(null);
   const imported = useRef(false);
 
@@ -49,6 +51,8 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   }, [step, onClose]);
 
   const catalogName = useMemo(() => new Map(catalog.map(game => [(game.app_id ?? game.id) as number, game.name])), [catalog]);
+  // A game found by its AppID takes the catalog's name for that AppID, never the folder's ("WRATH.Aeon.of.Ruin...").
+  const nameOf = (appId: number) => catalogName.get(appId) ?? cacheNames.get(appId);
 
   const scan = async () => {
     setStep("scanning"); setMessage("");
@@ -57,17 +61,23 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
       setRows(found.map(candidate => {
         const options = candidate.app_id != null ? [] : suggest(candidate.name, catalog);
         const choice = candidate.app_id ?? options[0]?.id ?? null;
-        return { candidate, options, choice, mode: "link" as const, picked: choice != null };
+        return { candidate, options, choice, mode: "link" as const, picked: choice != null && !candidate.duplicate_of };
       }));
+      const missing = [...new Set(found.map(candidate => candidate.app_id).filter((id): id is number => id != null && !catalogName.has(id)))];
+      if (missing.length) {
+        const known = await queryCatalogCache({ app_ids: missing, limit: missing.length }).catch(() => ({ items: [] as CatalogGame[] }));
+        setCacheNames(new Map(known.items.map(game => [(game.app_id ?? game.id) as number, game.name])));
+      }
       setStep("results");
     } catch (failure) { setMessage(String(failure)); setStep("drives"); }
   };
   const patch = (id: string, change: Partial<Row>) => setRows(current => current.map(row => row.candidate.id === id ? { ...row, ...change } : row));
-  const chosenRows = rows.filter(row => row.picked && row.choice != null);
+  const repeated = useMemo(() => duplicateRows(rows.map(row => ({ id: row.candidate.id, path: row.candidate.path, choice: row.choice, duplicateOf: row.candidate.duplicate_of }))), [rows]);
+  const chosenRows = rows.filter(row => row.picked && row.choice != null && !repeated.has(row.candidate.id));
 
   const run = async () => {
     setStep("importing");
-    const items: ImportItem[] = chosenRows.map(row => ({ app_id: row.choice as number, name: catalogName.get(row.choice as number) ?? row.candidate.name, path: row.candidate.path, mode: row.candidate.can_move ? row.mode : "link", kind: row.candidate.kind, executable: row.candidate.executable ? `${row.candidate.path}\\${row.candidate.executable}`.replace(/\\\\+/g, "\\") : "" }));
+    const items: ImportItem[] = chosenRows.map(row => ({ app_id: row.choice as number, name: nameOf(row.choice as number) ?? row.candidate.name, path: row.candidate.path, mode: row.candidate.can_move ? row.mode : "link", kind: row.candidate.kind, executable: row.candidate.executable ? `${row.candidate.path}\\${row.candidate.executable}`.replace(/\\\\+/g, "\\") : "" }));
     try {
       const outcome: Array<{ app_id: number; ok: boolean; error?: string }> = libraryDemo() ? items.map(item => ({ app_id: item.app_id, ok: true })) : (await digitalProcessManager.importRun(items)).results ?? [];
       imported.current = outcome.some(item => item.ok);
@@ -108,7 +118,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
     if (step === "done") return (
       <div className="grid gap-3">
         <p className="m-0 font-bold">{c.wzDone(results.filter(r => r.ok).length, results.filter(r => !r.ok).length)}</p>
-        <ul className="m-0 grid list-none gap-1 p-0 text-sm">{results.map((r, index) => <li key={index} className={r.ok ? "text-success" : "text-[#ff6b75]"}>{r.name}{r.error ? ` — ${r.error}` : ""}</li>)}</ul>
+        <ul className="m-0 grid max-h-[48vh] list-none gap-1 overflow-y-auto p-0 text-sm">{results.map((r, index) => <li key={index} className={r.ok ? "text-success" : "text-[#ff6b75]"}>{r.name}{r.error ? ` — ${r.error}` : ""}</li>)}</ul>
       </div>
     );
     return (
@@ -120,19 +130,22 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
               <ul className="m-0 grid list-none p-0">
                 {rows.map(row => {
                   const { candidate } = row;
+                  const firstPath = repeated.get(candidate.id);
+                  const title = candidate.app_id != null ? nameOf(candidate.app_id) ?? candidate.name : candidate.name;
                   return (
                     <li key={candidate.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-border/60 px-4 py-3 last:border-b-0">
-                      <Checkbox checked={row.picked} disabled={row.choice == null} onCheckedChange={value => patch(candidate.id, { picked: Boolean(value) })} aria-label={candidate.name} />
+                      <Checkbox checked={row.picked && !firstPath} disabled={row.choice == null || Boolean(firstPath)} onCheckedChange={value => patch(candidate.id, { picked: Boolean(value) })} aria-label={title} />
                       <div className="grid min-w-0 gap-1">
-                        <div className="flex min-w-0 items-center gap-2"><b className="truncate text-sm">{candidate.name}</b><Badge variant={candidate.kind === "steam" ? "info" : "default"}>{c.wzSource[candidate.source] ?? candidate.source}</Badge></div>
+                        <div className="flex min-w-0 items-center gap-2"><b className="truncate text-sm">{title}</b><Badge variant={candidate.kind === "steam" ? "info" : "default"}>{c.wzSource[candidate.source] ?? candidate.source}</Badge>{firstPath ? <Badge variant="warning"><AlertTriangle className="size-3" />{c.wzDuplicate}</Badge> : null}</div>
                         <span className="truncate text-xs text-muted-foreground">{candidate.path}</span>
+                        {firstPath ? <span role="note" className="text-xs text-warning">{c.wzDuplicateOf(firstPath)}</span> : null}
                         {candidate.app_id == null ? (
                           <select aria-label={c.wzCatalog} value={row.choice ?? ""} onChange={event => { const value = event.target.value ? Number(event.target.value) : null; patch(candidate.id, { choice: value, picked: value != null }); }}
                             className="h-8 max-w-sm rounded-md border border-border bg-background px-2 text-xs text-foreground">
                             <option value="">{c.wzNoMatch}</option>
                             {row.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
                           </select>
-                        ) : <span className="text-xs text-muted-foreground">{catalogName.get(candidate.app_id) ?? `AppID ${candidate.app_id}`}{candidate.app_id_file ? ` · ${c.wzDetected(candidate.app_id_file)}` : ""}</span>}
+                        ) : <span className="text-xs text-muted-foreground">{nameOf(candidate.app_id) ?? `AppID ${candidate.app_id}`}{candidate.app_id_file ? ` · ${c.wzDetected(candidate.app_id_file)}` : ""}</span>}
                       </div>
                       <div className="grid justify-items-end gap-1">
                         <b className="text-sm tabular-nums">{formatBytes(candidate.size_bytes)}</b>
@@ -160,13 +173,13 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   })();
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[700] grid place-items-center bg-black/70 p-6 font-sans text-foreground [color-scheme:dark]" role="dialog" aria-modal="true" aria-label={c.wzTitle}>
-      <div className="flex max-h-full w-[min(1000px,94vw)] flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-2xl">
+    <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[700] flex items-center justify-center bg-black/70 p-6 font-sans text-foreground [color-scheme:dark]" role="dialog" aria-modal="true" aria-label={c.wzTitle}>
+      <div className="flex max-h-full min-h-0 w-[min(1000px,94vw)] flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-2xl">
         <header className="flex items-center gap-4">
           <h2 className="ga-screen-title mr-auto !text-4xl">{c.wzTitle}</h2>
           <Button size="icon" variant="ghost" aria-label={c.wzClose} disabled={step === "scanning" || step === "importing"} onClick={() => onClose(imported.current)}><X /></Button>
         </header>
-        {body}
+        <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
         <footer className="flex justify-end gap-2">
           {step === "results" ? <Button variant="outline" onClick={() => setStep("drives")}><ArrowLeft />{c.wzBack}</Button> : null}
           {step === "drives" || step === "scanning" ? <Button disabled={step === "scanning" || chosen.size === 0} onClick={() => void scan()}>{step === "scanning" ? <Loader2 className="animate-spin" /> : <ScanSearch />}{step === "scanning" ? c.wzScanning : c.wzScan}</Button> : null}

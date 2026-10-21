@@ -524,6 +524,8 @@ export const en: Record<keyof typeof es, string> = {
   uninstallDeleting: "Deleting folder…",
   uninstallLibraryDone: "Done: the game is no longer in your library.",
   uninstallLibraryDoneDetail: "Its local files were deleted too.",
+  uninstallLinkedWarning: "This is a shortcut to a game in another folder: it is removed from the library and its files are not touched.",
+  uninstallLinkedDoneDetail: "It was a shortcut: the game's files are still in their folder.",
   uninstallFolderDone: "Folder deleted. The game was uninstalled.",
   uninstallSteamOpening: "Opening the Steam uninstall…",
   uninstallSteamDone: "Steam opened the uninstall.",

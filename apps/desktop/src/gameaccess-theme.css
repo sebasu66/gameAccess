@@ -504,7 +504,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 
 /* Confirmation / progress dialogs: same glass, orange accent and short animations as the filter dialog. */
 .ga-dialog-backdrop { position:fixed; inset:0; z-index:12001; display:grid; place-items:center; padding:20px; background:#05080ccc; backdrop-filter:blur(10px); animation:ga-dialog-fade 180ms ease-out; }
-.ga-dialog { box-sizing:border-box; width:min(480px,100%); display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:28px; border:1px solid #ffffff29; border-radius:12px; background:#171c20ec; backdrop-filter:blur(36px); color:var(--ga-white); box-shadow:0 30px 90px #000a; animation:ga-dialog-rise 240ms cubic-bezier(.16,1,.3,1); }
+.ga-dialog { box-sizing:border-box; width:min(480px,100%); max-height:calc(100dvh - 40px); overflow-y:auto; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:28px; border:1px solid #ffffff29; border-radius:12px; background:#171c20ec; backdrop-filter:blur(36px); color:var(--ga-white); box-shadow:0 30px 90px #000a; animation:ga-dialog-rise 240ms cubic-bezier(.16,1,.3,1); }
 .ga-dialog-icon { display:grid; place-items:center; width:44px; height:44px; margin-bottom:6px; border-radius:50%; color:var(--ga-orange); background:#ff6a0020; transition:color 220ms ease, background-color 220ms ease; }
 .ga-dialog-done .ga-dialog-icon { color:#8fe3b0; background:#8fe3b01f; }
 .ga-dialog-spin { animation:ga-dialog-turn 900ms linear infinite; }

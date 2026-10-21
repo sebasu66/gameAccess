@@ -522,6 +522,8 @@ export const es = {
   uninstallDeleting: "Borrando carpeta…",
   uninstallLibraryDone: "Listo: el juego ya no está en tu biblioteca.",
   uninstallLibraryDoneDetail: "Sus archivos locales también se borraron.",
+  uninstallLinkedWarning: "Es un acceso directo a un juego de otra carpeta: se quita de la biblioteca y sus archivos no se tocan.",
+  uninstallLinkedDoneDetail: "Era un acceso directo: los archivos del juego siguen en su carpeta.",
   uninstallFolderDone: "Carpeta borrada. El juego se desinstaló.",
   uninstallSteamOpening: "Abriendo la desinstalación de Steam…",
   uninstallSteamDone: "Steam abrió la desinstalación.",

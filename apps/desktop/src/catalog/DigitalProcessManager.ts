@@ -43,7 +43,7 @@ export interface ProcessExecutionResult {
 }
 
 export interface ImportDrive { path: string; label: string; total_bytes: number; free_bytes: number }
-export interface ImportCandidate { id: string; name: string; path: string; kind: "steam" | "folder"; source: "steam" | "library" | "downloads"; app_id: number | null; app_id_file?: string; size_bytes: number; executable: string; can_move: boolean }
+export interface ImportCandidate { id: string; name: string; path: string; kind: "steam" | "folder"; source: "steam" | "library" | "downloads"; app_id: number | null; app_id_file?: string; size_bytes: number; executable: string; can_move: boolean; folder_name?: string; duplicate_of?: string }
 export interface ImportItem { app_id: number; name: string; path: string; mode: "link" | "move"; kind: "steam" | "folder"; executable: string }
 export interface LibraryUsage { by_day: Record<string, number>; by_month: Record<string, number> }
 export interface LibraryPlanAction { code: string; label: string; bytes?: number }

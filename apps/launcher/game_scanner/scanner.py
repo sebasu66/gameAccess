@@ -13,9 +13,22 @@ MIN_GAME_BYTES = 200 * 1024 ** 2
 MAX_FILES = 60000            # per candidate: stop counting a huge tree rather than crawl it for minutes
 MAX_SECONDS = 180
 CONTAINER_NAMES = {"games", "game", "juegos", "juego", "library", "libreria", "steam games", "steamlibrary", "gog games",
-                   "epic games", "xboxgames", "repacks", "descargas", "downloads"}
+                   "epic games", "xboxgames", "repacks"}
+# Download folders hold archives and half-finished downloads, not installed games: they are never scanned.
+DOWNLOAD_DIRS = {"descargas", "downloads", "download", "torrents", "incomplete"}
+PARTIAL_DOWNLOAD = re.compile(r"\.(part|crdownload|!qb|!ut|bc!|aria2|partial)$", re.I)
 PROGRAM_FILES = {"program files", "program files (x86)"}
-IGNORED_EXE = re.compile(r"^(unins|setup|install|vcredist|vc_redist|dxsetup|dotnet|crashreport|crashhandler|unitycrash|ue4prereq|oalinst|redist|launcher_updater)|crash|helper|updater|uninstall", re.I)
+# An installer, uninstaller or redistributable is not the game: a folder whose only .exe is one of these is skipped.
+IGNORED_EXE = re.compile(r"^(unins|install|vcredist|vc_redist|dxsetup|dotnet|crashreport|crashhandler|unitycrash|ue4prereq|oalinst|launcher_updater)|setup|installer|redist|crash|helper|updater|uninstall", re.I)
+# Programs and Steam support folders that look like games (big, with an .exe) but are not. Compared without spaces,
+# punctuation, accents or a trailing version number ("Blender 4.2" is "blender").
+IGNORED_SOFTWARE = {"blender", "blenderfoundation", "shapelab", "foundryvtt", "easypose", "nucleus", "corefx", "openbrush",
+                    "blocks", "ubisoftconnect", "ubisoftconnectservices", "ubisoftgamelauncher", "steamworkscommonredistributables",
+                    "steamworksshared", "spacewar"}
+IGNORED_APP_IDS = {480, 228980}      # Spacewar (Steam's test app), Steamworks Common Redistributables
+# Steam's own app type (appinfo.vdf "common/type"): only games and demos are offered; tools, applications, configs,
+# soundtracks and videos are skipped. An AppID the local Steam does not know is kept.
+GAME_APP_TYPES = {"game", "demo", "beta", ""}
 TECH_DIRS = {"bin", "bin32", "bin64", "binaries", "win32", "win64", "x86", "x64", "game", "release", "shipping", "windows", "retail", "system", "engine"}
 IGNORED_DIRS = {"_commonredist", "redist", "__macosx", "$recycle.bin", "system volume information", "windows"}
 # Files that Steam emulators and fixes leave in the game folder, with the game's real AppID. Earlier ones win:
@@ -31,6 +44,31 @@ APP_ID_FILE_DEPTH = 5        # Unreal games keep them in <Game>\<Project>\Binari
 
 def _plain(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", re.sub(r"[\s._-]*v?\d[\d.]*$", "", _plain(text).strip()))
+
+
+def is_ignored_software(*names: str) -> bool:
+    """A program or support folder (Blender, Foundry VTT, Steamworks Common Redistributables...), not a game."""
+    return any(name and _compact(name) in IGNORED_SOFTWARE for name in names)
+
+
+def steam_app_info(app_ids: set[int], clients: list[Path]) -> dict[int, dict]:
+    """Steam's record ({name, type, ...}) for each AppID, from the first local Steam client whose appcache/appinfo.vdf
+    can be read."""
+    from steam_appinfo import read_local_app_catalog
+    for client in clients:
+        appinfo = Path(client) / "appcache" / "appinfo.vdf"
+        if not _is_file(appinfo):
+            continue
+        try:
+            found = read_local_app_catalog(appinfo, set(app_ids))
+        except (OSError, ValueError):
+            continue
+        return found
+    return {}
 
 
 def _is_dir(path: Path) -> bool:
@@ -128,9 +166,59 @@ class GameScanner:
             except OSError as error:
                 self.log.warning("Scan of %s interrupted: %s", drive, error)
         games = [g for g in found.values() if not self._excluded(Path(g["path"])) and not (g.get("app_id") in self.known)]
+        games = self._apply_steam_info(games, drives)
+        self._mark_duplicates(games)
         games.sort(key=lambda g: g["size_bytes"], reverse=True)
         self.log.info("Game scan on %s: %s candidates (%s Steam)", drives, len(games), sum(1 for g in games if g["kind"] == "steam"))
         return games
+
+    @staticmethod
+    def _mark_duplicates(games: list[dict]) -> None:
+        """The same game found twice (two Steam libraries, a Steam copy and a loose one with its AppID): only the first
+        one found can be imported; the others carry `duplicate_of` (the first one's path) so the import list warns."""
+        first: dict[int, str] = {}
+        for game in games:
+            app_id = game.get("app_id")
+            if app_id is None:
+                continue
+            if app_id in first:
+                game["duplicate_of"] = first[app_id]
+            else:
+                first[app_id] = game["path"]
+
+    def _apply_steam_info(self, games: list[dict], drives: list[str]) -> list[dict]:
+        """With the local Steam client's appinfo.vdf: drop what Steam says is not a game (a tool, an application...),
+        and give a loose folder whose AppID came from an emulator/fix file that game's Steam name instead of the
+        folder's ("WRATH.Aeon.of.Ruin.VR.Brutal.Edition"); the folder name stays in `folder_name`."""
+        wanted = {g["app_id"] for g in games if g.get("app_id")}
+        if not wanted:
+            return games
+        info = steam_app_info(wanted, self._steam_clients(drives))
+        kept = []
+        for game in games:
+            record = info.get(game.get("app_id")) or {}
+            if record.get("type", "") not in GAME_APP_TYPES:
+                self.log.info("Import scan: %s skipped, Steam lists AppID %s as %s", game["path"], game["app_id"], record["type"])
+                continue
+            if game["kind"] == "folder" and record.get("name"):
+                game["name"] = record["name"]
+            kept.append(game)
+        return kept
+
+    def _steam_clients(self, drives: list[str]) -> list[Path]:
+        """Folders of the local Steam client: the one the registry names, then any Program Files\\Steam on the disks."""
+        clients = []
+        if os.name == "nt":
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+                    clients.append(Path(winreg.QueryValueEx(key, "SteamPath")[0]))
+            except OSError:
+                pass
+        for drive in drives:
+            if _is_dir(Path(drive)):
+                clients += [folder for folder, source in self._containers(Path(drive)) if source == "steam"]
+        return list(dict.fromkeys(clients))
 
     def _excluded(self, path: Path) -> bool:
         resolved = path.resolve()
@@ -141,7 +229,8 @@ class GameScanner:
             entries = list(folder.iterdir())
         except OSError:
             return []
-        return sorted(p for p in entries if p.name.lower() not in IGNORED_DIRS and _is_dir(p) and not p.is_symlink())
+        return sorted(p for p in entries if p.name.lower() not in IGNORED_DIRS and _plain(p.name) not in DOWNLOAD_DIRS
+                      and _is_dir(p) and not p.is_symlink())
 
     def _containers(self, root: Path) -> list[tuple[Path, str]]:
         """The usual places, whatever their capitalisation or accents: games folders at the disk root, Downloads, Program Files\\Steam."""
@@ -151,13 +240,7 @@ class GameScanner:
             if name in PROGRAM_FILES:
                 found += [(sub, "steam") for sub in self._subdirs(folder) if _plain(sub.name) == "steam"]
             elif name in CONTAINER_NAMES:
-                found.append((folder, "downloads" if name in ("descargas", "downloads") else "library"))
-        if root.drive and Path(root.drive + "\\") == root:
-            profile = os.environ.get("USERPROFILE", "")
-            if profile and Path(profile).drive.upper() == root.drive.upper():
-                for sub in ("Downloads", "Descargas"):
-                    if (Path(profile) / sub).is_dir():
-                        found.append((Path(profile) / sub, "downloads"))
+                found.append((folder, "library"))
         return found
 
     # -- Steam --------------------------------------------------------------------------------------
@@ -193,7 +276,11 @@ class GameScanner:
             folder = steamapps / "common" / installdir
             if not (app_id.isdigit() and installdir and _is_dir(folder)):
                 continue
-            size, _, _, _ = self._measure(folder)
+            if int(app_id) in IGNORED_APP_IDS or is_ignored_software(name, installdir):
+                continue
+            size, _, best, _ = self._measure(folder)
+            if not best:
+                continue                    # no game .exe at all: a tool's data, a soundtrack, a support folder
             games.append({"id": self._key(folder), "name": name or installdir, "path": str(folder), "kind": "steam", "source": "steam",
                           "app_id": int(app_id), "size_bytes": size, "executable": "", "can_move": False})
         return games
@@ -204,8 +291,12 @@ class GameScanner:
             return []
         if is_steam_path(folder):
             return []                       # Steam libraries are read through their manifests
+        if is_ignored_software(folder.name):
+            return []
         size, top, deeper, declared = self._measure(folder)
-        if size < MIN_GAME_BYTES:
+        if size < MIN_GAME_BYTES or deeper is None:
+            return []                       # too small, or a download still in progress
+        if declared and declared[0] in IGNORED_APP_IDS:
             return []
         if top:                              # an exe right in the folder: this is the game
             return [self._candidate(folder, source, size, top, declared)]
@@ -221,12 +312,14 @@ class GameScanner:
     @staticmethod
     def _candidate(folder: Path, source: str, size: int, executable: str, declared: tuple[int, str] | None = None) -> dict:
         app_id, app_id_file = declared or (None, "")
-        return {"id": GameScanner._key(folder), "name": folder.name, "path": str(folder), "kind": "folder", "source": source,
+        return {"id": GameScanner._key(folder), "name": folder.name, "folder_name": folder.name, "path": str(folder), "kind": "folder", "source": source,
                 "app_id": app_id, "app_id_file": app_id_file, "size_bytes": size, "executable": executable, "can_move": True}
 
     def _measure(self, folder: Path) -> tuple[int, str, str, tuple[int, str] | None]:
         """(bytes, biggest game .exe directly in the folder, biggest one within three levels, (AppID, file) declared by an
-        emulator/fix file within five levels) without crawling forever."""
+        emulator/fix file within five levels) without crawling forever. Installers, uninstallers and redistributables do
+        not count as the game's .exe; a half-downloaded file right in the folder (.part, .crdownload...) gives None
+        instead of the .exe paths."""
         total, files, best, best_size, top, top_size = 0, 0, "", 0, "", 0
         declared: dict[str, tuple[int, str]] = {}   # lower-case file name -> (AppID, file name as written)
         stack = [(str(folder), 0)]
@@ -248,6 +341,8 @@ class GameScanner:
                         files += 1
                         total += size
                         lowered = entry.name.lower()
+                        if depth == 0 and PARTIAL_DOWNLOAD.search(lowered):
+                            return total, None, None, None
                         if depth <= APP_ID_FILE_DEPTH and lowered in APP_ID_FILES and lowered not in declared:
                             app_id = _declared_app_id(entry.path, lowered)
                             if app_id:

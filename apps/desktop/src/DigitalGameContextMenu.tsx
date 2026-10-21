@@ -52,6 +52,8 @@ export default function DigitalGameContextMenu({
   const libraryBusy = useLibraryBusy();
   const inLibrary = libraryMembership.has(request.game);
   const entry = useLibraryEntry(request.game.app_id ?? undefined);
+  // A linked game is only a shortcut to a folder Game Access does not own: it can leave the library, never be uninstalled.
+  const linked = Boolean(entry?.linked);
   const [renaming, setRenaming] = useState(false);
   const [configuring, setConfiguring] = useState(false);
   const [showingLog, setShowingLog] = useState(false);
@@ -109,7 +111,7 @@ export default function DigitalGameContextMenu({
   };
 
   const uninstallSelected = () => {
-    if (!canUninstall) return;
+    if (!canUninstall || linked) return;
     setRemoving(false);
     setDialog({
       title: translate("uninstallTitle", { name: request.game.name }),
@@ -126,7 +128,7 @@ export default function DigitalGameContextMenu({
       if (removing) {
         await removeLibraryGame(request.game);
         notify(translate("toastLibraryRemoved", { name: request.game.name }), { tone: "success" });
-        setProgress({ phase: "done", label: translate("uninstallLibraryDone"), detail: translate("uninstallLibraryDoneDetail") });
+        setProgress({ phase: "done", label: translate("uninstallLibraryDone"), detail: translate(linked ? "uninstallLinkedDoneDetail" : "uninstallLibraryDoneDetail") });
       } else {
         const { folder } = await service.uninstall(request.game);
         notify(translate("toastGameUninstalled", { name: request.game.name }), { tone: "success" });
@@ -179,16 +181,16 @@ export default function DigitalGameContextMenu({
           <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
-          {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:label.warning,tone:"warning"}); }}>{label.remove}</button>
+          {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:linked ? t("uninstallLinkedWarning") : label.warning,tone:"warning"}); }}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { try { libraryMembership.add(request.game); notify(translate("toastLibraryAdded", { name: request.game.name }), { tone: "success" }); } catch (error) { notify(translate("toastActionFailed", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); } onClose(); }}>{label.add}</button>}
-          <button
+          {linked ? null : <button
             type="button"
             role="menuitem"
             disabled={!canUninstall}
             onClick={uninstallSelected}
           >
             <Trash2 size={16} /> Desinstalar
-          </button>
+          </button>}
         </div>
       ) : null}
       {repairing ? <GameRecoveryDialog game={request.game} mode="broken" message={request.status?.repair_warning || (locale === "es" ? "El juego no está listo para ejecutarse." : "The game is not ready to run.")} onClose={onClose} /> : null}
