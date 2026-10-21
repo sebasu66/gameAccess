@@ -85,6 +85,8 @@ def startup() -> None:
     _start_steam_review_importer()
     from .discovery_service import start_maintenance
     start_maintenance()
+    from .keep_awake import start as start_keep_awake
+    start_keep_awake()
 
 
 @app.on_event("shutdown")
@@ -93,6 +95,8 @@ def stop_discovery_worker():
     stop_maintenance()
     from .telemetry import stop_sampler
     stop_sampler()
+    from .keep_awake import stop as stop_keep_awake
+    stop_keep_awake()
 
 
 @app.get("/admin", response_class=HTMLResponse)
