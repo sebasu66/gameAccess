@@ -64,7 +64,7 @@ fn file_installation_id() -> Result<String, String> {
 }
 
 #[cfg(windows)]
-mod windows_protection {
+pub(crate) mod windows_protection {
     use std::{ffi::c_void, ptr, slice};
 
     #[repr(C)]
@@ -113,7 +113,7 @@ mod windows_protection {
             }
         };
         if success == 0 {
-            return Err("Windows could not protect the activation session".to_string());
+            return Err("Windows could not protect this data".to_string());
         }
         let bytes = unsafe { slice::from_raw_parts(output.data, output.length as usize).to_vec() };
         unsafe { LocalFree(output.data.cast()); }

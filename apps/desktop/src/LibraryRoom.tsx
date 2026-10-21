@@ -8,6 +8,8 @@ import { useCatalogQuery } from "./useCatalogQuery";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { applyParentalPolicy } from "./parentalControl";
+import { useParentalState } from "./ParentalControlSection";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -131,8 +133,11 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const nativeCatalog = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const activeQuery = (searchValue || searchQuery || "").trim();
   const genreNames = useCatalogGenreNames();
+  // The parental policy wins over the player's filters in every view (catalog, library, favorites).
+  const parentalPolicy = useParentalState().policy;
+  const visibleFilters = useMemo(() => applyParentalPolicy(searchFilters, parentalPolicy), [searchFilters, parentalPolicy]);
   const catalogQuery = useCatalogQuery({
-    ...catalogParamsFromFilters(activeQuery, searchFilters, genreNames),
+    ...catalogParamsFromFilters(activeQuery, visibleFilters, genreNames),
     sort_by: catalogSort,
     sort_direction: catalogSort === "name" ? "asc" : "desc",
     limit: 1000,
@@ -149,7 +154,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       // The grid shows the database answer, even when it is empty. Only without the
       // database (browser preview, tests) or on a query error does it filter what is in memory.
       const memoryOnly = !nativeCatalog || Boolean(catalogQuery.error);
-      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, searchFilters) : catalogQuery.items;
+      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
       const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
@@ -171,7 +176,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         total: memoryOnly ? sourceItems.length : catalogQuery.total,
       };
     }
-    const nonCatalogGames = filterLibraryGames(games, activeQuery, searchFilters);
+    const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
     return buildLibraryCollection(
       downloadManager.pinGames(nonCatalogGames, effectiveDownloads, trackedAppIds),
       effectiveDownloads,
@@ -181,7 +186,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, searchFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;

@@ -29,6 +29,7 @@ base64 = "0.22"
 rand = "0.8"
 rsa = { version = "0.9", features = ["sha2"] }
 unicode-normalization = "0.1"
+argon2 = "0.5"
 
 [features]
 default = ["custom-protocol"]

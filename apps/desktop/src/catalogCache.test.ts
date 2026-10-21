@@ -5,8 +5,10 @@ import {
   removePluginCatalogSources,
   getCatalogFacets,
   readCatalogCache,
+  withParentalPolicy,
 } from "./catalogCache";
 import { invoke } from "@tauri-apps/api/core";
+import { resetParentalPolicyForTests, setParentalPolicyForTests } from "./parentalControl";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -16,6 +18,22 @@ describe("catalogCache IPC queries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (globalThis as any).window = { __TAURI_INTERNALS__: {} };
+    resetParentalPolicyForTests();
+    setParentalPolicyForTests({ level: "off" }); // these tests check the plain forwarding
+  });
+
+  it("applies the parental policy (on by default) to every search, but not to lookups by id", async () => {
+    resetParentalPolicyForTests();
+    vi.mocked(invoke).mockResolvedValue({ items: [], total: 0 });
+    await queryCatalogCache({ query: "x", content_descriptor_ids: [3, 5] });
+    expect(invoke).toHaveBeenLastCalledWith("catalog_cache_query", {
+      params: { query: "x", hide_adult: true, adult_includes_nudity: undefined, content_descriptor_ids: [5], exclude_content_descriptor_ids: undefined },
+    });
+    await queryCatalogCache({ app_ids: [7] });
+    expect(invoke).toHaveBeenLastCalledWith("catalog_cache_query", { params: { app_ids: [7] } });
+    const strict = withParentalPolicy({ exclude_content_descriptor_ids: [9] }, { enabled: true, level: "strict", hideViolence: true });
+    expect(strict).toMatchObject({ hide_adult: true, adult_includes_nudity: true, exclude_content_descriptor_ids: [9, 2] });
+    expect(withParentalPolicy({ query: "y" }, { enabled: false, level: "off", hideViolence: true })).toEqual({ query: "y" });
   });
 
   it("forwards queryCatalogCache to tauri command with params", async () => {

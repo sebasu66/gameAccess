@@ -21,6 +21,14 @@ button.ga-btn-primary {
 button.ga-btn-primary:hover:not(:disabled) { background: #ff8230; transform: translateY(-1px); }
 button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
 
+/* Secondary action: same height and shape as the primary one, quiet glass. */
+button.ga-btn-secondary {
+  height: 44px; padding: 0 18px; border: 1px solid #ffffff25; border-radius: 8px;
+  background: #ffffff08; color: #fff; font: 700 14px Manrope, sans-serif; cursor: pointer;
+}
+button.ga-btn-secondary:hover:not(:disabled) { background: #ffffff14; }
+button.ga-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+
 /* Glass panel with the light gradient ring used by the detail dialog. */
 .ga-panel {
   position: relative;

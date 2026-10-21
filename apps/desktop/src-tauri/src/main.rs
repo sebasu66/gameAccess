@@ -2,6 +2,7 @@
 
 mod automation;
 mod access_activation;
+mod parental_lock;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
@@ -63,6 +64,9 @@ fn main() {
             app_update::app_frontend_alive,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
+            parental_lock::parental_state,
+            parental_lock::parental_save,
+            parental_lock::parental_check,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
             launch_intent::take_launch_request,

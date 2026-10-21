@@ -12,8 +12,10 @@ import {
   getParentalPolicy,
   isParentalLocked,
   parentalSearchFilters,
+  reloadParentalPolicyForTests,
   resetParentalPolicyForTests,
-  setParentalPolicy,
+  saveParentalPolicy,
+  setParentalPolicyForTests,
   subscribeParentalPolicy,
 } from "./parentalControl";
 import { DEFAULT_LIBRARY_FILTERS, filterLibraryGames, gameIsAdult } from "./librarySearch";
@@ -34,33 +36,42 @@ describe("parental policy storage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("starts unlocked", () => {
+  it("starts on, hiding adult-only content, until someone turns it off", () => {
+    expect(isParentalLocked()).toBe(true);
+    expect(getParentalPolicy()).toEqual({ enabled: true, level: "adult-only", hideViolence: false });
+    expect(blockedDescriptorIds()).toEqual([3, 4]);
+  });
+
+  it("outside the app the choice is kept in the browser and survives a reload", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => void stored.set(k, v), removeItem: (k: string) => void stored.delete(k) });
+    await saveParentalPolicy({ level: "off" });
     expect(isParentalLocked()).toBe(false);
-    expect(getParentalPolicy()).toEqual({ enabled: false, level: "adult-only", hideViolence: false });
-    expect(blockedDescriptorIds()).toEqual([]);
+    reloadParentalPolicyForTests();
+    expect(getParentalPolicy().level).toBe("off");
   });
 
   it("treats level off as unlocked even when enabled is set", () => {
-    setParentalPolicy({ enabled: true, level: "off" });
+    setParentalPolicyForTests({ enabled: true, level: "off" });
     expect(isParentalLocked()).toBe(false);
     expect(blockedDescriptorIds()).toEqual([]);
   });
 
   it("blocks descriptor 3 and 4 at the adult-only level", () => {
-    setParentalPolicy({ enabled: true, level: "adult-only" });
+    setParentalPolicyForTests({ enabled: true, level: "adult-only" });
     expect(isParentalLocked()).toBe(true);
     expect(blockedDescriptorIds()).toEqual([3, 4]);
     expect(parentalSearchFilters()).toEqual({ hideAdult: true, adultIncludesNudity: false, hideViolenceDescriptor: false });
   });
 
   it("also blocks descriptor 1 at the strict level", () => {
-    setParentalPolicy({ enabled: true, level: "strict" });
+    setParentalPolicyForTests({ enabled: true, level: "strict" });
     expect(blockedDescriptorIds()).toEqual([3, 4, 1]);
     expect(parentalSearchFilters().adultIncludesNudity).toBe(true);
   });
 
   it("adds the violence descriptor only when asked", () => {
-    setParentalPolicy({ enabled: true, level: "adult-only", hideViolence: true });
+    setParentalPolicyForTests({ enabled: true, level: "adult-only", hideViolence: true });
     expect(blockedDescriptorIds()).toEqual([3, 4, 2]);
     expect(parentalSearchFilters().hideViolenceDescriptor).toBe(true);
   });
@@ -68,10 +79,10 @@ describe("parental policy storage", () => {
   it("notifies subscribers on change", () => {
     const seen = vi.fn();
     const unsubscribe = subscribeParentalPolicy(seen);
-    setParentalPolicy({ enabled: true, level: "strict" });
+    setParentalPolicyForTests({ enabled: true, level: "strict" });
     expect(seen).toHaveBeenCalledTimes(1);
     unsubscribe();
-    setParentalPolicy({ enabled: false });
+    setParentalPolicyForTests({ enabled: false });
     expect(seen).toHaveBeenCalledTimes(1);
   });
 });
@@ -94,13 +105,13 @@ describe("the policy cannot be bypassed from the discovery filters", () => {
 
     // Under a lock the same request must not reveal it. This is the bypass the
     // policy merge exists to prevent.
-    setParentalPolicy({ enabled: true, level: "adult-only" });
+    setParentalPolicyForTests({ enabled: true, level: "adult-only" });
     const locked = applyParentalPolicy(selected);
     expect(filterLibraryGames(games, "", locked).map(g => g.id)).not.toContain(1);
   });
 
   it("leaves mainstream titles alone, which is the false positive we removed", () => {
-    setParentalPolicy({ enabled: true, level: "adult-only" });
+    setParentalPolicyForTests({ enabled: true, level: "adult-only" });
     // MK11 is tagged "Sexual Content" but Valve lists no sexual descriptor for it,
     // so the adult-only level must not hide it. The old implementation consulted
     // tags and hid it, which is the false positive this test pins down.
@@ -111,22 +122,23 @@ describe("the policy cannot be bypassed from the discovery filters", () => {
   });
 
   it("hides descriptor 1 only at the strict level", () => {
-    const adultOnlyLevel = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicy({ enabled: true, level: "adult-only" }));
+    const adultOnlyLevel = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicyForTests({ enabled: true, level: "adult-only" }));
     expect(filterLibraryGames([southPark], "", adultOnlyLevel)).toHaveLength(1);
 
-    const strictLevel = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicy({ enabled: true, level: "strict" }));
+    const strictLevel = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicyForTests({ enabled: true, level: "strict" }));
     expect(filterLibraryGames([southPark], "", strictLevel)).toHaveLength(0);
   });
 
   it("hides violence only when the operator opts in", () => {
-    const off = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicy({ enabled: true, level: "adult-only" }));
+    const off = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicyForTests({ enabled: true, level: "adult-only" }));
     expect(filterLibraryGames([mk11], "", off)).toHaveLength(1);
 
-    const on = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicy({ enabled: true, level: "adult-only", hideViolence: true }));
+    const on = applyParentalPolicy(DEFAULT_LIBRARY_FILTERS, setParentalPolicyForTests({ enabled: true, level: "adult-only", hideViolence: true }));
     expect(filterLibraryGames([mk11], "", on)).toHaveLength(0);
   });
 
   it("changes nothing while unlocked", () => {
+    setParentalPolicyForTests({ level: "off" });
     const requested = { ...DEFAULT_LIBRARY_FILTERS, contentDescriptorIds: [1, 3, 4] };
     expect(applyParentalPolicy(requested)).toEqual(requested);
     expect(filterLibraryGames(games, "", applyParentalPolicy(requested)).map(g => g.id)).toEqual([1, 2]);

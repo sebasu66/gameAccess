@@ -1,5 +1,7 @@
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
+import ParentalSetupDialog from "./ParentalSetupDialog";
+import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
 import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
@@ -297,6 +299,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [newGames, setNewGames] = useState<CatalogGame[]>([]);
   const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
 
+  // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
+  const parentalPolicy = useParentalState().policy;
   useEffect(() => {
     if (loading) return;
     void queryCatalogCache({ sort_by: "release-date", sort_direction: "desc", limit: 10 })
@@ -305,7 +309,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     void queryCatalogCache({ sort_by: "steam-review-score", sort_direction: "desc", limit: 12 })
       .then(res => setSuggestedGames(res.items))
       .catch(() => {});
-  }, [loading]);
+  }, [loading, parentalPolicy]);
 
   const heroPool = useMemo(() => {
     const base = orderedLibrary.length ? orderedLibrary : (newGames.length ? newGames : suggestedGames);
@@ -582,7 +586,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
           <PluginIndicator />
-          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass />
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass /><ParentalSetupDialog />
         </div>
       </header>
 

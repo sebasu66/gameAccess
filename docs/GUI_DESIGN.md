@@ -131,6 +131,7 @@ Aplicado el 2026-10-19 (`apps/desktop/src/ga-design.css` y clases en los compone
 - `ga-close` en diálogos y paneles: ayuda, configuración, registro del juego, premium, filtros, descarga completada, biblioteca, ficha de tienda, panel de fuentes.
 - `ga-btn-primary` en la acción "Activar" de premium.
 - `ga-panel` en el panel de fuentes (vidrio y borde degradado).
+- `ga-btn-secondary` definido en `ga-design.css` (2026-10-21) y usado en Configuración > Control parental ("Cambiar contraseña").
 
 Sin cambios a propósito: **la ficha de juego** (referencia). Su botón de cierre y su fila de acciones se quedan como están.
 

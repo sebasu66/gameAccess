@@ -3,7 +3,9 @@
 ; A page after the install folder lets the user choose where games and downloads go. The choice is stored in
 ; HKLM\Software\gameAccess (GamesDir, DownloadsDir, 64-bit view) and read by apps/launcher/launcher_data.py.
 ; DownloadsDir is only written when it differs from <Downloads>\GameAccessDownloads, so every Windows user keeps
-; their own Downloads folder by default. Passive updates skip the page and keep the stored choice.
+; their own Downloads folder by default. The same page asks whether parental control starts on (checked by default;
+; ParentalDefault 1/0, read by apps/desktop/src-tauri/src/parental_lock.rs; the password is created in the app).
+; Passive updates skip the page and keep the stored choice.
 !include nsDialogs.nsh
 !include LogicLib.nsh
 
@@ -18,6 +20,8 @@ Var GaGamesField
 Var GaDownloadsField
 Var GaGamesText
 Var GaDownloadsText
+Var GaParental
+Var GaParentalBox
 
 ; Absolute local path (X:\...), not a disk root.
 !macro GaCheckFolder path
@@ -43,6 +47,7 @@ Function GaFoldersDefaults
   SetRegView 64
   ReadRegStr $GaGamesDir HKLM "${GA_REGKEY}" "GamesDir"
   ReadRegStr $GaDownloadsDir HKLM "${GA_REGKEY}" "DownloadsDir"
+  ReadRegStr $GaParental HKLM "${GA_REGKEY}" "ParentalDefault"
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" "${GA_DOWNLOADS_ID}"
   SetRegView lastused
   ExpandEnvStrings $0 $0
@@ -56,6 +61,9 @@ Function GaFoldersDefaults
   ${EndIf}
   ${If} $GaDownloadsDir == ""
     StrCpy $GaDownloadsDir $GaDefaultDownloads
+  ${EndIf}
+  ${If} $GaParental != "0"
+    StrCpy $GaParental "1"
   ${EndIf}
 FunctionEnd
 
@@ -73,6 +81,7 @@ Function GaFoldersCreate
     StrCpy $1 "Game Access instala los juegos en la carpeta de juegos y deja los archivos que baja en la carpeta de descargas. Podés cambiarlas ahora o más adelante en Configuración."
     StrCpy $2 "Examinar..."
     StrCpy $3 "La carpeta de juegos está compartida por todos los usuarios de esta PC. Las descargas van a la carpeta Descargas de cada usuario, salvo que elijas otra."
+    StrCpy $4 "Activar el control parental (oculta los juegos para adultos; la contraseña se crea al abrir Game Access)"
   ${Else}
     StrCpy $GaGamesText "Games folder"
     StrCpy $GaDownloadsText "Downloads folder"
@@ -80,6 +89,7 @@ Function GaFoldersCreate
     StrCpy $1 "Game Access installs games in the games folder and keeps the files it downloads in the downloads folder. You can change them now or later in Settings."
     StrCpy $2 "Browse..."
     StrCpy $3 "The games folder is shared by every user of this PC. Downloads go to each user's Downloads folder unless you choose another one."
+    StrCpy $4 "Turn on parental control (hides adult games; the password is created when Game Access opens)"
   ${EndIf}
 
   nsDialogs::Create 1018
@@ -103,8 +113,13 @@ Function GaFoldersCreate
   ${NSD_CreateBrowseButton} 78% 77u 22% 15u $2
   Pop $0
   ${NSD_OnClick} $0 GaBrowseDownloads
-  ${NSD_CreateLabel} 0 102u 100% 26u $3
+  ${NSD_CreateLabel} 0 100u 100% 20u $3
   Pop $0
+  ${NSD_CreateCheckbox} 0 124u 100% 12u $4
+  Pop $GaParentalBox
+  ${If} $GaParental == "1"
+    ${NSD_Check} $GaParentalBox
+  ${EndIf}
   StrCpy $GaShown 1
   nsDialogs::Show
 FunctionEnd
@@ -130,6 +145,12 @@ FunctionEnd
 Function GaFoldersLeave
   ${NSD_GetText} $GaGamesField $GaGamesDir
   ${NSD_GetText} $GaDownloadsField $GaDownloadsDir
+  ${NSD_GetState} $GaParentalBox $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $GaParental "1"
+  ${Else}
+    StrCpy $GaParental "0"
+  ${EndIf}
   !insertmacro GaCheckFolder $GaGamesDir
   !insertmacro GaCheckFolder $GaDownloadsDir
   ${If} $GaGamesDir == $GaDownloadsDir
@@ -152,6 +173,7 @@ FunctionEnd
     ${Else}
       WriteRegStr HKLM "${GA_REGKEY}" "DownloadsDir" $GaDownloadsDir
     ${EndIf}
+    WriteRegStr HKLM "${GA_REGKEY}" "ParentalDefault" $GaParental
     SetRegView lastused
     CreateDirectory $GaGamesDir
   ${EndIf}
