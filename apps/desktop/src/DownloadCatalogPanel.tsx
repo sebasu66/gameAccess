@@ -10,11 +10,11 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
-import { getDownloadStatusLabel } from "./GenericDownloadProgress";
+import { formatBytes, getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
 import { genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
@@ -30,6 +30,7 @@ import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
+import type { LibraryGame } from "./catalog/DigitalProcessManager";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -62,6 +63,16 @@ interface DownloadGameCardProps {
   onSelect: (index: number, openDetails?: boolean) => void;
   onContextMenu: (request: ContextMenuRequest) => void;
   favorite: boolean;
+}
+
+/** A frozen game: a snowflake, what it takes on disk now and, faded, its real size. */
+function FrozenSize({ entry }: { entry: LibraryGame }) {
+  const { t } = useI18n();
+  const stored = formatBytes(entry.frozen_bytes ?? null), original = formatBytes(entry.original_bytes ?? entry.size_bytes ?? null);
+  const title = t(entry.frozen === "deep" ? "cardDeepFrozen" : "cardFrozen", { stored, original });
+  return <div className={"ga-card-frozen" + (entry.frozen === "deep" ? " is-deep" : "")} title={title} role="img" aria-label={title}>
+    <Snowflake size={12} aria-hidden="true" /><b>{stored}</b><span>{original}</span>
+  </div>;
 }
 
 const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
@@ -118,6 +129,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
       {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
         {entry.label || [entry.source_provider, entry.source_title].filter(Boolean).join(" · ")}</div> : null}
+      {entry?.frozen ? <FrozenSize entry={entry} /> : null}
       {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
     </div>
   );

@@ -14,6 +14,7 @@ import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
+from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
 from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
@@ -89,9 +90,17 @@ class DigitalProcessRunner:
                     return {**result, "ok": True, "candidates": library.import_scan(json.loads(command or "{}").get("drives", []))}
                 if action == "import-run":
                     return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
+                if action == "library-autofreeze":
+                    request = json.loads(command or "{}")
+                    return {**result, "ok": True, "results": library.freezer.auto(int(request.get("freeze_days", 30)), int(request.get("deep_days", 90)))}
                 raise ValueError(f"Unknown action '{action}'")
             if action == "set-label":
                 return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
+            freezer = GameFreezer(self.storage, logger)
+            if action in ("freeze", "deep-freeze"):
+                return {**result, "ok": True, "frozen": (freezer.deep_freeze if action == "deep-freeze" else freezer.freeze)(app_id, name)}
+            if action == "thaw":
+                return {**result, "ok": True, **freezer.thaw(app_id, name)}
             linked_record = self.storage.linked.get(app_id)
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
@@ -108,6 +117,8 @@ class DigitalProcessRunner:
                 options = game_options.save(app_id, name, json.loads(command))
                 logger.info("AppID %s: launch options saved; executable=%s; administrator=%s; language=%s", app_id, options["executable"] or "automatic", options["administrator"], options["language"])
                 return {**result, "ok": True, "options": options}
+            if action in ("repair-language", "game-analyze", "game-repair", "install-setup") and freezer.ensure_thawed(app_id, name):
+                logger.info("AppID %s: thawed from deep freeze before %s", app_id, action)
             if action == "repair-language":
                 options = game_options.load(app_id)
                 repaired = repair_language(folder, effective_language(options), logger)
@@ -119,6 +130,7 @@ class DigitalProcessRunner:
             if action == "uninstall":
                 logger.info("AppID %s: uninstall starting; validated folder=%s; removes partial files without installation or executable checks", app_id, folder)
                 self.storage.uninstall(app_id, name)
+                freezer.forget(app_id)
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
             if action == "game-log":
@@ -142,6 +154,8 @@ class DigitalProcessRunner:
                 
             logger.info("AppID %s: Play requested; folder=%s; auto_installed=%s", app_id, folder, auto_installed)
             journal.note(folder, "play", "solicitado")
+            if freezer.ensure_thawed(app_id, name):  # a deep-frozen game comes back before anything reads its files
+                logger.info("AppID %s: thawed from deep freeze before play", app_id)
             saved_options = DigitalGameOptions(self.storage).load(app_id)
             profile = load_profile(self.storage.launcher, app_id)
             # Either switch can turn the re-apply off; the file the user picks in the form beats the declared one.
@@ -261,7 +275,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "import-drives", "import-scan", "import-run", "set-label"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "freeze", "deep-freeze", "thaw"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

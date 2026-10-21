@@ -47,10 +47,9 @@ def test_batch_uninstall_and_repair_continue_after_failures(tmp_path):
     with pytest.raises(ValueError):
         lib.batch("format", [1])
 
-def test_connectors_report_missing_modules(tmp_path):
+def test_the_library_has_a_freezer(tmp_path):
     storage, lib = library(tmp_path)
-    with pytest.raises(NotImplementedError):
-        lib.freeze(1, "Alpha")
+    assert lib.freezer.record(1) is None and lib.thaw(1, "Alpha") == {"thawed": False}
 
 def test_runner_actions_expose_the_library(tmp_path):
     storage, lib = library(tmp_path)

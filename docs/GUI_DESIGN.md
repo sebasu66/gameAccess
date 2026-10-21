@@ -18,6 +18,7 @@ y `filter-wizard.css`; cuando cambie un valor, cambia aquí primero.
 | `--ga-danger` | `#e5202e` | cerrar (botón de cierre), acciones destructivas |
 | `--ga-danger-hover` | `#ff3342` | hover del botón de cierre |
 | `--ga-success` | `#8fe3b0` | estados completados |
+| `--ga-frost` | `#8fd3ff` | juegos congelados (copo de nieve y tamaño en la grilla) |
 
 Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cálido), nunca blanco.
 

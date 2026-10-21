@@ -1,6 +1,7 @@
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
 import ParentalSetupDialog from "./ParentalSetupDialog";
+import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
 import AccessPass from "./AccessPass";
@@ -35,7 +36,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { getCatalogMode } from "./catalogMode";
-import { scanLibrary } from "./libraryScan";
+import { libraryScanState, scanLibrary } from "./libraryScan";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
@@ -299,6 +300,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [newGames, setNewGames] = useState<CatalogGame[]>([]);
   const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
 
+  useEffect(() => startAutoFreeze(), []);
+
   // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
   const parentalPolicy = useParentalState().policy;
   useEffect(() => {
@@ -479,10 +482,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const launchGame = async (game: CatalogGame, managedShortcut = false) => {
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
-    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate("launchDetail") });
+    // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
+    const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
+    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate(deepFrozen ? "launchThawing" : "launchDetail") });
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
+      if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
       setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
     } catch (err) {

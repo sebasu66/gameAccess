@@ -9,10 +9,11 @@ import { translate } from "./i18n";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { SOURCES_CHANGED_EVENT, sourceAvailability } from "./catalog/PluginSources";
-import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
+import { Download, Flame, FolderOpen, Play, Snowflake, Trash2 } from "lucide-react";
 
 import AppDialog from "./AppDialog";
 import RenameGameDialog from "./RenameGameDialog";
+import FreezeDialog, { type FreezeMode } from "./FreezeDialog";
 import { useLibraryEntry } from "./libraryScan";
 import { digitalCatalogService, type DigitalCatalog } from "./catalog/DigitalCatalog";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -59,6 +60,7 @@ export default function DigitalGameContextMenu({
   const [showingLog, setShowingLog] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [freezing, setFreezing] = useState<FreezeMode | null>(null);
   const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
@@ -71,6 +73,8 @@ export default function DigitalGameContextMenu({
   // Desinstalar and the language/launch options need installed files.
   const canUninstall = canManage && (state.installed || state.prepared);
   const canPlay = Boolean(appId) && state.playButtonReady;
+  // Freezing changes the game's files, so only games Game Access owns (downloaded or imported by moving).
+  const canFreeze = canManage && !linked && Boolean(entry) && entry?.state === "ready" && state.installed;
   // Same rule as the Download button: it needs at least one connected source for this game.
   const [, refreshSources] = useState(0);
   useEffect(() => {
@@ -145,7 +149,7 @@ export default function DigitalGameContextMenu({
 
   return (
     <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
-      {!dialog && !configuring && !showingLog && !repairing && !renaming ? (
+      {!dialog && !configuring && !showingLog && !repairing && !renaming && !freezing ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -181,6 +185,9 @@ export default function DigitalGameContextMenu({
           <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
+          {canFreeze && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
+          {canFreeze && entry?.frozen !== "deep" ? <button type="button" role="menuitem" onClick={() => setFreezing("deep")}><Snowflake size={16} /> {t("deepFreezeMenu")}</button> : null}
+          {canFreeze && entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("thaw")}><Flame size={16} /> {t("thawMenu")}</button> : null}
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:linked ? t("uninstallLinkedWarning") : label.warning,tone:"warning"}); }}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { try { libraryMembership.add(request.game); notify(translate("toastLibraryAdded", { name: request.game.name }), { tone: "success" }); } catch (error) { notify(translate("toastActionFailed", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); } onClose(); }}>{label.add}</button>}
           {linked ? null : <button
@@ -194,6 +201,7 @@ export default function DigitalGameContextMenu({
         </div>
       ) : null}
       {repairing ? <GameRecoveryDialog game={request.game} mode="broken" message={request.status?.repair_warning || (locale === "es" ? "El juego no está listo para ejecutarse." : "The game is not ready to run.")} onClose={onClose} /> : null}
+      {freezing ? <FreezeDialog game={request.game} mode={freezing} onClose={onClose} /> : null}
       {renaming ? <RenameGameDialog game={request.game} current={entry?.label ?? ""} onClose={onClose} /> : null}
       {showingLog ? <DigitalGameLog game={request.game} onClose={onClose} /> : null}
       {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}

@@ -5,7 +5,7 @@
 /* Exact title font embedded in the approved mockup, bundled for offline Tauri. */
 @font-face { font-family:"Bebas Neue"; src:url("/fonts/BebasNeue-Mockup.ttf") format("truetype"); font-weight:400; font-display:swap; }
 @font-face { font-family:Manrope; src:url("/fonts/Manrope[wght].ttf") format("truetype"); font-weight:400 800; font-display:swap; }
-:root { --ga-orange:#ff6a00; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
+:root { --ga-frost:#8fd3ff; --ga-orange:#ff6a00; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
 /* Favorite/metadata sorting keeps the viewport fixed. Explicit keyboard
    selection is the only operation that reveals a card automatically. */
 .library-room-grid { overflow-anchor:none; scroll-behavior:auto; }
@@ -75,6 +75,11 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) { background:
 .ga-field input { height:44px; padding:0 12px; border:1px solid #ffffff20; border-radius:8px; background:#0d1114; color:var(--ga-white); font:inherit; font-size:14px; }
 .ga-field input:focus-visible { border-color:var(--ga-orange); outline:2px solid var(--ga-orange); outline-offset:3px; }
 .ga-card-source { margin-top:2px; overflow:hidden; color:var(--ga-muted); font-size:10px; white-space:nowrap; text-overflow:ellipsis; }
+/* A frozen game: snowflake, what it takes on disk now, and its real size faded next to it. */
+.ga-card-frozen { display:flex; align-items:center; gap:5px; margin-top:2px; color:var(--ga-frost); font-size:10px; white-space:nowrap; }
+.ga-card-frozen b { font-weight:800; }
+.ga-card-frozen span { opacity:.45; text-decoration:line-through; }
+.ga-card-frozen.is-deep svg { filter:drop-shadow(0 0 4px var(--ga-frost)); }
 .ga-card-installed { flex-shrink:0; display:grid; place-items:center; width:20px; height:20px; border-radius:50%; color:var(--ga-orange); background:#ff6a0024; transition:transform 180ms ease, background-color 180ms ease; }
 .library-room-card-shell:hover .ga-card-installed { transform:scale(1.12); background:#ff6a0040; }
 @media (prefers-reduced-motion:reduce) { .ga-card-installed { transition:none; } }

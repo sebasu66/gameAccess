@@ -23,7 +23,9 @@ class DigitalPreferences:
         return {**self.defaults(),
                 "previous_roots": [],
                 # Delete the downloaded archives/installers once the game is unpacked (the declared fix archive is always kept).
-                "delete_download_sources": True, **data}
+                "delete_download_sources": True,
+                # Freeze the games nobody plays: Windows compression after a month, deep freeze after three.
+                "auto_freeze": False, **data}
 
     def save(self, values):
         current = self.load()
@@ -42,6 +44,8 @@ class DigitalPreferences:
             current[key] = str(path)
         if "delete_download_sources" in values:
             current["delete_download_sources"] = bool(values["delete_download_sources"])
+        if "auto_freeze" in values:
+            current["auto_freeze"] = bool(values["auto_freeze"])
         games, temporary = Path(current["games_root"]), Path(current["temporary_root"])
         if games == temporary or games.is_relative_to(temporary) or temporary.is_relative_to(games):
             raise ValueError("Los juegos y las descargas temporales necesitan carpetas separadas.")
