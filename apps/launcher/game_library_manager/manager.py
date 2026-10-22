@@ -6,7 +6,7 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
     GameExecutionManager  -> analyze / repair a game          (game_execution_manager)
     game_journal          -> per-game history and play counts (game_journal)
     GameImporter          -> bring a folder up to the standard (adopt); import from outside later (game_importer)
-    Freezer               -> compress rarely used games         (not implemented yet)
+    GameFreezer           -> compress rarely used games, two levels (freezer.py)
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
@@ -18,6 +18,7 @@ from disk_space import check_space, disk_info, folder_size
 from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
+from .freezer import GameFreezer
 
 BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
 
@@ -46,13 +47,18 @@ def play_history(folder: Path) -> dict:
 UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."
 
 
+def on_disk_bytes(game: dict) -> int:
+    stored = game.get("frozen_bytes") if game.get("frozen") else None
+    return stored if stored is not None else game["size_bytes"] or 0
+
+
 class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None):
         self.storage = storage
         self.manager = manager or GameExecutionManager(storage)
         self.log = app_log.manager_logger("library")
         self.importer = importer or GameImporter(storage, self.manager)
-        self.freezer = freezer
+        self.freezer = freezer or GameFreezer(storage, self.log)
 
     # -- inventory -------------------------------------------------------------------------
     def game_folders(self) -> list[Path]:
@@ -94,6 +100,14 @@ class GameLibraryManager:
                 entry["issues"] = [{"code": "duplicate_folder", "message": str(error)}]
             entry.update(installed=bool(status.get("installed")), needs_repair=bool(status.get("needs_repair")),
                          error=status.get("error", ""), **play_history(folder))
+            source = self.storage.source(app_id)
+            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""), label=self.storage.label(app_id))
+            frozen = self.freezer.describe(app_id, folder, with_sizes)
+            if frozen:
+                # The real size is the game's; what it takes on disk now is frozen_bytes.
+                entry.update(frozen, size_bytes=frozen["original_bytes"] or entry["size_bytes"])
+            if frozen.get("frozen") == "deep":
+                entry["issues"] = []  # its files sit in the archive until it is thawed: nothing to analyze or fix
             if "issues" not in entry:
                 # Folders still downloading or installing are not a problem: they are just not finished.
                 if state in (None, "ready", "ERROR"):
@@ -115,7 +129,8 @@ class GameLibraryManager:
         entry = {"app_id": record["app_id"], "name": record["name"], "state": "linked", "folder": str(folder), "linked": True,
                  "link_kind": record["kind"], "installed": status["installed"], "needs_repair": False, "error": status.get("error", ""),
                  "size_bytes": folder_size(folder) if with_sizes and folder.is_dir() else None, "issues": [], "standard": True,
-                 "reclaimable_bytes": 0, "warning": status.get("error", ""), **play_history(self.storage.linked.log_dir(record["app_id"]))}
+                 "reclaimable_bytes": 0, "warning": status.get("error", ""), "label": str(record.get("label") or ""),
+                 **play_history(self.storage.linked.log_dir(record["app_id"]))}
         if not status["installed"]:
             entry["issues"] = [{"code": "missing_link", "message": status["error"]}]
             entry["standard"] = False
@@ -147,6 +162,7 @@ class GameLibraryManager:
     def _merge_transfers(self, games: list[dict], with_sizes: bool) -> None:
         """One row per game: an unfinished download is part of its game's row, or a row of its own when the game is not installed."""
         by_id = {g["app_id"]: g for g in games if g["app_id"] is not None}
+        queued = self.storage.queued_downloads()
         for item in self.storage.transfers():
             size = folder_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
@@ -164,6 +180,10 @@ class GameLibraryManager:
             game.setdefault("transfer_kind", "")
             # A folder still downloading or installing is also unfinished: nothing can be fixed until it ends.
             game["unfinished"] = bool(game.get("unfinished")) or game.get("state") in ("preparing", "downloading", "installing")
+            # A download waiting in the queue (or paused before it wrote anything) is pending too: the folder must not be
+            # fixed or marked ready until it ends.
+            game["queued"] = game.get("app_id") in queued
+            game["unfinished"] = game["unfinished"] or game["queued"]
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
@@ -210,7 +230,10 @@ class GameLibraryManager:
                 "needs_repair": sum(1 for g in games if g["needs_repair"]),
                 "nonstandard": sum(1 for g in games if not g["standard"]),
                 "partial_downloads": sum(1 for g in games if g.get("partial") or (g.get("transfer_bytes") and not g.get("transfer_active"))),
-                "used_bytes": sum(g["size_bytes"] or 0 for g in games if not g.get("linked")),
+                # What the games take on disk now: a frozen game counts its compressed size, and the saving is apart.
+                "used_bytes": sum(on_disk_bytes(g) for g in games if not g.get("linked")),
+                "frozen_saved_bytes": sum(max(0, (g["original_bytes"] or 0) - (g["frozen_bytes"] or 0)) for g in games
+                                          if g.get("frozen") and g.get("frozen_bytes") is not None and not g.get("linked")),
                 "linked_count": sum(1 for g in games if g.get("linked")),
                 "linked_bytes": sum(g["size_bytes"] or 0 for g in games if g.get("linked")),
                 "transfers_bytes": sum(t["size_bytes"] or 0 for t in transfers),
@@ -249,10 +272,11 @@ class GameLibraryManager:
                 results.append({"app_id": item.get("app_id"), "ok": False, "error": str(error)})
         return results
 
-    def freeze(self, app_id: int, name: str):
-        if self.freezer is None:
-            raise NotImplementedError("El congelador de juegos todavía no está disponible.")
-        return self.freezer.freeze(app_id, name)
+    def freeze(self, app_id: int, name: str, level: str = "freeze"):
+        return (self.freezer.deep_freeze if level == "deep" else self.freezer.freeze)(app_id, name)
+
+    def thaw(self, app_id: int, name: str):
+        return self.freezer.thaw(app_id, name)
 
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
@@ -273,12 +297,16 @@ class GameLibraryManager:
             if name is None:
                 results.append({"app_id": app_id, "ok": False, "error": "El juego no está en la biblioteca."})
                 continue
+            if action in ("adopt", "repair", "analyze") and self.freezer.is_deep(app_id):
+                results.append({"app_id": app_id, "ok": False, "error": "Está en congelado profundo: descongelalo antes."})
+                continue
             if app_id in unfinished and action in ("adopt", "repair"):
                 results.append({"app_id": app_id, "ok": False, "error": UNFINISHED_MESSAGE})
                 continue
             try:
                 if action == "uninstall":
                     self.storage.uninstall(app_id, name)
+                    self.freezer.forget(app_id)
                     results.append({"app_id": app_id, "ok": True})
                 elif action == "discard_transfer":
                     self.storage.discard_transfer(app_id)

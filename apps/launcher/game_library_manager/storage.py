@@ -6,6 +6,7 @@ import shutil
 import time
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 from .preferences import DigitalPreferences
 from .linked import LinkedGames
 
@@ -32,14 +33,18 @@ def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
         return int(match.group(1)), title, last
     return int(match.group(1)), rest, None
 
+MAX_LABEL = 120
+
+
 class DigitalGameStorage:
     def __init__(self, launcher: Path = LAUNCHER):
         self.launcher = Path(launcher).resolve()
+        self.data = data_dir(self.launcher)
         self.preferences = DigitalPreferences(self.launcher)
         settings = self.preferences.load()
         self.root = Path(settings["games_root"]).resolve()
         self.roots = list(dict.fromkeys([self.root, *(Path(root).resolve() for root in settings["previous_roots"])]))
-        self.registry = self.launcher / ".cache" / "digital_games"
+        self.registry = self.data / ".cache" / "digital_games"
         self.linked = LinkedGames(self.launcher)
 
     @staticmethod
@@ -77,11 +82,68 @@ class DigitalGameStorage:
             raise ValueError("La carpeta Digital no puede ser un enlace.")
         return resolved
 
+    def _record(self, app_id: int) -> dict:
+        try:
+            return json.loads((self.registry / f"{int(app_id)}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _write_record(self, app_id: int, folder: Path, name: str) -> None:
+        """The install record keeps what else it knows (the download source) when the folder or name changes."""
+        self.registry.mkdir(parents=True, exist_ok=True)
+        write_json(self.registry / f"{int(app_id)}.json", {**self._record(app_id), "folder": str(folder), "name": name})
+
+    def set_source(self, app_id: int, title: str, provider: str) -> None:
+        """Which download this install came from, as its source names it ("Elden Ring v1.10 - FitGirl", "SteamRIP"):
+        two downloads of the same game can be different versions that cannot play online together."""
+        record = self._record(app_id)
+        if record:
+            record["source"] = {"title": title.strip(), "provider": provider.strip()}
+            write_json(self.registry / f"{int(app_id)}.json", record)
+
+    def source(self, app_id: int) -> dict:
+        source = self._record(app_id).get("source")
+        return source if isinstance(source, dict) else {}
+
+    def set_label(self, app_id: int, name: str, label: str) -> str:
+        """The player's own name for the game in their library (only shown there; the catalog is not touched).
+        An empty label goes back to the default: the game as its download source names it."""
+        label = " ".join(str(label or "").split())[:MAX_LABEL]
+        linked = self.linked.get(app_id)
+        record = linked if linked else self._record(app_id)
+        if not record:
+            folder = self.folder(app_id, name)
+            if not folder.is_dir():
+                raise ValueError("El juego no está en la biblioteca.")
+            record = {"folder": str(folder), "name": name}
+        if label:
+            record["label"] = label
+        else:
+            record.pop("label", None)
+        target = self.linked.dir if linked else self.registry
+        target.mkdir(parents=True, exist_ok=True)
+        write_json(target / f"{int(app_id)}.json", record)
+        return label
+
+    def label(self, app_id: int) -> str:
+        record = self.linked.get(app_id) or self._record(app_id)
+        return str(record.get("label") or "")
+
+    def queued_downloads(self) -> set[int]:
+        """Games the Download Manager still has to download (queued, paused or running), from its saved queue: a
+        queued download may have no temporary files yet."""
+        try:
+            data = json.loads((self.data / ".cache" / "digital_downloads" / "queue.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return set()
+        return {int(job["app_id"]) for job in data.get("jobs", []) if isinstance(job, dict) and str(job.get("app_id", "")).isdigit()
+                and job.get("state") not in ("done", "cancelling")}
+
     def register(self, app_id: int, name: str) -> Path:
         folder = self.folder(app_id, name)
         folder.mkdir(parents=True, exist_ok=True)
         self.registry.mkdir(parents=True, exist_ok=True)
-        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(folder), "name": name})
+        self._write_record(app_id, folder, name)
         return folder
 
     def set_status(self, app_id: int, name: str, status: str) -> Path:
@@ -101,7 +163,7 @@ class DigitalGameStorage:
                 raise ValueError("Ya existe una carpeta con ese estado para este juego.")
             folder.rename(target)
         self.registry.mkdir(parents=True, exist_ok=True)
-        write_json(self.registry / f"{int(app_id)}.json", {"folder": str(target), "name": name})
+        self._write_record(app_id, target, name)
         return target
 
     def write_error(self, app_id: int, name: str, message: str) -> Path:
@@ -175,7 +237,7 @@ class DigitalGameStorage:
                         continue
                     if now - folder.stat().st_mtime < min_age_seconds:
                         continue
-                    live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+                    live = self.data / ".cache" / "digital_downloads" / f"{app_id}.json"
                     if live.is_file() and now - live.stat().st_mtime < 120:
                         continue
                     folder.rmdir()
@@ -210,7 +272,7 @@ class DigitalGameStorage:
             app_id, title, _ = split_folder_name(folder.name)
             if app_id is None or not folder.is_dir() or folder.is_symlink():
                 continue
-            live = self.launcher / ".cache" / "digital_downloads" / f"{app_id}.json"
+            live = self.data / ".cache" / "digital_downloads" / f"{app_id}.json"
             # Pieces downloaded from our server keep a state file: they continue exactly where they stopped.
             kind = "pieces" if any(folder.glob(".ga-state-*.json")) else "other"
             found.append({"app_id": app_id, "name": title, "folder": str(folder), "kind": kind,
@@ -230,8 +292,8 @@ class DigitalGameStorage:
             if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
                 raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
             shutil.rmtree(folder)
-        for leftover in ((self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
-                         (self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
+        for leftover in ((self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
+                         (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
             leftover.unlink(missing_ok=True)
 
     def snapshot(self, games: list[dict]) -> dict:
@@ -292,7 +354,7 @@ class DigitalGameStorage:
                 shutil.rmtree(target)
         (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)
         # Avoid rediscovering an obsolete completed transfer after deletion.
-        (self.launcher / ".cache" / "digital_downloads" / f"{int(app_id)}.json").unlink(missing_ok=True)
+        (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json").unlink(missing_ok=True)
         return folder
 
     def local_games(self):

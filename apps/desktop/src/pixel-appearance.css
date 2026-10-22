@@ -44,8 +44,10 @@ body.ga-pixel-style .app-shell{background:transparent}
 
 /* Corner mark: equal visible margins below the native titlebar. */
 :root{--ga-logo-frame:clamp(60px,4.21875vw,96px);--ga-logo-margin:20px}
-body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin));width:max-content;height:var(--ga-logo-frame);padding:0;gap:0}
+body.ga-pixel-style .topbar .brand,.ga-access-brand{position:fixed;left:var(--ga-logo-margin);top:calc(var(--window-chrome-height,34px) + var(--ga-logo-margin) / 2);width:max-content;height:var(--ga-logo-frame);padding:0;gap:0}
 .ga-header-logo{width:var(--ga-logo-frame);height:var(--ga-logo-frame)}
+/* The header logo sits right under the window bar, so even at its largest (96px on wide screens) it ends above the first row of cards. */
+body.ga-pixel-style .topbar .brand{top:calc(var(--window-chrome-height,34px) - 8px)}
 body:has(.app-shell) .ga-access-brand{display:none}
 .library-catalog-toolbar .library-catalog-tabs .ga-led-button[aria-selected=true]{color:#fff!important}
 .ga-led-button>span{position:relative;z-index:1}

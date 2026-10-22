@@ -8,6 +8,8 @@ import { useCatalogQuery } from "./useCatalogQuery";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
+import { applyParentalPolicy } from "./parentalControl";
+import { useParentalState } from "./ParentalControlSection";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -35,6 +37,7 @@ import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySe
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
@@ -130,8 +133,11 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const nativeCatalog = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const activeQuery = (searchValue || searchQuery || "").trim();
   const genreNames = useCatalogGenreNames();
+  // The parental policy wins over the player's filters in every view (catalog, library, favorites).
+  const parentalPolicy = useParentalState().policy;
+  const visibleFilters = useMemo(() => applyParentalPolicy(searchFilters, parentalPolicy), [searchFilters, parentalPolicy]);
   const catalogQuery = useCatalogQuery({
-    ...catalogParamsFromFilters(activeQuery, searchFilters, genreNames),
+    ...catalogParamsFromFilters(activeQuery, visibleFilters, genreNames),
     sort_by: catalogSort,
     sort_direction: catalogSort === "name" ? "asc" : "desc",
     limit: 1000,
@@ -148,7 +154,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       // The grid shows the database answer, even when it is empty. Only without the
       // database (browser preview, tests) or on a query error does it filter what is in memory.
       const memoryOnly = !nativeCatalog || Boolean(catalogQuery.error);
-      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, searchFilters) : catalogQuery.items;
+      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
       const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
@@ -170,7 +176,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         total: memoryOnly ? sourceItems.length : catalogQuery.total,
       };
     }
-    const nonCatalogGames = filterLibraryGames(games, activeQuery, searchFilters);
+    const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
     return buildLibraryCollection(
       downloadManager.pinGames(nonCatalogGames, effectiveDownloads, trackedAppIds),
       effectiveDownloads,
@@ -180,7 +186,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, searchFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -428,6 +434,13 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     });
   });
 
+  /** The run dialog is shown on its own: an open game detail closes first (its exit takes 180 ms), then the game starts. */
+  const playGame = (game: CatalogGame) => {
+    if (!detailOpen) return onPlay(game);
+    closeGameDetail();
+    window.setTimeout(() => void onPlay(game), 200);
+  };
+
   // Tab (handled by LibraryInputController) flips between Catalog and Library.
   useEffect(() => {
     if (auxiliarySurface) return;
@@ -486,8 +499,13 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     const action = actions[index];
     if (!action || action.disabled || !selectedGame) return;
     playUiSound("activate");
-    if (action.kind === "play") void onPlay(selectedGame);
-    else if (action.kind === "download") void onDownload(selectedGame);
+    if (action.kind === "play") void playGame(selectedGame);
+    else if (action.kind === "download") {
+      // Without the download plugin the button in that place is "View on Steam".
+      const node = actionRefs.current?.[index];
+      if (node?.dataset.action === "steam") node.click();
+      else void onDownload(selectedGame);
+    }
     else if (action.kind === "cancel") {
       setCancelError(null);
       setCancelling(false);
@@ -549,13 +567,19 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     if (handled) event.preventDefault();
   };
 
-  const onSelectGame = (index: number, openDetails = true) => {
-    const gameId = displayGames[index]?.id ?? null;
+  // Stable on purpose: every card receives it, and a new function each render defeated the cards' memo,
+  // so a selection change re-rendered the whole grid.
+  const displayGamesRef = useRef(displayGames);
+  displayGamesRef.current = displayGames;
+  const onSelectGame = useCallback((index: number, openDetails = true) => {
+    const gameId = displayGamesRef.current[index]?.id ?? null;
+    // An index outside the list must not clear the selection: that sent the grid back to the first game.
+    if (gameId == null) return;
     setSelectedGameId(gameId);
     setDetailRequestedGameId(gameId);
     setFocusZone("grid");
-    if (openDetails && gameId != null) setDetailOpen(true);
-  };
+    if (openDetails) setDetailOpen(true);
+  }, []);
 
   const dismissCompletion = async (play: boolean) => {
     const entry = completionQueue[0];
@@ -564,14 +588,29 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     try {
       await acknowledgeDownloadCompletion(entry.record.job_id);
       setCompletionQueue((current) => current.filter((item) => item.record.job_id !== entry.record.job_id));
-      if (play) void onPlay(entry.game);
+      if (play) void playGame(entry.game);
     } finally {
       completionHandlingRef.current.delete(entry.record.job_id);
     }
   };
 
   const confirmCancellation = async () => {
-    if (!cancelGame?.app_id || cancelling) return;
+    if (!cancelGame || cancelling) return;
+    if (getCatalogMode() === "digital") {
+      // The same call as the Cancel button of the downloads screen; the Steam path below is for the local catalog.
+      setCancelling(true);
+      setCancelError(null);
+      try {
+        await digitalDownloadService.cancel(cancelGame.app_id ?? cancelGame.id);
+        setCancelGame(null);
+      } catch (error) {
+        setCancelError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setCancelling(false);
+      }
+      return;
+    }
+    if (!cancelGame.app_id) return;
     const appId = cancelGame.app_id;
     const status = effectiveDownloads[appId];
     setCancelling(true);
@@ -638,7 +677,9 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
-      {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame ? (
+      {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
+          the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
+      {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}
           {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
@@ -649,10 +690,10 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               {detailPanel}
             </div>
             {detailMenu ? (getCatalogMode() === "digital"
-              ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />
-              : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={onPlay} />) : null}
+              ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
+              : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={onPlay} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

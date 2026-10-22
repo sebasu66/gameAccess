@@ -1,4 +1,5 @@
 import { saveExecutionProfile, ensureExecutionProfile } from "./ExecutionProfiles";
+import { translate } from "../i18n";
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
 import { queryCatalogCache, readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
@@ -16,6 +17,11 @@ import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import { getApiBaseUrl } from "../settings";
 
+/** The game is already installed: the player has to uninstall it before installing another version. */
+export class GameAlreadyInstalledError extends Error {
+  constructor(name: string) { super(translate("downloadAlreadyInstalled", { name })); this.name = "GameAlreadyInstalledError"; }
+}
+
 export interface DigitalCatalogSyncResult {
   updated: boolean;
   revision: string;
@@ -27,6 +33,9 @@ export interface DigitalGameRecord {
   id: number;
   downloadSource: string;
   sourceDelivery?: "browser" | "download";
+  /** The chosen download as its source names it ("Game v1.2 - Repack") and the source's name. */
+  sourceTitle?: string;
+  sourceProvider?: string;
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
@@ -221,7 +230,7 @@ export class DigitalCatalog {
       steam: {
         app_id: game.app_id ?? game.id,
         name: game.name,
-        short_description: game.short_description ?? "Catálogo Digital.",
+        short_description: game.short_description ?? translate("catalogDigitalFallback"),
         background: game.hero_image ?? undefined,
         genres: game.genres,
         categories: game.categories,
@@ -265,6 +274,8 @@ export class DigitalCatalog {
 
   async download(game: CatalogGame, source?: PluginSource | string): Promise<void> {
     if (this.options.downloadHandler) return this.options.downloadHandler(game);
+    // One install per game: another version needs the installed one removed first (Library Manager or Uninstall).
+    if (await this.isInstalled(game).catch(() => false)) throw new GameAlreadyInstalledError(game.name);
     const selected = typeof source === "string"
       ? (await this.getSources(game)).find(item => item.url === source)
       : source ?? (await this.getSources(game))[0];
@@ -276,6 +287,7 @@ export class DigitalCatalog {
     const record = this.ensureRecord(game);
     const effectiveRecord: DigitalGameRecord = {
       name: game.name, id: appId, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
+      sourceTitle: selected.title, sourceProvider: selected.sourceName || selected.pluginName,
       installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
     digitalDownloadService.registerRecords([effectiveRecord]);

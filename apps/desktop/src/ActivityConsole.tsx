@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "./i18n";
 import { resourceGuard } from "./ResourceGuard";
+import ResourceMeter from "./ResourceMeter";
 import { debugLoggingEnabled, setDebugLogging, subscribeDebugLogging, toggleDebugLogging } from "./debugLog";
 import "./operations.css";
 export function consoleShortcut(event:KeyboardEvent):boolean{
@@ -132,6 +133,7 @@ export default function ActivityConsole(){
  if(!open)return null;
  return <section className={"ga-activity-console"+(expanded?" is-expanded":"")} aria-label={es?"Consola de actividad":"Activity console"}>
   <ConsoleHeader paused={paused} expanded={expanded} locale={locale} onTogglePaused={()=>setPaused(v=>!v)} onToggleExpanded={()=>setExpanded(v=>!v)} onClose={()=>setOpen(false)} />
+  <ResourceMeter />
   <pre ref={logRef} role="log" aria-live="off">{error||lines.join("\n")||(es?"Esperando actividad…":"Waiting for activity…")}</pre>
  </section>;
 }

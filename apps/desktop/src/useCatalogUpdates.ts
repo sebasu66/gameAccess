@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
-import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS, shouldSyncOnOpen } from "./catalogUpdates";
+import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
+import { runCatalogUpdateTask } from "./centralDialog/catalogTask";
 import type { CatalogNotice } from "./CatalogNewGameNotices";
 import type { CatalogGame } from "./types";
 import { playCatalogBell } from "./uiSounds";
@@ -15,8 +15,9 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
   useEffect(() => {
     if (!enabled || !ready) return;
     const updater = new CatalogUpdater(latest.current.games, {
+      // Runs in the central dialog, which appears only when there is something to download.
       load: async () => {
-        await digitalCatalogService.loadCatalog({ requireRemote: true });
+        await runCatalogUpdateTask();
         return latest.current.games;
       },
       apply: games => latest.current.apply(games),
@@ -39,17 +40,11 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     });
     const manual = () => void updater.refresh(true);
     const focus = () => updater.catchUp();
+    // The startup check already ran before the library opened (startup preparation); this keeps it current.
     updater.start();
-    // Let the bundled catalog paint before checking for a new immutable revision,
-    // only if more than 1 hour passed since last sync (or on initial install).
-    let initialRefresh: number | undefined;
-    if (shouldSyncOnOpen()) {
-      initialRefresh = window.setTimeout(() => void updater.refresh(), 5000);
-    }
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
     return () => {
-      if (initialRefresh) window.clearTimeout(initialRefresh);
       updater.dispose();
       window.removeEventListener(CATALOG_REFRESH_REQUEST, manual);
       window.removeEventListener("focus", focus);

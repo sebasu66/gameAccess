@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
-import { useI18n } from "../i18n";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Flame, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { translate, useI18n } from "../i18n";
+import { notify } from "../toasts";
 import SteamCover from "../SteamCover";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
 import { libraryDemo, scanLibrary, useLibraryScan } from "../libraryScan";
@@ -24,6 +25,9 @@ import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
 import { addReadyGameToLibrary } from "../libraryMembership";
 import { PlanDialog } from "./PlanDialog";
+import { SizeCell } from "./SizeCell";
+import FreezeDialog from "../FreezeDialog";
+import { useFreezeJob } from "../freezeJobs";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
 const notifyLibraryChanged = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("focus")); };
@@ -35,7 +39,7 @@ type Pending =
   | { kind: "discard"; game: LibraryGame; restart: boolean };
 
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
-const hasError = (game: LibraryGame) => game.issues.some(issue => issue.code === "error");
+const hasError = (game: LibraryGame) => !game.unfinished && game.issues.some(issue => issue.code === "error");
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 
@@ -43,16 +47,26 @@ function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   const badges = [] as JSX.Element[];
   if (game.linked) badges.push(<Badge key="s" variant="info"><Link2 className="size-3" />{c.linked}</Badge>);
   else if (game.partial) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.partialDl}</Badge>);
+  // Still in the Download Manager (queued, paused or running): its folder is not judged until the download ends.
+  else if (game.unfinished && !isUnfinished(game)) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.pendingDl}</Badge>);
   else if (hasError(game)) badges.push(<Badge key="s" variant="destructive"><AlertTriangle className="size-3" />{c.error}</Badge>);
   else if (!game.standard) badges.push(<Badge key="s" variant="warning"><AlertTriangle className="size-3" />{c.outsideStd}</Badge>);
   else if (["installing", "downloading", "preparing"].includes(game.state)) badges.push(<Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c[game.state as "installing"]}</Badge>);
   else badges.push(<Badge key="s" variant="success">{c.ready}</Badge>);
+  if (game.frozen) badges.push(<Badge key="f" className="border-frost/50 bg-frost/15 text-frost"><Snowflake className="size-3" />{game.frozen === "deep" ? c.deepFrozen : c.frozen}</Badge>);
   if (!game.partial && game.transfer_bytes && !game.transfer_active) badges.push(<Badge key="t" variant="info">{c.partialDl} · {formatBytes(game.transfer_bytes)}</Badge>);
   return <div className="flex flex-wrap items-center gap-1.5">{badges}</div>;
 }
 
+/** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a toast if it is closed). */
+function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
+  const running = useFreezeJob(game.app_id);
+  return <IconAction label={c.thaw} disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <Flame className="text-frost" />}</IconAction>;
+}
+
 function subline(game: LibraryGame, c: LibraryCopy): string {
   if (game.partial) return `${c.partialDl}: ${formatBytes(game.transfer_bytes)}`;
+  if (game.unfinished && !game.standard) return c.pendingHint;
   if (!game.standard) return game.issues[0]?.message ?? game.warning;
   if (game.last_played) return game.last_played.slice(0, 10);
   return "";
@@ -80,6 +94,22 @@ function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   return <pre className="m-0 max-h-48 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed text-muted-foreground">{text === null ? c.working : text || c.noHistory}</pre>;
 }
 
+/** One toast per Library Manager action, saying how many games it changed and how many failed. */
+function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
+  if (!results.length) return;
+  const ok = results.filter(row => row.ok).length;
+  const failed = results.length - ok;
+  if (action === "discard_transfer") {
+    const row = results[0];
+    const name = games.find(game => game.app_id === row.app_id)?.name ?? `#${row.app_id}`;
+    if (row.ok) notify(translate("toastTransferDiscarded", { name }), { tone: "success" });
+    else notify(translate("toastActionFailed", { error: row.error || name }), { tone: "error" });
+    return;
+  }
+  const summary = translate(action === "adopt" ? "toastLibraryFixed" : "toastLibraryUninstalled", { ok });
+  notify(failed ? translate("toastBatchFailures", { summary, failed }) : summary, { tone: !failed ? "success" : ok ? "warning" : "error" });
+}
+
 export default function GameLibraryManager({ onClose, catalog = [], onInstall }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void }) {
   const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
@@ -93,6 +123,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [thawing, setThawing] = useState<LibraryGame | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
 
   const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length }), [games]);
@@ -121,8 +152,9 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
       if (action === "adopt" && !libraryDemo()) results.forEach(row => { const found = games.find(game => game.app_id === row.app_id); if (row.ok && found) addReadyGameToLibrary(row.app_id, found.name, catalog); });
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
+      announceBatch(action, results, games);
       setSelection({});
-    } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
+    } catch (failure) { setMessage(String(failure)); notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
   };
   const confirmPending = async () => {
     if (!pending) return;
@@ -150,7 +182,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-sm bg-muted [&_*]:max-h-full"><SteamCover game={asGame(game)} /></span>
             <span className="grid min-w-0 gap-0.5">
               <span className="flex items-center gap-1 truncate text-sm font-bold">{open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}{game.name}</span>
-              <span className={cn("truncate text-xs", !game.standard ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
+              <span className={cn("truncate text-xs", !game.standard && !game.unfinished ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
             </span>
           </button>
         );
@@ -158,10 +190,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     },
     {
       id: "size", accessorFn: game => (game.size_bytes ?? 0) + (game.transfer_bytes ?? 0), header: c.size,
-      cell: ({ row }) => {
-        const game = row.original; const value = game.partial ? game.transfer_bytes ?? 0 : game.size_bytes ?? 0;
-        return <div className="grid w-40 gap-1"><span className="text-sm font-bold tabular-nums">{formatBytes(value)}</span><Progress value={(value / Math.max(largest, game.transfer_bytes ?? 0)) * 100} indicatorClassName={game.partial ? "bg-info" : undefined} /></div>;
-      },
+      cell: ({ row }) => <SizeCell game={row.original} largest={largest} c={c} />,
     },
     { id: "status", enableSorting: false, header: c.status, cell: ({ row }) => <StatusBadges game={row.original} c={c} /> },
     { id: "plays", accessorFn: game => game.plays ?? 0, header: c.plays, cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{row.original.plays ?? 0}</span> },
@@ -179,6 +208,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
               {!game.partial ? <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction> : null}
             </> : game.partial ? null : <>
               {needsFix(game) && id != null ? <IconAction label={c.fix} disabled={busy} onClick={() => void askPlan([id])}><Wand2 className="text-primary" /></IconAction> : null}
+              {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game)} /> : null}
               <IconAction label={c.history} onClick={() => setExpanded(expanded === id ? null : id)}><ScrollText /></IconAction>
               <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
               <IconAction label={game.linked ? c.unlink : c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
@@ -199,7 +229,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const allLinked = pendingIds.length > 0 && pendingIds.every(id => linkedIds.has(id));
   const anyLinked = pendingIds.some(id => linkedIds.has(id));
   const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen), [pending, importOpen]);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(thawing)), [pending, importOpen, thawing]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
     window.addEventListener("keydown", onKey);
@@ -213,11 +243,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     <TooltipProvider delayDuration={150}>
       <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
         <header className="ga-screen-header !max-w-none">
-          <Button variant="outline" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
           <h2 className="ga-screen-title mr-auto">{c.title}</h2>
           <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
+          <Button className="ga-back" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
         </header>
         <div className="flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
@@ -269,7 +299,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
                         </TableRow>,
                         open ? <TableRow key={`${row.id}-detail`} className="bg-background/60 hover:bg-background/60"><TableCell /><TableCell colSpan={columns.length - 1}>
                           <div className="grid gap-3 py-1">
-                            {game.issues.length ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.whatNeeds}</b>
+                            {game.issues.length && !game.unfinished ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.whatNeeds}</b>
                               <ul className="m-0 grid list-none gap-1 p-0">{game.issues.map(issue => <li key={issue.code} className="flex items-center gap-2 text-sm"><AlertTriangle className="size-3.5 text-warning" />{issue.message}{issue.bytes ? <b className="text-xs text-muted-foreground">({formatBytes(issue.bytes)})</b> : null}</li>)}</ul></div> : null}
                             {!game.partial ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.historyTitle}</b><History game={game} c={c} /></div> : null}
                           </div>
@@ -283,18 +313,20 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             </div>
           </section>
           {summary ? <div className="grid flex-none gap-3">
-            <div className="grid grid-cols-5 gap-3 max-[900px]:grid-cols-2">
+            <div className={cn("grid gap-3 max-[900px]:grid-cols-2", summary.frozen_saved_bytes ? "grid-cols-6" : "grid-cols-5")}>
               {stat(c.games, String(summary.count))}
               {stat(c.used, formatBytes(summary.used_bytes))}
               {stat(c.partialStat, formatBytes(summary.transfers_bytes), summary.transfers_bytes ? "text-info" : "")}
               {stat(c.broken, String(summary.nonstandard), summary.nonstandard ? "text-warning" : "")}
               {stat(c.reclaim, formatBytes(summary.reclaimable_bytes), summary.reclaimable_bytes ? "text-warning" : "")}
+              {summary.frozen_saved_bytes ? stat(c.frozenStat, formatBytes(summary.frozen_saved_bytes), "text-frost") : null}
             </div>
             <DiskBar summary={summary} c={c} />
           </div> : null}
         </div>
       </div>
 
+      {thawing ? <FreezeDialog game={asGame(thawing)} mode="thaw" onClose={() => setThawing(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
       {pending && pending.kind !== "plan" ? (

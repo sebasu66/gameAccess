@@ -270,6 +270,32 @@ def parse_viking_upload_response(response: httpx.Response) -> dict[str, Any]:
     raise ProviderFailure("viking_upload_failed", 502, "ViKiNG no pudo importar el archivo de TorBox.")
 
 
+SLOW_GRACE_SECONDS = 180    # a torrent needs a few minutes to find its peers before TorBox's estimate means anything
+SLOW_CONFIRM_SECONDS = 120  # the estimate must stay too long this long before giving up
+
+
+def _torbox_estimate_seconds(item: dict[str, Any]) -> float:
+    """How long TorBox still needs: its own ETA, or what is left divided by the current speed (infinite when idle)."""
+    eta = _safe_int(item.get("eta"))
+    if 0 < eta < 10 ** 9:
+        return float(eta)
+    progress = _progress_fraction(item)
+    size, speed = _safe_int(item.get("size")), _safe_int(item.get("download_speed"))
+    if size and speed > 0:
+        return size * max(0.0, 1 - progress) / speed
+    return float("inf") if progress < 1 else 0.0
+
+
+def _human_duration(seconds: float) -> str:
+    if seconds == float("inf"):
+        return "un tiempo indefinido"
+    if seconds >= 86400 * 60:
+        return f"unos {seconds / 86400 / 30:.0f} meses"
+    if seconds >= 86400 * 2:
+        return f"unos {seconds / 86400:.0f} días"
+    return f"unas {seconds / 3600:.0f} horas"
+
+
 def is_viking_upload_server(url: str) -> bool:
     """ViKiNG hands out regional upload servers (jp.vikingfile.com, upload.vikingfile.com, ...).
 
@@ -341,6 +367,8 @@ class TorBoxVikingProvider:
         self.sleep_fn = sleep_fn
         # A source is given up on when TorBox shows no progress for this long (not after a fixed wait).
         self.stall_seconds = max(1, int(stall_seconds if stall_seconds is not None else os.getenv("GAMEACCESS_TORBOX_STALL_SECONDS", "900")))
+        # A source TorBox would need longer than this to fetch is given up (few seeds): the player is told to try another.
+        self.max_estimate_seconds = max(60, int(float(os.getenv("GAMEACCESS_TORBOX_MAX_ESTIMATE_HOURS", "12")) * 3600))
         board_interval = poll_interval_seconds if poll_interval_seconds is not None else float(os.getenv("GAMEACCESS_TORBOX_BOARD_SECONDS", "8"))
         self.status_board = status_board or _shared_board(self, board_interval)
 
@@ -600,6 +628,25 @@ class TorBoxVikingProvider:
             raise ProviderFailure("torbox_invalid_download_link", 502, "TorBox no devolvió un enlace temporal válido.")
         return link
 
+    async def remote_upload_to_viking(self, link: str, name: str, folder: str = "") -> dict[str, Any]:
+        """Ask ViKiNG to download `link` itself into `folder` (no byte goes through this server).
+
+        ViKiNG streams progress lines while it imports, so only the time between lines is limited."""
+        timeout = httpx.Timeout(None, connect=20.0, read=float(self.upload_timeout_seconds), write=30.0, pool=20.0)
+        async with httpx.AsyncClient(timeout=timeout, transport=self.transport, follow_redirects=False) as client:
+            server_payload = await self._viking_json(client, "GET", VIKING_API_BASE + "/get-server", timeout=20.0)
+            upload_server = str(server_payload.get("server") or "")
+            if not is_viking_upload_server(upload_server):
+                raise ProviderFailure("viking_invalid_upload_server", 502, "ViKiNG devolvió un servidor de carga inválido.")
+            data = {"link": link, "user": self.viking_user_hash, "name": name, **({"path": folder} if folder else {})}
+            try:
+                response = await client.post(upload_server, data=data)
+            except httpx.TimeoutException as exc:
+                raise ProviderFailure("viking_upload_timeout", 504, "ViKiNG tardó demasiado en importar el archivo.") from exc
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_upload_failed", 502, "No se pudo completar la carga remota en ViKiNG.") from exc
+        return parse_viking_upload_response(response)
+
     async def upload_file_to_viking(self, path: "Path", name: str, folder: str = "") -> dict[str, Any]:
         """Upload a local file to ViKiNG with a normal multipart upload and return its JSON result."""
         timeout = httpx.Timeout(
@@ -623,6 +670,54 @@ class TorBoxVikingProvider:
             except httpx.HTTPError as exc:
                 raise ProviderFailure("viking_upload_failed", 502, "No se pudo subir el archivo a ViKiNG.") from exc
         return parse_viking_upload_response(response)
+
+    async def list_viking_folder(self, folder: str, max_pages: int = 50) -> list[dict[str, Any]]:
+        """The files ViKiNG holds in exactly `folder` (not its subfolders), as {"hash", "name", "size", "created"}."""
+        files: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=False) as client:
+            page, last = 1, 1
+            while page <= min(last, max_pages):
+                try:
+                    response = await client.post(
+                        VIKING_API_BASE + "/list-files", data={"user": self.viking_user_hash, "page": page, "path": folder},
+                    )
+                except httpx.HTTPError as exc:
+                    raise ProviderFailure("viking_list_failed", 502, "No se pudo listar la carpeta en ViKiNG.") from exc
+                payload = self._parse_json(response, "viking_list_failed", "No se pudo listar la carpeta en ViKiNG.")
+                for entry in payload.get("files") or []:
+                    if isinstance(entry, dict) and entry.get("hash"):
+                        files.append({"hash": str(entry["hash"]), "name": str(entry.get("name") or ""),
+                                      "size": _safe_int(entry.get("size")), "created": str(entry.get("created") or "")})
+                last = _safe_int(payload.get("maxPages"))
+                page += 1
+        return files
+
+    async def delete_viking_file(self, file_hash: str) -> None:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=False) as client:
+            try:
+                response = await client.post(VIKING_API_BASE + "/delete-file", data={"user": self.viking_user_hash, "hash": file_hash})
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_delete_failed", 502, "No se pudo borrar el archivo en ViKiNG.") from exc
+        payload = self._parse_json(response, "viking_delete_failed", "No se pudo borrar el archivo en ViKiNG.")
+        if payload.get("error") != "success":
+            raise ProviderFailure("viking_delete_failed", 502, "No se pudo borrar el archivo en ViKiNG.")
+
+    async def read_viking_file(self, file_hash: str, limit: int = 4 * 1024 * 1024) -> bytes:
+        """The bytes of a small ViKiNG file (a few MB at most), through its direct link."""
+        link = await self.resolve_viking_direct_link(file_hash)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), transport=self.transport, follow_redirects=True) as client:
+            try:
+                async with client.stream("GET", link) as response:
+                    if response.status_code != 200:
+                        raise ProviderFailure("viking_read_failed", 502, "ViKiNG no entregó el archivo.")
+                    body = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        body.extend(chunk)
+                        if len(body) > limit:
+                            raise ProviderFailure("viking_read_too_large", 502, "El archivo de ViKiNG es más grande de lo esperado.")
+            except httpx.HTTPError as exc:
+                raise ProviderFailure("viking_read_failed", 502, "No se pudo leer el archivo de ViKiNG.") from exc
+        return bytes(body)
 
     async def _torbox_submit_and_wait(
         self,
@@ -692,6 +787,7 @@ class TorBoxVikingProvider:
         started = time.monotonic()
         deadline = started + self.max_wait_seconds
         last_progress, last_move = -1.0, started
+        slow_since: float | None = None
         completed_item: dict[str, Any] = {}
         while True:
             # The shared board answers for every waiting job (one TorBox request per interval in total).
@@ -720,6 +816,17 @@ class TorBoxVikingProvider:
             progress = _progress_fraction(completed_item)
             if progress > last_progress or state == "queued":  # waiting in TorBox's own queue is not a stall
                 last_progress, last_move = max(progress, last_progress), now
+            estimate = _torbox_estimate_seconds(completed_item)
+            # An idle source (no speed at all) is left to the stall rule below, which names it more precisely.
+            if (state == "queued" or now - started < SLOW_GRACE_SECONDS or estimate <= self.max_estimate_seconds
+                    or estimate == float("inf")):
+                slow_since = None
+            elif slow_since is None:
+                slow_since = now
+            elif now - slow_since >= SLOW_CONFIRM_SECONDS:
+                raise ProviderFailure("torbox_too_slow", 502,
+                                      f"Casi sin semillas: Torbox calcula {_human_duration(estimate)} para bajar esta fuente "
+                                      f"({_safe_int(completed_item.get('seeds'))} fuentes). Probá otra fuente.")
             if now - last_move >= self.stall_seconds:
                 if _safe_int(completed_item.get("seeds")) == 0:
                     raise ProviderFailure("torbox_stalled", 502, "Nadie está compartiendo este torrent y TorBox no avanza. Probá con otra fuente.")

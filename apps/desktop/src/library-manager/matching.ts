@@ -25,3 +25,20 @@ export function suggest(folderName: string, catalog: CatalogGame[], limit = 5): 
   }
   return found.sort((a, b) => b.score - a.score || a.name.length - b.name.length).slice(0, limit);
 }
+
+/**
+ * The same game found twice (same AppID, or two folders matched to the same catalog game): only the first one in the
+ * list can be imported. Returns, for each later one, the path of the first. The scanner already marks AppID repeats
+ * (`duplicate_of`); a choice made in the list can create new ones.
+ */
+export function duplicateRows(rows: Array<{ id: string; path: string; choice: number | null; duplicateOf?: string }>): Map<string, string> {
+  const first = new Map<number, string>();
+  const repeated = new Map<string, string>();
+  for (const row of rows) {
+    if (row.duplicateOf) { repeated.set(row.id, row.duplicateOf); continue; }
+    if (row.choice == null) continue;
+    const owner = first.get(row.choice);
+    if (owner) repeated.set(row.id, owner); else first.set(row.choice, row.path);
+  }
+  return repeated;
+}

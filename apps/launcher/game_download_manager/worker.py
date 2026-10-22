@@ -31,11 +31,12 @@ import requests
 
 import logging
 from flow_diagnostics import FlowDiagnostics, FlowLogger
+from launcher_data import data_dir
 from logging.handlers import RotatingFileHandler
 
 LAUNCHER_DIR = Path(__file__).resolve().parent.parent
 
-log_dir = LAUNCHER_DIR / "logs"
+log_dir = data_dir(LAUNCHER_DIR) / "logs"
 log_dir.mkdir(parents=True, exist_ok=True)
 import app_log
 logger = app_log.configure("digital_downloader", "downloads.log", log_dir)
@@ -67,7 +68,7 @@ _STARTED_AT = time.time()
 
 
 def watch_controls():
-    control_file = LAUNCHER_DIR / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
+    control_file = data_dir(LAUNCHER_DIR) / ".cache" / "digital_downloads" / f"{g_app_id}.control.json"
     last_request = None
     last_heartbeat = time.monotonic()
     while not g_cancelled.wait(0.1):
@@ -107,6 +108,7 @@ g_torrent_session = None
 g_temp_files: List[str] = []
 g_cancel_hooks: List[Any] = []
 g_app_id: str = ""
+g_route: str = ""
 g_diagnostics = None
 
 def emit_json(payload: dict):
@@ -140,7 +142,7 @@ def _write_status(payload: dict):
     try:
         app_id = payload.get("appId") or g_app_id
         if app_id:
-            status_dir = LAUNCHER_DIR / ".cache" / "digital_downloads"
+            status_dir = data_dir(LAUNCHER_DIR) / ".cache" / "digital_downloads"
             status_dir.mkdir(parents=True, exist_ok=True)
             status_file = status_dir / f"{app_id}.json"
             temp_file = status_dir / f"{app_id}.json.tmp"
@@ -199,19 +201,22 @@ def emit_progress(
         "totalBytes": int(total_bytes),
         "speedBps": int(speed_bps),
         "etaSeconds": int(eta_seconds),
-        "statusText": clean_text
+        "statusText": clean_text,
+        "route": g_route,
     })
 
-def emit_error(app_id: str, error_message: str):
+def emit_error(app_id: str, error_message: str, error_code: str = "", error_detail=None):
+    """`error_code` names failures the app explains in its own words (e.g. "not_a_game", with the content kinds found)."""
     emit_json({
         "type": "error",
         "appId": str(app_id),
         "phase": "error",
         "error": error_message,
-        "statusText": f"Error: {error_message}"
+        "statusText": f"Error: {error_message}",
+        **({"errorCode": error_code, "errorDetail": error_detail or []} if error_code else {}),
     })
 
-def cleanup_on_cancel(signum=None, frame=None, error_message=None):
+def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code="", error_detail=None):
     """Graceful cleanup handler for SIGINT/SIGTERM."""
     global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
@@ -246,7 +251,7 @@ def cleanup_on_cancel(signum=None, frame=None, error_message=None):
                 pass
 
     if error_message:
-        emit_error(g_app_id, error_message)
+        emit_error(g_app_id, error_message, error_code, error_detail)
     else:
         # Aborting a download removes the whole game folder (it used to leave an empty one behind).
         for hook in list(g_cancel_hooks):
@@ -268,7 +273,6 @@ from game_download_manager.extractor import ARCHIVE_EXTENSIONS, find_portable_7z
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_http_file_response, validate_downloaded_file
 from game_download_manager.http_transport import HttpDownloadTransport
 from game_download_manager.torrent_transport import TorrentDownloadTransport
-from game_download_manager.debrid import TorboxClient
 from game_download_manager.context import DownloadContext
 
 
@@ -282,6 +286,11 @@ def _set_torrent(value):
     g_torrent_session = value
 
 
+def _set_route(route):
+    global g_route
+    g_route = str(route or "")
+
+
 def _context():
     return DownloadContext(
         launcher_dir=LAUNCHER_DIR, app_id=g_app_id, cancelled=g_cancelled,
@@ -291,7 +300,7 @@ def _context():
         archive_enclosing_folder=archive_enclosing_folder,
         get_process=lambda: g_active_subprocess, set_process=_set_process,
         get_torrent=lambda: g_torrent_session, set_torrent=_set_torrent,
-        cancel_hooks=g_cancel_hooks,
+        cancel_hooks=g_cancel_hooks, set_route=_set_route,
     )
 
 
@@ -323,10 +332,11 @@ def main():
     parser.add_argument("-name", "--name", required=True, help="Game/Application Display Name")
     parser.add_argument("--source-delivery", choices=("download", "browser"), default="download")
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Explicit HTTP/HTTPS link or magnet supplied manually or by a plugin")
+    parser.add_argument("--source-title", default="", help="The download as its source names it (shown with the install)")
+    parser.add_argument("--source-provider", default="", help="Where the source came from (feed or site name)")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
-    parser.add_argument("--torbox-key", default=os.getenv("TORBOX_API_KEY", ""), help="TorBox API Key")
     parser.add_argument("--password", "-P", default=None, help="Custom archive password")
     parser.add_argument("--connections", "-n", type=int, default=4, help="Parallel download connections")
     parser.add_argument("--delete-archive", action="store_true", default=True, help="Delete archive files after extraction")

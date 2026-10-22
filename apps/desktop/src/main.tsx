@@ -1,5 +1,6 @@
 import ActivityConsole from "./ActivityConsole";
-import ResourceMeter from "./ResourceMeter";
+import Toaster from "./Toaster";
+import { startDownloadNotifications } from "./downloadNotifications";
 import RenderProbe from "./RenderProbe";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -10,17 +11,23 @@ import NativeAccessBoundary from "./NativeAccessBoundary";
 import CatalogTabs from "./CatalogTabs";
 import LibraryInputController, { captureLibraryUiState } from "./LibraryInputController";
 import RuntimeGate from "./RuntimeGate";
+import UpdateGate from "./UpdateGate";
+import CentralDialogView from "./centralDialog/CentralDialogView";
+import { useAnnouncements } from "./centralDialog/useAnnouncements";
+import { runStartupPreparation } from "./centralDialog/catalogTask";
+import { shouldSyncOnOpen } from "./catalogUpdates";
+import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
 import LanguageSwitch from "./LanguageSwitch";
-import { Globe2, RefreshCw } from "lucide-react";
+import { Globe2, Megaphone, RefreshCw } from "lucide-react";
 import PixelAppearance from "./PixelAppearance";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
-import { narrate, startNarrationSession } from "./narrationLog";
+import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
@@ -45,6 +52,7 @@ import "./tabs.css";
 import "./pixel-appearance.css";
 import "./utility-controls.css";
 import "./library-manager/library-manager.css";
+import "./ga-design.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.
@@ -78,6 +86,11 @@ function CatalogShell() {
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
   const [refreshing, setRefreshing] = React.useState(false);
+  // The catalog database is prepared (and brought up to date when due) before the library opens; the central
+  // dialog shows the progress when it takes a while.
+  const [prepared, setPrepared] = React.useState(false);
+  React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
+  const showNews = useAnnouncements(prepared);
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
@@ -99,11 +112,13 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button></div></div> : null}
-    <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe>
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button><button type="button" className="ga-dock-btn" onClick={showNews} aria-label={t("newsButtonTitle")} title={t("newsButtonTitle")}><Megaphone size={20} aria-hidden="true" /><span>{t("newsButton")}</span></button></div></div> : null}
+    {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe> : null}
   </>;
 }
 
+startClientErrorReporting();
+startDownloadNotifications();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");
@@ -113,9 +128,11 @@ if (libraryDemo()) {
   ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><ResourceMeter /><NativeAccessBoundary />
-    <AppCrashBoundary><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></AppCrashBoundary>
+    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><CentralDialogView /><NativeAccessBoundary />
+    <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );
 
 void startLocalAutomation();
+// The native watchdog installs a pending update by itself if the interface never gets this far.
+reportFrontendAlive();

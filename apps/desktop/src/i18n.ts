@@ -15,11 +15,27 @@ export type TranslationKey = keyof typeof es;
 const catalogs: Record<AppLocale, Record<TranslationKey, string>> = { es, en };
 const listeners = new Set<() => void>();
 
+/** The system language: on Windows the WebView reports the Windows display language. */
+export function localeFromSystem(languages: readonly string[]): AppLocale {
+  for (const language of languages) {
+    const code = language.toLowerCase();
+    if (code.startsWith("es")) return "es";
+    if (code.startsWith("en")) return "en";
+  }
+  return FALLBACK_LOCALE;
+}
+
 function detectLocale(): AppLocale {
   if (typeof window === "undefined") return FALLBACK_LOCALE;
-  const stored = window.localStorage?.getItem?.(STORAGE_KEY);
-  if (stored === "es" || stored === "en") return stored;
-  return window.navigator?.language?.toLowerCase().startsWith("en") ? "en" : FALLBACK_LOCALE;
+  try {
+    const stored = window.localStorage?.getItem?.(STORAGE_KEY);
+    if (stored === "es" || stored === "en") return stored;
+  } catch { /* storage blocked: detect every time */ }
+  const navigator = window.navigator;
+  const detected = localeFromSystem(navigator?.languages?.length ? navigator.languages : [navigator?.language ?? ""]);
+  // First run: remember what Windows said, so the choice stays put until the user changes it.
+  try { window.localStorage?.setItem?.(STORAGE_KEY, detected); } catch { /* not persisted: detected again next time */ }
+  return detected;
 }
 
 let currentLocale: AppLocale = detectLocale();

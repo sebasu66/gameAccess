@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlmodel import Session, SQLModel, select
 from .database import engine, database_project_ref, verify_shared_database
 from .local_database import LOCAL_TABLE_NAMES, create_local_tables, local_engine
@@ -28,6 +28,7 @@ from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, ga
 from .viking_cache_routes import router as viking_cache_router
 from .viking_chunk_routes import router as viking_chunk_router
 from .admin_dashboard_routes import router as admin_dashboard_router
+from . import resource_governor
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
 install_admin_auth(app)
@@ -50,6 +51,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Total-Count", "X-Page", "X-Page-Size", "X-Total-Pages"],
 )
+# Outermost: counts every response as it leaves the server (after compression) for the month's traffic budget.
+app.add_middleware(resource_governor.TrafficCounter)
 
 
 def seed_defaults(session: Session) -> None:
@@ -72,6 +75,7 @@ def startup() -> None:
     create_local_tables()
     ensure_access_key_schema(engine)
     ensure_catalog_schema(engine)
+    resource_governor.start(engine)
     with Session(engine) as session:
         seed_defaults(session)
     seed_known_games(engine)
@@ -85,6 +89,8 @@ def startup() -> None:
     _start_steam_review_importer()
     from .discovery_service import start_maintenance
     start_maintenance()
+    from .keep_awake import start as start_keep_awake
+    start_keep_awake()
 
 
 @app.on_event("shutdown")
@@ -93,6 +99,9 @@ def stop_discovery_worker():
     stop_maintenance()
     from .telemetry import stop_sampler
     stop_sampler()
+    from .keep_awake import stop as stop_keep_awake
+    stop_keep_awake()
+    resource_governor.stop()
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -101,6 +110,12 @@ def admin_home(request: Request):
     _admin_browser_access(request)
     page = Path(__file__).resolve().parents[1] / "admin" / "index.html"
     return HTMLResponse(page.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/ping", status_code=204)
+def ping() -> Response:
+    """The smallest answer this server gives: keeps a free Render service awake (keep_awake.py)."""
+    return Response(status_code=204)
 
 
 @app.get("/health")

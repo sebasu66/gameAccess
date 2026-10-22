@@ -37,12 +37,14 @@ SHA-256, SQLite schema, revision and count before atomic replacement. Update
 failures preserve the previous catalog. The previous library and downloads are
 stored separately.
 
-The central API maintains the discovery package on a background thread, starting
-15 seconds after server startup and repeating every 24 hours. It never blocks
-health, login or catalog requests. Deployment with multiple API workers should
-disable GAMEACCESS_DISCOVERY_SYNC on web workers and run one scheduled maintenance
-worker. GAMEACCESS_DISCOVERY_DIR selects the writable package directory and
-GAMEACCESS_DISCOVERY_INTERVAL_SECONDS selects the interval (minimum one hour).
+The package is built only by the daily GitHub Actions job (`.github/workflows/discovery-catalog.yml`),
+which commits it to `deploy/catalog-cache` on `dev`. The central API never builds it (that loaded the whole
+catalog into memory and took the 512 MB Render server down at every start): a background thread downloads the
+published package when its revision changes (streamed to disk, SHA-256 checked) and keeps the last three, so
+clients a day or two behind get a delta of additions and changes, computed on disk. The thread checks every
+6 hours; the time of the last check is kept on disk, so a restart does not check again. It never blocks
+health, login or catalog requests. GAMEACCESS_DISCOVERY_SYNC=0 disables it, GAMEACCESS_DISCOVERY_DIR selects
+the writable package directory and GAMEACCESS_DISCOVERY_INTERVAL_SECONDS the interval (minimum one hour).
 
 Server routes:
 - GET /library/catalog/manifest

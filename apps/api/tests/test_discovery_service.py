@@ -30,10 +30,58 @@ def test_failed_maintenance_preserves_last_package(tmp_path, monkeypatch):
     write_snapshot([(7,10,json.dumps({"id":7,"app_id":10,"name":"Fixture"}))], {}, tmp_path, "fixture")
     monkeypatch.setattr(service, "ROOT", tmp_path)
     previous = service.manifest()["revision"]
-    monkeypatch.setattr(service, "refresh", lambda args: (_ for _ in ()).throw(RuntimeError("offline")))
+    monkeypatch.setattr(service, "sync_published", lambda: (_ for _ in ()).throw(RuntimeError("offline")))
     service.maintain_once()
     assert service.manifest()["revision"] == previous
     assert service._status["state"] == "failed"
+    assert service._last_sync() > 0  # a failed attempt also counts, so a restart does not retry at once
+
+
+def _published(tmp_path, rows):
+    """A package as the GitHub job publishes it, served by a fake raw.githubusercontent.com."""
+    source = tmp_path / "published"
+    source.mkdir(exist_ok=True)
+    write_snapshot(rows, {}, source, "fixture")
+    info = json.loads((source / "catalog-manifest.json").read_text())
+    package = (source / f"catalog-cache-{info['revision']}.sqlite.gz").read_bytes()
+    info["artifact_url"] = f"https://raw.githubusercontent.com/x/y/dev/catalog-cache-{info['revision']}.sqlite.gz"
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if request.url.path.endswith(".json"):
+            return httpx.Response(200, json=info)
+        return httpx.Response(200, content=package)
+
+    return info, httpx.MockTransport(handler), calls
+
+
+def test_the_server_only_downloads_a_new_published_revision(tmp_path, monkeypatch):
+    root = tmp_path / "server"
+    monkeypatch.setattr(service, "ROOT", root)
+    monkeypatch.setenv("GAMEACCESS_DISCOVERY_SEED_MANIFEST", "https://raw.githubusercontent.com/x/y/dev/catalog-manifest.json")
+    info, transport, calls = _published(tmp_path, [(7, 10, json.dumps({"id": 7, "app_id": 10, "name": "A"}))])
+    assert service.sync_published(transport) is True
+    assert service.manifest()["revision"] == info["revision"]
+    assert service.package_path(info["revision"]).parent == root
+    assert service.sync_published(transport) is False  # same revision: only the small manifest is asked for
+    assert len(calls) == 3
+    info2, transport2, _ = _published(tmp_path, [(7, 10, json.dumps({"id": 7, "app_id": 10, "name": "A"})),
+                                                 (8, 20, json.dumps({"id": 8, "app_id": 20, "name": "B"}))])
+    assert service.sync_published(transport2) is True
+    batch = json.loads(gzip.decompress(service.update_batch(info["revision"], info2["revision"])))
+    assert [g["app_id"] for g in batch["games"]] == [20]  # clients get only what is new
+
+
+def test_a_package_with_the_wrong_hash_is_rejected(tmp_path, monkeypatch):
+    root = tmp_path / "server"
+    monkeypatch.setattr(service, "ROOT", root)
+    info, _, _ = _published(tmp_path, [(7, 10, json.dumps({"id": 7, "app_id": 10, "name": "A"}))])
+    info["sha256"] = "0" * 64
+    transport = httpx.MockTransport(lambda r: httpx.Response(200, json=info) if r.url.path.endswith(".json") else httpx.Response(200, content=b"bad"))
+    with pytest.raises(ValueError):
+        service.sync_published(transport)
+    assert not list(root.glob("catalog-cache-*")) and not (root / "catalog-manifest.json").exists()
 
 
 def test_cooptimus_detail_fetch_uses_exact_id_and_cache(tmp_path):

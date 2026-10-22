@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame, GameDetails } from "./types";
+import { blockedDescriptorIds, getParentalPolicy, type ParentalPolicy } from "./parentalControl";
 
 export interface CatalogCacheSyncResult {
   updated: boolean;
@@ -12,6 +13,12 @@ const native = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in w
 export async function syncCatalogCache(manifestUrl: string): Promise<CatalogCacheSyncResult | null> {
   if (!native() || !manifestUrl) return null;
   return invoke<CatalogCacheSyncResult>("catalog_cache_sync", { manifestUrl });
+}
+
+/** Installs (or updates from) the catalog database that ships with the app; reports gameaccess:catalog-progress. */
+export async function prepareCatalogCache(): Promise<{ installed: boolean; revision: string; catalog_count: number } | null> {
+  if (!native()) return null;
+  return invoke("catalog_prepare");
 }
 
 export async function readCatalogCache(language?: string): Promise<CatalogGame[]> {
@@ -98,9 +105,27 @@ export interface CatalogFacetsResult {
   sources?: string[];
 }
 
+/**
+ * Every catalog search and shelf goes through here, so the parental policy is applied once for all of them
+ * (it is on by default). A lookup by id (the player's library, a game they opened) is left alone.
+ */
+export function withParentalPolicy(params: CatalogQueryParams, policy: ParentalPolicy = getParentalPolicy()): CatalogQueryParams {
+  if (!policy.enabled || policy.level === "off" || params.app_ids?.length || params.game_ids?.length) return params;
+  const blocked = blockedDescriptorIds(policy);
+  const exclude = [...new Set([...(params.exclude_content_descriptor_ids ?? []), ...(policy.hideViolence ? [2] : [])])];
+  const asked = params.content_descriptor_ids?.filter(id => !blocked.includes(id));
+  return {
+    ...params,
+    hide_adult: true,
+    adult_includes_nudity: policy.level === "strict" || params.adult_includes_nudity,
+    content_descriptor_ids: asked?.length ? asked : undefined,
+    exclude_content_descriptor_ids: exclude.length ? exclude : undefined,
+  };
+}
+
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
   if (!native()) return { items: [], total: 0 };
-  return invoke<CatalogQueryResult>("catalog_cache_query", { params });
+  return invoke<CatalogQueryResult>("catalog_cache_query", { params: withParentalPolicy(params) });
 }
 
 export async function getCatalogFacets(): Promise<CatalogFacetsResult> {

@@ -33,6 +33,15 @@ def empty_link_cache(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def nothing_on_viking(monkeypatch):
+    """The ViKiNG folder of every source is empty unless a test says otherwise."""
+    async def none(engine, fingerprint, **kw):
+        return None
+
+    monkeypatch.setattr(routes, "restore_from_viking", none)
+
+
+@pytest.fixture(autouse=True)
 def plus_user(monkeypatch):
     monkeypatch.setattr(routes, "_installation_for_plus", lambda request, session: "inst-1")
     started: list[str] = []
@@ -77,6 +86,35 @@ def test_a_ready_job_is_served_without_new_work(session, plus_user):
     session.add(job)
     session.commit()
     assert post(session)["status"] == "ready" and len(plus_user) == 1
+
+
+def _add_pieces(session, job_id, ready):
+    for index in range(4):
+        session.add(VikingChunkPiece(job_id=job_id, piece_index=index, file_index=0, start_byte=index * 10, size_bytes=10,
+                                     status="ready" if index in ready else "pending", viking_hash="h" if index in ready else None,
+                                     updated_at=svc._now()))
+    session.commit()
+
+
+def test_a_resumed_download_tells_the_server_which_pieces_the_player_already_has(session, monkeypatch):
+    skips = []
+    monkeypatch.setattr(routes, "start_job", lambda engine, job_id, **kw: skips.append(set(kw["skip"])))
+    request = routes.ChunkJobRequest(source_url=MAGNET, item_name="Portal 2", have_pieces=[0, 1])
+    asyncio.run(routes.start_chunk_download(request, None, Response(), session, session))
+    assert skips == [{0, 1}]
+
+
+def test_a_partial_job_runs_again_only_for_a_player_that_lacks_a_skipped_piece(session, plus_user):
+    first = post(session)
+    job = svc.get_job(session, first["job_id"])
+    job.status = "partial"  # an earlier player already had pieces 0 and 1, so only 2 and 3 went to ViKiNG
+    session.add(job)
+    session.commit()
+    _add_pieces(session, job.job_id, ready={2, 3})
+    has_them = routes.ChunkJobRequest(source_url=MAGNET, item_name="Portal 2", have_pieces=[0, 1])
+    assert asyncio.run(routes.start_chunk_download(has_them, None, Response(), session, session))["status"] == "partial"
+    assert len(plus_user) == 1
+    assert post(session)["status"] == "preparing" and len(plus_user) == 2  # a new player needs 0 and 1
 
 
 def test_bad_links_are_rejected(session):
@@ -143,3 +181,45 @@ def test_start_and_piece_requests_are_recorded_per_client(session, monkeypatch):
     rows = session.exec(select(ChunkTransfer).order_by(ChunkTransfer.id)).all()
     assert [(r.installation_id, r.kind, r.size_bytes) for r in rows] == [("inst-1", "start", 0), ("inst-1", "piece", 4096)]
     assert rows[1].item_name == "Portal 2"
+
+
+def peek(session, url=MAGNET):
+    return asyncio.run(routes.peek_chunk_source(routes.ChunkPeekRequest(source_url=url), None, Response(), session, session))
+
+
+def test_peek_says_whether_the_server_can_serve_the_source_at_once(session, plus_user, monkeypatch):
+    cached: list[str] = []
+
+    class Provider:
+        async def torbox_has_cached(self, info_hash):
+            cached.append(info_hash)
+            return info_hash == "a" * 40
+
+    monkeypatch.setattr(routes, "create_provider", lambda: Provider())
+    assert peek(session) == {"ready": True, "where": "torbox"}
+    other = "magnet:?xt=urn:btih:" + "b" * 40
+    assert peek(session, other) == {"ready": False, "where": ""}
+    job = svc.get_job(session, post(session, other)["job_id"])
+    job.status = "ready"
+    session.add(job)
+    session.commit()
+    assert peek(session, other) == {"ready": True, "where": "viking"}
+    assert len(plus_user) == 1  # peeking never starts work
+
+
+def test_a_source_the_server_forgot_is_served_from_its_viking_map_without_new_work(session, plus_user, monkeypatch):
+    asked: list[tuple[str, str]] = []
+
+    async def restored(engine, fingerprint, source_url="", **kw):
+        asked.append((fingerprint, source_url))
+        job = svc.create_job(session, fingerprint=fingerprint, kind="torrent", item_name="Portal 2")
+        job.status = "ready"
+        session.add(job)
+        session.commit()
+        return job.job_id
+
+    monkeypatch.setattr(routes, "restore_from_viking", restored)
+    manifest = post(session)
+    assert manifest["status"] == "ready" and plus_user == []  # nothing to import: ViKiNG already has it
+    assert asked[0][1] == MAGNET
+    assert peek(session) == {"ready": True, "where": "viking"} and len(asked) == 1  # known now: no new lookup

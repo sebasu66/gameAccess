@@ -21,6 +21,7 @@ module.exports = {
         success: "rgb(var(--lm-success) / <alpha-value>)",
         warning: "rgb(var(--lm-warning) / <alpha-value>)",
         info: "rgb(var(--lm-info) / <alpha-value>)",
+        frost: "rgb(var(--lm-frost) / <alpha-value>)",
         border: "rgb(var(--lm-foreground) / 0.14)",
       },
       fontFamily: { display: ['"Bebas Neue"', "sans-serif"], sans: ["Manrope", '"Segoe UI"', "sans-serif"] },

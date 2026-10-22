@@ -1,4 +1,5 @@
 import type { CatalogGame } from "./types";
+import { translate, type TranslationKey } from "./i18n";
 import { normalizeSearchText } from "./libraryText";
 import { genreConceptId, genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
 import { capabilityNames, gameMatchesLibraryFeature, hasLanCategory } from "./libraryCapabilities";
@@ -118,29 +119,28 @@ export const INITIAL_LIBRARY_FILTERS: LibrarySearchFilters = {
   spareUnprovenGames: true,
 };
 
-/** Default catalog filters: min rating 60 (>= 6) and max age 1 year (365 days). */
+/** Default catalog filters: min rating 60 (>= 6), any release date (one year back hid too much of the catalog). */
 export const INITIAL_CATALOG_FILTERS: LibrarySearchFilters = {
   ...INITIAL_LIBRARY_FILTERS,
-  maxAgeDays: 365,
 };
 
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
-  { key: "has_downloads", label: "Descargables (Fuentes disponibles)" },
-  { key: "single_player", label: "Un jugador" },
-  { key: "multiplayer", label: "Multijugador" },
-  { key: "online_multiplayer", label: "Multiplayer online" },
-  { key: "local_multiplayer", label: "Multiplayer local" },
-  { key: "coop", label: "Cooperativo" },
-  { key: "online_coop", label: "Co-op online" },
-  { key: "local_coop", label: "Co-op local" },
-  { key: "coop_lan", label: "Co-op LAN" },
-  { key: "multiplayer_lan", label: "Multiplayer LAN" },
+  lazyLabel({ key: "has_downloads" as LibraryFeatureKey }, "featDownloadable"),
+  lazyLabel({ key: "single_player" as LibraryFeatureKey }, "featSinglePlayer"),
+  lazyLabel({ key: "multiplayer" as LibraryFeatureKey }, "featMultiplayer"),
+  lazyLabel({ key: "online_multiplayer" as LibraryFeatureKey }, "featOnlineMultiplayer"),
+  lazyLabel({ key: "local_multiplayer" as LibraryFeatureKey }, "featLocalMultiplayer"),
+  lazyLabel({ key: "coop" as LibraryFeatureKey }, "featCoop"),
+  lazyLabel({ key: "online_coop" as LibraryFeatureKey }, "featOnlineCoop"),
+  lazyLabel({ key: "local_coop" as LibraryFeatureKey }, "featLocalCoop"),
+  lazyLabel({ key: "coop_lan" as LibraryFeatureKey }, "featCoopLan"),
+  lazyLabel({ key: "multiplayer_lan" as LibraryFeatureKey }, "featMultiplayerLan"),
   { key: "lan", label: "LAN" },
-  { key: "shared_split_screen", label: "Pantalla dividida / compartida" },
+  lazyLabel({ key: "shared_split_screen" as LibraryFeatureKey }, "featSplitScreen"),
   { key: "mmo", label: "MMO" },
-  { key: "pvp", label: "Competitivo / PvP" },
-  { key: "pve", label: "Contra el entorno / PvE" },
-  { key: "cross_platform", label: "Multiplataforma" },
+  lazyLabel({ key: "pvp" as LibraryFeatureKey }, "featPvp"),
+  lazyLabel({ key: "pve" as LibraryFeatureKey }, "featPve"),
+  lazyLabel({ key: "cross_platform" as LibraryFeatureKey }, "featCrossPlatform"),
 ];
 
 export interface LibrarySearchFacets {
@@ -191,13 +191,18 @@ export const SEXUAL_CONTENT_TAGS = ["Hentai", "Sexual Content", "Nudity"] as con
  *
  * Violence is not here: it is a parental policy, not a discovery criterion.
  */
+/** A label read from the catalog when used, so it follows the language the user picked. */
+export function lazyLabel<T extends object>(base: T, labelKey: TranslationKey): T & { label: string } {
+  return Object.defineProperty(base, "label", { get: () => translate(labelKey), enumerable: true }) as T & { label: string };
+}
+
 export const CONTENT_FILTER_GROUPS: {
   id: string;
   label: string;
   /** Valve descriptor ids that satisfy this group. */
   descriptorIds: number[];
 }[] = [
-  { id: "sexual", label: "Contenido sexual", descriptorIds: [1, 3, 4] },
+  lazyLabel({ id: "sexual", descriptorIds: [1, 3, 4] }, "contentSexual"),
 ];
 
 /**
@@ -479,15 +484,15 @@ export const MULTIPLAYER_BRANCHES: {
     options: [{ key: "pvp", label: "PvP" }],
   },
   {
-    id: "play", label: "Cómo se juega", hint: "Couch co-op, en red local o por internet",
+    id: "play", label: translate("branchPlay"), hint: "Couch co-op, en red local o por internet",
     options: [
-      { key: "shared_split_screen", label: "Pantalla compartida" },
+      lazyLabel({ key: "shared_split_screen" as LibraryFeatureKey }, "featSharedScreen"),
       { key: "lan", label: "LAN" },
       { key: "online_multiplayer", label: "Online" },
     ],
   },
   {
-    id: "scale", label: "Escala",
+    id: "scale", label: translate("branchScale"),
     options: [{ key: "mmo", label: "MMO" }],
   },
 ];
@@ -504,16 +509,16 @@ export const MULTIPLAYER_ONLY_KEYS: LibraryFeatureKey[] = ["multiplayer", ...MUL
 export const MULTIPLAYER_BRANCH_KEYS: LibraryFeatureKey[] = [...MULTIPLAYER_ONLY_KEYS];
 
 /** Panel labels for the keys the multiplayer tree offers. */
-const MULTIPLAYER_LABELS: Partial<Record<LibraryFeatureKey, string>> = Object.fromEntries(
-  MULTIPLAYER_BRANCHES.flatMap(branch => branch.options.map(option => [option.key, option.label])),
-) as Partial<Record<LibraryFeatureKey, string>>;
+function multiplayerLabel(key: LibraryFeatureKey): string | undefined {
+  return MULTIPLAYER_BRANCHES.flatMap(branch => branch.options).find(option => option.key === key)?.label;
+}
 
 export function featureLabel(key: LibraryFeatureKey): string {
-  if (key === "local_multiplayer") return "Mismo PC";
+  if (key === "local_multiplayer") return translate("reasonSamePc");
   if (key === "online_multiplayer") return "Online";
-  if (key === "single_player") return "Solo un jugador";
-  if (key === "multiplayer") return "Admite multijugador";
-  return MULTIPLAYER_LABELS[key] ?? LIBRARY_FEATURE_OPTIONS.find(option => option.key === key)?.label ?? key;
+  if (key === "single_player") return translate("reasonSinglePlayerOnly");
+  if (key === "multiplayer") return translate("reasonSupportsMultiplayer");
+  return multiplayerLabel(key) ?? LIBRARY_FEATURE_OPTIONS.find(option => option.key === key)?.label ?? key;
 }
 
 /**

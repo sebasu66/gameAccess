@@ -28,7 +28,7 @@ export default function FancySlider({ min, max, step = 1, value, onChange, forma
     onChange(which === 0 ? [Math.min(next, high), high] : [low, Math.max(next, low)]);
   };
   const thumb = (which: 0 | 1, current: number) => (
-    <input key={which} type="range" min={min} max={max} step={step} value={current}
+    <input key={which} type="range" tabIndex={-1} min={min} max={max} step={step} value={current}
       aria-label={ariaLabels?.[which] ?? label} aria-valuetext={format(current)}
       // The thumb that sits on top has to be the one nearest the end it can still travel to.
       style={{ zIndex: which === 0 && low >= max - step ? 3 : 2 }}

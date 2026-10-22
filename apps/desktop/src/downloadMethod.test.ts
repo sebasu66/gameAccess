@@ -1,21 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { downloadMethodFor, downloadMethodLabel } from "./downloadMethod";
+import { downloadMethodLabel, initialDownloadMethod, methodFromRoute, planLabel } from "./downloadMethod";
 
 describe("download method pill", () => {
-  it("uses Viking when the server processed or cached the file", () => {
-    expect(downloadMethodFor("https://vikingfile.com/f/abc", "processed")).toBe("viking");
-    expect(downloadMethodFor("https://vikingfile.com/f/abc", "cache")).toBe("viking");
+  it("guesses from the source and the plan until the launcher reports", () => {
+    expect(initialDownloadMethod("magnet:?xt=urn:btih:abc", false)).toBe("torrent");
+    expect(initialDownloadMethod("magnet:?xt=urn:btih:abc", true)).toBe("measuring");
+    expect(initialDownloadMethod("https://host/file.torrent?x=1", false)).toBe("torrent");
+    expect(initialDownloadMethod("https://host/file.zip", false)).toBe("direct");
+    expect(initialDownloadMethod("https://host/file.zip", true)).toBe("accelerated");
   });
-  it("is a local torrent for magnets and .torrent files the server did not process", () => {
-    expect(downloadMethodFor("magnet:?xt=urn:btih:abc", "direct")).toBe("torrent");
-    expect(downloadMethodFor("magnet:?xt=urn:btih:abc")).toBe("torrent");
-    expect(downloadMethodFor("https://host/file.torrent?x=1", null)).toBe("torrent");
+
+  it("follows the route the launcher reports", () => {
+    expect(methodFromRoute("torrent")).toBe("torrent");
+    expect(methodFromRoute("accelerated")).toBe("accelerated");
+    expect(methodFromRoute("")).toBeUndefined();
+    expect(methodFromRoute(undefined)).toBeUndefined();
   });
-  it("is a direct download for ordinary links", () => {
-    expect(downloadMethodFor("https://host/file.zip", "direct")).toBe("direct");
+
+  it("only says Viking when the server accelerates it", () => {
+    expect(downloadMethodLabel("torrent", "es").label).toBe("Torrent directo");
+    expect(downloadMethodLabel("accelerated", "es").label).toContain("Viking");
+    expect(downloadMethodLabel("torrent", "en").label).not.toContain("Viking");
   });
-  it("labels in both languages", () => {
-    expect(downloadMethodLabel("torrent", "es").label).toBe("Torrent local");
-    expect(downloadMethodLabel("viking", "en").label).toBe("Viking Files");
+
+  it("names the plan", () => {
+    expect(planLabel("plus", "es").label).toBe("PLUS");
+    expect(planLabel("base", "en").label).toBe("BASE");
   });
 });

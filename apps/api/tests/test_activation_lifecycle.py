@@ -221,3 +221,42 @@ def test_catalog_manifest_remains_public_without_activation():
     assert response.status_code == 200
     assert response.json()["catalog_count"] > 0
     assert "inventory_sha256" in response.json()
+
+
+def test_tester_key_is_plus_until_its_date_bound_to_one_windows_and_can_be_released(activation_db, monkeypatch, tmp_path):
+    from fastapi import HTTPException, Request
+    from app import access_admin_routes as admin_routes
+    monkeypatch.setenv("GAMEACCESS_ADMIN_TOKEN", "t" * 32)
+    monkeypatch.setenv("GAMEACCESS_COURTESY_KEYS_FILE", str(tmp_path / "absent.json"))
+    admin = Request({"type": "http", "headers": [(b"x-gameaccess-admin-token", b"t" * 32)]})
+    friend_pc, other_pc = str(uuid4()), str(uuid4())
+    until = datetime.now(timezone.utc) + timedelta(days=31)
+    with Session(activation_db) as session:
+        issued = core.create_access_keys(core.AccessKeyIssueRequest(expires_at=until, access_tier="plus", label="  Juan  "), admin, session)
+        key = issued["keys"][0]
+        listed = core.list_access_keys(admin, session)["keys"][0]
+        assert listed["label"] == "Juan" and listed["installation_id"] is None
+        redeemed = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key["key"], installation_id=friend_pc), session)
+        assert redeemed["access_tier"] == "plus" and utc(redeemed["expires_at"]) == until
+        with pytest.raises(HTTPException) as copied:     # the same key on another Windows
+            core.redeem_access_key(core.AccessKeyRedeemRequest(key=key["key"], installation_id=other_pc), session)
+        assert copied.value.status_code == 400 and "another installation" in copied.value.detail
+        admin_routes.release_access_key(key["id"], admin, session)   # the friend reinstalled Windows
+        assert valid_session(session, redeemed["session_token"], friend_pc) is None
+        again = core.redeem_access_key(core.AccessKeyRedeemRequest(key=key["key"], installation_id=other_pc), session)
+        assert utc(again["expires_at"]) == until            # releasing never extends the date
+        with pytest.raises(HTTPException) as stranger:
+            admin_routes.release_access_key(key["id"], Request({"type": "http", "headers": []}), session)
+        assert stranger.value.status_code == 403
+
+
+def test_label_column_is_added_to_existing_databases():
+    from sqlalchemy import inspect as sa_inspect, text
+    from app.access_keys import ensure_access_key_schema
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE accesskey (id INTEGER PRIMARY KEY, duration_months INTEGER, key_expires_at TIMESTAMP, access_tier VARCHAR)"))
+    ensure_access_key_schema(engine)
+    ensure_access_key_schema(engine)
+    assert "label" in {column["name"] for column in sa_inspect(engine).get_columns("accesskey")}
+    engine.dispose()

@@ -179,15 +179,55 @@ export async function resolveBackendConnectionFromSettings(
   return { kind: "offline", url: "" };
 }
 
-async function runtimeSettings(fetcher: Fetcher): Promise<GameAccessFrontendSettings> {
-  const buildOverride = import.meta.env.VITE_GAMEACCESS_API;
-  return buildOverride !== undefined
-    ? { api_url: buildOverride }
-    : (await loadSettings(fetcher) ?? {});
+function isLoopbackApi(url: string): boolean {
+  try { return LOOPBACK_HOSTS.has(new URL(url).hostname.toLocaleLowerCase()); } catch { return false; }
+}
+
+/**
+ * Settings that name the hosted backend. A build pinned to the local API (build-and-run.ps1 -Server)
+ * only says which server to try first: it must not hide the packaged settings, or the app goes
+ * offline instead of using the hosted backend whenever the local server is down.
+ */
+export async function runtimeSettingsFor(buildOverride: string | undefined, fetcher: Fetcher): Promise<GameAccessFrontendSettings> {
+  if (buildOverride !== undefined && !isLoopbackApi(buildOverride)) return { api_url: buildOverride };
+  const settings = await loadSettings(fetcher);
+  if (!settings) logBackend(`Could not read ${SETTINGS_PATH}; without it only the local server ${DEFAULT_LOCAL_API} is known.`, "WARN");
+  return settings ?? {};
+}
+
+function runtimeSettings(fetcher: Fetcher): Promise<GameAccessFrontendSettings> {
+  return runtimeSettingsFor(import.meta.env.VITE_GAMEACCESS_API, fetcher);
+}
+
+function logBackend(message: string, level: "INFO" | "WARN"): void {
+  // Imported lazily: the narration log itself reads the backend URL from this module.
+  void import("./narrationLog").then(({ narrate }) => narrate(message, { area: "BACKEND", level })).catch(() => undefined);
+}
+
+let lastReportedChoice = "";
+/** One activity-log line each time the chosen backend changes, saying why. */
+function reportChoice(connection: BackendConnection, configured: string): BackendConnection {
+  const reason = connection.kind === "local" ? `local server ${DEFAULT_LOCAL_API} answered`
+    : connection.kind === "remote" ? `local server ${DEFAULT_LOCAL_API} did not answer; using hosted backend ${connection.url}`
+    : !configured ? `local server ${DEFAULT_LOCAL_API} did not answer and no hosted backend is configured (gameaccess.settings.json or its resolver gave no URL)`
+    : configured === DEFAULT_LOCAL_API ? `local server ${DEFAULT_LOCAL_API} did not answer and the only configured backend is that same local server`
+    : `local server ${DEFAULT_LOCAL_API} did not answer and hosted backend ${configured} did not answer /health either`;
+  const key = `${connection.kind}|${reason}`;
+  if (key !== lastReportedChoice) {
+    lastReportedChoice = key;
+    logBackend(`Backend connection: ${connection.kind} (${reason}).`, connection.kind === "offline" ? "WARN" : "INFO");
+  }
+  return connection;
 }
 
 async function resolveRuntimeBackend(fetcher: Fetcher): Promise<BackendConnection> {
-  return resolveBackendConnectionFromSettings(await runtimeSettings(fetcher), fetcher);
+  const settings = await runtimeSettings(fetcher);
+  if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher, LOCAL_HEALTH_TIMEOUT_MS)) return reportChoice({ kind: "local", url: DEFAULT_LOCAL_API }, DEFAULT_LOCAL_API);
+  const configured = await resolveApiFromSettings(settings, fetcher);
+  if (configured && configured !== DEFAULT_LOCAL_API && await backendIsHealthy(configured, fetcher, REMOTE_HEALTH_TIMEOUT_MS)) {
+    return reportChoice({ kind: "remote", url: configured }, configured);
+  }
+  return reportChoice({ kind: "offline", url: "" }, configured);
 }
 
 function wait(ms: number): Promise<void> {
@@ -198,22 +238,22 @@ async function resolveRuntimeBackendWithColdStart(fetcher: Fetcher): Promise<Bac
   const settings = await runtimeSettings(fetcher);
 
   if (await backendIsHealthy(DEFAULT_LOCAL_API, fetcher, LOCAL_HEALTH_TIMEOUT_MS)) {
-    return { kind: "local", url: DEFAULT_LOCAL_API };
+    return reportChoice({ kind: "local", url: DEFAULT_LOCAL_API }, DEFAULT_LOCAL_API);
   }
 
   const configured = await resolveApiFromSettings(settings, fetcher);
-  if (!configured || configured === DEFAULT_LOCAL_API) return { kind: "offline", url: "" };
+  if (!configured || configured === DEFAULT_LOCAL_API) return reportChoice({ kind: "offline", url: "" }, configured);
 
   const deadline = Date.now() + COLD_START_WAIT_MS;
   do {
     if (await backendIsHealthy(configured, fetcher, REMOTE_HEALTH_TIMEOUT_MS)) {
-      return { kind: "remote", url: configured };
+      return reportChoice({ kind: "remote", url: configured }, configured);
     }
     if (Date.now() >= deadline) break;
     await wait(Math.min(COLD_START_RETRY_MS, Math.max(0, deadline - Date.now())));
   } while (Date.now() < deadline);
 
-  return { kind: "offline", url: "" };
+  return reportChoice({ kind: "offline", url: "" }, configured);
 }
 
 let cachedConnection: BackendConnection | null = null;

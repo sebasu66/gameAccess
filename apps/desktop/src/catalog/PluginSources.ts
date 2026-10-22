@@ -1,6 +1,8 @@
 import type { ExecutionProfile } from "./ExecutionProfiles";
 import { getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { FlowDiagnostics } from "../FlowDiagnostics";
+import { rankSources } from "./sourceRanking";
+import { getAppLocale, translate, type TranslationKey } from "../i18n";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
@@ -107,6 +109,20 @@ async function plugins(): Promise<PluginManifest[]> {
     return [];
   }
 }
+/**
+ * Whether a download-sources plugin is installed and has synced its index at least once. The plugin is optional
+ * and installed by hand from its page; until then the game detail offers Play or "View on Steam" instead of a
+ * download button (the synced sources stay usable while the plugin is closed).
+ */
+export async function sourcePluginReady(): Promise<boolean> {
+  try {
+    const registered = await invoke<PluginManifest[]>("get_registered_plugins");
+    return registered.some(plugin => plugin.type === "source_provider" && getSavedPluginRevision(plugin.id) !== "");
+  } catch {
+    return false;
+  }
+}
+
 function endpoint(plugin: PluginManifest, path: string): string {
   return plugin.endpoint.replace(/\/+$/, "") + path;
 }
@@ -154,7 +170,7 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
     const diagnostics = new FlowDiagnostics(`source-discovery app_id=${keyOf(game)}`, "DOWNLOAD_SOURCES");
     diagnostics.debug(`provider=${plugin.id} generation=${epoch} request started`);
     try {
-      const params = new URLSearchParams({ app_id: String(keyOf(game)), name: game.name });
+      const params = new URLSearchParams({ app_id: String(keyOf(game)), name: game.name, lang: getAppLocale() });
       const response = await fetch(endpoint(plugin, "/api/sources?" + params), { signal: AbortSignal.timeout(14000) });
       diagnostics.debug(`provider=${plugin.id} HTTP=${response.status}`);
       if (!response.ok) {
@@ -174,10 +190,10 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   }));
   if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
-  const sources = results.flat().filter(source => {
+  const sources = rankSources(results.flat().filter(source => {
     if (seen.has(source.url)) return false;
     seen.add(source.url); return true;
-  });
+  }));
   void narrate(`AppID ${keyOf(game)} · source discovery complete: ${sources.length} distinct option(s); download button ${sources.length ? "available" : "unavailable"}.`, { area: "DOWNLOAD_SOURCES" });
   if (sources.length > 0) {
     detailSources.set(keyOf(game), sources);
@@ -238,7 +254,10 @@ function normalizeIndexEntries(rawAdded: unknown, fallbackSourceName: string): S
   return entries;
 }
 
-async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
+/** What a source sync is doing, for the central dialog: (detail, done, total). */
+export type SourcesProgress = (detail: string, done?: number, total?: number) => void;
+
+async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress = () => undefined): Promise<void> {
   const statuses = getPluginStatuses();
   const status = statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint);
   if (status && !status.alive) return;
@@ -249,26 +268,28 @@ async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
     return;
   }
 
-  const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse | null> => {
+  const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse> => {
     const query = since ? `?since=${encodeURIComponent(since)}` : "";
     const response = await fetch(endpoint(plugin, `/api/source-index${query}`), {
-      signal: AbortSignal.timeout(15000),
+      // The first, full index can hold tens of thousands of entries; a delta is small.
+      signal: AbortSignal.timeout(since ? 15000 : 90000),
       cache: "no-store",
     });
     if (!response.ok) {
       void narrate(
         `Provider '${plugin.name}' · /api/source-index replied HTTP ${response.status}` +
-          (response.status === 404 ? " (the running plugin process predates this route; restart the plugin)." : "."),
+          (response.status === 404 ? " (this plugin version has no source index; it must be updated)." : "."),
         { area: "DOWNLOAD_SOURCES", level: "WARN" },
       );
-      return null;
+      // A plugin without the index (404) is an old version: the player has to update it, retrying will not help.
+      throw new Error(translate(response.status === 404 ? "pluginTooOld" : "pluginIndexFailed", { name: plugin.name }));
     }
     return (await response.json()) as PluginSourceIndexResponse;
   };
 
   try {
-    let payload = await fetchIndex(lastRev);
-    if (!payload) return;
+    report(translate("pluginAsking", { name: plugin.name }));
+    const payload = await fetchIndex(lastRev);
 
     let full = Boolean(payload.full);
     let added = normalizeIndexEntries(payload.added, plugin.name);
@@ -281,6 +302,7 @@ async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
       if (entry.source) knownSourceNames.add(entry.source);
     }
 
+    report(translate("pluginSaving", { name: plugin.name }), 0, added.length + removed.length);
     let applied = await applyCatalogSources({
       pluginId: plugin.id,
       revision,
@@ -288,27 +310,26 @@ async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
       added,
       removed,
     });
+    report(translate("pluginSaving", { name: plugin.name }), added.length + removed.length, added.length + removed.length);
 
     // If a delta was requested with a stored revision from a previous DB, but the local DB has 0 sources,
     // re-fetch full index once so the DB is populated.
     if (!full && lastRev && applied && applied.sources_total === 0) {
       const fullPayload = await fetchIndex("");
-      if (fullPayload) {
-        full = true;
-        added = normalizeIndexEntries(fullPayload.added, plugin.name);
-        removed = [];
-        revision = String(fullPayload.revision ?? revision);
-        for (const entry of added) {
-          if (entry.source) knownSourceNames.add(entry.source);
-        }
-        applied = await applyCatalogSources({
-          pluginId: plugin.id,
-          revision,
-          full: true,
-          added,
-          removed: [],
-        });
+      full = true;
+      added = normalizeIndexEntries(fullPayload.added, plugin.name);
+      removed = [];
+      revision = String(fullPayload.revision ?? revision);
+      for (const entry of added) {
+        if (entry.source) knownSourceNames.add(entry.source);
       }
+      applied = await applyCatalogSources({
+        pluginId: plugin.id,
+        revision,
+        full: true,
+        added,
+        removed: [],
+      });
     }
 
     setSavedPluginRevision(plugin.id, revision);
@@ -318,17 +339,23 @@ async function syncPluginIndex(plugin: PluginManifest): Promise<void> {
     }
   } catch (error) {
     void narrate(
-      `Provider '${plugin.name}' · source-index sync failed: ${error instanceof Error ? error.name : "unknown error"}.`,
+      `Provider '${plugin.name}' · source-index sync failed: ${error instanceof Error ? error.message : "unknown error"}.`,
       { area: "DOWNLOAD_SOURCES", level: "WARN" },
     );
+    // The player has to know: without the index the plugin's games show no downloads.
+    if (error instanceof Error && error.name !== "TypeError" && error.name !== "TimeoutError") throw error;
+    throw new Error(translate("pluginIndexFailed", { name: plugin.name }));
   }
 }
 
-export async function checkPluginSources(_games?: CatalogGame[]): Promise<Record<number, number>> {
+export async function checkPluginSources(_games?: CatalogGame[], report?: SourcesProgress): Promise<Record<number, number>> {
   if (pendingSync) return pendingSync;
   const run = (async () => {
     const manifests = await plugins();
-    await Promise.all(manifests.map(plugin => syncPluginIndex(plugin)));
+    // Each plugin syncs on its own; one that fails does not hold back the others, and the failure is reported.
+    const results = await Promise.allSettled(manifests.map(plugin => syncPluginIndex(plugin, report)));
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
     return {};
   })().finally(() => {
     pendingSync = null;
@@ -358,11 +385,11 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
   const diagnostics = new FlowDiagnostics("source-resolution", "DOWNLOAD_SOURCES");
   diagnostics.debug(`provider=${source.pluginName} source=${source.sourceName} resolver started`);
   try {
-  const response = await fetch(source.resolverUrl, { signal: AbortSignal.timeout(60000) });
+  const response = await fetch(withLanguage(source.resolverUrl), { signal: AbortSignal.timeout(60000) });
   diagnostics.debug(`Resolver HTTP=${response.status}`);
   const result = await response.json() as { url?: unknown; error?: unknown; mode?: unknown; executionProfile?: ExecutionProfile };
   if (!response.ok || !validUrl(result.url)) {
-    throw new Error(typeof result.error === "string" ? result.error : "El plugin no pudo preparar el enlace de descarga.");
+    throw new Error(pluginErrorText(result));
   }
   void narrate("Selected source prepared by plugin; delivery=" + String(result.mode ?? "direct") + ".", { area: "DOWNLOAD_SOURCES" });
   diagnostics.succeed();
@@ -371,6 +398,23 @@ export async function preparePluginSource(source: PluginSource): Promise<PluginS
     diagnostics.fail(error);
     throw error;
   } finally { diagnostics.discard(); }
+}
+
+/** The plugin answers in the language sent with the request; the app keeps its own catalog for known codes. */
+function withLanguage(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("lang", getAppLocale());
+  return parsed.toString();
+}
+
+function pluginErrorText(body: { code?: unknown; error?: unknown }): string {
+  const known: Record<string, TranslationKey> = {
+    sourceGone: "pluginErrorSourceGone",
+    sourceUnavailable: "pluginErrorSourceUnavailable",
+    browserOnly: "pluginErrorBrowserOnly",
+  };
+  if (typeof body.code === "string" && known[body.code]) return translate(known[body.code]);
+  return typeof body.error === "string" ? body.error : translate("pluginPrepareFailed");
 }
 
 export function invalidatePluginSources(): void {

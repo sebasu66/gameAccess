@@ -61,6 +61,10 @@ export interface DownloadProgressSnapshot {
 
   /** Error message if phase === "error" */
   error?: string | null;
+
+  /** A failure the app explains in its own words: "not_a_game" (errorDetail = what the download held instead). */
+  errorCode?: string;
+  errorDetail?: string[];
 }
 
 /**
@@ -71,8 +75,6 @@ export interface DownloadStartOptions {
   installPath?: string;
   /** Force full re-download ignoring existing cached or staged files */
   forceFresh?: boolean;
-  /** Optional TorBox API key for accelerated debrid downloads */
-  torboxKey?: string;
   /** Whether to retain archive files after post-download extraction */
   keepArchive?: boolean;
 }

@@ -1,15 +1,18 @@
 """Game-specific launch choices and reversible language repairs."""
 from __future__ import annotations
 import json
+import os
 import re
 import shutil
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 from .archives import ARCHIVE_SUFFIXES, checked_archive
 from .launch import checked_executable, parse_arguments
 
 LANGUAGES = {"spanish": ("es", "ES"), "english": ("en", "US"),
              "portuguese": ("pt", "BR"), "french": ("fr", "FR"), "german": ("de", "DE")}
+APP_LANGUAGE_ENV = "GAMEACCESS_APP_LANGUAGE"
 LANGUAGE_KEY = re.compile(r"(?im)^([ \t]*(?:language|locale|gamelanguage|languageid)[ \t]*=[ \t]*)([\"']?)([a-zA-Z][a-zA-Z0-9_-]*)([\"']?)")
 
 class DigitalGameOptions:
@@ -17,12 +20,13 @@ class DigitalGameOptions:
         self.storage = storage
 
     def path(self, app_id):
-        return self.storage.launcher / ".cache" / "digital_launch" / f"{int(app_id)}.json"
+        return data_dir(self.storage.launcher) / ".cache" / "digital_launch" / f"{int(app_id)}.json"
 
     def load(self, app_id):
         path = self.path(app_id)
         saved = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-        return {"executable": "", "arguments": "", "administrator": False, "language": "spanish",
+        # "" = follow the application's language (see effective_language); a game can still pin its own.
+        return {"executable": "", "arguments": "", "administrator": False, "language": "",
                 "backupEnabled": True, "backupArchive": "", **saved}
 
     def inspect(self, app_id, name):
@@ -50,7 +54,7 @@ class DigitalGameOptions:
     def save(self, app_id, name, values):
         options = self.load(app_id)
         options.update({key: values[key] for key in options if key in values})
-        if (not isinstance(options["administrator"], bool) or options["language"] not in LANGUAGES
+        if (not isinstance(options["administrator"], bool) or (options["language"] and options["language"] not in LANGUAGES)
                 or not isinstance(options["backupEnabled"], bool)):
             raise ValueError("Opciones de ejecución no válidas.")
         options["backupArchive"] = str(options["backupArchive"]).strip()
@@ -65,6 +69,14 @@ class DigitalGameOptions:
             options["executable"] = str(checked_executable(folder, options["executable"]).relative_to(folder))
         write_json(self.path(app_id), options)
         return options
+
+def effective_language(options):
+    """The game's own choice, else the language the desktop app runs in (passed by the app), else Spanish."""
+    chosen = options.get("language") or ""
+    if chosen in LANGUAGES:
+        return chosen
+    app = os.environ.get(APP_LANGUAGE_ENV, "").strip().lower()
+    return app if app in LANGUAGES else "spanish"
 
 def language_value(current, language, filename):
     short, region = LANGUAGES[language]

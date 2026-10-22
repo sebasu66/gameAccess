@@ -11,3 +11,8 @@ import pytest
 def disable_background_network_workers(monkeypatch):
     from app import main
     monkeypatch.setattr(main, "_start_steam_review_importer", lambda: None)
+    # Each test starts without the running server's resource governor (and app startup does not start one):
+    # a governor left from another test would count that test's pieces against its budget.
+    from app import resource_governor
+    monkeypatch.setattr(resource_governor, "_governor", None)
+    monkeypatch.setattr(resource_governor, "start", lambda engine: None)

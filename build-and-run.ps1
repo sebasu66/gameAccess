@@ -6,8 +6,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-# Running this development checkout needs its matching API, not a stale hosted deployment.
-$useLocalServer = $Server -or -not $NoRun
+# Only -Server compiles, validates and runs the local API; without it only the client is built and run
+# (the client then uses a local server if one answers, otherwise the hosted backend).
+$useLocalServer = [bool]$Server
 $projectRoot = $PSScriptRoot
 $desktopRoot = Join-Path $projectRoot 'apps\desktop'
 $apiRoot = Join-Path $projectRoot 'apps\api'
@@ -97,10 +98,13 @@ try {
     Get-Command npm.cmd -ErrorAction Stop | Out-Null
     Get-Command cargo -ErrorAction Stop | Out-Null
 
-    Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
+    $serverRequirementsHash = $null
     if ($useLocalServer) {
+        Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
+        Write-Host "Preparing GameAccess server build: $buildTimestamp"
+        $serverRequirementsHash = Ensure-ServerBuild
+        Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"
         # Validate the shared database before stopping the current server or client.
-        $null = Ensure-ServerBuild
         Push-Location $apiRoot
         try {
             & $apiPython -m app.database --verify-shared
@@ -109,10 +113,10 @@ try {
         Write-Host "Stopping any existing local GameAccess server on port $ServerPort before rebuild..."
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort -StopOnly
         if ($LASTEXITCODE -ne 0) { throw "Could not stop the local server before rebuild (exit $LASTEXITCODE)." }
+    } else {
+        Write-GameAccessNarration "Build-and-run started (client only; the server is neither built nor started). Build timestamp: $buildTimestamp."
+        Write-Host 'Client only: the local server is neither built nor started (use -Server for that).'
     }
-    Write-Host "Preparing GameAccess server build: $buildTimestamp"
-    $serverRequirementsHash = Ensure-ServerBuild
-    Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"
 
     Write-Host 'Closing this project app (Steam, games and download workers are not stopped)...'
     $appPaths = @($outputExe, $sourceExe)
@@ -162,7 +166,9 @@ try {
     Write-Host "Built client: $outputExe"
     Write-GameAccessNarration "Desktop client build completed successfully: $outputExe." "FRONTEND"
     Install-SebaSUTailHelper
-    Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
+    if ($useLocalServer) {
+        Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
+    }
     Write-Host "Build UTC: $buildTimestamp | client SHA256: $expectedHash"
     @{
         commit = (git -C $projectRoot rev-parse HEAD).Trim()
@@ -170,11 +176,13 @@ try {
         source_exe = $sourceExe
         output_exe = $outputExe
         sha256 = $expectedHash
-        server = @{
-            app = 'apps/api/app.main:app'
-            requirements_sha256 = $serverRequirementsHash
-            local_url = if ($useLocalServer) { $localApiUrl } else { $null }
-        }
+        server = if ($useLocalServer) {
+            @{
+                app = 'apps/api/app.main:app'
+                requirements_sha256 = $serverRequirementsHash
+                local_url = $localApiUrl
+            }
+        } else { $null }
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $projectRoot 'GameAccess-latest.build.json') -Encoding UTF8
 
     if (-not $NoRun -and $useLocalServer) {

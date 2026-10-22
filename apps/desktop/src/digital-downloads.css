@@ -60,5 +60,8 @@
 .ga-download-speed-empty { height:78px; display:flex; align-items:center; color:#a7b6bb; font-size:12px; }
 @media(max-width:800px) { .ga-download-telemetry { gap:12px; } .ga-download-dial { width:75px; height:75px; } .ga-download-speed-heading strong { font-size:14px; } .digital-download-info { min-width:min(260px,100%); } }
 .ga-method-pill { margin-right:auto; margin-left:12px; padding:2px 9px; border:1px solid #ffffff2e; border-radius:999px; font:700 10px Manrope,sans-serif; letter-spacing:.04em; color:#cdd0cf; background:#ffffff0d; white-space:nowrap; transition:background-color 180ms ease, border-color 180ms ease; }
-.ga-method-pill.method-viking { color:var(--ga-orange); border-color:#ff6a0066; background:#ff6a0018; }
+.ga-method-pill.method-accelerated { color:var(--ga-orange); border-color:#ff6a0066; background:#ff6a0018; }
+.ga-method-pill.method-measuring { color:#e8e1a0; border-color:#e8e1a055; background:#e8e1a012; }
+.ga-plan-pill { margin-right:8px; padding:2px 8px; border-radius:999px; font:800 10px Manrope,sans-serif; letter-spacing:.08em; white-space:nowrap; border:1px solid #ffffff2e; color:#cdd0cf; }
+.ga-plan-pill.plan-plus { color:#68eea3; border-color:#68eea366; background:#68eea314; }
 .ga-method-pill.method-torrent { color:#9fd0ff; border-color:#9fd0ff55; background:#9fd0ff14; }

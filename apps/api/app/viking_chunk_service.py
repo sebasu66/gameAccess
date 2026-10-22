@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Iterable, Protocol
 from uuid import uuid4
 
 import httpx
@@ -26,21 +26,33 @@ from .viking_cache_service import ProviderFailure, TorBoxVikingProvider, TorboxI
 from .download_events import log_event
 from .viking_chunk_models import VikingChunkJob, VikingChunkPiece
 from .viking_chunk_plan import PlannedPiece, plan_pieces
+from .viking_map import MapStore, VikingMapStore, folder_for, map_document, piece_name
+from . import resource_governor
 
 logger = logging.getLogger("gameaccess.viking_chunks")
 
 MAX_FILES = 200            # a source with more files than this is not worth splitting
 PIECE_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 3.0
+FETCHES_IN_PARALLEL = 2       # pieces read from TorBox at the same time (GAMEACCESS_CHUNK_FETCHES)
 UPLOADS_IN_PARALLEL = 3       # pieces going up to ViKiNG at the same time (GAMEACCESS_CHUNK_UPLOADS)
-MAX_PIECES_ON_DISK = UPLOADS_IN_PARALLEL + 1
+MAX_PIECES_ON_DISK = FETCHES_IN_PARALLEL + UPLOADS_IN_PARALLEL
+DISK_BUDGET_MB = 2000         # piece files on disk at once, all together (GAMEACCESS_CHUNK_DISK_MB); one piece always fits
+IMPORTS_IN_PARALLEL = 4       # files ViKiNG imports from TorBox at once in remote mode (GAMEACCESS_CHUNK_IMPORTS)
+# "remote": ViKiNG downloads each TorBox file itself (no byte goes through this server, which only coordinates);
+# "pieces": this server reads byte ranges from TorBox and uploads them (the player starts sooner on one big file).
+DEFAULT_MODE = "remote"       # GAMEACCESS_CHUNK_MODE
 LINK_TTL_SECONDS = 20 * 60
 _PERMANENT_FAILURES = {"torbox_not_configured", "viking_invalid_upload_server"}
 
 
-def viking_folder(job_id: str) -> str:
-    """One ViKiNG folder per job keeps the pieces of a game together and out of the account root."""
-    return f"GameAccess/{job_id[:8]}"
+# While ViKiNG imports a job's files, players get each file straight from TorBox (sealed link) instead of waiting:
+# job_id -> the TorBox source of the running import. In memory only: after a restart the player waits for ViKiNG.
+_torbox_sources: dict[str, Any] = {}
+
+
+def torbox_source(job_id: str) -> Any:
+    return _torbox_sources.get(job_id)
 
 
 def _now() -> datetime:
@@ -50,6 +62,20 @@ def _now() -> datetime:
 class PieceSource(Protocol):
     async def fetch(self, piece: PlannedPiece, dest: Path) -> str:
         """Write the bytes of the piece to `dest` and return their sha256 (hex)."""
+
+
+class RemoteImporter(Protocol):
+    async def import_file(self, piece: PlannedPiece, name: str, folder: str = "", refresh: bool = False) -> str:
+        """Have ViKiNG fetch the whole file of the piece by itself and return the id (hash) ViKiNG gave it."""
+
+
+def whole_file_plan(sizes: list[int]) -> list[PlannedPiece]:
+    """Remote mode: one piece per file, the whole file (empty files need no piece)."""
+    plan: list[PlannedPiece] = []
+    for file_index, size in enumerate(int(s) for s in sizes):
+        if size > 0:
+            plan.append(PlannedPiece(len(plan), file_index, 0, size - 1))
+    return plan
 
 
 class PieceSink(Protocol):
@@ -189,11 +215,18 @@ def _mark_piece_ready(engine: Engine, job_id: str, index: int, sha256: str, viki
         session.commit()
 
 
+def _ready_hashes(engine: Engine, job_id: str) -> dict[int, str]:
+    with Session(engine) as session:
+        pieces = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "ready")).all()
+        return {p.piece_index: p.sha256 for p in pieces if p.sha256}
+
+
 def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
     """What a player needs: the files, and every planned piece with whether it can be fetched yet."""
     pieces = session.exec(
         select(VikingChunkPiece).where(VikingChunkPiece.job_id == job.job_id).order_by(VikingChunkPiece.piece_index)
     ).all()
+    from_torbox = job.job_id in _torbox_sources
     return {
         "job_id": job.job_id,
         "status": job.status,
@@ -207,7 +240,8 @@ def build_manifest(session: Session, job: VikingChunkJob) -> dict[str, Any]:
         "pieces": [
             {
                 "index": p.piece_index, "file_index": p.file_index, "start": p.start_byte, "size": p.size_bytes,
-                "sha256": p.sha256 if p.status == "ready" else "", "ready": p.status == "ready",
+                "sha256": p.sha256 if p.status == "ready" else "",
+                "ready": p.status == "ready" or (from_torbox and p.status == "pending"),
             }
             for p in pieces
         ],
@@ -231,6 +265,28 @@ def get_ready_pieces(session: Session, job_id: str, start: int, count: int) -> l
         )
         .order_by(VikingChunkPiece.piece_index)
     ).all())
+
+
+def get_torbox_pieces(session: Session, job_id: str, start: int, count: int) -> list[VikingChunkPiece]:
+    """Pieces in [start, start+count) still being imported, which players get from TorBox meanwhile."""
+    if job_id not in _torbox_sources:
+        return []
+    return list(session.exec(
+        select(VikingChunkPiece)
+        .where(VikingChunkPiece.job_id == job_id, VikingChunkPiece.status == "pending",
+               VikingChunkPiece.piece_index >= start, VikingChunkPiece.piece_index < start + count)
+        .order_by(VikingChunkPiece.piece_index)
+    ).all())
+
+
+def missing_for(session: Session, job: VikingChunkJob, have: set[int]) -> bool:
+    """Whether a player that already holds `have` still needs a piece this job has not put on ViKiNG.
+
+    A job can end "partial": it skipped the pieces the player who asked for it already had (a resumed download)."""
+    if job.status != "partial":
+        return False
+    pieces = session.exec(select(VikingChunkPiece).where(VikingChunkPiece.job_id == job.job_id)).all()
+    return any(p.status != "ready" and p.piece_index not in have for p in pieces)
 
 
 def recover_interrupted_chunk_jobs(engine: Engine) -> int:
@@ -273,69 +329,183 @@ async def _retry(factory: Callable[[], Awaitable[Any]]) -> Any:
 async def _transfer(
     engine: Engine, job_id: str, pending: list[PlannedPiece], source: PieceSource, sink: PieceSink,
     work_dir: Path, name_for: Callable[[PlannedPiece], str], folder: str = "", uploads: int | None = None,
-    note: Callable[..., None] | None = None,
+    note: Callable[..., None] | None = None, fetches: int | None = None, disk_budget: int | None = None,
 ) -> None:
-    """Fetch pieces one after another while up to `uploads` of them go up to ViKiNG at once.
+    """Read up to `fetches` pieces from TorBox at once while up to `uploads` go up to ViKiNG at once.
 
-    At most `uploads + 1` piece files exist on disk at any moment.
+    Pieces are started in order, so the first ones are ready first. At most `fetches + uploads` piece files
+    exist on disk, and together they stay under `disk_budget` bytes (a piece bigger than that goes alone).
+    Each stage logs its speed, so the slow one shows in the log.
     """
     workers = max(1, uploads if uploads is not None else int(os.getenv("GAMEACCESS_CHUNK_UPLOADS") or UPLOADS_IN_PARALLEL))
-    slots = asyncio.Semaphore(workers + 1)
+    readers = max(1, fetches if fetches is not None else int(os.getenv("GAMEACCESS_CHUNK_FETCHES") or FETCHES_IN_PARALLEL))
+    budget = disk_budget if disk_budget is not None else int(os.getenv("GAMEACCESS_CHUNK_DISK_MB") or DISK_BUDGET_MB) << 20
+    slots = asyncio.Semaphore(readers + workers)
+    disk = asyncio.Condition()
+    on_disk = 0
     queue: asyncio.Queue = asyncio.Queue()
+    todo = list(pending)
     total, finished, every = len(pending), 0, max(1, len(pending) // 10)
+    timing = {"fetch_bytes": 0, "fetch_seconds": 0.0, "upload_bytes": 0, "upload_seconds": 0.0}
+    loop = asyncio.get_running_loop()
 
-    async def producer() -> None:
-        try:
-            for piece in pending:
-                await slots.acquire()
-                path = work_dir / f"{job_id}-{piece.index:04d}.part"
-                try:
-                    sha = await _retry(lambda: source.fetch(piece, path))
-                except BaseException:
-                    path.unlink(missing_ok=True)
+    async def reserve(size: int) -> None:
+        nonlocal on_disk
+        async with disk:
+            await disk.wait_for(lambda: on_disk == 0 or on_disk + size <= budget)
+            on_disk += size
+
+    async def free(size: int) -> None:
+        nonlocal on_disk
+        async with disk:
+            on_disk -= size
+            disk.notify_all()
+
+    def speed(stage: str) -> float:
+        seconds = timing[f"{stage}_seconds"]
+        return timing[f"{stage}_bytes"] / seconds / 1e6 if seconds > 0 else 0.0
+
+    governor = resource_governor.current()
+
+    async def reader() -> None:
+        while todo:
+            piece = todo.pop(0)
+            await slots.acquire()
+            await reserve(piece.size)
+            # The piece will go up to ViKiNG through this server: it waits while the CPU is busy and needs the
+            # month's traffic budget to allow it (resource_governor.py).
+            if governor is not None:
+                while not governor.cpu_ok():
+                    await _sleep(2)
+                if not governor.approve(piece.size):
+                    await free(piece.size)
                     slots.release()
-                    raise
-                await queue.put((piece, path, sha))
+                    raise ProviderFailure("server_budget_exhausted", 503, "El servidor llegó a su límite de tráfico del mes.")
+            path = work_dir / f"{job_id}-{piece.index:04d}.part"
+            started = loop.time()
+            try:
+                sha = await _retry(lambda: source.fetch(piece, path))
+            except BaseException:
+                path.unlink(missing_ok=True)
+                await free(piece.size)
+                slots.release()
+                if governor is not None:
+                    governor.release(piece.size, sent=False)
+                raise
+            took = max(loop.time() - started, 0.001)
+            timing["fetch_bytes"] += piece.size
+            timing["fetch_seconds"] += took
+            logger.info("chunk_fetched job=%s piece=%s mb=%.0f seconds=%.1f mbps=%.1f",
+                        job_id[:8], piece.index, piece.size / 1e6, took, piece.size / 1e6 / took)
+            await queue.put((piece, path, sha))
+
+    async def readers_then_stop() -> None:
+        try:
+            await asyncio.gather(*(reader() for _ in range(readers)))
         finally:
             for _ in range(workers):
                 await queue.put(None)
 
     async def consumer() -> None:
+        nonlocal finished
         while True:
             item = await queue.get()
             if item is None:
                 return
             piece, path, sha = item
+            started = loop.time()
+            sent = False
             try:
                 viking_hash = await _retry(lambda: sink.upload(path, name_for(piece), folder))
+                sent = True
+                took = max(loop.time() - started, 0.001)
+                timing["upload_bytes"] += piece.size
+                timing["upload_seconds"] += took
                 _mark_piece_ready(engine, job_id, piece.index, sha, viking_hash)
-                logger.info("chunk_ready job=%s piece=%s size=%s", job_id[:8], piece.index, piece.size)
-                nonlocal finished
+                logger.info("chunk_ready job=%s piece=%s size=%s upload_seconds=%.1f upload_mbps=%.1f",
+                            job_id[:8], piece.index, piece.size, took, piece.size / 1e6 / took)
                 finished += 1
                 if note is not None and (finished == 1 or finished == total or finished % every == 0):
-                    note("viking", f"Paso 2 · Pieza {piece.index + 1} ya está en Viking ({finished} de {total} pendientes).")
+                    note("viking", f"Paso 2 · Pieza {piece.index + 1} ya está en Viking ({finished} de {total} pendientes). "
+                                   f"Por conexión: Torbox {speed('fetch'):.1f} MB/s, subida a Viking {speed('upload'):.1f} MB/s "
+                                   f"({readers} lecturas y {workers} subidas a la vez).")
             finally:
                 path.unlink(missing_ok=True)
+                await free(piece.size)
                 slots.release()
+                if governor is not None:
+                    governor.release(piece.size, sent=sent)
 
-    tasks = [asyncio.create_task(producer())] + [asyncio.create_task(consumer()) for _ in range(workers)]
+    tasks = [asyncio.create_task(readers_then_stop())] + [asyncio.create_task(consumer()) for _ in range(workers)]
     try:
         await asyncio.gather(*tasks)
     except BaseException:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        while not queue.empty():  # pieces read but never uploaded give their budget back
+            item = queue.get_nowait()
+            if item is not None and governor is not None:
+                governor.release(item[0].size, sent=False)
         for leftover in work_dir.glob(f"{job_id}-*.part"):
             leftover.unlink(missing_ok=True)
+        raise
+
+
+async def _import_remote(
+    engine: Engine, job_id: str, pending: list[PlannedPiece], importer: RemoteImporter,
+    name_for: Callable[[PlannedPiece], str], folder: str = "", imports: int | None = None,
+    note: Callable[..., None] | None = None,
+) -> None:
+    """Have ViKiNG import up to `imports` files at once; each one is ready for players as soon as ViKiNG has it."""
+    workers = max(1, imports if imports is not None else int(os.getenv("GAMEACCESS_CHUNK_IMPORTS") or IMPORTS_IN_PARALLEL))
+    slots = asyncio.Semaphore(workers)
+    total, finished, every = len(pending), 0, max(1, len(pending) // 10)
+    loop = asyncio.get_running_loop()
+
+    async def one(piece: PlannedPiece) -> None:
+        nonlocal finished
+        async with slots:
+            started = loop.time()
+            tries = {"n": 0}
+
+            async def attempt() -> str:
+                tries["n"] += 1
+                return await importer.import_file(piece, name_for(piece), folder, refresh=tries["n"] > 1)
+
+            viking_hash = await _retry(attempt)
+            took = max(loop.time() - started, 0.001)
+            _mark_piece_ready(engine, job_id, piece.index, "", viking_hash)
+            logger.info("chunk_imported job=%s piece=%s mb=%.0f seconds=%.1f mbps=%.1f attempts=%s",
+                        job_id[:8], piece.index, piece.size / 1e6, took, piece.size / 1e6 / took, tries["n"])
+            finished += 1
+            if note is not None and (finished == 1 or finished == total or finished % every == 0):
+                note("viking", f"Paso 2 · Archivo {piece.index + 1} copiado a Viking ({finished} de {total}, {piece.size / 1e9:.1f} GB); "
+                               f"Viking lo copió desde Torbox a {piece.size / 1e6 / took:.1f} MB/s ({workers} a la vez).")
+
+    tasks = [asyncio.create_task(one(piece)) for piece in pending]
+    try:
+        await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         raise
 
 
 async def run_chunk_job(
     engine: Engine, job_id: str, *,
     prepare: Callable[[], Awaitable[tuple[PieceSource, list[dict[str, Any]]]]],
-    sink: PieceSink, work_dir: Path, installation_id: str = "",
+    sink: PieceSink, work_dir: Path, installation_id: str = "", skip: Iterable[int] = (),
+    importer: Callable[[PieceSource], RemoteImporter] | None = None, maps: MapStore | None = None,
 ) -> None:
-    """Prepare the source, plan the pieces and move every missing one to ViKiNG."""
+    """Prepare the source, plan the pieces and move every missing one to ViKiNG.
+
+    The pieces go to the source's own ViKiNG folder, with the map that lets a server that forgot the source
+    (Render wipes its disk on every deploy) find them again (viking_map.py).
+
+    `skip` are pieces the player who asked already holds (a download resumed after the server lost its job):
+    they are not uploaded, and the job ends "partial" so whoever needs them later gets them uploaded."""
     source: Any = None
 
     def note(step: str, message: str, status: str = "info") -> None:
@@ -348,20 +518,46 @@ async def run_chunk_job(
         note("torbox", f"Paso 1 · Torbox ya tiene el juego ({len(files)} archivo{'s' if len(files) != 1 else ''}).", "ok")
         if len(files) > MAX_FILES:
             raise ProviderFailure("too_many_files", 422, "Esta fuente tiene demasiados archivos para enviarla por piezas.")
-        plan = plan_pieces([int(f["size"]) for f in files])
+        remote = importer(source) if importer is not None else None
+        plan = whole_file_plan([int(f["size"]) for f in files]) if remote else plan_pieces([int(f["size"]) for f in files])
         if not plan:
             raise ProviderFailure("torbox_no_files", 502, "TorBox no informó los archivos de esta fuente.")
         ready = _install_plan(engine, job_id, files, plan)
+        with Session(engine) as session:
+            job = get_job(session, job_id)
+        fingerprint = job.source_fingerprint if job is not None else job_id
+        folder = folder_for(fingerprint)
+        if maps is not None and job is not None:
+            await maps.save(folder, map_document(job, files, plan, _ready_hashes(engine, job_id)))
         _set_job(engine, job_id, status="running", error_code="")
-        pending = [p for p in plan if p.index not in ready]
-        logger.info("chunk_job_running job=%s pieces=%s pending=%s", job_id[:8], len(plan), len(pending))
-        note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas).")
-        await _transfer(
-            engine, job_id, pending, source, sink, work_dir,
-            lambda p: f"ga-{job_id[:8]}.p{p.index:04d}", viking_folder(job_id), note=note,
-        )
-        _set_job(engine, job_id, status="ready", completed_at=_now())
-        note("ready", f"Listo: las {len(plan)} piezas están disponibles para el cliente.", "ok")
+        held = set(skip) - ready
+        pending = [p for p in plan if p.index not in ready and p.index not in held]
+        logger.info("chunk_job_running job=%s pieces=%s pending=%s client_has=%s", job_id[:8], len(plan), len(pending), len(held))
+        has = f", el cliente ya tiene {len(held)}" if held else ""
+        unit = "archivo" if remote is not None else "pieza"
+        units = lambda n: f"{n} {unit}{'s' if n != 1 else ''}"  # noqa: E731
+        if remote is not None:
+            note("viking", f"Paso 2 · Viking copia {units(len(pending))} directo desde Torbox ({len(ready)} ya estaban en Viking{has}). "
+                           "Mientras tanto el cliente baja desde Torbox.")
+        else:
+            note("viking", f"Paso 2 · El servidor sube el juego a Viking en {units(len(plan))} ({len(ready)} ya estaban listas{has}).")
+        name_for = lambda p: piece_name(fingerprint, p.index)  # noqa: E731
+        if remote is not None:
+            _torbox_sources[job_id] = source  # players start from TorBox while ViKiNG imports
+            try:
+                await _import_remote(engine, job_id, pending, remote, name_for, folder, note=note)
+            finally:
+                _torbox_sources.pop(job_id, None)
+        else:
+            await _transfer(engine, job_id, pending, source, sink, work_dir, name_for, folder, note=note)
+            if maps is not None and job is not None:  # this server hashed the pieces: the map now carries them
+                await maps.save(folder, map_document(job, files, plan, _ready_hashes(engine, job_id)))
+        if held:
+            _set_job(engine, job_id, status="partial", completed_at=_now())
+            note("ready", f"Listo en Viking: {units(len(pending))} que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
+        else:
+            _set_job(engine, job_id, status="ready", completed_at=_now())
+            note("ready", f"Listo en Viking: {units(len(plan))}. Las próximas descargas de este juego salen directo de Viking.", "ok")
         logger.info("chunk_job_ready job=%s", job_id[:8])
     except asyncio.CancelledError:
         _fail_job(engine, job_id, "server_stopped")
@@ -436,6 +632,24 @@ class TorboxRangeSource:
         return digest.hexdigest()
 
 
+class VikingRemoteImport:
+    """Remote mode: ViKiNG downloads each file from its TorBox link (a retry asks TorBox for a new link)."""
+
+    def __init__(self, provider: TorBoxVikingProvider, source: "TorboxRangeSource"):
+        self.provider, self.source = provider, source
+
+    async def import_file(self, piece: PlannedPiece, name: str, folder: str = "", refresh: bool = False) -> str:
+        link = await self.source._link(piece.file_index, refresh=refresh)
+        result = await self.provider.remote_upload_to_viking(link, name, folder)
+        file_hash = str(result.get("hash") or "").strip()
+        if not file_hash:
+            raise ProviderFailure("viking_upload_invalid_response", 502, "ViKiNG no devolvió el identificador del archivo.")
+        size = int(result.get("size") or 0)
+        if size and size != piece.size:
+            raise RuntimeError(f"ViKiNG importó {size} bytes de {piece.size}")
+        return file_hash
+
+
 class VikingFileSink:
     def __init__(self, provider: TorBoxVikingProvider):
         self.provider = provider
@@ -465,6 +679,7 @@ def is_running(job_id: str) -> bool:
 def start_job(
     engine: Engine, job_id: str, *, source_url: str, source_kind: str, source_host: str, file_name: str,
     fingerprint: str, installation_id: str, provider: TorBoxVikingProvider | None = None, work_dir: Path | None = None,
+    skip: Iterable[int] = (),
 ) -> asyncio.Task:
     """Run the job in the background. Only a few jobs move data at once; the rest wait as "preparing"."""
     global _slots
@@ -498,7 +713,11 @@ def start_job(
                     )
                     return TorboxRangeSource(worker, api_client, item, files), files
 
-                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(), installation_id=installation_id)
+                mode = (os.getenv("GAMEACCESS_CHUNK_MODE") or DEFAULT_MODE).strip().lower()
+                importer = (lambda source: VikingRemoteImport(worker, source)) if mode == "remote" else None
+                await run_chunk_job(engine, job_id, prepare=prepare, sink=VikingFileSink(worker), work_dir=work_dir or default_work_dir(),
+                                    installation_id=installation_id, skip=skip, importer=importer,
+                                    maps=VikingMapStore(worker))
 
     task = asyncio.create_task(runner())
     _running[job_id] = task

@@ -93,6 +93,12 @@ export async function openSteamRun(appId: number): Promise<void> {
   if (hasTauriRuntime()) await invoke("open_steam_run", {appId});
   else window.location.href = `steam://rungameid/${appId}`;
 }
+/** The game's Steam store page (in the Steam client, or the browser when Steam is not installed). */
+export async function openSteamStore(appId: number): Promise<void> {
+  if (!appId) throw new Error("Steam AppID inválido.");
+  if (hasTauriRuntime()) await invoke("open_steam_store", {appId});
+  else window.open(`https://store.steampowered.com/app/${appId}/`, "_blank", "noopener,noreferrer");
+}
 export async function openSteamClientInstall(appId: number): Promise<void> {
   if (hasTauriRuntime()) await invoke("open_steam_install", {appId});
   else window.location.href = `steam://install/${appId}`;

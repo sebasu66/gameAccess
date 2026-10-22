@@ -130,7 +130,7 @@ pub fn open_steam_client() -> Result<(), String> {
 }
 
 fn open_steam_uri(uri: &str) -> Result<(), String> {
-    if !uri.starts_with("steam://install/") && !uri.starts_with("steam://run/") {
+    if !uri.starts_with("steam://install/") && !uri.starts_with("steam://run/") && !uri.starts_with("steam://store/") {
         return Err("Unsupported Steam URI".into());
     }
 
@@ -177,6 +177,22 @@ pub fn open_steam_install(app_id: u32) -> Result<(), String> {
 
 pub fn open_steam_run(app_id: u32) -> Result<(), String> {
     open_steam_uri(&format!("steam://run/{app_id}"))
+}
+
+/// The game's Steam store page: in the Steam client when it is installed, otherwise in the default browser.
+pub fn open_steam_store(app_id: u32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if find_steam_exe().is_none() {
+            Command::new("explorer.exe")
+                .arg(format!("https://store.steampowered.com/app/{app_id}/"))
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|err| format!("Could not open the Steam store page: {err}"))?;
+            return Ok(());
+        }
+    }
+    open_steam_uri(&format!("steam://store/{app_id}"))
 }
 
 fn quoted_value(text: &str, key: &str) -> Option<String> {

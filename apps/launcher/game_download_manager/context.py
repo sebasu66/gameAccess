@@ -22,6 +22,9 @@ class DownloadContext:
     set_torrent: Callable
     # Run when the user cancels (not on errors): e.g. remove the game folder.
     cancel_hooks: list = field(default_factory=list)
+    # How the bytes are being fetched, shown to the player: "measuring" (PLUS deciding), "torrent",
+    # "accelerated" (the server's TorBox -> ViKiNG pieces) or "direct" (an HTTP link).
+    set_route: Callable = lambda route: None
 
     @property
     def active_subprocess(self):

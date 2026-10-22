@@ -37,7 +37,9 @@ describe("discovery catalog", () => {
     mocks.sync.mockRejectedValue(new Error("offline"));
     mocks.api.mockResolvedValue("http://catalog.test");
     vi.stubGlobal("window", {});
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok:false, status:503}));
-    await expect(loadDiscoveryCatalog(true)).rejects.toThrow("503");
+    const fetch = vi.fn().mockResolvedValue({ok:false, status:503});
+    vi.stubGlobal("fetch", fetch);
+    await expect(loadDiscoveryCatalog(true)).rejects.toThrow("El catálogo remoto no está disponible.");
+    expect(fetch).not.toHaveBeenCalled(); // the whole catalog is never fetched from the server as JSON
   });
 });

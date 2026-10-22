@@ -10,6 +10,7 @@ import {
   preparePluginSource,
   unregisterPluginSources,
   getAllAvailableSourceNames,
+  sourcePluginReady,
 } from "./PluginSources";
 import { pollPluginRuntime, resetPluginRuntime } from "./PluginRuntime";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
@@ -107,6 +108,18 @@ describe("External plugin sources", () => {
     });
   });
 
+  it("an old plugin without /api/source-index is reported (it must be updated) and nothing counts as synced", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => (cmd === "get_registered_plugins" ? [plugin] : undefined));
+    vi.stubGlobal("fetch", vi.fn(async (url: string): Promise<any> => {
+      if (url.endsWith("/api/health")) return { ok: true, status: 200, json: async () => ({ id: plugin.id, revision: "5-0" }) };
+      return { ok: false, status: 404, json: async () => ({}) };
+    }));
+    await pollPluginRuntime();
+    await expect(checkPluginSources()).rejects.toThrow(/Provider/);
+    expect(invoke).not.toHaveBeenCalledWith("catalog_sources_apply", expect.anything());
+    await expect(sourcePluginReady()).resolves.toBe(false);
+  });
+
   it("uses the Steam AppID, rejects unusable URLs, deduplicates and keeps source-specific sizes", async () => {
     vi.mocked(invoke).mockResolvedValue([plugin]);
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => [
@@ -158,7 +171,7 @@ describe("Plugin link preparation", () => {
     vi.stubGlobal("fetch", fetcher);
     const [source] = await getPluginSources(game);
     const prepared = await preparePluginSource(source);
-    expect(fetcher.mock.calls[1][0]).toBe(plugin.endpoint+"api/prepare/abc");
+    expect(String(fetcher.mock.calls[1][0]).split("?")[0]).toBe(plugin.endpoint + "api/prepare/abc");
     expect(prepared.url).toBe(plugin.endpoint+"api/download/abc/fixture.zip");
   });
   it("does not silently download a landing page when resolution fails", async () => {

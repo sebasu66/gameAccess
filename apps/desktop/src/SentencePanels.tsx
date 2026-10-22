@@ -59,7 +59,7 @@ export function ScorePanel({ filters, onChange }: { filters: LibrarySearchFilter
       <FancySlider min={0} max={100} step={5} value={score ?? 0} label={t("uiPorcentajeMinimoDeResenas")} format={n => n === 0 ? t("scoreNoMinimum") : `${n} %`}
         onChange={value => onChange({ minReviewScore: (value as number) === 0 ? undefined : value as number })} />
       <label className={"ga-sx-check" + (reviewsOn ? " is-on" : "")}>
-        <input type="checkbox" checked={reviewsOn}
+        <input type="checkbox" tabIndex={-1} checked={reviewsOn}
           onChange={event => onChange({ minReviewCount: event.target.checked ? MIN_REVIEWS_OPTION : undefined })} />
         {t("minReviewsOption", { n: MIN_REVIEWS_OPTION })}
       </label>

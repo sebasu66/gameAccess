@@ -1,5 +1,8 @@
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
+import ParentalSetupDialog from "./ParentalSetupDialog";
+import { startAutoFreeze } from "./autoFreeze";
+import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
 import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
@@ -33,8 +36,8 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import { getCatalogMode } from "./catalogMode";
-import { scanLibrary } from "./libraryScan";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { libraryScanState, scanLibrary } from "./libraryScan";
+import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DigitalDownloadToast from "./DigitalDownloadToast";
@@ -46,34 +49,11 @@ import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { PluginIndicator } from "./PluginIndicator";
+import { notify } from "./toasts";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
   Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
-
-function playToastBeep(): void {
-  try {
-    const AudioContextCtor = window.AudioContext
-      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextCtor) return;
-    const context = new AudioContextCtor();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const now = context.currentTime;
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(880, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.13);
-    oscillator.onended = () => { void context.close(); };
-  } catch {
-    // The visual notification is authoritative; audio is optional.
-  }
-}
 
 export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
@@ -108,7 +88,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  // Every message goes through the app-wide toast stack (see Toaster).
+  const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
@@ -290,13 +271,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
   }, [digitalFolderKey]);
 
-  useEffect(() => {
-    if (!toast) return;
-    playToastBeep();
-    const timer = window.setTimeout(() => setToast(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
   const relevantCatalogGames = useMemo(() => {
     const activeAppIds = new Set([
       ...Object.keys(downloads).map(Number),
@@ -326,6 +300,10 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [newGames, setNewGames] = useState<CatalogGame[]>([]);
   const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
 
+  useEffect(() => startAutoFreeze(), []);
+
+  // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
+  const parentalPolicy = useParentalState().policy;
   useEffect(() => {
     if (loading) return;
     void queryCatalogCache({ sort_by: "release-date", sort_direction: "desc", limit: 10 })
@@ -334,7 +312,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     void queryCatalogCache({ sort_by: "steam-review-score", sort_direction: "desc", limit: 12 })
       .then(res => setSuggestedGames(res.items))
       .catch(() => {});
-  }, [loading]);
+  }, [loading, parentalPolicy]);
 
   const heroPool = useMemo(() => {
     const base = orderedLibrary.length ? orderedLibrary : (newGames.length ? newGames : suggestedGames);
@@ -435,9 +413,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       }
       setSession(null); setSelected(null); setLibraryOpen(false);
       const manifest = await finishVisualDebug({ session_dir: config.session_dir, created_at: new Date().toISOString(), results });
-      setToast(`Depuración visual completada: ${manifest}`);
+      setToast(t("visualDebugDone", { manifest }));
     };
-    void run().catch((error) => setToast(`La depuración visual falló: ${error instanceof Error ? error.message : String(error)}`));
+    void run().catch((error) => setToast(t("visualDebugFailed", { error: error instanceof Error ? error.message : String(error) })));
   }, [loading, games, orderedLibrary]);
 
   const magazineGames = orderedLibrary;
@@ -496,17 +474,21 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      digitalDownloadService.recordFailure(game, message); setToast(message);
+      if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
+      setToast(message);
     }
   };
 
   const launchGame = async (game: CatalogGame, managedShortcut = false) => {
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
-    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate("launchDetail") });
+    // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
+    const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
+    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate(deepFrozen ? "launchThawing" : "launchDetail") });
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
+      if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
       setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
     } catch (err) {
@@ -610,7 +592,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
           <PluginIndicator />
-          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass />
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass /><ParentalSetupDialog />
         </div>
       </header>
 
@@ -644,7 +626,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
-      {toast ? <div className="toast" role="status" aria-live="assertive">{toast}</div> : null}
     </div>
   );
 }

@@ -118,8 +118,16 @@ class GameImporter:
             raise ValueError("La carpeta del juego no existe.")
         if any(source.resolve() == r or source.resolve().is_relative_to(r) for r in self.storage.roots):
             raise ValueError("Ese juego ya está dentro de la biblioteca.")
-        if self.storage.linked.get(app_id) or any(root.glob(f"{int(app_id)}-*") for root in self.storage.roots if root.is_dir()):
-            raise ValueError("Este juego ya está en la biblioteca.")
+        linked = self.storage.linked.get(app_id)
+        if linked:
+            # Linking the same folder again (a repeated click, a second scan) is not an error: it is already done.
+            if Path(linked["path"]).resolve() == source.resolve():
+                self.log.info("AppID %s (%s): already linked at %s", app_id, name, source)
+                return {"ok": True, "mode": "link", "already": True}
+            raise ValueError(f"Este juego ya está vinculado desde otra carpeta: {linked['path']}")
+        in_library = next((folder for root in self.storage.roots if root.is_dir() for folder in root.glob(f"{int(app_id)}-*")), None)
+        if in_library is not None:
+            raise ValueError(f"Este juego ya está en la biblioteca: {in_library}")
         steam = kind == "steam" or is_steam_path(source)
         if mode not in ("link", "move"):
             raise ValueError("Modo de importación desconocido.")

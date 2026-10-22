@@ -47,10 +47,9 @@ def test_batch_uninstall_and_repair_continue_after_failures(tmp_path):
     with pytest.raises(ValueError):
         lib.batch("format", [1])
 
-def test_connectors_report_missing_modules(tmp_path):
+def test_the_library_has_a_freezer(tmp_path):
     storage, lib = library(tmp_path)
-    with pytest.raises(NotImplementedError):
-        lib.freeze(1, "Alpha")
+    assert lib.freezer.record(1) is None and lib.thaw(1, "Alpha") == {"thawed": False}
 
 def test_runner_actions_expose_the_library(tmp_path):
     storage, lib = library(tmp_path)
@@ -79,3 +78,44 @@ def test_unfinished_download_is_never_offered_a_fix(tmp_path):
     assert pieces.exists()
     (pieces / ".ga-state-abcd1234.json").unlink()
     assert {g["app_id"]: g for g in lib.list_games()}[2]["transfer_kind"] == "other"
+
+
+def test_the_install_keeps_the_name_its_download_source_gave_it(tmp_path):
+    storage, lib = library(tmp_path)
+    storage.set_source(1, "Alpha v1.2 - Repack", "SteamRIP")
+    storage.set_status(1, "Alpha", "ERROR")          # moving or renaming the folder keeps the source
+    storage.set_status(1, "Alpha", "ready")
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert (games[1]["source_title"], games[1]["source_provider"]) == ("Alpha v1.2 - Repack", "SteamRIP")
+    assert games[2]["source_title"] == ""             # downloaded before sources were recorded
+
+
+def test_a_download_waiting_in_the_queue_cannot_be_fixed_or_marked_ready(tmp_path):
+    storage, lib = library(tmp_path)
+    queue = storage.data / ".cache" / "digital_downloads" / "queue.json"
+    queue.parent.mkdir(parents=True, exist_ok=True)
+    queue.write_text('{"order": [2], "jobs": [{"app_id": 2, "state": "waiting"}]}', encoding="utf-8")
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert games[2]["queued"] and games[2]["unfinished"] and not games[1]["unfinished"]
+    assert lib.plan([2])[0]["error"] and lib.plan([2])[0]["actions"] == []
+    assert lib.batch("adopt", [2])[0]["ok"] is False
+
+
+def test_the_player_can_rename_a_game_in_their_library_only(tmp_path):
+    storage, lib = library(tmp_path)
+    runner = DigitalProcessRunner(storage)
+    assert runner.run("set-label", 1, "Alpha", "  Alpha   (la de Juan) ")["label"] == "Alpha (la de Juan)"
+    storage.set_status(1, "Alpha", "ERROR")                  # the label survives folder renames
+    games = {g["app_id"]: g for g in lib.list_games()}
+    assert games[1]["label"] == "Alpha (la de Juan)" and games[1]["name"] == "Alpha"
+    assert storage.set_label(2, "Beta", "Beta mod") == "Beta mod"   # a legacy folder without a record gets one
+    linked = tmp_path / "outside" / "Gamma"
+    linked.mkdir(parents=True)
+    storage.linked.link(3, "Gamma", str(linked))
+    storage.set_label(3, "Gamma", "Gamma de Steam")
+    assert {g["app_id"]: g for g in lib.list_games()}[3]["label"] == "Gamma de Steam"
+    assert storage.linked.get(3)["path"] == str(linked.resolve())   # the link itself is unchanged
+    storage.set_label(1, "Alpha", "")                         # empty: back to the source's name
+    assert {g["app_id"]: g for g in lib.list_games()}[1]["label"] == ""
+    with pytest.raises(ValueError):
+        storage.set_label(99, "Nope", "x")

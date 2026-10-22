@@ -13,7 +13,7 @@ import json
 import logging
 import threading
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait as wait_futures
 import os
 import re
 import shutil
@@ -24,51 +24,81 @@ from typing import Any, Callable
 
 import requests
 
+from game_download_manager.link_sealing import SealError, unseal
+
 logger = logging.getLogger("digital_downloader")
 
-POLL_SECONDS = 2.0
+POLL_SECONDS = 5.0               # asking the server what is ready while nothing is downloading
+INFLIGHT_POLL_SECONDS = 3.0      # and while pieces are downloading (a thousand players must stay cheap for the server)
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
 SPEED_WINDOW_SECONDS = 20.0      # speed and time left are measured over this recent window
 STREAM_CHUNK = 1 << 20
-DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-3 MB/s
+DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-8 MB/s
+CONNECTIONS = 16                 # connections to ViKiNG at once, all pieces together (GAMEACCESS_CHUNK_CONNECTIONS)
+CONNECTIONS_PER_PIECE = 6        # a piece lives on one ViKiNG server, which answers 429 from about 7 connections
+MIN_SPLIT_BYTES = 8 << 20        # a range is only split in two when each half keeps at least this much
+RANGE_FAILURES = 8               # failed connections a piece tolerates before the whole piece is tried again
 NETWORK_RETRIES = 100            # x NETWORK_RETRY_SECONDS: the server may be restarting
 NETWORK_RETRY_SECONDS = 3.0
 MAX_RESUMES = 3                  # times the player asks the server to resume a job that stopped
+MAX_REJOINS = 5                  # times the player asks again after the server lost the job (a restart wipes it)
 # Torbox hiccups (a slow answer, a 5xx, a long wait) leave the job failed on the server while Torbox keeps working:
 # asking again resumes the same job, which is what a manual retry used to do.
 RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", "",
                     "torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"}
 ERROR_WORDS = {
+    "torbox_too_slow": "la fuente casi no tiene semillas y Torbox tardaría demasiado",
     "torbox_stalled": "Torbox no avanza con esta fuente (nadie la comparte o se estancó)",
     "torbox_download_failed": "Torbox no pudo bajar esta fuente",
     "too_many_files": "la fuente tiene demasiados archivos",
+    "server_budget_exhausted": "el servidor llegó a su límite de tráfico del mes",
 }
 
 
 class ChunkedDownloadUnavailable(Exception):
     """The server cannot serve this source by pieces; the caller should use the normal download."""
 
+    def __init__(self, message: str, status: int = 0):
+        super().__init__(message)
+        self.status = status
+
+
+class SourceWithoutSeeds(Exception):
+    """Nobody is sharing this source: the download is cancelled and the player is told to try another one."""
+
+
+def _duration_words(seconds: float) -> str:
+    if seconds >= 86400 * 60:
+        return f"unos {seconds / 86400 / 30:.0f} meses"
+    if seconds >= 86400 * 2:
+        return f"unos {seconds / 86400:.0f} días"
+    return f"unas {max(1, seconds / 3600):.0f} horas"
+
 
 class ChunkedDownloadError(Exception):
     pass
 
 
+STEP3 = "Paso 3 de 3 · "
+
+
 def describe_wait(detail: dict | None, game_name: str = "") -> str:
-    """Plain words for what the server is doing while the first pieces are not ready yet."""
+    """Plain words for what the server is doing while the first files are not ready yet (the third step)."""
     if not detail or detail.get("stage") != "torbox":
-        return "Preparando los archivos en el servidor..."
+        return STEP3 + "El servidor está preparando la descarga acelerada..."
     progress = float(detail.get("progress") or 0)
     seeds = int(detail.get("seeds") or 0)
     state = str(detail.get("state") or "").lower()
     if progress >= 99.5 or state in ("cached", "completed", "uploading"):
-        return "El servidor ya tiene el juego y está armando los fragmentos..."
+        return STEP3 + "Torbox ya tiene el juego: empieza la descarga acelerada..."
     extra = f" ({seeds} fuentes)" if seeds else ""
     if progress <= 0 and seeds == 0:
-        return "El servidor está buscando fuentes para el juego; si nadie lo comparte puede demorar..."
+        return STEP3 + "Torbox está buscando quién comparta el juego; si nadie lo comparte, la descarga se cancela sola..."
     speed, eta = int(detail.get("speed") or 0), int(detail.get("eta") or 0)
-    more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + (f" · faltan ~{max(1, eta // 60)} min" if eta > 0 else "")
-    return f"El servidor está reuniendo el juego: {progress:.0f}%{extra}{more}"
+    left = (f" · faltan ~{max(1, eta // 60)} min" if eta < 7200 else f" · faltan ~{eta // 3600} h") if eta > 0 else ""
+    more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + left
+    return f"{STEP3}Torbox está bajando el juego para acelerarlo: {progress:.0f}%{extra}{more}"
 
 
 @dataclass(frozen=True)
@@ -95,6 +125,7 @@ def safe_name(name: str, fallback: str) -> str:
 class ChunkedDownloader:
     def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep, parallel: int | None = None):
         self.parallel = max(1, parallel or int(os.getenv("GAMEACCESS_CHUNK_DOWNLOADS") or DOWNLOADS_IN_PARALLEL))
+        self.connections = threading.BoundedSemaphore(max(1, int(os.getenv("GAMEACCESS_CHUNK_CONNECTIONS") or CONNECTIONS)))
         self.live: dict[int, int] = {}
         self._links: dict[int, dict] = {}
         self._links_lock = threading.Lock()
@@ -120,7 +151,7 @@ class ChunkedDownloader:
                 self.sleep(NETWORK_RETRY_SECONDS)
                 continue
             if response.status_code in (401, 402, 403, 404, 422):
-                raise ChunkedDownloadUnavailable(f"el servidor respondió {response.status_code}")
+                raise ChunkedDownloadUnavailable(f"el servidor respondió {response.status_code}", response.status_code)
             if response.status_code >= 500 and attempt < NETWORK_RETRIES and not self.context.cancelled.is_set():
                 self.sleep(NETWORK_RETRY_SECONDS)
                 continue
@@ -129,9 +160,24 @@ class ChunkedDownloader:
             return response.json()
         raise ChunkedDownloadError("el servidor no respondió")
 
-    def start(self, source_url: str, item_name: str, file_name: str = "") -> dict:
+    def peek(self, source_url: str) -> str:
+        """Where the server already holds this source ("viking" or "torbox"), or "" (also when it cannot tell).
+
+        One quick call, no retries: when the server does not answer the player just measures the torrent."""
+        try:
+            response = self.http.request("POST", f"{self.session.api}/downloads/viking-chunks/peek", headers=self._headers(),
+                                         timeout=20, json={"source_url": source_url})
+            if response.status_code != 200:
+                return ""
+            body = response.json()
+            return str(body.get("where") or "") if body.get("ready") else ""
+        except (requests.RequestException, ValueError, AttributeError):
+            return ""
+
+    def start(self, source_url: str, item_name: str, file_name: str = "", have: Any = ()) -> dict:
+        """Start, join or resume the job; `have` are the pieces already on disk, which the server does not upload again."""
         return self._call("POST", "/downloads/viking-chunks", json={
-            "source_url": source_url, "item_name": item_name, "file_name": file_name,
+            "source_url": source_url, "item_name": item_name, "file_name": file_name, "have_pieces": sorted(have),
         })
 
     def manifest(self, job_id: str) -> dict:
@@ -163,14 +209,22 @@ class ChunkedDownloader:
     def download(self, source_url: str, item_name: str, dest_dir: str, app_id: str, game_name: str) -> str:
         """Download everything into `dest_dir`; return the path to hand to the extractor."""
         context = self.context
-        manifest = self.start(source_url, item_name)
-        job_id = manifest["job_id"]
         dest = Path(dest_dir)
         dest.mkdir(parents=True, exist_ok=True)
-        work = dest / f".ga-pieces-{job_id[:8]}"
+        source_key = hashlib.sha1(source_url.encode("utf-8")).hexdigest()[:12]
+        state_path = dest / f".ga-state-{source_key}.json"
+        # The state belongs to the source, not to the server's job: a server that lost the job makes a new one.
+        done, saved_plan = self._load_state(state_path, source_url)
+        manifest = self.start(source_url, item_name, have=done)
+        job_id = manifest["job_id"]
+        reporter = getattr(context, "reporter", None)
+        if reporter is not None:  # from here on the player's reports join the server's story of this job
+            reporter.job_id = job_id
+            reporter.send("started")
+        work = dest / f".ga-pieces-{source_key}"
         work.mkdir(exist_ok=True)
-        state_path = dest / f".ga-state-{job_id[:8]}.json"
-        done = self._load_state(state_path, job_id)
+        check_plan = bool(done)
+        rejoins = 0
         started = time.time()
         idle_since = last_poll = 0.0
         files_ready = False
@@ -179,7 +233,7 @@ class ChunkedDownloader:
         resumes = 0
         finished = False
         inflight: dict[Any, int] = {}
-        sizes: dict[int, int] = {}
+        sizes: dict[int, tuple] = {}  # index -> (file, start, size)
         total = 0
         base_done = 0
         last_emit = 0.0
@@ -191,32 +245,68 @@ class ChunkedDownloader:
         try:
             while not context.cancelled.is_set():
                 context.wait_if_paused()
+                lost = False
                 for future in [f for f in inflight if f.done()]:
                     index = inflight.pop(future)
-                    future.result()  # raises the piece's error
-                    done.add(index)
                     self.live.pop(index, None)
-                    self._save_state(state_path, job_id, done)
+                    try:
+                        future.result()  # raises the piece's error
+                    except ChunkedDownloadUnavailable as exc:
+                        if exc.status != 404:
+                            raise
+                        lost = True  # the server no longer knows the job
+                        continue
+                    done.add(index)
+                    self._save_state(state_path, source_url, job_id, done, sizes)
                 if files_ready and not inflight and len(done) >= len(sizes):
                     finished = True
                     break
                 polled = False
                 if len(inflight) < self.parallel:
                     now = time.time()
-                    if last_poll == 0.0 or now - last_poll >= (1.0 if inflight else POLL_SECONDS):
+                    if last_poll == 0.0 or now - last_poll >= (INFLIGHT_POLL_SECONDS if inflight else POLL_SECONDS):
                         last_poll, polled = now, True
-                        manifest = self.manifest(job_id)
+                        try:
+                            manifest = self.manifest(job_id)
+                        except ChunkedDownloadUnavailable as exc:
+                            if exc.status != 404:
+                                raise
+                            lost, polled = True, False
+                if lost:
+                    # A restarted server forgets its jobs: ask again with the pieces already on disk. The piece that
+                    # was half done and every later one come from the new job.
+                    if rejoins >= MAX_REJOINS:
+                        raise ChunkedDownloadError("el servidor perdió la descarga varias veces")
+                    rejoins += 1
+                    self._drop_inflight(inflight)
+                    manifest = self.start(source_url, item_name, have=done)
+                    logger.info("El servidor ya no tenía el trabajo %s; se retoma como %s con %s piezas ya bajadas.",
+                                job_id[:8], manifest["job_id"][:8], len(done))
+                    job_id, check_plan, last_poll = manifest["job_id"], True, 0.0
+                    self._save_state(state_path, source_url, job_id, done, sizes)
+                    continue
                 if polled:
                     ready_left = any(p["ready"] and p["index"] not in done and p["index"] not in inflight.values() for p in manifest["pieces"])
-                    if manifest["status"] == "failed" and not ready_left and not inflight:
-                        # Nothing left to download from a stopped job: ask the server to resume it when that makes sense.
+                    waiting_for = [p for p in manifest["pieces"] if p["index"] not in done and not p["ready"]]
+                    stopped = manifest["status"] == "failed" or (manifest["status"] == "partial" and waiting_for)
+                    if stopped and not ready_left and not inflight:
+                        # Nothing left to download from a stopped job: ask the server to resume it when that makes sense
+                        # ("partial": it skipped pieces another player already had, and this one needs them).
                         if resumes < MAX_RESUMES and (manifest.get("error") or "") in RESUMABLE_ERRORS:
                             resumes += 1
-                            self.start(source_url, item_name)
+                            self.start(source_url, item_name, have=done)
                             self.sleep(POLL_SECONDS)
                             last_poll = 0.0
                             continue
                         code = manifest.get("error") or "error"
+                        if code in ("torbox_too_slow", "torbox_stalled"):
+                            detail = manifest.get("detail") or {}
+                            eta = int(detail.get("eta") or 0)
+                            seeds = int(detail.get("seeds") or 0)
+                            how_long = f" Torbox calculaba {_duration_words(eta)} para bajarla." if eta > 0 else ""
+                            raise SourceWithoutSeeds(
+                                f"Esta descarga se canceló: la fuente está casi sin semillas ({seeds} personas compartiéndola).{how_long} "
+                                "Probá otra fuente desde el botón Descargar.")
                         raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga: {ERROR_WORDS.get(code, code)} ({code})")
                     if not manifest["pieces"]:
                         detail = manifest.get("detail") or {}
@@ -228,12 +318,22 @@ class ChunkedDownloader:
                             idle_since = time.time()  # Torbox is moving: the server is not stuck
                         self._idle(idle_since or started)
                         continue
+                    if check_plan:
+                        # Pieces kept from before are only valid if the server planned the same pieces again.
+                        check_plan = False
+                        plan = {p["index"]: (p["file_index"], p["start"], int(p["size"])) for p in manifest["pieces"]}
+                        known = saved_plan or sizes
+                        if any(plan.get(i) != known.get(i) for i in done):
+                            logger.info("El servidor armó otras piezas; se vuelven a bajar las %s que había.", len(done))
+                            done.clear()
+                        saved_plan = {}
+                        files_ready = False
                     if not files_ready:
                         paths = self._prepare_files(manifest, dest, item_name, created)
                         files_ready = True
-                        sizes = {p["index"]: int(p["size"]) for p in manifest["pieces"]}
-                        total = int(manifest["total_bytes"] or sum(sizes.values()))
-                        base_done = sum(sizes[i] for i in done if i in sizes)
+                        sizes = {p["index"]: (p["file_index"], p["start"], int(p["size"])) for p in manifest["pieces"]}
+                        total = int(manifest["total_bytes"] or sum(v[2] for v in sizes.values()))
+                        base_done = sum(sizes[i][2] for i in done if i in sizes)
                     todo = [p for p in manifest["pieces"] if p["index"] not in done]
                     if not todo:
                         finished = True
@@ -251,11 +351,11 @@ class ChunkedDownloader:
                     self.sleep(0.25)
                 if time.time() - last_emit >= 0.5 and files_ready:
                     last_emit = time.time()
-                    got = sum(sizes.get(i, 0) for i in done) + sum(self.live.values())
+                    got = sum(sizes[i][2] for i in done if i in sizes) + sum(self.live.values())
                     if last_emit - last_report >= 15:
                         last_report = last_emit
                         ready_now = sum(1 for p in manifest["pieces"] if p["ready"] and p["index"] not in done)
-                        busy = ", ".join(f"#{i} {self.live.get(i, 0) >> 20}/{sizes.get(i, 0) >> 20} MB" for i in sorted(inflight.values()))
+                        busy = ", ".join(f"#{i} {self.live.get(i, 0) >> 20}/{sizes.get(i, (0, 0, 0))[2] >> 20} MB" for i in sorted(inflight.values()))
                         logger.info("Piezas: %s completas, %s bajando, %s listas en el servidor (sin bajar), %s en total%s",
                                     len(done), len(inflight), ready_now - len(inflight), len(manifest["pieces"]),
                                     f" [{busy}]" if busy else "")
@@ -334,19 +434,43 @@ class ChunkedDownloader:
             paths[int(entry["index"])] = path
         return paths
 
-    def _load_state(self, path: Path, job_id: str) -> set[int]:
+    def _load_state(self, path: Path, source_url: str) -> tuple[set[int], dict[int, tuple]]:
+        """The pieces already on disk for this source, with the plan they belong to (index -> file, start, size)."""
         try:
             data = json.loads(path.read_text("utf-8"))
-            if data.get("job_id") == job_id:
-                return {int(i) for i in data.get("done", [])}
-        except (OSError, ValueError):
+            if data.get("source") == hashlib.sha1(source_url.encode("utf-8")).hexdigest():
+                plan = {int(k): tuple(v) for k, v in (data.get("plan") or {}).items()}
+                return {int(i) for i in data.get("done", []) if int(i) in plan}, plan
+        except (OSError, ValueError, TypeError):
             pass
-        return set()
+        return set(), {}
 
-    def _save_state(self, path: Path, job_id: str, done: set[int]) -> None:
+    def _save_state(self, path: Path, source_url: str, job_id: str, done: set[int], plan: dict[int, tuple]) -> None:
         temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps({"job_id": job_id, "done": sorted(done)}), "utf-8")
+        temp.write_text(json.dumps({
+            "source": hashlib.sha1(source_url.encode("utf-8")).hexdigest(), "job_id": job_id, "done": sorted(done),
+            "plan": {str(i): list(v) for i, v in plan.items()},
+        }), "utf-8")
         os.replace(temp, path)
+
+    def _drop_inflight(self, inflight: dict[Any, int]) -> None:
+        """Stop the pieces being downloaded (none of them counts as done) and forget the links of the old job."""
+        self.abort.set()
+        wait_futures(list(inflight))
+        inflight.clear()
+        self.live.clear()
+        self.abort.clear()
+        with self._links_lock:
+            self._links.clear()
+
+    def _open_link(self, link: dict) -> str:
+        """The URL to download: a TorBox link arrives sealed for this session and is opened only in memory."""
+        if link.get("sealed"):
+            try:
+                return unseal(link["sealed"], self.session.token, self.session.installation)
+            except SealError as exc:
+                raise ChunkedDownloadError("el enlace no se pudo abrir") from exc
+        return link["url"]
 
     def _download_piece(self, job_id: str, piece: dict, target: Path, work: Path) -> None:
         """Runs in a worker thread: download one piece, verify it and write it at its place."""
@@ -359,31 +483,37 @@ class ChunkedDownloader:
                 return
             try:
                 link = self.piece_link(job_id, index, refresh=attempt > 1)  # a retry means the link did not work
-                digest = hashlib.sha256()
-                written = 0
+                url = self._open_link(link)
+                # Only the host: a TorBox link carries the account's key and must never reach a log.
+                logger.info("Pieza %s: desde %s (%s)", index, link.get("source") or "viking", requests.utils.urlparse(url).hostname)
                 piece_started = time.time()
                 self.live[index] = 0
-                with self.http.get(link["url"], stream=True, timeout=60, allow_redirects=True) as response:
-                    if response.status_code != 200:
-                        raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
-                    if "text/html" in response.headers.get("content-type", "").lower():
-                        raise ChunkedDownloadError("el enlace devolvió una página y no el archivo")
-                    with part.open("wb") as handle:
-                        for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
-                            context.wait_if_paused()
-                            if context.cancelled.is_set() or self.abort.is_set():
-                                return
-                            if not chunk:
-                                continue
-                            handle.write(chunk)
-                            digest.update(chunk)
-                            written += len(chunk)
-                            self.live[index] = written
+                if not piece.get("sha256"):
+                    # A whole file ViKiNG imported by itself: the server never saw its bytes, so there is no hash
+                    # to check (the archive's own checksums are checked when it is extracted). It goes straight
+                    # into its place: a file of several GB is not copied a second time.
+                    peak, written = self._fetch_piece(url, piece, target, offset=int(piece["start"]))
+                    if context.cancelled.is_set() or self.abort.is_set():
+                        return
+                    if written != piece["size"]:
+                        raise ChunkedDownloadError("el archivo llegó incompleto")
+                    took = max(time.time() - piece_started, 0.001)
+                    logger.info("Archivo %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s a la vez)",
+                                index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
+                    return
+                peak, _ = self._fetch_piece(url, piece, part)
+                if context.cancelled.is_set() or self.abort.is_set():
+                    return
+                digest = hashlib.sha256()
+                with part.open("rb") as handle:
+                    for block in iter(lambda: handle.read(STREAM_CHUNK), b""):
+                        digest.update(block)
+                written = part.stat().st_size
                 if written != piece["size"] or digest.hexdigest() != piece["sha256"]:
                     raise ChunkedDownloadError("el fragmento llegó incompleto o dañado")
                 took = max(time.time() - piece_started, 0.001)
-                logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s por conexion (%s a la vez)",
-                            index, written / 1048576, took, written / 1048576 / took, len(self.live))
+                logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s piezas a la vez)",
+                            index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
                 with target.open("r+b") as out:
                     out.seek(int(piece["start"]))
                     with part.open("rb") as source:
@@ -399,3 +529,139 @@ class ChunkedDownloader:
                 if attempt < PIECE_ATTEMPTS:
                     self.sleep(1.5 * attempt)
         raise ChunkedDownloadError(f"no se pudo bajar el fragmento {index}: {last_error}")
+
+    def _fetch_piece(self, url: str, piece: dict, part: Path, offset: int | None = None) -> tuple[int, int]:
+        """Download one piece into `part` over several range connections; return the most connections used at
+        once and the bytes written. With `offset` the bytes go into `part` (the final file) from there on.
+
+        A piece starts on one connection. Once ViKiNG shows it honours ranges, every free connection takes half of
+        the largest range still left, so a slow connection keeps handing its bytes to faster ones (the last piece
+        no longer crawls on one slow connection). A server that ignores ranges sends the piece on one connection."""
+        context = self.context
+        index, size = piece["index"], int(piece["size"])
+        if offset is None:
+            with part.open("wb") as handle:
+                handle.truncate(size)
+        ranges: list[list[int]] = [[0, size - 1, 0]]   # start, end (inclusive), written
+        owned: set[int] = set()                         # ranges a connection is working on
+        lock = threading.Lock()
+        ranged = threading.Event()
+        stop = threading.Event()
+        errors: list[Exception] = []
+        threads: list[threading.Thread] = []
+        cap, failures, peak = CONNECTIONS_PER_PIECE, 0, 0
+
+        def left(r: list[int]) -> int:
+            return r[1] - (r[0] + r[2]) + 1
+
+        def run(slot: int) -> None:
+            try:
+                self._fetch_range(url, ranges[slot], part, lock, ranged, stop, index, ranges, offset or 0)
+            except BaseException as exc:  # noqa: BLE001 - reported to the piece, which retries the range
+                with lock:
+                    errors.append(exc)
+            finally:
+                with lock:
+                    owned.discard(slot)
+                self.connections.release()
+
+        def free_range() -> int | None:
+            """A range no connection is working on (not started yet, or its connection failed)."""
+            return next((i for i, r in enumerate(ranges) if left(r) > 0 and i not in owned), None)
+
+        def split() -> int | None:
+            """Hand the second half of the largest range being downloaded to a new connection."""
+            largest = max(owned, key=lambda i: left(ranges[i]), default=None)
+            if not ranged.is_set() or largest is None or left(ranges[largest]) < 2 * MIN_SPLIT_BYTES:
+                return None
+            r = ranges[largest]
+            middle = r[0] + r[2] + left(r) // 2
+            ranges.append([middle, r[1], 0])
+            r[1] = middle - 1
+            return len(ranges) - 1
+
+        last: Exception | None = None
+        try:
+            while not (context.cancelled.is_set() or self.abort.is_set()):
+                with lock:
+                    threads = [t for t in threads if t.is_alive()]
+                    if not owned and all(left(r) <= 0 for r in ranges):
+                        break
+                    fatal = next((exc for exc in errors if not isinstance(exc, Exception)), None)
+                    if fatal is not None:
+                        raise fatal  # the app is closing (KeyboardInterrupt, SystemExit): not a network error to retry
+                    for exc in errors:
+                        failures, last = failures + 1, exc
+                        if "429" in str(exc):
+                            cap = max(1, len(owned))  # ViKiNG wants fewer connections on this server
+                    errors.clear()
+                    if failures > RANGE_FAILURES:
+                        raise ChunkedDownloadError(f"conexiones fallidas: {last}")
+                    wants = len(owned) < cap
+                    alone = not owned
+                # The first connection waits for a free slot; more connections are added only when one is free.
+                if wants and self.connections.acquire(timeout=0.25 if alone else 0.001):
+                    with lock:
+                        slot = free_range()
+                        if slot is None:
+                            slot = split()
+                        if slot is not None:
+                            owned.add(slot)
+                            peak = max(peak, len(owned))
+                    if slot is None:
+                        self.connections.release()
+                    else:
+                        thread = threading.Thread(target=run, args=(slot,), daemon=True)
+                        threads.append(thread)
+                        thread.start()
+                        continue
+                stop.wait(0.05)
+        finally:
+            stop.set()  # connections still running (cancel, error) stop at their next block
+            for thread in threads:
+                thread.join()
+        return peak, sum(r[2] for r in ranges)
+
+    def _fetch_range(self, url: str, r: list[int], part: Path, lock: threading.Lock, ranged: threading.Event,
+                     stop: threading.Event, index: int, ranges: list[list[int]], offset: int = 0) -> None:
+        """One connection: download bytes r[0]+r[2]..r[1] of the piece. The end may move closer while it runs
+        (another connection took the second half); it stops there."""
+        context = self.context
+        with lock:
+            position, end = r[0] + r[2], r[1]
+        if position > end:
+            return
+        headers = {"Range": f"bytes={position}-{end}", "Accept-Encoding": "identity"}
+        with self.http.get(url, stream=True, timeout=60, allow_redirects=True, headers=headers) as response:
+            if response.status_code == 429:
+                raise ChunkedDownloadError("demasiadas conexiones (429)")
+            if response.status_code == 206:
+                if not str(response.headers.get("content-range", "")).lower().startswith(f"bytes {position}-"):
+                    raise ChunkedDownloadError("el servidor no respetó el rango pedido")
+                ranged.set()
+            elif response.status_code != 200 or position != 0:
+                raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
+            if "text/html" in response.headers.get("content-type", "").lower():
+                raise ChunkedDownloadError("el enlace devolvió una página y no el archivo")
+            with part.open("r+b") as handle:
+                for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
+                    context.wait_if_paused()
+                    if context.cancelled.is_set() or self.abort.is_set() or stop.is_set():
+                        return
+                    if not chunk:
+                        continue
+                    with lock:
+                        at = r[0] + r[2]
+                        take = chunk[: max(r[1] - at + 1, 0)]
+                        r[2] += len(take)
+                        finished = r[0] + r[2] > r[1]
+                        self.live[index] = sum(x[2] for x in ranges)
+                    if take:
+                        handle.seek(offset + at)
+                        handle.write(take)
+                    if finished:
+                        return
+        with lock:
+            complete = r[0] + r[2] > r[1]
+        if not complete:
+            raise ChunkedDownloadError("la conexión se cortó antes de terminar")

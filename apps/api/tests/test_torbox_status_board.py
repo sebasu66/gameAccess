@@ -183,3 +183,52 @@ def test_the_torbox_queue_does_not_count_as_a_stall():
         assert asyncio.run(wait_for(source)).item_id == 7
     finally:
         time_module.monotonic = real
+
+
+def test_a_source_torbox_would_need_months_for_is_given_up_after_the_first_minutes():
+    counters = {"mylist": 0, "id_param": 0}
+    ticks = {"t": 0.0, "n": 0}
+
+    async def sleep(seconds):
+        ticks["t"] += 60
+
+    def listing():  # it moves, but at this pace it would take months (TorBox's own ETA)
+        ticks["n"] += 1
+        return [{"id": 7, "download_state": "downloading", "progress": 0.001 * ticks["n"], "seeds": 1,
+                 "eta": 90 * 86400, "download_speed": 2000, "size": 70 * 1024 ** 3}]
+
+    source = provider(torbox_handler(listing, counters), poll_interval_seconds=1, sleep_fn=sleep, stall_seconds=900)
+    import time as time_module
+    real = time_module.monotonic
+    time_module.monotonic = lambda: real() + ticks["t"]
+    try:
+        with pytest.raises(service.ProviderFailure) as failure:
+            asyncio.run(wait_for(source))
+    finally:
+        time_module.monotonic = real
+    assert failure.value.code == "torbox_too_slow"
+    assert "unos 3 meses" in failure.value.public_message and "1 fuentes" in failure.value.public_message
+    assert 180 <= ticks["t"] <= 420   # not before the grace period, and soon after it
+
+
+def test_a_source_torbox_fetches_in_reasonable_time_is_not_given_up():
+    counters = {"mylist": 0, "id_param": 0}
+    ticks = {"t": 0.0}
+
+    async def sleep(seconds):
+        ticks["t"] += 60
+
+    def listing():  # half done, one hour left: TorBox is simply working
+        return [{"id": 7, "download_state": "downloading", "progress": 0.5, "seeds": 40, "eta": 3600, "size": 10}]
+
+    source = provider(torbox_handler(listing, counters), poll_interval_seconds=1, sleep_fn=sleep,
+                      stall_seconds=10 ** 6)  # only the estimate rule is under test
+    import time as time_module
+    real = time_module.monotonic
+    time_module.monotonic = lambda: real() + ticks["t"]
+    try:
+        with pytest.raises(service.ProviderFailure) as stopped:
+            asyncio.run(wait_for(source))
+    finally:
+        time_module.monotonic = real
+    assert stopped.value.code == "torbox_wait_timeout"   # it waited the whole allowed time, never "too slow"

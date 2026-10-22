@@ -37,6 +37,48 @@ function numericContext(message: string, pattern: RegExp): number | null {
 
 const remoteErrorRequests = new Map<string, { time: number; promise: Promise<boolean> }>();
 
+/**
+ * Reports that could not be sent (no server yet, not activated, hosted server asleep) wait here,
+ * across restarts, and go out as soon as a report gets through. Without it they were simply lost.
+ */
+const PENDING_REPORTS_KEY = "gameaccess:pending-client-errors";
+const MAX_PENDING_REPORTS = 50;
+type PendingReport = { area: string; message: string; at: string };
+
+function readPendingReports(): PendingReport[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PENDING_REPORTS_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.message === "string" && typeof item.area === "string") : [];
+  } catch { return []; }
+}
+
+function writePendingReports(reports: PendingReport[]): void {
+  try {
+    if (reports.length) localStorage.setItem(PENDING_REPORTS_KEY, JSON.stringify(reports.slice(-MAX_PENDING_REPORTS)));
+    else localStorage.removeItem(PENDING_REPORTS_KEY);
+  } catch { /* storage full or blocked: the report stays in the local log only */ }
+}
+
+function queueReport(area: string, message: string): void {
+  const pending = readPendingReports();
+  if (pending.some(item => item.area === area && item.message === message)) return;
+  writePendingReports([...pending, { area, message, at: new Date().toISOString() }]);
+}
+
+let flushing: Promise<void> | null = null;
+/** Sends the waiting reports in order, stopping at the first one that does not get through. */
+export function flushPendingClientErrors(): Promise<void> {
+  if (!hasTauriRuntime()) return Promise.resolve();
+  flushing ??= (async () => {
+    for (let pending = readPendingReports(); pending.length; pending = readPendingReports()) {
+      const [first] = pending;
+      if (await sendRemoteError(`[occurred ${first.at}] ${first.message}`, first.area) === "retry") return;
+      writePendingReports(readPendingReports().filter(item => !(item.area === first.area && item.message === first.message && item.at === first.at)));
+    }
+  })().finally(() => { flushing = null; });
+  return flushing;
+}
+
 export function reportClientError(message: string, area: string): Promise<boolean> {
   if (!hasTauriRuntime()) return Promise.resolve(false);
   const safe = sanitizedRemoteError(message);
@@ -44,17 +86,39 @@ export function reportClientError(message: string, area: string): Promise<boolea
   const fingerprint = `${area}|${safe}`;
   const existing = remoteErrorRequests.get(fingerprint);
   if (existing && Date.now() - existing.time < 30_000) return existing.promise;
-  const promise = sendRemoteError(safe, area);
+  const promise = sendRemoteError(safe, area).then(outcome => {
+    if (outcome === "sent") void flushPendingClientErrors(); else if (outcome === "retry") queueReport(area, safe);
+    return outcome === "sent";
+  });
   remoteErrorRequests.set(fingerprint, { time: Date.now(), promise });
   return promise;
 }
 
-async function sendRemoteError(safe: string, area: string): Promise<boolean> {
+let reportingStarted = false;
+/** Uncaught exceptions and rejected promises go to the activity log and to the server; queued reports are retried. */
+export function startClientErrorReporting(): void {
+  if (reportingStarted || typeof window === "undefined") return;
+  reportingStarted = true;
+  window.addEventListener("error", event => {
+    const where = event.filename ? ` at ${event.filename.split("/").pop()}:${event.lineno}:${event.colno}` : "";
+    const stack = event.error instanceof Error && event.error.stack ? ` Stack: ${event.error.stack}` : "";
+    void narrate(`Uncaught error: ${event.message || String(event.error)}${where}.${stack}`, { area: "UNCAUGHT", level: "ERROR" });
+  });
+  window.addEventListener("unhandledrejection", event => {
+    const reason = event.reason instanceof Error ? `${event.reason.message}${event.reason.stack ? ` Stack: ${event.reason.stack}` : ""}` : String(event.reason);
+    void narrate(`Unhandled promise rejection: ${reason}`, { area: "UNCAUGHT", level: "ERROR" });
+  });
+  void flushPendingClientErrors();
+  window.setInterval(() => void flushPendingClientErrors(), 60_000);
+}
+
+/** "retry": no server, not activated or a passing failure. "rejected": the server will never take this report. */
+async function sendRemoteError(safe: string, area: string): Promise<"sent" | "retry" | "rejected"> {
   try {
     const [api, token, installationId] = await Promise.all([
       getApiBaseUrl(), readActivationSession(), getInstallationId(),
     ]);
-    if (!api || !token || !installationId) return false;
+    if (!api || !token || !installationId) return "retry";
     const response = await fetch(`${api}/client-errors`, {
       method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-GameAccess-Installation": installationId },
@@ -65,11 +129,12 @@ async function sendRemoteError(safe: string, area: string): Promise<boolean> {
         client_build: typeof __BUILD_TIMESTAMP__ === "string" ? __BUILD_TIMESTAMP__ : "development",
       }),
     });
-    if (!response.ok) console.warn("[GameAccess][REPORT] Server rejected client error report:", response.status);
-    return response.ok;
+    if (response.ok) return "sent";
+    console.warn("[GameAccess][REPORT] Server rejected client error report:", response.status);
+    return response.status >= 400 && response.status < 500 && ![401, 403, 408, 429].includes(response.status) ? "rejected" : "retry";
   } catch (error) {
     console.warn("[GameAccess][REPORT] Could not send client error report:", error);
-    return false;
+    return "retry";
   }
 }
 

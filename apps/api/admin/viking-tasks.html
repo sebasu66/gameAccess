@@ -13,7 +13,7 @@ tr.main{cursor:pointer}tr.main:hover{background:#ffffff08}tr.logrow td{backgroun
 </style>
 <main>
 <h1>Tareas en ejecución</h1>
-<p>Enlaces que el servidor está procesando ahora (caché de Viking Files, Torbox y subida). Se actualiza solo cada 5 segundos. <a href="/admin">Volver</a></p>
+<p>Juegos que el servidor está preparando ahora: Torbox los baja y Viking los copia directo desde Torbox; el cliente baja desde Torbox mientras tanto. Se actualiza solo cada 5 segundos. <a href="/admin">Volver</a></p>
 <div class="stats">
 <div class="stat"><b id="total">–</b><span>en ejecución</span></div>
 <div class="stat"><b id="direct">–</b><span>enlaces directos</span></div>
@@ -36,7 +36,7 @@ const why=c=>c?(REASONS[c]||c):"Sin detalle";
 const wait=d=>{if(!d||d.stage!=="torbox")return"";const bits=[];if(d.state)bits.push(d.state);if(d.progress)bits.push(Math.round(d.progress)+"%");if(d.seeds)bits.push(d.seeds+" fuentes");return bits.join(" · ")};
 const fmt=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+" h ":"")+(h||m?m+" min ":"")+r+" s"};
 function cell(tr,text,cls){const td=document.createElement("td");td.textContent=text;if(cls)td.className=cls;tr.appendChild(td);return td}
-const STEPS={request:"Pedido",cache:"En caché",resume:"Retoma",torbox:"Paso 1 · Torbox",viking:"Paso 2 · Viking",ready:"Listo",error:"Error"};
+const STEPS={request:"Pedido",cache:"Ya estaba en Viking",resume:"Retoma",torbox:"Paso 1 · Torbox",viking:"Paso 2 · Viking",send:"Enviado al cliente",client:"Cliente",ready:"Listo",error:"Error"};
 function logRow(host,id,events,span){
   const tr=document.createElement("tr");tr.className="logrow";const td=document.createElement("td");td.colSpan=span;
   const ul=document.createElement("ul");ul.className="log";

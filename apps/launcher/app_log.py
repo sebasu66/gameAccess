@@ -8,7 +8,9 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-LOG_DIR = Path(__file__).resolve().parent / "logs"
+from launcher_data import data_dir
+
+LOG_DIR = data_dir() / "logs"
 MAX_BYTES = 1024 * 1024
 BACKUPS = 1  # RotatingFileHandler never rotates with 0 backups: the file would grow forever.
 FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

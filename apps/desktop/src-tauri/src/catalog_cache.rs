@@ -77,7 +77,12 @@ fn bundled_catalog_dir() -> Option<PathBuf> {
     dev.is_dir().then_some(dev)
 }
 
-fn install_bundled_seed(target: &Path) -> Result<bool, String> {
+/// Reports long catalog work to the interface: (stage, done, total). Stages: "seed" (installing the database that
+/// ships with the app), "download" (bytes), "apply" (games written). A total of 0 means unknown.
+pub(crate) type Progress<'a> = &'a dyn Fn(&str, u64, u64);
+fn no_progress(_: &str, _: u64, _: u64) {}
+
+fn install_bundled_seed(target: &Path, progress: Progress) -> Result<bool, String> {
     let Some(seed_dir) = bundled_catalog_dir() else {
         return Ok(false);
     };
@@ -110,6 +115,7 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
         return Ok(false);
     }
 
+    progress("seed", 0, 0);
     let compressed = fs::read(&artifact_path)
         .map_err(|err| format!("Could not read bundled catalog seed: {err}"))?;
     let actual_sha = format!("{:x}", Sha256::digest(&compressed));
@@ -132,7 +138,7 @@ fn install_bundled_seed(target: &Path) -> Result<bool, String> {
         .map_err(|err| format!("Could not stage bundled catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
     if target.exists() {
-        merge_baseline(target,&next,&manifest)?;
+        merge_baseline(target,&next,&manifest,progress)?;
         let _=fs::remove_file(&next);
         return Ok(true);
     }
@@ -157,10 +163,18 @@ fn ready_cache_db_path() -> Result<PathBuf, String> {
     ready_cache_db_path_unlocked()
 }
 
+/// The installed catalog, installing the bundled seed if needed (used by the release self-test).
+pub(crate) fn self_test_catalog() -> Result<PathBuf, String> {
+    let path = ready_cache_db_path()?;
+    let size = fs::metadata(&path).map_err(|err| format!("Catalog missing after install: {err}"))?.len();
+    if size == 0 { return Err("Catalog database is empty".to_string()); }
+    Ok(path)
+}
+
 fn ready_cache_db_path_unlocked() -> Result<PathBuf, String> {
     let target = cache_db_path()?;
     reconcile_cache_sidecars(&target)?;
-    let _ = install_bundled_seed(&target)?;
+    let _ = install_bundled_seed(&target, &no_progress)?;
     Ok(target)
 }
 
@@ -366,7 +380,7 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
 }
 
 fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
-                manifest: &CatalogManifest) -> Result<usize, String> {
+                manifest: &CatalogManifest, progress: Progress) -> Result<usize, String> {
     let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
     ensure_normalized_schema(&conn)?;
     let tx = conn.transaction().map_err(|e|e.to_string())?;
@@ -375,7 +389,10 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
     // it. Without this the payload updates and the searchable tables do not: a
     // refresh that added genres left `game_genre` holding the previous values.
     let mut touched: Vec<(i64, String)> = Vec::new();
-    for mut game in games {
+    let total = games.len() as u64;
+    progress("apply", 0, total);
+    for (position, mut game) in games.into_iter().enumerate() {
+        if position % 250 == 0 { progress("apply", position as u64, total); }
         let incoming_id = game["id"].as_i64().ok_or("Catalog game has no id")?;
         let app_id = game["app_id"].as_i64();
         let existing = tx.query_row(
@@ -404,6 +421,7 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
             params![id,app_id,serialized.clone()]).map_err(|e|e.to_string())?;
         touched.push((id, serialized));
     }
+    progress("apply", total, total);
     refresh_normalized_rows(&tx, &touched)?;
     for detail in details {
         let id = match detail.app_id {
@@ -443,7 +461,7 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
     Ok(count)
 }
 
-fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest) -> Result<usize,String> {
+fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, progress: Progress) -> Result<usize,String> {
     let conn=Connection::open(incoming).map_err(|e|e.to_string())?;
     let games = conn.prepare("SELECT payload FROM catalog_game").map_err(|e|e.to_string())?
         .query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?
@@ -454,7 +472,7 @@ fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest) ->
         .map(|row| {let (game_id,language,country,payload)=row.map_err(|e|e.to_string())?;
             Ok(DetailChange{game_id,app_id:None,language,country,payload:serde_json::from_str(&payload).map_err(|e|e.to_string())?})})
         .collect::<Result<Vec<_>,String>>()?;
-    apply_batch(target,games,details,manifest)
+    apply_batch(target,games,details,manifest,progress)
 }
 
 
@@ -486,12 +504,12 @@ fn reconcile_missing(client: &Client, manifest_url: &str, target: &Path, manifes
         return Err("Catalog repair revision mismatch".into());
     }
     let added=batch.games.len();
-    let count=apply_batch(target,batch.games,batch.details,manifest)?;
+    let count=apply_batch(target,batch.games,batch.details,manifest,&no_progress)?;
     let _=crate::activity_log::append_narration_lines(vec![format!("Catalog inventory reconciled: {added} missing game(s) restored; {count} retained")],"CATALOG".into(),"INFO".into());
     Ok(count)
 }
 
-fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
+fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCacheSyncResult, String> {
     let _sync_guard = CATALOG_CACHE_SYNC_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
@@ -540,24 +558,38 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
         }
     }
 
-    let compressed = client
+    let mut response = client
         .get(&manifest.artifact_url)
         .header(CACHE_CONTROL, "public, max-age=31536000, immutable")
         .send()
         .and_then(|response| response.error_for_status())
-        .map_err(|err| format!("Could not download catalog cache: {err}"))?
-        .bytes()
-        .map_err(|err| format!("Could not read catalog cache download: {err}"))?;
-    if compressed.len() > MAX_COMPRESSED_BYTES {
-        return Err("Catalog cache download is unexpectedly large".into());
+        .map_err(|err| format!("Could not download catalog cache: {err}"))?;
+    // Read in blocks so the interface can show the bytes as they arrive.
+    let total = response.content_length().unwrap_or(0);
+    let mut compressed = Vec::with_capacity(total.min(MAX_COMPRESSED_BYTES as u64) as usize);
+    let mut block = vec![0u8; 64 * 1024];
+    let mut reported = std::time::Instant::now();
+    progress("download", 0, total);
+    loop {
+        let read = response.read(&mut block).map_err(|err| format!("Could not read catalog cache download: {err}"))?;
+        if read == 0 { break; }
+        compressed.extend_from_slice(&block[..read]);
+        if compressed.len() > MAX_COMPRESSED_BYTES {
+            return Err("Catalog cache download is unexpectedly large".into());
+        }
+        if reported.elapsed() >= Duration::from_millis(200) {
+            progress("download", compressed.len() as u64, total);
+            reported = std::time::Instant::now();
+        }
     }
+    progress("download", compressed.len() as u64, total.max(compressed.len() as u64));
 
     let actual_sha = format!("{:x}", Sha256::digest(&compressed));
     if !actual_sha.eq_ignore_ascii_case(manifest.sha256.trim()) {
         return Err("Catalog cache SHA-256 verification failed".into());
     }
 
-    let mut decoder = GzDecoder::new(compressed.as_ref());
+    let mut decoder = GzDecoder::new(compressed.as_slice());
     let mut sqlite_bytes = Vec::new();
     decoder
         .read_to_end(&mut sqlite_bytes)
@@ -570,7 +602,7 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
             || batch.base_revision != manifest.base_revision || batch.base_revision != current.0 {
             return Err("Catalog update does not match the installed revision".into());
         }
-        let _=apply_batch(&target,batch.games,batch.details,&manifest)?;
+        let _=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
         let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
         return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
     }
@@ -579,7 +611,7 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     fs::write(&next, sqlite_bytes).map_err(|err| format!("Could not write catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
     if target.exists() {
-        let _ = merge_baseline(&target,&next,&manifest)?;
+        let _ = merge_baseline(&target,&next,&manifest,progress)?;
         let _=fs::remove_file(&next);
         let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
         return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
@@ -612,10 +644,36 @@ fn sync_blocking(manifest_url: String) -> Result<CatalogCacheSyncResult, String>
     })
 }
 
+fn emitter(app: tauri::AppHandle) -> impl Fn(&str, u64, u64) {
+    use tauri::Emitter;
+    move |stage: &str, done: u64, total: u64| {
+        let _ = app.emit("gameaccess:catalog-progress", serde_json::json!({ "stage": stage, "done": done, "total": total }));
+    }
+}
+
+/// Installs (or updates from) the catalog database that ships with the app, reporting progress. The first step of
+/// the startup preparation: afterwards every catalog command finds the database ready.
 #[tauri::command]
-pub async fn catalog_cache_sync(manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
+pub async fn catalog_prepare(app: tauri::AppHandle) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        sync_blocking(manifest_url)
+        let progress = emitter(app);
+        let _guard = CATALOG_CACHE_SYNC_LOCK.get_or_init(|| Mutex::new(())).lock()
+            .map_err(|_| "Catalog cache lock was poisoned".to_string())?;
+        let target = cache_db_path()?;
+        reconcile_cache_sidecars(&target)?;
+        let installed = install_bundled_seed(&target, &progress)?;
+        let (revision, count) = current_cache_info(&target)?.unwrap_or_default();
+        Ok(serde_json::json!({ "installed": installed, "revision": revision, "catalog_count": count }))
+    })
+    .await
+    .map_err(|err| format!("Catalog preparation task failed: {err}"))?
+}
+
+#[tauri::command]
+pub async fn catalog_cache_sync(app: tauri::AppHandle, manifest_url: String) -> Result<CatalogCacheSyncResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let progress = emitter(app);
+        sync_blocking(manifest_url, &progress)
     })
         .await
         .map_err(|err| format!("Catalog cache sync task failed: {err}"))?
@@ -1672,7 +1730,7 @@ mod tests {
         drop(db);
         let manifest=CatalogManifest{schema_version:1,revision:"new".into(),artifact_url:String::new(),sha256:String::new(),catalog_count:1,generated_at:String::new(),kind:"delta".into(),base_revision:"old".into(),inventory_sha256:String::new()};
         let count=apply_batch(&target,vec![serde_json::json!({"id":99,"app_id":233980,"short_description":"","tags":[],"steam_review_score":95})],
-            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest).unwrap();
+            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest,&no_progress).unwrap();
         assert_eq!(count,2);
         let db=Connection::open(&target).unwrap();
         let payload:String=db.query_row("SELECT payload FROM catalog_game WHERE id=7",[],|r|r.get(0)).unwrap();

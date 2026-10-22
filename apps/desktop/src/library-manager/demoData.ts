@@ -15,12 +15,13 @@ export const demoGames: LibraryGame[] = [
   row(2421750, "Gunman Contracts - Stand Alone", 27.8, legacy({ reclaimable_bytes: 8.7 * GB, issues: [{ code: "no_status", message: "Carpeta con formato anterior." }, { code: "obsolete_backup", message: "Guarda una copia comprimida que duplica el juego entero.", bytes: 8.7 * GB }] })),
   row(3844750, "FlatOut 4: Total Insanity VR", 54.8, legacy({ reclaimable_bytes: 19.5 * GB, plays: 3, issues: [{ code: "no_status", message: "Carpeta con formato anterior." }, { code: "obsolete_backup", message: "Guarda una copia comprimida que duplica el juego entero.", bytes: 19.5 * GB }] })),
   row(1145360, "Hades", 15, { state: "linked", linked: true, link_kind: "steam", folder: "D:\\SteamLibrary\\steamapps\\common\\Hades", plays: 4, last_played: "2026-10-16 20:00:00" }),
-  row(620, "Portal 2", 14.6, { plays: 12, last_played: "2026-10-15 21:10:00" }),
+  row(620, "Portal 2", 14.6, { plays: 12, last_played: "2026-10-15 21:10:00", source_title: "Portal 2 v2.0.0.1 + All DLCs - Repack", source_provider: "SteamRIP" }),
+  row(284160, "BeamNG.drive", 50, { frozen: "freeze", frozen_bytes: 20.9 * GB, original_bytes: 50 * GB, plays: 6, last_played: "2026-10-22 05:36:44" }),
   row(413150, "Stardew Valley", 0.7, { plays: 31, last_played: "2026-10-16 18:02:00" }),
   row(881100, "Noita", 1.6, { plays: 6 }),
   row(363860, "MythForce", 7.1, legacy({ installed: false, transfer_bytes: 7.4 * GB, issues: [{ code: "extract", message: "Hay archivos comprimidos sin descomprimir." }], warning: "Hay archivos comprimidos sin descomprimir." })),
   row(3905450, "WheelMates", 7.2, { plays: 2 }),
-  row(42910, "Magicka", 2.9, { state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando descomprimir Magicka.rar: contraseña incorrecta", issues: [{ code: "error", message: "error intentando descomprimir Magicka.rar: contraseña incorrecta" }] }),
+  row(42910, "Magicka", 2.9, { queued: true, unfinished: true, state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando descomprimir Magicka.rar: contraseña incorrecta", issues: [{ code: "error", message: "error intentando descomprimir Magicka.rar: contraseña incorrecta" }] }),
   row(1245620, "ELDEN RING", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 69.6 * GB, unfinished: true, transfer_kind: "pieces" }),
   row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
@@ -33,7 +34,7 @@ export const demoUsage: LibraryUsage = {
 };
 export const demoTransfers: LibraryTransfer[] = [];
 export const demoSummary: LibrarySummary = {
-  count: 11, by_state: {}, needs_repair: 1, nonstandard: 5, partial_downloads: 3, used_bytes: 247 * GB, transfers_bytes: 96 * GB, reclaimable_bytes: 28 * GB,
+  count: 11, by_state: {}, needs_repair: 1, nonstandard: 5, partial_downloads: 3, used_bytes: 247 * GB, transfers_bytes: 96 * GB, reclaimable_bytes: 28 * GB, frozen_saved_bytes: 29.1 * GB,
   disk_free_bytes: 23 * GB, disk_total_bytes: 4000 * GB,
 };
 

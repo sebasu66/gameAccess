@@ -1,4 +1,5 @@
 import { gameStateManager } from "./GameStateManager";
+import { translate } from "./i18n";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 import { parseReleaseDate } from "./libraryQuality";
@@ -85,36 +86,36 @@ export function buildLibraryCollection(
   const hasSteamReviewData = games.some(game => typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0);
   const effectiveSort = catalogSort === "steam-popularity" && !hasRecommendations ? "name" : catalogSort;
   const titles: Record<LibraryView, string> = {
-    library: "Biblioteca",
+    library: translate("sectionLibrary"),
     catalog: catalogSort === "release-date"
-      ? "Catálogo · lanzamientos recientes"
+      ? translate("sectionCatalogRelease")
       : catalogSort === "steam-popularity"
-        ? "Catálogo · popularidad en Steam"
+        ? translate("sectionCatalogPopularity")
         : catalogSort === "steam-review-score"
-          ? "Catálogo · puntuación de Steam"
-          : "Catálogo · A–Z",
-    popular: effectiveSort === "steam-popularity" ? "Populares · Steam global" : "Populares · A–Z",
-    latest: "Latest · lanzamientos recientes",
-    top: "Top · mejor valorados en Steam",
-    installed: "Instalados",
-    favorites: "Favoritos",
+          ? translate("sectionCatalogScore")
+          : translate("sectionCatalogAz"),
+    popular: effectiveSort === "steam-popularity" ? translate("sectionPopularSteam") : translate("sectionPopularAz"),
+    latest: translate("sectionLatest"),
+    top: translate("sectionTop"),
+    installed: translate("sectionInstalled"),
+    favorites: translate("sectionFavorites"),
   };
   const descriptions: Record<LibraryView, string> = {
-    library: "Tus juegos, instalados o sin instalar.",
+    library: translate("descLibrary"),
     catalog: catalogSort === "release-date"
-      ? "Todos los juegos ordenados por fecha de lanzamiento, del más reciente al más antiguo."
+      ? translate("descCatalogRelease")
       : catalogSort === "steam-popularity"
-        ? hasRecommendations ? "Todos los juegos ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas)." : "Steam no proporcionó datos de popularidad para estos juegos; se ordenan por título."
+        ? hasRecommendations ? translate("descCatalogPopularity") : translate("descCatalogPopularityNoData")
         : catalogSort === "steam-review-score"
-          ? hasSteamReviewData ? "Todos los juegos ordenados por puntuación de reseñas de Steam, ajustada por la cantidad de reseñas." : "Todavía no hay puntuaciones de reseñas de Steam; los juegos se ordenan por título."
-          : "Todos los juegos disponibles, ordenados alfabéticamente.",
+          ? hasSteamReviewData ? translate("descCatalogScore") : translate("descCatalogScoreNoData")
+          : translate("descCatalogName"),
     popular: effectiveSort === "steam-popularity"
-      ? "Ordenados por popularidad en Steam (recomendaciones o cantidad de reseñas)."
-      : "Ordenados alfabéticamente.",
-    latest: "Ordenados por fecha de lanzamiento de Steam, más recientes primero.",
-    top: hasSteamReviewData ? "Ordenados por porcentaje de reseñas positivas de Steam, ajustado por la cantidad de reseñas." : "El ranking Top necesita datos de reseñas de Steam que todavía no llegan en el catálogo.",
-    installed: "Juegos instalados o preparados en este dispositivo.",
-    favorites: "Tus juegos favoritos.",
+      ? translate("descPopular")
+      : translate("descPopularAz"),
+    latest: translate("descLatest"),
+    top: hasSteamReviewData ? translate("descTopReady") : translate("descTopMissing"),
+    installed: translate("descInstalled"),
+    favorites: translate("descFavorites"),
   };
   const collection = games.filter(game => {
     if (view === "library") return libraryIds.has(game.app_id ?? game.id);
@@ -132,7 +133,7 @@ export function buildLibraryCollection(
     const sort = view === "latest" ? "release-date" : view === "top" ? "steam-review-score" : view === "popular" ? effectiveSort : catalogSort;
     return compareCatalogGames(a, b, sort);
   });
-  return { id: "catalog", title: titles[view], description: descriptions[view], emptyMessage: view === "top" && !hasSteamReviewData ? "Steam todavía no proporcionó reseñas para calcular este ranking." : undefined, games: collection };
+  return { id: "catalog", title: titles[view], description: descriptions[view], emptyMessage: view === "top" && !hasSteamReviewData ? "Steam todavía no proporcionó reseñas para calcular este ranking." : view === "library" ? translate("emptyLibraryBody") : undefined, games: collection };
 }
 export function buildLibrarySections(games: CatalogGame[], downloads: Record<number, ManagedDownloadStatus>, preferences: Record<number, 1 | -1> = {}, history: Record<number, number> = {}, catalogSort: CatalogSort = "steam-popularity"): LibrarySection[] {
   const hasSteamPopularity = hasPopularityData(games);
@@ -145,9 +146,9 @@ export function buildLibrarySections(games: CatalogGame[], downloads: Record<num
         ? { title: "Catálogo", description: "Ordenados por puntuación de reseñas de Steam." }
         : { title: "Catálogo", description: catalogSort === "steam-popularity" ? "No hay datos de recomendaciones para estos juegos; se muestran por título." : "Ordenados alfabéticamente por título." };
   const sections: LibrarySection[] = [
-    { id: "installed", title: "Instalados", games: [] },
+    { id: "installed", title: translate("sectionInstalled"), games: [] },
     { id: "downloads", title: "Descargas", games: [] },
-    { id: "favorites", title: "Favoritos", games: [] },
+    { id: "favorites", title: translate("sectionFavorites"), games: [] },
     { id: "catalog", ...catalogPresentation, games: [] },
   ];
   const groups = Object.fromEntries(sections.map(section => [section.id, section]));

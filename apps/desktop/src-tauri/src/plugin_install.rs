@@ -17,6 +17,12 @@ use std::{
 const LINK_PREFIX: &str = "gameaccess://install-plugin";
 const MAX_DOWNLOAD_BYTES: u64 = 400 * 1024 * 1024;
 static BUSY: AtomicBool = AtomicBool::new(false);
+static APP: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
+/// Lets a finished install start the plugin and tell the interface, which syncs its sources right away.
+pub fn attach(app: tauri::AppHandle) {
+    let _ = APP.set(app);
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InstallRequest {
@@ -236,11 +242,19 @@ fn run(request: &InstallRequest) {
     };
     match install(request, &root) {
         Ok(()) => {
-            message_box(
-                title,
-                "Plugin instalado.\n\nTenés que volver a abrir Game Access para que el plugin funcione.",
-                false,
-            );
+            // No restart needed: the plugin starts now and the interface syncs its sources in its central dialog.
+            crate::plugin_registry::start_registered_plugins();
+            match APP.get() {
+                Some(app) => {
+                    use tauri::Emitter;
+                    let _ = app.emit("gameaccess:plugin-installed", serde_json::json!({ "name": request.name }));
+                }
+                None => {
+                    message_box(title, "Plugin instalado.
+
+Volvé a abrir Game Access para que el plugin funcione.", false);
+                }
+            }
         }
         Err(error) => {
             message_box(title, &format!("No se pudo instalar el plugin: {error}"), false);

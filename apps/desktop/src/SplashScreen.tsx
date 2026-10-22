@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
+import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
 // The opening sound ends with silence; the logo never waits for it longer than this.
 export const HOLD_MAX_MS = 900;
@@ -25,7 +26,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   finished.current = true;
   // The header logo appears right away while the film fades out over it: no pop.
   document.body.classList.remove("ga-splash-active");
-  window.dispatchEvent(new Event("gameaccess:logo-settled"));
+  window.dispatchEvent(new Event(LOGO_SETTLED_EVENT));
   if (reducedRef.current) { onDocked(); return; }
   setLanding(true);
   window.setTimeout(onDocked, 260);

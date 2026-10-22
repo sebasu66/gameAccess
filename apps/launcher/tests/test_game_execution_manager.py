@@ -86,3 +86,19 @@ def test_repair_action_marks_ready_or_error_and_writes_the_log(tmp_path):
     folder = storage.folder(1, "My Game")
     assert "| ERROR |" in journal.read(folder) and "reparación | listo" in journal.read(folder)
     assert runner.run("game-analyze", 1, "My Game")["analysis"]["ready"]
+
+
+def test_a_download_with_nothing_runnable_is_not_a_game(tmp_path):
+    from game_execution_manager.executables import not_a_game
+    extras = tmp_path / "extras"
+    (extras / "OST").mkdir(parents=True)
+    (extras / "OST" / "01 - Theme.flac").write_bytes(b"a")
+    (extras / "Artbook.pdf").write_bytes(b"b")
+    (extras / "cover.png").write_bytes(b"c")
+    assert not_a_game(extras) == ["audio", "images", "documents"]
+    (extras / "setup.exe").write_bytes(b"d")             # an installer could still give a game
+    assert not_a_game(extras) is None
+    packed = tmp_path / "packed"
+    packed.mkdir()
+    (packed / "game.part1.rar").write_bytes(b"e")         # still to unpack: not decided yet
+    assert not_a_game(packed) is None

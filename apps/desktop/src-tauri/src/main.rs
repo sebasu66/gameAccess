@@ -2,6 +2,7 @@
 
 mod automation;
 mod access_activation;
+mod parental_lock;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
@@ -21,10 +22,14 @@ mod digital_commands;
 mod execution_profiles;
 mod plugin_registry;
 mod plugin_install;
+mod app_update;
+mod download_queue;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    launcher_runtime::configure_launcher_data();
+    app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
     let visual_debug_dir = visual_debug::visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
@@ -36,13 +41,18 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
             let _=app.emit("gameaccess:launch-request",());
         }))
+        // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
+            plugin_install::attach(app.handle().clone());
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
             plugin_registry::start_registered_plugins();
+            app_update::start_watchdog(app.handle().clone());
             Ok(())
         })
         .manage(automation_state)
@@ -51,7 +61,12 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
+            app_update::app_frontend_alive,
+            download_queue::download_queue_request,
             access_commands::activation_installation_id,
+            parental_lock::parental_state,
+            parental_lock::parental_save,
+            parental_lock::parental_check,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
             launch_intent::take_launch_request,
@@ -61,6 +76,7 @@ fn main() {
             access_commands::activation_save_session,
             access_commands::activation_clear_session,
             catalog_cache::catalog_cache_sync,
+            catalog_cache::catalog_prepare,
             catalog_cache::catalog_cache_read,
             catalog_cache::catalog_cache_read_names,
             catalog_cache::catalog_cache_upsert_game,
@@ -85,6 +101,7 @@ fn main() {
             steam_commands::open_steam_client,
             steam_commands::open_steam_install,
             steam_commands::open_steam_run,
+            steam_commands::open_steam_store,
             steam_commands::open_game_install_folder,
             game_uninstall::uninstall_game,
             // Freeze/thaw commands are intentionally not registered while the feature is disabled.
@@ -107,17 +124,11 @@ fn main() {
             visual_debug::finish_visual_debug,
             visual_debug::set_visual_debug_viewport,
             digital_commands::run_digital_process,
-            digital_commands::start_digital_download,
-            digital_commands::cancel_digital_download,
-            digital_commands::control_digital_download,
-            digital_commands::digital_download_status,
             digital_commands::query_digital_options
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
-    // Workers are independent processes; explicitly pause owned transfers on app exit.
-    if let Ok(pids)=digital_commands::digital_pids().lock() {
-        for id in pids.keys() { let _=digital_commands::write_digital_control(*id,"pause"); }
-    }
+    // The Download Manager stops its workers without deleting anything; they resume when the app opens again.
+    download_queue::shutdown();
     plugin_registry::stop_all_plugins();
 }

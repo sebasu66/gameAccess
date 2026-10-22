@@ -4,12 +4,25 @@ import os
 import time
 import requests
 
+from game_download_manager.route_decision import SwitchToServer
+
 # libtorrent reports these as errors, but they only mean a peer hung up or the router has no UPnP.
 _LIBTORRENT_NOISE = ("UDP error:", "could not map port", "no router found")
 
 
 def is_libtorrent_noise(message: str) -> bool:
     return any(marker in message for marker in _LIBTORRENT_NOISE)
+
+
+def remove_and_delete(ses, handle, lt) -> None:
+    """Remove the torrent and the files it started writing (a torrent handed over to the server)."""
+    flag = getattr(getattr(lt, "options_t", None), "delete_files", None)
+    if flag is None:
+        flag = getattr(getattr(lt, "session", None), "delete_files", None)
+    if flag is None:
+        ses.remove_torrent(handle)
+    else:
+        ses.remove_torrent(handle, flag)
 
 
 class TorrentDownloadTransport:
@@ -20,14 +33,19 @@ class TorrentDownloadTransport:
         torrent_source: str,
         dest_dir: str,
         app_id: str,
-        game_name: str
+        game_name: str,
+        probe=None,
     ) -> str:
-        context = self.context
         """
         Downloads torrent content directly using libtorrent (matching Hydra's TorrentService).
         Zero technical jargon emitted to the user.
         Returns path of downloaded file or directory.
+
+        `probe(elapsed, total, seeds, done)` (a PLUS player) is asked while the torrent starts whether to
+        keep it ("keep") or hand it to the server ("server"): then the torrent and what it wrote are
+        removed and SwitchToServer is raised. A torrent that finds no peers at all goes to the server too.
         """
+        context = self.context
         try:
             import libtorrent as lt
         except ImportError:
@@ -138,6 +156,8 @@ class TorrentDownloadTransport:
             elapsed = time.time() - meta_start
             if elapsed > METADATA_TIMEOUT_SECONDS:
                 ses.remove_torrent(handle)
+                if probe is not None:
+                    raise SwitchToServer("el torrent no encontró fuentes")
                 err_msg = f"No se pudo conectar con las fuentes de descarga para '{game_name}' (sin pares activos disponibles)."
                 context.emit_error(app_id, err_msg)
                 raise TimeoutError(err_msg)
@@ -166,10 +186,22 @@ class TorrentDownloadTransport:
         )
 
         last_emit = 0
+        probe_started = time.time()
         while not context.cancelled.is_set():
             context.wait_if_paused()
             log_libtorrent_alerts(ses)
             s = handle.status()
+            if probe is not None:
+                seeds = max(int(getattr(s, "num_seeds", 0) or 0), int(getattr(s, "list_seeds", 0) or 0))
+                verdict = probe(time.time() - probe_started, int(s.total_wanted or total_wanted), seeds, int(s.total_wanted_done))
+                if verdict == "keep":
+                    probe = None
+                elif verdict == "server":
+                    remove_and_delete(ses, handle, lt)
+                    context.torrent_session = None
+                    if target_path in context.temp_files:
+                        context.temp_files.remove(target_path)
+                    raise SwitchToServer("el torrent no conviene bajarlo directo")
             progress = s.progress * 100.0
             bytes_done = s.total_wanted_done
             total_bytes = s.total_wanted or total_wanted

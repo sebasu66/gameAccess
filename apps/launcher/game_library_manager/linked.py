@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from atomic_json import write_json
+from launcher_data import data_dir
 import game_journal as journal
 
 KINDS = ("steam", "folder")
@@ -16,7 +17,7 @@ KINDS = ("steam", "folder")
 
 class LinkedGames:
     def __init__(self, launcher: Path):
-        self.dir = Path(launcher) / ".cache" / "digital_linked"
+        self.dir = data_dir(launcher) / ".cache" / "digital_linked"
 
     def get(self, app_id: int) -> dict | None:
         record = self.dir / f"{int(app_id)}.json"

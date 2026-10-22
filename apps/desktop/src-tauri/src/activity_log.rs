@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::io::{Read, Seek, SeekFrom, Write};
-use crate::launcher_runtime::find_launcher_dir;
+use crate::launcher_runtime::{find_launcher_dir, launcher_data_dir};
 
 const NARRATION_LOG_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const NARRATION_LOG_MAX_LINE_BYTES: usize = 16 * 1024;
@@ -142,7 +142,7 @@ pub(crate) fn read_activity_console() -> Result<Vec<String>, String> {
     let mut lines = read_log_tail(narration_log_file()?, "APP");
     if let Some(launcher) = find_launcher_dir() {
         for (name, area) in [("downloads.log", "DOWNLOAD"), ("execution.log", "EXECUTION")] {
-            lines.extend(read_log_tail(launcher.join("logs").join(name), area));
+            lines.extend(read_log_tail(launcher_data_dir(&launcher).join("logs").join(name), area));
         }
     }
     lines.sort_by_key(|line| line.split("] ").nth(1).unwrap_or("").chars().take(19).collect::<String>());

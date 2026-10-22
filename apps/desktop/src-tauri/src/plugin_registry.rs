@@ -56,14 +56,16 @@ pub fn plugin_directories() -> Vec<PathBuf> {
         if !dirs.contains(&cwd_plugins) {
             dirs.push(cwd_plugins);
         }
+        // The example provider and the checkout's plugins are development aids: an installed app only uses
+        // the plugins next to it and the ones installed in its data folder.
         let example_provider = cwd.join("examples/source-provider");
-        if !dirs.contains(&example_provider) {
+        if cfg!(debug_assertions) && !dirs.contains(&example_provider) {
             dirs.push(example_provider);
         }
     }
 
     let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../plugins");
-    if !dirs.contains(&dev_root) {
+    if cfg!(debug_assertions) && !dirs.contains(&dev_root) {
         dirs.push(dev_root);
     }
 
@@ -220,6 +222,8 @@ fn spawn_plugin_process(exec_path: &Path, args: &[String], cwd: &Path, plugin_na
     };
 
     cmd.current_dir(cwd);
+    // Plugins started by Game Access are background services: a plugin that has its own window keeps it closed.
+    cmd.env("GAMEACCESS_PLUGIN_HOST", "1");
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::null());

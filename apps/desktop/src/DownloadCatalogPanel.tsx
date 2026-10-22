@@ -10,11 +10,11 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
-import { getDownloadStatusLabel } from "./GenericDownloadProgress";
+import { formatBytes, getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
 import { genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
@@ -23,13 +23,14 @@ import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
-import { useLibraryFlag } from "./libraryScan";
+import { useLibraryEntry, useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
+import type { LibraryGame } from "./catalog/DigitalProcessManager";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -64,10 +65,21 @@ interface DownloadGameCardProps {
   favorite: boolean;
 }
 
+/** A frozen game: a snowflake, what it takes on disk now and, faded, its real size. */
+function FrozenSize({ entry }: { entry: LibraryGame }) {
+  const { t } = useI18n();
+  const stored = formatBytes(entry.frozen_bytes ?? null), original = formatBytes(entry.original_bytes ?? entry.size_bytes ?? null);
+  const title = t(entry.frozen === "deep" ? "cardDeepFrozen" : "cardFrozen", { stored, original });
+  return <div className={"ga-card-frozen" + (entry.frozen === "deep" ? " is-deep" : "")} title={title} role="img" aria-label={title}>
+    <Snowflake size={12} aria-hidden="true" /><b>{stored}</b><span>{original}</span>
+  </div>;
+}
+
 const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected, status, pinned, favorite, onSelect, onContextMenu }: DownloadGameCardProps) {
   const { t, locale } = useI18n();
   const state = gameStateManager.resolve(status);
   const flag = useLibraryFlag(game.app_id ?? undefined);
+  const entry = useLibraryEntry(game.app_id ?? undefined);
   const active = state.transferActive;
   const progress = downloadManager.progress(status);
   const label = statusLabel(status, progress);
@@ -113,6 +125,11 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
         </span>
       </button>
       <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
+      {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
+      {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
+      {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
+        {entry.label || [entry.source_provider, entry.source_title].filter(Boolean).join(" · ")}</div> : null}
+      {entry?.frozen ? <FrozenSize entry={entry} /> : null}
       {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
     </div>
   );
@@ -170,7 +187,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [managerOpen, setManagerOpen] = useState(false);
   const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
-  const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games.length, props.catalogSort, props.games[0]?.id]);
+  // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
+  // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
+  const indexes = useMemo(() => new Map(props.games.map((game, index) => [game.id, index])), [props.games]);
   const [contextMenu, setContextMenu] = useState<OpenContextMenu>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [viewport, setViewport] = useState(() => ({
@@ -334,7 +353,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
           <div className="ga-search-meta">
-            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
+            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" tabIndex={-1} min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
           </div>
         </div>
         <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>
@@ -356,8 +375,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
+  // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
+  const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <button type="button" className="library-back-to-top ga-library-manager-button" onClick={() => setManagerOpen(true)}><HardDrive size={17} /><span>{locale === "en" ? "Library manager" : "Administrar biblioteca"}</span></button> : null;
+    ? <button type="button" className="ga-dock-btn ga-library-manager-button" onClick={() => setManagerOpen(true)} aria-label={t("libraryManagerButton")} title={t("libraryManagerButton")}><HardDrive size={20} aria-hidden="true" /><span>{t("libraryManagerButton")}</span></button> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -370,7 +391,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
-      {props.actionsTarget ? createPortal(<>{filters}{managerButton}{backToTop}</>, props.actionsTarget) : filters}
+      {props.actionsTarget ? createPortal(<>{filters}{backToTop}</>, props.actionsTarget) : filters}
+      {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
       {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} catalog={props.allGames} onInstall={props.onInstall} /> : null}
       {contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (

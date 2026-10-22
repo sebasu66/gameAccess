@@ -108,7 +108,7 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_
               </div>
             </details>
           </div>
-          <button type="button" className="library-close" onClick={onClose} aria-label={t("uiCerrarBiblioteca")}><X size={20} /></button>
+          <button type="button" className="library-close ga-close" onClick={onClose} aria-label={t("uiCerrarBiblioteca")}><X size={20} /></button>
         </div>
       </div>
       <div className="dome-viewport">

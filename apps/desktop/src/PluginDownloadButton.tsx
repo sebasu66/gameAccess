@@ -1,10 +1,9 @@
-import {invoke} from "@tauri-apps/api/core";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
 import { useI18n } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
-import { digitalCatalogService } from "./catalog/DigitalCatalog";
+import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
 import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
@@ -22,6 +21,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
   const [open, setOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
   const key = String(game.app_id ?? game.id) + "|" + game.name;
   const current = result.key === key ? result : { sources: [], loading: true };
   useEffect(() => {
@@ -46,7 +46,8 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     try { await digitalCatalogService.download(game, source); setOpen(false); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      digitalDownloadService.recordFailure(game, message); setError(message);
+      if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
+      setError(message);
     } finally { setStarting(false); }
   };
   return <div className="plugin-download-action">
@@ -58,13 +59,10 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     </button>
     <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
-    {open && <section className="source-selector-panel" aria-label={t("sourcesChoose")}>
-      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
-      <button type="button" onClick={() => {
-        void invoke("create_game_shortcut",{appId:game.app_id ?? game.id,name:game.name})
-          .then(()=>setOpen(false)).catch(err=>setError(String(err)));
-      }}>{locale === "es" ? "Crear acceso directo en el escritorio" : "Create desktop shortcut"}</button>
-      <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</summary><ManualDownloadForm game={game} onDone={() => setOpen(false)} /></details>
+    {open && <section className="source-selector-panel ga-panel" aria-label={t("sourcesChoose")}>
+      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" className="ga-close" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
+      <button type="button" aria-expanded={manualOpen} onClick={() => setManualOpen(value => !value)}>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</button>
+      {manualOpen && <ManualDownloadForm game={game} onDone={() => { setManualOpen(false); setOpen(false); }} />}
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
         <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>

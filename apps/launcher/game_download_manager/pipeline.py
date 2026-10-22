@@ -6,10 +6,19 @@ import shutil
 import threading
 from pathlib import Path
 import game_journal as journal
+from launcher_data import data_dir
 from urllib.parse import urlparse, unquote
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
-from game_download_manager.debrid import TorboxClient
-from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
+from game_download_manager.route_decision import SwitchToServer, TorrentProbe
+from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
+from game_download_manager.client_events import DownloadReporter
+
+class NotAGameError(RuntimeError):
+    """The download holds no executable or installer at all (only music, artwork, documents...)."""
+    def __init__(self, kinds: list[str]):
+        self.kinds = kinds
+        super().__init__("Lo que se descargó no es un juego: no tiene ningún ejecutable ni instalador.")
+
 
 class DownloadPipeline:
     def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives):
@@ -20,12 +29,88 @@ class DownloadPipeline:
         self.download_torrent = download_torrent
         self.extract_archives = extract_archives
 
+    def report(self, event, detail="", size=0, wait=False):
+        reporter = getattr(self.context, "reporter", None)
+        if reporter is not None:
+            reporter.send(event, detail, size, wait)
+
+    def server_or_torrent(self, args, download_source, is_torrent, dest_dir, app_id, game_name):
+        """PLUS: download through the server (TorBox -> ViKiNG pieces) or let the torrent run here.
+
+        Returns (path from the server, path from the torrent, cancelled). Both paths are None when the
+        caller should run the normal download (no session, or the server could not serve it)."""
+        context = self.context
+        chunk_path = torrent_path = None
+        chunk_session = ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION"))
+        # Only PLUS players get a session: they can ask the server, which streams the game back in pieces.
+        use_server = bool(chunk_session) and args.source_delivery != "browser" and (
+            is_torrent or download_source.lower().startswith(("http://", "https://")))
+        if use_server and is_torrent:
+            # A torrent the server already holds is streamed from it. Any other one is measured first:
+            # it stays with the player when it is small, well seeded or already fast.
+            context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Buscando la forma más rápida de bajar el juego...")
+            where = self.chunked(chunk_session).peek(download_source)
+            if where:
+                context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El servidor ya tiene el juego en {'Viking' if where == 'viking' else 'Torbox'}: descarga acelerada.")
+                self.report("server", f"el juego ya estaba en {'Viking' if where == 'viking' else 'Torbox'}")
+                context.set_route("accelerated")
+                context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
+            else:
+                probe = TorrentProbe()
+
+                def decide(*sample):
+                    verdict = probe.decide(*sample)
+                    if verdict == "keep":
+                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"Paso 2 de 3 · El torrent rinde bien ({probe.reason}): se baja directo.")
+                        self.report("torrent", probe.reason)
+                        context.set_route("torrent")
+                        context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
+                    return verdict
+
+                context.set_route("measuring")
+                context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Probando la velocidad del torrent (hasta 20 s)...")
+                self.report("measuring")
+                context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
+                try:
+                    torrent_path = self.download_torrent(
+                        torrent_source=download_source, dest_dir=dest_dir, app_id=app_id, game_name=game_name, probe=decide)
+                    if not torrent_path or context.cancelled.is_set():
+                        return None, None, True
+                    return None, torrent_path, False
+                except SwitchToServer as why:
+                    self.report("server", f"el torrent no rinde: {probe.reason or 'sin datos'}")
+                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El torrent es lento ({probe.reason or 'sin datos'}): se le pide al servidor que acelere la descarga...")
+                    context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
+        if use_server:
+            context.set_route("accelerated")
+            context.emit_progress(app_id, "preparing", 5.0, status_text="Paso 3 de 3 · Pidiéndole al servidor la descarga acelerada...")
+            try:
+                chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
+                if context.cancelled.is_set():
+                    return None, None, True
+                context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
+            except SourceWithoutSeeds:
+                # Downloading the same torrent here would be just as hopeless: stop and let the player pick another source.
+                context.set_route("accelerated")
+                raise
+            except ChunkedDownloadUnavailable as unavailable:
+                context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
+                self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")
+            except ChunkedDownloadError as failure:
+                context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+                self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
+        return chunk_path or None, None, False
+
+    def chunked(self, session):
+        return ChunkedDownloader(self.context, session)
+
     def run(self, args):
         context = self.context
         app_id = str(args.appId)
         game_name = args.name
 
         context.logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
+        context.reporter = DownloadReporter.from_session(ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION")), app_id, game_name)
 
         from game_library_manager.storage import DigitalGameStorage
         storage = DigitalGameStorage()
@@ -33,6 +118,8 @@ class DownloadPipeline:
         # Explicit destinations keep the established test/CLI contract.
         dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
+        if not args.destination_dir and (getattr(args, "source_title", "") or getattr(args, "source_provider", "")):
+            storage.set_source(int(app_id), args.source_title, args.source_provider)
         if not args.destination_dir and not args.extract_only:
             # Aborting removes the game folder, its record and the partial download.
             context.cancel_hooks.append(lambda: storage.uninstall(int(app_id), game_name))
@@ -52,12 +139,12 @@ class DownloadPipeline:
                 context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
         set_status("preparing")
 
-        control_file = context.launcher_dir / ".cache" / "digital_downloads" / f"{app_id}.control.json"
+        control_file = data_dir(context.launcher_dir) / ".cache" / "digital_downloads" / f"{app_id}.control.json"
         threading.Thread(target=self.watch_controls, daemon=True).start()
 
         # Clean any stale status file from previous runs
         try:
-            old_status = context.launcher_dir / ".cache" / "digital_downloads" / f"{app_id}.json"
+            old_status = data_dir(context.launcher_dir) / ".cache" / "digital_downloads" / f"{app_id}.json"
             if old_status.is_file():
                 old_status.unlink()
         except Exception:
@@ -112,104 +199,35 @@ class DownloadPipeline:
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)
                     context.emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
                     return
-                chunk_path = None
-                chunk_session = ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION"))
-                if chunk_session and args.source_delivery != "browser" and (is_torrent or download_source.lower().startswith(("http://", "https://"))):
-                    context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
-                    try:
-                        chunk_path = ChunkedDownloader(context, chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
-                        if context.cancelled.is_set():
-                            self.cleanup_on_cancel()
-                            return
-                        context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
-                    except ChunkedDownloadUnavailable as unavailable:
-                        context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
-                    except ChunkedDownloadError as failure:
-                        context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+                chunk_path, torrent_path, cancelled = self.server_or_torrent(args, download_source, is_torrent, dest_dir, app_id, game_name)
+                if cancelled:
+                    self.cleanup_on_cancel()
+                    return
                 if chunk_path:
                     target_content_path = chunk_path
+                elif torrent_path:
+                    target_content_path = torrent_path
                 elif is_torrent:
-                    torbox_key = (args.torbox_key or os.getenv("TORBOX_API_KEY", "")).strip()
-                    use_torbox = False
-
-                    if torbox_key:
-                        context.logger.info("Tipo de descarga: Red P2P mediante servidor de alta velocidad (Torbox/Boxtop)")
-                        try:
-                            tb = TorboxClient(torbox_key)
-                            context.emit_progress(app_id, "preparing", 10.0, status_text="Verificando disponibilidad en servidores de alta velocidad...")
-
-                            is_cached = tb.check_cached(download_source)
-                            if is_cached:
-                                context.emit_progress(app_id, "preparing", 18.0, status_text="Servidor optimizado detectado. Acceso rápido listo.")
-
-                            # Submit package to high-speed cloud resolver
-                            torrent_id = tb.add_torrent(download_source)
-                            context.emit_progress(app_id, "preparing", 22.0, status_text="Conectando con servidores de descarga rápida...")
-
-                            # Poll cloud status until completed/cached (up to 30 attempts)
-                            tb_attempts = 0
-                            while not context.cancelled.is_set() and tb_attempts < 30:
-                                tb_attempts += 1
-                                status = tb.get_status(torrent_id)
-                                if status:
-                                    is_finished = status.get("download_finished", False)
-                                    state = status.get("download_state", "unknown")
-                                    progress = status.get("progress", 0.0)
-                                    pct = progress if progress > 1.0 else progress * 100
-
-                                    context.emit_progress(
-                                        app_id=app_id,
-                                        phase="preparing",
-                                        progress_percent=min(pct * 0.25 + 22.0, 48.0),
-                                        status_text=f"Preparando archivos en servidores de alta velocidad ({pct:.0f}%)..."
-                                    )
-
-                                    if is_finished or state in ("completed", "cached") or pct >= 100.0:
-                                        raw_files = status.get("files") or []
-                                        files = [f for f in raw_files if isinstance(f, dict)]
-                                        t_name = status.get("name", "game_package")
-
-                                        if len(files) == 1:
-                                            f_obj = files[0]
-                                            target_filename = f_obj.get("name") or t_name
-                                            file_id = f_obj.get("id")
-                                            download_url = tb.request_link(torrent_id, file_id=file_id, zip_link=False)
-                                        else:
-                                            target_filename = f"{t_name}.zip"
-                                            download_url = tb.request_link(torrent_id, zip_link=True)
-                                        use_torbox = True
-                                        break
-                                time.sleep(2)
-                        except Exception as tb_err:
-                            context.logger.warning(f"Error al conectar con servidor TorBox/Boxtop: {tb_err}")
-                            context.emit_progress(
-                                app_id=app_id,
-                                phase="preparing",
-                                progress_percent=15.0,
-                                status_text="Servidor optimizado no disponible. Continuando con descarga directa..."
-                            )
-                            use_torbox = False
-
-                    # If TorBox is unavailable or has no key, fall back to direct torrent download
-                    if not use_torbox or not download_url:
-                        context.logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
-                        target_content_path = self.download_torrent(
-                            torrent_source=download_source,
-                            dest_dir=dest_dir,
-                            app_id=app_id,
-                            game_name=game_name
-                        )
-                        if not target_content_path or context.cancelled.is_set():
-                            self.cleanup_on_cancel()
-                            return
+                    context.set_route("torrent")
+                    context.logger.info("Tipo de descarga: P2P Torrent/Magnet directo local")
+                    target_content_path = self.download_torrent(
+                        torrent_source=download_source,
+                        dest_dir=dest_dir,
+                        app_id=app_id,
+                        game_name=game_name
+                    )
+                    if not target_content_path or context.cancelled.is_set():
+                        self.cleanup_on_cancel()
+                        return
                 else:
+                    context.set_route("direct")
                     context.logger.info("Tipo de descarga: Descarga directa por HTTP/HTTPS")
                     download_url = download_source
                     parsed = urlparse(download_url)
                     target_filename = os.path.basename(unquote(parsed.path)) or "download.bin"
 
 
-                # 2. PHASE: SEGMENTED HTTP DOWNLOADING (If link from TorBox or direct HTTP)
+                # 2. PHASE: SEGMENTED HTTP DOWNLOADING (direct HTTP links)
                 if download_url:
                     out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
                     context.temp_files.append(out_filepath)
@@ -297,6 +315,12 @@ class DownloadPipeline:
                 self.cleanup_on_cancel()
             if not args.destination_dir and not any(storage.has_content(Path(game_dir))):
                 raise RuntimeError("La descarga terminó pero no se obtuvo ningún archivo del juego.")
+            # Music, artwork or a manual is not a game: no executable at all (not even an installer) and nothing to unpack.
+            if not args.destination_dir:
+                from game_execution_manager.executables import not_a_game
+                kinds = not_a_game(Path(game_dir))
+                if kinds:
+                    raise NotAGameError(kinds)
             # Game Execution Manager: silent setup*.exe if needed, then a runnable executable is required.
             if not args.destination_dir:
                 from game_execution_manager import GameExecutionManager, GameExecutionError
@@ -325,13 +349,25 @@ class DownloadPipeline:
                 status_text=f"¡{game_name} listo para jugar!"
             )
             context.logger.info(f"=== DESCARGA COMPLETADA EXITOSAMENTE: '{game_name}' ===")
+            self.report("finished", size=final_size, wait=True)
             sys.exit(0)
 
+        except NotAGameError as e:
+            # Nothing in it can run: it is removed from the games folder (and the temporary download with it), never
+            # offered as installed or for repair. The app tells the player to look for another source.
+            context.logger.warning("AppID %s: '%s' is not a game (%s); the folder is removed", app_id, game_name, ", ".join(e.kinds))
+            try:
+                storage.uninstall(int(app_id), game_name)
+            except Exception as failure:
+                context.logger.warning("AppID %s: could not remove the non-game download: %s", app_id, failure)
+            self.report("failed", str(e), wait=True)
+            self.cleanup_on_cancel(error_message=str(e), error_code="not_a_game", error_detail=e.kinds)
         except Exception as e:
             if not context.cancelled.is_set():
                 context.logger.error(f"Error fatal durante la descarga de '{game_name}': {e}", exc_info=True)
             else:
                 context.logger.info(f"Descarga cancelada por el usuario: '{game_name}'")
+            self.report("cancelled", wait=True) if context.cancelled.is_set() else self.report("failed", str(e), wait=True)
             if not context.cancelled.is_set() and not args.destination_dir:
                 self.record_failure(storage, int(app_id), game_name, str(e))
             self.cleanup_on_cancel(error_message=None if context.cancelled.is_set() else str(e))

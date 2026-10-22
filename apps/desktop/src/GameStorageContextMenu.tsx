@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Download, FolderOpen, Play, Trash2 } from "lucide-react";
 
 import AppDialog from "./AppDialog";
+import { translate } from "./i18n";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { gameStateManager } from "./GameStateManager";
 import { uninstallGame } from "./gameStorage";
@@ -77,15 +78,15 @@ export default function GameStorageContextMenu({ request, onClose, onInstall, on
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDialog({ title: "No se pudo abrir la carpeta", message, tone: "error" });
+      setDialog({ title: translate("openFolderFailed"), message, tone: "error" });
     }
   };
 
   const uninstallSelected = () => {
     if (!state.canUninstall || !appId) return;
     setDialog({
-      title: `¿Desinstalar ${request.game.name}?`,
-      message: "Steam administrará la eliminación de los archivos del juego.",
+      title: translate("uninstallTitle", { name: request.game.name }),
+      message: translate("uninstallSteamBody"),
       tone: "warning",
     });
   };
@@ -93,14 +94,14 @@ export default function GameStorageContextMenu({ request, onClose, onInstall, on
   const confirmUninstall = async () => {
     if (!appId) return;
     setUninstalling(true);
-    setProgress({ phase: "working", label: "Abriendo la desinstalación de Steam…", detail: request.game.name });
+    setProgress({ phase: "working", label: translate("uninstallSteamOpening"), detail: request.game.name });
     try {
       await uninstallGame(appId);
-      setProgress({ phase: "done", label: "Steam abrió la desinstalación.", detail: "Steam borra los archivos; confirmalo en su ventana." });
+      setProgress({ phase: "done", label: translate("uninstallSteamDone"), detail: translate("uninstallSteamDoneDetail") });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setProgress(null);
-      setDialog({ title: "No se pudo iniciar la desinstalación", message, tone: "error" });
+      setDialog({ title: translate("uninstallFailed"), message, tone: "error" });
     } finally {
       setUninstalling(false);
     }
