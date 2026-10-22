@@ -4,7 +4,7 @@
 
 ## Setup
 
-Download `PresentMon-<version>-x64.exe` (about 1 MB, MIT license) from the [PresentMon releases](https://github.com/GameTechDev/PresentMon/releases) into `tools/benchmark/bin/` (git-ignored), or pass `--presentmon PATH`. Capturing needs an administrator terminal or membership in the *Performance Log Users* group.
+Download `PresentMon-<version>-x64.exe` (about 1 MB, MIT license) from the [PresentMon releases](https://github.com/GameTechDev/PresentMon/releases) into `tools/benchmark/bin/` (git-ignored), or pass `--presentmon PATH`. Tested with PresentMon 2.6.0 (Intel-signed). Recording needs administrator rights: from a normal terminal the script adds `--restart_as_admin`, so each run shows one UAC prompt; from an administrator terminal there is no prompt.
 
 ## Use
 

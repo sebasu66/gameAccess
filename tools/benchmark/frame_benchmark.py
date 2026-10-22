@@ -51,6 +51,14 @@ def find_presentmon(explicit: str | None) -> Path:
              "or pass --presentmon PATH / set PRESENTMON.")
 
 
+def is_admin() -> bool:
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False
+
+
 def read_frames(path: Path) -> tuple[str, list[float]]:
     """Frame times in ms for the busiest swap chain of the file (games often own a second, idle one)."""
     with path.open(newline="", encoding="utf-8-sig") as handle:
@@ -133,6 +141,10 @@ def cmd_capture(args) -> None:
         command = [str(presentmon), "--process_name", args.process, "--output_file", str(output),
                    "--delay", str(args.delay), "--timed", str(args.seconds), "--terminate_after_timed",
                    "--no_console_stats", "--stop_existing_session", "--session_name", "GameAccessBenchmark"]
+        if not is_admin():
+            # PresentMon relaunches itself elevated (one UAC prompt per run) and waits for the elevated copy.
+            command.append("--restart_as_admin")
+            print("Not running as administrator: accept the Windows UAC prompt so PresentMon can record.")
         print(f"Capturing {args.process} for {args.seconds}s (after {args.delay}s delay)...")
         started = time.monotonic()
         completed = subprocess.run(command, capture_output=True, text=True)
