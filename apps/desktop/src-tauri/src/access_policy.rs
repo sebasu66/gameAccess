@@ -59,6 +59,12 @@ pub fn clear() {
         state.ended |= was_active;
     }
 }
+/// What the server's admin console shows about this installation: app version and the PC's name.
+fn client_description() -> String {
+    let pc = std::env::var("COMPUTERNAME").unwrap_or_default();
+    let name: String = pc.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(40).collect();
+    format!("GameAccess/{} ({}; PC {})", env!("CARGO_PKG_VERSION"), std::env::consts::OS, if name.is_empty() { "?" } else { &name })
+}
 pub fn check(base: &str, token: &str) -> Result<Value, String> {
     let _single = CHECK.get_or_init(|| Mutex::new(())).lock().map_err(|_| UNAVAILABLE.to_string())?;
     let base = trusted_base(base).map_err(|error| {activity(format!("Native access check rejected authority; local development enabled={}", cfg!(debug_assertions) || option_env!("GAMEACCESS_ALLOW_LOCAL_ACTIVATION") == Some("1")), "WARN"); error})?;
@@ -71,6 +77,7 @@ pub fn check(base: &str, token: &str) -> Result<Value, String> {
     let client = builder.build().map_err(|error| {activity(format!("Native access HTTP client failed: {error}"), "ERROR"); UNAVAILABLE.to_string()})?;
     let response = client.get(format!("{base}/activation/status")).bearer_auth(token)
         .header("X-GameAccess-Installation", crate::access_activation::installation_id()?)
+        .header("X-GameAccess-Client", client_description())
         .header("Cache-Control", "no-store").send().map_err(|error| {activity(format!("Native access authority request failed: {error}"), "WARN"); UNAVAILABLE.to_string()})?;
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         let detail = response.json::<Value>().ok().and_then(|v|v.get("detail").cloned()).unwrap_or(serde_json::json!({"reason":"unavailable"}));

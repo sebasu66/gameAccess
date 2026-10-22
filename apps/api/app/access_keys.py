@@ -6,8 +6,10 @@ stored. Activation keys use pronounceable syllables with cryptographic randomnes
 
 from __future__ import annotations
 
+import base64
 import calendar
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -17,6 +19,7 @@ from sqlalchemy import inspect, or_, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Field as SQLField
 from sqlmodel import Session, SQLModel, select
+from cryptography.fernet import Fernet, InvalidToken
 
 
 class AccessKey(SQLModel, table=True):
@@ -34,6 +37,12 @@ class AccessKey(SQLModel, table=True):
     revoked_at: Optional[datetime] = None
     # Who the key was given to ("Juan, tester"); only shown in the admin console.
     label: Optional[str] = None
+    # The printable key, encrypted with the server's admin secret, so the admin console can show it again.
+    key_enc: Optional[str] = None
+    # Last time the installation using this key talked to the server, and from where.
+    last_seen_at: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    last_client: Optional[str] = None
 
 
 def utc(value: datetime) -> datetime:
@@ -42,6 +51,44 @@ def utc(value: datetime) -> datetime:
 
 def digest(secret: str) -> str:
     return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+def _cipher():
+    """Fernet keyed by GAMEACCESS_KEY_SECRET (or the admin token): without it keys cannot be shown again."""
+    secret = os.environ.get("GAMEACCESS_KEY_SECRET") or os.environ.get("GAMEACCESS_ADMIN_TOKEN") or ""
+    if not secret:
+        return None
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(("gameaccess-keys:" + secret).encode()).digest()))
+
+
+def seal_key(printable: str) -> str | None:
+    cipher = _cipher()
+    return cipher.encrypt(printable.encode()).decode() if cipher else None
+
+
+def reveal_key(row: "AccessKey") -> str | None:
+    """The printable key of an issued key, or None (issued before keys were kept, or the secret changed)."""
+    cipher = _cipher()
+    if not row.key_enc or cipher is None:
+        return None
+    try:
+        return cipher.decrypt(row.key_enc.encode()).decode()
+    except InvalidToken:
+        return None
+
+
+def note_client(session: Session, row: "AccessKey", ip: str, client: str, *, every_seconds: int = 120) -> None:
+    """Remember when and from where the installation using this key last talked to the server.
+
+    Written at most every two minutes (or when the address changes), so frequent status checks stay cheap."""
+    now = datetime.now(timezone.utc)
+    ip, client = (ip or "")[:64] or None, (client or "")[:240] or None
+    if (row.last_seen_at is not None and (now - utc(row.last_seen_at)).total_seconds() < every_seconds
+            and row.last_ip == ip and row.last_client == client):
+        return
+    row.last_seen_at, row.last_ip, row.last_client = now, ip, client
+    session.add(row)
+    session.commit()
 
 
 def canonical_installation_id(value: str) -> str:
@@ -110,6 +157,7 @@ def issue_keys(
                 expires_at=utc(expires_at) if expires_at is not None else None,
                 key_expires_at=utc(expires_at) if expires_at is not None else created_at + timedelta(hours=key_ttl_hours),
                 label=(label or "").strip()[:80] or None,
+                key_enc=seal_key(printable),
             )
             try:
                 # The database unique index is authoritative. Retry collisions
@@ -131,6 +179,10 @@ def issue_keys(
 def ensure_access_key_schema(engine) -> None:
     """Add pending-key expiry to existing databases without resetting them."""
     columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
+    for name, kind in (("key_enc", "VARCHAR"), ("last_seen_at", "TIMESTAMP"), ("last_ip", "VARCHAR"), ("last_client", "VARCHAR")):
+        if name not in columns:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE accesskey ADD COLUMN {name} {kind}"))
     if "label" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE accesskey ADD COLUMN label VARCHAR"))

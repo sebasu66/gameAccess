@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from .models import AccessEvent
 from .api_schemas import AccessKeyIssueRequest, AccessKeyRenewRequest
 from .api_dependencies import get_session
-from .access_keys import AccessKey, issue_keys, release_key, utc
+from .access_keys import AccessKey, issue_keys, release_key, reveal_key, utc
 from .access_service import now_utc, _admin_activation_access
 
 router = APIRouter()
@@ -47,6 +47,10 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "revoked_at": row.revoked_at,
         "installation_id": row.installation_id,
         "label": row.label,
+        "key": reveal_key(row),
+        "last_seen_at": utc(row.last_seen_at) if row.last_seen_at else None,
+        "last_ip": row.last_ip,
+        "last_client": row.last_client,
     } for row in rows]}
 
 

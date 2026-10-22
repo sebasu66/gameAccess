@@ -61,20 +61,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
     return { updated: false, revision: "local", catalog_count: count };
   }
 
-  if (typeof window === "undefined" || typeof fetch === "undefined") return null;
-  const api = await getApiBaseUrl();
-  if (!api) {
-    if (requireRemote) throw new Error("El catálogo remoto no está disponible.");
-    return null;
-  }
-  try {
-    const response = await fetch(`${api}/library/catalog`, {cache: "no-store", signal: AbortSignal.timeout(8000)});
-    if (!response.ok) throw new Error(`No pudimos actualizar el catálogo (${response.status}).`);
-    const raw: unknown = await response.json();
-    if (!Array.isArray(raw)) throw new Error("El catálogo remoto no está disponible.");
-    return { updated: true, revision: "remote", catalog_count: raw.length };
-  } catch (error) {
-    if (requireRemote) throw error;
-    return null;
-  }
+  // The full catalog is never downloaded as JSON from the server: only GitHub packages are used.
+  if (requireRemote) throw new Error("El catálogo remoto no está disponible.");
+  return null;
 }

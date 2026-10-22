@@ -8,11 +8,30 @@ from .api_schemas import AccessKeyRedeemRequest
 from .api_dependencies import get_session
 from .local_database import local_engine
 from .database import engine
-from .access_keys import canonical_installation_id, redeem_key, session_end_details, utc, valid_session
+from .access_keys import AccessKey, canonical_installation_id, note_client, redeem_key, session_end_details, utc, valid_session
 from .access_overrides import CourtesySession, courtesy_access_tier, redeem_courtesy_key, valid_courtesy_session
 from .access_service import now_utc, _activation_for_request, _record_access_event
 
 router = APIRouter()
+
+
+def client_address(request: Request) -> str:
+    """The player's public address: Render puts it first in X-Forwarded-For."""
+    forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "")
+
+
+def client_description(request: Request) -> str:
+    """What the app says it is (version and PC name), or the browser's User-Agent for older versions."""
+    return request.headers.get("X-GameAccess-Client") or request.headers.get("User-Agent", "")
+
+
+def _note(session: Session, row, request: Request | None) -> None:
+    if request is not None and isinstance(row, AccessKey):
+        try:
+            note_client(session, row, client_address(request), client_description(request))
+        except Exception:  # presence is informative; it never blocks access
+            session.rollback()
 
 async def require_active_installation(request: Request, call_next):
     path = request.url.path
@@ -37,7 +56,8 @@ async def require_active_installation(request: Request, call_next):
 
 
 @router.post("/activation/redeem")
-def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session), response: Response = None) -> dict:
+def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(get_session), response: Response = None,
+                      request: Request = None) -> dict:
     if response is not None:
         response.headers["Cache-Control"] = "no-store"
     installation_id = str(req.installation_id or "")
@@ -64,6 +84,7 @@ def redeem_access_key(req: AccessKeyRedeemRequest, session: Session = Depends(ge
         commit=True,
     )
     row = valid_courtesy_session(session, token, installation_id) if courtesy is not None else valid_session(session, token, installation_id)
+    _note(session, row, request)
     return {"session_token": token, "installation_id": installation_id, "expires_at": expires_at,
             "cacheable": courtesy is None,
             "access_tier": courtesy_access_tier(row) if courtesy is not None else row.access_tier}
@@ -101,6 +122,7 @@ def activation_status(request: Request, session: Session = Depends(get_session),
             if previous and utc(previous.expires_at) <= now_utc():
                 detail = {"reason": "expired", "expires_at": utc(previous.expires_at).isoformat()}
         raise HTTPException(401, detail)
+    _note(session, row, request)
     try:
         from .telemetry import record_heartbeat
         installation_id = canonical_installation_id(request.headers.get("X-GameAccess-Installation", ""))
