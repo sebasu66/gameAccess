@@ -23,6 +23,7 @@ from fastapi.responses import FileResponse, Response
 
 from .discovery_catalog import OUTPUT_DIR
 from .catalog_snapshot import stable_json
+from .catalog_updates import build_update
 
 LOG = logging.getLogger("gameaccess.discovery")
 ROOT = Path(os.environ.get("GAMEACCESS_DISCOVERY_DIR", str(Path(__file__).resolve().parents[1] / ".cache/discovery-catalog")))
@@ -125,34 +126,12 @@ def catalog_games() -> list[dict]:
     return list(iter_catalog_games())
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=8)
 def update_batch(base_revision: str, revision: str) -> bytes:
-    """Only upserts: omitted games/details never become deletion instructions.
-
-    Both packages are compared on disk with SQL, so only the new and changed rows are ever loaded (loading
-    both catalogs into memory took several hundred MB and could take the 512 MB server down)."""
+    """Only upserts, built on disk from the two packages (kept for clients that still ask this server)."""
     if not re.fullmatch(r"[a-f0-9]{16}", base_revision):
         raise HTTPException(404, "Catalog base revision not found")
-    with unpacked_package(base_revision) as previous, unpacked_package(revision) as current:
-        db = sqlite3.connect(current)
-        try:
-            db.execute("ATTACH DATABASE ? AS prev", (str(previous),))
-            # The unpacked copy is ours: index the game identity so the comparison is a lookup per game, not a scan.
-            db.execute("CREATE INDEX IF NOT EXISTS prev.ix_ga_identity ON catalog_game(coalesce(nullif(app_id, 0), id))")
-            key = "coalesce(nullif({t}.app_id, 0), {t}.id)"
-            games = [json.loads(payload) for (payload,) in db.execute(
-                f"SELECT c.payload FROM main.catalog_game c LEFT JOIN prev.catalog_game p "
-                f"ON {key.format(t='p')} = {key.format(t='c')} WHERE p.payload IS NOT c.payload ORDER BY c.rowid")]
-            details = [{"game_id": gid, "language": lang, "country": country, "app_id": app_id, "payload": json.loads(payload)}
-                       for gid, lang, country, app_id, payload in db.execute(
-                           "SELECT d.game_id, d.language, d.country, g.app_id, d.payload FROM main.game_detail d "
-                           "LEFT JOIN prev.game_detail p ON p.game_id = d.game_id AND p.language = d.language "
-                           "AND p.country = d.country LEFT JOIN main.catalog_game g ON g.id = d.game_id "
-                           "WHERE p.payload IS NOT d.payload ORDER BY d.rowid")]
-        finally:
-            db.close()
-    batch = {"schema_version": 1, "base_revision": base_revision, "revision": revision, "games": games, "details": details}
-    return gzip.compress(stable_json(batch).encode("utf-8"), mtime=0)
+    return build_update(package_path(base_revision), package_path(revision), base_revision, revision)
 
 
 @router.get("/library/catalog/updates/{base_revision}/{revision}", name="discovery_update")
@@ -162,24 +141,17 @@ def client_update(base_revision: str, revision: str):
 
 @router.get("/library/catalog/manifest", name="discovery_manifest")
 def client_manifest(request: Request, since: str = ""):
+    """Which file the client should download, always from GitHub: the update batch from its revision when the
+    daily job published one, otherwise the full package. No catalog byte goes out through this server."""
     data = manifest()
     data["inventory_sha256"] = catalog_identities()[1]
-    if since and since != data["revision"]:
-        try:
-            compressed = update_batch(since, data["revision"])
-        except HTTPException as exc:
-            if exc.status_code != 404:
-                raise
-            # First install or a legacy revision: the client merges the baseline,
-            # preserving its existing rows and locally cached details.
-        else:
-            return {**data, "kind": "delta", "base_revision": since,
-                    "sha256": hashlib.sha256(compressed).hexdigest(),
-                    "compressed_bytes": len(compressed),
-                    "artifact_url": str(request.url_for("discovery_update",
-                        base_revision=since, revision=data["revision"]))}
-    return {**data, "kind": "baseline",
-            "artifact_url": str(request.url_for("discovery_package", revision=data["revision"]))}
+    updates = data.pop("updates", None) or {}
+    update = updates.get(since) if since and since != data["revision"] else None
+    if update:
+        return {**data, "kind": "delta", "base_revision": since, "sha256": update["sha256"],
+                "compressed_bytes": update["compressed_bytes"], "artifact_url": update["artifact_url"]}
+    # First install, a revision too old for a batch, or already current: the full package.
+    return {**data, "kind": "baseline"}
 
 
 @router.get("/library/catalog/packages/{revision}", name="discovery_package")

@@ -16,6 +16,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: dev
+          # Full history without file contents: update batches read the last packages from git on demand.
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -26,7 +29,7 @@ jobs:
           GAMEACCESS_DISCOVERY_SYNC: "0"
         run: python -m pytest tools/catalog-cache/test_discovery_catalog.py apps/api/tests/test_discovery_service.py -q
       - name: Refresh Steam metadata only
-        run: python tools/catalog-cache/refresh_discovery_catalog.py --github-ref dev
+        run: python tools/catalog-cache/refresh_discovery_catalog.py --github-ref dev --publish-updates
       - name: Publish the validated installer seed
         run: |
           git add deploy/catalog-cache

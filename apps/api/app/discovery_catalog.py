@@ -11,6 +11,7 @@ import hashlib
 import html
 from html.parser import HTMLParser
 import json
+import tempfile
 import logging
 import re
 import sqlite3
@@ -22,6 +23,7 @@ import xml.etree.ElementTree as ET
 import httpx
 from .catalog_artwork import ArtworkResolver, apply_assets, is_adult_only
 from .catalog_snapshot import stable_json, steam_assets, write_snapshot
+from .catalog_updates import published_packages, publish_updates
 from .catalog_metadata import CATALOG_ALLOWED_PRODUCT_TYPES
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -444,6 +446,11 @@ def refresh(args):
     report["tagged_count"] = sum(bool(g.get("tags")) for g in games.values())
     catalog = [(g["id"], app_id, stable_json(g)) for app_id, g in sorted(games.items())]
     result = write_snapshot(catalog, details, args.output_dir, args.github_ref, report)
+    if getattr(args, "publish_updates", False):
+        # Batches from the last revisions, so clients download the small change from GitHub, not from the server.
+        revision = json.loads(result[1].read_text(encoding="utf-8"))["revision"]
+        with tempfile.TemporaryDirectory(prefix="ga-catalog-history-") as history:
+            publish_updates(args.output_dir, published_packages(args.output_dir, Path(history), revision), args.github_ref)
     # Keep only the manifest's snapshot so installers do not carry every revision.
     if not getattr(args, "keep_old", False):
         for old in args.output_dir.glob("catalog-cache-*.sqlite.gz"):
@@ -469,6 +476,8 @@ def main():
     parser.add_argument("--cooptimus-limit", type=int, default=0)
     parser.add_argument("--enrichment-file", type=Path)
     parser.add_argument("--delay", type=float, default=1.1)
+    parser.add_argument("--publish-updates", action="store_true",
+                        help="Also publish update batches from the last revisions (read from git history).")
     parser.add_argument(
         "--resolve-artwork",
         dest="resolve_artwork",
