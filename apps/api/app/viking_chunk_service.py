@@ -480,8 +480,8 @@ async def _import_remote(
                         job_id[:8], piece.index, piece.size / 1e6, took, piece.size / 1e6 / took, tries["n"])
             finished += 1
             if note is not None and (finished == 1 or finished == total or finished % every == 0):
-                note("viking", f"Paso 2 · Archivo {piece.index + 1} ya está en Viking ({finished} de {total}); "
-                               f"Viking lo bajó de Torbox a {piece.size / 1e6 / took:.1f} MB/s ({workers} a la vez).")
+                note("viking", f"Paso 2 · Archivo {piece.index + 1} copiado a Viking ({finished} de {total}, {piece.size / 1e9:.1f} GB); "
+                               f"Viking lo copió desde Torbox a {piece.size / 1e6 / took:.1f} MB/s ({workers} a la vez).")
 
     tasks = [asyncio.create_task(one(piece)) for piece in pending]
     try:
@@ -534,7 +534,13 @@ async def run_chunk_job(
         pending = [p for p in plan if p.index not in ready and p.index not in held]
         logger.info("chunk_job_running job=%s pieces=%s pending=%s client_has=%s", job_id[:8], len(plan), len(pending), len(held))
         has = f", el cliente ya tiene {len(held)}" if held else ""
-        note("viking", f"Paso 2 · Pasando el juego a Viking en {len(plan)} piezas ({len(ready)} ya estaban listas{has}).")
+        unit = "archivo" if remote is not None else "pieza"
+        units = lambda n: f"{n} {unit}{'s' if n != 1 else ''}"  # noqa: E731
+        if remote is not None:
+            note("viking", f"Paso 2 · Viking copia {units(len(pending))} directo desde Torbox ({len(ready)} ya estaban en Viking{has}). "
+                           "Mientras tanto el cliente baja desde Torbox.")
+        else:
+            note("viking", f"Paso 2 · El servidor sube el juego a Viking en {units(len(plan))} ({len(ready)} ya estaban listas{has}).")
         name_for = lambda p: piece_name(fingerprint, p.index)  # noqa: E731
         if remote is not None:
             _torbox_sources[job_id] = source  # players start from TorBox while ViKiNG imports
@@ -548,10 +554,10 @@ async def run_chunk_job(
                 await maps.save(folder, map_document(job, files, plan, _ready_hashes(engine, job_id)))
         if held:
             _set_job(engine, job_id, status="partial", completed_at=_now())
-            note("ready", f"Listo: subidas las {len(pending)} piezas que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
+            note("ready", f"Listo en Viking: {units(len(pending))} que le faltaban al cliente (las otras {len(held)} ya las tenía).", "ok")
         else:
             _set_job(engine, job_id, status="ready", completed_at=_now())
-            note("ready", f"Listo: las {len(plan)} piezas están disponibles para el cliente.", "ok")
+            note("ready", f"Listo en Viking: {units(len(plan))}. Las próximas descargas de este juego salen directo de Viking.", "ok")
         logger.info("chunk_job_ready job=%s", job_id[:8])
     except asyncio.CancelledError:
         _fail_job(engine, job_id, "server_stopped")

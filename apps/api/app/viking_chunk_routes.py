@@ -87,6 +87,26 @@ async def _sealed_torbox_links(job_id: str, pieces: list, request: Request, refr
     return links
 
 
+_served: set[tuple[str, str, str, int]] = set()
+
+
+def _note_served(job_id: str, installation_id: str, source: str, indexes: list[int]) -> None:
+    """The story says what the player got and from where: "archivo 2 desde Torbox", "archivo 2 desde Viking".
+
+    Each (player, file, source) is told once; past the first 20 files only the first is told, so a game cut in
+    hundreds of pieces does not flood the page."""
+    where = "Viking" if source == "viking" else "Torbox (Viking todavía lo está copiando)"
+    for index in sorted(set(indexes)):
+        key = (job_id, installation_id, source, index)
+        if key in _served or (index >= 20 and any(k[:3] == key[:3] for k in _served)):
+            continue
+        if len(_served) > 50000:
+            _served.clear()
+        _served.add(key)
+        log_event(local_engine, job_id, "send", f"Se le envió al cliente el archivo {index + 1} desde {where}.",
+                  status="ok", installation_id=installation_id)
+
+
 def _safe_text(value: str, limit: int) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
 
@@ -213,6 +233,7 @@ async def chunk_piece_link(
     if piece is None:
         sealed = await _sealed_torbox_links(job_id, get_torbox_pieces(local_session, job_id, index, 1), request, refresh)
         if sealed:
+            _note_served(job_id, installation_id, "torbox", [index])
             return sealed[0]
         raise HTTPException(404, "Esa pieza todavía no está lista.")
     try:
@@ -220,6 +241,7 @@ async def chunk_piece_link(
     except ProviderFailure as exc:
         raise HTTPException(exc.status_code, exc.public_message) from exc
     job = get_job(local_session, job_id)
+    _note_served(job_id, installation_id, "viking", [piece.piece_index])
     record_transfer(
         local_session, installation_id=installation_id, job_id=job_id, kind="piece", piece_index=piece.piece_index,
         size_bytes=piece.size_bytes, item_name=job.item_name if job else "",
@@ -258,10 +280,65 @@ async def chunk_piece_links(
         else:
             links.append({"index": piece.piece_index, "size": piece.size_bytes, "sha256": piece.sha256, "url": result})
             served.append(piece)
-    links += await _sealed_torbox_links(job_id, get_torbox_pieces(local_session, job_id, start, count), request, refresh)
+    sealed = await _sealed_torbox_links(job_id, get_torbox_pieces(local_session, job_id, start, count), request, refresh)
+    links += sealed
+    _note_served(job_id, installation_id, "viking", [p.piece_index for p in served])
+    _note_served(job_id, installation_id, "torbox", [link["index"] for link in sealed])
     if failure is not None and not links:
         raise HTTPException(failure.status_code, failure.public_message) from failure
     if served:
         job = get_job(local_session, job_id)
         record_transfers(local_session, installation_id=installation_id, job_id=job_id, item_name=job.item_name if job else "", pieces=served)
     return {"links": links}
+
+
+class ClientDownloadEvent(BaseModel):
+    """What happened to a download on the player's PC, for the administrator's story of that download."""
+    event: str = Field(pattern="^(measuring|torrent|server|started|finished|failed|cancelled)$")
+    app_id: int = Field(default=0, ge=0)
+    item_name: str = Field(default="", max_length=300)
+    job_id: str = Field(default="", max_length=40)   # the server job, when the download goes through the server
+    detail: str = Field(default="", max_length=300)  # the route's reason or the error, in the player's words
+    bytes: int = Field(default=0, ge=0)
+    seconds: float = Field(default=0, ge=0)
+
+
+def client_event_message(event: ClientDownloadEvent) -> tuple[str, str]:
+    """(message, status) in the same plain words as the server's own steps."""
+    detail = _safe_text(event.detail, 300)
+    why = f" ({detail})" if detail else ""
+    if event.event == "measuring":
+        return "El cliente está midiendo el torrent para elegir por dónde bajarlo.", "info"
+    if event.event == "torrent":
+        return f"El cliente baja el torrent directo, sin pasar por el servidor{why}.", "ok"
+    if event.event == "server":
+        return f"El cliente le pide el juego al servidor (Torbox → Viking){why}.", "info"
+    if event.event == "started":
+        return "El cliente empezó a descargar.", "info"
+    if event.event == "finished":
+        size = f"{event.bytes / 1e9:.1f} GB" if event.bytes else "la descarga"
+        took = f" en {event.seconds / 60:.0f} min" if event.seconds >= 60 else (f" en {event.seconds:.0f} s" if event.seconds else "")
+        speed = f" ({event.bytes / 1e6 / event.seconds:.1f} MB/s)" if event.bytes and event.seconds else ""
+        return f"La descarga terminó en el cliente: {size}{took}{speed}.", "ok"
+    if event.event == "cancelled":
+        return "El cliente canceló la descarga.", "info"
+    return f"La descarga falló en el cliente{why}.", "error"
+
+
+@router.post("/downloads/client-events")
+async def client_download_event(
+    req: ClientDownloadEvent, request: Request, response: Response, session: Session = Depends(get_session),
+) -> dict:
+    """The player tells the server how its download went: route chosen, started, finished or failed."""
+    response.headers["Cache-Control"] = "no-store"
+    if await run_in_threadpool(_activation_for_request, request, session) is None:
+        raise HTTPException(401, "Se requiere una activación vigente de GameAccess.")
+    try:
+        installation_id = canonical_installation_id(request.headers.get("X-GameAccess-Installation", ""))
+    except ValueError as exc:
+        raise HTTPException(401, "La instalación de GameAccess no es válida.") from exc
+    job_id = re.sub(r"[^A-Za-z0-9_-]", "", req.job_id)[:40] or f"app-{req.app_id}"
+    message, status = client_event_message(req)
+    log_event(local_engine, job_id, "client", message, status=status, installation_id=installation_id,
+              item_name=_safe_text(req.item_name, 300))
+    return {"ok": True}

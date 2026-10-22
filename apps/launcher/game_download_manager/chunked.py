@@ -200,6 +200,10 @@ class ChunkedDownloader:
         done, saved_plan = self._load_state(state_path, source_url)
         manifest = self.start(source_url, item_name, have=done)
         job_id = manifest["job_id"]
+        reporter = getattr(context, "reporter", None)
+        if reporter is not None:  # from here on the player's reports join the server's story of this job
+            reporter.job_id = job_id
+            reporter.send("started")
         work = dest / f".ga-pieces-{source_key}"
         work.mkdir(exist_ok=True)
         check_plan = bool(done)

@@ -122,3 +122,26 @@ def test_without_plus_nothing_is_decided_here(monkeypatch):
     monkeypatch.delenv("GAMEACCESS_CHUNK_SESSION", raising=False)
     p = pipeline(lambda **kw: pytest.fail("the caller runs the plain torrent"), FakeChunks(where="viking"))
     assert p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G") == (None, None, False)
+
+
+def test_the_route_is_reported_to_the_server(plus):
+    from game_download_manager.chunked import ChunkSession
+    from game_download_manager.client_events import DownloadReporter
+    import time
+    sent = []
+    chunks = FakeChunks()
+
+    def torrent(probe, **kw):
+        assert probe(0.0, 2 * GiB, 1, 0) == "keep"
+        return "C:/games/from-torrent"
+
+    p = pipeline(torrent, chunks)
+    p.context.reporter = DownloadReporter(ChunkSession("https://api", "t", "i"), "10", "Noita",
+                                          post=lambda url, json, headers, timeout: sent.append((url, json["event"], json["detail"])))
+    p.server_or_torrent(ARGS, MAGNET, True, "d", "10", "Noita")
+    for _ in range(50):
+        if len(sent) >= 2:
+            break
+        time.sleep(0.05)
+    assert sorted(sent) == sorted([("https://api/downloads/client-events", "measuring", ""),
+                                   ("https://api/downloads/client-events", "torrent", "juego de 2.0 GB (menos de 5 GB)")])

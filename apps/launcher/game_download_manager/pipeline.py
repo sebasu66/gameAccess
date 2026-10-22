@@ -11,6 +11,7 @@ from urllib.parse import urlparse, unquote
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
+from game_download_manager.client_events import DownloadReporter
 
 class NotAGameError(RuntimeError):
     """The download holds no executable or installer at all (only music, artwork, documents...)."""
@@ -28,6 +29,11 @@ class DownloadPipeline:
         self.download_torrent = download_torrent
         self.extract_archives = extract_archives
 
+    def report(self, event, detail="", size=0, wait=False):
+        reporter = getattr(self.context, "reporter", None)
+        if reporter is not None:
+            reporter.send(event, detail, size, wait)
+
     def server_or_torrent(self, args, download_source, is_torrent, dest_dir, app_id, game_name):
         """PLUS: download through the server (TorBox -> ViKiNG pieces) or let the torrent run here.
 
@@ -44,6 +50,7 @@ class DownloadPipeline:
             # it stays with the player when it is small, well seeded or already fast.
             where = self.chunked(chunk_session).peek(download_source)
             if where:
+                self.report("server", f"el juego ya estaba en {'Viking' if where == 'viking' else 'Torbox'}")
                 context.set_route("accelerated")
                 context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
             else:
@@ -52,11 +59,13 @@ class DownloadPipeline:
                 def decide(*sample):
                     verdict = probe.decide(*sample)
                     if verdict == "keep":
+                        self.report("torrent", probe.reason)
                         context.set_route("torrent")
                         context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
                     return verdict
 
                 context.set_route("measuring")
+                self.report("measuring")
                 context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
                 try:
                     torrent_path = self.download_torrent(
@@ -65,6 +74,7 @@ class DownloadPipeline:
                         return None, None, True
                     return None, torrent_path, False
                 except SwitchToServer as why:
+                    self.report("server", f"el torrent no rinde: {probe.reason or 'sin datos'}")
                     context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
         if use_server:
             context.set_route("accelerated")
@@ -76,8 +86,10 @@ class DownloadPipeline:
                 context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
             except ChunkedDownloadUnavailable as unavailable:
                 context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
+                self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")
             except ChunkedDownloadError as failure:
                 context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
+                self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
         return chunk_path or None, None, False
 
     def chunked(self, session):
@@ -89,6 +101,7 @@ class DownloadPipeline:
         game_name = args.name
 
         context.logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
+        context.reporter = DownloadReporter.from_session(ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION")), app_id, game_name)
 
         from game_library_manager.storage import DigitalGameStorage
         storage = DigitalGameStorage()
@@ -327,6 +340,7 @@ class DownloadPipeline:
                 status_text=f"¡{game_name} listo para jugar!"
             )
             context.logger.info(f"=== DESCARGA COMPLETADA EXITOSAMENTE: '{game_name}' ===")
+            self.report("finished", size=final_size, wait=True)
             sys.exit(0)
 
         except NotAGameError as e:
@@ -337,12 +351,14 @@ class DownloadPipeline:
                 storage.uninstall(int(app_id), game_name)
             except Exception as failure:
                 context.logger.warning("AppID %s: could not remove the non-game download: %s", app_id, failure)
+            self.report("failed", str(e), wait=True)
             self.cleanup_on_cancel(error_message=str(e), error_code="not_a_game", error_detail=e.kinds)
         except Exception as e:
             if not context.cancelled.is_set():
                 context.logger.error(f"Error fatal durante la descarga de '{game_name}': {e}", exc_info=True)
             else:
                 context.logger.info(f"Descarga cancelada por el usuario: '{game_name}'")
+            self.report("cancelled", wait=True) if context.cancelled.is_set() else self.report("failed", str(e), wait=True)
             if not context.cancelled.is_set() and not args.destination_dir:
                 self.record_failure(storage, int(app_id), game_name, str(e))
             self.cleanup_on_cancel(error_message=None if context.cancelled.is_set() else str(e))

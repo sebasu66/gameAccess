@@ -69,9 +69,37 @@ def _download_tasks(local_session: Session, ids: list[str], since: datetime) -> 
     jobs = {j.job_id: j for j in local_session.exec(select(VikingChunkJob).where(VikingChunkJob.job_id.in_(job_ids))).all()} if job_ids else {}
     last_event: dict[tuple[str, str], DownloadEvent] = {}
     first_event: dict[tuple[str, str], DownloadEvent] = {}
+    story: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for e in events:
         last_event[(e.installation_id, e.job_id)] = e
         first_event.setdefault((e.installation_id, e.job_id), e)
+        story.setdefault((e.installation_id, e.job_id), []).append(
+            {"at": _utc(e.created_at), "step": e.step, "status": e.status, "message": e.message})
+    # The server's own job events carry no installation for every step; a job asked by one client tells its story too.
+    job_story: dict[str, list[dict[str, Any]]] = {}
+    for e in local_session.exec(select(DownloadEvent).where(DownloadEvent.job_id.in_({k[1] for k in last_event} | {t[1] for t in transfers}),
+                                                            DownloadEvent.created_at >= since).order_by(DownloadEvent.id)).all() if (last_event or transfers) else []:
+        job_story.setdefault(e.job_id, []).append({"at": _utc(e.created_at), "step": e.step, "status": e.status, "message": e.message})
+
+    def status_of(key, job) -> str:
+        """The client's own word wins (it knows whether its download ended); otherwise the server job's state."""
+        client = [e for e in story.get(key, []) if e["step"] == "client"]
+        if client:
+            last = client[-1]
+            if last["status"] == "error":
+                return "failed"
+            if "terminó" in last["message"]:
+                return "completo"
+            if "canceló" in last["message"]:
+                return "cancelado"
+            if "torrent directo" in last["message"]:
+                return "torrent"
+            return "en curso"
+        return job.status if job is not None else "desconocido"
+
+    def events_for(key) -> list[dict[str, Any]]:
+        merged = {(e["at"], e["message"]): e for e in [*job_story.get(key[1], []), *story.get(key, [])]}
+        return sorted(merged.values(), key=lambda e: e["at"])[-40:]
     seen: set[tuple[str, str]] = set()
     for installation, job_id, name, first, last, count, size in transfers:
         key = (installation, job_id)
@@ -80,8 +108,8 @@ def _download_tasks(local_session: Session, ids: list[str], since: datetime) -> 
         last_e = last_event.get(key)
         result[installation].append({
             "job_id": job_id, "item_name": name or (job.item_name if job else ""), "started_at": _utc(first), "last_at": _utc(last),
-            "pieces": int(count or 0), "bytes": int(size or 0), "status": job.status if job else "desconocido",
-            "message": last_e.message if last_e else "",
+            "pieces": int(count or 0), "bytes": int(size or 0), "status": status_of(key, job),
+            "message": last_e.message if last_e else "", "events": events_for(key),
         })
     for key, e in last_event.items():
         if key in seen:
@@ -89,7 +117,8 @@ def _download_tasks(local_session: Session, ids: list[str], since: datetime) -> 
         job = jobs.get(key[1])
         result[key[0]].append({
             "job_id": key[1], "item_name": e.item_name or (job.item_name if job else ""), "started_at": _utc(first_event[key].created_at),
-            "last_at": _utc(e.created_at), "pieces": 0, "bytes": 0, "status": job.status if job else "desconocido", "message": e.message,
+            "last_at": _utc(e.created_at), "pieces": 0, "bytes": 0, "status": status_of(key, job), "message": e.message,
+            "events": events_for(key),
         })
     for tasks in result.values():
         tasks.sort(key=lambda t: t["last_at"] or since, reverse=True)

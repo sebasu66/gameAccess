@@ -53,7 +53,9 @@ const bytes=n=>{n=Number(n)||0;const u=["B","KB","MB","GB","TB"];let i=0;while(n
 const when=v=>v?new Date(v).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"–";
 const ago=v=>{if(!v)return"–";const s=Math.max(0,(Date.now()-new Date(v))/1000);return s<90?"hace "+Math.round(s)+" s":s<5400?"hace "+Math.round(s/60)+" min":s<172800?"hace "+Math.round(s/3600)+" h":when(v)};
 const remain=sec=>{if(sec==null)return"–";if(sec<=0)return"vencida";const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);return d?d+" d "+h+" h":h?h+" h "+m+" min":m+" min"};
-const STATUS={ready:["Completada",""],running:["Descargando","dl"],preparing:["Preparando","dl"],failed:["Con error","bad"],desconocido:["–",""]};
+const STATUS={ready:["En Viking","on"],partial:["En Viking","on"],running:["Copiando a Viking","dl"],preparing:["Esperando a Torbox","dl"],failed:["Con error","bad"],completo:["Terminada en el cliente","on"],torrent:["Torrent directo","dl"],cancelado:["Cancelada",""],"en curso":["En curso","dl"],desconocido:["–",""]};
+const STEP={request:"Pedido",cache:"Ya estaba",resume:"Retoma",torbox:"Torbox",viking:"Viking",send:"Enviado",client:"Cliente",ready:"Listo",error:"Error"};
+const openTasks=new Set();
 const ACTIONS={"activation-redeem":"Activó una llave","activation-status":"Chequeo de acceso"};
 const REASONS={ok:"correcto",invalid_key:"llave inválida",key_expired:"llave vencida",key_used:"llave ya usada",revoked:"llave revocada"};
 let data=null,opened=new Set();
@@ -90,8 +92,9 @@ function subRow(c){
   left.appendChild(ul);
   const right=el("div");right.appendChild(el("h3","Descargas en el período ("+c.tasks_count+")"));
   if(!c.tasks.length)right.appendChild(el("p","Sin descargas en este período.","muted"));
-  else{const t=el("table");const head=el("tr");for(const h of ["Juego","Inicio","Estado","Piezas","Datos","Último paso"])head.appendChild(el("th",h));t.appendChild(head);
-    for(const k of c.tasks){const r=el("tr");cell(r,k.item_name||k.job_id.slice(0,8));cell(r,when(k.started_at));const s=cell(r,"");const st=STATUS[k.status]||[k.status,""];pill(s,st[0],st[1]);cell(r,k.pieces,"num");cell(r,bytes(k.bytes),"num");const m=cell(r,k.message||"–");m.style.whiteSpace="normal";t.appendChild(r)}
+  else{const t=el("table");const head=el("tr");for(const h of ["Juego","Inicio","Estado","Archivos enviados","Datos enviados","Último paso"])head.appendChild(el("th",h));t.appendChild(head);
+    for(const k of c.tasks){const r=el("tr",null,"click");const tid=c.installation_id+k.job_id;r.onclick=e=>{e.stopPropagation();openTasks.has(tid)?openTasks.delete(tid):openTasks.add(tid);drawClients()};cell(r,(openTasks.has(tid)?"▾ ":"▸ ")+(k.item_name||k.job_id.slice(0,8)));cell(r,when(k.started_at));const s=cell(r,"");const st=STATUS[k.status]||[k.status,""];pill(s,st[0],st[1]);cell(r,k.pieces,"num");cell(r,bytes(k.bytes),"num");const m=cell(r,k.message||"–");m.style.whiteSpace="normal";t.appendChild(r);
+      if(openTasks.has(tid)){const sr=el("tr");const sd=el("td");sd.colSpan=6;const ul=el("ul");if(!(k.events||[]).length)ul.appendChild(el("li","Sin pasos registrados."));for(const e of k.events||[]){const li=el("li");li.appendChild(el("time",when(e.at)));const tag=el("b",(STEP[e.step]||e.step)+" · ");if(e.status==="error")li.style.color="#ff7a6b";else if(e.status==="ok")li.style.color="#7bd88f";li.appendChild(tag);li.appendChild(document.createTextNode(e.message));ul.appendChild(li)}sd.appendChild(ul);sr.appendChild(sd);t.appendChild(sr)}}
     const w=el("div",null,"wrap");w.appendChild(t);right.appendChild(w)}
   cols.append(left,right);td.appendChild(cols);tr.appendChild(td);return tr;
 }
@@ -125,7 +128,7 @@ function summary(s){
   const box=q("capacity");box.replaceChildren();const p=s.peaks_7d,l=s.limits;
   const add=(label,value)=>{const d=el("div");d.appendChild(el("b",label+": "));d.appendChild(document.createTextNode(value));box.appendChild(d)};
   add("Pico de conectados (7 días)",p.online);add("Pico bajando a la vez",p.downloading);add("Pico de velocidad servida",p.mbps+" Mbps");
-  add("Trabajos simultáneos permitidos",l.max_jobs+" (cada uno sube "+l.uploads_per_job+" piezas a la vez)");add("Trabajos activos ahora",(s.jobs.preparing||0)+(s.jobs.running||0));
+  add("Trabajos de Torbox → Viking a la vez",l.max_jobs);add("Trabajos activos ahora",(s.jobs.preparing||0)+(s.jobs.running||0));
   add("Guardado en Viking",bytes(s.bytes_stored_in_viking));add("Disco temporal del servidor",bytes(s.work_dir_bytes));
   const note=el("div",p.downloading>=l.max_jobs*2?"Atención: hubo más clientes bajando que el doble de los trabajos permitidos; conviene subir GAMEACCESS_CHUNK_MAX_JOBS o sumar recursos.":"Con los picos actuales los límites alcanzan.");note.style.marginTop="8px";box.appendChild(note);
 }
