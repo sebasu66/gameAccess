@@ -145,3 +145,15 @@ def test_the_route_is_reported_to_the_server(plus):
         time.sleep(0.05)
     assert sorted(sent) == sorted([("https://api/downloads/client-events", "measuring", ""),
                                    ("https://api/downloads/client-events", "torrent", "juego de 2.0 GB (menos de 5 GB)")])
+
+
+def test_a_source_without_seeds_cancels_the_download_instead_of_falling_back_to_the_torrent(plus):
+    from game_download_manager.chunked import SourceWithoutSeeds
+
+    class NoSeeds(FakeChunks):
+        def download(self, source, *rest):
+            raise SourceWithoutSeeds("Esta descarga se canceló: la fuente está casi sin semillas (1 personas compartiéndola).")
+
+    p = pipeline(lambda **kw: pytest.fail("the torrent must not start"), NoSeeds(where="torbox"))
+    with pytest.raises(SourceWithoutSeeds):
+        p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G")

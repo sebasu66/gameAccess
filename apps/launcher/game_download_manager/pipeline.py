@@ -10,7 +10,7 @@ from launcher_data import data_dir
 from urllib.parse import urlparse, unquote
 from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
-from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError
+from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
 from game_download_manager.client_events import DownloadReporter
 
 class NotAGameError(RuntimeError):
@@ -48,8 +48,10 @@ class DownloadPipeline:
         if use_server and is_torrent:
             # A torrent the server already holds is streamed from it. Any other one is measured first:
             # it stays with the player when it is small, well seeded or already fast.
+            context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Buscando la forma más rápida de bajar el juego...")
             where = self.chunked(chunk_session).peek(download_source)
             if where:
+                context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El servidor ya tiene el juego en {'Viking' if where == 'viking' else 'Torbox'}: descarga acelerada.")
                 self.report("server", f"el juego ya estaba en {'Viking' if where == 'viking' else 'Torbox'}")
                 context.set_route("accelerated")
                 context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
@@ -59,12 +61,14 @@ class DownloadPipeline:
                 def decide(*sample):
                     verdict = probe.decide(*sample)
                     if verdict == "keep":
+                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"Paso 2 de 3 · El torrent rinde bien ({probe.reason}): se baja directo.")
                         self.report("torrent", probe.reason)
                         context.set_route("torrent")
                         context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
                     return verdict
 
                 context.set_route("measuring")
+                context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Probando la velocidad del torrent (hasta 20 s)...")
                 self.report("measuring")
                 context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
                 try:
@@ -75,15 +79,20 @@ class DownloadPipeline:
                     return None, torrent_path, False
                 except SwitchToServer as why:
                     self.report("server", f"el torrent no rinde: {probe.reason or 'sin datos'}")
+                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El torrent es lento ({probe.reason or 'sin datos'}): se le pide al servidor que acelere la descarga...")
                     context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
         if use_server:
             context.set_route("accelerated")
-            context.emit_progress(app_id, "preparing", 5.0, status_text="Pidiendo la descarga por fragmentos al servidor...")
+            context.emit_progress(app_id, "preparing", 5.0, status_text="Paso 3 de 3 · Pidiéndole al servidor la descarga acelerada...")
             try:
                 chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
                 if context.cancelled.is_set():
                     return None, None, True
                 context.logger.info("Descarga por fragmentos completada: %s", chunk_path)
+            except SourceWithoutSeeds:
+                # Downloading the same torrent here would be just as hopeless: stop and let the player pick another source.
+                context.set_route("accelerated")
+                raise
             except ChunkedDownloadUnavailable as unavailable:
                 context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
                 self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")

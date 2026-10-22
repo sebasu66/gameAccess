@@ -181,10 +181,10 @@ def test_an_interrupted_download_resumes_without_repeating_finished_pieces(tmp_p
 
 
 def test_waiting_message_explains_what_the_server_is_doing():
-    assert "buscando fuentes" in cd.describe_wait({"stage": "torbox", "progress": 0, "seeds": 0})
+    assert "buscando quién comparta" in cd.describe_wait({"stage": "torbox", "progress": 0, "seeds": 0})
     assert "42%" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3}) and "3 fuentes" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3})
-    assert "armando" in cd.describe_wait({"stage": "torbox", "progress": 100, "state": "cached"})
-    assert cd.describe_wait(None).startswith("Preparando")
+    assert "Torbox ya tiene el juego" in cd.describe_wait({"stage": "torbox", "progress": 100, "state": "cached"})
+    assert cd.describe_wait(None).startswith("Paso 3 de 3")
 
 
 def test_server_refusal_means_use_the_normal_download(tmp_path):
@@ -581,3 +581,18 @@ def test_a_link_sealed_for_another_session_is_refused(tmp_path, small_splits):
     downloader, _ = make(server, tmp_path)
     with pytest.raises((cd.ChunkedDownloadError, cd.ChunkedDownloadUnavailable)):
         downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+
+
+def test_a_source_without_seeds_stops_with_a_clear_message(tmp_path):
+    class NoSeeds(FakeServer):
+        def manifest(self):
+            m = super().manifest()
+            m.update(status="failed", error="torbox_too_slow", pieces=[], ready_count=0,
+                     detail={"stage": "torbox", "seeds": 1, "eta": 90 * 86400})
+            return m
+
+    downloader, _ = make(NoSeeds([("f", b"1")], 1), tmp_path)
+    with pytest.raises(cd.SourceWithoutSeeds) as stopped:
+        downloader.download("https://x", "F", str(tmp_path), "1", "F")
+    assert "casi sin semillas (1 personas" in str(stopped.value) and "unos 3 meses" in str(stopped.value)
+    assert "botón Descargar" in str(stopped.value)

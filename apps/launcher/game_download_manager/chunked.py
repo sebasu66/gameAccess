@@ -48,6 +48,7 @@ MAX_REJOINS = 5                  # times the player asks again after the server 
 RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", "",
                     "torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"}
 ERROR_WORDS = {
+    "torbox_too_slow": "la fuente casi no tiene semillas y Torbox tardaría demasiado",
     "torbox_stalled": "Torbox no avanza con esta fuente (nadie la comparte o se estancó)",
     "torbox_download_failed": "Torbox no pudo bajar esta fuente",
     "too_many_files": "la fuente tiene demasiados archivos",
@@ -63,25 +64,41 @@ class ChunkedDownloadUnavailable(Exception):
         self.status = status
 
 
+class SourceWithoutSeeds(Exception):
+    """Nobody is sharing this source: the download is cancelled and the player is told to try another one."""
+
+
+def _duration_words(seconds: float) -> str:
+    if seconds >= 86400 * 60:
+        return f"unos {seconds / 86400 / 30:.0f} meses"
+    if seconds >= 86400 * 2:
+        return f"unos {seconds / 86400:.0f} días"
+    return f"unas {max(1, seconds / 3600):.0f} horas"
+
+
 class ChunkedDownloadError(Exception):
     pass
 
 
+STEP3 = "Paso 3 de 3 · "
+
+
 def describe_wait(detail: dict | None, game_name: str = "") -> str:
-    """Plain words for what the server is doing while the first pieces are not ready yet."""
+    """Plain words for what the server is doing while the first files are not ready yet (the third step)."""
     if not detail or detail.get("stage") != "torbox":
-        return "Preparando los archivos en el servidor..."
+        return STEP3 + "El servidor está preparando la descarga acelerada..."
     progress = float(detail.get("progress") or 0)
     seeds = int(detail.get("seeds") or 0)
     state = str(detail.get("state") or "").lower()
     if progress >= 99.5 or state in ("cached", "completed", "uploading"):
-        return "El servidor ya tiene el juego y está armando los fragmentos..."
+        return STEP3 + "Torbox ya tiene el juego: empieza la descarga acelerada..."
     extra = f" ({seeds} fuentes)" if seeds else ""
     if progress <= 0 and seeds == 0:
-        return "El servidor está buscando fuentes para el juego; si nadie lo comparte puede demorar..."
+        return STEP3 + "Torbox está buscando quién comparta el juego; si nadie lo comparte, la descarga se cancela sola..."
     speed, eta = int(detail.get("speed") or 0), int(detail.get("eta") or 0)
-    more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + (f" · faltan ~{max(1, eta // 60)} min" if eta > 0 else "")
-    return f"El servidor está reuniendo el juego: {progress:.0f}%{extra}{more}"
+    left = (f" · faltan ~{max(1, eta // 60)} min" if eta < 7200 else f" · faltan ~{eta // 3600} h") if eta > 0 else ""
+    more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + left
+    return f"{STEP3}Torbox está bajando el juego para acelerarlo: {progress:.0f}%{extra}{more}"
 
 
 @dataclass(frozen=True)
@@ -282,6 +299,14 @@ class ChunkedDownloader:
                             last_poll = 0.0
                             continue
                         code = manifest.get("error") or "error"
+                        if code in ("torbox_too_slow", "torbox_stalled"):
+                            detail = manifest.get("detail") or {}
+                            eta = int(detail.get("eta") or 0)
+                            seeds = int(detail.get("seeds") or 0)
+                            how_long = f" Torbox calculaba {_duration_words(eta)} para bajarla." if eta > 0 else ""
+                            raise SourceWithoutSeeds(
+                                f"Esta descarga se canceló: la fuente está casi sin semillas ({seeds} personas compartiéndola).{how_long} "
+                                "Probá otra fuente desde el botón Descargar.")
                         raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga: {ERROR_WORDS.get(code, code)} ({code})")
                     if not manifest["pieces"]:
                         detail = manifest.get("detail") or {}

@@ -270,6 +270,32 @@ def parse_viking_upload_response(response: httpx.Response) -> dict[str, Any]:
     raise ProviderFailure("viking_upload_failed", 502, "ViKiNG no pudo importar el archivo de TorBox.")
 
 
+SLOW_GRACE_SECONDS = 180    # a torrent needs a few minutes to find its peers before TorBox's estimate means anything
+SLOW_CONFIRM_SECONDS = 120  # the estimate must stay too long this long before giving up
+
+
+def _torbox_estimate_seconds(item: dict[str, Any]) -> float:
+    """How long TorBox still needs: its own ETA, or what is left divided by the current speed (infinite when idle)."""
+    eta = _safe_int(item.get("eta"))
+    if 0 < eta < 10 ** 9:
+        return float(eta)
+    progress = _progress_fraction(item)
+    size, speed = _safe_int(item.get("size")), _safe_int(item.get("download_speed"))
+    if size and speed > 0:
+        return size * max(0.0, 1 - progress) / speed
+    return float("inf") if progress < 1 else 0.0
+
+
+def _human_duration(seconds: float) -> str:
+    if seconds == float("inf"):
+        return "un tiempo indefinido"
+    if seconds >= 86400 * 60:
+        return f"unos {seconds / 86400 / 30:.0f} meses"
+    if seconds >= 86400 * 2:
+        return f"unos {seconds / 86400:.0f} días"
+    return f"unas {seconds / 3600:.0f} horas"
+
+
 def is_viking_upload_server(url: str) -> bool:
     """ViKiNG hands out regional upload servers (jp.vikingfile.com, upload.vikingfile.com, ...).
 
@@ -341,6 +367,8 @@ class TorBoxVikingProvider:
         self.sleep_fn = sleep_fn
         # A source is given up on when TorBox shows no progress for this long (not after a fixed wait).
         self.stall_seconds = max(1, int(stall_seconds if stall_seconds is not None else os.getenv("GAMEACCESS_TORBOX_STALL_SECONDS", "900")))
+        # A source TorBox would need longer than this to fetch is given up (few seeds): the player is told to try another.
+        self.max_estimate_seconds = max(60, int(float(os.getenv("GAMEACCESS_TORBOX_MAX_ESTIMATE_HOURS", "12")) * 3600))
         board_interval = poll_interval_seconds if poll_interval_seconds is not None else float(os.getenv("GAMEACCESS_TORBOX_BOARD_SECONDS", "8"))
         self.status_board = status_board or _shared_board(self, board_interval)
 
@@ -759,6 +787,7 @@ class TorBoxVikingProvider:
         started = time.monotonic()
         deadline = started + self.max_wait_seconds
         last_progress, last_move = -1.0, started
+        slow_since: float | None = None
         completed_item: dict[str, Any] = {}
         while True:
             # The shared board answers for every waiting job (one TorBox request per interval in total).
@@ -787,6 +816,17 @@ class TorBoxVikingProvider:
             progress = _progress_fraction(completed_item)
             if progress > last_progress or state == "queued":  # waiting in TorBox's own queue is not a stall
                 last_progress, last_move = max(progress, last_progress), now
+            estimate = _torbox_estimate_seconds(completed_item)
+            # An idle source (no speed at all) is left to the stall rule below, which names it more precisely.
+            if (state == "queued" or now - started < SLOW_GRACE_SECONDS or estimate <= self.max_estimate_seconds
+                    or estimate == float("inf")):
+                slow_since = None
+            elif slow_since is None:
+                slow_since = now
+            elif now - slow_since >= SLOW_CONFIRM_SECONDS:
+                raise ProviderFailure("torbox_too_slow", 502,
+                                      f"Casi sin semillas: Torbox calcula {_human_duration(estimate)} para bajar esta fuente "
+                                      f"({_safe_int(completed_item.get('seeds'))} fuentes). Probá otra fuente.")
             if now - last_move >= self.stall_seconds:
                 if _safe_int(completed_item.get("seeds")) == 0:
                     raise ProviderFailure("torbox_stalled", 502, "Nadie está compartiendo este torrent y TorBox no avanza. Probá con otra fuente.")

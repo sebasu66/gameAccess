@@ -1,6 +1,7 @@
 import type { ExecutionProfile } from "./ExecutionProfiles";
 import { getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { FlowDiagnostics } from "../FlowDiagnostics";
+import { rankSources } from "./sourceRanking";
 import { getAppLocale, translate, type TranslationKey } from "../i18n";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
@@ -189,10 +190,10 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   }));
   if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
-  const sources = results.flat().filter(source => {
+  const sources = rankSources(results.flat().filter(source => {
     if (seen.has(source.url)) return false;
     seen.add(source.url); return true;
-  });
+  }));
   void narrate(`AppID ${keyOf(game)} · source discovery complete: ${sources.length} distinct option(s); download button ${sources.length ? "available" : "unavailable"}.`, { area: "DOWNLOAD_SOURCES" });
   if (sources.length > 0) {
     detailSources.set(keyOf(game), sources);
