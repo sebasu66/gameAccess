@@ -151,6 +151,8 @@ jobs:
           $previousDir = Join-Path $env:RUNNER_TEMP "previous-release"
           New-Item -ItemType Directory -Force $previousDir | Out-Null
           gh release download --repo $env:GITHUB_REPOSITORY --pattern "*-setup.exe" --dir $previousDir 2>$null
+          # With no published release yet gh fails; that is expected, and its exit code must not fail the step.
+          $global:LASTEXITCODE = 0
           $old = Get-ChildItem "$previousDir/*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $old) { Write-Host "No published release yet: the update path is tested by reinstalling this build over itself."; $old = $new }
           $target = Join-Path $env:RUNNER_TEMP "ga-update"
