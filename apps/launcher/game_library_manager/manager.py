@@ -47,6 +47,11 @@ def play_history(folder: Path) -> dict:
 UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."
 
 
+def on_disk_bytes(game: dict) -> int:
+    stored = game.get("frozen_bytes") if game.get("frozen") else None
+    return stored if stored is not None else game["size_bytes"] or 0
+
+
 class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None):
         self.storage = storage
@@ -225,7 +230,10 @@ class GameLibraryManager:
                 "needs_repair": sum(1 for g in games if g["needs_repair"]),
                 "nonstandard": sum(1 for g in games if not g["standard"]),
                 "partial_downloads": sum(1 for g in games if g.get("partial") or (g.get("transfer_bytes") and not g.get("transfer_active"))),
-                "used_bytes": sum(g["size_bytes"] or 0 for g in games if not g.get("linked")),
+                # What the games take on disk now: a frozen game counts its compressed size, and the saving is apart.
+                "used_bytes": sum(on_disk_bytes(g) for g in games if not g.get("linked")),
+                "frozen_saved_bytes": sum(max(0, (g["original_bytes"] or 0) - (g["frozen_bytes"] or 0)) for g in games
+                                          if g.get("frozen") and g.get("frozen_bytes") is not None and not g.get("linked")),
                 "linked_count": sum(1 for g in games if g.get("linked")),
                 "linked_bytes": sum(g["size_bytes"] or 0 for g in games if g.get("linked")),
                 "transfers_bytes": sum(t["size_bytes"] or 0 for t in transfers),

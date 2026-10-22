@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Flame, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
 import { translate, useI18n } from "../i18n";
 import { notify } from "../toasts";
 import SteamCover from "../SteamCover";
@@ -25,6 +25,9 @@ import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
 import { addReadyGameToLibrary } from "../libraryMembership";
 import { PlanDialog } from "./PlanDialog";
+import { SizeCell } from "./SizeCell";
+import FreezeDialog from "../FreezeDialog";
+import { useFreezeJob } from "../freezeJobs";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
 const notifyLibraryChanged = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("focus")); };
@@ -50,8 +53,15 @@ function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
   else if (!game.standard) badges.push(<Badge key="s" variant="warning"><AlertTriangle className="size-3" />{c.outsideStd}</Badge>);
   else if (["installing", "downloading", "preparing"].includes(game.state)) badges.push(<Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c[game.state as "installing"]}</Badge>);
   else badges.push(<Badge key="s" variant="success">{c.ready}</Badge>);
+  if (game.frozen) badges.push(<Badge key="f" className="border-frost/50 bg-frost/15 text-frost"><Snowflake className="size-3" />{game.frozen === "deep" ? c.deepFrozen : c.frozen}</Badge>);
   if (!game.partial && game.transfer_bytes && !game.transfer_active) badges.push(<Badge key="t" variant="info">{c.partialDl} · {formatBytes(game.transfer_bytes)}</Badge>);
   return <div className="flex flex-wrap items-center gap-1.5">{badges}</div>;
+}
+
+/** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a toast if it is closed). */
+function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
+  const running = useFreezeJob(game.app_id);
+  return <IconAction label={c.thaw} disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <Flame className="text-frost" />}</IconAction>;
 }
 
 function subline(game: LibraryGame, c: LibraryCopy): string {
@@ -113,6 +123,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [thawing, setThawing] = useState<LibraryGame | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
 
   const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length }), [games]);
@@ -179,10 +190,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
     },
     {
       id: "size", accessorFn: game => (game.size_bytes ?? 0) + (game.transfer_bytes ?? 0), header: c.size,
-      cell: ({ row }) => {
-        const game = row.original; const value = game.partial ? game.transfer_bytes ?? 0 : game.size_bytes ?? 0;
-        return <div className="grid w-40 gap-1"><span className="text-sm font-bold tabular-nums">{formatBytes(value)}</span><Progress value={(value / Math.max(largest, game.transfer_bytes ?? 0)) * 100} indicatorClassName={game.partial ? "bg-info" : undefined} /></div>;
-      },
+      cell: ({ row }) => <SizeCell game={row.original} largest={largest} c={c} />,
     },
     { id: "status", enableSorting: false, header: c.status, cell: ({ row }) => <StatusBadges game={row.original} c={c} /> },
     { id: "plays", accessorFn: game => game.plays ?? 0, header: c.plays, cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{row.original.plays ?? 0}</span> },
@@ -200,6 +208,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
               {!game.partial ? <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction> : null}
             </> : game.partial ? null : <>
               {needsFix(game) && id != null ? <IconAction label={c.fix} disabled={busy} onClick={() => void askPlan([id])}><Wand2 className="text-primary" /></IconAction> : null}
+              {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game)} /> : null}
               <IconAction label={c.history} onClick={() => setExpanded(expanded === id ? null : id)}><ScrollText /></IconAction>
               <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
               <IconAction label={game.linked ? c.unlink : c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
@@ -220,7 +229,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const allLinked = pendingIds.length > 0 && pendingIds.every(id => linkedIds.has(id));
   const anyLinked = pendingIds.some(id => linkedIds.has(id));
   const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen), [pending, importOpen]);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(thawing)), [pending, importOpen, thawing]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
     window.addEventListener("keydown", onKey);
@@ -304,18 +313,20 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
             </div>
           </section>
           {summary ? <div className="grid flex-none gap-3">
-            <div className="grid grid-cols-5 gap-3 max-[900px]:grid-cols-2">
+            <div className={cn("grid gap-3 max-[900px]:grid-cols-2", summary.frozen_saved_bytes ? "grid-cols-6" : "grid-cols-5")}>
               {stat(c.games, String(summary.count))}
               {stat(c.used, formatBytes(summary.used_bytes))}
               {stat(c.partialStat, formatBytes(summary.transfers_bytes), summary.transfers_bytes ? "text-info" : "")}
               {stat(c.broken, String(summary.nonstandard), summary.nonstandard ? "text-warning" : "")}
               {stat(c.reclaim, formatBytes(summary.reclaimable_bytes), summary.reclaimable_bytes ? "text-warning" : "")}
+              {summary.frozen_saved_bytes ? stat(c.frozenStat, formatBytes(summary.frozen_saved_bytes), "text-frost") : null}
             </div>
             <DiskBar summary={summary} c={c} />
           </div> : null}
         </div>
       </div>
 
+      {thawing ? <FreezeDialog game={asGame(thawing)} mode="thaw" onClose={() => setThawing(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
       {pending && pending.kind !== "plan" ? (

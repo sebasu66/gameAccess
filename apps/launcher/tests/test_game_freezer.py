@@ -52,8 +52,24 @@ def test_windows_compression_keeps_the_game_playable_and_the_library_shows_both_
     lib = GameLibraryManager(storage, freezer=freezer(storage))
     entry = next(g for g in lib.list_games() if g["app_id"] == 1)
     assert entry["frozen"] == "freeze" and entry["frozen_bytes"] < entry["size_bytes"] == record["original_bytes"]
+    summary = lib.summary()
+    assert summary["used_bytes"] < record["original_bytes"] and summary["frozen_saved_bytes"] == record["original_bytes"] - entry["frozen_bytes"]
     assert freezer(storage).thaw(1, "Alpha") == {"thawed": True, "level": "freeze"}
     assert folder_on_disk(folder) >= record["original_bytes"] and freezer(storage).record(1) is None
+
+
+def test_a_game_compressed_without_a_record_is_detected_and_can_be_thawed(tmp_path):
+    """A freeze whose record never got written (closed app, older version) or compression done by hand."""
+    import subprocess
+    storage, folder = game(tmp_path)
+    subprocess.run(["compact.exe", "/c", f"/s:{folder}", "/i", "/q", "/exe:LZX"], capture_output=True, check=True)
+    assert freezer(storage).record(1) is None
+    lib = GameLibraryManager(storage, freezer=freezer(storage))
+    entry = next(g for g in lib.list_games() if g["app_id"] == 1)
+    assert entry["frozen"] == "freeze" and entry["frozen_bytes"] < entry["original_bytes"] == entry["size_bytes"]
+    assert freezer(storage).thaw(1, "Alpha") == {"thawed": True, "level": "freeze"}
+    assert folder_on_disk(folder) >= entry["original_bytes"]
+    assert "frozen" not in next(g for g in lib.list_games() if g["app_id"] == 1)
 
 
 def test_deep_freeze_keeps_only_the_archive_and_the_log_and_thaws_back_byte_for_byte(tmp_path):

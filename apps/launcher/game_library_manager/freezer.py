@@ -57,6 +57,14 @@ def folder_on_disk(folder: Path) -> int:
     return sum(on_disk(p) for p in folder.rglob("*") if p.is_file() and not p.is_symlink())
 
 
+def compressed_sizes(folder: Path) -> tuple[int, int] | None:
+    """(real size, size on disk) when Windows compression saves space in the folder, else None. Finds games
+    compressed without a record: a freeze whose record was never written, or `compact` run by hand."""
+    files = [p for p in folder.rglob("*") if p.is_file() and not p.is_symlink()]
+    size, stored = sum(p.stat().st_size for p in files), sum(on_disk(p) for p in files)
+    return (size, stored) if size and stored < size * 0.97 else None  # under 3 %: nothing worth showing
+
+
 def _payload_size(folder: Path) -> int:
     """The game's own bytes: everything except its log, markers and a deep archive."""
     skip = {*KEEP, DEEP_ARCHIVE, DEEP_ARCHIVE + ".tmp"}
@@ -112,7 +120,8 @@ class GameFreezer:
         """What the library shows: the level, the real size and what it takes on disk now."""
         record = self.record(app_id)
         if not record or Path(record.get("folder", "")) != folder:
-            return {}
+            found = compressed_sizes(folder) if with_sizes and folder.is_dir() else None
+            return {"frozen": "freeze", "frozen_bytes": found[1], "original_bytes": found[0]} if found else {}
         stored = folder_on_disk(folder) if with_sizes and folder.is_dir() else record.get("stored_bytes")
         return {"frozen": record["level"], "frozen_bytes": stored, "original_bytes": record.get("original_bytes")}
 
@@ -215,8 +224,12 @@ class GameFreezer:
         """Undo either level. A deep freeze needs the game's full size free on the disk."""
         record = self.record(app_id)
         if not record:
-            return {"thawed": False}
-        folder = self._target(app_id, name)
+            folder = self._target(app_id, name)
+            if not compressed_sizes(folder):
+                return {"thawed": False}
+            record = {"level": "freeze"}  # compressed without a record: Windows decompression, like a normal freeze
+        else:
+            folder = self._target(app_id, name)
         started = self.now()
         if record["level"] == "deep":
             archive = folder / DEEP_ARCHIVE
