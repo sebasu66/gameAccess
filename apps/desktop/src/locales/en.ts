@@ -481,6 +481,8 @@ export const en: Record<keyof typeof es, string> = {
   freezeDone: "It now takes {{stored}} (it took {{original}}).",
   thawDone: "The game is thawed.",
   freezeFailed: "Could not finish: {{error}}",
+  freezeRunning: "Freezing… see progress",
+  thawRunning: "Thawing… see progress",
   cardFrozen: "Frozen (Windows compression): takes {{stored}} of {{original}}",
   cardDeepFrozen: "Deep frozen: takes {{stored}} of {{original}}. Playing thaws it.",
   launchThawing: "Thawing the game before opening it. It can take a few minutes.",

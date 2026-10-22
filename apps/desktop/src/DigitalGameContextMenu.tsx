@@ -14,6 +14,7 @@ import { Download, Flame, FolderOpen, Play, Snowflake, Trash2 } from "lucide-rea
 import AppDialog from "./AppDialog";
 import RenameGameDialog from "./RenameGameDialog";
 import FreezeDialog, { type FreezeMode } from "./FreezeDialog";
+import { useFreezeJob } from "./freezeJobs";
 import { useLibraryEntry } from "./libraryScan";
 import { digitalCatalogService, type DigitalCatalog } from "./catalog/DigitalCatalog";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -61,6 +62,8 @@ export default function DigitalGameContextMenu({
   const [repairing, setRepairing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [freezing, setFreezing] = useState<FreezeMode | null>(null);
+  // A freeze outlives this menu: while one runs, the menu only offers to watch it (never a second one).
+  const freezeWork = useFreezeJob(request.game.app_id ?? request.game.id);
   const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
   const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
   const [uninstalling, setUninstalling] = useState(false);
@@ -185,9 +188,10 @@ export default function DigitalGameContextMenu({
           <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
-          {canFreeze && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
-          {canFreeze && entry?.frozen !== "deep" ? <button type="button" role="menuitem" onClick={() => setFreezing("deep")}><Snowflake size={16} /> {t("deepFreezeMenu")}</button> : null}
-          {canFreeze && entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("thaw")}><Flame size={16} /> {t("thawMenu")}</button> : null}
+          {freezeWork ? <button type="button" role="menuitem" onClick={() => setFreezing(freezeWork.mode)}><Snowflake size={16} /> {t(freezeWork.mode === "thaw" ? "thawRunning" : "freezeRunning")}</button> : null}
+          {canFreeze && !freezeWork && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
+          {canFreeze && !freezeWork && entry?.frozen !== "deep" ? <button type="button" role="menuitem" onClick={() => setFreezing("deep")}><Snowflake size={16} /> {t("deepFreezeMenu")}</button> : null}
+          {canFreeze && !freezeWork && entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("thaw")}><Flame size={16} /> {t("thawMenu")}</button> : null}
           {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:linked ? t("uninstallLinkedWarning") : label.warning,tone:"warning"}); }}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { try { libraryMembership.add(request.game); notify(translate("toastLibraryAdded", { name: request.game.name }), { tone: "success" }); } catch (error) { notify(translate("toastActionFailed", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); } onClose(); }}>{label.add}</button>}
           {linked ? null : <button

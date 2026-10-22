@@ -479,6 +479,8 @@ export const es = {
   freezeDone: "Ahora ocupa {{stored}} (antes {{original}}).",
   thawDone: "El juego quedó descongelado.",
   freezeFailed: "No se pudo completar: {{error}}",
+  freezeRunning: "Congelando… ver progreso",
+  thawRunning: "Descongelando… ver progreso",
   cardFrozen: "Congelado (compresión de Windows): ocupa {{stored}} de {{original}}",
   cardDeepFrozen: "Congelado profundo: ocupa {{stored}} de {{original}}. Se descongela al jugar.",
   launchThawing: "Descongelando el juego antes de abrirlo. Puede tardar unos minutos.",
