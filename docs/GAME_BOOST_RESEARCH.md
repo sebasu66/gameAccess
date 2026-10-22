@@ -73,6 +73,22 @@ UI (follow `docs/GUI_DESIGN.md`): a "Game Boost" toggle in Settings > Games (off
 
 Measure, don't claim. Use PresentMon (Intel, open source) or CapFrameX to capture avg FPS, **1% lows** and frame-time variance on the same scene, 3+ runs each, boost off vs on, with a realistic background (browser, Discord, Game Access downloading). Only advertise what the numbers show; the honest pitch is "smoother, fewer stutters while Game Access downloads", not "+30 FPS".
 
+## Measured result (2026-10-22, Seba's PC)
+
+i5-14600K, RTX 2080 Ti, 32 GB, Windows 11 26200, two 1440p monitors. Unigine Heaven 4.0 (DX11) and Superposition 1.1 (low shaders/textures), both at 1280x720 windowed so the CPU is the limit; 3 runs per phase; tools in `tools/benchmark/` (`run_ab.py`, `system_tune.py`, PresentMon 2.6.0). Phase "tuned" = 78 processes suspended, 91 lowered to below-normal + EcoQoS (Claude app included, not suspended), 11 services stopped (SysMain, WSearch, Spooler, six ASUS, Google Play Games, Virtual Desktop), standby list purged, animations/shadows/transparency off, main screen only, benchmark at above-normal. Idle CPU before the phase: 13.0% -> 5.3%; RAM 15.7 -> 13.1 GB. Everything restored afterwards (checked).
+
+| Benchmark | Metric | Normal | Tuned | Change | Verdict |
+|---|---|---|---|---|---|
+| Heaven | own avg FPS | 458.4 | 487.4 | +6.3% | better, runs don't overlap |
+| Heaven | 1% low (PresentMon) | 92.5 | 102.3 | +10.6% | better |
+| Heaven | P99 frame time | 3.6 ms | 3.1 ms | -12.5% | better |
+| Superposition | own avg FPS / score | 293.5 / 39240 | 317.6 / 42463 | +8.2% | better |
+| Superposition | own min FPS | 143.2 | 77.1 | -46% | **worse** |
+| Superposition | 1% low (PresentMon) | 34.7 | 28.5 | -18% | **worse** |
+| Superposition | stutters/min | 28.2 | 75.5 | +168% | **worse** |
+
+Reading: average FPS goes up 6-8% in both, and Heaven is smoother too. Superposition gets faster on average but gets more and deeper hitches, in all three tuned runs, so one of the tweaks hurts it. Prime suspects: the standby-list purge and SysMain stop (Superposition streams assets during the run, Heaven loads everything up front), then the single-display switch. Next step: isolate each tweak on Superposition before any of them becomes a default. Caveat: tuned runs came after the normal ones (no interleaving).
+
 ## Sources
 
 - Microsoft, `SetProcessInformation` and power throttling / EcoQoS: https://learn.microsoft.com/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessinformation

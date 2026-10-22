@@ -32,6 +32,12 @@ python tools/benchmark/frame_benchmark.py compare --a ".cache/benchmarks/off-*.c
 
 `compare` uses the median of each side. A metric is called **better/worse only when no run of one side overlaps the other**; otherwise it says *inconclusive*, because run-to-run noise could explain it. Changes under 1% are *no real change*.
 
+## Unattended A/B with a real benchmark (`run_ab.py`)
+
+Needs Unigine Heaven 4.0 and Superposition 1.1 installed in their default folders (free, assets.unigine.com) and an administrator Python. It runs both benchmarks 3 times with the PC as it is, applies every tweak of `system_tune.py`, runs them again, always restores, and writes `run.log`, `results.json`, `summary.txt` and the PresentMon CSVs to `.cache/benchmarks/ab-<time>/`. `--smoke` only applies, waits 10 s and restores. Takes about 55 minutes; don't use the PC meanwhile.
+
+`system_tune.py apply [--visual] [--single-display]` / `restore` / `status` is the Game Boost prototype: suspend background apps, below-normal + EcoQoS for the rest, stop non-essential services, purge the standby list, optionally turn off visual effects and secondary screens. The previous state is saved to `.cache/benchmarks/tune-state.json` before each change, so `restore` also works after a crash. Results so far: `docs/GAME_BOOST_RESEARCH.md`.
+
 ## Getting trustworthy results
 
 - Same scene, same settings, same resolution; a built-in benchmark is best. Do at least 3 runs per side.
