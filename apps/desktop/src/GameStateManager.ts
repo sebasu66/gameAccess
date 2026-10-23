@@ -8,26 +8,23 @@ export interface ResolvedGameState {
   playButtonReady: boolean;
   installed: boolean;
   prepared: boolean;
-  frozen: boolean;
   transferActive: boolean;
-  storageBusy: boolean;
   downloadComplete: boolean;
   canOpenInstallFolder: boolean;
   canUninstall: boolean;
-  canFreeze: boolean;
-  canThaw: boolean;
 }
 
-const DOWNLOAD_ACTIVE_STATES = new Set<ManagedDownloadStatus["state"]>([
+const DOWNLOAD_ACTIVE_STATES = new Set<string>([
   "requested",
   "preparing",
   "downloading",
+  "decompressing",
+  "extracting",
+  "installing",
   "paused",
   "cancelling",
 ]);
 
-const STORAGE_BUSY_STATES = new Set<ManagedDownloadStatus["state"]>(["freezing", "thawing"]);
-const STORAGE_AUTHORITATIVE_STATES = new Set<ManagedDownloadStatus["state"]>(["freezing", "frozen", "thawing"]);
 
 function transferMetrics(base: ManagedDownloadStatus, overlay: ManagedDownloadStatus) {
   return {
@@ -55,8 +52,6 @@ function providerMetadata(steam: ManagedDownloadStatus, provider: ManagedDownloa
  * Technical state and UI action are intentionally different concepts:
  * - `prepared` is NOT Steam-installed, but Play is enabled because pressing Play
  *   completes Steam discovery/validation before launch.
- * - `frozen` is NOT installed on disk, but Play is enabled because pressing Play
- *   transparently thaws the game before the normal launch pipeline.
  *
  * UI components must consume this class instead of re-deriving state flags from
  * raw `status.state`/`status.installed` combinations.
@@ -64,22 +59,18 @@ function providerMetadata(steam: ManagedDownloadStatus, provider: ManagedDownloa
 export class GameStateManager {
   resolve(status?: ManagedDownloadStatus): ResolvedGameState {
     const technicalState = status?.state ?? "not-installed";
-    const storageOverridesInstallation = STORAGE_AUTHORITATIVE_STATES.has(technicalState);
-    const installed = !storageOverridesInstallation && (status?.installed === true || technicalState === "installed");
+    const installed = status?.installed === true || technicalState === "installed";
     const prepared = technicalState === "prepared";
-    const frozen = technicalState === "frozen";
 
     // `playButtonReady` means the user can press Play now. It deliberately does
     // not mean "Steam has fully installed the game". Play may still perform a
-    // prepared-file validation or a frozen-game thaw before launching.
-    const playButtonReady = installed || prepared || frozen;
+    // prepared-file validation before launching.
     const transferActive = DOWNLOAD_ACTIVE_STATES.has(technicalState);
-    const storageBusy = STORAGE_BUSY_STATES.has(technicalState);
+    const playButtonReady = !transferActive && (installed || prepared);
     const downloadComplete = installed || prepared;
 
     let primaryAction: GamePrimaryAction;
-    if (storageBusy) primaryAction = "wait";
-    else if (playButtonReady) primaryAction = "play";
+    if (playButtonReady) primaryAction = "play";
     else if (transferActive) primaryAction = "cancel";
     else if (technicalState === "unknown") primaryAction = "verify";
     else primaryAction = "download";
@@ -90,14 +81,10 @@ export class GameStateManager {
       playButtonReady,
       installed,
       prepared,
-      frozen,
       transferActive,
-      storageBusy,
       downloadComplete,
       canOpenInstallFolder: installed,
       canUninstall: installed,
-      canFreeze: installed,
-      canThaw: frozen,
     };
   }
 
@@ -119,11 +106,6 @@ export class GameStateManager {
   ): ManagedDownloadStatus | undefined {
     if (!base) return overlay ?? undefined;
     if (!overlay) return base;
-
-    // Local freeze/thaw state represents the actual on-disk storage condition and
-    // must beat stale provider/Steam observations until that transition finishes.
-    if (STORAGE_AUTHORITATIVE_STATES.has(base.state)) return base;
-    if (STORAGE_AUTHORITATIVE_STATES.has(overlay.state)) return overlay;
 
     const installed = this.resolve(base).installed || this.resolve(overlay).installed;
 
@@ -169,11 +151,14 @@ export class GameStateManager {
     steam: ManagedDownloadStatus,
     provider: ManagedDownloadStatus | null | undefined,
   ): ManagedDownloadStatus {
-    if (STORAGE_AUTHORITATIVE_STATES.has(steam.state)) return steam;
     if (!provider) return steam;
 
     if (this.resolve(steam).installed) {
       return this.reconcileDownloadStatus(provider, steam) ?? steam;
+    }
+
+    if (provider.state === "interrupted") {
+      return { ...steam, ...provider, state: "interrupted", installed: false };
     }
 
     if (this.isTrackedDownload(provider) || provider.state === "cancelled") {
@@ -193,12 +178,18 @@ export class GameStateManager {
       };
     }
 
-    if (this.resolve(provider).installed && provider.prepared_target) {
-      return this.reconcileDownloadStatus(steam, provider) ?? steam;
-    }
-
+    // Steam's current installation evidence is authoritative. A provider
+    // "installed" record is only historical cache once Steam reports the app as
+    // not installed (for example after Steam removed the appmanifest but left a
+    // residual common/<game> directory). Only an explicit prepared Game Access
+    // state is allowed to survive without a Steam
+    // installation manifest.
     if (steam.state === "not-installed") {
       return providerMetadata(steam, provider);
+    }
+
+    if (this.resolve(provider).installed && provider.prepared_target) {
+      return this.reconcileDownloadStatus(steam, provider) ?? steam;
     }
 
     return this.reconcileDownloadStatus(provider, steam) ?? steam;

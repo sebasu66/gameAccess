@@ -1,122 +1,38 @@
+"""Application composition and lifecycle; domain logic belongs in named modules."""
 from __future__ import annotations
-
-import re
-from datetime import datetime, timedelta, timezone
-from enum import Enum
+import os
+import logging
 from pathlib import Path
-from typing import Optional
-
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from sqlmodel import Field as SQLField
-from sqlmodel import Session, SQLModel, create_engine, select
-
-from .steam_catalog import SteamCatalogAdapter, SteamCatalogError, steam_assets
-
-DB_PATH = Path(__file__).resolve().parent.parent / "gameaccess.db"
-STEAM_CACHE = DB_PATH.parent / ".steam_cache"
-engine = create_engine(
-    f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False}
-)
-steam_catalog = SteamCatalogAdapter(STEAM_CACHE)
-
-
-class AccountStatus(str, Enum):
-    free = "free"
-    leased = "leased"
-    disabled = "disabled"
-
-
-class LeaseStatus(str, Enum):
-    active = "active"
-    expired = "expired"
-    released = "released"
-
-
-class User(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    username: str = SQLField(index=True, unique=True)
-    credits: int = 0
-
-
-class Game(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    slug: str = SQLField(index=True, unique=True)
-    name: str
-    app_id: Optional[int] = SQLField(default=None, index=True)
-    credit_cost_per_hour: int = 100
-    active: bool = True
-
-
-class ProviderAccount(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    label: str = SQLField(index=True, unique=True)
-    provider: str = "steam"
-    status: AccountStatus = AccountStatus.free
-    notes: str = ""
-
-
-class AccountGame(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    account_id: int = SQLField(foreign_key="provideraccount.id", index=True)
-    game_id: int = SQLField(foreign_key="game.id", index=True)
-
-
-class Lease(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    user_id: int = SQLField(foreign_key="user.id", index=True)
-    game_id: int = SQLField(foreign_key="game.id", index=True)
-    account_id: int = SQLField(foreign_key="provideraccount.id", index=True)
-    status: LeaseStatus = LeaseStatus.active
-    starts_at: datetime
-    expires_at: datetime
-    credits_spent: int
-
-
-class CreditLedger(SQLModel, table=True):
-    id: Optional[int] = SQLField(default=None, primary_key=True)
-    user_id: int = SQLField(foreign_key="user.id", index=True)
-    amount: int
-    reason: str
-    created_at: datetime
-
-
-class LeaseRequest(BaseModel):
-    user_id: int
-    game_id: int
-    minutes: int = Field(ge=5, le=24 * 60)
-    replace_existing: bool = False
-
-
-class CreditRequest(BaseModel):
-    user_id: int
-    amount: int
-    reason: str = "manual"
-
-
-class SeedAccountRequest(BaseModel):
-    label: str
-    provider: str = "steam"
-    game_ids: list[int] = []
-    notes: str = ""
-
-
-class SyncAccountRequest(BaseModel):
-    label: str = Field(min_length=1, max_length=200)
-    provider: str = "steam"
-    game_ids: list[int] = []
-    notes: str = ""
-
-
-class SeedGameRequest(BaseModel):
-    slug: str
-    name: str
-    app_id: Optional[int] = None
-    credit_cost_per_hour: int = Field(default=100, ge=0)
-
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, Response
+from sqlmodel import Session, SQLModel, select
+from .database import engine, database_project_ref, verify_shared_database
+from .local_database import LOCAL_TABLE_NAMES, create_local_tables, local_engine
+from .models import User, Game, AccessEvent, ClientErrorReport
+from .api_schemas import AccessKeyIssueRequest, AccessKeyRenewRequest, AccessKeyRedeemRequest, ClientErrorReportRequest
+from .api_dependencies import get_session
+from .admin_auth import install_admin_auth
+from .admin_security import _admin_browser_access
+from .access_service import now_utc
+from .access_keys import ensure_access_key_schema
+from .access_overrides import courtesy_access_configured
+from .catalog_metadata import ensure_catalog_schema, seed_known_games
+from .steam_client import steam_catalog
+from .review_maintenance import _start_steam_review_importer
+from .activation_routes import router as activation_router, require_active_installation, redeem_access_key, activation_status
+from .access_admin_routes import router as access_admin_router, create_access_keys, list_access_keys, renew_access_key, revoke_access_key
+from .client_error_routes import router as client_error_router, report_client_error, admin_client_errors_view
+from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary, library_catalog, digital_game_details
+from .viking_cache_routes import router as viking_cache_router
+from .viking_chunk_routes import router as viking_chunk_router
+from .admin_dashboard_routes import router as admin_dashboard_router
+from . import resource_governor
 
 app = FastAPI(title="gameAccess API", version="0.3.0")
+install_admin_auth(app)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -133,185 +49,84 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Page", "X-Page-Size", "X-Total-Pages"],
 )
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def expire_old_leases(session: Session) -> None:
-    now = now_utc()
-    leases = session.exec(select(Lease).where(Lease.status == LeaseStatus.active)).all()
-    changed = False
-    for lease in leases:
-        expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
-        if expires <= now:
-            lease.status = LeaseStatus.expired
-            account = session.get(ProviderAccount, lease.account_id)
-            if account and account.status == AccountStatus.leased:
-                account.status = AccountStatus.free
-                session.add(account)
-            session.add(lease)
-            changed = True
-    if changed:
-        session.commit()
+# Outermost: counts every response as it leaves the server (after compression) for the month's traffic budget.
+app.add_middleware(resource_governor.TrafficCounter)
 
 
 def seed_defaults(session: Session) -> None:
     if not session.exec(select(User)).first():
-        session.add(User(username="demo", credits=1500))
-    if not session.exec(select(Game)).first():
-        session.add(
-            Game(
-                slug="no-mans-sky",
-                name="No Man's Sky",
-                app_id=275850,
-                credit_cost_per_hour=100,
-            )
-        )
-        session.add(
-            Game(
-                slug="cyberpunk-2077",
-                name="Cyberpunk 2077",
-                app_id=1091500,
-                credit_cost_per_hour=150,
-            )
-        )
-        session.add(
-            Game(slug="fc", name="EA Sports FC", app_id=None, credit_cost_per_hour=180)
-        )
-    session.commit()
-
-
-def game_capacity(session: Session, game: Game) -> tuple[int, int]:
-    from . import family_capacity
-
-    return family_capacity.game_capacity(session, game)
-
-
-def game_summary(session: Session, game: Game, metrics: dict[int, dict] | None = None) -> dict:
-    from . import family_capacity
-
-    game_id = int(game.id or 0)
-    metric = (metrics or {}).get(game_id)
-    if metric is None:
-        total, available = game_capacity(session, game)
-        demand = family_capacity.demand_fields(session, game_id)
-    else:
-        total = int(metric.get("total", 0))
-        available = int(metric.get("available", 0))
-        demand = {
-            "request_count_total": int(metric.get("request_count_total", 0)),
-            "successful_leases": int(metric.get("successful_leases", 0)),
-            "demand_value": float(metric.get("demand_value", 1.0)),
-            "price_factor": float(metric.get("price_factor", 1.0)),
-            "pool_value": float(metric.get("pool_value", 1.0)),
-        }
-    assets = steam_assets(game.app_id)
-    return {
-        "id": game.id,
-        "slug": game.slug,
-        "name": game.name,
-        "app_id": game.app_id,
-        "credit_cost_per_hour": game.credit_cost_per_hour,
-        "copies_total": total,
-        "copies_available": available,
-        "availability_state": "ready"
-        if available > 0
-        else ("owned-busy" if total > 0 else "unavailable"),
-        **demand,
-        **assets,
-    }
-
-
-def slugify(value: str, app_id: int) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
-    return slug or f"steam-{app_id}"
+        session.add(User(username="gameaccess", credits=0))
+        session.commit()
 
 
 @app.on_event("startup")
 def startup() -> None:
-    SQLModel.metadata.create_all(engine)
+    # Root stream handlers retain failed-request DEBUG context flushed with handle().
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s %(message)s")
+    # httpx logs each request URL at INFO and TorBox calls carry the API token in the query string.
+    for noisy_logger in ("httpx", "httpcore"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+    if os.environ.get("GAMEACCESS_ALLOW_SQLITE_FOR_TESTS") != "1":
+        verify_shared_database(engine)
+    # The chunk-download/telemetry tables live in their own local SQLite file (local_database.py), not here.
+    SQLModel.metadata.create_all(engine, tables=[t for t in SQLModel.metadata.tables.values() if t.name not in LOCAL_TABLE_NAMES])
+    create_local_tables()
+    ensure_access_key_schema(engine)
+    ensure_catalog_schema(engine)
+    resource_governor.start(engine)
     with Session(engine) as session:
         seed_defaults(session)
+    seed_known_games(engine)
+    from .viking_cache_routes import ensure_viking_schema, recover_interrupted_viking_requests
+    ensure_viking_schema(engine)
+    recover_interrupted_viking_requests(engine)
+    from .viking_chunk_service import recover_interrupted_chunk_jobs
+    recover_interrupted_chunk_jobs(local_engine)
+    from .telemetry import start_sampler
+    start_sampler(local_engine)
+    _start_steam_review_importer()
+    from .discovery_service import start_maintenance
+    start_maintenance()
+    from .keep_awake import start as start_keep_awake
+    start_keep_awake()
+
+
+@app.on_event("shutdown")
+def stop_discovery_worker():
+    from .discovery_service import stop_maintenance
+    stop_maintenance()
+    from .telemetry import stop_sampler
+    stop_sampler()
+    from .keep_awake import stop as stop_keep_awake
+    stop_keep_awake()
+    resource_governor.stop()
+
+
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin-console/", response_class=HTMLResponse)
+def admin_home(request: Request):
+    _admin_browser_access(request)
+    page = Path(__file__).resolve().parents[1] / "admin" / "index.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/ping", status_code=204)
+def ping() -> Response:
+    """The smallest answer this server gives: keeps a free Render service awake (keep_awake.py)."""
+    return Response(status_code=204)
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "time": now_utc(), "version": app.version}
-
-
-@app.get("/catalog")
-def catalog(session: Session = Depends(get_session)) -> list[dict]:
-    expire_old_leases(session)
-    games = session.exec(select(Game).where(Game.active == True)).all()  # noqa: E712
-    from . import family_capacity
-    metrics = family_capacity.catalog_metrics(session)
-    return [game_summary(session, game, metrics) for game in games]
-
-
-@app.get("/games/{game_id}/details")
-def game_details(game_id: int, session: Session = Depends(get_session)) -> dict:
-    game = session.get(Game, game_id)
-    if not game or not game.active:
-        raise HTTPException(404, "game not found")
-    summary = game_summary(session, game)
-    if not game.app_id:
-        return {**summary, "steam": None, "metadata_state": "no-steam-appid"}
-    try:
-        steam = steam_catalog.fetch(game.app_id)
-        return {**summary, "steam": steam, "metadata_state": "ready"}
-    except SteamCatalogError as exc:
-        return {
-            **summary,
-            "steam": None,
-            "metadata_state": "temporarily-unavailable",
-            "metadata_error": str(exc),
-        }
-
-
-@app.get("/steam/apps/{app_id}")
-def steam_app(app_id: int, force: bool = False) -> dict:
-    try:
-        return steam_catalog.fetch(app_id, force=force)
-    except SteamCatalogError as exc:
-        raise HTTPException(502, str(exc)) from exc
-
-
-@app.post("/admin/games/import-steam/{app_id}")
-def import_steam_game(app_id: int, session: Session = Depends(get_session)) -> dict:
-    try:
-        metadata = steam_catalog.fetch(app_id)
-    except SteamCatalogError as exc:
-        raise HTTPException(502, str(exc)) from exc
-
-    name = str(metadata.get("name") or f"Steam {app_id}").strip()
-    existing = session.exec(select(Game).where(Game.app_id == app_id)).first()
-    created = existing is None
-    if existing is None:
-        base_slug = slugify(name, app_id)
-        slug = base_slug
-        suffix = 2
-        while session.exec(select(Game).where(Game.slug == slug)).first():
-            slug = f"{base_slug}-{suffix}"
-            suffix += 1
-        existing = Game(slug=slug, name=name, app_id=app_id, credit_cost_per_hour=100)
-    else:
-        existing.name = name
-        existing.active = True
-    session.add(existing)
-    session.commit()
-    session.refresh(existing)
     return {
-        "created": created,
-        "game": game_summary(session, existing),
-        "steam": metadata,
+        "ok": True,
+        "time": now_utc(),
+        "version": app.version,
+        "database": engine.dialect.name,
+        "database_project": database_project_ref(str(engine.url)),
+        "courtesy_access_configured": courtesy_access_configured(),
     }
 
 
@@ -323,331 +138,21 @@ def get_user(user_id: int, session: Session = Depends(get_session)) -> User:
     return user
 
 
-@app.post("/credits")
-def add_credits(req: CreditRequest, session: Session = Depends(get_session)) -> dict:
-    user = session.get(User, req.user_id)
-    if not user:
-        raise HTTPException(404, "user not found")
-    user.credits += req.amount
-    session.add(user)
-    session.add(
-        CreditLedger(
-            user_id=user.id, amount=req.amount, reason=req.reason, created_at=now_utc()
-        )
-    )
-    session.commit()
-    session.refresh(user)
-    return {"user_id": user.id, "credits": user.credits}
-
-
-@app.post("/admin/games")
-def add_game(req: SeedGameRequest, session: Session = Depends(get_session)) -> Game:
-    existing = session.exec(select(Game).where(Game.slug == req.slug)).first()
-    if existing:
-        raise HTTPException(409, "game slug already exists")
-    game = Game(**req.model_dump())
-    session.add(game)
-    session.commit()
-    session.refresh(game)
-    return game
-
-
-@app.post("/admin/accounts")
-def add_account(
-    req: SeedAccountRequest, session: Session = Depends(get_session)
-) -> ProviderAccount:
-    existing = session.exec(
-        select(ProviderAccount).where(ProviderAccount.label == req.label)
-    ).first()
-    if existing:
-        raise HTTPException(409, "account label already exists")
-    account = ProviderAccount(label=req.label, provider=req.provider, notes=req.notes)
-    session.add(account)
-    session.commit()
-    session.refresh(account)
-    for game_id in req.game_ids:
-        if not session.get(Game, game_id):
-            raise HTTPException(400, f"unknown game_id {game_id}")
-        session.add(AccountGame(account_id=account.id, game_id=game_id))
-    session.commit()
-    return account
-
-
-@app.post("/admin/accounts/sync")
-def sync_account(
-    req: SyncAccountRequest, session: Session = Depends(get_session)
-) -> dict:
-    label = req.label.strip()
-    normalized_game_ids = list(dict.fromkeys(req.game_ids))
-    for game_id in normalized_game_ids:
-        if not session.get(Game, game_id):
-            raise HTTPException(400, f"unknown game_id {game_id}")
-
-    account = session.exec(
-        select(ProviderAccount).where(ProviderAccount.label == label)
-    ).first()
-    created = account is None
-    if account is None:
-        account = ProviderAccount(label=label, provider=req.provider, notes=req.notes)
-        session.add(account)
-        session.commit()
-        session.refresh(account)
-    else:
-        account.provider = req.provider
-        import json
-
-        def parsed_notes(value: str) -> dict:
-            try:
-                parsed = json.loads(value or "{}")
-                return parsed if isinstance(parsed, dict) else {}
-            except (ValueError, TypeError):
-                return {}
-
-        previous = parsed_notes(account.notes)
-        incoming = parsed_notes(req.notes)
-        if (
-            incoming.get("inventory_complete") is True
-            and incoming.get("ownership_scan_status") == "ok"
-        ):
-            if (
-                account.status == AccountStatus.disabled
-                and previous.get("disabled_by_inventory_scan")
-            ):
-                account.status = AccountStatus.free
-            incoming["disabled_by_inventory_scan"] = False
-            incoming["ownership_scan_error"] = None
-        elif previous.get("disabled_by_inventory_scan"):
-            incoming["disabled_by_inventory_scan"] = True
-        account.notes = json.dumps({**previous, **incoming}) if incoming else req.notes
-        session.add(account)
-
-    mappings = session.exec(
-        select(AccountGame).where(AccountGame.account_id == account.id)
-    ).all()
-    by_game = {row.game_id: row for row in mappings}
-    desired = set(normalized_game_ids)
-    for game_id, row in by_game.items():
-        if game_id not in desired:
-            session.delete(row)
-    for game_id in normalized_game_ids:
-        if game_id not in by_game:
-            session.add(AccountGame(account_id=account.id, game_id=game_id))
-    session.commit()
-    return {
-        "ok": True,
-        "created": created,
-        "account": {
-            "id": account.id,
-            "label": account.label,
-            "provider": account.provider,
-            "status": account.status,
-            "game_ids": normalized_game_ids,
-        },
-    }
-
-
-@app.get("/admin/accounts")
-def list_accounts(session: Session = Depends(get_session)) -> list[dict]:
-    expire_old_leases(session)
-    accounts = session.exec(select(ProviderAccount)).all()
-    result = []
-    for account in accounts:
-        rows = session.exec(
-            select(AccountGame).where(AccountGame.account_id == account.id)
-        ).all()
-        games = [session.get(Game, row.game_id) for row in rows]
-        result.append(
-            {
-                "id": account.id,
-                "label": account.label,
-                "provider": account.provider,
-                "status": account.status,
-                "games": [{"id": g.id, "name": g.name} for g in games if g],
-                "notes": account.notes,
-            }
-        )
-    return result
-
-
-@app.post("/leases")
-def create_lease(req: LeaseRequest, session: Session = Depends(get_session)) -> dict:
-    expire_old_leases(session)
-    user = session.get(User, req.user_id)
-    game = session.get(Game, req.game_id)
-    if not user:
-        raise HTTPException(404, "user not found")
-    if not game or not game.active:
-        raise HTTPException(404, "game not found")
-
-    active_for_user = session.exec(
-        select(Lease).where(
-            Lease.user_id == user.id, Lease.status == LeaseStatus.active
-        )
-    ).first()
-    if active_for_user:
-        if not req.replace_existing:
-            raise HTTPException(409, "user already has an active lease")
-        active_for_user.status = LeaseStatus.released
-        stale_account = session.get(ProviderAccount, active_for_user.account_id)
-        if stale_account and stale_account.status == AccountStatus.leased:
-            stale_account.status = AccountStatus.free
-            session.add(stale_account)
-        session.add(active_for_user)
-        session.commit()
-
-    from . import family_capacity
-
-    selection = family_capacity.select_best_account(session, game)
-    if not selection:
-        raise HTTPException(409, "no account currently available for this game")
-    selected = selection["account"]
-
-    # Prototype phase: Game Access sessions are free. Keep the accounting
-    # fields in the API so monetization can be re-enabled later without changing
-    # the client contract.
-    cost = 0
-
-    starts = now_utc()
-    expires = starts + timedelta(minutes=req.minutes)
-    lease = Lease(
-        user_id=user.id,
-        game_id=game.id,
-        account_id=selected.id,
-        starts_at=starts,
-        expires_at=expires,
-        credits_spent=cost,
-    )
-    selected.status = AccountStatus.leased
-    user.credits -= cost
-    session.add(selected)
-    session.add(user)
-    session.add(lease)
-    session.add(
-        CreditLedger(
-            user_id=user.id,
-            amount=-cost,
-            reason=f"lease:{game.slug}:{req.minutes}m",
-            created_at=starts,
-        )
-    )
-    session.commit()
-    session.refresh(lease)
-    family_capacity.register_lease_allocation(
-        session,
-        int(lease.id),
-        selection.get("family_id"),
-        selection.get("license_copy_id"),
-    )
-    demand = family_capacity.record_successful_lease(session, int(game.id))
-    session.commit()
-    return {
-        "lease_id": lease.id,
-        "user_id": user.id,
-        "game": {"id": game.id, "name": game.name, "app_id": game.app_id},
-        "account": {
-            "id": selected.id,
-            "label": selected.label,
-            "provider": selected.provider,
-        },
-        "family_id": selection.get("family_id"),
-        "allocation": {
-            "mode": selection.get("mode"),
-            "pool_damage": selection.get("pool_damage"),
-            "newly_unavailable_games": selection.get("newly_unavailable_games"),
-            "remaining_seats": selection.get("remaining_seats"),
-        },
-        "demand": {
-            "request_count_total": demand.request_count_total,
-            "successful_leases": demand.successful_leases,
-            "demand_value": demand.demand_value,
-            "price_factor": demand.price_factor,
-            "pool_value": round(demand.demand_value * demand.price_factor, 4),
-        },
-        "starts_at": starts,
-        "expires_at": expires,
-        "credits_spent": cost,
-        "credits_remaining": user.credits,
-        "session_action": "provider_adapter_required",
-    }
-
-
-@app.post("/leases/{lease_id}/steam-login")
-def lease_steam_login(lease_id: int, request: Request, session: Session = Depends(get_session)) -> dict:
-    # Development transport: never expose provider credentials to remote callers.
-    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
-        raise HTTPException(403, "Steam login transport is local-only")
-    lease = session.get(Lease, lease_id)
-    if not lease or lease.status != LeaseStatus.active:
-        raise HTTPException(409, "An active reservation is required")
-    expires = lease.expires_at.replace(tzinfo=timezone.utc) if lease.expires_at.tzinfo is None else lease.expires_at
-    if expires <= now_utc():
-        raise HTTPException(409, "Reservation expired")
-    account = session.get(ProviderAccount, lease.account_id)
-    from .account_roster import credential_for_label
-    import json
-    credential = credential_for_label(account.label) if account else None
-    if not credential:
-        raise HTTPException(409, "Assigned provider credentials unavailable")
-    notes = json.loads(account.notes or "{}")
-    expected = notes.get("user_id32")
-    if not expected and notes.get("steam_id64"):
-        expected = int(notes["steam_id64"]) - 76561197960265728
-    if not expected:
-        raise HTTPException(409, "Assigned Steam identity is not verified")
-    return {"accountName": credential.login, "password": credential.password, "expectedUserId32": int(expected)}
-
-
-@app.get("/leases/{lease_id}")
-def get_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
-    expire_old_leases(session)
-    lease = session.get(Lease, lease_id)
-    if not lease:
-        raise HTTPException(404, "lease not found")
-    game = session.get(Game, lease.game_id)
-    account = session.get(ProviderAccount, lease.account_id)
-    return {
-        "id": lease.id,
-        "status": lease.status,
-        "user_id": lease.user_id,
-        "game": game.name if game else None,
-        "account_label": account.label if account else None,
-        "starts_at": lease.starts_at,
-        "expires_at": lease.expires_at,
-        "credits_spent": lease.credits_spent,
-    }
-
-
-@app.post("/leases/{lease_id}/release")
-def release_lease(lease_id: int, session: Session = Depends(get_session)) -> dict:
-    lease = session.get(Lease, lease_id)
-    if not lease:
-        raise HTTPException(404, "lease not found")
-    if lease.status != LeaseStatus.active:
-        return {"ok": True, "status": lease.status}
-    lease.status = LeaseStatus.released
-    account = session.get(ProviderAccount, lease.account_id)
-    if account:
-        account.status = AccountStatus.free
-        session.add(account)
-    session.add(lease)
-    session.commit()
-    return {"ok": True, "status": lease.status}
-
-
-from .pool_routes import (  # noqa: E402 - routes import initialized app
-    router as pool_router,
-)
-
-app.include_router(pool_router)
-
-from .steam_search_routes import (  # noqa: E402 - routes import initialized app
-    router as steam_search_router,
-)
-
+from .steam_search_routes import router as steam_search_router
+from .resolver_routes import router as resolver_router
+from .linkvertise_access import router as linkvertise_access_router
+from .discovery_service import router as discovery_router
+from .cooptimus import router as cooptimus_router
+from .premium_routes import router as premium_router
+app.include_router(premium_router)
 app.include_router(steam_search_router)
+app.include_router(resolver_router)
+app.include_router(linkvertise_access_router)
+app.include_router(discovery_router)
+app.include_router(cooptimus_router)
 
-from .admin_console_routes import (  # noqa: E402 - routes import initialized app
-    router as admin_console_router,
-)
-
-app.include_router(admin_console_router)
+from .request_diagnostics import trace_request
+app.middleware("http")(require_active_installation)
+app.middleware("http")(trace_request)
+for router in (activation_router, access_admin_router, client_error_router, catalog_router, viking_cache_router, viking_chunk_router, admin_dashboard_router):
+    app.include_router(router)

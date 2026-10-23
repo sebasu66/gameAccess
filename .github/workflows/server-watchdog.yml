@@ -1,0 +1,37 @@
+# Watches the GameAccess server from outside: when Render is down or has suspended the service, the server cannot
+# send its own alert, so this check does it. Every 15 minutes it asks /health (allowing a free service a minute to
+# wake up); if there is no healthy answer after a second try, it sends a phone alert through ntfy.
+# Set the repository secret NTFY_TOPIC to the same secret topic as GAMEACCESS_NTFY_TOPIC on Render.
+# Scheduled workflows only run from the default branch, so this file lives on main.
+name: Server watchdog
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Ask the server and alert if it does not answer
+        env:
+          SERVER: https://gameaccess-api-dev.onrender.com
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          ask() { curl -s -o body.txt -w '%{http_code}' --max-time 100 "$SERVER/health" || echo 000; }
+          code=$(ask)
+          if [ "$code" = "200" ]; then echo "Server OK"; exit 0; fi
+          sleep 30
+          code=$(ask)
+          if [ "$code" = "200" ]; then echo "Server OK on the second try"; exit 0; fi
+          reason="El servidor no responde (HTTP $code)."
+          if grep -qi "suspended" body.txt 2>/dev/null; then reason="Render suspendió el servicio (HTTP $code). Revisá el panel de Render."; fi
+          echo "$reason"
+          if [ -z "$NTFY_TOPIC" ]; then echo "NTFY_TOPIC is not set: no alert sent"; exit 1; fi
+          python3 -c 'import json, os, sys; print(json.dumps({"topic": os.environ["NTFY_TOPIC"], "title": "GameAccess: servidor caído", "message": sys.argv[1], "priority": 5, "tags": ["rotating_light"]}))' "$reason" \
+            | curl -s -H "Content-Type: application/json" --data-binary @- https://ntfy.sh/ > /dev/null
+          exit 1

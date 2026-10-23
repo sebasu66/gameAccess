@@ -1,0 +1,86 @@
+"""Administrator dashboard: connected clients, what each one downloads and the load over time."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse
+from sqlmodel import Session
+
+from .access_service import _admin_activation_access
+from .admin_security import _admin_browser_access
+from .api_dependencies import get_session
+from .local_database import get_local_session
+from .admin_clients import activity_summary, integrated_clients
+from .telemetry import client_history, clients, overview
+from .viking_chunk_service import default_work_dir
+from .resource_governor import current as current_governor
+
+router = APIRouter(tags=["Admin dashboard"])
+
+
+@router.get("/admin/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request) -> HTMLResponse:
+    _admin_browser_access(request)
+    page = Path(__file__).resolve().parents[1] / "admin" / "dashboard.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/admin/api/overview")
+def api_overview(request: Request, response: Response, local_session: Session = Depends(get_local_session)) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    return overview(local_session, default_work_dir())
+
+
+@router.get("/admin/api/resources")
+def api_resources(request: Request, response: Response) -> dict:
+    """The month's outbound traffic against its budget, and the CPU, as the resource governor sees them."""
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    governor = current_governor()
+    return governor.snapshot() if governor else {"running": False}
+
+
+@router.get("/admin/api/clients")
+def api_clients(request: Request, response: Response, limit: int = Query(default=200, ge=1, le=1000), local_session: Session = Depends(get_local_session)) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    return {"clients": clients(local_session, limit)}
+
+
+@router.get("/admin/api/clients/{installation_id}")
+def api_client_history(installation_id: str, request: Request, response: Response, local_session: Session = Depends(get_local_session)) -> dict:
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    return client_history(local_session, installation_id[:36])
+
+
+
+@router.get("/admin/api/clients-overview")
+def api_clients_overview(request: Request, response: Response, hours: int = Query(default=24, ge=1, le=720),
+                         session: Session = Depends(get_session), local_session: Session = Depends(get_local_session)) -> dict:
+    """Clients with their key, activation events and download tasks of the last `hours`, plus the summary block."""
+    _admin_activation_access(request)
+    response.headers["Cache-Control"] = "no-store"
+    return {"hours": hours, "clients": integrated_clients(session, local_session, hours), "summary": activity_summary(local_session, hours)}
+
+
+# Sections that only returned JSON, now shown as a table with search, filter and sort.
+TABLE_VIEWS = {
+    "access-events": {"title": "Eventos de acceso", "src": "/admin/access-events?limit=1000", "description": "Cada vez que un cliente pidió, activó o fue rechazado."},
+    "catalog-status": {"title": "Estado del catálogo", "src": "/library/catalog/status", "description": "Versión del catálogo y última sincronización."},
+    "download-usage": {"title": "Uso de descargas", "src": "/admin/viking-download-usage?limit=1000", "key": "requests", "description": "Pedidos de descarga por cliente."},
+}
+
+
+@router.get("/admin/table/{slug}", response_class=HTMLResponse)
+def table_page(slug: str, request: Request) -> HTMLResponse:
+    _admin_browser_access(request)
+    view = TABLE_VIEWS.get(slug)
+    if view is None:
+        raise HTTPException(status_code=404, detail="Esa tabla no existe.")
+    page = (Path(__file__).resolve().parents[1] / "admin" / "table.html").read_text(encoding="utf-8")
+    config = json.dumps({**view, "slug": slug}).replace("</", "<\\/")
+    return HTMLResponse(page.replace("<script>", f"<script>window.__TABLE__={config};", 1), headers={"Cache-Control": "no-store"})

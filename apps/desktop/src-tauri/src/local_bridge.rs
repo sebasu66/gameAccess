@@ -186,12 +186,6 @@ enum RouteError {
 fn route(method: &str, path: &str, body: &[u8]) -> Result<Value, RouteError> {
     match (method, path) {
         ("GET", "/health") => Ok(json!({ "ok": true })),
-        ("GET", "/local-steam-pool") => {
-            native_core::read_local_steam_pool().map_err(RouteError::Internal)
-        }
-        ("POST", "/verify-local-steam-inventory") => {
-            native_core::verify_local_steam_inventory().map_err(RouteError::Internal)
-        }
         ("GET", "/runtime-prerequisites") => {
             serde_json::to_value(native_core::runtime_prerequisites())
                 .map_err(|err| RouteError::Internal(err.to_string()))
@@ -202,12 +196,6 @@ fn route(method: &str, path: &str, body: &[u8]) -> Result<Value, RouteError> {
         ("POST", "/open-steam-client") => {
             native_core::open_steam_client().map_err(RouteError::Internal)?;
             Ok(json!({ "ok": true }))
-        }
-        ("POST", "/switch-steam-account") => {
-            let value = json_body(body)?;
-            let label = string_field(&value, "accountLabel")?;
-            serde_json::to_value(native_core::switch_steam_account(label))
-                .map_err(|err| RouteError::Internal(err.to_string()))
         }
         ("POST", "/open-steam-install") => {
             let value = json_body(body)?;
@@ -240,16 +228,6 @@ fn route(method: &str, path: &str, body: &[u8]) -> Result<Value, RouteError> {
 
 fn json_body(body: &[u8]) -> Result<Value, RouteError> {
     serde_json::from_slice(body).map_err(|err| RouteError::BadRequest(err.to_string()))
-}
-
-fn string_field(value: &Value, name: &str) -> Result<String, RouteError> {
-    value
-        .get(name)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .ok_or_else(|| RouteError::BadRequest(format!("Missing {name}")))
 }
 
 fn u32_field(value: &Value, name: &str) -> Result<u32, RouteError> {

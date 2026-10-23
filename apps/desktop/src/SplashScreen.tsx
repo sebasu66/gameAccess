@@ -1,0 +1,104 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useI18n } from "./i18n";
+import { loadPixelStyle } from "./pixelStylePreferences";
+import type { OpeningStage } from "./openingFlow";
+import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
+import openingAudio from "../public/brand/opening-audio.json";
+// The opening sound ends with silence; the logo never waits for it longer than this.
+export const HOLD_MAX_MS = 900;
+type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
+export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
+ const { t } = useI18n();
+ const [formed, setFormed] = useState(stage !== "intro");
+ const [audioState, setAudioState] = useState("idle");
+ const [dockShown, setDockShown] = useState(false);
+ const [landing, setLanding] = useState(false);
+ const video = useRef<HTMLVideoElement>(null);
+ const sound = useRef<HTMLAudioElement | null>(null);
+ const started = useRef(false);
+ const finished = useRef(false);
+ // Right after the big logo has held, it rains up to the header whatever the key status is; the access panel comes afterwards.
+ const phase = !formed ? "intro" : stage === "intro" ? "hold" : "dock";
+ const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const reducedRef = useRef(reduced);
+ const finishDock = useCallback(() => {
+  if (finished.current) return;
+  finished.current = true;
+  // The header logo appears right away while the film fades out over it: no pop.
+  document.body.classList.remove("ga-splash-active");
+  window.dispatchEvent(new Event(LOGO_SETTLED_EVENT));
+  if (reducedRef.current) { onDocked(); return; }
+  setLanding(true);
+  window.setTimeout(onDocked, 260);
+ }, [onDocked]);
+ useEffect(() => {
+  document.body.classList.add("ga-splash-active");
+  return () => {
+   document.body.classList.remove("ga-splash-active");
+   const audio = sound.current;
+   if (!audio) return;
+   // Let the sound fade instead of cutting it when the opening ends.
+   const fade = window.setInterval(() => { audio.volume = Math.max(0, audio.volume - .1); if (audio.volume <= .01) { audio.pause(); window.clearInterval(fade); } }, 40);
+  };
+ }, []);
+ useEffect(() => {
+  const src = openingAudio.src as string | null;
+  // The supplied opening sound follows formation playback, including replay.
+  if (!src) return;
+  const audio = new Audio(src); audio.preload = "auto"; sound.current = audio;
+  audio.onplaying = () => setAudioState("playing");
+  audio.onended = () => setAudioState("ended");
+  audio.onerror = () => setAudioState("error");
+  return () => { sound.current = null; };
+ }, []);
+ useEffect(() => {
+  if (phase === "intro") {
+   if (reduced) { setFormed(true); return; }
+   const timer = window.setTimeout(() => setFormed(true), 12000);
+   return () => clearTimeout(timer);
+  }
+  if (phase === "hold") {
+   // Keep the formed logo large until the complete opening sound finishes.
+   const audio = sound.current;
+   const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
+   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
+   return () => clearTimeout(timer);
+  }
+  if (reduced) { onDockStart(); finishDock(); return; }
+  // Decoder fallback advances the animation only; the gate still requires approval.
+  const timer = window.setTimeout(finishDock, 8000);
+  return () => clearTimeout(timer);
+ }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
+ const play = () => {
+  if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
+  if (phase !== "dock" || started.current) return;
+  started.current = true;
+  const v = video.current;
+  if (!v) return;
+  setDockShown(true);
+  const scale = innerWidth / 1920;
+  const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
+  const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
+  // The header logo sits centred at the top, flush under the window bar (see filter-wizard.css).
+  const cx = innerWidth / 2;
+  const cy = chrome - 8 + frame / 2;
+  const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
+  const ratio = frame / (81 * scale);
+  // The transparent film's individual voxels travel independently; its final
+  // frame is aligned to the visible header logo at every window size.
+  v.animate([
+   { transform: `translate(0px,${initialY}px) scale(1)` },
+   { transform: `translate(${cx - 64 * scale * ratio}px,${cy - 54 * scale * ratio}px) scale(${ratio})` },
+  ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
+  onDockStart();
+ };
+ const cls = `gameaccess-splash phase-${phase}${landing ? " is-landing" : ""}`;
+ // Every layer stays mounted in turn so the picture never goes blank between films.
+ return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
+  <img className={`gameaccess-splash-film splash-hold${phase !== "intro" && !dockShown ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
+  {phase === "intro" ? <video key="intro" ref={video} className="gameaccess-splash-film splash-intro" src="/brand/logo-intro.webm"
+    muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => setFormed(true)} onEnded={() => setFormed(true)} aria-hidden="true" /> : null}
+  {phase === "dock" ? <video key="dock" ref={video} className={`gameaccess-splash-film splash-dock${dockShown ? " is-on" : ""}`} src="/brand/logo-to-header.webm"
+    muted playsInline autoPlay preload="auto" onPlaying={play} onError={finishDock} onEnded={finishDock} aria-hidden="true" /> : null}
+ </div>;
+}

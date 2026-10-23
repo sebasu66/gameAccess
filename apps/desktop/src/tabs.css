@@ -1,0 +1,29 @@
+/* TEMPLATE: tabs for panels that would grow vertically without limit (see GaTabs.tsx).
+   - Text style = the footer commands ("FILTROS", "POPULARIDAD"): 800 11px Manrope, uppercase, .1em tracking.
+   - Each selector has its own muted colour (data-tab-index 0..5); the selected one is lighter with an orange edge.
+   Reuse: render <GaTabs tabs={[{ id, label, content }]} label="..." /> and do not restyle per screen. */
+:root {
+  --ga-tab-0: #27434a; --ga-tab-1: #3f3553; --ga-tab-2: #50402b;
+  --ga-tab-3: #33473a; --ga-tab-4: #353d58; --ga-tab-5: #4b3640;
+  --ga-tab-lift: rgba(255, 255, 255, .09);
+}
+.ga-tabs { display: flex; flex-direction: column; min-height: 0; }
+.ga-tabs-list { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 0 14px; }
+.ga-tabs .ga-tab {
+  flex: 1 1 0; min-width: 0; height: 36px; padding: 0 12px; cursor: pointer;
+  border: 1px solid #ffffff1c; border-radius: 10px; background: var(--ga-tab-bg, var(--ga-tab-0));
+  color: #d3d8db; font: 800 11px Manrope, "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .1em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.ga-tabs .ga-tab[data-tab-index="0"] { --ga-tab-bg: var(--ga-tab-0); }
+.ga-tabs .ga-tab[data-tab-index="1"] { --ga-tab-bg: var(--ga-tab-1); }
+.ga-tabs .ga-tab[data-tab-index="2"] { --ga-tab-bg: var(--ga-tab-2); }
+.ga-tabs .ga-tab[data-tab-index="3"] { --ga-tab-bg: var(--ga-tab-3); }
+.ga-tabs .ga-tab[data-tab-index="4"] { --ga-tab-bg: var(--ga-tab-4); }
+.ga-tabs .ga-tab[data-tab-index="5"] { --ga-tab-bg: var(--ga-tab-5); }
+.ga-tabs .ga-tab:hover { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); color: #fff; }
+.ga-tabs .ga-tab[aria-selected="true"] { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); border-color: #ff8a38; color: #fff; }
+.ga-tabs .ga-tab:focus-visible { outline: 2px solid #ff8a38; outline-offset: 2px; }
+.ga-tabs-panel { min-height: 0; }
+@media (prefers-reduced-motion: reduce) { .ga-tabs .ga-tab { transition: none; } }

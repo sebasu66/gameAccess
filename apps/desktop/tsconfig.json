@@ -17,5 +17,8 @@
     "jsx": "react-jsx"
   },
   "include": ["src"],
+  // These suites read the catalog/seed from disk with node:fs and node:sqlite. Vitest runs them;
+  // the app build has no Node type declarations, so tsc must not type-check them.
+  "exclude": ["src/catalogFixture.ts", "src/catalogReport.report.ts", "src/catalogRealData.test.ts", "src/libraryOrderingAndGenres.test.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -53,7 +53,6 @@ function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable 
       busy={false}
       onPlay={() => undefined}
       onDownload={() => undefined}
-      onOpenDetails={() => undefined}
     />,
   );
 }
@@ -66,24 +65,22 @@ describe("LibraryRoom grid presentation", () => {
     expect(markup).not.toContain("<strong>Test Game</strong>");
   });
 
-  it("distinguishes installed games with and without a playable license", () => {
-    expect(render({ 10: installed })).toContain("library-install-state ready");
+  it("keeps file readiness independent from the available-copy count", () => {
+    expect(render({ 10: installed })).toContain("ga-card-installed");
     const withoutLicense = render({ 10: installed }, 0);
-    expect(withoutLicense).toContain("library-install-state no-license");
-    expect(withoutLicense).toContain("sin licencia disponible");
-    expect(withoutLicense).not.toContain("library-install-state ready");
+    expect(withoutLicense).toContain("ga-card-installed");
+    expect(withoutLicense).not.toContain("ga-card-installed no-license");
   });
 
-  it("treats a frozen game as playable while keeping its blue storage marker", () => {
+  it("does not mark a legacy frozen game as ready or playable", () => {
     const markup = render({ 10: frozen });
-    expect(markup).toContain("library-install-state frozen");
-    expect(markup).toContain("Jugar");
-    expect(markup).not.toContain("library-install-state ready");
+    expect(markup).not.toContain("ga-card-installed");
+    expect(markup).not.toContain("Jugar");
   });
 
   it("shows no installed corner marker for downloading or missing games", () => {
-    expect(render({ 10: downloading })).not.toContain("library-install-state ready");
-    expect(render({})).not.toContain("library-install-state ready");
+    expect(render({ 10: downloading })).not.toContain("ga-card-installed");
+    expect(render({})).not.toContain("ga-card-installed");
   });
 
   it("changes the selected game only through the click handler, not mouse hover", () => {
@@ -91,7 +88,6 @@ describe("LibraryRoom grid presentation", () => {
     const panel = CatalogPanel({
       games: [game],
       downloads: {},
-      accountCount: 1,
       selectedIndex: 0,
       gridRef: createRef<HTMLDivElement>(),
       onSelect: (index) => selections.push(index),

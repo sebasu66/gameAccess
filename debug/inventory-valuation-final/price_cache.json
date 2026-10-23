@@ -1,0 +1,2792 @@
+{
+  "570|1|Wraps of the Bloody Ripper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009367.1557558
+  },
+  "753|1|231430-Flakpanzer IV Ostwind - Winter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009376.3728223
+  },
+  "753|1|231430-SdKfz 251 Half-track - Winter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009385.5880425
+  },
+  "753|1|255710-The Eden Project": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009394.7854125
+  },
+  "753|1|255710-The Hadron Collider": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009403.9754217
+  },
+  "753|1|255710-The Space Elevator": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009413.1759157
+  },
+  "753|1|264710-Reefback": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009422.4042597
+  },
+  "753|1|289070-Catherine de Medici": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009431.6769533
+  },
+  "753|1|289070-Gorgo": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009440.8631203
+  },
+  "753|1|289070-Hojo Tokimune": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009450.0771022
+  },
+  "753|1|289070-Trajan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009459.3280144
+  },
+  "753|1|364360-Boar Charge": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009468.562154
+  },
+  "753|1|364360-The Black Coach": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009477.7392354
+  },
+  "753|1|431960-Nuclear Fission": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009486.9506369
+  },
+  "753|1|431960-Sheep Anatomy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009496.1640093
+  },
+  "753|1|431960-Spiral Galaxy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009505.3665063
+  },
+  "753|1|550-Charger": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009514.623826
+  },
+  "753|1|550-Hunter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009523.8353007
+  },
+  "753|1|550-Jockey": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009533.0566308
+  },
+  "753|1|703700-care": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009542.2676554
+  },
+  "753|1|703700-DOCTOR?": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009551.4947686
+  },
+  "753|1|703700-eve": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009560.7878323
+  },
+  "753|1|703700-injured": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009569.9615865
+  },
+  "753|1|1194630-Andrew (Trading Card)-12": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009579.187179
+  },
+  "753|1|1194630-Angela (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009588.385942
+  },
+  "753|1|1194630-Daniel (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009597.642655
+  },
+  "753|1|1194630-John (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009606.8288999
+  },
+  "753|1|270880-City limits": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009616.032246
+  },
+  "753|1|270880-Dinner": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009625.2199938
+  },
+  "753|1|270880-Oil check": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009634.4641895
+  },
+  "753|1|782330-Argent Power": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009643.6874135
+  },
+  "753|1|782330-Hellgate": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009652.8634515
+  },
+  "753|1|782330-Mars Core": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009662.0703354
+  },
+  "753|1|782330-Tower Babel": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009671.2849286
+  },
+  "753|1|102840-Falcone": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009680.5775042
+  },
+  "753|1|102840-Rex": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009689.77162
+  },
+  "753|1|1083560-:cleandino:": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009698.984468
+  },
+  "753|1|1083560-:cleanfloppy:": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009708.184605
+  },
+  "753|1|1083560-A Messy Garage": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009717.391483
+  },
+  "753|1|1083560-A Work-in-Progress Garage": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009726.6033735
+  },
+  "753|1|203160-Crossroads (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009735.7919526
+  },
+  "753|1|203160-Parachute": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009745.0079753
+  },
+  "753|1|215510-The Penguin Army": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009754.2467954
+  },
+  "753|1|233190-Brutal Joe": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009763.525237
+  },
+  "753|1|233190-The Tank": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009772.72304
+  },
+  "753|1|252430-Kitsune": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009781.9339097
+  },
+  "753|1|252430-Rondel Mohegan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009791.1494145
+  },
+  "753|1|35700-Old Mill": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009800.4068062
+  },
+  "753|1|367520-False Knight": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009809.6392174
+  },
+  "753|1|367520-Mantis Lords": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009818.8183763
+  },
+  "753|1|367520-Soul Master": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009828.02197
+  },
+  "753|1|367520-Zote": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009837.2340782
+  },
+  "753|1|49520-AXTON (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009846.4465961
+  },
+  "753|1|49520-GAIGE": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009855.6303153
+  },
+  "753|1|49520-HANDSOME JACK": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009864.8382142
+  },
+  "753|1|535480-Dominion (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009874.016429
+  },
+  "753|1|535480-Hysteria (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009883.2578409
+  },
+  "753|1|535480-The Expanse (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009892.5209844
+  },
+  "753|1|606150-Slime": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009901.737835
+  },
+  "753|1|606150-Sword": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009910.9366202
+  },
+  "753|1|8870-Boys of Silence (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009920.1555336
+  },
+  "753|1|8870-Elizabeth": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009929.3890066
+  },
+  "753|1|8870-Motorized Patriot": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009938.6437998
+  },
+  "753|1|8870-Songbird": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009947.8544269
+  },
+  "753|1|227300-Efficiency & Durability": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009957.1050591
+  },
+  "753|1|227300-Emotion & Execution": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009966.3256536
+  },
+  "753|1|227300-Innovation and Comfort": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009975.5660906
+  },
+  "753|1|227300-Prestige & Reliability": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009984.7334657
+  },
+  "753|1|550-Boomer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789009993.9587848
+  },
+  "753|1|550-Tank": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010003.1810532
+  },
+  "753|1|550-Witch": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010012.3827844
+  },
+  "753|1|431960-DNA Mutation": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010021.6182327
+  },
+  "753|1|431960-Gunslinger": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010030.8143587
+  },
+  "753|1|517630-Gabriela (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010039.9916928
+  },
+  "753|1|517630-Oasis Buggy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010049.2028027
+  },
+  "753|1|517630-Tornado Chase": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010058.477139
+  },
+  "753|1|238320-Richard Trager": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010067.7035933
+  },
+  "753|1|227300-Class & Quality": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010076.8947642
+  },
+  "753|1|227300-Endurance & Performance": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010086.0726037
+  },
+  "753|1|227300-Power & Safety": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010095.2964754
+  },
+  "753|1|243470-Aiden (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010104.5362482
+  },
+  "753|1|243470-Everything is Under Control": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010113.7169845
+  },
+  "753|1|243470-Hacking is your weapon": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010122.9434721
+  },
+  "753|1|307780-Jax": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010132.1321003
+  },
+  "753|1|307780-Kenshi": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010141.382485
+  },
+  "753|1|307780-Mileena": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010150.631402
+  },
+  "753|1|359550-Bandit (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010159.852657
+  },
+  "753|1|359550-Jäger (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010169.045713
+  },
+  "753|1|359550-Mute (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010178.2813554
+  },
+  "753|1|488790-Mysterion": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010187.5142565
+  },
+  "753|1|488790-The Coon": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010196.723608
+  },
+  "753|1|635260-Backward": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010205.9348857
+  },
+  "753|1|635260-Furikaeshi": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010215.1212008
+  },
+  "753|1|739630-The Moon": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010224.3261888
+  },
+  "753|1|1593500-Father": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010233.525738
+  },
+  "753|1|1593500-Rage": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010242.7131147
+  },
+  "753|1|1593500-Witch of the Woods": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010251.8881612
+  },
+  "570|1|Heat of the Sixth Hell - Tail": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010261.0820203
+  },
+  "730|1|AK-47 | Uncharted (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010270.322527
+  },
+  "730|1|Desert Eagle | Light Rail (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010279.531153
+  },
+  "730|1|FAMAS | Decommissioned (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010288.713155
+  },
+  "730|1|Five-SeveN | Flame Test (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010297.8940904
+  },
+  "730|1|G3SG1 | Jungle Dashed (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010307.1198983
+  },
+  "730|1|G3SG1 | Polar Camo (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010316.3598328
+  },
+  "730|1|Galil AR | Sage Spray (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010325.6132247
+  },
+  "730|1|Galil AR | Vandal (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010334.8708587
+  },
+  "730|1|M4A1-S | Flashback (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010344.091146
+  },
+  "730|1|MAC-10 | Oceanic (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010353.344213
+  },
+  "730|1|MP7 | Cirrus (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010362.610774
+  },
+  "730|1|MP9 | Modest Threat (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010371.8545055
+  },
+  "730|1|P250 | Contaminant (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010381.0320702
+  },
+  "730|1|P90 | Grim (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010390.2481537
+  },
+  "730|1|Sealed Graffiti | NaCl (Shark White)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010399.513818
+  },
+  "730|1|Souvenir AUG | Sweeper (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010408.6913946
+  },
+  "730|1|SSG 08 | Acid Fade (Factory New)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010417.904157
+  },
+  "730|1|SSG 08 | Fever Dream (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010427.1054988
+  },
+  "730|1|StatTrak™ AWP | Worm God (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010436.3638408
+  },
+  "730|1|StatTrak™ Glock-18 | Off World (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010445.562809
+  },
+  "730|1|StatTrak™ SG 553 | Danger Close (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010454.8351448
+  },
+  "730|1|StatTrak™ UMP-45 | Briefing (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010464.047997
+  },
+  "730|1|Tec-9 | Fubar (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010473.2505772
+  },
+  "730|1|USP-S | Cortex (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010482.484126
+  },
+  "730|1|USP-S | Torque (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010491.689393
+  },
+  "753|1|1238840-Medic": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010500.9202116
+  },
+  "753|1|1238840-Support": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010510.1049607
+  },
+  "753|1|208650-Batmobile (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010519.3341284
+  },
+  "753|1|208650-Harley Quinn": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010528.5377746
+  },
+  "753|1|218620-Bain": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010537.7403166
+  },
+  "753|1|218620-Hoxton (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010546.991025
+  },
+  "753|1|218620-Torn Page of the Guide of Bain": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010556.2292907
+  },
+  "753|1|218620-Vlad": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010565.4764702
+  },
+  "753|1|264710-Gasopod": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010574.7146583
+  },
+  "753|1|264710-Peeper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010583.9342315
+  },
+  "753|1|264710-Sea Dragon Leviathan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010593.1581695
+  },
+  "753|1|264710-Sea Treader": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010602.3556013
+  },
+  "753|1|264710-Stalker": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010611.567712
+  },
+  "753|1|356190-Brûz’s Mob": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010620.769955
+  },
+  "570|1|International 2025 Loading Screen #1": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010629.9617553
+  },
+  "570|1|International 2025 Loading Screen #2": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010639.1692772
+  },
+  "570|1|International 2025 Loading Screen #3": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010648.3727112
+  },
+  "570|1|International 2025 Loading Screen #4": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010657.60132
+  },
+  "570|1|International 2025 Loading Screen #5": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010666.8828735
+  },
+  "570|1|International 2025 Team Loading Screen - Aurora Gaming": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010676.0941744
+  },
+  "570|1|International 2025 Team Loading Screen - BB Team": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010685.3198483
+  },
+  "570|1|International 2025 Team Loading Screen - BOOM Esports": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010694.563477
+  },
+  "570|1|International 2025 Team Loading Screen - HEROIC": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010703.7542565
+  },
+  "570|1|International 2025 Team Loading Screen - Natus Vincere": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010712.988929
+  },
+  "570|1|International 2025 Team Loading Screen - Nigma Galaxy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010722.208404
+  },
+  "570|1|International 2025 Team Loading Screen - PVISION": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010731.397727
+  },
+  "570|1|International 2025 Team Loading Screen - Team Falcons": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010740.6392608
+  },
+  "570|1|International 2025 Team Loading Screen - Team Liquid": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010749.8411393
+  },
+  "570|1|International 2025 Team Loading Screen - Team Nemesis": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010759.0441759
+  },
+  "570|1|International 2025 Team Loading Screen - Team Spirit": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010768.2399251
+  },
+  "570|1|International 2025 Team Loading Screen - Team Tidebound": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010777.458853
+  },
+  "570|1|International 2025 Team Loading Screen - Tundra Esports": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010786.6257446
+  },
+  "570|1|International 2025 Team Loading Screen - Wildcard": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010795.8507657
+  },
+  "570|1|International 2025 Team Loading Screen - Xtreme Gaming": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010805.04475
+  },
+  "570|1|International 2025 Team Loading Screen - Yakutou Brothers": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010814.2994773
+  },
+  "730|1|Chroma 2 Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010823.5387633
+  },
+  "730|1|G3SG1 | Safari Mesh (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010832.739352
+  },
+  "730|1|MP7 | Army Recon (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010841.9164395
+  },
+  "730|1|Operation Breakout Weapon Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010851.134246
+  },
+  "570|1|Armlets of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010860.372216
+  },
+  "570|1|Armor of the Haunted Lord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010869.592816
+  },
+  "570|1|Blade of Reckless Vigor": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010878.773847
+  },
+  "570|1|Bladeform Legacy - Mask": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010887.9839146
+  },
+  "570|1|Blistering Shade": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010897.2452657
+  },
+  "570|1|Bound Shark Flippers": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010906.413609
+  },
+  "570|1|Bracers of the Haunted Lord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010915.6522014
+  },
+  "570|1|Cloak of the Haunted Lord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010924.8519113
+  },
+  "570|1|Cuirass of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010934.1447394
+  },
+  "570|1|Fall 2016 Battle Pass Loading Screen III": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010943.3936088
+  },
+  "570|1|Hatchets of Big 'Un": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010952.6273725
+  },
+  "570|1|Haunted Claimant": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010961.8626034
+  },
+  "570|1|Helm of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010971.0998993
+  },
+  "570|1|Helm of the Haunted Lord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010980.38686
+  },
+  "570|1|Heroes Within Music Pack": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010989.6203213
+  },
+  "570|1|Inscribed Alchemists Infuser": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789010998.8009856
+  },
+  "570|1|Inscribed Blades of Voth Domosh": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011008.0315058
+  },
+  "570|1|Inscribed Fallen Sword": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011017.2566085
+  },
+  "570|1|Inscribed Piston Impaler": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011026.5458534
+  },
+  "570|1|Pauldrons of the Haunted Lord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011035.7340722
+  },
+  "570|1|Phantom Concord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011044.9392223
+  },
+  "570|1|Prison Buckler": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011054.1355524
+  },
+  "570|1|Prison Shank": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011063.3714278
+  },
+  "570|1|Shark Cowl": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011072.605435
+  },
+  "570|1|Shark Fin Cape": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011081.80497
+  },
+  "570|1|Shield of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011090.9930189
+  },
+  "570|1|Spear of Reckless Vigor": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011100.1841853
+  },
+  "570|1|Spikes of Reckless Vigor": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011109.388811
+  },
+  "570|1|Style of Reckless Vigor": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011118.5926425
+  },
+  "570|1|Sword of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011127.7867799
+  },
+  "570|1|Tassets of the Eldwurm Crest": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011136.9634082
+  },
+  "753|1|588650-BITER SWARM": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011146.1806667
+  },
+  "753|1|588650-FIRE BRANDS": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011155.4102209
+  },
+  "753|1|588650-FROST BLAST": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011164.6098442
+  },
+  "753|1|588650-THE ASSAULT SHIELD": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011173.8806293
+  },
+  "753|1|588650-THE FIRE BOMB": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011183.0576024
+  },
+  "753|1|588650-THE SCAVENGER SWORD": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011192.3053913
+  },
+  "753|1|588650-THE SWIFT SWORD": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011201.5001924
+  },
+  "753|1|1142710-The Exiled One": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011210.705797
+  },
+  "753|1|1142710-The Ice Queen": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011219.911706
+  },
+  "730|1|AK-47 | Rat Rod (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011229.1316676
+  },
+  "730|1|AWP | Atheris (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011238.401932
+  },
+  "730|1|Clutch Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011247.6063218
+  },
+  "730|1|FAMAS | Decommissioned (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011256.8203368
+  },
+  "730|1|Five-SeveN | Violent Daimyo (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011266.0084927
+  },
+  "730|1|Glock-18 | Weasel (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011275.3580647
+  },
+  "730|1|M4A4 | Spider Lily (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011284.5991514
+  },
+  "730|1|MAC-10 | Rangeen (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011293.8505907
+  },
+  "730|1|MP9 | Sand Dashed (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011303.0630398
+  },
+  "730|1|Nova | Polar Mesh (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011312.2874362
+  },
+  "730|1|P90 | Freight (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011321.5323575
+  },
+  "730|1|PP-Bizon | Sand Dashed (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011330.7169106
+  },
+  "730|1|PP-Bizon | Urban Dashed (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011339.9253364
+  },
+  "730|1|Prisma 2 Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011349.1425512
+  },
+  "730|1|SG 553 | Ol' Rusty (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011358.3548446
+  },
+  "730|1|Soldier | Phoenix": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011367.587371
+  },
+  "730|1|Souvenir MP5-SD | Lab Rats (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011376.7764835
+  },
+  "730|1|StatTrak™ MAG-7 | Popdog (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011386.0095093
+  },
+  "730|1|StatTrak™ XM1014 | Watchdog (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011395.2734568
+  },
+  "730|1|Tec-9 | Bamboozle (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011404.5278952
+  },
+  "730|1|UMP-45 | Urban DDPAT (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011413.6968896
+  },
+  "753|1|730-Anarchist": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011422.9344046
+  },
+  "753|1|730-FBI": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011432.163696
+  },
+  "730|1|AUG | Condemned (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011441.3883057
+  },
+  "730|1|Chroma 3 Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011450.6346757
+  },
+  "730|1|FAMAS | Colony (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011459.845995
+  },
+  "730|1|Horizon Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011469.0298882
+  },
+  "730|1|PP-Bizon | Sand Dashed (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011478.2597444
+  },
+  "730|1|Revolver Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011487.497327
+  },
+  "730|1|Sawed-Off | Forest DDPAT (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011496.6797204
+  },
+  "730|1|SCAR-20 | Contractor (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011505.859409
+  },
+  "730|1|SG 553 | Waves Perforated (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011515.0599885
+  },
+  "730|1|Spectrum 2 Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011524.2769682
+  },
+  "730|1|UMP-45 | Urban DDPAT (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011533.4961584
+  },
+  "753|1|4177550-Pink Warships": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011542.6883008
+  },
+  "753|1|945360-Day Off on Polus": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011551.9324703
+  },
+  "753|1|945360-End of the Line": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011561.163318
+  },
+  "753|1|945360-The Greatest Chase": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011570.4444761
+  },
+  "753|1|275850-Beyond": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011579.6212795
+  },
+  "753|1|275850-Desolation": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011588.7919097
+  },
+  "753|1|275850-Exo Mech": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011597.9862733
+  },
+  "753|1|275850-Next": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011607.2450216
+  },
+  "753|1|275850-Next Generation": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011616.5172567
+  },
+  "753|1|275850-Synthesis": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011625.7364266
+  },
+  "753|1|1307090-Downhill": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011634.9900773
+  },
+  "753|1|1307090-Going down": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011644.1899273
+  },
+  "753|1|1307090-Happy face": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011653.4223645
+  },
+  "753|1|1341200-Guo Jia - 郭嘉": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011833.2383974
+  },
+  "753|1|1341200-Lu Bu - 呂布": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011842.4667978
+  },
+  "753|1|1341200-Lu Lingqi - 呂玲綺": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011851.6600559
+  },
+  "753|1|1341200-Xiahou Dun - 夏侯惇": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011860.8340285
+  },
+  "753|1|1341200-Zhong Hui - 鍾会": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011870.039567
+  },
+  "753|1|1341200-Zhou Yu - 周瑜": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011879.284308
+  },
+  "753|1|1341200-Zhuge Liang - 諸葛亮": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011888.5223253
+  },
+  "753|1|1367300-destroy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011897.7174802
+  },
+  "753|1|1367300-Kil": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011906.9553974
+  },
+  "753|1|1367300-Kil SP": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011916.1479223
+  },
+  "753|1|351940-Donnie": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011925.3527954
+  },
+  "753|1|351940-Mia": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011934.598908
+  },
+  "753|1|351940-Randolph": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011943.8021839
+  },
+  "753|1|1217060-Ao Bai (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011953.0091019
+  },
+  "753|1|1217060-Crown Prince (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011962.3175542
+  },
+  "753|1|1217060-Tao (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011971.5553565
+  },
+  "753|1|219990-Arcanist (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011980.7620306
+  },
+  "753|1|219990-Nightblade (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011989.9993367
+  },
+  "753|1|477160-Catapault": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789011999.2064538
+  },
+  "753|1|477160-Speaker": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012008.4436588
+  },
+  "753|1|477160-Tree": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012017.6445825
+  },
+  "753|1|648800-Clucker (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012026.8471794
+  },
+  "753|1|648800-Goat": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012036.0610542
+  },
+  "753|1|710920-Samael": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012045.3296983
+  },
+  "753|1|710920-Strife": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012054.6234305
+  },
+  "753|1|710920-Vulgrim": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012063.822305
+  },
+  "753|1|239140-Demolisher": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012073.025359
+  },
+  "753|1|239140-Harris Brecken": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012082.2940934
+  },
+  "753|1|239140-Kyle Crane": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012091.5523636
+  },
+  "753|1|239140-Toad": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012100.7796874
+  },
+  "753|1|4000-Melon Racer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012110.0924394
+  },
+  "753|1|4000-Missing Textures": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012119.3618095
+  },
+  "753|1|4000-Spammer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012128.5805614
+  },
+  "730|1|AUG | Condemned (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012137.8258376
+  },
+  "730|1|CZ75-Auto | Hexane (Factory New)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012147.0326097
+  },
+  "730|1|Dual Berettas | Colony (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012156.2654154
+  },
+  "730|1|eSports 2014 Summer Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012165.5326502
+  },
+  "730|1|FAMAS | Cyanospatter (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012174.7437577
+  },
+  "730|1|Huntsman Weapon Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012183.984661
+  },
+  "730|1|MAG-7 | Metallic DDPAT (Factory New)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012193.2628088
+  },
+  "730|1|Operation Phoenix Weapon Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012202.4866748
+  },
+  "730|1|P250 | Sand Dune (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012211.7176337
+  },
+  "730|1|P250 | Sand Dune (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012220.9458823
+  },
+  "730|1|P90 | Sand Spray (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012230.1657894
+  },
+  "730|1|Sticker Capsule": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012239.4057856
+  },
+  "730|1|Sticker Capsule 2": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012248.6113868
+  },
+  "730|1|Tec-9 | Groundwater (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012257.7971365
+  },
+  "753|1|1244460-Chaos Theory 2 The Lost World": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012266.992344
+  },
+  "753|1|1244460-Chaos Theory 3 Jurassic Park 3": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012276.2188013
+  },
+  "753|1|1244460-Chaos Theory 4 Jurassic World": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012285.4027066
+  },
+  "753|1|265550-Diego Martinez": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012294.66238
+  },
+  "753|1|265550-Gary Finkel": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012303.894342
+  },
+  "753|1|265550-Harry \"Zhi\" Wong": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012313.103228
+  },
+  "753|1|265550-Hunter Thibodeaux": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012322.3277743
+  },
+  "753|1|265550-Nick Ramos": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012331.5526614
+  },
+  "753|1|4000-Movie Maker": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012340.765575
+  },
+  "753|1|1091500-6th Street": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012349.9596872
+  },
+  "753|1|1091500-Voodoo Boys": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012359.190479
+  },
+  "730|1|AUG | Contractor (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012368.42724
+  },
+  "730|1|P250 | Boreal Forest (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012377.6314466
+  },
+  "730|1|Shadow Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012386.8490624
+  },
+  "730|1|Tec-9 | Army Mesh (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012396.0531318
+  },
+  "730|1|Tec-9 | Army Mesh (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012405.267983
+  },
+  "753|1|107410-M2A1 Slammer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012414.485788
+  },
+  "753|1|107410-MRAP Hunter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012423.6797347
+  },
+  "753|1|107410-Speedboat": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012432.8770661
+  },
+  "753|1|1172620-Captain Briggsy": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012442.078136
+  },
+  "753|1|1172620-Chief Trader Mollie": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012451.3068395
+  },
+  "753|1|1172620-Gold Hoarder": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012460.5252764
+  },
+  "753|1|1172620-Humphrey the Hoarder": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012469.704028
+  },
+  "753|1|1172620-Lesedi Singh": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012478.8970404
+  },
+  "753|1|1172620-Mysterious Stranger": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012488.1376476
+  },
+  "753|1|1172620-The Ferryman": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012497.3817112
+  },
+  "753|1|1203220-Temulch, the Grey Wolf": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012506.5794835
+  },
+  "753|1|1203220-Viper Ning, the Crimson Night": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012515.8274307
+  },
+  "753|1|1237970-Ion": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012525.0244963
+  },
+  "753|1|1237970-Northstar": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012534.260147
+  },
+  "753|1|1250-Bloat": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012543.4749084
+  },
+  "753|1|1250-Husk": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012552.6956956
+  },
+  "753|1|1250-Patriarch": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012561.944144
+  },
+  "753|1|1359090-MS UNIT": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012571.138103
+  },
+  "753|1|1359090-NVG": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012580.3871531
+  },
+  "753|1|202170-Lotus": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012589.6168745
+  },
+  "753|1|202170-Loyalty": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012598.848916
+  },
+  "753|1|202170-Power": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012608.0438175
+  },
+  "753|1|202170-South": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012617.3068256
+  },
+  "753|1|203140-Clean-up": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012626.5456157
+  },
+  "753|1|203140-Dexter Industries": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012635.75297
+  },
+  "753|1|203140-Hope Vista": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012644.9722817
+  },
+  "753|1|203140-Red Room": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012654.2104857
+  },
+  "753|1|206420-Asha Odekar": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012663.48122
+  },
+  "753|1|206420-Keith David": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012672.6622288
+  },
+  "753|1|206420-Kinzie Kensington": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012681.8540032
+  },
+  "753|1|208650-Arkham Knight (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012691.0395064
+  },
+  "753|1|208650-Batgirl": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012700.258421
+  },
+  "753|1|208650-Scarecrow": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012709.4859364
+  },
+  "753|1|216250-City of Henderson": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012718.7220876
+  },
+  "753|1|216250-Dead Island Riptide Booster Pack": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012727.9393213
+  },
+  "753|1|216250-John Morgan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012737.1114028
+  },
+  "753|1|218620-Dallas (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012746.317577
+  },
+  "753|1|218620-The Elephant": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012755.5265234
+  },
+  "753|1|218620-Wolf (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012764.7177868
+  },
+  "753|1|221040-Ada Wong": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012773.9187424
+  },
+  "753|1|221040-Piers Nivans": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012783.1111834
+  },
+  "753|1|222880-Fighter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012792.3882303
+  },
+  "753|1|222880-Specialist": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012801.6477118
+  },
+  "753|1|222880-Support": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012810.9679072
+  },
+  "753|1|224420-The Temple": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012820.2336154
+  },
+  "753|1|232090-Killing Floor 2 Booster Pack": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012829.463532
+  },
+  "753|1|232090-Scrake Chainsaw": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012838.6549149
+  },
+  "753|1|232090-Siren Scream": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012847.8307729
+  },
+  "753|1|232090-Trader Time": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012857.0681531
+  },
+  "753|1|238430-Larry": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012866.3049946
+  },
+  "753|1|238430-Tony": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012875.5338922
+  },
+  "753|1|239140-Hazmat": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012884.7262418
+  },
+  "753|1|24240-Clear the Street": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012893.8966482
+  },
+  "753|1|24240-Explosive": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012903.0774937
+  },
+  "753|1|24240-Job Well Done": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012912.3140821
+  },
+  "753|1|24240-PAYDAY: The Heist Booster Pack": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012921.560138
+  },
+  "753|1|24240-Pool Repair": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012930.7485528
+  },
+  "753|1|250400-Healing Poultice": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012939.9245634
+  },
+  "753|1|250400-How to Survive Booster Pack": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012949.1268299
+  },
+  "753|1|250400-Iron Axe": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012958.3817165
+  },
+  "753|1|251570-Ladies Night": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012967.593433
+  },
+  "753|1|251570-Say Cheese": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012976.7831166
+  },
+  "753|1|252490-Bye Zombies": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012985.971069
+  },
+  "753|1|252490-I love my rock (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789012995.1797018
+  },
+  "753|1|252490-Killer wood pile": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013004.4303732
+  },
+  "753|1|299740-Lone Wolf": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013013.6880467
+  },
+  "753|1|299740-Spiker (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013022.9328861
+  },
+  "753|1|299740-Woodland Friends": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013032.1209586
+  },
+  "753|1|324800-Ameonna (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013041.3526537
+  },
+  "753|1|324800-Mamushi Heika": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013050.5879564
+  },
+  "753|1|344760-Field of Battle": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013059.8013573
+  },
+  "753|1|344760-Martial Throne": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013069.0000763
+  },
+  "753|1|344760-Rally": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013078.2597785
+  },
+  "753|1|344760-The Woodland Band": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013087.5001314
+  },
+  "753|1|359550-Ash (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013096.7280607
+  },
+  "753|1|359550-Sledge (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013105.9224231
+  },
+  "753|1|359550-Thermite (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013115.1237986
+  },
+  "753|1|393380-Gorodok": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013124.3889837
+  },
+  "753|1|393380-Kohat Toi": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013133.5944116
+  },
+  "753|1|393380-Militia Forces": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013142.801049
+  },
+  "753|1|393380-Militia Forces Under Fire": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013152.01141
+  },
+  "753|1|393380-Russian Combined Arms": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013161.2909727
+  },
+  "753|1|4000-Invasion": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013170.5212955
+  },
+  "753|1|4000-Physgun": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013179.7346883
+  },
+  "753|1|4000-Thrusters": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013188.9720426
+  },
+  "753|1|4000-Trouble In Terrorist Town (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013198.2203305
+  },
+  "753|1|47780-Brute": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013207.4375424
+  },
+  "753|1|47780-Leaper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013216.6802137
+  },
+  "753|1|513710-Puppet": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013225.9184933
+  },
+  "753|1|513710-Sharpshooter (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013235.163045
+  },
+  "753|1|581320-Breach": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013244.3661487
+  },
+  "753|1|581320-Killing Fields": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013253.6110454
+  },
+  "753|1|581320-Masks On": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013262.8070695
+  },
+  "753|1|625340-Assistance Required": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013272.0441282
+  },
+  "753|1|625340-Humanoid": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013281.3127356
+  },
+  "753|1|70000-Styrac Attack!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013290.5485535
+  },
+  "753|1|70000-Waist Deep in Freedom": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013299.7286644
+  },
+  "753|1|70000-Winging It": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013308.9373922
+  },
+  "753|1|72850-Draugr Deathlord": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013318.117553
+  },
+  "753|1|72850-Mehrunes Dagon": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013327.3261967
+  },
+  "753|1|72850-Nordic Ruins": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013336.5502057
+  },
+  "753|1|730-Balkan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013345.7208505
+  },
+  "753|1|730-SWAT": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013354.944451
+  },
+  "753|1|976310-CASSIE CAGE": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013364.1735077
+  },
+  "753|1|976310-D'VORAH": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013373.418733
+  },
+  "753|1|976310-KOTAL KAHN": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013382.6815937
+  },
+  "753|1|976310-NOOB SAIBOT": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013391.9114258
+  },
+  "753|1|976310-RAIDEN (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013401.1676285
+  },
+  "753|1|976310-SONYA (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013410.3821173
+  },
+  "570|1|Tines of the Pyrexae - Body Head": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013419.6257439
+  },
+  "753|1|414700-Knoth": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013428.8706288
+  },
+  "753|1|414700-Val": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013438.2218552
+  },
+  "753|1|979070-Crab!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013447.447196
+  },
+  "753|1|979070-Lucky Star": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013456.6839259
+  },
+  "753|1|979070-Mantis!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013465.8663664
+  },
+  "753|1|979070-Wally": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013475.0843573
+  },
+  "753|1|1222680-Honda": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013484.3311436
+  },
+  "753|1|1222680-Nissan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013493.5935538
+  },
+  "753|1|1222680-Range Rover SVR": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013502.827144
+  },
+  "753|1|1273400-Asphalt Dumper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013512.0150588
+  },
+  "753|1|1273400-Dozer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013521.2282896
+  },
+  "753|1|1273400-Dumper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013530.4732215
+  },
+  "753|1|1273400-Mobile Crane": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013539.7034466
+  },
+  "753|1|1273400-Wheel loader": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013548.919107
+  },
+  "753|1|2737070-Midnight Locksmith": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013558.1276178
+  },
+  "753|1|2755330-Nastya (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013567.3458557
+  },
+  "753|1|386360-Daisy Despair (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013576.576244
+  },
+  "753|1|386360-Dark Whisperer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013585.839451
+  },
+  "753|1|386360-Executioner": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013595.0580876
+  },
+  "753|1|386360-Flurry": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013604.2901525
+  },
+  "753|1|386360-Ragnarok": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013613.5101004
+  },
+  "753|1|386360-Scarlet Coven Eset": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013622.725724
+  },
+  "753|1|386360-Swagni (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013631.9585266
+  },
+  "753|1|386360-Void Wyrm": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013641.1713474
+  },
+  "753|1|495420-Feral": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013650.410756
+  },
+  "753|1|623340-Valos Prime (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013659.6115339
+  },
+  "753|1|1350650-Book Smart": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013668.7972057
+  },
+  "753|1|1350650-Redhead": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013678.7383184
+  },
+  "753|1|1607130-Elizabeth": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013687.9345632
+  },
+  "753|1|3527290-Campfire (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013697.1239705
+  },
+  "753|1|3527290-Don’t Eat That!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013706.3309124
+  },
+  "753|1|3527290-PEAK!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013715.649142
+  },
+  "753|1|3527290-Stick Together": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013728.541197
+  },
+  "753|1|3527290-The Ultimate Carry": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013737.7621815
+  },
+  "753|1|550-Smoker": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013746.9552388
+  },
+  "753|1|550-Spitter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013756.1843176
+  },
+  "730|1|AK-47 | Aquamarine Revenge (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013765.4295752
+  },
+  "730|1|AUG | Contractor (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013774.646365
+  },
+  "730|1|AWP | Pit Viper (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013783.836949
+  },
+  "730|1|AWP | Safari Mesh (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013793.0489805
+  },
+  "730|1|Desert Eagle | Mudder (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013802.25505
+  },
+  "730|1|Dual Berettas | Ventilators (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013811.476794
+  },
+  "730|1|FAMAS | Cyanospatter (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013820.6995895
+  },
+  "730|1|Five-SeveN | Forest Night (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013829.908458
+  },
+  "730|1|Galil AR | Black Sand (Battle-Scarred)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013839.1587076
+  },
+  "730|1|Gamma 2 Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013848.3892035
+  },
+  "730|1|Glock-18 | Warhawk (Well-Worn)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013857.6161022
+  },
+  "730|1|Glove Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013866.8191347
+  },
+  "730|1|MAC-10 | Palm (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013876.0086646
+  },
+  "730|1|MP7 | Forest DDPAT (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013885.2378392
+  },
+  "730|1|P2000 | Granite Marbleized (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013894.4580765
+  },
+  "730|1|SCAR-20 | Carbon Fiber (Factory New)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013903.6517572
+  },
+  "730|1|Sealed Graffiti | Eco (Tracer Yellow)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013912.8215947
+  },
+  "730|1|Sealed Graffiti | Eye Spy (Brick Red)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013922.045158
+  },
+  "730|1|Sealed Graffiti | GTG (SWAT Blue)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013931.279089
+  },
+  "730|1|Sealed Graffiti | Jump Shot (War Pig Pink)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013940.5138197
+  },
+  "730|1|Sealed Graffiti | Popdog (Violent Violet)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013949.7129867
+  },
+  "730|1|SG 553 | Aerial (Field-Tested)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013958.9428778
+  },
+  "730|1|Spectrum Case": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013968.1804233
+  },
+  "730|1|Tec-9 | Army Mesh (Factory New)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013977.4092789
+  },
+  "730|1|XM1014 | Oxide Blaze (Minimal Wear)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013986.6096704
+  },
+  "753|1|1797760-:crying_yeti:": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789013995.811061
+  },
+  "753|1|107410-AR-2 Darter": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014005.0494843
+  },
+  "753|1|107410-MH-9 Hummingbird": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014014.2673585
+  },
+  "753|1|1172620-Duke": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014023.4863052
+  },
+  "753|1|202990-Aftermath": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014032.7221527
+  },
+  "753|1|202990-Drone": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014041.9283996
+  },
+  "753|1|202990-Nuketown 2025": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014051.1670005
+  },
+  "753|1|202990-Standoff": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014060.451828
+  },
+  "753|1|212910-Abigail \"Misty\" Briarton": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014069.87041
+  },
+  "753|1|212910-Dr. Edward Richtofen": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014079.6614478
+  },
+  "753|1|212910-Nikolai Belinski": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014089.13207
+  },
+  "753|1|212910-Takeo Masaki (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014099.3646932
+  },
+  "753|1|212910-Tank Dempsey": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014108.7471728
+  },
+  "753|1|218620-Chains (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014118.0822103
+  },
+  "753|1|218620-Hector": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014127.7346494
+  },
+  "753|1|233720-My Pretty": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014137.386529
+  },
+  "753|1|233720-Tooled Up": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014146.773239
+  },
+  "753|1|241930-The Beheader": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014156.360763
+  },
+  "753|1|241930-The Raid-Leader": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014165.6630888
+  },
+  "753|1|241930-The Shaman": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014175.284304
+  },
+  "753|1|252950-GOAL!": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014185.1166422
+  },
+  "753|1|252950-Kick-Off": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014194.5196018
+  },
+  "753|1|252950-That Crossbar": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014203.765313
+  },
+  "753|1|284160-Ibishu 200BX (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014213.420279
+  },
+  "753|1|287700-Huey": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014222.8449438
+  },
+  "753|1|287700-The Third Child": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014232.4265547
+  },
+  "753|1|311210- The Giant": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014242.583345
+  },
+  "753|1|311210-Cybernetic Enhancements": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014252.9515686
+  },
+  "753|1|311210-Metro": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014262.3525772
+  },
+  "753|1|311210-Reaper": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014271.798709
+  },
+  "753|1|311210-Stronghold": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014281.2306118
+  },
+  "753|1|359550-Doc (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014291.4758713
+  },
+  "753|1|365590-Division": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014301.484189
+  },
+  "753|1|365590-LastMan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014310.8549378
+  },
+  "753|1|365590-Rogue": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014320.1928525
+  },
+  "753|1|367450-Snow Drift": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014329.5737653
+  },
+  "753|1|381210-Meg Thomas (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014338.9505568
+  },
+  "753|1|381210-The hillbilly (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014348.6999724
+  },
+  "753|1|381210-The trapper (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014358.0927606
+  },
+  "753|1|381210-The Wraith (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014370.160354
+  },
+  "753|1|428690-Alaska": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014379.5615256
+  },
+  "753|1|428690-Alex & Elena": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014389.005975
+  },
+  "753|1|428690-Justin Lee": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014398.870322
+  },
+  "753|1|431960-Car Blueprints": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014408.4331162
+  },
+  "753|1|477160-Boat": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014417.7121353
+  },
+  "753|1|576470-BEAR (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014427.0790207
+  },
+  "753|1|576470-PIG (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014436.468565
+  },
+  "753|1|582010-Kulu-Ya-Ku": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014446.1525042
+  },
+  "753|1|945360-Ejected": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014455.4901927
+  },
+  "753|1|945360-Hungry": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014465.320853
+  },
+  "753|1|306130-Bangkorai": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014475.0619152
+  },
+  "753|1|306130-Eastmarch": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014484.9942276
+  },
+  "753|1|306130-Emeric": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014494.352963
+  },
+  "753|1|306130-Molag Bal": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014505.0066478
+  },
+  "753|1|582010-Great Jagras": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014515.3550718
+  },
+  "753|1|582010-Nergigante": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014524.7751873
+  },
+  "753|1|582010-Radobaan": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014534.1710591
+  },
+  "753|1|582010-Rathalos": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014543.5254285
+  },
+  "753|1|1118200-Anchor": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014554.2292752
+  },
+  "753|1|1222670-Professional": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014564.3359303
+  },
+  "753|1|233720-Guts": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014573.7377377
+  },
+  "753|1|233720-Meat Scarf": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014583.0969596
+  },
+  "753|1|233720-Socking It To Ya": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014593.1707532
+  },
+  "753|1|233720-Trisha?": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014602.8436713
+  },
+  "753|1|263760-Cool Streak": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014612.1987717
+  },
+  "753|1|263760-Pink Lightning": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014626.0949008
+  },
+  "753|1|263760-Smooth Cruiser": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014635.490758
+  },
+  "753|1|263760-Token Bird": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014644.7827082
+  },
+  "753|1|284160-Civetta Bolide 350 GT (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014654.6017332
+  },
+  "753|1|284160-ETK 856t (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014664.6150646
+  },
+  "753|1|284160-ETK Kc6t (Trading Card)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014674.2880435
+  },
+  "753|1|284160-Gavril Barstow Kingsnake": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014684.136003
+  },
+  "753|1|284160-Gavril T75 (Foil)": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014693.5819108
+  },
+  "753|1|284160-Old Cannon": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014703.7146523
+  },
+  "753|1|284160-Travel Trailer": {
+    "status": "error",
+    "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>",
+    "fetched_at": 1789014713.2130442
+  }
+}

@@ -1,0 +1,47 @@
+name: Apply Bundled Artwork Integration
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - tools/dev/apply_bundled_artwork.py
+      - apps/desktop/src/bundledArtwork.ts
+      - apps/desktop/src/bundledArtwork.test.ts
+      - .github/workflows/apply-bundled-artwork.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Apply integration
+        run: python tools/dev/apply_bundled_artwork.py
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Frontend tests
+        working-directory: apps/desktop
+        run: npm test -- --run
+      - name: Commit generated integration
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo 'No generated changes'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/desktop/src/api.ts
+          git commit -m 'feat: prefer packaged game artwork in desktop client'
+          git push origin HEAD:dev

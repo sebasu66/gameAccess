@@ -152,7 +152,7 @@ main { min-height: 100vh; }
 .fact { display: grid; gap: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .fact span { color: #6f7988; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; }
 .fact strong { font-size: 13px; font-weight: 600; color: #d8dde6; }
-.toast { position: fixed; z-index: 350; right: 28px; bottom: 28px; max-width: 420px; padding: 14px 17px; border-radius: 13px; background: rgba(21,28,37,.96); border: 1px solid rgba(101,240,178,.22); box-shadow: 0 18px 50px rgba(0,0,0,.42); color: #e7ecf3; }
+.toast { position: fixed; z-index: 350; right: clamp(16px, 3vw, 48px); bottom: clamp(18px, 4vh, 54px); width: min(58vw, 760px); min-width: min(360px, calc(100vw - 32px)); padding: clamp(18px, 2vw, 26px) clamp(20px, 2.4vw, 32px); border-radius: 16px; background: #54ff35; border: 2px solid #b8ff9f; box-shadow: 0 20px 70px rgba(0,0,0,.55), 0 0 34px rgba(84,255,53,.48); color: #071006; font-size: clamp(16px, 1.25vw, 21px); font-weight: 800; line-height: 1.3; letter-spacing: .01em; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

@@ -1,0 +1,67 @@
+import { getApiBaseUrl, getCatalogManifestUrl } from "../settings";
+import { queryCatalogCache, syncCatalogCache } from "../catalogCache";
+import type { CatalogGame } from "../types";
+import { narrate } from "../narrationLog";
+import { invalidateCatalogMatchingCache } from "./PluginSources";
+
+export interface DiscoveryCatalogSummary {
+  updated: boolean;
+  revision: string;
+  catalog_count: number;
+}
+
+/** Digital identities are Steam AppIDs; the shared snapshot also carries legacy DB IDs. */
+function steamIdentities(games: CatalogGame[]): CatalogGame[] {
+  return games.map(game => ({ ...game, id: game.app_id ?? game.id, catalog_cache_id: game.id }));
+}
+
+export function mergeDiscoveryCatalog(base: CatalogGame[], remote: CatalogGame[]): CatalogGame[] {
+  const games = new Map(steamIdentities(base).map(game => [game.id, game]));
+  for (const incoming of steamIdentities(remote)) {
+    const previous = games.get(incoming.id);
+    if (!previous) { games.set(incoming.id, incoming); continue; }
+    // A smaller/older API response cannot erase discovery coverage or enrichment.
+    const present = Object.fromEntries(Object.entries(incoming).filter(([, value]) =>
+      value !== null && value !== undefined && value !== "" && (!Array.isArray(value) || value.length)));
+    const merged = { ...previous, ...present } as CatalogGame;
+    for (const key of ["tags", "genres", "categories"] as const)
+      merged[key] = [...new Set([...(previous[key] ?? []), ...(incoming[key] ?? [])])];
+    games.set(incoming.id, merged);
+  }
+  return [...games.values()];
+}
+
+export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<DiscoveryCatalogSummary | null> {
+  if (requireRemote) {
+    const api = await Promise.resolve().then(() => getApiBaseUrl()).catch(() => "");
+    const fallback = await Promise.resolve().then(() => getCatalogManifestUrl()).catch(() => "");
+    const manifests = [api ? `${api}/library/catalog/manifest` : "", fallback].filter(Boolean);
+    for (const manifest of manifests) {
+      try {
+        const synced = await syncCatalogCache(manifest);
+        if (synced) {
+          if (synced.updated) {
+            invalidateCatalogMatchingCache();
+            // Open grids and counters run their query again on the new data (see useCatalogQuery).
+            if (typeof window !== "undefined") window.dispatchEvent(new Event("gameaccess:catalog-data-changed"));
+          }
+          void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
+          return synced;
+        }
+      } catch (error) {
+        void narrate(`Discovery snapshot refresh failed; preserving local data: ${String(error)}`, {area: "CATALOG", level: "WARN"});
+      }
+    }
+  }
+
+  // Local / offline: query total count from SQLite without loading all 39k games into JS memory.
+  const cached = await queryCatalogCache({ limit: 0 }).catch(() => null);
+  const count = cached?.total ?? 0;
+  if (!requireRemote && count > 0) {
+    return { updated: false, revision: "local", catalog_count: count };
+  }
+
+  // The full catalog is never downloaded as JSON from the server: only GitHub packages are used.
+  if (requireRemote) throw new Error("El catálogo remoto no está disponible.");
+  return null;
+}

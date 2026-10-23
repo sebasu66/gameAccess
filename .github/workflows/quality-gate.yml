@@ -97,7 +97,7 @@ jobs:
       - name: Rust linter
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - name: Native unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml -- --skip local_steam_pool_contains_real_games_and_accounts
+        run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Native compile check
         run: cargo check --manifest-path src-tauri/Cargo.toml
 

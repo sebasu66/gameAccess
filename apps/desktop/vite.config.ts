@@ -8,7 +8,8 @@ export default defineConfig({
     __BUILD_TIMESTAMP__: JSON.stringify(process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString()),
   },
   // Preserve the raw layout stylesheet in contract tests; Vitest otherwise stubs CSS.
-  test: { css: { include: [/library-room-layout\.css/] } },
+  // NODE_ENV=production in the shell would load the production React build, where act() does not exist.
+  test: { env: { NODE_ENV: "test" }, css: { include: [/library-room-layout\.css/] } },
   clearScreen: false,
   server: {
     port: 1420,

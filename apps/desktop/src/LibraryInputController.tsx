@@ -38,6 +38,37 @@ function focusModalIfNeeded(): boolean {
   return true;
 }
 
+/**
+ * Put every scrollable container back to the top.
+ *
+ * Used on launch: the app must open at the top of the grid, not wherever the
+ * first card's focus or a restored offset left it. The grid is the scroller, but
+ * the room and the window are cleared too, because a stale offset on any of them
+ * moves the content the user sees.
+ */
+function scrollEverythingToTop(): void {
+  const grid = libraryGrid();
+  if (grid) grid.scrollTop = 0;
+  libraryRoot()?.scrollTo({ top: 0, behavior: "auto" });
+  if (typeof window !== "undefined" && window.scrollY) window.scrollTo({ top: 0, behavior: "auto" });
+}
+
+/**
+ * Focus the grid without moving it.
+ *
+ * `focus()` is called with `preventScroll` and no `scrollIntoView` follows, so
+ * focusing the first card cannot drag the view off the top. Keyboard navigation
+ * still scrolls: it calls the paging helpers, which do their own scrolling.
+ */
+function focusGridWithoutScrolling(): void {
+  const target = selectedCard() ?? cards()[0];
+  if (target) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+  libraryRoot()?.focus({ preventScroll: true });
+}
+
 function focusGrid(): void {
   const target = selectedCard() ?? cards()[0];
   if (target) {
@@ -64,25 +95,38 @@ export function captureLibraryUiState(mode: CatalogMode): void {
   });
 }
 
+/**
+ * Restore a mode's remembered position, or open at the top.
+ *
+ * A mode with no remembered state — which is the case on launch — is placed at the
+ * top and focused without scrolling. Previously it called `focusGrid()`, whose
+ * `scrollIntoView` could move the grid, so the app opened somewhere in the middle
+ * of the catalogue instead of at its first row.
+ */
 function restoreMode(mode: CatalogMode): void {
-  const state = stateByMode.get(mode) ?? emptyState();
+  const remembered = stateByMode.get(mode);
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
+      if (!remembered) {
+        // First entry into this mode: top of the list, focus without moving it.
+        scrollEverythingToTop();
+        focusGridWithoutScrolling();
+        return;
+      }
       const allCards = cards();
-      const requested = state.selectedGameId == null
+      const requested = remembered.selectedGameId == null
         ? null
-        : allCards.find((card) => gameIdOf(card) === state.selectedGameId) ?? null;
-      (requested ?? allCards[0])?.click();
-      if (libraryGrid()) libraryGrid()!.scrollTop = state.gridScrollTop;
-      if (detailPanel()) detailPanel()!.scrollTop = state.detailScrollTop;
+        : allCards.find((card) => gameIdOf(card) === remembered.selectedGameId) ?? null;
+      (requested ?? allCards[0])?.focus({ preventScroll: true });
+      if (libraryGrid()) libraryGrid()!.scrollTop = remembered.gridScrollTop;
+      if (detailPanel()) detailPanel()!.scrollTop = remembered.detailScrollTop;
       focusGrid();
     });
   });
 }
 
 function enterDetail(): void {
-  const action = libraryRoot()?.querySelector<HTMLButtonElement>(".glass-action:not(:disabled)");
-  action?.focus({ preventScroll: true });
+  selectedCard()?.click();
 }
 
 function pageActivePanel(direction: 1 | -1): void {
@@ -104,6 +148,8 @@ function refocusOperationalSurface(): void {
   });
 }
 
+export const TOGGLE_COLLECTION_EVENT = "gameaccess:toggle-collection";
+
 export default function LibraryInputController({ mode, onModeChange }: { mode: CatalogMode; onModeChange: (mode: CatalogMode) => void }) {
   const modeRef = useRef(mode);
 
@@ -115,9 +161,20 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (!libraryRoot() || modal()) return;
+      if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
 
-      if (key === "tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (key === "tab" && modeRef.current === "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        // Inside a game's detail Tab keeps cycling its own controls.
+        if (document.querySelector(".ga-detail-overlay") || isEditable(event.target)) return;
+        if (event.repeat) return;
+        event.preventDefault();
+        event.stopPropagation();
+        window.dispatchEvent(new Event(TOGGLE_COLLECTION_EVENT));
+        return;
+      }
+
+      if (key === "tab" && modeRef.current !== "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {
         if (event.repeat) return;
         event.preventDefault();
         event.stopPropagation();

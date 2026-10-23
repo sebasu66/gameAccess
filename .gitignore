@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 apps/api/gameaccess.db
+apps/api/viking_local.db
 apps/api/.steam_cache/
 
 # Node / Vite
@@ -10,6 +11,8 @@ node_modules/
 dist/
 apps/desktop/node_modules/
 apps/desktop/dist/
+apps/desktop/public/game-assets/
+apps/desktop/public/game-assets.staging-*/
 
 # Rust / Tauri
 apps/desktop/src-tauri/target/
@@ -41,7 +44,7 @@ tools/config/
 tools/logs/
 tools/package/
 tools/public/
-tools/siteserverui/
+tools/catalog/.work/
 tools/g2g-crawler/_analysis/
 tools/g2g-crawler/g2g-*-test.json
 
@@ -56,3 +59,49 @@ GameAccess-ctrlf-test.exe
 apps/desktop/src-tauri/target-*/
 apps/api/.admin_tasks/
 apps/api/*.log
+accFullOLD.csv
+apps/api/courtesy-keys.json
+apps/desktop/src-tauri/runtime/
+apps/api/.cache/
+apps/launcher/.cache/
+*.exe
+*.psd
+*.log
+
+# Installed games and extracted local game content (keep on disk)
+/apps/launcher/games/
+/apps/launcher/Maverick/
+
+# Runtime logs in any logs directory, including non-.log files
+logs/
+/dll_strings.txt
+
+# Local runtime database and private source configuration
+/apps/api/app.db
+/apps/api/data/
+
+# Private developer-key backups and atomic update files
+apps/api/courtesy-keys.json.*
+
+# Local regression reports (synthetic fixtures, never release payloads)
+/.cache/regressions/
+
+# Build-time enrichment sources and backups. The SteamDB-format dump is fetched
+# locally, used to fill our catalog, and deleted; it is never redistributed.
+/.cache/steamdb/
+/.cache/catalog-filled/
+
+# Plugin: su instalador y sus binarios viven en el repo del plugin, no aca
+tools/plugin-installer/bin/
+tools/plugin-installer/obj/
+tools/plugin-installer/plugin-payload.zip
+
+# Obsidian: se versiona el contenido de vault/ pero no el estado local del editor
+vault/.obsidian/workspace.json
+vault/.obsidian/workspace-mobile.json
+vault/.obsidian/cache
+vault/.trash/
+
+# Papelera local: archivos movidos de la raíz, no se versionan
+/_papelera/
+tools/windows/plugin-payload.zip

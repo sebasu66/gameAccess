@@ -1,6 +1,13 @@
 export type AvailabilityState = "ready" | "owned-busy" | "unavailable";
 
 export interface CatalogGame {
+  has_downloads?: boolean;
+  availableSourceCount?: number;
+  source_count?: number;
+  download_source_names?: string[];
+  source_names?: string[];
+  /** Set by the filter pass so the UI can mark a confirmed match. */
+  filter_match?: "confirmed";
   id: number;
   slug: string;
   name: string;
@@ -13,12 +20,55 @@ export interface CatalogGame {
   capsule_image?: string | null;
   hero_image?: string | null;
   steam_url?: string | null;
-  local_account_labels?: string[];
-  local_access_labels?: string[];
-  local_primary_account_label?: string;
-  local_owner_steam_ids?: string[];
-  local_inventory_verified?: boolean;
-  local_inventory_verified_at?: string | null;
+  genres?: string[];
+  categories?: string[];
+  steam_category_ids?: number[];
+  tags?: string[];
+  catalog_cache_id?: number;
+  tag_sources?: Record<string, string[]>;
+  metadata_sources?: string[];
+  metadata_urls?: Record<string, string>;
+  min_players?: number | null;
+  max_players?: number | null;
+  local_players_max?: number | null;
+  online_players_max?: number | null;
+  players_source?: string | null;
+  developers?: string[];
+  publishers?: string[];
+  short_description?: string;
+  release_date?: string | null;
+  recommendation_count?: number | null;
+  steam_review_score?: number | null;
+  steam_review_count?: number | null;
+  metacritic_score?: number | null;
+  /** Known once Steam's detail payload has been cached for this game. */
+  required_age?: number | string | null;
+  content_descriptors?: string[] | null;
+  /**
+   * Valve's official content descriptor ids, resolved by the server during
+   * discovery. 3 and 4 mark adult-only sexual content, 1 marks some nudity or
+   * sexual content, and 2 and 5 cover violence and general mature content.
+   */
+  content_descriptorids?: number[] | null;
+  /** Server verdict from those descriptors; true only for adult-only content. */
+  adult_only?: boolean | null;
+  request_count_total?: number;
+  single_player?: boolean | null;
+  multiplayer?: boolean | null;
+  coop?: boolean | null;
+  online_coop?: boolean | null;
+  local_coop?: boolean | null;
+  shared_split_screen?: boolean | null;
+  mmo?: boolean | null;
+  pvp?: boolean | null;
+  downloadSource?: string;
+  /** Package size supplied by this game's selected plugin source. */
+  download_size?: string | null;
+  download_size_bytes?: number | null;
+  download_size_source?: string | null;
+  installProcess?: string;
+  playProcess?: string;
+  uninstallProcess?: string;
 }
 
 export interface SteamSearchPrice {
@@ -35,7 +85,7 @@ export interface SteamSearchResult {
   price?: SteamSearchPrice | null;
   platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
   catalog_game?: CatalogGame | null;
-  access_state: "available" | "busy" | "not-in-pool";
+  access_state: "metadata-only" | "available" | "busy" | "not-in-pool";
   steam_url?: string;
 }
 
@@ -57,6 +107,7 @@ export interface SteamMovie {
   thumbnail?: string;
   mp4?: string;
   webm?: string;
+  hls_h264?: string;
   highlight?: boolean;
 }
 
@@ -102,6 +153,7 @@ export interface SteamMetadata {
 }
 
 export interface GameDetails extends CatalogGame {
+  detail_schema_version?: number;
   steam: SteamMetadata | null;
   metadata_state: string;
   metadata_error?: string;
@@ -113,14 +165,3 @@ export interface UserSummary {
   credits: number;
 }
 
-export interface LeaseResponse {
-  lease_id: number;
-  user_id?: number;
-  game: { id: number; name: string; app_id: number | null };
-  account: { id: number; label: string; provider: string };
-  credits_spent: number;
-  credits_remaining: number;
-  starts_at: string;
-  expires_at: string;
-  session_action: string;
-}

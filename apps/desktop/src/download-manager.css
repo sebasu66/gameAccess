@@ -31,8 +31,9 @@
 
 .library-room-card-color-fill {
   z-index: 1;
+  pointer-events: none;
   clip-path: inset(calc(100% - var(--download-progress, 0%)) 0 0 0);
-  transition: clip-path .75s cubic-bezier(.2,.8,.2,1);
+  transition: clip-path .4s ease-out;
 }
 
 .library-room-card.is-download-active .library-room-card-art {
@@ -90,6 +91,21 @@
   border-radius: 24px;
   background: radial-gradient(circle at 16% 0%, rgba(57,255,20,.10), transparent 34%), #090d13;
   box-shadow: 0 34px 100px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.06);
+}
+
+.download-complete-dialog-ready {
+  overflow: hidden;
+  background-position: center 35%;
+  background-size: cover;
+}
+
+.download-complete-dialog-ready .eyebrow,
+.download-complete-dialog-ready h2,
+.download-complete-dialog-ready p,
+.download-complete-dialog-ready .download-complete-actions,
+.download-complete-dialog-ready .download-complete-icon {
+  position: relative;
+  z-index: 1;
 }
 
 .download-complete-dialog h2 {

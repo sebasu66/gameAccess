@@ -1,0 +1,279 @@
+use std::{env, fs, io, path::PathBuf};
+
+fn activation_dir() -> Result<PathBuf, String> {
+    let base = env::var_os("LOCALAPPDATA").ok_or("Windows application data is unavailable")?;
+    let directory = PathBuf::from(base).join("GameAccess").join("activation");
+    fs::create_dir_all(&directory).map_err(|err| format!("Cannot create activation directory: {err}"))?;
+    Ok(directory)
+}
+
+/// The identity a key is bound to on its first activation: this Windows installation. It is derived from Windows'
+/// own MachineGuid, so a key copied to another PC (even with the activation folder) is refused there, and the same
+/// key keeps working after Game Access is reinstalled or from another Windows account on the same PC.
+pub fn installation_id() -> Result<String, String> {
+    static MACHINE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    if let Some(id) = MACHINE.get_or_init(|| machine_guid().map(|guid| machine_installation_id(&guid))) {
+        return Ok(id.clone());
+    }
+    file_installation_id()
+}
+
+/// A UUID that names the Windows installation without revealing its MachineGuid.
+fn machine_installation_id(machine_guid: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = Sha256::digest(format!("gameaccess-installation:{}", machine_guid.trim().to_ascii_lowercase()).as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&hash[..16]);
+    uuid::Builder::from_custom_bytes(bytes).into_uuid().to_string()
+}
+
+#[cfg(windows)]
+fn machine_guid() -> Option<String> {
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("reg")
+        .args(["query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+        .creation_flags(0x0800_0000)
+        .output().ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let guid = text.lines().find(|line| line.trim_start().starts_with("MachineGuid"))?.split_whitespace().last()?.to_string();
+    uuid::Uuid::parse_str(&guid).ok().map(|_| guid)
+}
+
+#[cfg(not(windows))]
+fn machine_guid() -> Option<String> { None }
+
+/// Fallback when Windows does not give its MachineGuid: a random identity kept in the user's data folder.
+fn file_installation_id() -> Result<String, String> {
+    let path = activation_dir()?.join("installation-id");
+    if !path.exists() {
+        let candidate = uuid::Uuid::new_v4().to_string();
+        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut file) => {
+                use std::io::Write;
+                file.write_all(candidate.as_bytes())
+                    .map_err(|err| format!("Cannot save installation identity: {err}"))?;
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(format!("Cannot create installation identity: {err}")),
+        }
+    }
+    let value = fs::read_to_string(path).map_err(|err| format!("Cannot read installation identity: {err}"))?;
+    uuid::Uuid::parse_str(value.trim())
+        .map(|id| id.to_string())
+        .map_err(|_| "Installation identity is invalid".to_string())
+}
+
+#[cfg(windows)]
+pub(crate) mod windows_protection {
+    use std::{ffi::c_void, ptr, slice};
+
+    #[repr(C)]
+    struct DataBlob {
+        length: u32,
+        data: *mut u8,
+    }
+
+    #[link(name = "Crypt32")]
+    extern "system" {
+        fn CryptProtectData(
+            input: *const DataBlob,
+            description: *const u16,
+            entropy: *const DataBlob,
+            reserved: *mut c_void,
+            prompt: *const c_void,
+            flags: u32,
+            output: *mut DataBlob,
+        ) -> i32;
+        fn CryptUnprotectData(
+            input: *const DataBlob,
+            description: *mut *mut u16,
+            entropy: *const DataBlob,
+            reserved: *mut c_void,
+            prompt: *const c_void,
+            flags: u32,
+            output: *mut DataBlob,
+        ) -> i32;
+    }
+
+    #[link(name = "Kernel32")]
+    extern "system" {
+        fn LocalFree(memory: *mut c_void) -> *mut c_void;
+    }
+
+    fn transform(input: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
+        let input_blob = DataBlob { length: input.len() as u32, data: input.as_ptr() as *mut u8 };
+        let mut output = DataBlob { length: 0, data: ptr::null_mut() };
+        // DPAPI uses the current Windows account and this machine. Never use
+        // CRYPTPROTECT_LOCAL_MACHINE, which would let other accounts decrypt it.
+        let success = unsafe {
+            if encrypt {
+                CryptProtectData(&input_blob, ptr::null(), ptr::null(), ptr::null_mut(), ptr::null(), 1, &mut output)
+            } else {
+                CryptUnprotectData(&input_blob, ptr::null_mut(), ptr::null(), ptr::null_mut(), ptr::null(), 1, &mut output)
+            }
+        };
+        if success == 0 {
+            return Err("Windows could not protect this data".to_string());
+        }
+        let bytes = unsafe { slice::from_raw_parts(output.data, output.length as usize).to_vec() };
+        unsafe { LocalFree(output.data.cast()); }
+        Ok(bytes)
+    }
+
+    pub fn protect(value: &[u8]) -> Result<Vec<u8>, String> { transform(value, true) }
+    pub fn unprotect(value: &[u8]) -> Result<Vec<u8>, String> { transform(value, false) }
+}
+
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CachedActivation {
+    session_token: String,
+    access_key: Option<String>,
+}
+
+// Courtesy credentials live only for this process, including native provider requests.
+static LIVE_SESSION: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn decode_cache(value: String) -> Result<CachedActivation, String> {
+    let cached = if value.starts_with('{') {
+        serde_json::from_str::<CachedActivation>(&value)
+            .map_err(|_| "Activation session is damaged".to_string())?
+    } else {
+        // Migration: older releases encrypted only the bearer token.
+        CachedActivation { session_token: value, access_key: None }
+    };
+    if !(20..=200).contains(&cached.session_token.len()) {
+        return Err("Invalid activation session".to_string());
+    }
+    Ok(cached)
+}
+
+fn read_cache() -> Result<Option<CachedActivation>, String> {
+    read_cache_at(&activation_dir()?.join("session.dpapi"))
+}
+
+fn read_cache_at(path: &std::path::Path) -> Result<Option<CachedActivation>, String> {
+    let encrypted = match fs::read(path) {
+        Ok(data) => data,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("Cannot read activation session: {err}")),
+    };
+    #[cfg(windows)]
+    {
+        let decrypted = windows_protection::unprotect(&encrypted)?;
+        let value = String::from_utf8(decrypted)
+            .map_err(|_| "Activation session is damaged".to_string())?;
+        decode_cache(value).map(Some)
+    }
+    #[cfg(not(windows))]
+    { let _ = encrypted; Err("Activation storage requires Windows".to_string()) }
+}
+
+pub fn read_session() -> Result<Option<String>, String> {
+    let live = LIVE_SESSION.lock().map_err(|_| "Activation state is unavailable".to_string())?.clone();
+    if live.is_some() { return Ok(live); }
+    Ok(read_cache()?.map(|cached| cached.session_token))
+}
+
+pub fn read_key() -> Result<Option<String>, String> {
+    Ok(read_cache()?.and_then(|cached| cached.access_key))
+}
+
+pub fn save_session(token: &str, persistent: bool, access_key: Option<String>) -> Result<(), String> {
+    save_session_at(&activation_dir()?.join("session.dpapi"), token, persistent, access_key)
+}
+
+fn save_session_at(path: &std::path::Path, token: &str, persistent: bool, access_key: Option<String>) -> Result<(), String> {
+    if !(20..=200).contains(&token.len()) {
+        return Err("Invalid activation session".to_string());
+    }
+    if persistent {
+        #[cfg(windows)]
+        {
+            let cached = CachedActivation { session_token: token.to_string(), access_key };
+            let value = serde_json::to_vec(&cached).map_err(|_| "Cannot encode activation session".to_string())?;
+            let encrypted = windows_protection::protect(&value)?;
+            fs::write(path, encrypted)
+                .map_err(|err| format!("Cannot save activation session: {err}"))?;
+        }
+        #[cfg(not(windows))]
+        { let _ = access_key; return Err("Activation storage requires Windows".to_string()); }
+    } else {
+        // Also remove any session saved by an older client, or a prior regular pass.
+        remove_cache_at(path)?;
+    }
+    *LIVE_SESSION.lock().map_err(|_| "Activation state is unavailable".to_string())? = Some(token.to_string());
+    Ok(())
+}
+
+fn remove_cache_at(path: &std::path::Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Cannot clear activation session: {err}")),
+    }
+}
+
+pub fn clear_session() -> Result<(), String> {
+    *LIVE_SESSION.lock().map_err(|_| "Activation state is unavailable".to_string())? = None;
+    remove_cache_at(&activation_dir()?.join("session.dpapi"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(windows)]
+    #[test]
+    fn courtesy_replaces_protected_cache_with_memory_only_access() {
+        let dir = std::env::temp_dir().join(format!("ga-activation-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("session.dpapi");
+        save_session_at(&path, "regular-token-with-enough-characters", true, Some("GA-REGULAR-1234".into())).unwrap();
+        let encrypted = fs::read(&path).unwrap();
+        assert!(!String::from_utf8_lossy(&encrypted).contains("GA-REGULAR-1234"));
+        assert_eq!(read_cache_at(&path).unwrap().unwrap().access_key.as_deref(), Some("GA-REGULAR-1234"));
+        save_session_at(&path, "courtesy-token-with-enough-characters", false, Some("GA-PRIVATE-1234".into())).unwrap();
+        assert!(!path.exists());
+        assert_eq!(read_session().unwrap().as_deref(), Some("courtesy-token-with-enough-characters"));
+        *LIVE_SESSION.lock().unwrap() = None; // Simulate a process restart.
+        assert!(read_cache_at(&path).unwrap().is_none());
+        fs::remove_dir(&dir).unwrap();
+    }
+    #[test]
+    fn legacy_sessions_migrate_without_inventing_a_key() {
+        let token = "legacy-token-with-enough-characters";
+        let cache = decode_cache(token.to_string()).unwrap();
+        assert_eq!(cache.session_token, token);
+        assert!(cache.access_key.is_none());
+        assert!(decode_cache("broken".to_string()).is_err());
+        assert!(decode_cache("{broken".to_string()).is_err());
+    }
+    #[test]
+    fn regular_key_round_trips_in_the_protected_payload() {
+        let value = CachedActivation { session_token: "regular-token-with-enough-characters".into(),
+            access_key: Some("GA-REGULAR-TEST-1234".into()) };
+        let cached = decode_cache(serde_json::to_string(&value).unwrap()).unwrap();
+        assert_eq!(cached.access_key.as_deref(), Some("GA-REGULAR-TEST-1234"));
+    }
+}
+
+#[cfg(test)]
+mod machine_identity_tests {
+    use super::*;
+
+    #[test]
+    fn the_identity_is_a_stable_uuid_per_windows_and_hides_the_machine_guid() {
+        let guid = "8a1d6c2e-3f4b-4c5d-9e6f-7a8b9c0d1e2f";
+        let id = machine_installation_id(guid);
+        assert_eq!(id, machine_installation_id(&guid.to_uppercase()));
+        assert_ne!(id, machine_installation_id("11111111-2222-3333-4444-555555555555"));
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+        assert!(!id.contains("8a1d6c2e"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn this_pc_has_a_machine_guid() {
+        assert!(machine_guid().is_some());
+    }
+}
