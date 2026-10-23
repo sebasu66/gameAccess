@@ -11,7 +11,8 @@ import { useEffect, useState } from "react";
 import { SOURCES_CHANGED_EVENT, sourceAvailability } from "./catalog/PluginSources";
 import { Download, Flame, FolderOpen, Play, Snowflake, Trash2 } from "lucide-react";
 
-import AppDialog from "./AppDialog";
+import { confirmNotice, hideNotice, showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import RenameGameDialog from "./RenameGameDialog";
 import FreezeDialog, { type FreezeMode } from "./FreezeDialog";
 import { useFreezeJob } from "./freezeJobs";
@@ -33,6 +34,34 @@ const contextMenuStyle = (x: number, y: number): CSSProperties => ({
   left: Math.min(x, Math.max(8, (typeof window !== "undefined" ? window.innerWidth : 1920) - 250)),
   top: Math.min(y, Math.max(8, (typeof window !== "undefined" ? window.innerHeight : 1080) - 150)),
 });
+
+/**
+ * Uninstalling or removing from the library asks in the single notice, shows the work there and ends with the
+ * result; it keeps going after the menu closes.
+ */
+async function uninstallWithNotice(game: CatalogGame, removing: boolean, linked: boolean, service: DigitalCatalog, labels: { confirm: string; warning: string; remove: string; removed: string }) {
+  const ok = await confirmNotice({
+    game: noticeGame(game),
+    title: removing ? `${labels.confirm} ${game.name}` : translate("uninstallTitle", { name: game.name }),
+    text: removing ? (linked ? translate("uninstallLinkedWarning") : labels.warning) : translate("uninstallBody"),
+    confirmLabel: removing ? labels.remove : translate("noticeUninstallConfirm"),
+    cancelLabel: translate("noticeCancel"),
+  });
+  if (!ok) return;
+  showNotice({ game: noticeGame(game), tone: "info", title: translate(removing ? "uninstallRemoving" : "uninstallDeleting"), text: game.name, progress: null });
+  try {
+    if (removing) {
+      await removeLibraryGame(game);
+      showNotice({ game: noticeGame(game), tone: "ok", title: translate("toastLibraryRemoved", { name: game.name }), text: translate(linked ? "uninstallLinkedDoneDetail" : "uninstallLibraryDoneDetail") });
+    } else {
+      const { folder } = await service.uninstall(game);
+      showNotice({ game: noticeGame(game), tone: "ok", title: translate("toastGameUninstalled", { name: game.name }), text: folder });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    showNotice({ game: noticeGame(game), tone: "error", title: removing ? labels.removed : translate("uninstallFailed"), text: message, actions: [{ label: translate("close"), run: () => hideNotice() }] });
+  }
+}
 
 interface Props {
   request: DigitalContextMenuRequest;
@@ -60,14 +89,10 @@ export default function DigitalGameContextMenu({
   const [configuring, setConfiguring] = useState(false);
   const [showingLog, setShowingLog] = useState(false);
   const [repairing, setRepairing] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [freezing, setFreezing] = useState<FreezeMode | null>(null);
   // A freeze outlives this menu: while one runs, the menu only offers to watch it (never a second one).
   const freezeWork = useFreezeJob(request.game.app_id ?? request.game.id);
   const label = locale === "es" ? {add:"Añadir a biblioteca",remove:"Quitar de biblioteca",options:"Idioma y ejecución",confirm:"¿Quitar de biblioteca?",warning:"También se desinstalarán los archivos locales del juego.",removed:"No se pudo quitar el juego",back:"Volver"} : {add:"Add to library",remove:"Remove from library",options:"Language and launch",confirm:"Remove from library?",warning:"The game's local files will also be uninstalled.",removed:"Could not remove game",back:"Back"};
-  const [dialog, setDialog] = useState<{ title: string; message: string; tone: "warning" | "error" } | null>(null);
-  const [uninstalling, setUninstalling] = useState(false);
-  const [progress, setProgress] = useState<{ phase: "working" | "done"; label: string; detail?: string } | null>(null);
   const appId = request.game.app_id ?? request.game.id;
   const state = gameStateManager.resolve(request.status);
   const canInstalledAction = Boolean(appId) && state.canOpenInstallFolder;
@@ -113,46 +138,25 @@ export default function DigitalGameContextMenu({
       onClose();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDialog({ title: translate("openFolderFailed"), message, tone: "error" });
+      notify(`${translate("openFolderFailed")}: ${message}`, { tone: "error" });
     }
   };
 
   const uninstallSelected = () => {
     if (!canUninstall || linked) return;
-    setRemoving(false);
-    setDialog({
-      title: translate("uninstallTitle", { name: request.game.name }),
-      message: translate("uninstallBody"),
-      tone: "warning",
-    });
+    onClose();
+    void uninstallWithNotice(request.game, false, linked, service, label);
   };
 
-  const confirmUninstall = async () => {
-    setUninstalling(true);
-    // The dialog stays open and narrates the work, then shows the result.
-    setProgress({ phase: "working", label: translate(removing ? "uninstallRemoving" : "uninstallDeleting"), detail: request.game.name });
-    try {
-      if (removing) {
-        await removeLibraryGame(request.game);
-        notify(translate("toastLibraryRemoved", { name: request.game.name }), { tone: "success" });
-        setProgress({ phase: "done", label: translate("uninstallLibraryDone"), detail: translate(linked ? "uninstallLinkedDoneDetail" : "uninstallLibraryDoneDetail") });
-      } else {
-        const { folder } = await service.uninstall(request.game);
-        notify(translate("toastGameUninstalled", { name: request.game.name }), { tone: "success" });
-        setProgress({ phase: "done", label: translate("uninstallFolderDone"), detail: folder });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setProgress(null);
-      setDialog({ title: removing ? label.removed : translate("uninstallFailed"), message, tone: "error" });
-    } finally {
-      setUninstalling(false);
-    }
+  const removeSelected = () => {
+    if (!canManage) return;
+    onClose();
+    void uninstallWithNotice(request.game, true, linked, service, label);
   };
 
   return (
-    <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape"&&!uninstalling)onClose();event.stopPropagation();}}>
-      {!dialog && !configuring && !showingLog && !repairing && !renaming && !freezing ? (
+    <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape")onClose();event.stopPropagation();}}>
+      {!configuring && !showingLog && !repairing && !renaming && !freezing ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -192,7 +196,7 @@ export default function DigitalGameContextMenu({
           {canFreeze && !freezeWork && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
           {canFreeze && !freezeWork && entry?.frozen !== "deep" ? <button type="button" role="menuitem" onClick={() => setFreezing("deep")}><Snowflake size={16} /> {t("deepFreezeMenu")}</button> : null}
           {canFreeze && !freezeWork && entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("thaw")}><Flame size={16} /> {t("thawMenu")}</button> : null}
-          {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={() => { setRemoving(true); setDialog({title:label.confirm+" "+request.game.name,message:linked ? t("uninstallLinkedWarning") : label.warning,tone:"warning"}); }}>{label.remove}</button>
+          {inLibrary ? <button type="button" role="menuitem" className="ga-danger-option" disabled={!canManage} onClick={removeSelected}>{label.remove}</button>
             : <button type="button" role="menuitem" disabled={libraryBusy} onClick={() => { try { libraryMembership.add(request.game); notify(translate("toastLibraryAdded", { name: request.game.name }), { tone: "success" }); } catch (error) { notify(translate("toastActionFailed", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); } onClose(); }}>{label.add}</button>}
           {linked ? null : <button
             type="button"
@@ -200,7 +204,7 @@ export default function DigitalGameContextMenu({
             disabled={!canUninstall}
             onClick={uninstallSelected}
           >
-            <Trash2 size={16} /> Desinstalar
+            <Trash2 size={16} /> {t("noticeUninstallConfirm")}
           </button>}
         </div>
       ) : null}
@@ -209,19 +213,6 @@ export default function DigitalGameContextMenu({
       {renaming ? <RenameGameDialog game={request.game} current={entry?.label ?? ""} onClose={onClose} /> : null}
       {showingLog ? <DigitalGameLog game={request.game} onClose={onClose} /> : null}
       {configuring ? <DigitalGameOptions game={request.game} onClose={onClose} disabled={!canUninstall} /> : null}
-      {dialog ? (
-        <AppDialog
-          title={dialog.title}
-          message={dialog.message}
-          tone={dialog.tone}
-          onClose={uninstalling ? () => undefined : onClose}
-          progress={progress ?? undefined}
-          onConfirm={dialog.tone === "warning" ? () => void confirmUninstall() : undefined}
-          confirmDisabled={uninstalling}
-          confirmLabel={removing ? label.remove : "Desinstalar"}
-          cancelLabel="No, volver"
-        />
-      ) : null}
     </div>
   );
 }

@@ -16,11 +16,12 @@ import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
 import { loadDetails } from "./api";
-import { useI18n } from "./i18n";
+import { translate, useI18n } from "./i18n";
 import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
-import DownloadCompleteDialog from "./DownloadCompleteDialog";
+import { showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle } from "./downloadLifecycle";
 import { downloadManager } from "./downloadManager";
@@ -594,6 +595,21 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     }
   };
 
+  // A finished download is announced in the single notice: Play, or it closes by itself and counts as "not now".
+  const completionJob = currentCompletion?.record.job_id;
+  const dismissCompletionRef = useRef(dismissCompletion);
+  dismissCompletionRef.current = dismissCompletion;
+  useEffect(() => {
+    if (!currentCompletion) return;
+    let played = false;
+    showNotice({
+      game: noticeGame(currentCompletion.game), tone: "ok", timer: true,
+      title: translate("dlsReady"), text: currentCompletion.game.name.replace(/\s+\+\s*$/, "").trim(),
+      actions: [{ label: translate("playNow"), kind: "primary", run: () => { played = true; void dismissCompletionRef.current(true); } }],
+      onDismiss: () => { if (!played) void dismissCompletionRef.current(false); },
+    });
+  }, [completionJob]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const confirmCancellation = async () => {
     if (!cancelGame || cancelling) return;
     if (getCatalogMode() === "digital") {
@@ -697,7 +713,6 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />
-      {currentCompletion ? <DownloadCompleteDialog game={currentCompletion.game} busy={busy} onPlay={() => void dismissCompletion(true)} onClose={() => void dismissCompletion(false)} /> : null}
       {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
     </section>
   );

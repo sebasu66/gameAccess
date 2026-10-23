@@ -708,4 +708,13 @@ export const en: Record<keyof typeof es, string> = {
   notAGameKindVideo: "video files",
   notAGameKindDocuments: "documents",
   notAGameKindOther: "other files",
+  launchStepThaw: "Thaw the game",
+  launchStepPrepare: "Prepare the game (fix, language and executable)",
+  launchStepStart: "Start the game",
+  launchPlayingTitle: "Done: you're playing",
+  launchPlayingText: "{{name}} is running",
+  noticeUninstallConfirm: "Uninstall",
+  noticeRemoveConfirm: "Remove",
+  noticeCancel: "Cancel",
+  noticeWorking: "Working…",
 };

@@ -706,4 +706,13 @@ export const es = {
   notAGameKindVideo: "videos",
   notAGameKindDocuments: "documentos",
   notAGameKindOther: "otros archivos",
+  launchStepThaw: "Descongelar el juego",
+  launchStepPrepare: "Preparar el juego (fix, idioma y ejecutable)",
+  launchStepStart: "Iniciar el juego",
+  launchPlayingTitle: "Listo: ya estás jugando",
+  launchPlayingText: "{{name}} está corriendo",
+  noticeUninstallConfirm: "Desinstalar",
+  noticeRemoveConfirm: "Quitar",
+  noticeCancel: "Cancelar",
+  noticeWorking: "Trabajando…",
 } as const;

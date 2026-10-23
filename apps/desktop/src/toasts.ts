@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { hideNotice, showNotice, type NoticeTone } from "./notice/notice";
+import { translate } from "./i18n";
 
-/** App-wide notifications: anything can call notify(); the Toaster shows them stacked. */
+/**
+ * App-wide notifications: anything can call notify(). The message is shown in the single notice
+ * (src/notice); this list keeps the recent ones for code and tests that read them.
+ */
 export type ToastTone = "info" | "success" | "warning" | "error";
 export interface Toast {
   id: number;
@@ -10,6 +15,7 @@ export interface Toast {
 }
 
 const MAX_VISIBLE = 4;
+const NOTICE_TONE: Record<ToastTone, NoticeTone> = { info: "info", success: "ok", warning: "info", error: "error" };
 const DEFAULT_DURATION_MS = 6000;
 const listeners = new Set<() => void>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -63,6 +69,9 @@ export function notify(message: string, options: { tone?: ToastTone; durationMs?
   toasts = [...toasts, toast].slice(-MAX_VISIBLE);
   if (toast.durationMs > 0 && typeof setTimeout !== "undefined") timers.set(toast.id, setTimeout(() => dismissToast(toast.id), toast.durationMs));
   if (!options.silent && typeof window !== "undefined") playToastBeep();
+  // Errors and messages meant to stay (duration 0) wait for the player; the rest close with the timer.
+  const sticky = toast.tone === "error" || toast.durationMs <= 0;
+  showNotice({ title: text, tone: NOTICE_TONE[toast.tone], actions: sticky ? [{ label: translate("close"), run: () => hideNotice() }] : undefined });
   emit();
   return toast.id;
 }

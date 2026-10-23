@@ -1,5 +1,5 @@
 import ActivityConsole from "./ActivityConsole";
-import Toaster from "./Toaster";
+import GaNotice from "./notice/GaNotice";
 import { startDownloadNotifications } from "./downloadNotifications";
 import RenderProbe from "./RenderProbe";
 import React from "react";
@@ -125,10 +125,10 @@ const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");
 
 if (libraryDemo()) {
-  ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
+  ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><CentralDialogView /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
     <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );

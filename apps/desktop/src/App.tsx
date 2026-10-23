@@ -35,6 +35,8 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
+import { hideNotice, runSteps } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
@@ -88,7 +90,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
-  // Every message goes through the app-wide toast stack (see Toaster).
+  // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
@@ -484,18 +486,25 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
-    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate(deepFrozen ? "launchThawing" : "launchDetail") });
+    // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
+    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), translate("launchStepPrepare"), translate("launchStepStart")];
+    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
+    run.set(0, "running");
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
-      setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
+      steps.forEach((_, index) => run.set(index, "done"));
+      run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
-      if (isBrokenInstall(message)) { setSession(null); setBrokenGame({ game, message }); }
-      else setSession({ game, phase: "error", title: translate("launchError"), detail: message });
+      if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }
+      else run.fail({ title: translate("launchError"), text: message, actions: [
+        { label: translate("close"), run: () => hideNotice() },
+        { label: translate("retry"), kind: "primary", run: () => void launchGame(game, managedShortcut) },
+      ] });
     } finally { setLaunchBusy(false); }
   };
 
