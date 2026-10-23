@@ -149,7 +149,7 @@ Es la tarea más importante para el uso diario.
   3. **Banner de arriba:** muestra lo último agregado / salido en Steam (usar `newGames`), con la línea "Nuevo en Steam · hace N días". Rota cada 7 s con barritas de progreso; el título entra letra por letra (`SplitText`).
   4. **Marca de instalado:** reemplazar la etiqueta "INSTALADO" por el círculo con ▶ verde arriba a la izquierda (`play-mark`). Va también en la librería.
   5. **Animación de la grilla al filtrar o cuando un juego se instala:** usar `Flip`. **Importante:** las tarjetas que se van primero se achican dentro de su lugar (`scale .5`, `opacity 0`, 0,3 s) y recién después la grilla se reacomoda con `Flip`. Nunca dejar que `Flip` anime una tarjeta que sale (ahí aparecía la portada agrandada fuera de su lugar). No usar `scale: true` en `Flip` para tarjetas con imagen.
-  6. Al pasar el mouse por una portada: se levanta 8 px con leve inclinación 3D que sigue al mouse y el fondo de la página toma los colores del juego (imagen ancha muy desenfocada detrás, con fundido entre juegos).
+  6. Al pasar el mouse por una portada: se levanta 8 px con leve inclinación 3D que sigue al mouse y el fondo de la página toma los colores del juego, con fundido entre juegos. **Cómo hacer el fondo (importante, si no parpadea):** dos `<canvas>` de 64×36 px estirados a pantalla completa con `filter: blur(18px)`; la imagen se carga y se decodifica (`img.decode()`) antes de dibujarla en el lienzo que está apagado, y solo se anima la `opacity` (nunca `scale` ni un `blur` grande sobre una imagen de pantalla completa). El banner también espera `decode()` antes de cambiar de imagen y nunca reemplaza la capa que se está viendo.
 - **Demo:** `visible`, `applyFilter`, `reflowCatalog`, `showSpot`, `setAmbient`, bloque "Tilt 3D".
 - **Hecho cuando:** sin búsqueda no aparecen instalados; con búsqueda sí; instalar un juego desde el catálogo lo saca con la animación limpia.
 
@@ -208,10 +208,11 @@ Es la tarea más importante para el uso diario.
 - **Archivos:** `src/main.tsx` / `src/App.tsx` (dónde se abren hoy Descargas y Administrador), nuevo `src/desk/DeskLayout.tsx` (o similar), `src/DigitalDownloadsScreen.tsx`, `src/library-manager/GameLibraryManager.tsx`, Novedades (`useAnnouncements` / `centralDialog/announcements.ts`).
 - **Qué hacer:**
   1. **Ventana grande (≥ 1800 px):** los botones del pie Administrador, Descargas y Novedades son **interruptores**. Administrador abre un panel a la **izquierda**; Descargas a la **derecha**; Novedades a la derecha, **debajo** de Descargas (62 % / 38 % del alto si están los dos). Ancho de panel en sección 4. La zona principal (catálogo/librería) se queda con el resto; sus tarjetas se reacomodan con `Flip` al abrir/cerrar paneles; la palabra gigante y la búsqueda se corren con el borde del panel.
-  2. **Panel sin foco:** gris (`filter: grayscale(1) brightness(.8)`) y girado 9° hacia el centro (izquierdo `rotateY(9deg)` con origen en su borde derecho; derecho `-9deg` con origen en su borde izquierdo; perspectiva 1300 px). Con el mouse o el foco del teclado encima se endereza y toma color (0,7 s).
-  3. **Ventana chica:** el botón abre la pantalla completa (una sola a la vez), con la misma transición 3D de T6, y botón **Volver** (`GaBack`) arriba a la derecha; Esc vuelve.
-  4. Al cruzar el límite de ancho, convertir de un modo al otro sin perder lo abierto.
-  5. Encabezado de cada panel: eyebrow + título Bebas + subtítulo, `GaClose` en modo panel y `GaBack` en modo pantalla.
+  2. Los paneles laterales tienen **fondo sólido** (`#111417f7`), sin `backdrop-filter`: son casi opacos y desenfocar lo que tienen detrás obligaba a recalcularlo con cada cambio del fondo (parpadeaba).
+  3. **Panel sin foco:** gris (`filter: grayscale(1) brightness(.8)`) y girado 9° hacia el centro (izquierdo `rotateY(9deg)` con origen en su borde derecho; derecho `-9deg` con origen en su borde izquierdo; perspectiva 1300 px). Con el mouse o el foco del teclado encima se endereza y toma color (0,7 s).
+  4. **Ventana chica:** el botón abre la pantalla completa (una sola a la vez), con la misma transición 3D de T6, y botón **Volver** (`GaBack`) arriba a la derecha; Esc vuelve.
+  5. Al cruzar el límite de ancho, convertir de un modo al otro sin perder lo abierto.
+  6. Encabezado de cada panel: eyebrow + título Bebas + subtítulo, `GaClose` en modo panel y `GaBack` en modo pantalla.
 - **Demo:** `applyDesk`, `openPage`, `closePage`, `togglePanel`, `setPanelFocus`, CSS "Escritorio: paneles secundarios".
 - **Hecho cuando:** en 1920 px se pueden tener los tres paneles a la vez; en 1440 px se abre uno por vez a pantalla completa.
 
@@ -261,4 +262,5 @@ Es la tarea más importante para el uso diario.
 - Botón naranja con degradado en bandas (parecía Windows 95). Es naranja parejo con reflejo de vidrio.
 - Botón "OK/Después" que se llena: se reemplazó por el círculo temporizador arriba a la derecha.
 - Palabras en mayúscula con tilde en la palabra gigante: van sin tilde.
+- Con los dos paneles abiertos, el centro parpadeaba en cada cambio del banner: el fondo de colores era una imagen de pantalla completa con `blur(70px)` que además se escalaba, y los paneles tenían `backdrop-filter` encima. Se arregló con lienzos chiquitos (solo `opacity`), imágenes decodificadas antes de mostrarse y paneles con fondo sólido (ver T5 y T10).
 - Mostrar más texto del necesario en la pantalla principal (etiquetas "INSTALADO", textos fijos en el pie).

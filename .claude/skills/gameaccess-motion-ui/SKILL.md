@@ -19,6 +19,7 @@ La referencia es la demo aprobada `docs/design/gameaccess-gsap-demo-2026-10-23/i
 - Animar dentro de `useGSAP(() => {...}, { scope: ref, dependencies: [...] })` de `@gsap/react`. Nada de `gsap.to` sueltos en `useEffect` sin limpieza.
 - Respetar "reducir movimiento": `gsap.matchMedia()` o `motionOk()`. Sin movimiento, el estado final se aplica al instante.
 - Animar `transform` y `opacity`. Evitar animar `filter: blur` en muchas tarjetas a la vez.
+- Nunca escalar ni animar una imagen de pantalla completa con `blur` grande, ni poner `backdrop-filter` sobre algo que cambia seguido: parpadea. Fondos desenfocados = lienzo chico estirado + solo `opacity`; imágenes que cambian = `img.decode()` antes de mostrarlas.
 - GSAP y fuentes van empaquetados (npm y `public/fonts/`): la CSP de Tauri no deja cargar nada de internet salvo imágenes de Steam.
 
 ## Reglas de movimiento que ya costaron errores

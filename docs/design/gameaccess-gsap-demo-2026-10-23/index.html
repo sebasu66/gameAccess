@@ -26,7 +26,7 @@ svg{flex:none}
 
 /* ---------- Fondo vivo ---------- */
 .ambient{position:fixed;inset:-10%;z-index:0;pointer-events:none}
-.ambient img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(70px) saturate(1.4);opacity:0;transform:scale(1.1)}
+.ambient canvas{position:absolute;inset:0;width:100%;height:100%;filter:blur(18px) saturate(1.4);opacity:0;will-change:opacity}
 .ambient::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,transparent 0,#111416b8 55%,#111416 85%)}
 .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .cursor-glow{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;z-index:1;pointer-events:none;background:radial-gradient(circle,#ff6a0016 0,transparent 65%);opacity:0}
@@ -293,7 +293,7 @@ body{padding-left:var(--pl);padding-right:var(--pr)}
 .rail{left:var(--pl);transition:left .7s cubic-bezier(.7,0,.3,1)}
 .dock-area{left:var(--pl);right:var(--pr);transition:left .7s cubic-bezier(.7,0,.3,1),right .7s cubic-bezier(.7,0,.3,1)}
 .toasts{right:calc(var(--pr) + 24px);transition:right .7s cubic-bezier(.7,0,.3,1)}
-.side-panel{position:fixed;top:0;height:calc(100vh - var(--footer));z-index:12;display:none;flex-direction:column;background:rgba(17,20,23,.96);backdrop-filter:blur(20px);overflow:hidden;box-shadow:0 0 60px #0009}
+.side-panel{position:fixed;top:0;height:calc(100vh - var(--footer));z-index:12;display:none;flex-direction:column;background:#111417f7;overflow:hidden;box-shadow:0 0 60px #0009}
 .side-panel[data-side=left]{left:0}
 .side-panel[data-side=right]{right:0}
 .side-panel::after{content:'';position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,#ffffff55,#ffffff08)}
@@ -563,7 +563,7 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 </style>
 </head>
 <body>
-<div class="ambient" aria-hidden="true"><img alt=""><img alt=""></div>
+<div class="ambient" aria-hidden="true"><canvas width="64" height="36"></canvas><canvas width="64" height="36"></canvas></div>
 <div class="grain" aria-hidden="true"></div>
 <div class="cursor-glow" aria-hidden="true"></div>
 
@@ -724,6 +724,7 @@ const GAMES = [
   {id:39210,name:'FINAL FANTASY XIV Online',year:2014,genres:['RPG'],size:'80 GB',score:87,modes:['MMO'],installed:false,fav:false,desc:'Un MMORPG con una de las mejores historias de la saga y años de expansiones.'},
 ];
 const SPOT = [1903340, 2420110, 275850];
+SPOT.forEach(id => { new Image().src = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_hero.jpg`; });
 const ADDED_DAYS = {1903340:1, 2420110:2, 275850:3};
 const IN_LIB = [1086940, 1174180, 870780, 632470, 1850570, 814380, 2420110, 292030, 782330, 1903340, 39210];
 const FILTERS = [
@@ -819,19 +820,26 @@ GAMES.forEach(g => {
 });
 
 /* ---------- Fondo que toma el color del juego ---------- */
-const ambientImgs = [...document.querySelectorAll('.ambient img')];
+const ambientImgs = [...document.querySelectorAll('.ambient canvas')];
 let ambientIdx = 0, ambientId = null, ambientTimer;
+// La imagen se carga y decodifica antes de tocar nada; se dibuja en el lienzo que está apagado y
+// solo se anima la opacidad. Así el fondo nunca muestra una capa vacía ni cambia de golpe, y no
+// obliga a recalcular un desenfoque enorme en cada cuadro (con los paneles abiertos eso parpadeaba).
 function setAmbient(id, now){
   clearTimeout(ambientTimer);
   ambientTimer = setTimeout(() => {
     if(id === ambientId) return;
     ambientId = id;
-    const next = ambientImgs[ambientIdx ^= 1], prev = ambientImgs[ambientIdx ^ 1];
-    next.src = art(id, 'library_hero.jpg');
-    next.onload = () => {
-      gsap.to(next, {opacity:.55, scale:1, duration:1.2, ease:'power2.out'});
-      gsap.to(prev, {opacity:0, scale:1.1, duration:1.2, ease:'power2.out'});
-    };
+    const img = new Image();
+    img.src = art(id, 'library_hero.jpg');
+    img.decode().then(() => {
+      if(ambientId !== id) return;
+      gsap.killTweensOf(ambientImgs);
+      const [a, b] = ambientImgs, next = gsap.getProperty(a, 'opacity') <= gsap.getProperty(b, 'opacity') ? a : b, prev = next === a ? b : a;
+      next.getContext('2d').drawImage(img, 0, 0, next.width, next.height);
+      gsap.to(next, {opacity:.55, duration:1.2, ease:'power2.out'});
+      gsap.to(prev, {opacity:0, duration:1.2, ease:'power2.out'});
+    }).catch(() => {});
   }, now ? 0 : 140);
 }
 
@@ -1263,10 +1271,15 @@ function showSpot(i){
   if(i === spotIdx) return;
   spotIdx = i;
   const g = byId(SPOT[i]);
-  const next = spotImgs[spotLayer ^= 1], prev = spotImgs[spotLayer ^ 1];
-  next.src = art(g.id, 'library_hero.jpg');
-  gsap.fromTo(next, {opacity:0, scale:1.12}, {opacity:1, scale:1, duration:1.6, ease:'power2.out'});
-  gsap.to(prev, {opacity:0, duration:1});
+  const next = spotImgs[spotLayer ^= 1], prev = spotImgs[spotLayer ^ 1], url = art(g.id, 'library_hero.jpg');
+  const pre = new Image(); pre.src = url;
+  pre.decode().catch(() => {}).then(() => {
+    if(spotIdx !== i) return;
+    gsap.killTweensOf(spotImgs);
+    next.src = url;
+    gsap.fromTo(next, {opacity:0, scale:1.06}, {opacity:1, scale:1, duration:1.4, ease:'power2.out'});
+    gsap.to(prev, {opacity:0, duration:1});
+  });
   spotSplit?.revert();
   $('#spotTitle').textContent = g.name;
   const days = ADDED_DAYS[g.id] || 1;
