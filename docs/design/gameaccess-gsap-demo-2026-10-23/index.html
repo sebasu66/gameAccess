@@ -470,15 +470,18 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .lang-pop button:hover{background:#ffffff12}
 .lang-pop button[aria-checked=true]{color:var(--ga-orange)}
 
-/* Naranja metalizado: un naranja más fuerte con banda de brillo y reflejo de vidrio arriba. */
-:root{--ga-metal:linear-gradient(180deg,#ffb066 0%,#ff8a1f 38%,#ff6a00 52%,#f25c00 70%,#ff8424 100%)}
-.btn-primary,.dl-play,.flip-menu .fm-items button.primary,.view-btn[aria-pressed=true]{background:var(--ga-metal);border-color:#ff9a45;color:#140a02;
-  box-shadow:inset 0 1px 0 #ffe0c2,inset 0 -2px 6px #9a3a0066,0 8px 22px #ff6a0045;text-shadow:0 1px 0 #ffc79055}
-.btn-primary::before,.dl-play::before,.flip-menu .fm-items button.primary::before{content:'';position:absolute;left:1px;right:1px;top:1px;height:46%;border-radius:7px 7px 40% 40%/7px 7px 10px 10px;background:linear-gradient(180deg,#ffffff6b,#ffffff10);pointer-events:none}
+/* Naranja de vidrio: el mismo naranja fuerte, parejo, con un reflejo suave de cristal arriba,
+   un borde de luz y un destello que cruza al pasar el mouse. */
+:root{--ga-glass-orange:linear-gradient(180deg,#ff7410,#ff6200)}
+.btn-primary,.dl-play,.flip-menu .fm-items button.primary,.view-btn[aria-pressed=true]{background:var(--ga-glass-orange);border:1px solid #ffa766;color:#140a02;
+  box-shadow:inset 0 1px 0 #ffffffa0,inset 0 0 0 1px #ffffff1a,inset 0 -10px 18px #c43c0040,0 8px 24px #ff620040}
+.btn-primary::before,.dl-play::before,.flip-menu .fm-items button.primary::before{content:'';position:absolute;inset:1px 1px 45% 1px;border-radius:7px 7px 50% 50%/7px 7px 14px 14px;background:linear-gradient(180deg,#ffffff4d,#ffffff00);pointer-events:none}
+.btn-primary::after,.dl-play::after,.flip-menu .fm-items button.primary::after{content:'';position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(105deg,#fff0,#ffffff55,#fff0);transform:skewX(-18deg);pointer-events:none;transition:left .6s cubic-bezier(.3,.7,.2,1)}
+.btn-primary:hover::after,.dl-play:hover::after,.flip-menu .fm-items button.primary:hover::after{left:125%}
 .dl-play,.flip-menu .fm-items button.primary{position:relative;overflow:hidden}
-.btn-primary:hover,.dl-play:hover,.flip-menu .fm-items button.primary:hover{background:var(--ga-metal);filter:brightness(1.08) saturate(1.1);box-shadow:inset 0 1px 0 #fff0e0,inset 0 -2px 6px #9a3a0066,0 10px 28px #ff6a0066}
+.btn-primary:hover,.dl-play:hover,.flip-menu .fm-items button.primary:hover{background:linear-gradient(180deg,#ff8020,#ff6a00);box-shadow:inset 0 1px 0 #ffffffc0,inset 0 0 0 1px #ffffff26,inset 0 -10px 18px #c43c0040,0 10px 30px #ff62005c}
 .btn-primary .label,.btn-primary svg,.dl-play svg{position:relative}
-.nt-actions .btn .fill{background:var(--ga-metal)}
+.nt-actions .btn .fill{background:var(--ga-glass-orange)}
 
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
@@ -1414,33 +1417,36 @@ function closeDetail(){
     .to(pushed, {x:0, y:0, scale:1, opacity:1, duration:.8, ease:'expo.inOut'}, .2)
     .to(backdrop, {opacity:0, duration:.5}, .35);
 }
-// La portada se arma de píxeles: se dibuja en un lienzo con pocos cuadros y cada paso duplica la resolución.
+// La portada reaparece como una grilla de cuadraditos que se va llenando desde el centro hacia
+// afuera (con algo de azar, para que no sea un círculo perfecto) en 1,2 s.
 function pixelReveal(el){
   const img = visibleImg(el), r = el.getBoundingClientRect();
-  gsap.set(el, {opacity:1});
-  if(!motion || !img || !img.naturalWidth || !r.width || r.bottom < 0 || r.top > innerHeight) return;
-  const cv = document.createElement('canvas'), small = document.createElement('canvas');
-  cv.className = 'pixel-reveal'; cv.width = Math.round(r.width); cv.height = Math.round(r.height);
+  if(!motion || !img || !img.naturalWidth || !r.width || r.bottom < 0 || r.top > innerHeight){ gsap.set(el, {opacity:1}); return; }
+  const cv = document.createElement('canvas'), dpr = Math.min(2, devicePixelRatio || 1);
+  cv.className = 'pixel-reveal'; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   Object.assign(cv.style, {left:r.left + 'px', top:r.top + 'px', width:r.width + 'px', height:r.height + 'px', borderRadius:getComputedStyle(el).borderRadius});
   document.body.append(cv);
-  const ctx = cv.getContext('2d'), sctx = small.getContext('2d'), ar = r.width / r.height, iar = img.naturalWidth / img.naturalHeight;
+  const ctx = cv.getContext('2d'), ar = r.width / r.height, iar = img.naturalWidth / img.naturalHeight;
   let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
   if(iar > ar){ sw = sh * ar; sx = (img.naturalWidth - sw) / 2; } else { sh = sw / ar; sy = (img.naturalHeight - sh) / 2; }
-  const draw = cols => {
-    const rows = Math.max(1, Math.round(cols / ar));
-    small.width = cols; small.height = rows;
-    sctx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    ctx.drawImage(small, 0, 0, cols, rows, 0, 0, cv.width, cv.height);
+  const size = Math.max(8, Math.round(Math.min(r.width, r.height) / 16)), cols = Math.ceil(r.width / size), rows = Math.ceil(r.height / size);
+  const kx = sw / r.width, ky = sh / r.height, cx = cols / 2, cy = rows / 2, maxD = Math.hypot(cx, cy);
+  const cells = [];
+  for(let y = 0; y < rows; y++) for(let x = 0; x < cols; x++) cells.push({x, y, t:Math.hypot(x + .5 - cx, y + .5 - cy) / maxD * .8 + Math.random() * .2});
+  cells.sort((a, b) => a.t - b.t);
+  let drawn = 0;
+  const paint = upto => {
+    for(; drawn < upto; drawn++){
+      const c = cells[drawn], px = c.x * size, py = c.y * size, w = Math.min(size, r.width - px), h = Math.min(size, r.height - py);
+      ctx.drawImage(img, sx + px * kx, sy + py * ky, w * kx, h * ky, px * dpr, py * dpr, w * dpr, h * dpr);
+    }
   };
-  const steps = [3, 6, 12, 24, 48];
-  draw(steps[0]);
-  const tl = gsap.timeline({onComplete:() => cv.remove()});
-  tl.fromTo(cv, {opacity:0}, {opacity:1, duration:.12});
-  steps.slice(1).forEach((c, i) => tl.add(() => draw(c), .12 + (i + 1) * .09));
-  tl.to(cv, {opacity:0, duration:.25}, .12 + steps.length * .09);
+  const p = {v:0};
+  gsap.to(p, {v:1, duration:1.2, ease:'power1.inOut', onUpdate:() => paint(Math.floor(p.v * cells.length)), onComplete:() => {
+    paint(cells.length); gsap.set(el, {opacity:1}); cv.remove();
+  }});
 }
+
 $('#dClose').addEventListener('click', closeDetail);
 backdrop.addEventListener('click', closeDetail);
 $('#dFav').addEventListener('click', e => openGame && toggleFav(openGame, e.currentTarget));
