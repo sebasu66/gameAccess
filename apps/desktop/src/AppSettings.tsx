@@ -9,7 +9,7 @@ import { Settings, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
-import { GaClose } from "./components/ga/Buttons";
+import { GaClose, GaIconButton } from "./components/ga/Buttons";
 const copy = {
  es: { title: "Configuración", tabGames: "Juegos", tabParental: "Control parental", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
  en: { title: "Settings", tabGames: "Games", tabParental: "Parental control", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
@@ -42,7 +42,7 @@ export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLEl
  const [open, setOpen] = useState(false);
  const trigger = useRef<HTMLButtonElement>(null);
  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
- const button = <button ref={trigger} type="button" className="ga-settings-fab ga-dock-btn" aria-label={c.title} title={c.title} onClick={() => setOpen(true)}><Settings size={20} /><span>{c.title}</span></button>;
+ const button = <GaIconButton ref={trigger} className="ga-settings-fab" icon={<Settings size={20} aria-hidden="true" />} label={c.title} onClick={() => setOpen(true)} />;
  return <>
   {dockTarget ? createPortal(button, dockTarget) : button}
   {open ? <SettingsPanel onClose={close} /> : null}</>;

@@ -31,6 +31,7 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
+import { GaIconButton } from "./components/ga/Buttons";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -378,7 +379,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
   const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <button type="button" className="ga-dock-btn ga-library-manager-button" onClick={() => setManagerOpen(true)} aria-label={t("libraryManagerButton")} title={t("libraryManagerButton")}><HardDrive size={20} aria-hidden="true" /><span>{t("libraryManagerButton")}</span></button> : null;
+    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} onClick={() => setManagerOpen(true)} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (

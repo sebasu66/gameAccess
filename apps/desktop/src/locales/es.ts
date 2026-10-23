@@ -714,5 +714,7 @@ export const es = {
   noticeUninstallConfirm: "Desinstalar",
   noticeRemoveConfirm: "Quitar",
   noticeCancel: "Cancelar",
+  languageNameEs: "Español",
+  languageNameEn: "English",
   noticeWorking: "Trabajando…",
 } as const;

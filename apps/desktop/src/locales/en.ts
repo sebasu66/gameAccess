@@ -716,5 +716,7 @@ export const en: Record<keyof typeof es, string> = {
   noticeUninstallConfirm: "Uninstall",
   noticeRemoveConfirm: "Remove",
   noticeCancel: "Cancel",
+  languageNameEs: "Español",
+  languageNameEn: "English",
   noticeWorking: "Working…",
 };

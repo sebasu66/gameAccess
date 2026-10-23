@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { CircleHelp, Copy, Mail } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
-import { GaClose } from "./components/ga/Buttons";
+import { GaClose, GaIconButton } from "./components/ga/Buttons";
 
 /** Where support messages go. Build-time default, overridable on this computer. */
 export function supportEmail(): string {
@@ -75,7 +75,7 @@ export default function AppHelp({ dockTarget = null }: { dockTarget?: HTMLElemen
  const [open, setOpen] = useState(false);
  const trigger = useRef<HTMLButtonElement>(null);
  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
- const button = <button ref={trigger} type="button" className="ga-help-fab ga-dock-btn" aria-label={c.title} title={c.title} onClick={() => setOpen(true)}><CircleHelp size={20} /><span>{c.title}</span></button>;
+ const button = <GaIconButton ref={trigger} className="ga-help-fab" icon={<CircleHelp size={20} aria-hidden="true" />} label={c.title} onClick={() => setOpen(true)} />;
  return <>
   {dockTarget ? createPortal(button, dockTarget) : button}
   {open ? <HelpPanel onClose={close} /> : null}</>;

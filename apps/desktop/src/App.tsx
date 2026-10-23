@@ -52,6 +52,7 @@ import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { PluginIndicator } from "./PluginIndicator";
 import { notify } from "./toasts";
+import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -606,7 +607,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       </header>
 
       {(() => {
-        const downloadsButton = <button type="button" className="digital-download-nav ga-dock-btn" aria-pressed={downloadsOpen} aria-label={t("downloadsTitle")} title={t("downloadsTitle")} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /><span>{t("downloadsTitle")}</span></button>;
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
