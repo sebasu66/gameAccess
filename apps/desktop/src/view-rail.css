@@ -1,0 +1,25 @@
+/* The current view's name, vertical on the left edge (docs/GUI_DESIGN.md §4.16). */
+.ga-view-rail { position: fixed; left: 0; top: 0; bottom: 0; z-index: 1; width: var(--ga-rail, 0px); overflow: hidden; pointer-events: none; }
+.ga-rail-word {
+  position: absolute; left: -.03em; top: 50%; writing-mode: vertical-rl; white-space: nowrap; will-change: transform;
+  font-family: "Archivo Black", "Arial Black", sans-serif; font-weight: 400; line-height: 1; letter-spacing: .01em;
+  /* The letters themselves fade toward the center (a mask, not a veil on top). */
+  -webkit-mask-image: linear-gradient(to left, #000 0, #000 18%, #0008 55%, #0000 92%);
+  mask-image: linear-gradient(to left, #000 0, #000 18%, #0008 55%, #0000 92%);
+}
+.ga-rail-word > span { display: block; -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Smooth, faint outline: the letter edge is not pixelated. */
+.ga-rail-word .solid { background-image: linear-gradient(to left, var(--rw-hi), var(--rw)); opacity: .28; }
+/* Pixelated inside: small squares separated by a thin gap. */
+.ga-rail-word .pix {
+  position: absolute; inset: 0; background-image: linear-gradient(to left, var(--rw-hi), var(--rw) 45%, var(--rw-lo));
+  -webkit-mask-image: repeating-linear-gradient(0deg, #000 0 6px, #0000 6px 8px), repeating-linear-gradient(90deg, #000 0 6px, #0000 6px 8px);
+  -webkit-mask-composite: source-in;
+  mask-image: repeating-linear-gradient(0deg, #000 0 6px, #0000 6px 8px), repeating-linear-gradient(90deg, #000 0 6px, #0000 6px 8px);
+  mask-composite: intersect;
+}
+.ga-rail-word[data-view="catalog"] { --rw-hi: #ffb070; --rw: #ff6a00; --rw-lo: #c94f00; }
+.ga-rail-word[data-view="library"] { --rw-hi: #e2fff0; --rw: #8fe3b0; --rw-lo: #4fb985; }
+/* The catalog and library content keep clear of the rail. */
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-left: var(--ga-rail, 0px); }
+@media (max-width: 900px) { .ga-view-rail { display: none; } .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-left: 0; } }

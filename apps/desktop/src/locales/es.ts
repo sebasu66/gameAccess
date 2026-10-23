@@ -723,5 +723,7 @@ export const es = {
   spotlightDays: "Nuevo en Steam · hace {{days}} días",
   spotlightOpen: "Ver ficha",
   catalogHiddenInstalled: "{{count}} instalados están en tu librería →",
+  railCatalog: "CATALOGO",
+  railLibrary: "LIBRERIA",
   noticeWorking: "Trabajando…",
 } as const;

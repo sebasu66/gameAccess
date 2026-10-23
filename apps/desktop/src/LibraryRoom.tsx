@@ -45,6 +45,8 @@ import GameStorageContextMenu from "./GameStorageContextMenu";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
 import { uiDemo } from "./devDemo/uiDemo";
+import ViewRail from "./ViewRail";
+import { gsap, motionOk } from "./motion/gsap";
 
 interface LibraryRoomProps {
   toolbarTarget?: HTMLDivElement | null;
@@ -131,6 +133,18 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   }, [bigScreen]);
 
 
+  // Changing between catalog and library: the new view turns in from the side it comes from (3D slide).
+  const previousView = useRef(libraryView);
+  useEffect(() => {
+    const before = previousView.current;
+    previousView.current = libraryView;
+    const host = rootRef.current?.querySelector<HTMLElement>(".library-room-catalog");
+    if (!host || before === libraryView || auxiliarySurface || !motionOk()) return;
+    const into = libraryView === "catalog" ? -1 : 1;
+    const tween = gsap.fromTo(host, { xPercent: 30 * into, rotationY: -28 * into, opacity: 0, transformPerspective: 1800, transformOrigin: into > 0 ? "100% 50%" : "0% 50%" },
+      { xPercent: 0, rotationY: 0, opacity: 1, duration: .9, ease: "expo.out", clearProps: "transform,opacity" });
+    return () => { tween.kill(); };
+  }, [libraryView, auxiliarySurface]);
   const isCatalog = libraryView === "catalog";
   const nativeCatalog = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || uiDemo());
   const activeQuery = (searchValue || searchQuery || "").trim();
@@ -700,6 +714,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
+      {!auxiliarySurface ? <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} /> : null}
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}

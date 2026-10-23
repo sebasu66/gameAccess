@@ -725,5 +725,7 @@ export const en: Record<keyof typeof es, string> = {
   spotlightDays: "New on Steam · {{days}} days ago",
   spotlightOpen: "See details",
   catalogHiddenInstalled: "{{count}} installed games are in your library →",
+  railCatalog: "CATALOG",
+  railLibrary: "LIBRARY",
   noticeWorking: "Working…",
 };
