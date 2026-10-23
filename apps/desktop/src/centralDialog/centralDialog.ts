@@ -44,8 +44,6 @@ export interface DialogState {
   /** The task is drawn (it has lasted longer than SHOW_AFTER_MS, or it failed). */
   taskVisible: boolean;
   announcements: Announcement[];
-  /** Called when the announcements on screen are closed (to remember they were seen). */
-  onAnnouncementsClosed?: (ids: string[]) => void;
 }
 
 export const SHOW_AFTER_MS = 600;
@@ -75,6 +73,8 @@ class CentralDialog {
   private sequence = 0;
   private showTimer: ReturnType<typeof setTimeout> | null = null;
   private acknowledge: ((choice: "continue" | "retry") => void) | null = null;
+  /** Who showed the announcements on screen, so each caller hears about the ones it showed. */
+  private closers: Array<{ ids: string[]; onClosed?: (ids: string[]) => void }> = [];
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -163,15 +163,20 @@ class CentralDialog {
     answer?.(choice);
   }
 
+  /** Announcements already on screen stay: the new ones are added after them (news must not hide an update notice). */
   showAnnouncements(announcements: Announcement[], onClosed?: (ids: string[]) => void): void {
-    if (!announcements.length) return;
-    this.set({ announcements, onAnnouncementsClosed: onClosed });
+    const shown = new Set(this.state.announcements.map(item => item.id));
+    const added = announcements.filter(item => !shown.has(item.id));
+    if (!added.length) return;
+    this.closers.push({ ids: added.map(item => item.id), onClosed });
+    this.set({ announcements: [...this.state.announcements, ...added] });
   }
 
   closeAnnouncements(): void {
-    const { announcements, onAnnouncementsClosed } = this.state;
-    this.set({ announcements: [], onAnnouncementsClosed: undefined });
-    onAnnouncementsClosed?.(announcements.map(item => item.id));
+    const closers = this.closers;
+    this.closers = [];
+    this.set({ announcements: [] });
+    for (const { ids, onClosed } of closers) onClosed?.(ids);
   }
 }
 

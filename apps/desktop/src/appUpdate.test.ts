@@ -52,6 +52,19 @@ describe("app self-update", () => {
     expect(d.relaunch).toHaveBeenCalledOnce();
   });
 
+  it("tells the player a new version was found and waits for them before downloading", async () => {
+    const order: string[] = [];
+    let close!: () => void;
+    const d = { ...deps({ version: "0.2.0", async downloadAndInstall() { order.push("download"); } }),
+      announce: vi.fn((version: string) => { order.push(`announce ${version}`); return new Promise<void>(resolve => { close = resolve; }); }) };
+    const done = runUpdate(d, () => undefined);
+    await Promise.resolve(); await Promise.resolve();
+    expect(order).toEqual(["announce 0.2.0"]);
+    close();
+    await done;
+    expect(order).toEqual(["announce 0.2.0", "download"]);
+  });
+
   it("reports a failed install instead of restarting", async () => {
     const phases: UpdatePhase[] = [];
     const d = deps(fakeUpdate([{ event: "Started", data: { contentLength: 10 } }], new Error("signature mismatch")));

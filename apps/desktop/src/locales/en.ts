@@ -653,6 +653,8 @@ export const en: Record<keyof typeof es, string> = {
   dlsUserPaused: "Paused",
   dlsLost: "The download manager no longer had this download; retry it",
   updateTaskTitle: "Updating Game Access to version {{version}}",
+  updateFoundTitle: "A new version is available: {{version}}",
+  updateFoundBody: "Game Access is updating to version {{version}}. It downloads first; then Windows asks whether to allow the install: accept and the app opens again by itself.",
   updateStepDownload: "Download the new version",
   updateStepInstall: "Install and restart the app",
   dialogTaskFailed: "Could not finish",
