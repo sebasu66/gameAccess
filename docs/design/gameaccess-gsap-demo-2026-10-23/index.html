@@ -516,10 +516,15 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .btn-danger{background:#c8321f;border:1px solid #c8321f;color:#fff}
 .btn-danger:hover{background:#dc3d29}
 .btn-frost{background:var(--ga-frost);border:1px solid var(--ga-frost);color:var(--ga-ink)}
-/* OK automático: el botón empieza apagado y se llena de color en 3 s. */
-.nt-actions .btn-primary:has(.fill){background:#ff6a0026;color:var(--ga-white);border-color:#ff6a0088;box-shadow:none}
-.nt-actions .btn .fill{position:absolute;inset:0;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
-.nt-actions .btn:has(.fill) .label{mix-blend-mode:difference;color:#fff}
+/* Temporizador del aviso: el círculo se completa en 3 s y el aviso se cierra. */
+.nt-timer{position:relative;width:34px;height:34px;flex:none;display:grid;place-items:center;color:var(--nt,var(--ga-orange))}
+.nt-timer svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.nt-timer circle{fill:none;stroke-width:3}
+.nt-timer .track{stroke:#ffffff18}
+.nt-timer .run{stroke:var(--nt,var(--ga-orange));stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100}
+.nt-timer > svg + svg{position:relative;inset:auto;width:14px;height:14px;transform:none}
+.nt-timer:hover{color:#fff}
+.nt-actions{flex-wrap:wrap}
 
 /* Instalado: un play verde en la esquina en lugar de la etiqueta. */
 .play-mark{position:absolute;left:10px;top:10px;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--ga-success);background:#0f1813c8;box-shadow:0 0 0 1px #8fe3b055,0 0 12px #8fe3b030;backdrop-filter:blur(6px)}
@@ -610,8 +615,8 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 </main>
 
 <div class="rail" aria-hidden="true">
-  <span class="rail-word" data-view="catalog"><span class="solid">CATÁLOGO</span><span class="pix">CATÁLOGO</span></span>
-  <span class="rail-word" data-view="library"><span class="solid">LIBRERÍA</span><span class="pix">LIBRERÍA</span></span>
+  <span class="rail-word" data-view="catalog"><span class="solid">CATALOGO</span><span class="pix">CATALOGO</span></span>
+  <span class="rail-word" data-view="library"><span class="solid">LIBRERIA</span><span class="pix">LIBRERIA</span></span>
 </div>
 
 <div class="dock-area">
@@ -1468,8 +1473,8 @@ $('#dPrimary').addEventListener('click', () => {
 
 /* ---------- Aviso único: resultados, pasos y confirmaciones ---------- */
 // Un solo aviso, abajo a la derecha, para todo (jugar, congelar, desinstalar, descargas). Si llega otro,
-// el mismo aviso cambia su contenido. Si todo salió bien, su OK se llena y se presiona solo en 3 s;
-// un error no se cierra solo y ofrece sus botones.
+// el mismo aviso cambia su contenido. Si todo salió bien, un círculo se completa en 3 s y el aviso
+// se cierra solo; un error no se cierra solo y ofrece sus botones. El texto crece hacia arriba.
 const noticeEl = document.createElement('div');
 noticeEl.className = 'ga-notice'; noticeEl.setAttribute('role', 'status'); noticeEl.setAttribute('aria-live', 'polite');
 document.body.append(noticeEl);
@@ -1479,31 +1484,34 @@ function notify({g = null, title, text = '', tone = 'info', progress = false, st
   noticeProgress?.kill(); noticeProgress = null;
   noticeAuto?.kill(); noticeAuto = null;
   if(noticeResolve){ const r = noticeResolve; noticeResolve = null; r(false); }
-  // Sin botones propios: si salió bien lleva un OK que se presiona solo; un error nunca se cierra solo.
-  if(!actions) actions = progress || steps ? [] : tone === 'error' ? [{label:'Cerrar', run:hideNotice}] : [{label:'OK', kind:'primary', auto:true, run:hideNotice}];
+  // Sin botones propios: si salió bien se cierra solo con el temporizador; un error nunca se cierra solo.
+  const auto = !actions && !progress && !steps && tone !== 'error';
+  if(!actions) actions = progress || steps || auto ? [] : [{label:'Cerrar', run:hideNotice}];
   noticeEl.dataset.tone = tone;
   noticeEl.innerHTML = `<div class="nt-head">${g ? `<img class="nt-art" src="${art(g.id, 'library_600x900.jpg')}" alt="">` : `<span class="nt-ico">${TONE_GLYPH[tone] || ''}</span>`}
-      <div class="nt-text"><strong>${title}</strong>${text ? `<span>${text}</span>` : ''}</div></div>
+      <div class="nt-text"><strong>${title}</strong>${text ? `<span>${text}</span>` : ''}</div>
+      ${auto ? `<button class="nt-timer" title="Cerrar" aria-label="Cerrar aviso"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="track"/><circle cx="18" cy="18" r="15" class="run" pathLength="100"/></svg>${ICON.check}</button>` : ''}</div>
     ${steps ? `<ol class="nt-steps">${steps.map(st => `<li><i></i>${st}</li>`).join('')}</ol>` : ''}
     <div class="nt-actions"></div>${progress ? '<i class="nt-progress"><b></b></i>' : ''}`;
   actions.forEach(a => {
     const b = document.createElement('button');
     b.className = `btn ${a.kind === 'danger' ? 'btn-danger' : a.kind === 'frost' ? 'btn-frost' : a.kind === 'primary' ? 'btn-primary' : 'btn-secondary'}`;
-    b.innerHTML = `${a.auto ? '<span class="fill"></span>' : ''}<span class="label">${a.label}</span>`;
+    b.innerHTML = `<span class="label">${a.label}</span>`;
     b.addEventListener('click', a.run);
     noticeEl.querySelector('.nt-actions').append(b);
-    if(a.auto){
-      noticeAuto = gsap.fromTo(b.querySelector('.fill'), {scaleX:0}, {scaleX:1, duration:3, ease:'none', onComplete:() => {
-        gsap.fromTo(b, {scale:.94}, {scale:1, duration:.3, ease:'back.out(3)'});
-        setTimeout(() => b.click(), 160);
-      }});
-    }
   });
+  if(auto){
+    const timer = noticeEl.querySelector('.nt-timer');
+    timer.addEventListener('click', hideNotice);
+    noticeAuto = gsap.fromTo(timer.querySelector('.run'), {attr:{'stroke-dashoffset':100}}, {attr:{'stroke-dashoffset':0}, duration:3, ease:'none', onComplete:() => {
+      gsap.fromTo(timer, {scale:1}, {scale:1.15, duration:.15, yoyo:true, repeat:1, onComplete:hideNotice});
+    }});
+  }
   if(!noticeEl.classList.contains('show')){
     noticeEl.classList.add('show');
     gsap.fromTo(noticeEl, {x:40, opacity:0}, {x:0, y:0, opacity:1, duration:.55, ease:'expo.out', overwrite:true});
   } else gsap.fromTo(noticeEl.children, {opacity:0, y:6}, {opacity:1, y:0, duration:.3, stagger:.04, ease:'power3.out'});
-  if(actions.length && !actions[0].auto) setTimeout(() => noticeEl.querySelector('.nt-actions .btn')?.focus({preventScroll:true}), 80);
+  if(actions.length) setTimeout(() => noticeEl.querySelector('.nt-actions .btn')?.focus({preventScroll:true}), 80);
 }
 // Con el mouse encima, el OK automático espera.
 noticeEl.addEventListener('pointerenter', () => noticeAuto?.pause());
