@@ -1,6 +1,7 @@
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
-import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
+import { overviewCoverSizing } from "./overviewSizing";
+import { useCardHover } from "./motion/cardHover";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
@@ -192,8 +193,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
+  useCardHover(props.gridRef);
   const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
-  const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
   // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
@@ -221,9 +222,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, []);
 
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
-  const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
+  const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
   setCoverCardWidth(coverFloor);
-  const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: t("tabCatalog") },
     { id: getCatalogMode() === "digital" ? "library" : "installed", label: t("uiBiblioteca") },
@@ -366,9 +366,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         ) : null}
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <div className="ga-search-meta">
-            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" tabIndex={-1} min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
-          </div>
         </div>
         <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
@@ -402,7 +399,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); }} /> : null}
       {view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}
       <div className="ga-scroll-frame">
-      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
+      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
         {view !== "catalog" ? <LibraryBento games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={() => setManagerOpen(true)} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}

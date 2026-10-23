@@ -131,6 +131,7 @@ function drawBtns(t){
 }
 function updateStyle(){
  P=loadPixelStyle();baseColors();kc.fill(-1);
+ fx.hidden=!P.field;document.body.classList.toggle('ga-pixel-field-on',P.field);
  for(const o of targets.values())if(o.s)o.s.kc.fill(-1);
  document.documentElement.style.setProperty('--glass',P.glass);
  dirty=true;
@@ -144,7 +145,7 @@ function loop(now){
  if(animated&&document.visibilityState==='visible')tt+=dt*P.spd;
  if(document.visibilityState==='visible'&&(animated||dirty)){
    // The field repaints more slowly when a frame of it is expensive, so it never starves hover animations.
-   if(dirty||now-lp>Math.max(90,fieldMs*10)){const began=performance.now();lp=now;paintField(tt);fieldMs=fieldMs*.8+(performance.now()-began)*.2}
+   if(P.field&&(dirty||now-lp>Math.max(90,fieldMs*10))){const began=performance.now();lp=now;paintField(tt);fieldMs=fieldMs*.8+(performance.now()-began)*.2}
    if(dirty||now-lq>60){lq=now;drawBtns(tt)}
    dirty=false;
  }
@@ -181,6 +182,6 @@ return ()=>{
  window.removeEventListener('resize',resizeField);window.removeEventListener(PIXEL_STYLE_EVENT,updateStyle);window.removeEventListener('storage',updateStyle);
  document.removeEventListener('visibilitychange',visibility);media.removeEventListener('change',visibility);
  for(const [b,o] of targets){o.canvas.remove();b.classList.remove('ga-led-button','ga-pixel-search');delete b.dataset.pixelActive;delete b.dataset.pixelSignature}
- targets.clear();
+ targets.clear();document.body.classList.remove('ga-pixel-field-on');
 };
 }

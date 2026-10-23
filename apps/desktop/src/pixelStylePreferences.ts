@@ -5,8 +5,8 @@ export const STYLE_RANGES = {
   ovar: [0, 2.5, .05], oled: [0, 2, .05], glass: [0, 1, .01],
 } as const;
 export type StyleParam = keyof typeof STYLE_RANGES;
-export interface PixelStyle { spd: number; cob: number; blink: number; ovar: number; oled: number; glass: number; animate: boolean }
-export const DEFAULT_PIXEL_STYLE: PixelStyle = { spd: 1, cob: 1, blink: 1, ovar: 1.4, oled: 1, glass: .85, animate: true };
+export interface PixelStyle { spd: number; cob: number; blink: number; ovar: number; oled: number; glass: number; animate: boolean; /** Animated pixel field as the background (off: the demo background, see AmbientBackground). */ field: boolean }
+export const DEFAULT_PIXEL_STYLE: PixelStyle = { spd: 1, cob: 1, blink: 1, ovar: 1.4, oled: 1, glass: .85, animate: true, field: false };
 export function normalizePixelStyle(value: unknown): PixelStyle {
   const next = { ...DEFAULT_PIXEL_STYLE };
   if (!value || typeof value !== "object") return next;
@@ -16,6 +16,7 @@ export function normalizePixelStyle(value: unknown): PixelStyle {
     if (typeof n === "number" && Number.isFinite(n)) next[key] = Math.min(STYLE_RANGES[key][1], Math.max(STYLE_RANGES[key][0], n));
   }
   if (typeof raw.animate === "boolean") next.animate = raw.animate;
+  if (typeof raw.field === "boolean") next.field = raw.field;
   return next;
 }
 export function loadPixelStyle(): PixelStyle {

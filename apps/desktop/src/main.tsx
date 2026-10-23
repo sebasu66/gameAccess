@@ -23,6 +23,7 @@ import LanguageSwitch, { FooterLanguage } from "./LanguageSwitch";
 import { Bell, Globe2, RefreshCw } from "lucide-react";
 import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
+import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
@@ -129,7 +130,7 @@ if (libraryDemo()) {
   ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><AmbientBackground /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
     <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );
