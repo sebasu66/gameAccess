@@ -485,21 +485,22 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
-  display:none;flex-direction:column;gap:12px;padding:34px 16px 16px;border-radius:0 0 12px 12px;overflow:hidden;
+  display:none;flex-direction:column;gap:16px;padding:48px 22px 22px;border-radius:0 0 12px 12px;overflow:hidden;
   background:linear-gradient(0deg,rgba(20,24,28,.97) 0,rgba(20,24,28,.92) 55%,rgba(20,24,28,0) 100%);backdrop-filter:blur(14px);
   -webkit-mask:linear-gradient(0deg,#000 70%,#0000);mask:linear-gradient(0deg,#000 70%,#0000);transition:right .7s cubic-bezier(.7,0,.3,1)}
-.ga-notice{-webkit-mask:linear-gradient(0deg,#000 0,#000 72%,#000c 86%,#0000 100%);mask:linear-gradient(0deg,#000 0,#000 72%,#000c 86%,#0000 100%)}
+.ga-notice{-webkit-mask:none;mask:none;background:linear-gradient(0deg,rgba(20,24,28,.97) 0,rgba(20,24,28,.93) 62%,rgba(20,24,28,.6) 82%,rgba(20,24,28,0) 100%)}
+.ga-notice.has-timer .nt-head{padding-right:30px}
 .ga-notice.show{display:flex}
 .ga-notice::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--nt,var(--ga-orange));box-shadow:0 0 14px var(--nt,var(--ga-orange))}
 .ga-notice[data-tone=ok]{--nt:var(--ga-success)}.ga-notice[data-tone=frost]{--nt:var(--ga-frost)}.ga-notice[data-tone=danger],.ga-notice[data-tone=error]{--nt:#ff5a4a}
-.nt-head{display:flex;align-items:center;gap:12px}
-.nt-art{width:40px;height:60px;object-fit:cover;border-radius:5px;flex:none;box-shadow:0 6px 16px #0008}
+.nt-head{display:flex;align-items:center;gap:16px}
+.nt-art{width:46px;height:69px;object-fit:cover;border-radius:5px;flex:none;box-shadow:0 6px 16px #0008}
 .nt-ico{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--nt,var(--ga-orange));background:#ffffff0d}
 .nt-ico svg{width:18px;height:18px}
 .nt-text{flex:1;min-width:0}
-.nt-text strong{display:block;font-size:14px}
-.nt-text span{display:block;font-size:12px;color:var(--ga-muted)}
-.nt-steps{list-style:none;margin:0;padding:0 0 0 2px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ga-muted)}
+.nt-text strong{display:block;font-size:15px;margin-bottom:3px}
+.nt-text span{display:block;font-size:12.5px;line-height:1.5;color:var(--ga-muted)}
+.nt-steps{list-style:none;margin:0;padding:0 0 0 2px;display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--ga-muted)}
 .nt-steps li{display:flex;align-items:center;gap:10px}
 .nt-steps li i{width:14px;height:14px;border-radius:50%;border:1.5px solid #ffffff30;flex:none;position:relative}
 .nt-steps li.run{color:var(--ga-white)}
@@ -517,12 +518,12 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .btn-danger:hover{background:#dc3d29}
 .btn-frost{background:var(--ga-frost);border:1px solid var(--ga-frost);color:var(--ga-ink)}
 /* Temporizador del aviso: el círculo se completa en 3 s y el aviso se cierra. */
-.nt-timer{position:relative;width:34px;height:34px;flex:none;display:grid;place-items:center;color:var(--nt,var(--ga-orange))}
+.nt-timer{position:absolute;top:14px;right:14px;width:30px;height:30px;display:grid;place-items:center;color:var(--nt,var(--ga-orange))}
 .nt-timer svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
 .nt-timer circle{fill:none;stroke-width:3}
 .nt-timer .track{stroke:#ffffff18}
 .nt-timer .run{stroke:var(--nt,var(--ga-orange));stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100}
-.nt-timer > svg + svg{position:relative;inset:auto;width:14px;height:14px;transform:none}
+.nt-timer > svg + svg{position:relative;inset:auto;width:12px;height:12px;transform:none;opacity:.7}
 .nt-timer:hover{color:#fff}
 .nt-actions{flex-wrap:wrap}
 
@@ -1480,17 +1481,18 @@ noticeEl.className = 'ga-notice'; noticeEl.setAttribute('role', 'status'); notic
 document.body.append(noticeEl);
 const TONE_GLYPH = {ok:ICON.check, info:ICON.down, frost:SNOW, danger:TRASH, error:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg>'};
 let noticeResolve = null, noticeProgress = null, noticeAuto = null;
-function notify({g = null, title, text = '', tone = 'info', progress = false, steps = null, actions = null}){
+function notify({g = null, title, text = '', tone = 'info', progress = false, steps = null, actions = null, timer}){
   noticeProgress?.kill(); noticeProgress = null;
   noticeAuto?.kill(); noticeAuto = null;
   if(noticeResolve){ const r = noticeResolve; noticeResolve = null; r(false); }
   // Sin botones propios: si salió bien se cierra solo con el temporizador; un error nunca se cierra solo.
-  const auto = !actions && !progress && !steps && tone !== 'error';
+  const auto = timer ?? (!actions && !progress && !steps && tone !== 'error');
   if(!actions) actions = progress || steps || auto ? [] : [{label:'Cerrar', run:hideNotice}];
+  noticeEl.classList.toggle('has-timer', !!auto);
   noticeEl.dataset.tone = tone;
   noticeEl.innerHTML = `<div class="nt-head">${g ? `<img class="nt-art" src="${art(g.id, 'library_600x900.jpg')}" alt="">` : `<span class="nt-ico">${TONE_GLYPH[tone] || ''}</span>`}
-      <div class="nt-text"><strong>${title}</strong>${text ? `<span>${text}</span>` : ''}</div>
-      ${auto ? `<button class="nt-timer" title="Cerrar" aria-label="Cerrar aviso"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="track"/><circle cx="18" cy="18" r="15" class="run" pathLength="100"/></svg>${ICON.check}</button>` : ''}</div>
+      <div class="nt-text"><strong>${title}</strong>${text ? `<span>${text}</span>` : ''}</div></div>
+      ${auto ? `<button class="nt-timer" title="Cerrar" aria-label="Cerrar aviso"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="track"/><circle cx="18" cy="18" r="15" class="run" pathLength="100"/></svg>${CLOSE_X}</button>` : ''}
     ${steps ? `<ol class="nt-steps">${steps.map(st => `<li><i></i>${st}</li>`).join('')}</ol>` : ''}
     <div class="nt-actions"></div>${progress ? '<i class="nt-progress"><b></b></i>' : ''}`;
   actions.forEach(a => {
@@ -1616,7 +1618,7 @@ function dlComplete(d){
   const g = d.g;
   g.installed = true;
   refreshMarks(g); chipCounts();
-  notify({g, title:'Listo para jugar', text:`${g.name} se instaló`, tone:'ok', actions:[{label:'Después', run:hideNotice}, {label:'Jugar', kind:'primary', run:() => playGame(g)}]});
+  notify({g, title:'Listo para jugar', text:`${g.name} se instaló`, tone:'ok', timer:true, actions:[{label:'Jugar', kind:'primary', run:() => playGame(g)}]});
   if(view === 'catalog') applyFilter();
   if(openGame === g) setPrimary(g);
   if(view === 'library') renderLibrary(true);
