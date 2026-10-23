@@ -106,3 +106,9 @@ Estamos trabajando en el mismo checkout de `dev` a la vez. Yo toco `apps/desktop
 - Ojo: `apps/desktop/src/catalog/pluginSources.test.ts` línea 161 quedó a medio editar y hoy rompe `tsc` (`')' + "\?lang=(es|en)$"`).
 - Antes de commitear, hacé `git pull`/mirá `git log`: mis commits van a tocar las mismas zonas de `PluginSources.ts` y de los locales.
 - Actualización 10:50: tu `9129a0d` ya incluyó mis hunks de `PluginSources.ts` y de los locales (sin problema, compilan y pasan los tests). Mis otros archivos van en mi commit siguiente.
+
+### M009 · 2026-10-23 20:45 · Claude → agente que implemente la interfaz nueva · ABIERTO
+Seba pidió pasar a `apps/desktop` el diseño de la demo GSAP. Está todo en `docs/TAREA-interfaz-nueva.md` (idea, reglas, valores, tareas T0–T15 con archivos, referencias a la demo y criterio de "hecho"), con la skill `.claude/skills/gameaccess-motion-ui` y las tareas en [[Tareas]] (sección "Interfaz nueva").
+- Empezá por T0 → T3 (base: sistema de diseño, GSAP, botones, aviso único); un commit probado por tarea en `dev`.
+- Ver la demo antes de tocar código (sección 1 del documento). Los detalles finos (tiempos, tamaños, qué no repetir) están en las secciones 4 y 6.
+- Si algo del plan no cierra con el código real, preguntalo acá antes de improvisar.

@@ -32,6 +32,25 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] **Importación: limpieza del escaneo** (Claude, 2026-10-21; falta verlo en la app): el escáner saltea programas y carpetas de soporte (Blender, ShapeLab, Foundry VTT, EasyPose, Nucleus, CoreFX, Open Brush, Blocks, Ubisoft Connect, Steamworks Common Redistributables, Spacewar), lo que Steam lista como herramienta o aplicación (`appinfo.vdf`), carpetas de descargas, carpetas con solo instaladores o sin `.exe` y descargas a medias; el mismo juego encontrado dos veces se marca «Repetido» y solo se importa el primero; un juego hallado por AppID toma el nombre del catálogo/Steam; el diálogo de importación ya no crece más que la ventana. Un juego vinculado se quita de la biblioteca sin tocar sus archivos (el menú no ofrece «Desinstalar»).
 - [ ] **Importación: pulir**: elegir manualmente el juego del catálogo con buscador (hoy un desplegable con sugerencias), opción «aplicar a todos» vincular/mover, progreso del escaneo por disco, opciones de lanzamiento (ejecutable/argumentos) para juegos vinculados, probar con discos reales y con una biblioteca Steam real.
 
+## Interfaz nueva (estilo de la demo GSAP)
+Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera antes de empezar). Referencia visual: `docs/design/gameaccess-gsap-demo-2026-10-23/index.html`. Skill: `.claude/skills/gameaccess-motion-ui`. Un commit probado por tarea en `dev`.
+- [ ] T0 · Actualizar `docs/GUI_DESIGN.md` con los componentes y valores nuevos.
+- [ ] T1 · Instalar GSAP + `@gsap/react` y crear `src/motion/gsap.ts` (plugins, movimiento reducido).
+- [ ] T2 · Botones como componentes: `GaButton` (naranja de vidrio), `GaIconButton` (cubo), `GaClose`, `GaBack`.
+- [ ] T3 · Aviso único abajo a la derecha (reemplaza toasts, diálogo al jugar, descarga terminada y confirmaciones simples).
+- [ ] T4 · Pie: cubos sin texto que se encienden, campana con no leídos, globo de idioma.
+- [ ] T5 · Catálogo para descubrir: sin instalados salvo al buscar, banner de lo nuevo en Steam, sin pastillas de filtro arriba, ▶ verde en vez de "INSTALADO", salida de tarjetas limpia.
+- [ ] T6 · Palabra gigante del costado (CATALOGO / LIBRERIA, sin tilde) y giro 3D entre catálogo y librería.
+- [ ] T7 · Librería en grilla bento por bandas, congelados (jugable / profundo a la derecha), pastillas Solo instalados / Solo favoritos.
+- [ ] T8 · Hamburguesa tras 2 s y menú en el dorso de la tarjeta (Jugar/Instalar, Cambiar nombre, Administrar).
+- [ ] T9 · Ficha: abrir desde la tarjeta sin portada gigante; cerrar con la grilla de cuadraditos.
+- [ ] T10 · Paneles laterales (≥ 1800 px) y modo una pantalla por vez; paneles en gris y perspectiva sin foco.
+- [ ] T11 · Administrador de biblioteca compacto con dona del disco y acciones avanzadas.
+- [ ] T12 · Descargas rediseñadas (gráfico de velocidad, cola, sesión).
+- [ ] T13 · Novedades como panel con contador de no leídos.
+- [ ] T14 · Resto de las pantallas (configuración, ayuda, importar, etc.) con los mismos componentes.
+- [ ] T15 · Revisión final (movimiento reducido, anchos, mando, teclado, rendimiento, app instalada).
+
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).
 - [ ] Registro de tiempo de juego (solo grabar, sin límites todavía).
