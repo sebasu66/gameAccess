@@ -513,6 +513,42 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .side-panel.as-page .sp-head{padding:34px 150px 22px 32px}
 .side-panel.as-page .sp-body{padding:28px 32px 44px}
 
+/* Descarga activa: "Ahora" + secuencia de pasos + datos de la transferencia. */
+.dl-pill.route{background:#ffffff1c}
+.dl-pill.plus{background:transparent;color:var(--ga-orange);box-shadow:inset 0 0 0 1px #ff6a0088}
+.dl-now{display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:2px;padding:12px 14px;border-radius:8px;background:#ffffff08;border:1px solid var(--ga-line);margin-bottom:16px}
+.dl-now-label{grid-column:1 / -1;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ga-orange)}
+.dl-now strong{font-size:15px}
+.dl-now em{grid-row:2 / span 2;grid-column:2;align-self:center;font-style:normal;font-size:12px;font-weight:700;color:var(--ga-muted);font-variant-numeric:tabular-nums}
+.dl-now span:not(.dl-now-label){grid-column:1;font-size:12.5px;color:#c9ced2;line-height:1.45}
+.dl-steps{list-style:none;margin:0 0 18px;padding:0;position:relative}
+.dl-steps li{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;column-gap:10px;padding:0 0 14px;color:var(--ga-muted)}
+.dl-steps li:last-child{padding-bottom:0}
+.dl-steps li:not(:last-child)::before{content:'';position:absolute;left:10px;top:20px;bottom:2px;width:2px;border-radius:1px;background:#ffffff14}
+.dl-steps li.done:not(:last-child)::before{background:#8fe3b055}
+.dl-steps .dot{width:22px;height:22px;border-radius:50%;border:2px solid #ffffff26;display:grid;place-items:center;box-sizing:border-box;position:relative;z-index:1;background:#15191c}
+.dl-steps li.done .dot{border-color:var(--ga-success);background:var(--ga-success)}
+.dl-steps li.done .dot::after{content:'';width:4px;height:8px;margin-top:-2px;border:solid #111416;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.dl-steps li.run .dot{border-color:var(--ga-orange) transparent var(--ga-orange) transparent;animation:spin .9s linear infinite}
+.dl-steps li.pause .dot{border-color:var(--ga-orange)}
+.dl-steps li.skip{opacity:.5}
+.dl-steps li.skip .dot{border-style:dashed}
+.st-text b{display:block;font-size:13px;font-weight:700;color:inherit}
+.dl-steps li.done .st-text b,.dl-steps li.run .st-text b,.dl-steps li.pause .st-text b{color:var(--ga-white)}
+.st-text .det{display:block;font-size:12px;line-height:1.45;margin-top:1px}
+.dl-steps li.run .det{color:#ffb27a}
+.dl-steps .tm{font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:2px}
+.dl-transfer{display:none;padding-top:14px;margin-bottom:16px;border-top:1px solid var(--ga-line)}
+.dl-feature.is-transfer .dl-transfer{display:block}
+.dl-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.side-panel:not(.as-page) .dl-metrics{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}
+.as-page .dl-feature{display:block}
+.as-page .dl-hero{aspect-ratio:auto;height:150px;min-height:0}
+.as-page .dl-fbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"now now" "steps transfer" "steps actions";column-gap:28px;align-items:start;padding:18px 20px 20px}
+.as-page .dl-now{grid-area:now}.as-page .dl-steps{grid-area:steps;margin:0}.as-page .dl-actions{grid-area:actions}
+.as-page .dl-transfer{grid-area:transfer;padding-top:0;border-top:0;margin-bottom:16px}
+.as-page .dl-feature:not(.is-transfer) .dl-fbody{grid-template-areas:"now now" "steps actions"}
+
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
   display:none;flex-direction:column;gap:16px;padding:48px 22px 22px;border-radius:0 0 12px 12px;overflow:hidden;
@@ -1608,28 +1644,84 @@ function playGame(g){
 addEventListener('keydown', e => { if(e.key === 'Escape' && noticeResolve){ e.stopImmediatePropagation(); noticeEl.querySelector('.nt-actions .btn')?.click(); } }, true);
 
 /* ---------- Descargas (modelo de demostración) ---------- */
-const DL = [], MB = {Torrent:24, Directa:62};
+// Una descarga pasa por una secuencia de pasos que el jugador ve uno por uno (los mismos que hoy informa el
+// launcher en `pipeline.py`): buscar la ruta, medir el torrent, preparar en el servidor, descargar,
+// descomprimir e instalar. Cada paso muestra qué está haciendo, cuánto lleva y con qué resultado terminó,
+// así queda claro por qué una descarga tarda en arrancar.
+const DL = [];
+const ROUTE = {
+  measuring:{label:'Eligiendo ruta', hint:'Midiendo el torrent para decidir si conviene bajarlo directo o acelerado'},
+  torrent:{label:'Torrent directo', hint:'Se descarga por torrent en tu equipo'},
+  accelerated:{label:'Acelerada · Viking', hint:'Nuestro servidor la prepara (Torbox → Viking) y tu equipo la baja en piezas'},
+};
+const MBPS = {torrent:3.1, accelerated:38};
+const PIPE = [
+  {key:'route', label:'Buscar la ruta más rápida', dur:1.6,
+    live:() => 'Consultando si el servidor ya tiene el juego…',
+    done:d => d.cached ? 'El servidor ya lo tiene en Viking' : 'El servidor todavía no lo tiene'},
+  {key:'probe', label:'Medir la velocidad del torrent', dur:4.5, skip:d => d.cached,
+    live:(d, el) => `Probando hasta 20 s · ${Math.min(14, 2 + Math.round(el * 2.6))} fuentes · ${(.2 + el * .05).toFixed(1).replace('.', ',')} MB/s`,
+    done:d => d.slow ? 'Lento (0,4 MB/s): se acelera por el servidor' : 'Rinde bien (3,1 MB/s): se baja directo'},
+  {key:'server', label:'Preparar en el servidor', dur:6, skip:d => !d.slow || d.cached,
+    live:(d, el) => el < 1.2 ? 'Pidiéndole al servidor la descarga acelerada…' : `Torbox está bajando el juego: ${Math.min(99, Math.round((el - 1.2) / 4.8 * 100))} % · 38 fuentes · faltan ~${Math.max(1, Math.ceil(6 - el))} min`,
+    done:() => 'Listo en Viking: empieza la descarga acelerada'},
+  {key:'download', label:'Descargar'},
+  {key:'extract', label:'Descomprimir', dur:3,
+    live:(d, el) => `Descomprimiendo parte ${Math.min(4, 1 + Math.floor(el / 3 * 4))} de 4 · ${Math.min(100, Math.round(el / 3 * 100))} %`,
+    done:() => '4 partes · archivos organizados'},
+  {key:'install', label:'Verificar espacio e instalar', dur:1.6,
+    live:() => 'Verificando espacio en disco y ordenando la carpeta…',
+    done:d => `Instalado en C:\\juegos_GameAccess\\${d.g.id}-${d.g.name}`},
+];
+const STEP_DOWNLOAD = PIPE.findIndex(s => s.key === 'download');
 let dlSeq = 0;
-function dlAdd(g, phase, p = 0, speed){
-  const d = {id:++dlSeq, g, phase, p, inst:phase === 'completed' ? 100 : 0, speed:speed ?? 6 + Math.random() * 3,
-    method:g.id % 3 === 0 ? 'Directa' : 'Torrent', samples:Array.from({length:40}, () => phase === 'downloading' ? .6 + Math.random() * .5 : 0)};
+function dlAdd(g, phase, opts = {}){
+  const now = performance.now();
+  const d = {id:++dlSeq, g, phase, p:opts.p || 0, step:0, stepStart:now, times:[], res:[], slow:opts.slow ?? true, cached:!!opts.cached,
+    route:'measuring', samples:Array.from({length:40}, () => 0), speed:opts.speed ?? 6 + Math.random() * 3};
+  if(phase === 'downloading' || phase === 'completed'){
+    // Ya pasó por los pasos previos (o por todo): se completan con su resultado y duración.
+    const last = phase === 'completed' ? PIPE.length : STEP_DOWNLOAD;
+    for(let i = 0; i < last; i++){
+      const st = PIPE[i];
+      if(st.skip?.(d)){ d.res[i] = 'skip'; continue; }
+      d.res[i] = st.done ? st.done(d) : `${g.size} descargados`; d.times[i] = (st.dur || 40) * 1000 * (st.key === 'probe' ? 4 : 2);
+    }
+    d.route = d.slow ? 'accelerated' : 'torrent';
+    d.step = last;
+    if(phase === 'downloading') d.samples = d.samples.map(() => .7 + Math.random() * .5);
+    if(phase === 'completed') d.p = 100;
+  }
+  if(phase === 'preparing') d.step = 0;
   DL.push(d); return d;
 }
 const dlOpen = () => DL.filter(d => d.phase !== 'completed');
-const dlRunning = () => DL.filter(d => d.phase === 'downloading' || d.phase === 'installing');
+const dlRunning = () => DL.filter(d => ['preparing', 'downloading', 'installing'].includes(d.phase));
 const dlOf = g => DL.find(d => d.g === g && d.phase !== 'completed');
-dlAdd(byId(1174180), 'downloading', 34, .9);
-dlAdd(byId(870780), 'queued');
-dlAdd(byId(632470), 'queued');
-dlAdd(byId(413150), 'completed', 100);
+dlAdd(byId(1174180), 'downloading', {p:34, speed:.9});
+dlAdd(byId(870780), 'queued', {slow:false});
+dlAdd(byId(632470), 'queued', {cached:true});
+dlAdd(byId(413150), 'completed', {slow:false});
 
+// Avanza al siguiente paso que corresponda (saltea los que no hacen falta) y cambia la fase.
+function dlNextStep(d, now){
+  const st = PIPE[d.step];
+  d.times[d.step] = now - d.stepStart;
+  d.res[d.step] = st.done ? st.done(d) : `${d.g.size} descargados`;
+  if(st.key === 'probe' || (st.key === 'route' && d.cached)) d.route = d.slow || d.cached ? 'accelerated' : 'torrent';
+  let next = d.step + 1;
+  while(next < PIPE.length && PIPE[next].skip?.(d)){ d.res[next] = 'skip'; next++; }
+  d.step = next; d.stepStart = now;
+  if(next >= PIPE.length){ d.phase = 'completed'; d.p = 100; dlComplete(d); }
+  else d.phase = next === STEP_DOWNLOAD ? 'downloading' : next < STEP_DOWNLOAD ? 'preparing' : 'installing';
+}
 function startDownload(g){
   if(dlOf(g)){ togglePanel('downloads'); return; }
-  dlAdd(g, 'downloading');
+  dlAdd(g, 'preparing', {slow:g.id % 2 === 0});
   g.inLib = true;
   if(openGame === g){
     const b = $('#dPrimary');
-    b.querySelector('.label').textContent = 'Descargando…';
+    b.querySelector('.label').textContent = 'Preparando la descarga…';
     gsap.to(b.querySelector('.fill'), {scaleX:1, duration:.5});
   }
   notify({g, title:'Agregado a descargas', text:`${g.name} · ${g.size}`, tone:'ok'});
@@ -1648,7 +1740,7 @@ function progressFor(host, d){
   let p = host.querySelector(':scope > .poster-progress');
   if(!d){ if(p) gsap.to(p, {opacity:0, duration:.4, onComplete:() => p.remove()}); return; }
   if(!p){ p = document.createElement('span'); p.className = 'poster-progress'; p.innerHTML = '<i></i>'; host.append(p); }
-  gsap.set(p.firstChild, {scaleX:(d.phase === 'installing' ? 100 : d.p) / 100});
+  gsap.set(p.firstChild, {scaleX:(d.step > STEP_DOWNLOAD ? 100 : d.p) / 100});
 }
 function syncProgress(){
   GAMES.forEach(g => {
@@ -1666,6 +1758,14 @@ function dlComplete(d){
   if(openGame === g) setPrimary(g);
   if(view === 'library') renderLibrary(true);
 }
+// Instalación (barra): descomprimir es el 0-80 %, verificar e instalar el 80-100 %.
+function dlInstallPct(d, now = performance.now()){
+  const ex = PIPE.findIndex(s => s.key === 'extract'), inst = ex + 1;
+  if(d.step < ex) return 0;
+  if(d.step > inst || d.phase === 'completed') return 100;
+  const el = (now - d.stepStart) / 1000, st = PIPE[d.step];
+  return d.step === ex ? Math.min(80, el / st.dur * 80) : 80 + Math.min(20, el / st.dur * 20);
+}
 let dlLast = performance.now();
 function dlTick(){
   const now = performance.now(), dt = Math.min(1, (now - dlLast) / 1000); dlLast = now;
@@ -1675,14 +1775,13 @@ function dlTick(){
       const rate = d.speed * (.7 + Math.random() * .6);
       d.p = Math.min(100, d.p + rate * dt);
       d.samples.push(rate / d.speed); d.samples.shift();
-      if(d.p >= 100){ d.phase = 'installing'; changed = true; }
-    } else if(d.phase === 'installing'){
-      d.inst = Math.min(100, d.inst + 40 * dt);
+      if(d.p >= 100){ dlNextStep(d, now); changed = true; }
+    } else if(d.phase === 'preparing' || d.phase === 'installing'){
       d.samples.push(0); d.samples.shift();
-      if(d.inst >= 100){ d.phase = 'completed'; dlComplete(d); changed = true; }
-    } else if(d.phase === 'paused'){ d.samples.push(0); d.samples.shift(); }
+      if((now - d.stepStart) / 1000 >= PIPE[d.step].dur){ dlNextStep(d, now); changed = true; }
+    } else if(d.phase === 'paused'){ d.samples.push(0); d.samples.shift(); d.stepStart += dt * 1000; }
   });
-  if(!dlRunning().length){ const q = DL.find(d => d.phase === 'queued'); if(q){ q.phase = 'downloading'; changed = true; } }
+  if(!dlRunning().length){ const q = DL.find(d => d.phase === 'queued'); if(q){ q.phase = 'preparing'; q.step = 0; q.stepStart = now; changed = true; } }
   syncProgress();
   if(changed){ bumpBadge(); refreshPanels(); }
   else if(panelShown('downloads')) updateDownloads();
@@ -1847,7 +1946,7 @@ function mgrInfo(g){
   if(g.installed && g.freeze === 'light') return {key:'frozen', badge:['frost', 'Congelado'], line:'Comprimido: se juega igual', disk:Math.round(gb * .6), real:gb};
   if(g.installed && OUTDATED.includes(g.id)) return {key:'outdated', badge:['warn', 'Fuera de estándar'], line:'Carpeta con formato anterior.', warn:true, disk:gb};
   if(g.installed) return {key:'ready', badge:['ok', 'Listo'], line:'', disk:gb};
-  if(d) return {key:'partial', badge:['dl', d.phase === 'queued' ? 'En cola' : d.phase === 'paused' ? 'En pausa' : 'Descargando'], line:`Descarga sin terminar: ${Math.round(d.p)} %`, disk:Math.round(gb * d.p / 100)};
+  if(d) return {key:'partial', badge:['dl', {queued:'En cola', paused:'En pausa', preparing:'Preparando', installing:'Instalando'}[d.phase] || 'Descargando'], line:`Descarga sin terminar: ${Math.round(d.p)} %`, disk:Math.round(gb * d.p / 100)};
   return {key:'idle', badge:['idle', 'Sin instalar'], line:'En tu librería', disk:0};
 }
 // Estado de la fila sin texto repetido: listo no lleva nada (es lo normal); congelado = copito y fuera de
@@ -2002,23 +2101,30 @@ panelEl('manager').addEventListener('click', e => {
 });
 
 /* ---------- Panel: descargas ---------- */
-const PHASE = {downloading:'Descargando', installing:'Instalando', paused:'En pausa', queued:'En cola', completed:'Instalado'};
+const PHASE = {preparing:'Preparando', downloading:'Descargando', installing:'Instalando', paused:'En pausa', queued:'En cola', completed:'Instalado'};
 const fmtGB = gb => gb >= 1 ? `${gb.toFixed(1).replace('.', ',')} GB` : `${Math.round(gb * 1024)} MB`;
+const fmtClock = ms => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 function renderDownloads(){
   const el = panelEl('downloads'), body = el.querySelector('.sp-body');
-  const active = DL.filter(d => ['downloading', 'installing', 'paused'].includes(d.phase)), queue = DL.filter(d => d.phase === 'queued'), done = DL.filter(d => d.phase === 'completed');
+  const active = DL.filter(d => ['preparing', 'downloading', 'installing', 'paused'].includes(d.phase)), queue = DL.filter(d => d.phase === 'queued'), done = DL.filter(d => d.phase === 'completed');
   el.querySelector('.sp-sub').textContent = `${active.length} en curso · ${queue.length} en cola · ${done.length} completadas`;
+  // Tarjeta de la descarga activa: qué pasa ahora (y cuánto lleva), la secuencia de pasos y, desde que
+  // empieza a bajar, el gráfico de velocidad, las barras y las cifras.
   const feature = d => `
     <article class="dl-feature sp-anim" data-dl="${d.id}">
-      <div class="dl-hero"><img src="${art(d.g.id, 'header.jpg')}" alt=""><div class="dl-hero-text"><div class="dl-pills"><span class="dl-pill ${d.method === 'Directa' ? 'plus' : ''}">${d.method === 'Directa' ? 'Directa · PLUS' : 'Torrent'}</span><span class="dl-pill state" data-f="ph">${PHASE[d.phase]}</span></div><strong>${d.g.name}</strong></div></div>
+      <div class="dl-hero"><img src="${art(d.g.id, 'header.jpg')}" alt=""><div class="dl-hero-text"><div class="dl-pills"><span class="dl-pill route" data-f="route"></span><span class="dl-pill plus">PLUS</span><span class="dl-pill state" data-f="ph"></span></div><strong>${d.g.name}</strong></div></div>
       <div class="dl-fbody">
-        <svg class="dl-spark" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg${d.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a00" stop-opacity=".45"/><stop offset="1" stop-color="#ff6a00" stop-opacity="0"/></linearGradient></defs><path class="area" fill="url(#sg${d.id})"/><path class="line" fill="none" stroke="#ff6a00" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>
-        <div class="dl-bar-line"><span>Descarga</span><b data-f="p"></b></div><div class="dl-bar"><i data-f="pb"></i></div>
-        <div class="dl-bar-line"><span>Instalación</span><b data-f="i"></b></div><div class="dl-bar inst"><i data-f="ib"></i></div>
-        <dl class="dl-metrics"><div><dt>Descargado</dt><dd data-f="got"></dd></div><div><dt>Velocidad</dt><dd data-f="spd"></dd></div><div><dt>Restante</dt><dd data-f="eta"></dd></div></dl>
+        <div class="dl-now"><span class="dl-now-label">Ahora</span><strong data-f="nowTitle"></strong><span data-f="nowText"></span><em data-f="nowTime"></em></div>
+        <ol class="dl-steps">${PIPE.map((st, i) => `<li data-i="${i}"><i class="dot"></i><div class="st-text"><b>${st.label}</b><span class="det"></span></div><em class="tm"></em></li>`).join('')}</ol>
+        <div class="dl-transfer">
+          <svg class="dl-spark" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg${d.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a00" stop-opacity=".45"/><stop offset="1" stop-color="#ff6a00" stop-opacity="0"/></linearGradient></defs><path class="area" fill="url(#sg${d.id})"/><path class="line" fill="none" stroke="#ff6a00" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>
+          <div class="dl-bar-line"><span>Descarga</span><b data-f="p"></b></div><div class="dl-bar"><i data-f="pb"></i></div>
+          <div class="dl-bar-line"><span>Instalación</span><b data-f="i"></b></div><div class="dl-bar inst"><i data-f="ib"></i></div>
+          <dl class="dl-metrics"><div><dt>Descargado</dt><dd data-f="got"></dd></div><div><dt>Velocidad</dt><dd data-f="spd"></dd></div><div><dt>Restante</dt><dd data-f="eta"></dd></div><div><dt data-f="srcLabel"></dt><dd data-f="src"></dd></div></dl>
+        </div>
         <div class="dl-actions">${d.phase === 'paused'
           ? `<button class="btn btn-secondary" data-act="resume" data-dl="${d.id}">${ICON.play}<span class="label">Reanudar</span></button>`
-          : `<button class="btn btn-secondary" data-act="pause" data-dl="${d.id}" ${d.phase === 'installing' ? 'disabled' : ''}>${PAUSE}<span class="label">Pausar</span></button>`}
+          : `<button class="btn btn-secondary" data-act="pause" data-dl="${d.id}" ${d.phase === 'downloading' ? '' : 'disabled'}>${PAUSE}<span class="label">Pausar</span></button>`}
           <button class="btn btn-secondary" data-act="cancel" data-dl="${d.id}">${CLOSE_X}<span class="label">Cancelar</span></button></div>
       </div>
     </article>`;
@@ -2026,7 +2132,7 @@ function renderDownloads(){
     <div class="dl-row sp-anim">
       ${kind === 'queue' ? `<span class="dl-pos">${i + 1}</span>` : `<span class="dl-pos ok">${ICON.check}</span>`}
       <img src="${art(d.g.id, 'header.jpg')}" alt="" loading="lazy">
-      <div class="dl-row-text"><strong>${d.g.name}</strong><span>${d.g.size} · ${kind === 'queue' ? d.method : 'Instalado'}</span></div>
+      <div class="dl-row-text"><strong>${d.g.name}</strong><span>${d.g.size} · ${kind === 'queue' ? (i === 0 ? 'Empieza cuando termine la descarga actual' : `Después de ${queue[i - 1].g.name}`) : 'Instalado'}</span></div>
       <div class="dl-row-acts">${kind === 'queue'
         ? `${i > 0 ? `<button class="mg-act" data-act="up" data-dl="${d.id}" title="Subir" aria-label="Subir ${d.g.name}">${UP}</button>` : ''}${i < queue.length - 1 ? `<button class="mg-act" data-act="down" data-dl="${d.id}" title="Bajar" aria-label="Bajar ${d.g.name}">${DOWN}</button>` : ''}<button class="mg-act danger" data-act="cancel" data-dl="${d.id}" title="Cancelar" aria-label="Cancelar ${d.g.name}">${CLOSE_X}</button>`
         : `<button class="dl-play" data-act="play" data-dl="${d.id}">${ICON.play}Jugar</button>`}</div>
@@ -2039,17 +2145,37 @@ function renderDownloads(){
   updateDownloads();
 }
 function updateDownloads(){
+  const now = performance.now();
   panelEl('downloads').querySelectorAll('.dl-feature').forEach(card => {
     const d = DL.find(x => x.id === +card.dataset.dl); if(!d) return;
     const f = k => card.querySelector(`[data-f="${k}"]`), gb = parseInt(d.g.size), live = d.phase === 'downloading';
-    const mbps = live ? MB[d.method] * d.samples[d.samples.length - 1] : 0;
+    const el = (now - d.stepStart) / 1000, cur = PIPE[d.step];
+    const mbps = live ? MBPS[d.route] * d.samples[d.samples.length - 1] * (d.route === 'accelerated' ? 1 : 1) : 0;
+    f('route').textContent = ROUTE[d.route].label; f('route').title = ROUTE[d.route].hint;
     f('ph').textContent = PHASE[d.phase];
+    // "Ahora": el paso actual, qué está haciendo y cuánto lleva. Así se entiende por qué tarda.
+    const liveText = cur ? (cur.key === 'download' ? `${Math.floor(d.p)} % · ${live ? mbps.toFixed(1).replace('.', ',') + ' MB/s' : 'en pausa'}` : cur.live(d, el)) : '';
+    f('nowTitle').textContent = d.phase === 'paused' ? 'Descarga en pausa' : cur ? cur.label : '';
+    f('nowText').textContent = d.phase === 'paused' ? 'Tocá Reanudar para seguir' : liveText;
+    f('nowTime').textContent = cur ? `lleva ${fmtClock(now - d.stepStart)}` : '';
+    card.querySelectorAll('.dl-steps li').forEach(li => {
+      const i = +li.dataset.i, st = PIPE[i], det = li.querySelector('.det'), tm = li.querySelector('.tm');
+      const state = d.res[i] === 'skip' ? 'skip' : i < d.step ? 'done' : i === d.step ? (d.phase === 'paused' ? 'pause' : 'run') : 'pend';
+      li.className = state;
+      det.textContent = state === 'done' ? d.res[i] : state === 'skip' ? 'No hizo falta' : state === 'run' || state === 'pause' ? liveText : '';
+      tm.textContent = state === 'done' ? fmtClock(d.times[i] || 0) : state === 'run' || state === 'pause' ? fmtClock(now - d.stepStart) : '';
+    });
+    card.classList.toggle('is-transfer', d.step >= STEP_DOWNLOAD);
+    const inst = dlInstallPct(d, now);
     f('p').textContent = Math.floor(d.p) + ' %'; gsap.set(f('pb'), {scaleX:d.p / 100});
-    f('i').textContent = Math.floor(d.inst) + ' %'; gsap.set(f('ib'), {scaleX:d.inst / 100});
+    f('i').textContent = Math.floor(inst) + ' %'; gsap.set(f('ib'), {scaleX:inst / 100});
     f('got').textContent = `${fmtGB(gb * d.p / 100)} / ${gb} GB`;
     f('spd').textContent = live ? `${mbps.toFixed(1).replace('.', ',')} MB/s` : '—';
     const secs = live && mbps ? gb * 1024 * (1 - d.p / 100) / mbps : 0;
     f('eta').textContent = !live ? '—' : secs >= 3600 ? `${Math.floor(secs / 3600)} h ${Math.round(secs % 3600 / 60)} min` : `${Math.max(1, Math.round(secs / 60))} min`;
+    const pieces = Math.max(8, Math.round(gb / 3));
+    f('srcLabel').textContent = d.route === 'accelerated' ? 'Piezas' : 'Fuentes';
+    f('src').textContent = d.route === 'accelerated' ? `${Math.floor(pieces * d.p / 100)} de ${pieces} · 4 a la vez` : `${live ? 9 + Math.round(Math.random() * 4) : 0} conectadas`;
     const max = Math.max(1.4, ...d.samples), pts = d.samples.map((v, i) => `${(i * 120 / 39).toFixed(1)},${(31 - v / max * 27).toFixed(1)}`);
     card.querySelector('.dl-spark .line').setAttribute('d', 'M' + pts.join('L'));
     card.querySelector('.dl-spark .area').setAttribute('d', 'M0,32L' + pts.join('L') + 'L120,32Z');

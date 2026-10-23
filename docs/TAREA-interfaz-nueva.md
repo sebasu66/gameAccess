@@ -234,10 +234,27 @@ Es la tarea más importante para el uso diario.
 - **Hecho cuando:** todas las acciones de antes siguen disponibles; los tests de `library-manager` pasan (actualizarlos si cambia el marcado).
 
 ### T12 · Descargas (rediseño)
-- **Archivos:** `src/DigitalDownloadsScreen.tsx`, `src/DownloadTelemetry.tsx`, `src/digital-downloads.css`, `src/download-manager.css`.
-- **Qué hacer:** mismas funciones (pausar, reanudar, cancelar, reordenar cola, reintentar, jugar, descarga manual) con este aspecto: descarga en curso como tarjeta con la imagen ancha arriba (método Torrent / Directa PLUS como pastilla), **gráfico de velocidad** (línea + área naranja), barras Descarga e Instalación, cifras Descargado / Velocidad / Restante, botones Pausar y Cancelar. Cola en filas compactas con número de posición y subir/bajar/cancelar. "Esta sesión" con lo terminado y botón Jugar. "Añadir descarga manual" plegado al final. Colores sobrios como en T11. **Aire vertical:** 32 px antes de cada encabezado de sección (En curso, En cola, Esta sesión) y 14 px después; 18 px debajo de la tarjeta de la descarga en curso; mismo encabezado y cuerpo que T11.
-- **Demo:** `renderDownloads`, `updateDownloads`, CSS "Descargas".
-- **Hecho cuando:** los tests de `DigitalDownloadsScreen` pasan y el panel funciona en modo lateral y en pantalla completa.
+- **Archivos:** `src/DigitalDownloadsScreen.tsx`, `src/DownloadTelemetry.tsx`, `src/downloadProvider.ts` (tipo `DownloadProgressSnapshot`), `src/downloadMethod.ts` (ruta: `measuring` / `torrent` / `accelerated` / `direct`), `src/digital-downloads.css`, `src/download-manager.css`; del lado del launcher `apps/launcher/game_download_manager/pipeline.py`, `chunked.py` (`describe_wait`), `torrent_transport.py`, `extractor.py`.
+- **Idea:** si una descarga tarda en arrancar, el jugador tiene que ver **por qué**. Hoy el launcher ya informa los pasos previos, pero como una línea de texto suelta (`statusText`, "Paso 1 de 3 · …"). Pasan a una **secuencia visible** que se va cumpliendo de a un paso.
+- **Pasos** (los que hoy recorre `pipeline.py`; los que no hacen falta se muestran tenues como "No hizo falta"):
+  1. **Buscar la ruta más rápida** — si el servidor ya tiene el juego en Viking/Torbox. Resultado: "El servidor ya lo tiene en Viking" o "El servidor todavía no lo tiene".
+  2. **Medir la velocidad del torrent** (hasta 20 s; solo PLUS con torrent) — en vivo: fuentes y MB/s. Resultado: "Rinde bien (X MB/s): se baja directo" o "Lento (X MB/s): se acelera por el servidor".
+  3. **Preparar en el servidor** (solo si se acelera) — en vivo, el texto de `describe_wait`: "Torbox está bajando el juego: 46 % · 38 fuentes · faltan ~6 min", "Torbox está buscando quién comparta el juego…".
+  4. **Descargar** — % y velocidad.
+  5. **Descomprimir** — "Descomprimiendo parte 2 de 4 · 63 %", "Probando contraseña…" (de `extractor.py`).
+  6. **Verificar espacio e instalar** — "Verificando espacio en disco…", resultado con la carpeta.
+  En modo BASE (sin PLUS) los pasos 2 y 3 no se hacen; con un enlace directo, el 2 tampoco.
+- **Datos que hacen falta:** agregar al estado que manda el launcher un campo estructurado con el paso actual, por ejemplo `step: { id: "route" | "probe" | "server" | "download" | "extract" | "install", detail: string, startedAt: number }` y, para los pasos ya hechos, su resultado y duración (`steps: [{ id, state: "done" | "skipped" | "failed", result, ms }]`). Mantener `statusText` para no romper nada. Si el launcher todavía no lo manda, la interfaz puede derivar el paso de los textos "Paso N de 3" como respaldo, pero el objetivo es el campo estructurado (y su test en `apps/launcher/tests`).
+- **Tarjeta de la descarga activa** (necesita lugar: no achicarla):
+  - Arriba, la imagen ancha con el nombre y las pastillas: ruta ("Eligiendo ruta" mientras mide, después "Acelerada · Viking" / "Torrent directo" / "Descarga directa", con su explicación al pasar el mouse), plan (PLUS/BASE) y fase.
+  - **"Ahora"**: el paso actual, qué está haciendo en palabras y **cuánto lleva** ("lleva 1:20"). Es lo primero que se lee.
+  - **La secuencia**: una lista vertical con un punto por paso unido por una línea: hecho (verde con ✓, resultado y duración), en curso (giro naranja, detalle en vivo y tiempo), pendiente (gris), no hizo falta (tenue, punteado), falló (rojo, con el error y los botones de reintentar).
+  - **Transferencia** (aparece cuando empieza a bajar): gráfico de velocidad (línea + área naranja), barras Descarga e Instalación (descomprimir 0–80 %, instalar 80–100 %), cifras Descargado / Velocidad / Restante / Fuentes (torrent) o Piezas "20 de 50 · 4 a la vez" (acelerada).
+  - Botones Pausar (solo mientras descarga) y Cancelar.
+  - En el panel lateral todo va apilado; a pantalla completa, la imagen arriba y debajo dos columnas: secuencia a la izquierda, transferencia y botones a la derecha.
+- **Resto:** cola en filas compactas con número de posición, "Empieza cuando termine la descarga actual" / "Después de X" y subir/bajar/cancelar. "Esta sesión" con lo terminado y botón Jugar. "Añadir descarga manual" plegado al final. Colores sobrios como en T11. **Aire vertical:** 32 px antes de cada encabezado de sección (En curso, En cola, Esta sesión) y 14 px después; 18 px debajo de cada tarjeta activa; mismo encabezado y cuerpo que T11.
+- **Demo:** `PIPE`, `dlAdd`, `dlNextStep`, `dlTick`, `renderDownloads`, `updateDownloads`, CSS "Descarga activa". Para verlo: Descargas en el pie y, desde el catálogo, Descargar un juego: se ve cómo recorre los pasos.
+- **Hecho cuando:** una descarga nueva muestra cada paso previo con su detalle y su tiempo hasta que empieza a bajar; si se queda en un paso, se lee cuál y por qué; los tests de `DigitalDownloadsScreen` y del launcher pasan.
 
 ### T13 · Novedades como panel
 - **Archivos:** `src/centralDialog/useAnnouncements.ts`, `announcements.ts`, nuevo componente de panel.
