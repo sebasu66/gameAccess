@@ -111,7 +111,7 @@ function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", resul
   notify(failed ? translate("toastBatchFailures", { summary, failed }) : summary, { tone: !failed ? "success" : ok ? "warning" : "error" });
 }
 
-export default function GameLibraryManager({ onClose, catalog = [], onInstall }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void }) {
+export default function GameLibraryManager({ onClose, catalog = [], onInstall, embedded = false }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void; /** Inside a desk panel (T10): the panel draws the title and the close button and handles Esc. */ embedded?: boolean }) {
   const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
   const [filter, setFilter] = useState<Filter>("all");
@@ -232,25 +232,26 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
   const [escapeGuard, setEscapeGuard] = useState(false);
   useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(thawing)), [pending, importOpen, thawing]);
   useEffect(() => {
+    if (embedded) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [escapeGuard, onClose]);
+  }, [escapeGuard, onClose, embedded]);
 
   const stat = (label: string, value: string, tone = "") => <div className="grid gap-0.5 rounded-lg border border-border bg-card px-4 py-2.5"><span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span><span className={cn("font-sans text-xl font-extrabold tabular-nums", tone)}>{value}</span></div>;
   const filters: [Filter, string, number][] = [["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial]];
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
-        <header className="ga-screen-header !max-w-none">
-          <h2 className="ga-screen-title mr-auto">{c.title}</h2>
+      <div className={embedded ? "flex flex-col [color-scheme:dark] font-sans text-foreground" : "fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label={c.title}>
+        <header className={embedded ? "flex flex-wrap items-center gap-2.5 pb-6" : "ga-screen-header !max-w-none"}>
+          {embedded ? null : <h2 className="ga-screen-title mr-auto">{c.title}</h2>}
           <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
-          <GaBack label={c.back} onClick={onClose} data-dialog-initial />
+          {embedded ? null : <GaBack label={c.back} onClick={onClose} data-dialog-initial />}
         </header>
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8">
+        <div className={embedded ? "flex min-h-0 w-full flex-1 flex-col gap-5" : "flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8"}>
           <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <Input className="max-w-64" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />

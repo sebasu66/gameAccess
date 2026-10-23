@@ -740,5 +740,6 @@ export const es = {
   flipInstall: "Instalar",
   flipManage: "Administrar",
   flipFrozenHint: "Está congelado: descongelalo desde Administrar",
+  deskLibraryEyebrow: "Biblioteca",
   noticeWorking: "Trabajando…",
 } as const;

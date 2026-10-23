@@ -24,6 +24,8 @@ import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
+import DeskPanel from "./desk/DeskPanel";
+import { closePanel, openPanel, togglePanel, useDesk } from "./desk/desk";
 import { useLibraryEntry, useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
@@ -192,7 +194,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [managerOpen, setManagerOpen] = useState(false);
+  const managerOpen = useDesk().includes("manager");
   useCardHover(props.gridRef);
   const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
   const [sectionReset, setSectionReset] = useState(0);
@@ -389,7 +391,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
   const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} onClick={() => setManagerOpen(true)} /> : null;
+    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={managerOpen} onClick={() => togglePanel("manager")} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -400,13 +402,13 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
-        {view !== "catalog" ? <LibraryBento games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={() => setManagerOpen(true)} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
+        {view !== "catalog" ? <LibraryBento games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={() => openPanel("manager")} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
       {props.actionsTarget ? createPortal(<>{filters}{backToTop}</>, props.actionsTarget) : filters}
       {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
-      {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} catalog={props.allGames} onInstall={props.onInstall} /> : null}
+      <DeskPanel id="manager" eyebrow={t("deskLibraryEyebrow")} title={t("libraryManagerButton")}><GameLibraryManager embedded onClose={() => closePanel("manager")} catalog={props.allGames} onInstall={props.onInstall} /></DeskPanel>
       {contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

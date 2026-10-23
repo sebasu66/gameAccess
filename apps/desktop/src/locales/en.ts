@@ -742,5 +742,6 @@ export const en: Record<keyof typeof es, string> = {
   flipInstall: "Install",
   flipManage: "Manage",
   flipFrozenHint: "It is frozen: thaw it from Manage",
+  deskLibraryEyebrow: "Library",
   noticeWorking: "Working…",
 };

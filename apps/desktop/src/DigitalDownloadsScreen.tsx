@@ -1,3 +1,4 @@
+import { useDeskSubtitle } from "./desk/DeskPanel";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
@@ -32,7 +33,9 @@ function eta(snapshot: DownloadProgressSnapshot): string {
 }
 type Entry = ReturnType<DigitalDownloadService["getDownloads"]>[number];
 const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrupted", "external"].includes(entry.snapshot.phase);
-export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [] }: {
+export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [], embedded = false }: {
+  /** Inside a desk panel (T10): the panel draws the header and handles focus and Esc. */
+  embedded?: boolean;
   onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[]; onOpenGame?: (game: CatalogGame) => void;
 }) {
   const {t,locale} = useI18n();
@@ -40,10 +43,11 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
   const {closing,close:onClose}=useOverlayClose(onClosed);
   const dialogRef = useDialogFocus(onClose);
   useEffect(() => {
+    if (embedded) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previousOverflow; };
-  }, []);
+  }, [embedded]);
   const [entries, setEntries] = useState(() => service.getDownloads());
   const [busy, setBusy] = useState<number[]>([]);
   const [error, setError] = useState("");
@@ -111,11 +115,13 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       </div>
     </article>;
   };
-  return <section ref={dialogRef} className={`digital-downloads-screen${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label={t("downloadsManager")}>
-    <header className="digital-downloads-heading">
-      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length})}</p></div>
+  const summary = t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length});
+  useDeskSubtitle(embedded ? summary : "");
+  return <section ref={embedded ? undefined : dialogRef} className={`digital-downloads-screen${embedded ? " is-embedded" : ""}${closing ? " is-closing" : ""}`} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label={t("downloadsManager")}>
+    {embedded ? null : <header className="digital-downloads-heading">
+      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{summary}</p></div>
       <GaBack className="digital-download-back" label={t("back")} data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")} />
-    </header>
+    </header>}
     <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}

@@ -42,6 +42,8 @@ import { libraryScanState, scanLibrary } from "./libraryScan";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
+import DeskPanel from "./desk/DeskPanel";
+import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import DigitalDownloadToast from "./DigitalDownloadToast";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
@@ -62,7 +64,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const {t}=useI18n();
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary(); }, []);
-  const [downloadsOpen, setDownloadsOpen] = useState(false);
+  const downloadsOpen = useDesk().includes("downloads");
+  useDeskLayout();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -607,7 +610,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       </header>
 
       {(() => {
-        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }} />;
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
@@ -628,14 +631,14 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await launchGame(game); }} /> : null}
+      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
-      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
+      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
     </div>
   );
 }
