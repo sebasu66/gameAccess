@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore } from "react";
 import { KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { checkParentalPassword, getParentalState, isParentalLocked, ParentalError, saveParentalPolicy, subscribeParentalPolicy, type ParentalLevel, type ParentalPolicy } from "./parentalControl";
 import { useI18n } from "./i18n";
+import { GaButton } from "./components/ga/Buttons";
 
 /** Reactive view of the enforced state, for any panel that must reflect it. */
 export function useParentalLocked(): boolean {
@@ -62,7 +63,7 @@ function ParentalPasswordForm({ current, onSaved }: { current?: string; onSaved:
   const form = useNewParentalPassword(current, onSaved);
   return <div className="ga-parental-password">
     {form.fields}
-    <button type="button" className="ga-btn-primary" disabled={!form.ready} onClick={() => void form.save()}>{t("parentalSavePassword")}</button>
+    <GaButton variant="primary" disabled={!form.ready} onClick={() => void form.save()}>{t("parentalSavePassword")}</GaButton>
   </div>;
 }
 
@@ -138,10 +139,10 @@ export default function ParentalControlSection() {
           <label className="ga-field"><span>{t("parentalPasswordField")}</span>
             <input type="password" autoComplete="current-password" value={typed} onChange={e => setTyped(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void unlock(); } }} /></label>
-          <button type="button" className="ga-btn-primary" disabled={!typed} onClick={() => void unlock()}>{t("parentalUnlock")}</button>
+          <GaButton variant="primary" disabled={!typed} onClick={() => void unlock()}>{t("parentalUnlock")}</GaButton>
         </div>
       </> : !hasPassword || changing ? <ParentalPasswordForm current={password} onSaved={next => { setPassword(next); setChanging(false); setNotice(t("parentalPasswordSaved")); }} />
-        : <button type="button" className="ga-btn-secondary" onClick={() => { setChanging(true); setNotice(""); }}>{t("parentalChangePassword")}</button>}
+        : <GaButton onClick={() => { setChanging(true); setNotice(""); }}>{t("parentalChangePassword")}</GaButton>}
       {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
       {notice ? <p className="ga-parental-saved" role="status">{notice}</p> : null}
     </div>

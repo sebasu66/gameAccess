@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CircleHelp, Copy, Mail, X } from "lucide-react";
+import { CircleHelp, Copy, Mail } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
+import { GaClose } from "./components/ga/Buttons";
 
 /** Where support messages go. Build-time default, overridable on this computer. */
 export function supportEmail(): string {
@@ -47,7 +48,7 @@ function HelpPanel({ onClose }: { onClose: () => void }) {
  const copyMail = () => { void navigator.clipboard?.writeText(email).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => undefined); };
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel ga-help-panel" role="dialog" aria-modal="true" aria-labelledby="ga-help-title">
-   <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-help-title">{c.title}</h2><p>{c.subtitle}</p></div><button type="button" className="ga-close" onClick={onClose} aria-label={c.close} data-dialog-initial><X size={20} /></button></header>
+   <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-help-title">{c.title}</h2><p>{c.subtitle}</p></div><GaClose label={c.close} onClick={onClose} data-dialog-initial /></header>
    <div className="ga-settings-content">
     {c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
      <summary>{topic.title}</summary>

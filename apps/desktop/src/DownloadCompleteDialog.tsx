@@ -1,8 +1,9 @@
-import { Check, Play, X } from "lucide-react";
+import { Check, Play } from "lucide-react";
 
 import { useDialogFocus } from "./dialogFocus";
 import { useI18n } from "./i18n";
 import type { CatalogGame } from "./types";
+import { GaClose } from "./components/ga/Buttons";
 
 interface DownloadCompleteDialogProps {
   game: CatalogGame;
@@ -22,7 +23,7 @@ export default function DownloadCompleteDialog({ game, busy, onPlay, onClose }: 
   return (
     <div className="download-complete-backdrop" role="presentation">
       <section ref={dialogRef} className={`download-complete-dialog ${artwork ? "download-complete-dialog-ready" : ""}`} style={backgroundStyle} role="dialog" aria-modal="true" aria-label={t("downloadCompleteAria", { name: displayName })}>
-        <button type="button" className="download-dialog-close ga-close" onClick={onClose} aria-label={t("close")}><X size={18} /></button>
+        <GaClose className="download-dialog-close" label={t("close")} size={18} onClick={onClose} />
         <span className="download-complete-icon"><Check size={26} /></span>
         <span className="eyebrow">{t("downloadComplete")}</span>
         <h2>{displayName}</h2>

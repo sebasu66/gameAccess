@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, CirclePlus, Download, X } from "lucide-react";
+import { ChevronDown, CirclePlus, Download } from "lucide-react";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
@@ -17,6 +17,7 @@ import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterP
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
 import { useI18n, translate } from "./i18n";
+import { GaClose } from "./components/ga/Buttons";
 
 /** Which filters group owns each criterion, and the positive/negative pair. */
 const GROUPS = {
@@ -198,7 +199,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>
-          <button type="button" className="ga-close" aria-label={t("uiCerrarFiltros")} onClick={close}><X /></button>
+          <GaClose label={t("uiCerrarFiltros")} onClick={close} />
         </div>
       </header>
       <div className={"ga-sx-body" + (topOpen || bottomOpen ? " has-open" : "")} ref={bodyRef}>

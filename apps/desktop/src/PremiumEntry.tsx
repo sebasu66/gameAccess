@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { ArrowUpRight, KeyRound, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, KeyRound, Loader2, Sparkles } from "lucide-react";
 import { ACTIVATION_CHANGED_EVENT, ActivationConnectionError, getActivationTier, redeemActivation } from "./activation";
 import { useI18n } from "./i18n";
 import {
@@ -8,6 +8,7 @@ import {
   type Lang, type PremiumContent, type PremiumSource,
 } from "./premiumContent";
 import "./premium.css";
+import { GaButton, GaClose } from "./components/ga/Buttons";
 
 const copy = {
   es: {
@@ -95,7 +96,7 @@ export default function PremiumEntry() {
       <section className="ga-premium-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header>
           <h2 id={titleId}><Sparkles size={20} aria-hidden="true" />{content.title[lang]}</h2>
-          <button type="button" className="ga-close" onClick={() => setOpen(false)} aria-label={c.close}><X size={20} /></button>
+          <GaClose label={c.close} onClick={() => setOpen(false)} />
         </header>
         {source === "loading" ? <p className="ga-premium-note"><Loader2 className="spin" size={16} aria-hidden="true" /> {c.loading}</p> : <>
           <p>{content.intro[lang]}</p>
@@ -125,9 +126,9 @@ export default function PremiumEntry() {
             <input id={titleId + "-key"} ref={input} value={key} onChange={event => setKey(event.target.value)}
               autoComplete="off" spellCheck={false} placeholder={c.keyPlaceholder} disabled={busy || done}
               aria-describedby={error ? titleId + "-error" : undefined} />
-            <button type="submit" className="primary ga-btn-primary" disabled={busy || done || !key.trim()}>
+            <GaButton type="submit" variant="primary" className="primary" disabled={busy || done || !key.trim()}>
               {busy ? <Loader2 className="spin" size={16} aria-hidden="true" /> : null}{busy ? c.checking : c.submit}
-            </button>
+            </GaButton>
           </div>
           {error ? <p id={titleId + "-error"} role="alert" className="ga-premium-error">{error}</p> : null}
           {done ? <p role="status" className="ga-premium-ok">{c.done}</p> : null}

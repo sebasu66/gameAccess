@@ -5,10 +5,11 @@ import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
 import { Button } from "./components/ui/button";
-import { Settings, X, RotateCcw, Play } from "lucide-react";
+import { Settings, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
+import { GaClose } from "./components/ga/Buttons";
 const copy = {
  es: { title: "Configuración", tabGames: "Juegos", tabParental: "Control parental", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
  en: { title: "Settings", tabGames: "Games", tabParental: "Parental control", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
@@ -21,7 +22,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel" role="dialog" aria-modal="true" aria-labelledby="ga-settings-title">
-   <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><button type="button" className="ga-close" onClick={onClose} aria-label={c.close} data-dialog-initial><X size={20} /></button></header>
+   <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><GaClose label={c.close} onClick={onClose} data-dialog-initial /></header>
    <div className="ga-settings-content"><GaTabs label={c.title} tabs={[
     { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
     { id: "parental", label: c.tabParental, content: <ParentalControlSection /> },

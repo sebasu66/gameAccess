@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CircularScrollbar from "../CircularScrollbar";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Flame, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Flame, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
 import { translate, useI18n } from "../i18n";
 import { notify } from "../toasts";
 import SteamCover from "../SteamCover";
@@ -28,6 +28,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog from "../FreezeDialog";
 import { useFreezeJob } from "../freezeJobs";
+import { GaBack } from "../components/ga/Buttons";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
 const notifyLibraryChanged = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("focus")); };
@@ -247,7 +248,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
           <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
           <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
           <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
-          <Button className="ga-back" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
+          <GaBack label={c.back} onClick={onClose} data-dialog-initial />
         </header>
         <div className="flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">

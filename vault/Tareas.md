@@ -36,7 +36,7 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera antes de empezar). Referencia visual: `docs/design/gameaccess-gsap-demo-2026-10-23/index.html`. Skill: `.claude/skills/gameaccess-motion-ui`. Un commit probado por tarea en `dev`.
 - [x] T0 · Actualizar `docs/GUI_DESIGN.md` con los componentes y valores nuevos.
 - [x] T1 · Instalar GSAP + `@gsap/react` y crear `src/motion/gsap.ts` (plugins, movimiento reducido).
-- [ ] T2 · Botones como componentes: `GaButton` (naranja de vidrio), `GaIconButton` (cubo), `GaClose`, `GaBack`.
+- [x] T2 · Botones como componentes: `GaButton` (naranja de vidrio), `GaIconButton` (cubo), `GaClose`, `GaBack`.
 - [ ] T3 · Aviso único abajo a la derecha (reemplaza toasts, diálogo al jugar, descarga terminada y confirmaciones simples).
 - [ ] T4 · Pie: cubos sin texto que se encienden, campana con no leídos, globo de idioma.
 - [ ] T5 · Catálogo para descubrir: sin instalados salvo al buscar, banner de lo nuevo en Steam, sin pastillas de filtro arriba, ▶ verde en vez de "INSTALADO", salida de tarjetas limpia.
