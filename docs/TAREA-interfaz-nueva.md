@@ -72,7 +72,7 @@ En el código de la demo cada parte tiene un comentario en castellano que explic
 | Qué | Valor |
 |---|---|
 | Naranja principal | `#ff6a00` (token `--ga-orange`); texto sobre naranja `#140a02` |
-| Botón principal "naranja de vidrio" | fondo `linear-gradient(180deg,#ff7410,#ff6200)`, borde `1px solid #ffa766`, sombra `inset 0 1px 0 #ffffffa0, inset 0 0 0 1px #ffffff1a, inset 0 -10px 18px #c43c0040, 0 8px 24px #ff620040`; reflejo arriba con `::before` (blanco 30 % → 0 en la mitad superior); al pasar el mouse un destello diagonal cruza con `::after` en 0,6 s. **Sin bandas doradas.** Ver CSS "Naranja de vidrio" en la demo. |
+| Botón principal | **naranja plano** `#ff6a00` (hover `#ff8230`), borde del mismo color, texto `#140a02`. **Sin degradado, sin volumen, sin resplandor ni brillos.** Seba va a pasar un ejemplo de "botón de vidrio" que siga pareciendo plano; hasta entonces, plano. |
 | Verde "listo / instalado" | `#8fe3b0` (`--ga-success`) |
 | Celeste "congelado" | `#8fd3ff` (`--ga-frost`) |
 | Rojo peligro / cerrar | `#e5202e` (`--ga-danger`), botón de peligro `#c8321f` |
@@ -95,7 +95,7 @@ En el código de la demo cada parte tiene un comentario en castellano que explic
 Orden recomendado: T0 → T1 → T2 → T3 (son la base) y después el resto. Cada tarea dice qué archivos toca, qué hacer, dónde mirar en la demo y cómo saber que está terminada.
 
 ### T0 · Actualizar `docs/GUI_DESIGN.md`
-- **Qué:** agregar a la tabla de tokens `--ga-glass-orange` (el degradado del botón), confirmar `--ga-frost` y `--ga-success`. Agregar componentes nuevos en §4: botón principal de vidrio (reemplaza la definición actual de §4.2), botón cubo con etiqueta que se despliega, aviso único (§4.9 reemplaza el toast actual), temporizador circular, marca de instalado `play-mark`, palabra gigante del costado, panel lateral, dorso de tarjeta.
+- **Qué:** confirmar en la tabla de tokens `--ga-frost` y `--ga-success`. Agregar componentes nuevos en §4: aclarar que el botón principal (§4.2) es naranja plano sin resplandor, botón cubo con etiqueta que se despliega, aviso único (§4.9 reemplaza el toast actual), temporizador circular, marca de instalado `play-mark`, palabra gigante del costado, panel lateral, dorso de tarjeta.
 - **Fuente de los valores:** sección 4 de este documento y el CSS de la demo.
 - **Hecho cuando:** el documento describe todos los componentes que usan las tareas siguientes; no hay código cambiado todavía.
 
@@ -110,11 +110,11 @@ Orden recomendado: T0 → T1 → T2 → T3 (son la base) y después el resto. Ca
 ### T2 · Botones como componentes
 - **Archivos:** nuevo `src/components/ga/Buttons.tsx` (o junto a `components/ui/button.tsx` si conviene), CSS en `src/ga-design.css`.
 - **Qué hacer:** crear y exportar:
-  - `GaButton` con `variant: "primary" | "secondary" | "danger" | "frost"`, alto 44 px (54 px en la fila de la ficha con `size="tall"`). `primary` = naranja de vidrio (sección 4).
+  - `GaButton` con `variant: "primary" | "secondary" | "danger" | "frost"`, alto 44 px (54 px en la fila de la ficha con `size="tall"`). `primary` = naranja plano (sección 4).
   - `GaIconButton` = botón cubo del pie: solo ícono; con `label` (traducido) que se despliega al pasar el mouse o con foco; soporta `pressed` (interruptor: fondo naranja suave y rayita encendida abajo) y `badge` (numerito naranja arriba a la derecha, oculto si es 0).
   - `GaClose` (círculo rojo 38 px, ya existe la clase `ga-close`: envolverla en componente) y `GaBack` (rojo, 54 px, flecha + "Volver").
 - **Reemplazar** los botones principales existentes por `GaButton variant="primary"` en un primer paso solo donde ya usan `ga-btn-primary`; el resto se migra en cada tarea.
-- **Demo:** CSS "Naranja de vidrio", `.foot-btn`, `.ga-close`, `.ga-back`.
+- **Demo:** CSS "Botón principal: naranja plano", `.foot-btn`, `.ga-close`, `.ga-back`.
 - **Hecho cuando:** los componentes existen, tienen un test simple (renderiza, `aria-label` traducido, `pressed`/`badge`), y al menos el diálogo de premium y Configuración usan `GaButton`.
 
 ### T3 · Aviso único (reemplaza toasts y diálogos de confirmación)
@@ -220,8 +220,8 @@ Es la tarea más importante para el uso diario.
 ### T11 · Administrador de biblioteca (rediseño compacto)
 - **Archivos:** `src/library-manager/GameLibraryManager.tsx`, `Charts.tsx`, `SizeCell.tsx`, `library-manager.css`, `copy.ts`.
 - **Qué hacer:** mantener todas sus funciones y datos actuales (importar, escanear, corregir, estados, tamaños, congelado) con este aspecto:
-  1. Arriba, **dona animada del disco** (como el CodePen de referencia `codepen.io/creativeocean/pen/KKypdeM`): partes = listos para jugar, fuera de estándar, congelados, descargas a medias y libre (anillo tenue). Las partes se dibujan escalonadas; las más grandes son más gruesas; centro "N GB ocupados de M". Al pasar el mouse por una parte o su fila de la leyenda, esa parte se engrosa, las demás se apagan y el centro muestra su valor. Leyenda a la derecha con barritas del color de cada parte.
-  2. Debajo: Instalados · Fuera de estándar · Ahorrado al congelar. Botones: "Corregir todo (N)" (principal), "Importar juegos", Escanear (ícono). Pastillas de filtro: Todos, Fuera de estándar, Descargas sin terminar, Congelados.
+  1. Arriba, **dona animada del disco** (como el CodePen de referencia `codepen.io/creativeocean/pen/KKypdeM`): **solo tres partes**: Juegos (todo lo que ocupa la librería salvo congelados), Congelados y Libre (anillo tenue). No mostrar "fuera de estándar" en el gráfico. Las partes se dibujan escalonadas; las más grandes son más gruesas; centro "N GB ocupados de M". Al pasar el mouse por una parte o su fila de la leyenda, esa parte se engrosa, las demás se apagan y el centro muestra su valor. Leyenda a la derecha con barritas del color de cada parte.
+  2. Debajo: Instalados · Ahorrado al congelar (**sin** "Fuera de estándar": ya está en la pastilla de filtro, no repetirlo). Botones en una fila, **de tamaño normal** (no estirados a todo el ancho): "Corregir todo (N)" (principal), "Importar juegos", Escanear (ícono). Pastillas de filtro: Todos, Fuera de estándar, Descargas sin terminar, Congelados.
   3. Filas compactas: miniatura apaisada, nombre, línea de estado, tamaño (congelado: tamaño en disco celeste, real tachado, "Ahorra X GB"), insignia de estado. **Al pasar el mouse** (o foco) aparecen las acciones: Corregir, Jugar, Instalar, Congelar, Congelado profundo, Descongelar, Abrir carpeta, Desinstalar, Quitar de biblioteca (según estado). Las destructivas confirman con el aviso único (T3).
   4. **Colores sobrios:** cifras en blanco, barras grises; naranja solo en el botón principal; celeste suave para congelado. (Igual se pone en gris cuando el panel no tiene foco.)
   5. "Administrar" desde el dorso de una tarjeta (T8) abre este panel con la fila de ese juego resaltada y desplazada a la vista.
@@ -242,7 +242,7 @@ Es la tarea más importante para el uso diario.
 
 ### T14 · Resto de las pantallas con el mismo estilo
 - **Archivos:** `src/AppSettings.tsx`, `src/AppHelp.tsx`, `src/library-manager/ImportWizard.tsx`, `src/RenameGameDialog.tsx`, `src/ParentalSetupDialog.tsx`, `src/LibraryFilterDialog.tsx`, `src/DigitalStorageSettings.tsx`, `src/GameRecoveryDialog.tsx`, `src/SteamInstallFallbackDialog.tsx`, `src/PremiumEntry.tsx`/`AccessPass.tsx` y cualquier otro diálogo.
-- **Qué hacer:** no hace falta rediseñarlas una por una. Aplicar la misma filosofía: panel de vidrio con borde degradado, encabezado estándar (eyebrow + título Bebas naranja + subtítulo), `GaClose` único, `GaButton` para todas las acciones (una sola principal de vidrio naranja), mismos márgenes (28 px panel, 24 px entre secciones, 10 px entre botones), mismas fuentes. Pasarlas por la lista de comprobación de `GUI_DESIGN.md` §6.
+- **Qué hacer:** no hace falta rediseñarlas una por una. Aplicar la misma filosofía: panel de vidrio con borde degradado, encabezado estándar (eyebrow + título Bebas naranja + subtítulo), `GaClose` único, `GaButton` para todas las acciones (una sola principal naranja), mismos márgenes (28 px panel, 24 px entre secciones, 10 px entre botones), mismas fuentes. Pasarlas por la lista de comprobación de `GUI_DESIGN.md` §6.
 - **Hecho cuando:** ninguna pantalla usa un botón o cierre propio; todas pasan la lista de comprobación en `es` y `en`.
 
 ### T15 · Revisión final
@@ -260,7 +260,8 @@ Es la tarea más importante para el uso diario.
 - `Flip` animando una tarjeta que **sale** → se ve la portada agrandada fuera de su contenedor. Primero achicar las que salen, después `Flip` solo con las que quedan.
 - Agrandar la portada de la tarjeta hasta el tamaño de la ficha → imagen gigante y torpe. La portada solo viaja hasta la franja de arriba y se desvanece.
 - Animaciones que no arrancan: si un test o una vista oculta deja GSAP sin cuadros, no "adelantar" timelines pausadas a mano.
-- Botón naranja con degradado en bandas (parecía Windows 95). Es naranja parejo con reflejo de vidrio.
+- Botón naranja con degradado (en bandas parecía Windows 95; con reflejo y resplandor parecía con volumen). Es **naranja plano**, sin resplandor.
+- Mostrar el mismo dato dos veces ("Fuera de estándar" en las cifras y en la pastilla) o un botón estirado a todo el ancho sin motivo.
 - Botón "OK/Después" que se llena: se reemplazó por el círculo temporizador arriba a la derecha.
 - Palabras en mayúscula con tilde en la palabra gigante: van sin tilde.
 - Con los dos paneles abiertos, el centro parpadeaba en cada cambio del banner: el fondo de colores era una imagen de pantalla completa con `blur(70px)` que además se escalaba, y los paneles tenían `backdrop-filter` encima. Se arregló con lienzos chiquitos (solo `opacity`), imágenes decodificadas antes de mostrarse y paneles con fondo sólido (ver T5 y T10).

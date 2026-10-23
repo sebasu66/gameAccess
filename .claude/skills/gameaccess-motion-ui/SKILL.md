@@ -26,7 +26,7 @@ La referencia es la demo aprobada `docs/design/gameaccess-gsap-demo-2026-10-23/i
 
 - **Grillas (`Flip`):** las tarjetas que salen primero se achican dentro de su lugar (0,3 s) y después `Flip` reacomoda solo las que quedan. Nunca pasar a `Flip` una tarjeta que sale. No usar `scale: true` con tarjetas que tienen imagen.
 - **Ficha:** se abre recortando con `clip-path` desde el rectángulo de la tarjeta; la portada viaja solo hasta la franja de arriba y se desvanece. Al cerrar, la portada reaparece como grilla de cuadraditos del centro hacia afuera en 1,2 s. Nunca mostrar la portada agrandada.
-- **Botón principal:** naranja de vidrio parejo (sin bandas doradas). Valores en el plan, sección 4.
+- **Botón principal:** naranja plano `#ff6a00`, sin degradado, sin volumen y sin resplandor (hasta que Seba pase el ejemplo de vidrio).
 - **Aviso único:** abajo a la derecha; si salió bien, círculo temporizador arriba a la derecha que cierra en 3 s; un error nunca se cierra solo; confirmaciones con Cancelar + acción. No crear diálogos nuevos para resultados o confirmaciones simples.
 
 ## Componentes (uno solo de cada uno)
