@@ -26,6 +26,8 @@ export interface UpdateDeps {
   check(): Promise<AvailableUpdate | null>;
   relaunch(): Promise<void>;
   log(message: string, level?: "INFO" | "WARN"): void;
+  /** Tells the player a new version was found; the download starts when this resolves (they closed the notice). */
+  announce?(version: string): Promise<void>;
 }
 
 export const CHECK_TIMEOUT_MS = 15_000;
@@ -57,6 +59,7 @@ export async function runUpdate(deps: UpdateDeps, onPhase: (phase: UpdatePhase) 
   }
   const version = update.version;
   deps.log(`Update ${version} found; downloading and installing it before the app can be used.`);
+  await deps.announce?.(version);
   let done = 0;
   let total = 0;
   onPhase({ kind: "downloading", version, done, total });

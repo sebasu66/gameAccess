@@ -651,6 +651,8 @@ export const es = {
   dlsUserPaused: "Pausada",
   dlsLost: "El gestor de descargas ya no tenía esta descarga; reintentala",
   updateTaskTitle: "Actualizando Game Access a la versión {{version}}",
+  updateFoundTitle: "Hay una versión nueva: {{version}}",
+  updateFoundBody: "Game Access se va a actualizar a la versión {{version}}. Primero se descarga; después Windows te pregunta si permitís instalarla: aceptá y la aplicación se vuelve a abrir sola.",
   updateStepDownload: "Descargar la versión nueva",
   updateStepInstall: "Instalar y reiniciar la aplicación",
   dialogTaskFailed: "No se pudo completar",

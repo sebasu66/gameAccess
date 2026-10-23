@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
-import { CentralDialog, SHOW_AFTER_MS, type DialogState } from "./centralDialog";
+import { CentralDialog, centralDialog, SHOW_AFTER_MS, type DialogState } from "./centralDialog";
 import { markAnnouncementsSeen, presentAnnouncements, unseenAnnouncements, loadAnnouncements, type AnnouncementEntry } from "./announcements";
 import { runAppUpdateTask } from "./updateTask";
 import type { AvailableUpdate } from "../appUpdate";
@@ -141,7 +141,25 @@ describe("central dialog: app update", () => {
         onEvent({ event: "Finished" });
       },
     };
-    await runAppUpdateTask({ check: async () => update, relaunch, log });
+    const running = runAppUpdateTask({ check: async () => update, relaunch, log });
+    // First the news dialog says a new version was found; nothing downloads until the player closes it.
+    await vi.waitFor(() => expect(centralDialog.snapshot().announcements.map(item => item.id)).toEqual(["update-0.2.0"]));
+    expect(centralDialog.snapshot().announcements[0].title).toContain("0.2.0");
+    expect(relaunch).not.toHaveBeenCalled();
+    centralDialog.closeAnnouncements();
+    await running;
     expect(relaunch).toHaveBeenCalledOnce();
+  });
+
+  it("news shown while another announcement is open are added after it, and each caller hears its own close", () => {
+    const dialog = new CentralDialog();
+    const update = vi.fn(), news = vi.fn();
+    dialog.showAnnouncements([{ id: "update-0.2.0", title: "Nueva versión", body: "..." }], update);
+    dialog.showAnnouncements([{ id: "news-1", title: "Novedad", body: "..." }], news);
+    expect(dialog.snapshot().announcements.map(item => item.id)).toEqual(["update-0.2.0", "news-1"]);
+    dialog.closeAnnouncements();
+    expect(update).toHaveBeenCalledWith(["update-0.2.0"]);
+    expect(news).toHaveBeenCalledWith(["news-1"]);
+    expect(dialog.snapshot().announcements).toEqual([]);
   });
 });

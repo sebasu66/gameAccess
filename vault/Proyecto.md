@@ -75,4 +75,4 @@ Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se 
 - **Estado de carpeta**: sufijo del nombre de la carpeta del juego (`preparing`, `downloading`, `installing`, `ready`, `ERROR`).
 
 ## Reglas de trabajo
-Una sola rama (`dev`), commits chicos con push a `dev` después de cada paso verificado, sin ramas ni PR intermedios. Todavía no hay usuarios: `main` solo se actualiza cuando Seba decide el primer test en vivo. Detalle en `AGENTS.md`. Tareas en [[Tareas]], comunicación en [[Mensajes]], acciones en [[Log]].
+Una sola rama (`dev`), commits chicos con push a `dev` después de cada paso verificado, sin ramas ni PR intermedios. Todavía no hay usuarios: `main` solo se actualiza cuando Seba decide el primer test en vivo. Detalle en `AGENTS.md`. Tareas en [[Tareas]], comunicación en [[Mensajes]], acciones en [[Log]]. Cómo sacar una versión nueva con auto-update: [[Releases]].
