@@ -718,5 +718,12 @@ export const en: Record<keyof typeof es, string> = {
   noticeCancel: "Cancel",
   languageNameEs: "Español",
   languageNameEn: "English",
+  spotlightLabel: "Latest on Steam",
+  spotlightNew: "New on Steam",
+  spotlightToday: "New on Steam · today",
+  spotlightOneDay: "New on Steam · 1 day ago",
+  spotlightDays: "New on Steam · {{days}} days ago",
+  spotlightOpen: "See details",
+  catalogHiddenInstalled: "{{count}} installed games are in your library →",
   noticeWorking: "Working…",
 };

@@ -4,7 +4,7 @@ import { getSteamStoreLanguage } from "../i18n";
 import { ensureExecutionProfile } from "./ExecutionProfiles";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
-import { demoInstalledStatuses, uiDemo } from "../devDemo/uiDemo";
+import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo";
 
 export interface ProcessExecutionResult {
   ok: boolean;
@@ -138,7 +138,7 @@ export class DigitalProcessManager {
         if (action === "play" || action === "uninstall") void narrate(`Digital AppID ${appId} · ${action} completed; ok=${result.ok}, pid=${result.pid ?? "none"}, exit=${result.exit_code ?? "running"}; folder=${result.folder ?? "unknown"}.`, { area: "DIGITAL_EXECUTION" });
         return result;
       }
-      return { ok: true, action, app_id: appId, name, command, installed: false, statuses: action === "snapshot" && uiDemo() ? demoInstalledStatuses() : {}, ...(action === "play" ? { pid: 12345 } : { exit_code: 0 }) };
+      return { ok: true, action, app_id: appId, name, command, installed: false, statuses: action === "snapshot" && uiDemo() ? demoInstalledStatuses() : {}, ...(action === "local-games" && uiDemo() ? { games: demoLocalGames() } : {}), ...(action === "play" ? { pid: 12345 } : { exit_code: 0 }) };
     } catch (error) {
       void narrate(`Digital AppID ${appId} · ${action}: ${error instanceof Error ? error.message : String(error)}`, { area: "DIGITAL_EXECUTION", level: "ERROR" });
       throw error;

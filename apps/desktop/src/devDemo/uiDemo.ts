@@ -40,6 +40,11 @@ export function demoInstalledStatuses(): Record<string, { folder: string; instal
   return Object.fromEntries(demoGames.filter(entry => entry.installed).map(entry => [String(entry.app_id), { folder: entry.folder, installed: true }]));
 }
 
+/** Game folders on disk for the sample library (what the launcher's local-games scan returns). */
+export function demoLocalGames(): Array<{ id: number; name: string }> {
+  return demoGames.filter(entry => entry.installed && entry.app_id).map(entry => ({ id: entry.app_id as number, name: entry.name }));
+}
+
 export function queryDemoCatalog(params: CatalogQueryParams): CatalogQueryResult {
   const query = (params.query ?? "").trim().toLowerCase();
   let items = demoCatalog.filter(item =>

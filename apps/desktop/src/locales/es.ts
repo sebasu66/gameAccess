@@ -716,5 +716,12 @@ export const es = {
   noticeCancel: "Cancelar",
   languageNameEs: "Español",
   languageNameEn: "English",
+  spotlightLabel: "Lo último en Steam",
+  spotlightNew: "Nuevo en Steam",
+  spotlightToday: "Nuevo en Steam · hoy",
+  spotlightOneDay: "Nuevo en Steam · hace 1 día",
+  spotlightDays: "Nuevo en Steam · hace {{days}} días",
+  spotlightOpen: "Ver ficha",
+  catalogHiddenInstalled: "{{count}} instalados están en tu librería →",
   noticeWorking: "Trabajando…",
 } as const;

@@ -151,12 +151,18 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const libraryIds = useMemo(() => new Set(members.map(game => game.app_id ?? game.id)), [members]);
   const hasInstalledGames = useMemo(() => games.some(game => { const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : undefined); return state.installed || state.prepared; }), [games, effectiveDownloads]);
   const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
+  const isInstalledGame = useCallback((game: CatalogGame) => {
+    const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
+    return state.installed || state.prepared;
+  }, [effectiveDownloads]);
   const catalogCollection = useMemo(() => {
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
       // database (browser preview, tests) or on a query error does it filter what is in memory.
       const memoryOnly = !nativeCatalog || Boolean(catalogQuery.error);
-      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
+      const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
+      // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
+      const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
       const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
@@ -175,7 +181,8 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
-        total: memoryOnly ? sourceItems.length : catalogQuery.total,
+        total: memoryOnly ? sourceItems.length : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length)),
+        hiddenInstalled: queried.length - sourceItems.length,
       };
     }
     const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
@@ -188,7 +195,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -710,7 +717,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

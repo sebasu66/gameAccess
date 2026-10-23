@@ -5,6 +5,7 @@ import { type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogSort } from "./librarySections";
 import type { CatalogGame } from "./types";
 import { useI18n } from "./i18n";
+import { GaIconButton } from "./components/ga/Buttons";
 
 /**
  * The filter bar above the catalog grid: which filters are active, how to remove
@@ -40,9 +41,7 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   };
   return (
     <div className="library-catalog-filter-actions">
-      <button type="button" className="ga-filter-open" aria-haspopup="dialog" onClick={onOpenFilters}>
-        <FilledIcon name="genres" />{t("uiFiltros")}{active.length ? ` · ${active.length}` : ""}
-      </button>
+      <GaIconButton className="ga-filter-open" aria-haspopup="dialog" icon={<FilledIcon name="genres" />} label={t("uiFiltros")} badge={active.length} onClick={onOpenFilters} />
       <div className="ga-filter-tags" aria-label={t("uiFiltrosActivos")}>
         {active.length ? active.map(tag => <span key={`${tag.group}:${tag.value}`} className="ga-filter-tag">
           <button type="button" onClick={onOpenFilters}>{tag.label}</button>
@@ -51,7 +50,7 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
       </div>
       <span className="ga-footer-divider" aria-hidden="true" />
       <details className="library-sort-dropdown">
-        <summary aria-label={t("sortByAria", { label: selectedSortLabel })} title={t("sortByTitle", { label: selectedSortLabel })}><ArrowUpDown size={17} /><span>{selectedSortLabel}</span></summary>
+        <summary className="ga-cube" aria-label={t("sortByAria", { label: selectedSortLabel })} title={t("sortByTitle", { label: selectedSortLabel })}><ArrowUpDown size={19} aria-hidden="true" /><span className="ga-cube-label">{selectedSortLabel}</span></summary>
         <div className="library-sort-menu" role="group" aria-label={t("uiCriterioDeOrden")}>
           {sortOptions.map(option => <button key={option.id} type="button" aria-pressed={catalogSort === option.id} onClick={event => { onSortChange(option.id); event.currentTarget.closest("details")?.removeAttribute("open"); }}>{option.label}</button>)}
         </div>

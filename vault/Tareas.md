@@ -39,7 +39,7 @@ Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera a
 - [x] T2 · Botones como componentes: `GaButton` (naranja de vidrio), `GaIconButton` (cubo), `GaClose`, `GaBack`.
 - [x] T3 · Aviso único abajo a la derecha (reemplaza toasts, diálogo al jugar, descarga terminada y confirmaciones simples).
 - [x] T4 · Pie: cubos sin texto que se encienden, campana con no leídos, globo de idioma.
-- [ ] T5 · Catálogo para descubrir: sin instalados salvo al buscar, banner de lo nuevo en Steam, sin pastillas de filtro arriba, ▶ verde en vez de "INSTALADO", salida de tarjetas limpia.
+- [x] T5 · Catálogo para descubrir: sin instalados salvo al buscar, banner de lo nuevo en Steam, sin pastillas de filtro arriba, ▶ verde en vez de "INSTALADO", salida de tarjetas limpia.
 - [ ] T6 · Palabra gigante del costado (CATALOGO / LIBRERIA, sin tilde) y giro 3D entre catálogo y librería.
 - [ ] T7 · Librería en grilla bento por bandas, congelados (jugable / profundo a la derecha), pastillas Solo instalados / Solo favoritos.
 - [ ] T8 · Hamburguesa tras 2 s y menú en el dorso de la tarjeta (Jugar/Instalar, Cambiar nombre, Administrar).

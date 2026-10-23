@@ -32,6 +32,7 @@ import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaIconButton } from "./components/ga/Buttons";
+import CatalogSpotlight from "./CatalogSpotlight";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -123,9 +124,10 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
           {favorite ? <span className="library-favorite-state" title={t("uiFavorito")} aria-label={t("uiFavorito")}><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
           {cardGenre ? <span className="library-room-card-genre" aria-hidden="true">{cardGenre}</span> : null}
+          {state.playButtonReady ? <InstalledMark /> : null}
         </span>
       </button>
-      <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
+      <div className="ga-card-caption"><span>{game.name}</span></div>
       {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
       {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
@@ -164,6 +166,9 @@ interface DownloadCatalogPanelProps {
   history?: Record<number, number>;
   onPlay?: (game: CatalogGame) => void | Promise<void>;
   onInstall?: (game: CatalogGame) => void | Promise<void>;
+  /** Installed games the catalog leaves out while there is no search (they are in the library). */
+  hiddenInstalled?: number;
+  isInstalled?: (game: CatalogGame) => boolean;
 }
 
 type OpenContextMenu = ContextMenuRequest | null;
@@ -386,6 +391,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     <section className="library-room-catalog">
       {filtersOpen ? <LibraryFilterDialog games={view === "installed" ? allGames.filter(game => { const status = game.app_id ? props.downloads[game.app_id] : undefined; const state = gameStateManager.resolve(status); return state.installed || state.prepared || props.preferences?.[game.id] === 1; }) : allGames} countFromCatalog={view !== "installed"} query={searchQuery} filters={searchFilters} genres={facets.genres} onApply={next => { onSearchFiltersChange(next); setFiltersOpen(false); setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }} /> : null}
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
+      {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); }} /> : null}
+      {view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
         <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
