@@ -44,6 +44,7 @@ import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
+import { uiDemo } from "./devDemo/uiDemo";
 
 interface LibraryRoomProps {
   toolbarTarget?: HTMLDivElement | null;
@@ -131,7 +132,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
 
 
   const isCatalog = libraryView === "catalog";
-  const nativeCatalog = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const nativeCatalog = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || uiDemo());
   const activeQuery = (searchValue || searchQuery || "").trim();
   const genreNames = useCatalogGenreNames();
   // The parental policy wins over the player's filters in every view (catalog, library, favorites).

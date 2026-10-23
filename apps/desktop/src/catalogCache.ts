@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame, GameDetails } from "./types";
 import { blockedDescriptorIds, getParentalPolicy, type ParentalPolicy } from "./parentalControl";
+import { queryDemoCatalog, uiDemo } from "./devDemo/uiDemo";
 
 export interface CatalogCacheSyncResult {
   updated: boolean;
@@ -124,7 +125,7 @@ export function withParentalPolicy(params: CatalogQueryParams, policy: ParentalP
 }
 
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
-  if (!native()) return { items: [], total: 0 };
+  if (!native()) return uiDemo() ? queryDemoCatalog(params) : { items: [], total: 0 };
   return invoke<CatalogQueryResult>("catalog_cache_query", { params: withParentalPolicy(params) });
 }
 
