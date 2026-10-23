@@ -542,3 +542,5 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-screen-title { margin:0; white-space:nowrap; font:400 52px/1 "Bebas Neue", sans-serif; letter-spacing:.02em; color:var(--ga-orange); }
 /* The language switch lives in Settings; full-screen managers do not show it. */
 body:has(.ga-screen-header) .ga-global-language { display:none !important; }
+
+.ga-detail-gallery .ga-detail-coop{margin:14px 0 0;padding:14px 0 0;border-block:0;border-top:1px solid #ffffff20}.ga-detail-gallery .ga-coop-facts{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:10px}

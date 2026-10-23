@@ -6,8 +6,11 @@
  const scan = () => {
   if(finished)return;
   if(location.pathname.startsWith("/game/")) {
-   const steam = Array.from(document.querySelectorAll('a[href]')).some(a=>{try{const u=new URL(a.href);return u.hostname==="store.steampowered.com"&&u.pathname.split("/")[2]===String(appId);}catch{return false;}});
-   if(!steam){if(document.readyState==="complete")send({state:"unverified"});return;}
+   const steamIds=Array.from(document.querySelectorAll('a[href]')).map(a=>{try{const u=new URL(a.href);return u.hostname==="store.steampowered.com"?u.pathname.split("/")[2]:null;}catch{return null;}}).filter(Boolean);
+   // Many pages (e.g. Torchlight II) carry no Steam link: then the exact PC title, reached from a unique search match, is the identity.
+   const pageTitle=(document.title.match(/^Co-Optimus - (.+?) \(PC\)/)||[])[1]||"";
+   const verified=steamIds.length?steamIds.includes(String(appId)):normalize(pageTitle)===normalize(expected);
+   if(!verified){if(document.readyState==="complete")send({state:"unverified"});return;}
    const text=(document.querySelector("#page-content")?.textContent||"").replace(/\s+/g," ");
    const data={state:"ready",source_url:location.href};
    for(const [label,key] of [["Local Co-Op","local_players_max"],["Online Co-Op","online_players_max"],["Combo Co-Op (Local + Online)","combo_players_max"],["LAN Play or System Link","lan_players_max"]]) {

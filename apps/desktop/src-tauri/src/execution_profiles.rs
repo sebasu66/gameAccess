@@ -43,6 +43,26 @@ pub(crate) async fn query_cooptimus(app: tauri::AppHandle, app_id: u32, game_nam
     result.map_err(|_|"Co-Optimus did not return a verified game within 18 seconds".into())
 }
 
+/// Opens a Co-Optimus page in the user's default browser; the webview cannot open new windows itself.
+#[tauri::command]
+pub(crate) fn open_cooptimus_page(url: String) -> Result<(), String> {
+    if !url.starts_with("https://www.co-optimus.com/") || url.len() > 600 || url.chars().any(|c| c.is_control() || c == ' ') {
+        return Err("Only Co-Optimus pages can be opened".into());
+    }
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        use std::os::windows::process::CommandExt;
+        let mut command = std::process::Command::new("rundll32.exe");
+        command.args(["url.dll,FileProtocolHandler", &url]).creation_flags(0x0800_0000);
+        command
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = { let mut command = std::process::Command::new("open"); command.arg(&url); command };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = { let mut command = std::process::Command::new("xdg-open"); command.arg(&url); command };
+    command.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub(crate) fn save_execution_profile(app_id: u32, profile: serde_json::Value) -> Result<(), String> {
     let _guard = NARRATION_LOG_LOCK.get_or_init(|| Mutex::new(())).lock().map_err(|e| e.to_string())?;
