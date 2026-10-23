@@ -275,7 +275,8 @@ body:not([data-view=library]) .lib-pills{visibility:hidden}
 #libEmpty{display:none}
 
 /* ---------- Ficha: la tarjeta crece hasta ser el panel ---------- */
-.ghost{position:absolute;z-index:7;object-fit:cover;pointer-events:none;border-radius:inherit}
+.ghost{position:absolute;z-index:7;object-fit:cover;pointer-events:none;border-radius:inherit;--m:100%;-webkit-mask-image:linear-gradient(180deg,#000 var(--m),#0000 calc(var(--m) + 45%));mask-image:linear-gradient(180deg,#000 var(--m),#0000 calc(var(--m) + 45%))}
+.pixel-reveal{position:fixed;z-index:22;pointer-events:none;image-rendering:pixelated}
 
 /* ---------- Dorso de la tarjeta: portada en líneas + vidrio + menú ---------- */
 .flip-menu{padding:0;isolation:isolate;background:#0b0e10}
@@ -468,6 +469,16 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .lang-pop button{height:32px;padding:0 10px;border-radius:6px;text-align:left;font-size:13px;font-weight:600}
 .lang-pop button:hover{background:#ffffff12}
 .lang-pop button[aria-checked=true]{color:var(--ga-orange)}
+
+/* Naranja metalizado: un naranja más fuerte con banda de brillo y reflejo de vidrio arriba. */
+:root{--ga-metal:linear-gradient(180deg,#ffb066 0%,#ff8a1f 38%,#ff6a00 52%,#f25c00 70%,#ff8424 100%)}
+.btn-primary,.dl-play,.flip-menu .fm-items button.primary,.view-btn[aria-pressed=true]{background:var(--ga-metal);border-color:#ff9a45;color:#140a02;
+  box-shadow:inset 0 1px 0 #ffe0c2,inset 0 -2px 6px #9a3a0066,0 8px 22px #ff6a0045;text-shadow:0 1px 0 #ffc79055}
+.btn-primary::before,.dl-play::before,.flip-menu .fm-items button.primary::before{content:'';position:absolute;left:1px;right:1px;top:1px;height:46%;border-radius:7px 7px 40% 40%/7px 7px 10px 10px;background:linear-gradient(180deg,#ffffff6b,#ffffff10);pointer-events:none}
+.dl-play,.flip-menu .fm-items button.primary{position:relative;overflow:hidden}
+.btn-primary:hover,.dl-play:hover,.flip-menu .fm-items button.primary:hover{background:var(--ga-metal);filter:brightness(1.08) saturate(1.1);box-shadow:inset 0 1px 0 #fff0e0,inset 0 -2px 6px #9a3a0066,0 10px 28px #ff6a0066}
+.btn-primary .label,.btn-primary svg,.dl-play svg{position:relative}
+.nt-actions .btn .fill{background:var(--ga-metal)}
 
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
@@ -875,18 +886,27 @@ function syncHiddenHint(){
   h.style.display = hidden ? '' : 'none';
   h.textContent = `${hidden} instalados están en tu librería →`;
 }
+// Las tarjetas que salen se achican dentro de su lugar antes de que la grilla se reacomode:
+// la portada nunca se ve fuera de su tarjeta ni agrandada.
 function applyFilter(){
-  const state = Flip.getState(GAMES.map(g => g.el));
+  const leaving = GAMES.filter(g => g.el.style.display !== 'none' && !visible(g)).map(g => g.el);
+  if(!leaving.length || !motion) return reflowCatalog();
+  gsap.to(leaving, {scale:.5, opacity:0, duration:.3, ease:'power2.in', overwrite:true, onComplete:() => {
+    leaving.forEach(el => el.style.display = 'none');
+    gsap.set(leaving, {clearProps:'transform,opacity'});
+    reflowCatalog();
+  }});
+}
+function reflowCatalog(){
+  const cards = GAMES.map(g => g.el);
+  const state = Flip.getState(cards.filter(el => el.style.display !== 'none'));
   let n = 0;
   GAMES.forEach(g => { const v = visible(g); g.el.style.display = v ? '' : 'none'; if(v) n++; });
   $('#empty').style.display = n ? 'none' : 'block';
   $('#gridHeading').textContent = query.trim() ? 'Resultados' : 'Para descubrir';
   syncHiddenHint();
-  Flip.from(state, {
-    duration:.65, ease:'power3.inOut', absolute:true, scale:true, stagger:.015, nested:true,
-    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.6, y:30}, {opacity:1, scale:1, y:0, duration:.55, stagger:.03, ease:'back.out(1.4)'}),
-    onLeave: els => gsap.to(els, {opacity:0, scale:.6, duration:.35, ease:'power2.in'}),
-  });
+  Flip.from(state, {targets:cards.filter(el => el.style.display !== 'none'), duration:.6, ease:'power3.inOut', stagger:.01,
+    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.85}, {opacity:1, scale:1, duration:.45, stagger:.03, ease:'power3.out'})});
   const from = {v:+countEl.textContent};
   gsap.to(from, {v:n, duration:.6, ease:'power2.out', snap:{v:1}, onUpdate:()=>countEl.textContent = from.v});
 }
@@ -942,10 +962,8 @@ function matchesLib(g){
   if(libFilter === 'fav' && !g.fav) return false;
   return matches(g);
 }
-function removeFromLib(g, c){
-  gsap.to(c, {scale:0, opacity:0, duration:.45, ease:'back.in(1.6)', onComplete:() => {
-    g.inLib = false; g.installed = false; g.fav = false; g.freeze = null; refreshMarks(g); chipCounts(); renderLibrary(true);
-  }});
+function removeFromLib(g){
+  g.inLib = false; g.installed = false; g.fav = false; g.freeze = null; refreshMarks(g); chipCounts(); renderLibrary(true);
 }
 function bentoCard(g){
   const c = document.createElement('div');
@@ -1110,10 +1128,18 @@ function layoutBento(){
   sizeBento();
 }
 function renderLibrary(animate){
+  const ids = new Set(libOrder().cells.flat().concat(libOrder().frozen.flat()).map(g => g.id));
+  const leaving = [...libEls].filter(([id, el]) => !ids.has(id) && el.style.display !== 'none' && gsap.getProperty(el, 'opacity') > 0).map(([, el]) => el);
+  if(animate && motion && leaving.length){
+    gsap.to(leaving, {scale:.5, opacity:0, duration:.3, ease:'power2.in', overwrite:true, onComplete:() => buildLibrary(true)});
+  } else buildLibrary(animate);
+}
+function buildLibrary(animate){
   const {cells, frozen, ready, pending, deep} = libOrder();
   const out = [...cells.flat(), ...frozen.flat()];
-  const state = animate ? Flip.getState(bento.children) : null;
   const keep = new Set(out.map(g => g.id));
+  libEls.forEach((el, id) => { if(!keep.has(id)){ el.remove(); libEls.delete(id); } });
+  const state = animate ? Flip.getState(bento.children) : null;
   libEls.forEach((el, id) => { if(!keep.has(id)) el.style.display = 'none'; });
   const rising = [], pops = [];
   out.forEach(g => {
@@ -1139,9 +1165,7 @@ function renderLibrary(animate){
   if(!state) return;
   Flip.from(state, {
     duration:.75, ease:'expo.inOut', absolute:true, stagger:.01,
-    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.5}, {opacity:1, scale:1, duration:.6, ease:'back.out(1.4)'}),
-    onLeave: els => gsap.to(els, {opacity:0, scale:0, duration:.5, ease:'power2.inOut'}),
-    onComplete: () => libEls.forEach((el, id) => { if(!keep.has(id)){ el.remove(); libEls.delete(id); } }),
+    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.85}, {opacity:1, scale:1, duration:.5, ease:'power3.out'}),
   });
 }
 // Pastillas de la librería (abajo, junto a la búsqueda): solo instalados o solo favoritos.
@@ -1337,6 +1361,8 @@ function pushOthers(srcEl){
     gsap.to(el, {x:dx / len * force, y:dy / len * force, scale:.82, opacity:.35, duration:.85, ease:'expo.inOut'});
   });
 }
+// Abrir: el contenedor crece desde la tarjeta; la portada viaja a la franja de arriba mientras se
+// desvanece hacia abajo, y la imagen ancha de la ficha la reemplaza. Nunca se ve la portada gigante.
 function openDetail(g, srcEl){
   openGame = g; fillDetail(g);
   morphSrc = srcEl || g.el.querySelector('.poster-art');
@@ -1344,19 +1370,20 @@ function openDetail(g, srcEl){
   detail.style.display = 'block'; backdrop.style.display = 'block';
   titleSplit?.revert();
   titleSplit = new SplitText('#dTitle', {type:'chars', mask:'chars'});
-  const r = srcRect(morphSrc), ghost = $('#ghost'), img = visibleImg(morphSrc);
+  const r = srcRect(morphSrc), ghost = $('#ghost'), img = visibleImg(morphSrc), heroH = $('.d-hero').offsetHeight;
   ghost.src = img ? img.currentSrc || img.src : '';
   pushOthers(morphSrc);
   gsap.set(morphSrc, {opacity:0});
+  gsap.set('#dHero', {opacity:0});
   const tl = gsap.timeline({defaults:{ease:'expo.out'}});
   tl.to(backdrop, {opacity:1, duration:.6, ease:'power2.out'}, 0)
-    .fromTo(panel, {clipPath:clipFor(r)}, {clipPath:`inset(0px 0px 0px 0px round 12px)`, duration:.85, ease:'expo.inOut'}, 0)
-    .fromTo(ghost, {left:r.x, top:r.y, width:r.w, height:r.h, opacity:1}, {left:0, top:0, width:r.W, height:r.H, duration:.85, ease:'expo.inOut'}, 0)
-    .to(ghost, {opacity:0, duration:.45, ease:'power2.out'}, .6)
-    .fromTo('#dHero', {scale:1.25}, {scale:1, duration:1.4}, .45)
+    .fromTo(panel, {clipPath:clipFor(r)}, {clipPath:'inset(0px 0px 0px 0px round 12px)', duration:.85, ease:'expo.inOut'}, 0)
+    .fromTo(ghost, {left:r.x, top:r.y, width:r.w, height:r.h, opacity:1, '--m':'100%'}, {left:0, top:0, width:r.W, height:heroH, '--m':'25%', duration:.85, ease:'expo.inOut'}, 0)
+    .fromTo('#dHero', {opacity:0, scale:1.06}, {opacity:1, scale:1, duration:.9, ease:'power2.out'}, .5)
+    .to(ghost, {opacity:0, duration:.45, ease:'power1.out'}, .6)
     .fromTo('#dLine', {scaleX:0}, {scaleX:1, duration:.9}, .65)
-    .fromTo('.d-anim, .ga-close', {opacity:0, y:22}, {opacity:1, y:0, duration:.7, stagger:.06}, .6)
-    .from(titleSplit.chars, {yPercent:110, duration:.8, stagger:.022}, .65);
+    .fromTo('.d-anim, .ga-close', {opacity:0, y:22}, {opacity:1, y:0, duration:.6, stagger:.05}, .4)
+    .from(titleSplit.chars, {yPercent:110, duration:.8, stagger:.022}, .5);
   const s = {v:0};
   scoreTween?.kill();
   scoreTween = gsap.timeline({delay:.9})
@@ -1364,27 +1391,55 @@ function openDetail(g, srcEl){
     .fromTo('#dScoreBar', {scaleX:0}, {scaleX:g.score/100, duration:1.3, ease:'power2.out'}, 0);
   setTimeout(() => $('#dClose').focus({preventScroll:true}), 60);
 }
+// Cerrar: las partes de la ficha se repliegan, el contenedor se achica al tamaño de la tarjeta y
+// recién ahí la portada vuelve a aparecer, armándose de píxeles grandes a chicos.
 function closeDetail(){
   const g = openGame; if(!g) return;
   openGame = null;
-  const src = morphSrc, ghost = $('#ghost');
+  const src = morphSrc;
   gsap.set(src, {opacity:1});
   const r = srcRect(src);
   gsap.set(src, {opacity:0});
-  const img = visibleImg(src);
-  if(img) ghost.src = img.currentSrc || img.src;
   gsap.timeline({onComplete:() => {
+    pixelReveal(src);
     detail.style.display = 'none'; backdrop.style.display = 'none';
-    gsap.set(panel, {clearProps:'clipPath'}); gsap.set(src, {opacity:1});
+    gsap.set(panel, {clearProps:'clipPath'}); gsap.set('#dHero', {clearProps:'opacity,transform'});
     if(view === 'catalog') spotTl?.resume();
     (src.querySelector('button') || src.closest('button') || src)?.focus?.({preventScroll:true});
   }})
-    .to('.d-anim, .ga-close', {opacity:0, duration:.2}, 0)
-    .to(ghost, {opacity:1, duration:.25}, 0)
-    .to(panel, {clipPath:clipFor(r), duration:.7, ease:'expo.inOut'}, .1)
-    .to(ghost, {left:r.x, top:r.y, width:r.w, height:r.h, duration:.7, ease:'expo.inOut'}, .1)
-    .to(pushed, {x:0, y:0, scale:1, opacity:1, duration:.8, ease:'expo.inOut'}, .1)
-    .to(backdrop, {opacity:0, duration:.5}, .3);
+    .to('.d-anim, .ga-close', {opacity:0, y:14, duration:.22, stagger:{each:.03, from:'end'}, ease:'power2.in'}, 0)
+    .to('#dLine', {scaleX:0, duration:.3, ease:'power2.in'}, 0)
+    .to('#dHero', {opacity:0, duration:.3}, .1)
+    .to(panel, {clipPath:clipFor(r), duration:.6, ease:'expo.inOut'}, .2)
+    .to(pushed, {x:0, y:0, scale:1, opacity:1, duration:.8, ease:'expo.inOut'}, .2)
+    .to(backdrop, {opacity:0, duration:.5}, .35);
+}
+// La portada se arma de píxeles: se dibuja en un lienzo con pocos cuadros y cada paso duplica la resolución.
+function pixelReveal(el){
+  const img = visibleImg(el), r = el.getBoundingClientRect();
+  gsap.set(el, {opacity:1});
+  if(!motion || !img || !img.naturalWidth || !r.width || r.bottom < 0 || r.top > innerHeight) return;
+  const cv = document.createElement('canvas'), small = document.createElement('canvas');
+  cv.className = 'pixel-reveal'; cv.width = Math.round(r.width); cv.height = Math.round(r.height);
+  Object.assign(cv.style, {left:r.left + 'px', top:r.top + 'px', width:r.width + 'px', height:r.height + 'px', borderRadius:getComputedStyle(el).borderRadius});
+  document.body.append(cv);
+  const ctx = cv.getContext('2d'), sctx = small.getContext('2d'), ar = r.width / r.height, iar = img.naturalWidth / img.naturalHeight;
+  let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+  if(iar > ar){ sw = sh * ar; sx = (img.naturalWidth - sw) / 2; } else { sh = sw / ar; sy = (img.naturalHeight - sh) / 2; }
+  const draw = cols => {
+    const rows = Math.max(1, Math.round(cols / ar));
+    small.width = cols; small.height = rows;
+    sctx.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(small, 0, 0, cols, rows, 0, 0, cv.width, cv.height);
+  };
+  const steps = [3, 6, 12, 24, 48];
+  draw(steps[0]);
+  const tl = gsap.timeline({onComplete:() => cv.remove()});
+  tl.fromTo(cv, {opacity:0}, {opacity:1, duration:.12});
+  steps.slice(1).forEach((c, i) => tl.add(() => draw(c), .12 + (i + 1) * .09));
+  tl.to(cv, {opacity:0, duration:.25}, .12 + steps.length * .09);
 }
 $('#dClose').addEventListener('click', closeDetail);
 backdrop.addEventListener('click', closeDetail);
