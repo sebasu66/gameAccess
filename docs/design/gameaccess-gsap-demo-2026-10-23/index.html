@@ -489,6 +489,30 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .mg-state.warn:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
 .mg-size .unfrozen{color:#ff6a00;opacity:.55}
 
+/* Congelado en la fila: el mismo copito de la grilla, con su nombre al pasar el mouse. */
+.mg-state.frost{color:var(--ga-frost);background:#0d1a24b8;box-shadow:0 0 0 1px #8fd3ff55,0 0 12px #8fd3ff33;cursor:default}
+.mg-state.frost svg{width:15px;height:15px}
+.mg-state.frost i{position:absolute;right:calc(100% + 8px);top:50%;margin-top:-12px;white-space:nowrap;font-style:normal;font-size:11px;font-weight:700;padding:4px 8px;border-radius:5px;background:#1e2428;box-shadow:0 6px 16px #0008,inset 0 0 0 1px #ffffff1f;color:var(--ga-frost);opacity:0;transform:translateX(4px);pointer-events:none;transition:opacity .2s,transform .2s}
+.mg-state.frost:hover i,.mg-state.frost:focus-visible i{opacity:1;transform:none}
+.mg-state.frost:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
+.mg-section{display:flex;align-items:center;gap:8px;margin:32px 0 12px;padding-top:20px;border-top:1px solid var(--ga-line);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ga-muted)}
+.mg-section b{color:var(--ga-white)}
+/* Aire vertical en los paneles: entre encabezado, cifras, botones, filtros y listas. */
+.sp-head{padding:26px 74px 20px 24px}
+.sp-body{padding:24px 24px 32px}
+.mg-summary{margin-bottom:24px}
+.mg-actions{margin-bottom:24px}
+.mg-chips{margin-bottom:18px}
+.mg-list{gap:4px}
+.dl-section{margin:4px 0 14px}
+.dl-section:not(:first-child){margin-top:32px}
+.dl-feature{margin-bottom:18px}
+.dl-row{padding:10px 8px}
+.dl-manual{margin-top:32px}
+.nw-card{margin-bottom:10px}
+.side-panel.as-page .sp-head{padding:34px 150px 22px 32px}
+.side-panel.as-page .sp-body{padding:28px 32px 44px}
+
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
   display:none;flex-direction:column;gap:16px;padding:48px 22px 22px;border-radius:0 0 12px 12px;overflow:hidden;
@@ -1826,11 +1850,26 @@ function mgrInfo(g){
   if(d) return {key:'partial', badge:['dl', d.phase === 'queued' ? 'En cola' : d.phase === 'paused' ? 'En pausa' : 'Descargando'], line:`Descarga sin terminar: ${Math.round(d.p)} %`, disk:Math.round(gb * d.p / 100)};
   return {key:'idle', badge:['idle', 'Sin instalar'], line:'En tu librería', disk:0};
 }
-// Estado de la fila sin texto repetido: listo = un play (que juega), fuera de estándar = una advertencia
-// cuyo nombre aparece al pasar el mouse o con el foco; el resto mantiene su insignia.
+// Estado de la fila sin texto repetido: listo no lleva nada (es lo normal); congelado = copito y fuera de
+// estándar = advertencia, con su nombre al pasar el mouse o con el foco; descargando mantiene su insignia.
 const WARN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5L1.5 21h21zm-1 7h2v6h-2zm0 8h2v2h-2z"/></svg>';
+function mgrRow({g, info}){
+  return `
+      <div class="mg-row sp-anim" data-id="${g.id}">
+        <div class="mg-thumb ${info.key === 'frozen' ? 'is-frozen' : ''}"><img src="${art(g.id, 'header.jpg')}" alt="" loading="lazy"></div>
+        <div class="mg-main">
+          <div class="mg-name">${g.name}</div>
+          ${info.line ? `<div class="mg-line ${info.warn ? 'warn' : ''}">${info.line}</div>` : ''}
+          <div class="mg-size">${info.real ? `<span class="frost" title="Tamaño congelado">${SNOW}${info.disk} GB</span><span class="unfrozen" title="Tamaño sin congelar">${info.real} GB</span>` : `<span>${info.disk ? info.disk + ' GB' : '—'}</span>`}</div>
+          <div class="mg-sbar"><i style="width:${Math.min(100, info.disk / 1.6)}%" class="${info.key}"></i></div>
+        </div>
+        ${stateMark(g, info)}
+        <div class="mg-acts">${mgrActs(g, info)}</div>
+      </div>`;
+}
 function stateMark(g, info){
-  if(info.key === 'ready') return `<button class="mg-state play" data-act="play" data-id="${g.id}" title="Jugar" aria-label="Jugar ${g.name}">${ICON.play}</button>`;
+  if(info.key === 'ready' || info.key === 'idle') return '';
+  if(info.key === 'frozen'){ const label = g.freeze === 'deep' ? 'Congelado profundo' : 'Congelado'; return `<span class="mg-state frost" tabindex="0" role="img" aria-label="${label}">${SNOW}<i>${label}</i></span>`; }
   if(info.key === 'outdated') return `<span class="mg-state warn" tabindex="0" role="img" aria-label="Fuera de estándar">${WARN}<i>Fuera de estándar</i></span>`;
   return `<span class="mg-badge ${info.badge[0]}">${info.badge[1]}</span>`;
 }
@@ -1838,7 +1877,7 @@ function mgrActs(g, info){
   const a = (act, icon, title, cls = '') => `<button class="mg-act ${cls}" data-act="${act}" data-id="${g.id}" title="${title}" aria-label="${title}: ${g.name}">${icon}</button>`;
   const out = [];
   if(info.key === 'outdated') out.push(a('fix', WRENCH, 'Corregir', 'accent'));
-  if(g.installed && g.freeze !== 'deep' && info.key !== 'ready') out.push(a('play', ICON.play, 'Jugar'));
+  if(g.installed && g.freeze !== 'deep') out.push(a('play', ICON.play, 'Jugar'));
   if(!g.installed && !dlOf(g)) out.push(a('install', ICON.down, 'Instalar', 'accent'));
   if(g.installed && !g.freeze) out.push(a('freeze', SNOW, 'Congelar', 'frost'));
   if(g.installed && g.freeze !== 'deep') out.push(a('deep', SNOW + '<b>+</b>', 'Congelado profundo', 'frost'));
@@ -1857,6 +1896,7 @@ function renderManager(focusGame){
   el.querySelector('.sp-sub').textContent = `${games.length} juegos · ${used} GB en disco`;
   const filters = [['all', 'Todos', games.length], ['outdated', 'Fuera de estándar', count('outdated')], ['partial', 'Descargas sin terminar', count('partial')], ['frozen', 'Congelados', count('frozen')]];
   const rows = games.filter(x => mgrFilter === 'all' || x.info.key === mgrFilter).sort((a, b) => (b.info.real || b.info.disk) - (a.info.real || a.info.disk));
+  const installedRows = rows.filter(x => x.g.installed), pendingRows = rows.filter(x => !x.g.installed);
   body.innerHTML = `
     <section class="mg-summary sp-anim">
       <div class="mg-donut-wrap">
@@ -1872,18 +1912,9 @@ function renderManager(focusGame){
       <button class="btn btn-secondary mg-icon" data-act="scan" title="Escanear" aria-label="Escanear la carpeta de juegos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M4 12h16"/></svg></button>
     </div>
     <div class="mg-chips sp-anim">${filters.map(([k, l, n]) => `<button class="chip" data-mgf="${k}" aria-pressed="${mgrFilter === k}">${l}<b>${n}</b></button>`).join('')}</div>
-    <div class="mg-list">${rows.map(({g, info}) => `
-      <div class="mg-row sp-anim" data-id="${g.id}">
-        <div class="mg-thumb ${info.key === 'frozen' ? 'is-frozen' : ''}"><img src="${art(g.id, 'header.jpg')}" alt="" loading="lazy"></div>
-        <div class="mg-main">
-          <div class="mg-name">${g.name}</div>
-          ${info.line ? `<div class="mg-line ${info.warn ? 'warn' : ''}">${info.line}</div>` : ''}
-          <div class="mg-size">${info.real ? `<span class="frost" title="Tamaño congelado">${SNOW}${info.disk} GB</span><span class="unfrozen" title="Tamaño sin congelar">${info.real} GB</span>` : `<span>${info.disk ? info.disk + ' GB' : '—'}</span>`}</div>
-          <div class="mg-sbar"><i style="width:${Math.min(100, info.disk / 1.6)}%" class="${info.key}"></i></div>
-        </div>
-        ${stateMark(g, info)}
-        <div class="mg-acts">${mgrActs(g, info)}</div>
-      </div>`).join('') || '<p class="empty" style="display:block;padding:30px 0">No hay juegos con este estado.</p>'}</div>`;
+    <div class="mg-list">${installedRows.map(mgrRow).join('')}</div>
+    ${pendingRows.length ? `<h3 class="mg-section sp-anim">Sin instalar <b>${pendingRows.length}</b></h3><div class="mg-list">${pendingRows.map(mgrRow).join('')}</div>` : ''}
+    ${rows.length ? '' : '<p class="empty" style="display:block;padding:30px 0">No hay juegos con este estado.</p>'}`;
   drawDisk(body, games, used);
   if(focusGame){
     if(!rows.some(x => x.g === focusGame)){ mgrFilter = 'all'; return renderManager(focusGame); }
