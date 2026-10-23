@@ -7,8 +7,23 @@ body.ga-pixel-style:not(.ga-pixel-field-on) { background: #111416 !important; }
 .ga-cursor-glow { position: fixed; left: 0; top: 0; z-index: -1; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #ff6a0016 0, transparent 65%); opacity: 0; }
 
 /* Card hover (motion/cardHover.ts): GSAP moves the cover, so CSS must not animate or override its transform. */
-.library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art, .ga-bento-card { transition-property: box-shadow, border-color, filter, opacity; transform-style: preserve-3d; }
-.ga-bento-card:hover, .ga-bento-card:focus-visible { transform: none; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art, html body .ga-bento-card { transition-property: box-shadow, border-color, filter, opacity; transform-style: preserve-3d; }
+html body .ga-bento-card:hover, html body .ga-bento-card:focus-visible { transform: none; }
 .ga-glare { position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%), #ffffff55 0, transparent 55%); mix-blend-mode: overlay; }
 @media (prefers-reduced-motion: reduce) { .ga-cursor-glow { display: none; } }
 .ga-style-hint { margin: 8px 0 0; color: #929ba2; font: 500 12px/1.5 Manrope, sans-serif; }
+
+/* Catalog cards as in the approved demo: 8 px corners, soft shadow, hairline edge that turns orange on hover/selection,
+   name and year below. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-section-grid { gap: 30px 24px; perspective: 1100px; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-shell { max-width: none; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card { border-radius: 8px; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { border: 0 !important; border-radius: 8px !important; background: #1b2024; box-shadow: 0 10px 26px #0007; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff18; pointer-events: none; transition: box-shadow .25s; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:hover .library-room-card-art::before,
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:focus-visible .library-room-card-art::before,
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card.is-selected .library-room-card-art::before { box-shadow: inset 0 0 0 1px #ff6a00cc, 0 0 0 1px #ff6a0055; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card.is-selected .library-room-card-art { box-shadow: 0 10px 26px #0007 !important; filter: none; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:hover .library-room-card-art { filter: none; }
+html body .ga-card-caption { margin-top: 10px; color: #f4f4f2; font-size: 13px; font-weight: 600; }
+html body .ga-card-caption small { color: #929ba2; font-size: 11px; font-weight: 500; }

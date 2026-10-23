@@ -129,7 +129,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
           {state.playButtonReady ? <InstalledMark /> : null}
         </span>
       </button>
-      <div className="ga-card-caption"><span>{game.name}</span></div>
+      <div className="ga-card-caption"><span>{game.name}</span>{game.release_date?.match(/\d{4}/)?.[0] ? <small>{game.release_date.match(/\d{4}/)![0]}</small> : null}</div>
       {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
       {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
