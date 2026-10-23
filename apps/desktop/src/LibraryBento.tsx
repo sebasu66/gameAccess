@@ -105,7 +105,7 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
     if (left + width > window.innerWidth - 12) left = rect.right - width;
     if (top + height > window.innerHeight - 70) top = Math.max(12, Math.min(rect.bottom, window.innerHeight - 70) - height);
     const items = host.querySelectorAll(".ga-flip-items button");
-    const focusFirst = () => host.querySelector<HTMLButtonElement>(".ga-flip-items button:not(:disabled)")?.focus({ preventScroll: true });
+    const focusFirst = () => (host.querySelector(".ga-flip-items button:not(:disabled)") as HTMLButtonElement | null)?.focus({ preventScroll: true });
     if (!motionOk()) { gsap.set(host, { left, top, width, height }); focusFirst(); return; }
     gsap.set(host, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, rotationY: -90, transformPerspective: 900 });
     gsap.set(items, { opacity: 0, x: -12 });
