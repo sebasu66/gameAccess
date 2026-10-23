@@ -1,0 +1,2009 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111416">
+<title>GameAccess Motion Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo+Black&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  --ga-orange:#ff6a00;--ga-orange-hover:#ff8230;--ga-bg:#111416;--ga-panel:rgba(21,25,29,.94);
+  --ga-white:#f4f4f2;--ga-muted:#929ba2;--ga-line:#ffffff20;--ga-danger:#e5202e;--ga-danger-hover:#ff3342;
+  --ga-success:#8fe3b0;--ga-frost:#8fd3ff;--ga-ink:#140a02;--footer:52px;
+  --font:'Manrope','Segoe UI Variable',sans-serif;--title:'Bebas Neue',Impact,sans-serif;
+}
+*{box-sizing:border-box}
+html{scrollbar-gutter:stable}
+body{margin:0;min-height:100vh;background:var(--ga-bg);color:var(--ga-white);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+img{display:block}
+svg{flex:none}
+
+/* ---------- Fondo vivo ---------- */
+.ambient{position:fixed;inset:-10%;z-index:0;pointer-events:none}
+.ambient img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(70px) saturate(1.4);opacity:0;transform:scale(1.1)}
+.ambient::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,transparent 0,#111416b8 55%,#111416 85%)}
+.grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.cursor-glow{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;z-index:1;pointer-events:none;background:radial-gradient(circle,#ff6a0016 0,transparent 65%);opacity:0}
+
+/* ---------- Estructura ---------- */
+.workspace{position:relative;z-index:2;max-width:1560px;margin:0 auto;padding:30px 48px 190px}
+.masthead{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.identity{display:flex;align-items:center;gap:22px}
+.wordmark{font-size:25px;font-weight:800;letter-spacing:-.02em;display:flex}
+.wordmark span{display:inline-block}
+.wordmark .slash{color:var(--ga-orange);margin:0 1px}
+.crumb{color:var(--ga-muted);padding-left:22px;border-left:1px solid var(--ga-line)}
+.mast-meta{display:flex;align-items:center;gap:14px;color:var(--ga-muted);font-size:12px}
+.motion-toggle{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 6px;border-radius:16px;border:1px solid var(--ga-line);font-size:12px;font-weight:700;color:var(--ga-white)}
+.motion-toggle i{width:30px;height:18px;border-radius:9px;background:#ffffff1c;position:relative}
+.motion-toggle i::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ga-muted);transition:transform .25s,background .25s}
+.motion-toggle[aria-pressed=true] i{background:#ff6a0044}
+.motion-toggle[aria-pressed=true] i::after{transform:translateX(12px);background:var(--ga-orange)}
+
+/* ---------- Destacado ---------- */
+.spotlight{position:relative;height:clamp(300px,38vh,400px);border-radius:12px;overflow:hidden;margin-bottom:28px;isolation:isolate}
+.spotlight::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;z-index:5;pointer-events:none;background:linear-gradient(135deg,#ffffff55,#ffffff08);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.spot-bg{position:absolute;inset:0;z-index:-2}
+.spot-bg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0}
+.spotlight::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#111416f2 0,#111416b0 38%,transparent 72%),linear-gradient(0deg,#111416d0 0,transparent 45%)}
+.spot-content{position:absolute;left:44px;bottom:38px;max-width:560px}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.18em;color:var(--ga-orange);text-transform:uppercase}
+.spot-title{font-family:var(--title);font-size:72px;line-height:.92;color:var(--ga-orange);margin:8px 0 10px;font-weight:400;letter-spacing:.01em}
+.spot-desc{color:#d8dcdf;margin:0 0 20px;max-width:470px}
+.spot-actions{display:flex;gap:10px}
+.spot-dots{position:absolute;right:28px;bottom:30px;display:flex;gap:8px}
+.spot-dot{width:42px;height:4px;border-radius:2px;background:#ffffff2a;overflow:hidden;position:relative}
+.spot-dot i{position:absolute;inset:0;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
+.spot-dot::after{content:'';position:absolute;inset:-10px 0}
+
+/* ---------- Botones (GUI_DESIGN §4) ---------- */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;height:44px;padding:0 18px;border-radius:8px;font-weight:700;font-size:14px;overflow:hidden;white-space:nowrap}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:var(--ga-orange);color:var(--ga-ink);border:1px solid var(--ga-orange);box-shadow:0 8px 24px #ff6a0033}
+.btn-primary:hover{background:var(--ga-orange-hover)}
+.btn-secondary{background:#ffffff08;border:1px solid #ffffff25;color:var(--ga-white);backdrop-filter:blur(12px)}
+.btn-secondary:hover{background:#ffffff14}
+.btn.tall{height:54px;padding:0 24px}
+.btn.icon{width:48px;height:54px;padding:0;border-radius:5px}
+.btn .fill{position:absolute;inset:0;background:#ffffff40;transform-origin:left;transform:scaleX(0);pointer-events:none}
+.btn .label{position:relative}
+.btn .shine{position:absolute;top:0;bottom:0;width:60%;left:-70%;background:linear-gradient(100deg,transparent,#ffffff70,transparent);pointer-events:none}
+.btn:focus-visible,.poster:focus-visible,.chip:focus-visible,.view-btn:focus-visible,.foot-btn:focus-visible,.ga-close:focus-visible{outline:2px solid var(--ga-orange);outline-offset:3px}
+
+/* ---------- Chips ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px;position:relative}
+.chip{position:relative;height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--ga-line);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;color:#d6dadd;z-index:1;transition:color .2s}
+.chip b{font-weight:700;color:var(--ga-muted);transition:color .2s}
+.chip[aria-pressed=true]{color:var(--ga-ink);border-color:transparent}
+.chip[aria-pressed=true] b{color:#140a02b0}
+.chip-pill{position:absolute;left:0;top:0;height:32px;border-radius:16px;background:var(--ga-orange);z-index:0;box-shadow:0 6px 18px #ff6a0040}
+
+/* ---------- Grilla ---------- */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 14px}
+.section-head h2{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ga-muted);margin:0}
+.result-count{font-size:12px;color:var(--ga-muted)}
+.result-count b{color:var(--ga-white);display:inline-block;min-width:2ch;text-align:right}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:30px 24px;perspective:1100px}
+.poster{display:block;text-align:left;width:100%;border-radius:8px}
+.poster-art{position:relative;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:#1b2024;transform-style:preserve-3d;box-shadow:0 10px 26px #0007;will-change:transform}
+.poster-art img{width:100%;height:100%;object-fit:cover}
+.poster-art .fallback{position:absolute;inset:0;display:flex;align-items:flex-end;padding:14px;font-family:var(--title);font-size:30px;line-height:.95;color:var(--ga-orange);background:linear-gradient(160deg,#2a2f33,#15191c)}
+.poster-art::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px #ffffff18;pointer-events:none;transition:box-shadow .25s}
+.poster:hover .poster-art::after,.poster:focus-visible .poster-art::after{box-shadow:inset 0 0 0 1px #ff6a00cc,0 0 0 1px #ff6a0055}
+.glare{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(circle at var(--gx,50%) var(--gy,50%),#ffffff55 0,transparent 55%);mix-blend-mode:overlay}
+.badge{position:absolute;left:10px;bottom:10px;display:flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:4px;background:#111416d9;font-size:10px;font-weight:800;letter-spacing:.08em;backdrop-filter:blur(8px)}
+.badge svg{width:12px;height:12px;color:var(--ga-success)}
+.fav-mark{position:absolute;right:10px;top:10px;width:26px;height:26px;border-radius:5px;background:#111416c0;display:grid;place-items:center;color:var(--ga-orange);backdrop-filter:blur(8px)}
+.fav-mark svg{width:14px;height:14px}
+.poster-meta{display:flex;justify-content:space-between;gap:8px;margin-top:10px;font-size:13px;font-weight:600}
+.poster-meta span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.poster-meta span:last-child{color:var(--ga-muted);font-size:11px;font-weight:500}
+.poster-progress{position:absolute;left:0;right:0;bottom:0;height:4px;background:#0009}
+.poster-progress i{position:absolute;inset:0;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
+.empty{grid-column:1/-1;text-align:center;color:var(--ga-muted);padding:60px 0;display:none}
+
+/* ---------- Dock ---------- */
+.dock-area{position:fixed;left:0;right:0;bottom:var(--footer);z-index:8;height:190px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:flex-end;padding:0 24px 18px;pointer-events:none;background:linear-gradient(transparent,#111416c9 60%,#111416)}
+.dock{display:flex;align-items:center;gap:12px;width:min(860px,100%);pointer-events:auto}
+.search{position:relative;flex:1;display:flex;align-items:center;gap:12px;height:62px;padding:0 18px 0 22px;border-radius:31px;background:#20282cdc;border:1px solid #ffffff2c;backdrop-filter:blur(28px);box-shadow:0 14px 40px #0008}
+.search svg{width:26px;height:26px;color:var(--ga-orange)}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;font-size:17px;font-weight:500}
+.search input::placeholder{color:#8f969d}
+.search kbd{font-family:inherit;font-size:10px;padding:2px 6px;border:1px solid #ffffff30;border-radius:4px;color:var(--ga-muted)}
+.search-ring{position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;border:1.5px solid var(--ga-orange);opacity:0}
+.view-btn{width:62px;height:62px;border-radius:31px;display:grid;place-items:center;background:#242d32d9;border:1px solid #ffffff2c;backdrop-filter:blur(28px);box-shadow:0 10px 30px #0007}
+.view-btn svg{width:28px;height:28px}
+.view-btn[aria-pressed=true]{background:var(--ga-orange);border-color:var(--ga-orange);color:var(--ga-ink);box-shadow:0 10px 30px #ff6a0055}
+.footer{position:fixed;left:0;right:0;bottom:0;height:var(--footer);z-index:9;display:flex;align-items:center;justify-content:space-between;padding:0 32px;border-top:1px solid var(--ga-line);background:#101416f5}
+.foot-left{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--ga-muted)}
+.foot-left b{color:var(--ga-white)}
+.foot-left .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ga-orange);margin-right:8px;vertical-align:1px}
+.foot-mid,.foot-right{display:flex;align-items:center;gap:6px}
+.foot-btn{position:relative;display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border-radius:8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border:1px solid transparent}
+.foot-btn:hover{background:#ff6a0029;border-color:#ff8a38}
+.foot-btn svg{width:20px;height:20px}
+.dl-badge{min-width:18px;height:18px;padding:0 5px;border-radius:4px;background:var(--ga-orange);color:var(--ga-ink);font-size:11px;display:grid;place-items:center;letter-spacing:0}
+
+/* ---------- Ficha (overlay) ---------- */
+.backdrop{position:fixed;inset:0;z-index:20;background:#05080c99;display:none;opacity:0}
+.detail{position:fixed;z-index:21;left:50%;top:50%;width:min(1180px,calc(100vw - 64px));height:min(760px,calc(100vh - 80px));transform:translate(-50%,-50%);display:none}
+.panel{position:absolute;inset:0;border-radius:12px;overflow:hidden;background:var(--ga-panel);backdrop-filter:blur(16px);box-shadow:0 24px 60px #0008;transform-origin:0 0}
+.panel::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;z-index:6;pointer-events:none;background:linear-gradient(135deg,#ffffff55,#ffffff08);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.d-hero{position:relative;height:230px;overflow:hidden;border-bottom:1px solid var(--ga-orange)}
+.d-hero img{width:100%;height:100%;object-fit:cover;transform-origin:50% 30%}
+.d-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#15191df0 0,transparent 60%)}
+.d-line{position:absolute;left:0;right:0;top:229px;height:1px;background:var(--ga-orange);box-shadow:0 0 18px var(--ga-orange);transform-origin:left;z-index:2}
+.ga-close{position:absolute;top:18px;right:18px;z-index:8;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--ga-danger);border:1px solid #ff6b75;box-shadow:0 0 14px #e5202e88;color:#fff;transition:background .2s,box-shadow .2s}
+.ga-close:hover{background:var(--ga-danger-hover);box-shadow:0 0 20px #ff3342cc}
+.ga-close svg{width:18px;height:18px}
+.d-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px;padding:26px 32px 28px;height:calc(100% - 230px)}
+.d-left{display:flex;flex-direction:column;min-height:0}
+.d-title{font-family:var(--title);font-weight:400;font-size:56px;line-height:.95;color:var(--ga-orange);margin:6px 0 10px;letter-spacing:.01em}
+.d-meta{display:flex;gap:14px;font-weight:700;font-size:13px}
+.d-meta span+span::before{content:'·';margin-right:14px;color:var(--ga-muted)}
+.d-modes{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.mode{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--ga-line);font-size:12px;font-weight:600}
+.mode svg{width:14px;height:14px;color:var(--ga-orange)}
+.d-desc{color:#d8dcdf;margin:0;flex:1;min-height:0;overflow:auto}
+.d-score{display:flex;align-items:center;justify-content:space-between;padding:12px 0;margin:12px 0 16px;border-top:1px solid var(--ga-line);border-bottom:1px solid var(--ga-line)}
+.score-num{font-family:var(--title);font-size:46px;line-height:1;color:var(--ga-orange)}
+.score-num small{font-size:22px}
+.score-bar{flex:1;margin:0 20px;height:6px;border-radius:3px;background:#ffffff14;overflow:hidden}
+.score-bar i{display:block;height:100%;background:linear-gradient(90deg,#ff6a00,#ffb070);transform-origin:left;transform:scaleX(0)}
+.score-label{text-align:right;font-size:12px;font-weight:700}
+.score-label span{display:block;color:var(--ga-muted);font-weight:500}
+.d-actions{display:flex;gap:10px}
+.d-actions .btn-primary{flex:1}
+.d-right{display:flex;flex-direction:column;gap:12px;min-height:0}
+.media{position:relative;flex:1;min-height:0;border-radius:8px;overflow:hidden;background:#0d1114}
+.media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.media-tag{position:absolute;left:14px;top:14px;z-index:2;font-size:10px;font-weight:800;letter-spacing:.14em;padding:5px 9px;border-radius:4px;background:#111416c9}
+.play-ring{position:absolute;left:50%;top:50%;width:66px;height:66px;margin:-33px 0 0 -33px;z-index:2;border-radius:50%;background:var(--ga-orange);display:grid;place-items:center;color:var(--ga-ink);box-shadow:0 10px 30px #0008}
+.play-ring svg{width:28px;height:28px;margin-left:4px}
+.play-ring::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid #ff6a0088;animation:pulse 2.2s ease-out infinite}
+@keyframes pulse{from{transform:scale(.85);opacity:1}to{transform:scale(1.35);opacity:0}}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.thumb{aspect-ratio:16/9;border-radius:6px;overflow:hidden;position:relative;opacity:.55;transition:opacity .2s}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb[aria-pressed=true],.thumb:hover{opacity:1}
+.thumb[aria-pressed=true]::after{content:'';position:absolute;inset:0;border:2px solid var(--ga-orange);border-radius:inherit}
+.particle{position:fixed;z-index:40;width:6px;height:6px;border-radius:50%;background:var(--ga-orange);pointer-events:none}
+
+/* ---------- Toasts ---------- */
+.toasts{position:fixed;right:24px;bottom:calc(var(--footer) + 20px);z-index:30;display:flex;flex-direction:column;gap:10px;width:340px}
+.toast{position:relative;display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:8px;background:rgba(24,28,31,.94);border:1px solid var(--ga-line);border-left:3px solid var(--ga-orange);box-shadow:0 12px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
+.toast.done{border-left-color:var(--ga-success)}
+.toast img{width:38px;height:57px;object-fit:cover;border-radius:4px}
+.toast-text{flex:1;min-width:0}
+.toast-text strong{display:block;font-size:13px}
+.toast-text span{font-size:12px;color:var(--ga-muted)}
+.toast-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:#ffffff10}
+.toast-bar i{position:absolute;inset:0;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
+.toast.done .toast-bar i{background:var(--ga-success)}
+
+/* ---------- Dos vistas: acento y palabra vertical ---------- */
+body{--accent:var(--ga-orange)}
+/* Propuesta: la librería usa el verde de "instalado" como acento; las acciones principales siguen naranja. */
+body[data-view=library]{--accent:var(--ga-success)}
+.workspace{padding-left:max(48px,calc(var(--rail,0px) + 28px))}
+.crumb{color:var(--accent);transition:color .6s}
+.chip-pill{background:var(--accent)}
+.views{position:relative;perspective:1800px;perspective-origin:50% 300px}
+.view{transform-style:preserve-3d;backface-visibility:hidden}
+.rail{position:fixed;left:0;top:0;bottom:0;width:var(--rail,120px);z-index:3;overflow:hidden;pointer-events:none}
+.rail-word{position:absolute;left:-.03em;top:50%;writing-mode:vertical-rl;white-space:nowrap;font-family:'Archivo Black','Arial Black',sans-serif;font-weight:400;line-height:1;letter-spacing:.005em;will-change:transform;
+  /* Las letras mismas se desvanecen hacia el centro de la pantalla (máscara, no un velo encima). */
+  -webkit-mask-image:linear-gradient(to left,#000 0,#000 18%,#0008 55%,#0000 92%);mask-image:linear-gradient(to left,#000 0,#000 18%,#0008 55%,#0000 92%)}
+.rail-word span{display:block;-webkit-background-clip:text;background-clip:text;color:transparent}
+/* Silueta lisa y tenue: el contorno de la letra no se pixela. */
+.rail-word .solid{background-image:linear-gradient(to left,var(--rw-hi),var(--rw));opacity:.28}
+/* Interior pixelado: cuadraditos separados por una ranura fina. */
+.rail-word .pix{position:absolute;inset:0;background-image:linear-gradient(to left,var(--rw-hi),var(--rw) 45%,var(--rw-lo));
+  -webkit-mask-image:repeating-linear-gradient(0deg,#000 0 6px,#0000 6px 8px),repeating-linear-gradient(90deg,#000 0 6px,#0000 6px 8px);
+  -webkit-mask-composite:source-in;mask-image:repeating-linear-gradient(0deg,#000 0 6px,#0000 6px 8px),repeating-linear-gradient(90deg,#000 0 6px,#0000 6px 8px);mask-composite:intersect}
+.rail-word[data-view=catalog]{--rw-hi:#ffb070;--rw:#ff6a00;--rw-lo:#c94f00}
+.rail-word[data-view=library]{--rw-hi:#e2fff0;--rw:#8fe3b0;--rw-lo:#4fb985}
+
+/* ---------- Librería: grilla bento ---------- */
+/* Instalado = portada vertical (listo para jugar). Sin instalar = apaisada chica; tres apaisadas ocupan lo que una vertical. */
+.bento{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));grid-auto-rows:var(--row,84px);gap:14px}
+.b-card{position:relative;border-radius:8px;overflow:hidden;background:#1b2024;box-shadow:0 8px 22px #0007}
+.b-card::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px #ffffff18;pointer-events:none;transition:box-shadow .25s}
+.b-card:hover::after,.b-card:focus-within::after{box-shadow:inset 0 0 0 1px #ff6a00cc}
+.b-card img,.b-card .fallback{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .45s}
+.b-card .fallback{display:flex;align-items:flex-end;padding:12px;font-family:var(--title);font-size:24px;color:var(--ga-orange);background:linear-gradient(160deg,#2a2f33,#15191c)}
+.b-card.ready .img-land,.b-card:not(.ready) .img-port{opacity:0}
+.b-card:not(.ready) .img-land{filter:saturate(.55) brightness(.8);transition:opacity .45s,filter .3s}
+.b-card:not(.ready):hover .img-land{filter:none}
+.b-open{position:absolute;inset:0;z-index:2;border-radius:inherit}
+.b-open:focus-visible{outline:2px solid var(--ga-orange);outline-offset:3px}
+.b-name{position:absolute;left:0;right:0;bottom:0;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:28px 10px 8px;background:linear-gradient(transparent,#111416e8);font-size:12px;font-weight:700;pointer-events:none}
+.b-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.b-name svg{width:15px;height:15px;color:var(--ga-muted)}
+.b-card.ready .b-name{padding:40px 12px 10px;font-size:13px}
+.b-card.ready .b-name svg{display:none}
+.b-card .badge{z-index:1;bottom:auto;top:10px}
+.b-card:not(.ready) .badge{display:none}
+.b-remove{position:absolute;top:8px;right:8px;z-index:3;width:28px;height:28px;border-radius:5px;display:grid;place-items:center;background:#111416d0;border:1px solid #ffffff30;color:var(--ga-white);opacity:0;transform:scale(.7);transition:opacity .2s,transform .2s,background .2s}
+.b-remove svg{width:14px;height:14px}
+.b-card:hover .b-remove,.b-remove:focus-visible{opacity:1;transform:none}
+.b-remove:hover{background:#c8321f;border-color:#c8321f}
+.b-card .poster-progress{z-index:1;height:3px}
+.b-frost{position:absolute;top:10px;right:10px;z-index:1;width:26px;height:26px;border-radius:50%;display:none;place-items:center;color:var(--ga-frost);background:#0d1a24b8;box-shadow:0 0 0 1px #8fd3ff55,0 0 14px #8fd3ff44;backdrop-filter:blur(6px)}
+.b-frost svg{width:15px;height:15px}
+.b-card[data-freeze=light] .b-frost{display:grid}
+.b-card[data-freeze=light] .b-remove{right:42px}
+.b-ice{position:absolute;inset:0;z-index:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#e6f6ff;font-size:9px;font-weight:800;letter-spacing:.18em;
+  background:linear-gradient(0deg,#8fd3ff55 0,#8fd3ff26 55%,#8fd3ff10 100%);backdrop-filter:blur(1.5px) saturate(.5);box-shadow:inset 0 0 0 1px #8fd3ff66,inset 0 -18px 30px #d8f1ff30}
+.b-ice-glyph svg{width:20px;height:20px}
+.b-card[data-freeze=deep] .b-ice{display:flex}
+.b-card[data-freeze=deep] .img-land{filter:grayscale(.7) brightness(.85)}
+.b-card[data-freeze=deep] .b-name{color:#d8efff;z-index:2}
+.b-card[data-freeze=deep] .b-ice{justify-content:flex-start;padding-top:8px}
+.b-ico{display:contents;font-style:normal}
+.b-menu{position:absolute;right:8px;bottom:8px;z-index:3;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--ga-white);background:#111416b8;border:1px solid #ffffff38;backdrop-filter:blur(8px)}
+.b-menu svg{width:18px;height:18px}
+.b-menu:hover{background:var(--ga-orange);color:var(--ga-ink);border-color:var(--ga-orange)}
+.b-menu:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
+.b-card:not(.ready) .b-menu{width:26px;height:26px;right:6px;bottom:6px}
+.b-card:not(.ready) .b-name{padding-right:38px}
+/* Dorso: vidrio esmerilado con relleno que se desvanece hacia la derecha. */
+.flip-menu{position:fixed;z-index:25;border-radius:8px;overflow:hidden;padding:12px 8px 10px;display:flex;flex-direction:column;gap:1px;
+  background:linear-gradient(90deg,rgba(21,25,29,.96) 0,rgba(21,25,29,.86) 55%,rgba(21,25,29,.45) 100%);backdrop-filter:blur(18px) saturate(1.1);box-shadow:0 24px 60px #0009}
+.flip-menu::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;background:linear-gradient(135deg,#ffffff55,#ffffff08);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.fm-head{padding:0 8px 8px;margin-bottom:4px;position:relative}
+.fm-head strong{display:block;font-family:var(--title);font-weight:400;font-size:24px;line-height:1;color:var(--ga-orange);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-line{position:absolute;left:8px;right:8px;bottom:0;height:1px;background:linear-gradient(90deg,var(--ga-orange),#ff6a0000);transform-origin:left}
+.flip-menu button{display:flex;align-items:center;gap:10px;min-height:30px;padding:0 8px;border-radius:5px;font-size:13px;font-weight:600;text-align:left;white-space:nowrap}
+.flip-menu button:hover:not(:disabled),.flip-menu button:focus-visible{background:#ff6a0026;outline:none}
+.flip-menu button:disabled{opacity:.38;cursor:default}
+.flip-menu .fm-ico{width:16px;display:grid;place-items:center}
+.flip-menu .fm-ico svg{width:15px;height:15px}
+.flip-menu .frost .fm-ico{color:var(--ga-frost)}
+.flip-menu .danger{color:#ff7b6b}
+/* Pastillas de la librería sobre la búsqueda. */
+.lib-pills{display:flex;gap:8px;pointer-events:auto}
+.lib-pills .chip{background:#20282cdc;border-color:#ffffff2c;backdrop-filter:blur(20px);color:#e4e7e9}
+.lib-pills .chip[aria-pressed=true]{background:var(--accent);border-color:transparent;color:var(--ga-ink)}
+body:not([data-view=library]) .lib-pills{visibility:hidden}
+#libEmpty{display:none}
+
+/* ---------- Ficha: la tarjeta crece hasta ser el panel ---------- */
+.ghost{position:absolute;z-index:7;object-fit:cover;pointer-events:none;border-radius:inherit}
+
+/* ---------- Dorso de la tarjeta: portada en líneas + vidrio + menú ---------- */
+.flip-menu{padding:0;isolation:isolate;background:#0b0e10}
+.fm-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:url(#sketch);mix-blend-mode:screen;pointer-events:none}
+.fm-glass{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(17,20,22,.86) 0,rgba(17,20,22,.6) 50%,rgba(17,20,22,0) 100%);backdrop-filter:blur(1.5px)}
+.fm-items{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;padding:12px;min-height:100%}
+.flip-menu .fm-items button.primary{background:var(--ga-orange);color:var(--ga-ink);min-height:40px;border-radius:8px;font-weight:800;margin-bottom:4px;box-shadow:0 8px 20px #ff6a0040}
+.flip-menu .fm-items button.primary:hover{background:var(--ga-orange-hover)}
+
+/* ---------- Escritorio: paneles secundarios ---------- */
+:root{--pl:0px;--pr:0px}
+body{padding-left:var(--pl);padding-right:var(--pr)}
+.workspace{max-width:2200px}
+.rail{left:var(--pl);transition:left .7s cubic-bezier(.7,0,.3,1)}
+.dock-area{left:var(--pl);right:var(--pr);transition:left .7s cubic-bezier(.7,0,.3,1),right .7s cubic-bezier(.7,0,.3,1)}
+.toasts{right:calc(var(--pr) + 24px);transition:right .7s cubic-bezier(.7,0,.3,1)}
+.side-panel{position:fixed;top:0;height:calc(100vh - var(--footer));z-index:12;display:none;flex-direction:column;background:rgba(17,20,23,.96);backdrop-filter:blur(20px);overflow:hidden;box-shadow:0 0 60px #0009}
+.side-panel[data-side=left]{left:0}
+.side-panel[data-side=right]{right:0}
+.side-panel::after{content:'';position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,#ffffff55,#ffffff08)}
+.side-panel[data-side=left]::after{right:0}
+.side-panel[data-side=right]::after{left:0}
+.side-panel[data-panel=news]{border-top:1px solid var(--ga-line)}
+.sp-inner{display:flex;flex-direction:column;height:100%;width:100%}
+.sp-head{position:relative;padding:22px 74px 14px 24px;border-bottom:1px solid var(--ga-line)}
+.sp-title{font-family:var(--title);font-weight:400;font-size:40px;line-height:.95;color:var(--ga-orange);margin:4px 0;letter-spacing:.01em}
+.sp-sub{margin:0;color:var(--ga-muted);font-size:13px}
+.sp-back{display:none}
+.sp-body{flex:1;min-height:0;overflow:auto;padding:16px 24px 24px;scrollbar-width:thin;scrollbar-color:#ffffff30 transparent}
+/* Ventana chica: el panel es la pantalla. */
+.side-panel.as-page{left:0;right:0;width:auto;height:calc(100vh - var(--footer));z-index:14;background:#111416;box-shadow:none}
+.side-panel.as-page::after{display:none}
+.side-panel.as-page .sp-inner{max-width:1080px;margin:0 auto}
+.side-panel.as-page .sp-close{display:none}
+.side-panel.as-page .sp-back{display:inline-flex}
+.side-panel.as-page .sp-head{padding:30px 150px 18px 32px}
+.side-panel.as-page .sp-title{font-size:56px}
+.side-panel.as-page .sp-body{padding:20px 32px 40px}
+.ga-back{position:absolute;top:24px;right:24px;align-items:center;gap:8px;height:54px;padding:0 18px;border-radius:5px;background:var(--ga-danger);border:1px solid #ff6b75;box-shadow:0 0 14px #e5202e88;color:#fff;font-weight:700}
+.ga-back:hover{background:var(--ga-danger-hover);box-shadow:0 0 20px #ff3342cc}
+.ga-back svg{width:18px;height:18px}
+
+/* Pie: los botones de paneles son interruptores en ventana grande. */
+.foot-btn[data-panel] .led{display:none;width:6px;height:6px;border-radius:50%;background:#ffffff38;transition:background .3s,box-shadow .3s}
+body.wide .foot-btn[data-panel] .led{display:block}
+.foot-btn[aria-pressed=true]{background:#ff6a0024;border-color:#ff8a3899;color:#fff}
+body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shadow:0 0 8px var(--ga-orange)}
+
+/* Administrador */
+.mg-summary{padding:16px;border-radius:12px;background:#ffffff06;border:1px solid var(--ga-line);margin-bottom:14px}
+.mg-top{display:flex;justify-content:space-between;align-items:flex-end}
+.mg-label{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ga-muted)}
+.mg-big{font-family:var(--title);font-weight:400;font-size:46px;line-height:1}
+.mg-big small{font-size:22px;color:var(--ga-muted)}
+.mg-free{text-align:right}.mg-free strong{font-size:15px;color:var(--ga-success)}
+.mg-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#8fe3b026;margin:12px 0 8px}
+.mg-bar i{height:100%;transform-origin:left}
+.seg-games{background:var(--ga-orange)}.seg-partial{background:#6fa8ff}.seg-free{background:#8fe3b066}
+.mg-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--ga-muted)}
+.mg-legend span{display:inline-flex;align-items:center;gap:6px}.mg-legend b{color:var(--ga-white)}
+.mg-legend i{width:8px;height:8px;border-radius:2px}
+.mg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--ga-line)}
+.mg-stats strong{display:block;font-family:var(--title);font-weight:400;font-size:28px;line-height:1;color:var(--ga-orange)}
+.mg-stats strong.frost{color:var(--ga-frost)}
+.mg-stats span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ga-muted)}
+.mg-actions{display:flex;gap:10px;margin-bottom:14px}
+.mg-actions .btn-primary{flex:1}
+.mg-actions .btn:disabled{opacity:.4;cursor:default}
+.mg-icon{width:44px;padding:0}
+.mg-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.mg-chips .chip[aria-pressed=true]{background:var(--ga-orange);color:var(--ga-ink)}
+.mg-list{display:flex;flex-direction:column;gap:2px}
+.mg-row{display:grid;grid-template-columns:84px minmax(0,1fr) auto;grid-template-areas:"thumb main badge" "thumb acts acts";column-gap:12px;row-gap:6px;align-items:start;padding:10px;border-radius:8px;border:1px solid transparent;overflow:hidden}
+.mg-row:hover,.mg-row.focus{background:#ffffff08;border-color:var(--ga-line)}
+.mg-thumb{grid-area:thumb;position:relative;aspect-ratio:460/215;border-radius:5px;overflow:hidden;background:#1b2024}
+.mg-thumb img{width:100%;height:100%;object-fit:cover}
+.mg-thumb.is-frozen::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#8fd3ff66,#8fd3ff1a)}
+.mg-main{grid-area:main;min-width:0}
+.mg-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mg-line{font-size:11px;color:var(--ga-muted)}.mg-line.warn{color:var(--ga-orange)}
+.mg-size{display:flex;align-items:baseline;gap:6px;margin-top:4px;font-size:12px;font-weight:700}
+.mg-size .frost{display:inline-flex;align-items:center;gap:4px;color:var(--ga-frost)}
+.mg-size .frost svg{width:12px;height:12px}
+.mg-size s{color:var(--ga-muted);font-weight:500}.mg-size em{font-style:normal;font-weight:600;color:var(--ga-frost);font-size:11px}
+.mg-sbar{position:relative;height:3px;border-radius:2px;background:#ffffff12;margin-top:5px;overflow:hidden}
+.mg-sbar i{position:absolute;left:0;top:0;bottom:0;background:var(--ga-orange)}
+.mg-sbar i.frozen{background:var(--ga-frost)}.mg-sbar i.partial{background:#6fa8ff}
+.mg-badge{grid-area:badge;height:20px;padding:0 8px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.04em;display:inline-flex;align-items:center;white-space:nowrap}
+.mg-badge.ok{background:#8fe3b01c;color:var(--ga-success)}.mg-badge.warn{background:#ff6a001f;color:#ff9a4d}
+.mg-badge.frost{background:#8fd3ff1f;color:var(--ga-frost)}.mg-badge.dl{background:#6fa8ff1f;color:#8fbaff}.mg-badge.idle{background:#ffffff10;color:var(--ga-muted)}
+.mg-acts{grid-area:acts;display:flex;flex-wrap:wrap;gap:4px;max-height:0;opacity:0;transition:max-height .3s,opacity .25s}
+.mg-row:hover .mg-acts,.mg-row:focus-within .mg-acts,.mg-row.focus .mg-acts{max-height:80px;opacity:1}
+.mg-act{position:relative;width:32px;height:32px;border-radius:5px;display:grid;place-items:center;background:#ffffff08;border:1px solid #ffffff22;color:var(--ga-white)}
+.mg-act svg{width:15px;height:15px}
+.mg-act b{position:absolute;right:3px;top:1px;font-size:10px;color:var(--ga-frost)}
+.mg-act:hover{background:#ffffff1a}
+.mg-act.accent{color:var(--ga-orange)}.mg-act.frost{color:var(--ga-frost)}
+.mg-act.danger:hover{background:#c8321f;border-color:#c8321f}
+.mg-act:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
+.as-page .mg-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:6px}
+
+/* Descargas */
+.dl-section{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ga-muted);margin:6px 0 10px}
+.dl-section:not(:first-child){margin-top:20px}
+.dl-feature{border-radius:12px;overflow:hidden;background:#ffffff06;border:1px solid var(--ga-line);margin-bottom:12px}
+.dl-hero{position:relative;aspect-ratio:460/150;overflow:hidden}
+.dl-hero img{width:100%;height:100%;object-fit:cover}
+.dl-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#15191df2 0,#15191d55 55%,transparent)}
+.dl-hero-text{position:absolute;left:14px;right:14px;bottom:10px;z-index:1}
+.dl-hero-text strong{display:block;font-family:var(--title);font-weight:400;font-size:28px;line-height:1;color:var(--ga-orange);margin-top:6px}
+.dl-pills{display:flex;gap:6px}
+.dl-pill{height:20px;padding:0 8px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.06em;display:inline-flex;align-items:center;background:#ffffff1c}
+.dl-pill.plus{background:var(--ga-orange);color:var(--ga-ink)}.dl-pill.state{background:#111416c0}
+.dl-fbody{padding:12px 14px 14px}
+.dl-spark{display:block;width:100%;height:42px;margin-bottom:8px}
+.dl-bar-line{display:flex;justify-content:space-between;font-size:11px;color:var(--ga-muted);margin-top:6px}
+.dl-bar-line b{color:var(--ga-white)}
+.dl-bar{height:6px;border-radius:3px;background:#ffffff12;overflow:hidden;margin-top:4px}
+.dl-bar i{display:block;height:100%;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
+.dl-bar.inst i{background:var(--ga-success)}
+.dl-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.dl-metrics dt{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ga-muted)}
+.dl-metrics dd{margin:2px 0 0;font-size:13px;font-weight:700}
+.dl-actions{display:flex;gap:10px}.dl-actions .btn{flex:1}
+.dl-actions .btn:disabled{opacity:.4;cursor:default}
+.dl-row{display:grid;grid-template-columns:auto 72px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border-radius:8px}
+.dl-row:hover{background:#ffffff08}
+.dl-row img{width:72px;aspect-ratio:460/215;object-fit:cover;border-radius:5px}
+.dl-pos{font-family:var(--title);font-size:24px;color:var(--ga-muted);min-width:16px;text-align:center}
+.dl-pos.ok{color:var(--ga-success)}.dl-pos.ok svg{width:16px;height:16px}
+.dl-row-text{min-width:0}.dl-row-text strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-row-text span{font-size:11px;color:var(--ga-muted)}
+.dl-row-acts{display:flex;gap:4px}
+.dl-play{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;background:var(--ga-orange);color:var(--ga-ink);font-weight:800;font-size:12px}
+.dl-play svg{width:14px;height:14px}
+.dl-manual{margin-top:20px;padding:12px 14px;border-radius:8px;border:1px dashed #ffffff26;color:var(--ga-muted);font-size:12px}
+.dl-manual summary{cursor:pointer;font-weight:700;color:var(--ga-white)}
+.dl-manual-row{display:flex;gap:10px}
+.ga-field{flex:1;min-width:0;height:44px;padding:0 12px;border-radius:8px;background:#0d1114;border:1px solid #ffffff20;color:var(--ga-white)}
+.ga-field:focus{outline:2px solid var(--ga-orange);outline-offset:3px;border-color:var(--ga-orange)}
+.as-page .dl-feature{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}
+.as-page .dl-hero{aspect-ratio:auto;min-height:100%}
+
+/* Novedades */
+.nw-card{padding:16px;border-radius:12px;background:linear-gradient(135deg,#ff6a0026,#ffffff05 70%);border:1px solid #ff6a0044;margin-bottom:6px}
+.nw-date{font-size:11px;font-weight:700;color:var(--ga-muted)}
+.nw-ver{display:block;font-family:var(--title);font-weight:400;font-size:28px;line-height:1;color:var(--ga-orange);margin:4px 0 6px}
+.nw-card p{margin:0;font-size:13px;color:#d8dcdf}
+.nw-see{height:32px;padding:0 12px;font-size:12px}
+.nw-tip{margin:16px 0 0;font-size:12px;color:var(--ga-muted);border-left:3px solid var(--ga-orange);padding:8px 12px;background:#ffffff05;border-radius:0 8px 8px 0}
+
+/* Dona del disco en el administrador */
+.mg-donut-wrap{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center}
+.mg-donut{width:150px;height:150px;overflow:visible}
+.mg-donut circle{cursor:default}
+.mg-hole{fill:#111417}
+.mg-c1{font-family:var(--title);font-size:30px;fill:var(--ga-white)}
+.mg-c2{font-size:10px;font-weight:700;fill:var(--ga-muted);letter-spacing:.04em}
+.mg-legend2{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.mg-legend2 li{display:grid;grid-template-columns:1fr auto;column-gap:10px;font-size:12px;transition:opacity .3s}
+.mg-legend2 li.dim{opacity:.35}
+.mg-legend2 li i{grid-column:1 / -1;height:4px;border-radius:2px;background:#ffffff0d;overflow:hidden;margin-bottom:3px}
+.mg-legend2 li i b{display:block;height:100%;background:var(--c);transform-origin:left}
+.mg-legend2 li span{color:#c9ced2}
+.mg-legend2 li strong{font-weight:700}
+.as-page .mg-donut-wrap{grid-template-columns:200px minmax(0,1fr);max-width:640px}
+.as-page .mg-donut{width:200px;height:200px}
+
+/* Pie: botones cubo de vidrio, solo ícono; al pasar el mouse se encienden y muestran su nombre. */
+.footer{padding:0 18px;background:#0e1214f2}
+.foot-left,.foot-mid,.foot-right{display:flex;align-items:center;gap:8px}
+.foot-btn{height:38px;min-width:38px;padding:0 10px;gap:0;border-radius:8px;letter-spacing:.06em;color:#cfd4d8;
+  background:linear-gradient(180deg,#ffffff16,#ffffff05);border:1px solid #ffffff1c;box-shadow:inset 0 1px 0 #ffffff24,inset 0 -1px 0 #0000004d,0 4px 12px #0006;backdrop-filter:blur(10px);
+  transition:background .3s,border-color .3s,box-shadow .3s,color .3s}
+.foot-btn::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(120% 90% at 50% 0%,#ffb37a55,transparent 60%);opacity:0;transition:opacity .3s}
+.foot-btn svg{width:19px;height:19px;flex:none;position:relative}
+.foot-btn .lbl{position:relative;max-width:0;opacity:0;overflow:hidden;white-space:nowrap;transition:max-width .35s cubic-bezier(.3,.7,.2,1),opacity .2s,margin .35s}
+.foot-btn:hover,.foot-btn:focus-visible{color:#fff;background:linear-gradient(180deg,#ff6a0038,#ff6a0012);border-color:#ff8a38;box-shadow:inset 0 1px 0 #ffffff33,0 0 18px #ff6a0055,0 4px 12px #0006}
+.foot-btn:hover::before,.foot-btn:focus-visible::before{opacity:1}
+.foot-btn:hover .lbl,.foot-btn:focus-visible .lbl{max-width:170px;opacity:1;margin-left:9px}
+.foot-btn[aria-pressed=true]{color:#fff;border-color:#ff8a3899;background:linear-gradient(180deg,#ff6a0026,#ff6a000a)}
+.foot-btn[aria-pressed=true]::after{content:'';position:absolute;left:30%;right:30%;bottom:-1px;height:2px;border-radius:2px;background:var(--ga-orange);box-shadow:0 0 8px var(--ga-orange)}
+.fbadge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:grid;place-items:center;background:var(--ga-orange);color:var(--ga-ink);font-size:10px;font-weight:800;letter-spacing:0;box-shadow:0 0 0 2px #0e1214}
+.fbadge:empty,.fbadge[data-zero]{display:none}
+.lang{position:relative}
+.lang-pop{position:absolute;left:0;bottom:calc(100% + 10px);display:flex;flex-direction:column;gap:2px;min-width:140px;padding:6px;border-radius:10px;background:rgba(22,26,30,.94);backdrop-filter:blur(18px);box-shadow:0 14px 40px #0009,inset 0 0 0 1px #ffffff1f;
+  opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .2s,transform .25s}
+.lang-pop::after{content:'';position:absolute;left:0;right:0;top:100%;height:12px}
+.lang:hover .lang-pop,.lang:focus-within .lang-pop{opacity:1;transform:none;pointer-events:auto}
+.lang-pop button{height:32px;padding:0 10px;border-radius:6px;text-align:left;font-size:13px;font-weight:600}
+.lang-pop button:hover{background:#ffffff12}
+.lang-pop button[aria-checked=true]{color:var(--ga-orange)}
+
+/* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
+.ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
+  display:none;flex-direction:column;gap:12px;padding:34px 16px 16px;border-radius:0 0 12px 12px;overflow:hidden;
+  background:linear-gradient(0deg,rgba(20,24,28,.97) 0,rgba(20,24,28,.92) 55%,rgba(20,24,28,0) 100%);backdrop-filter:blur(14px);
+  -webkit-mask:linear-gradient(0deg,#000 70%,#0000);mask:linear-gradient(0deg,#000 70%,#0000);transition:right .7s cubic-bezier(.7,0,.3,1)}
+.ga-notice{-webkit-mask:linear-gradient(0deg,#000 0,#000 72%,#000c 86%,#0000 100%);mask:linear-gradient(0deg,#000 0,#000 72%,#000c 86%,#0000 100%)}
+.ga-notice.show{display:flex}
+.ga-notice::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--nt,var(--ga-orange));box-shadow:0 0 14px var(--nt,var(--ga-orange))}
+.ga-notice[data-tone=ok]{--nt:var(--ga-success)}.ga-notice[data-tone=frost]{--nt:var(--ga-frost)}.ga-notice[data-tone=danger],.ga-notice[data-tone=error]{--nt:#ff5a4a}
+.nt-head{display:flex;align-items:center;gap:12px}
+.nt-art{width:40px;height:60px;object-fit:cover;border-radius:5px;flex:none;box-shadow:0 6px 16px #0008}
+.nt-ico{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--nt,var(--ga-orange));background:#ffffff0d}
+.nt-ico svg{width:18px;height:18px}
+.nt-text{flex:1;min-width:0}
+.nt-text strong{display:block;font-size:14px}
+.nt-text span{display:block;font-size:12px;color:var(--ga-muted)}
+.nt-steps{list-style:none;margin:0;padding:0 0 0 2px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ga-muted)}
+.nt-steps li{display:flex;align-items:center;gap:10px}
+.nt-steps li i{width:14px;height:14px;border-radius:50%;border:1.5px solid #ffffff30;flex:none;position:relative}
+.nt-steps li.run{color:var(--ga-white)}
+.nt-steps li.run i{border-color:var(--ga-orange) transparent var(--ga-orange) transparent;animation:spin .8s linear infinite}
+.nt-steps li.done i{border-color:var(--ga-success);background:var(--ga-success)}
+.nt-steps li.done i::after{content:'';position:absolute;left:3.5px;top:1px;width:3px;height:6px;border:solid #111416;border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.nt-steps li.fail{color:#ff8a7a}.nt-steps li.fail i{border-color:#ff5a4a;background:#ff5a4a}
+@keyframes spin{to{transform:rotate(360deg)}}
+.nt-actions{display:flex;justify-content:flex-end;gap:10px}
+.nt-actions:empty{display:none}
+.nt-actions .btn{min-width:96px}
+.nt-progress{position:absolute;left:0;right:0;bottom:2px;height:2px;background:#ffffff10}
+.nt-progress b{position:absolute;inset:0;background:var(--nt,var(--ga-orange));transform-origin:left;transform:scaleX(0)}
+.btn-danger{background:#c8321f;border:1px solid #c8321f;color:#fff}
+.btn-danger:hover{background:#dc3d29}
+.btn-frost{background:var(--ga-frost);border:1px solid var(--ga-frost);color:var(--ga-ink)}
+/* OK automático: el botón empieza apagado y se llena de color en 3 s. */
+.nt-actions .btn-primary:has(.fill){background:#ff6a0026;color:var(--ga-white);border-color:#ff6a0088;box-shadow:none}
+.nt-actions .btn .fill{position:absolute;inset:0;background:var(--ga-orange);transform-origin:left;transform:scaleX(0)}
+.nt-actions .btn:has(.fill) .label{mix-blend-mode:difference;color:#fff}
+
+/* Instalado: un play verde en la esquina en lugar de la etiqueta. */
+.play-mark{position:absolute;left:10px;top:10px;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--ga-success);background:#0f1813c8;box-shadow:0 0 0 1px #8fe3b055,0 0 12px #8fe3b030;backdrop-filter:blur(6px)}
+.play-mark svg{width:13px;height:13px;margin-left:2px}
+.b-card:not(.ready) .play-mark{display:none}
+
+/* El catálogo no repite los filtros arriba: están en el editor de filtros. */
+.chips{display:none}
+.hidden-hint{margin-left:12px;font-size:12px;font-weight:700;color:var(--ga-muted);border-bottom:1px dashed #ffffff40}
+.hidden-hint:hover{color:var(--ga-white);border-color:var(--ga-white)}
+.spotlight{margin-bottom:30px}
+
+/* Paneles laterales: sobrios, y en perspectiva envolvente y gris cuando no tienen el foco. */
+.side-panel{transition:filter .6s}
+.side-panel.is-idle{filter:grayscale(1) brightness(.8)}
+.mg-stats strong,.mg-stats strong.frost{color:var(--ga-white)}
+.seg-games{background:#c9ced2}.seg-partial{background:#737c83}.seg-free{background:#ffffff26}
+.mg-bar{background:#ffffff12}.mg-free strong{color:var(--ga-white)}
+.mg-sbar i{background:#aeb4b9}.mg-sbar i.frozen{background:#9cbfd4}.mg-sbar i.partial{background:#737c83}
+.mg-badge.ok,.mg-badge.dl,.mg-badge.idle{background:#ffffff0c;color:#b9bfc4}
+.mg-badge.warn{background:#ff6a0012;color:#f0a874}.mg-badge.frost{background:#8fd3ff10;color:#a9cde2}
+.mg-size .frost,.mg-size em{color:#a9cde2}
+.dl-bar.inst i{background:#aeb4b9}
+.dl-pill.plus{background:transparent;color:var(--ga-orange);box-shadow:inset 0 0 0 1px #ff6a0088}
+.dl-hero img{filter:saturate(.6)}
+.nw-card{background:#ffffff06;border:1px solid var(--ga-line);border-left:3px solid var(--ga-orange)}
+
+@media(max-width:900px){
+  .workspace{padding:22px 16px 190px}.spot-content{left:22px;right:22px;bottom:60px}.spot-title{font-size:52px}
+  .foot-mid .foot-btn span,.foot-left .crumbtxt{display:none}.footer{padding:0 12px}
+  .d-body{grid-template-columns:1fr;overflow:auto}.d-right{min-height:260px}.mast-meta .count{display:none}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:22px 16px}
+  .rail{display:none}.workspace{padding-left:16px}.lib-hero-content{left:22px;right:22px}
+}
+</style>
+</head>
+<body>
+<div class="ambient" aria-hidden="true"><img alt=""><img alt=""></div>
+<div class="grain" aria-hidden="true"></div>
+<div class="cursor-glow" aria-hidden="true"></div>
+
+<main class="workspace">
+  <header class="masthead">
+    <div class="identity">
+      <div class="wordmark" aria-label="game/access"></div>
+      <span class="crumb">Catálogo</span>
+    </div>
+    <div class="mast-meta">
+      <span class="count"><b id="installedCount">0</b> instalados · <b id="favCount">0</b> favoritos</span>
+      <button class="motion-toggle" id="motionToggle" aria-pressed="true" title="Animaciones"><i></i>Animaciones</button>
+    </div>
+  </header>
+
+  <div class="views" id="views">
+  <div class="view" id="viewCatalog">
+  <section class="spotlight" aria-label="Destacado">
+    <div class="spot-bg"><img alt=""><img alt=""></div>
+    <div class="spot-content">
+      <div class="eyebrow" id="spotEyebrow">Destacado</div>
+      <h1 class="spot-title" id="spotTitle"></h1>
+      <p class="spot-desc" id="spotDesc"></p>
+      <div class="spot-actions">
+        <button class="btn btn-primary magnetic" id="spotPrimary"><span class="shine"></span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg><span class="label">Ver ficha</span></button>
+        <button class="btn btn-secondary magnetic" id="spotFav"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg><span class="label">Favorito</span></button>
+      </div>
+    </div>
+    <div class="spot-dots" id="spotDots"></div>
+  </section>
+
+  <nav class="chips" id="chips" aria-label="Filtros"><span class="chip-pill" aria-hidden="true"></span></nav>
+
+  <div class="section-head">
+    <h2 id="gridHeading">Para descubrir</h2>
+    <span class="result-count"><b id="resultCount">0</b> juegos<button class="hidden-hint" id="hiddenHint" type="button"></button></span>
+  </div>
+  <div class="grid" id="grid"><p class="empty" id="empty">No hay juegos para esta búsqueda.</p></div>
+  </div>
+
+  <div class="view" id="viewLibrary" hidden>
+    <div class="section-head">
+      <h2>Tu librería</h2>
+      <span class="result-count"><b id="libReady">0</b> listos para jugar · <b id="libPending">0</b> sin instalar<span id="libDeepWrap"> · <b id="libDeep">0</b> congelados</span></span>
+    </div>
+    <div class="bento" id="bento"></div>
+    <p class="empty" id="libEmpty">No hay juegos para esta búsqueda.</p>
+  </div>
+  </div>
+</main>
+
+<div class="rail" aria-hidden="true">
+  <span class="rail-word" data-view="catalog"><span class="solid">CATÁLOGO</span><span class="pix">CATÁLOGO</span></span>
+  <span class="rail-word" data-view="library"><span class="solid">LIBRERÍA</span><span class="pix">LIBRERÍA</span></span>
+</div>
+
+<div class="dock-area">
+  <div class="lib-pills" aria-label="Filtros de la librería"><button class="chip" data-filter="installed" aria-pressed="false">Solo instalados</button><button class="chip" data-filter="fav" aria-pressed="false">Solo favoritos</button></div>
+  <div class="dock" id="dock">
+    <label class="search" id="search">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 3a7 7 0 015.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1110 3zm0 2.2a4.8 4.8 0 100 9.6 4.8 4.8 0 000-9.6z"/></svg>
+      <input id="searchInput" placeholder="Buscá tu próximo juego" autocomplete="off" aria-label="Buscar">
+      <kbd>Ctrl K</kbd>
+      <span class="search-ring"></span>
+    </label>
+    <button class="view-btn magnetic" aria-pressed="true" title="Catálogo" data-view="catalog"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z"/></svg></button>
+    <button class="view-btn magnetic" aria-pressed="false" title="Biblioteca" data-view="library"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h3v16H4zm5 0h3v16H9zm5.2.6l2.9-.8 4 15.4-2.9.8z"/></svg></button>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="foot-left">
+    <div class="lang">
+      <button class="foot-btn" aria-label="Idioma" aria-haspopup="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z"/></svg><span class="lbl" id="langLabel">Español</span></button>
+      <div class="lang-pop" role="menu" aria-label="Idioma"><button role="menuitemradio" aria-checked="true" data-lang="es">Español</button><button role="menuitemradio" aria-checked="false" data-lang="en">English</button></div>
+    </div>
+  </div>
+  <div class="foot-mid">
+    <button class="foot-btn"  aria-label="Géneros"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h10v2H3zm14 0h4v2h-4zm-3-2h2v6h-2zM3 16h4v2H3zm8 0h10v2H11zm-3-2h2v6H8z"/></svg><span class="lbl">Géneros</span></button>
+    <button class="foot-btn"  aria-label="Modo de juego"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11a4 4 0 110-8 4 4 0 010 8zm7 0a3 3 0 110-6 3 3 0 010 6zM1 20c0-3.3 3.6-6 8-6s8 2.7 8 6zm16.5 0c0-1.9-.8-3.6-2.1-4.9 3.3.3 6.6 2.1 6.6 4.9z"/></svg><span class="lbl">Modo de juego</span></button>
+    <button class="foot-btn"  aria-label="Título A–Z"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3l4 4H8v14H6V7H3zm10 18l-4-4h3V3h2v14h3z"/></svg><span class="lbl">Título A–Z</span></button>
+  </div>
+  <div class="foot-right">
+    <button class="foot-btn" data-panel="manager" aria-pressed="false" aria-label="Administrador"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v6H3zm2 2v2h2V6zm-2 6h18v6H3zm2 2v2h2v-2z"/></svg><span class="lbl">Administrador</span></button>
+    <button class="foot-btn" id="dlButton" data-panel="downloads" aria-pressed="false" aria-label="Descargas"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM4 18h16v2H4z"/></svg><span class="lbl">Descargas</span><span class="fbadge" id="dlBadge">0</span></button>
+    <button class="foot-btn" data-panel="news" aria-pressed="false" aria-label="Novedades"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 002.45-2h-4.9A2.5 2.5 0 0012 22zm7-6v-5a7 7 0 00-5.5-6.84V3a1.5 1.5 0 00-3 0v1.16A7 7 0 005 11v5l-2 2v1h18v-1z"/></svg><span class="lbl">Novedades</span><span class="fbadge" id="newsBadge">4</span></button>
+    <button class="foot-btn"  aria-label="Configuración"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.7 2l.5 2.6a8 8 0 012 1.2l2.5-.9 1.7 3-2 1.7a8 8 0 010 2.4l2 1.7-1.7 3-2.5-.9a8 8 0 01-2 1.2l-.5 2.6h-3.4l-.5-2.6a8 8 0 01-2-1.2l-2.5.9-1.7-3 2-1.7a8 8 0 010-2.4l-2-1.7 1.7-3 2.5.9a8 8 0 012-1.2l.5-2.6zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg><span class="lbl">Configuración</span></button>
+  </div>
+</footer>
+
+<div class="backdrop" id="backdrop"></div>
+<section class="detail" id="detail" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="panel" id="panel">
+    <img class="ghost" id="ghost" alt="">
+    <button class="ga-close" id="dClose" aria-label="Cerrar" title="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="d-hero"><img id="dHero" alt=""></div>
+    <div class="d-line" id="dLine"></div>
+    <div class="d-body">
+      <div class="d-left">
+        <div class="eyebrow d-anim" id="dGenres"></div>
+        <h2 class="d-title" id="dTitle"></h2>
+        <div class="d-meta d-anim" id="dMeta"></div>
+        <div class="d-modes d-anim" id="dModes"></div>
+        <p class="d-desc d-anim" id="dDesc"></p>
+        <div class="d-score d-anim">
+          <div class="score-num"><span id="dScore">0</span><small>%</small></div>
+          <div class="score-bar"><i id="dScoreBar"></i></div>
+          <div class="score-label" id="dScoreLabel"></div>
+        </div>
+        <div class="d-actions d-anim">
+          <button class="btn btn-primary tall magnetic" id="dPrimary"><span class="fill"></span><span class="shine"></span><span class="ico"></span><span class="label"></span></button>
+          <button class="btn btn-secondary icon magnetic" id="dFav" title="Favorito" aria-label="Favorito"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg></button>
+        </div>
+      </div>
+      <div class="d-right d-anim">
+        <div class="media" id="media"><span class="media-tag">TRÁILER Y CAPTURAS</span><img alt=""><img alt=""><button class="play-ring magnetic" title="Ver tráiler" aria-label="Ver tráiler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></button></div>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="sketch" color-interpolation-filters="sRGB">
+  <feColorMatrix type="saturate" values="0"/>
+  <feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/>
+  <feComponentTransfer><feFuncR type="linear" slope="4.2"/><feFuncG type="linear" slope="4.2"/><feFuncB type="linear" slope="4.2"/></feComponentTransfer>
+</filter></svg>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/Flip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/SplitText.min.js"></script>
+<script>
+gsap.registerPlugin(Flip, ScrollTrigger, SplitText);
+
+const CDN = id => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}`;
+const art = (id, kind) => `${CDN(id)}/${kind}`;
+const GAMES = [
+  {id:1245620,name:'ELDEN RING',year:2022,genres:['Acción','RPG'],size:'60 GB',score:93,modes:['Un jugador','Co-op Online'],installed:true,fav:true,desc:'Un mundo abierto enorme, combate exigente y jefes memorables en las Tierras Intermedias.'},
+  {id:1091500,name:'Cyberpunk 2077',year:2020,genres:['Acción','RPG'],size:'70 GB',score:86,modes:['Un jugador'],installed:true,fav:true,desc:'Night City, implantes y decisiones: un RPG de mundo abierto en primera persona.'},
+  {id:1086940,name:'Baldur’s Gate 3',year:2023,genres:['RPG','Aventura'],size:'150 GB',score:96,modes:['Un jugador','Co-op Online','Co-op Local'],installed:false,fav:true,desc:'Rol por turnos con libertad total: armá tu grupo y elegí cómo resolver cada situación.'},
+  {id:2215430,name:'Ghost of Tsushima',year:2024,genres:['Acción','Aventura'],size:'75 GB',score:94,modes:['Un jugador','Co-op Online'],installed:true,fav:false,desc:'Un samurái contra la invasión mongola, en una isla que se recorre siguiendo el viento.'},
+  {id:1174180,name:'Red Dead Redemption 2',year:2019,genres:['Acción','Aventura'],size:'150 GB',score:90,modes:['Un jugador','Multiplayer Online'],installed:false,fav:false,desc:'El ocaso del Lejano Oeste visto por Arthur Morgan y la banda de Van der Linde.'},
+  {id:1145360,name:'Hades',year:2020,genres:['Acción','Indie'],size:'15 GB',score:98,modes:['Un jugador'],installed:true,fav:false,desc:'Un roguelike de acción veloz: escapá del inframundo, morí, aprendé y volvé a intentarlo.'},
+  {id:870780,name:'Control',year:2020,genres:['Acción','Aventura'],size:'42 GB',score:88,modes:['Un jugador'],installed:false,fav:false,desc:'Una agencia secreta, un edificio que cambia de forma y poderes sobrenaturales.'},
+  {id:632470,name:'Disco Elysium',year:2019,genres:['RPG','Indie'],size:'20 GB',score:92,modes:['Un jugador'],installed:false,fav:false,desc:'Un detective sin memoria y una ciudad rota: rol de diálogos y decisiones como pocos.'},
+  {id:1850570,name:'DEATH STRANDING',year:2022,genres:['Aventura'],size:'80 GB',score:89,modes:['Un jugador'],installed:false,fav:false,desc:'Reconectá un país fragmentado entregando carga a través de paisajes desolados.'},
+  {id:367520,name:'Hollow Knight',year:2017,genres:['Aventura','Indie'],size:'9 GB',score:97,modes:['Un jugador'],installed:true,fav:false,desc:'Un metroidvania dibujado a mano en un reino de insectos en ruinas.'},
+  {id:275850,name:'No Man’s Sky',year:2016,genres:['Aventura'],size:'15 GB',score:84,modes:['Un jugador','Co-op Online','Multiplayer Online'],installed:false,fav:false,desc:'Un universo casi infinito para explorar, construir y sobrevivir, solo o acompañado.'},
+  {id:814380,name:'Sekiro: Shadows Die Twice',year:2019,genres:['Acción'],size:'25 GB',score:95,modes:['Un jugador'],installed:false,fav:false,desc:'Un shinobi, una katana y un Japón feudal donde cada duelo es una prueba de precisión.'},
+  {id:553850,name:'HELLDIVERS 2',year:2024,genres:['Acción','Shooter'],size:'100 GB',score:81,modes:['Co-op Online'],installed:true,fav:false,desc:'Shooter cooperativo caótico: llevá la democracia gestionada a toda la galaxia.'},
+  {id:2420110,name:'Horizon Forbidden West',year:2024,genres:['Acción','Aventura'],size:'150 GB',score:88,modes:['Un jugador'],installed:false,fav:false,desc:'Aloy viaja al oeste prohibido, entre máquinas salvajes y tribus nuevas.'},
+  {id:292030,name:'The Witcher 3',year:2015,genres:['RPG','Aventura'],size:'50 GB',score:96,modes:['Un jugador'],installed:false,fav:false,desc:'Geralt de Rivia busca a Ciri en un continente en guerra lleno de contratos y monstruos.'},
+  {id:782330,name:'DOOM Eternal',year:2020,genres:['Acción','Shooter'],size:'50 GB',score:90,modes:['Un jugador','Multiplayer Online'],installed:false,fav:false,desc:'Acción frenética contra las hordas del infierno, a toda velocidad y con metal de fondo.'},
+  {id:1903340,name:'Clair Obscur: Expedition 33',year:2025,genres:['RPG'],size:'55 GB',score:95,modes:['Un jugador'],installed:false,fav:false,desc:'Rol por turnos con reacciones en tiempo real en un mundo de inspiración Belle Époque.'},
+  {id:413150,name:'Stardew Valley',year:2016,genres:['Indie'],size:'1 GB',score:98,modes:['Un jugador','Co-op Online','Co-op Local'],installed:true,fav:false,desc:'Heredás una granja: cultivá, pescá, hacé amigos y encontrá tu ritmo en el pueblo.'},
+  {id:39210,name:'FINAL FANTASY XIV Online',year:2014,genres:['RPG'],size:'80 GB',score:87,modes:['MMO'],installed:false,fav:false,desc:'Un MMORPG con una de las mejores historias de la saga y años de expansiones.'},
+];
+const SPOT = [1903340, 2420110, 275850];
+const ADDED_DAYS = {1903340:1, 2420110:2, 275850:3};
+const IN_LIB = [1086940, 1174180, 870780, 632470, 1850570, 814380, 2420110, 292030, 782330, 1903340, 39210];
+const FILTERS = [
+  {key:'all',label:'Todos',test:()=>true},
+  {key:'Acción',label:'Acción'},{key:'RPG',label:'RPG'},{key:'Aventura',label:'Aventura'},{key:'Indie',label:'Indie'},{key:'Shooter',label:'Shooter'},
+  {key:'installed',label:'Instalados',test:g=>g.installed},
+  {key:'fav',label:'Favoritos',test:g=>g.fav},
+];
+FILTERS.forEach(f=>{ if(!f.test) f.test = g => g.genres.includes(f.key); });
+// Estados de demostración: Hollow Knight congelado (se juega igual); The Witcher 3, DOOM Eternal y Sekiro en congelado profundo.
+const FREEZE = {367520:'light', 292030:'deep', 782330:'deep', 814380:'deep'};
+GAMES.forEach(g => { if(FREEZE[g.id] === 'deep') g.installed = true; g.freeze = FREEZE[g.id] || null; g.inLib = g.installed || IN_LIB.includes(g.id); });
+
+const $ = s => document.querySelector(s);
+const ICON = {
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM4 18h16v2H4z"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm-8 9c0-4 3.6-7 8-7s8 3 8 7z"/></svg>',
+};
+let motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+let activeFilter = 'all', query = '', view = 'catalog', openGame = null, downloads = 0;
+
+/* ---------- Animaciones on/off ---------- */
+const toggle = $('#motionToggle');
+function applyMotion(){
+  toggle.setAttribute('aria-pressed', motion);
+  gsap.globalTimeline.timeScale(motion ? 1 : 40);
+}
+toggle.addEventListener('click', () => { motion = !motion; applyMotion(); });
+applyMotion();
+
+/* ---------- Wordmark ---------- */
+$('.wordmark').innerHTML = [...'game/access'].map(c => `<span class="${c==='/'?'slash':''}">${c}</span>`).join('');
+
+/* ---------- Grilla ---------- */
+const grid = $('#grid');
+function imgWithFallback(game, kind, alt=''){
+  const img = new Image();
+  img.alt = alt; img.loading = 'lazy'; img.decoding = 'async';
+  img.src = art(game.id, kind);
+  img.onerror = () => {
+    if(!img.dataset.retry){ img.dataset.retry = 1; img.src = `https://cdn.akamai.steamstatic.com/steam/apps/${game.id}/${kind}`; return; }
+    const f = document.createElement('div'); f.className = 'fallback'; f.textContent = game.name; img.replaceWith(f);
+  };
+  return img;
+}
+function posterBadges(g){
+  return (g.installed ? `<span class="play-mark" title="Instalado">${ICON.play}</span>` : '') + (g.fav ? `<span class="fav-mark">${ICON.star}</span>` : '');
+}
+GAMES.forEach(g => {
+  const b = document.createElement('button');
+  b.className = 'poster'; b.dataset.id = g.id; b.setAttribute('aria-label', g.name);
+  b.innerHTML = `<div class="poster-art"><span class="glare"></span><span class="marks">${posterBadges(g)}</span></div><div class="poster-meta"><span>${g.name}</span><span>${g.year}</span></div>`;
+  b.querySelector('.poster-art').prepend(imgWithFallback(g, 'library_600x900.jpg'));
+  grid.insertBefore(b, $('#empty'));
+  g.el = b;
+});
+const byId = id => GAMES.find(g => g.id === +id);
+
+function refreshMarks(g){
+  g.el.querySelector('.marks').innerHTML = posterBadges(g);
+  $('#installedCount').textContent = GAMES.filter(x=>x.installed).length;
+  $('#favCount').textContent = GAMES.filter(x=>x.fav).length;
+}
+GAMES.forEach(refreshMarks);
+
+/* ---------- Tilt 3D + brillo ---------- */
+GAMES.forEach(g => {
+  const card = g.el.querySelector('.poster-art'), glare = card.querySelector('.glare');
+  const rx = gsap.quickTo(card, 'rotationX', {duration:.5, ease:'power3'});
+  const ry = gsap.quickTo(card, 'rotationY', {duration:.5, ease:'power3'});
+  g.el.addEventListener('pointermove', e => {
+    if(!motion) return;
+    const r = card.getBoundingClientRect(), px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+    rx((.5 - py) * 14); ry((px - .5) * 16);
+    glare.style.setProperty('--gx', px*100+'%'); glare.style.setProperty('--gy', py*100+'%');
+  });
+  g.el.addEventListener('pointerenter', () => {
+    gsap.to(card, {y:-8, scale:1.03, boxShadow:'0 26px 50px #000a', duration:.4, ease:'power3.out'});
+    gsap.to(glare, {opacity:1, duration:.3});
+    setAmbient(g.id);
+  });
+  g.el.addEventListener('pointerleave', () => {
+    rx(0); ry(0);
+    gsap.to(card, {y:0, scale:1, boxShadow:'0 10px 26px #0007', duration:.5, ease:'power3.out'});
+    gsap.to(glare, {opacity:0, duration:.3});
+  });
+  g.el.addEventListener('focus', () => { gsap.to(card, {y:-6, duration:.3}); setAmbient(g.id); });
+  g.el.addEventListener('blur', () => gsap.to(card, {y:0, duration:.3}));
+  g.el.addEventListener('click', () => openDetail(g));
+});
+
+/* ---------- Fondo que toma el color del juego ---------- */
+const ambientImgs = [...document.querySelectorAll('.ambient img')];
+let ambientIdx = 0, ambientId = null, ambientTimer;
+function setAmbient(id, now){
+  clearTimeout(ambientTimer);
+  ambientTimer = setTimeout(() => {
+    if(id === ambientId) return;
+    ambientId = id;
+    const next = ambientImgs[ambientIdx ^= 1], prev = ambientImgs[ambientIdx ^ 1];
+    next.src = art(id, 'library_hero.jpg');
+    next.onload = () => {
+      gsap.to(next, {opacity:.55, scale:1, duration:1.2, ease:'power2.out'});
+      gsap.to(prev, {opacity:0, scale:1.1, duration:1.2, ease:'power2.out'});
+    };
+  }, now ? 0 : 140);
+}
+
+/* ---------- Brillo que sigue al mouse ---------- */
+const glow = $('.cursor-glow');
+const gx = gsap.quickTo(glow, 'x', {duration:.8, ease:'power3'}), gy = gsap.quickTo(glow, 'y', {duration:.8, ease:'power3'});
+addEventListener('pointermove', e => { if(motion){ gx(e.clientX); gy(e.clientY); gsap.to(glow,{opacity:1,duration:.6}); } });
+
+/* ---------- Botones magnéticos ---------- */
+document.querySelectorAll('.magnetic').forEach(el => {
+  const x = gsap.quickTo(el, 'x', {duration:.4, ease:'power3'}), y = gsap.quickTo(el, 'y', {duration:.4, ease:'power3'});
+  el.addEventListener('pointermove', e => {
+    if(!motion) return;
+    const r = el.getBoundingClientRect();
+    x((e.clientX - r.left - r.width/2) * .25); y((e.clientY - r.top - r.height/2) * .3);
+  });
+  el.addEventListener('pointerleave', () => { x(0); y(0); });
+  el.addEventListener('pointerdown', () => gsap.to(el, {scale:.95, duration:.12}));
+  el.addEventListener('pointerup', () => gsap.to(el, {scale:1, duration:.5, ease:'elastic.out(1,.4)'}));
+  const shine = el.querySelector('.shine');
+  if(shine) el.addEventListener('pointerenter', () => motion && gsap.fromTo(shine, {left:'-70%'}, {left:'130%', duration:.7, ease:'power2.inOut'}));
+});
+
+/* ---------- Chips + filtro con Flip ---------- */
+const chips = $('#chips'), pill = chips.querySelector('.chip-pill');
+FILTERS.forEach(f => {
+  const c = document.createElement('button');
+  c.className = 'chip'; c.dataset.key = f.key; c.setAttribute('aria-pressed', f.key === 'all');
+  c.innerHTML = `${f.label}<b></b>`;
+  c.addEventListener('click', () => { activeFilter = f.key; syncChips(); applyFilter(); });
+  chips.append(c);
+});
+function chipCounts(){
+  chips.querySelectorAll('.chip').forEach(c => {
+    const f = FILTERS.find(x => x.key === c.dataset.key);
+    c.querySelector('b').textContent = GAMES.filter(f.test).length;
+  });
+}
+function syncChips(instant){
+  const active = chips.querySelector(`[data-key="${activeFilter}"]`);
+  chips.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c === active));
+  gsap.to(pill, {x:active.offsetLeft, y:active.offsetTop, width:active.offsetWidth, duration:instant?0:.55, ease:'expo.out'});
+}
+chipCounts();
+
+function visible(g){
+  const f = FILTERS.find(x => x.key === activeFilter);
+  const q = query.trim().toLowerCase();
+  // Sin búsqueda, el catálogo es para descubrir: los instalados están en la librería.
+  if(!query.trim() && g.installed) return false;
+  return f.test(g) && matches(g);
+}
+function matches(g){
+  const q = query.trim().toLowerCase();
+  return !q || g.name.toLowerCase().includes(q) || g.genres.some(x => x.toLowerCase().includes(q));
+}
+const countEl = $('#resultCount');
+function syncHiddenHint(){
+  const hidden = query.trim() ? 0 : GAMES.filter(g => g.installed).length;
+  const h = $('#hiddenHint');
+  h.style.display = hidden ? '' : 'none';
+  h.textContent = `${hidden} instalados están en tu librería →`;
+}
+function applyFilter(){
+  const state = Flip.getState(GAMES.map(g => g.el));
+  let n = 0;
+  GAMES.forEach(g => { const v = visible(g); g.el.style.display = v ? '' : 'none'; if(v) n++; });
+  $('#empty').style.display = n ? 'none' : 'block';
+  $('#gridHeading').textContent = query.trim() ? 'Resultados' : 'Para descubrir';
+  syncHiddenHint();
+  Flip.from(state, {
+    duration:.65, ease:'power3.inOut', absolute:true, scale:true, stagger:.015, nested:true,
+    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.6, y:30}, {opacity:1, scale:1, y:0, duration:.55, stagger:.03, ease:'back.out(1.4)'}),
+    onLeave: els => gsap.to(els, {opacity:0, scale:.6, duration:.35, ease:'power2.in'}),
+  });
+  const from = {v:+countEl.textContent};
+  gsap.to(from, {v:n, duration:.6, ease:'power2.out', snap:{v:1}, onUpdate:()=>countEl.textContent = from.v});
+}
+
+/* ---------- Búsqueda ---------- */
+const input = $('#searchInput'), ring = $('.search-ring');
+let searchTimer;
+input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { query = input.value; view === 'library' ? renderLibrary(true) : applyFilter(); }, 180); });
+input.addEventListener('focus', () => {
+  gsap.to('#search', {scale:1.03, background:'#263036f0', duration:.4, ease:'power3.out'});
+  gsap.fromTo(ring, {opacity:1, scale:1}, {opacity:0, scale:1.08, duration:.8, ease:'power2.out'});
+});
+input.addEventListener('blur', () => gsap.to('#search', {scale:1, background:'#20282cdc', duration:.4}));
+addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); input.focus(); }
+  if(e.key === 'Escape' && openGame) closeDetail();
+});
+
+/* ---------- Palabra vertical gigante ---------- */
+const words = {catalog:$('.rail-word[data-view=catalog]'), library:$('.rail-word[data-view=library]')};
+function sizeRail(){
+  const target = innerHeight * 1.1;
+  let railW = 0;
+  Object.values(words).forEach(w => {
+    w.style.fontSize = '100px';
+    const size = 100 * target / w.offsetHeight;
+    w.style.fontSize = size + 'px';
+    railW = Math.max(railW, w.offsetWidth);
+  });
+  document.documentElement.style.setProperty('--rail', Math.round(railW * .92) + 'px');
+  Object.entries(words).forEach(([k, w]) => gsap.set(w, {yPercent:-50, rotation:180, y: k === view ? 0 : innerHeight * 1.3}));
+}
+
+/* ---------- Librería: grilla bento ---------- */
+const views = {catalog:$('#viewCatalog'), library:$('#viewLibrary')};
+const bento = $('#bento'), libEls = new Map();
+const MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>';
+function sizeBento(){
+  const cols = getComputedStyle(bento).gridTemplateColumns.split(' ');
+  const colW = parseFloat(cols[0]) || 180, gap = 14;
+  bento.style.setProperty('--row', ((colW * 1.5 - 2 * gap) / 3) + 'px');
+}
+const SNOW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M20.7 7L3.3 17M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"/></svg>';
+const FLAME = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 5 6 5 11a5 5 0 01-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z"/></svg>';
+const FOLDER = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h7l2 2h9v12H3z"/></svg>';
+const TRASH = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>';
+const BURGER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 7h14"/><path d="M5 12h14"/><path d="M5 17h14"/></svg>';
+const isDeep = g => g.installed && g.freeze === 'deep';
+const isReady = g => g.installed && g.freeze !== 'deep';
+let libFilter = null;
+function matchesLib(g){
+  if(libFilter === 'installed' && !g.installed) return false;
+  if(libFilter === 'fav' && !g.fav) return false;
+  return matches(g);
+}
+function removeFromLib(g, c){
+  gsap.to(c, {scale:0, opacity:0, duration:.45, ease:'back.in(1.6)', onComplete:() => {
+    g.inLib = false; g.installed = false; g.fav = false; g.freeze = null; refreshMarks(g); chipCounts(); renderLibrary(true);
+  }});
+}
+function bentoCard(g){
+  const c = document.createElement('div');
+  c.className = 'b-card';
+  c.innerHTML = `<span class="play-mark" title="Listo para jugar">${ICON.play}</span><div class="b-name"><span>${g.name}</span><i class="b-ico"></i></div>
+    <span class="b-frost" title="Congelado: se juega igual">${SNOW}</span>
+    <div class="b-ice"><span class="b-ice-glyph">${SNOW}</span><span>CONGELADO</span></div>
+    <button class="b-open" aria-label="${g.name}"></button>
+    <button class="b-menu" title="Opciones" aria-label="Opciones de ${g.name}">${BURGER}</button>`;
+  const port = imgWithFallback(g, 'library_600x900.jpg'), land = imgWithFallback(g, 'header.jpg');
+  port.classList.add('img-port'); land.classList.add('img-land');
+  c.prepend(port, land);
+  c.querySelector('.b-open').addEventListener('click', () => openDetail(g, c));
+  // Menú: tras 2 s quieto sobre la tarjeta se dibuja la hamburguesa y queda latiendo en la esquina.
+  const menuBtn = c.querySelector('.b-menu'), lines = menuBtn.querySelectorAll('path');
+  gsap.set(lines, {strokeDasharray:14, strokeDashoffset:14});
+  gsap.set(menuBtn, {autoAlpha:0});
+  let dwell, pulse, shown = false;
+  c.showMenuBtn = () => {
+    clearTimeout(dwell);
+    if(shown) return; shown = true;
+    gsap.killTweensOf([menuBtn, lines]);
+    gsap.set(menuBtn, {autoAlpha:1, scale:1});
+    gsap.to(lines, {strokeDashoffset:0, duration:.45, stagger:.12, ease:'power2.out'});
+    pulse = gsap.to(menuBtn, {scale:1.12, duration:.9, repeat:-1, yoyo:true, ease:'sine.inOut', delay:.7});
+  };
+  c.hideMenuBtn = () => {
+    clearTimeout(dwell);
+    if(!shown) return; shown = false;
+    pulse?.kill();
+    gsap.to(lines, {strokeDashoffset:14, duration:.3, stagger:{each:.06, from:'end'}, ease:'power2.in'});
+    gsap.to(menuBtn, {autoAlpha:0, scale:1, duration:.25, delay:.3});
+  };
+  c.addEventListener('pointerenter', () => {
+    gsap.to(c, {y:-4, duration:.35, ease:'power3.out'}); setAmbient(g.id);
+    clearTimeout(dwell); dwell = setTimeout(c.showMenuBtn, 2000);
+  });
+  c.addEventListener('pointerleave', () => {
+    gsap.to(c, {y:0, duration:.4});
+    if(!flip || flip.c !== c) c.hideMenuBtn(); else clearTimeout(dwell);
+  });
+  c.addEventListener('focusin', c.showMenuBtn);
+  menuBtn.addEventListener('click', e => { e.stopPropagation(); openFlipMenu(g, c); });
+  return c;
+}
+
+/* ---------- Menú en el dorso de la tarjeta ---------- */
+// Solo lo frecuente: jugar o instalar, cambiar nombre y administrar. Congelar, desinstalar
+// y quitar de la biblioteca quedan en el administrador de biblioteca.
+const PENCIL = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 17.2V20h2.8L17.6 9.2l-2.8-2.8zM19.7 7.1a1 1 0 000-1.4l-1.4-1.4a1 1 0 00-1.4 0l-1.2 1.2 2.8 2.8z"/></svg>';
+const SLIDERS = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h10v2H3zm14 0h4v2h-4zm-3-2h2v6h-2zM3 16h4v2H3zm8 0h10v2H11zm-3-2h2v6H8z"/></svg>';
+let flip = null;
+function menuItems(g){
+  const deep = g.installed && g.freeze === 'deep';
+  return [
+    g.installed
+      ? {label:deep ? 'Jugar (está congelado)' : 'Jugar', icon:ICON.play, primary:!deep, off:deep, run:() => playGame(g)}
+      : {label:'Instalar', icon:ICON.down, primary:true, run:() => startDownload(g)},
+    {label:'Cambiar nombre', icon:PENCIL, run:() => toast(g, 'Cambiar nombre', 'En la app abre el diálogo para renombrar')},
+    {label:'Administrar', icon:SLIDERS, run:() => togglePanel('manager', g)},
+  ];
+}
+function openFlipMenu(g, c){
+  if(flip) closeFlipMenu(true);
+  const r = c.getBoundingClientRect(), artImg = visibleImg(c);
+  const m = document.createElement('div');
+  m.className = 'flip-menu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', `Opciones de ${g.name}`);
+  // Dorso: la misma portada dibujada en líneas, un vidrio encima y el menú.
+  m.innerHTML = `<img class="fm-art" alt="" src="${artImg ? artImg.currentSrc || artImg.src : ''}"><span class="fm-glass"></span><div class="fm-items"></div>`;
+  const list = m.querySelector('.fm-items');
+  menuItems(g).forEach(item => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'menuitem'); b.disabled = !!item.off;
+    if(item.primary) b.className = 'primary';
+    b.innerHTML = `<span class="fm-ico">${item.icon || ''}</span><span>${item.label}</span>`;
+    b.addEventListener('click', () => { closeFlipMenu(); item.run(c); });
+    list.append(b);
+  });
+  document.body.append(m);
+  const w = Math.max(r.width, 210);
+  m.style.width = w + 'px';
+  const h = Math.max(r.height, list.offsetHeight);
+  let left = r.left, top = r.top;
+  if(left + w > innerWidth - 12) left = r.right - w;
+  if(top + h > innerHeight - 70) top = Math.max(12, Math.min(r.bottom, innerHeight - 70) - h);
+  flip = {g, c, m, r, timer:null};
+  const keep = () => clearTimeout(flip?.timer);
+  const leave = () => { if(!flip) return; clearTimeout(flip.timer); flip.timer = setTimeout(() => closeFlipMenu(), 280); };
+  m.addEventListener('pointerenter', keep); m.addEventListener('pointerleave', leave);
+  c.addEventListener('pointerleave', leave, {once:true});
+  gsap.set(m, {left:r.left, top:r.top, width:r.width, height:r.height, rotationY:-90, transformPerspective:900, transformOrigin:'50% 50%'});
+  gsap.set(list.children, {opacity:0, x:-12});
+  gsap.set(m.querySelector('.fm-art'), {opacity:0});
+  flip.tl = gsap.timeline()
+    .to(c, {rotationY:90, transformPerspective:900, duration:.26, ease:'power2.in'})
+    .to(m, {rotationY:0, duration:.3, ease:'power2.out'})
+    .to(m, {left, top, width:w, height:h, duration:.4, ease:'expo.out'})
+    .to(m.querySelector('.fm-art'), {opacity:1, duration:.9, ease:'power2.out'}, '<-.25')
+    .to(list.children, {opacity:1, x:0, duration:.35, stagger:.07, ease:'power3.out'}, '<.15');
+  setTimeout(() => m.isConnected && m.querySelector('button:not(:disabled)')?.focus({preventScroll:true}), 600);
+}
+function closeFlipMenu(instant){
+  const f = flip; if(!f) return;
+  flip = null; clearTimeout(f.timer); f.tl?.kill();
+  const restore = () => { f.m.remove(); gsap.set(f.c, {rotationY:0}); if(!f.c.matches(':hover')) f.c.hideMenuBtn(); };
+  if(instant) return restore();
+  gsap.timeline({onComplete:restore})
+    .to(f.m.querySelectorAll('.fm-items button'), {opacity:0, duration:.15})
+    .to(f.m, {left:f.r.left, top:f.r.top, width:f.r.width, height:f.r.height, duration:.3, ease:'expo.inOut'})
+    .to(f.m, {rotationY:90, duration:.22, ease:'power2.in'})
+    .to(f.c, {rotationY:0, duration:.3, ease:'power2.out'});
+}
+addEventListener('keydown', e => { if(e.key === 'Escape' && flip) closeFlipMenu(); });
+
+addEventListener('scroll', () => flip && closeFlipMenu(true), {passive:true});
+
+// La grilla se arma por bandas de 3 filas: cada celda de banda lleva una portada vertical
+// o una pila de 3 apaisadas. Las verticales se reparten parejo entre las pilas y la pila
+// incompleta va al final. Los congelados profundos se agrupan en la columna derecha.
+function stacksOf(list){
+  const out = [];
+  for(let i = 0; i < list.length; i += 3) out.push(list.slice(i, i + 3));
+  return out;
+}
+function libOrder(){
+  const ready = GAMES.filter(g => isReady(g) && matchesLib(g));
+  const pending = GAMES.filter(g => !g.installed && g.inLib && matchesLib(g));
+  const deep = GAMES.filter(g => isDeep(g) && matchesLib(g));
+  const stacks = stacksOf(pending);
+  const partial = stacks.length && stacks[stacks.length - 1].length < 3 ? stacks.pop() : null;
+  const full = ready.length + stacks.length, cells = [];
+  let r = 0, s = 0;
+  for(let k = 0; k < full; k++){
+    const wantPortrait = Math.floor((k + 1) * ready.length / full) > Math.floor(k * ready.length / full);
+    if(wantPortrait && r < ready.length) cells.push([ready[r++]]);
+    else if(s < stacks.length) cells.push(stacks[s++]);
+    else cells.push([ready[r++]]);
+  }
+  if(partial) cells.push(partial);
+  return {cells, frozen:stacksOf(deep), ready:ready.length, pending:pending.length, deep:deep.length};
+}
+let bentoCells = [], bentoFrozen = [];
+function layoutBento(){
+  const cols = Math.max(1, getComputedStyle(bento).gridTemplateColumns.split(' ').length);
+  const total = bentoCells.length + bentoFrozen.length;
+  const bands = Math.max(1, Math.ceil(total / cols));
+  const taken = new Set(), place = (cell, band, col) => {
+    taken.add(band + ':' + col);
+    const row = band * 3 + 1;
+    cell.forEach((g, i) => {
+      const el = libEls.get(g.id);
+      el.style.gridColumn = col + 1;
+      el.style.gridRow = isReady(g) ? `${row} / span 3` : `${row + i} / span 1`;
+    });
+  };
+  bentoFrozen.forEach((cell, f) => place(cell, f % bands, Math.max(0, cols - 1 - Math.floor(f / bands))));
+  let pos = 0;
+  bentoCells.forEach(cell => {
+    while(taken.has(Math.floor(pos / cols) + ':' + pos % cols)) pos++;
+    place(cell, Math.floor(pos / cols), pos % cols); pos++;
+  });
+  sizeBento();
+}
+function renderLibrary(animate){
+  const {cells, frozen, ready, pending, deep} = libOrder();
+  const out = [...cells.flat(), ...frozen.flat()];
+  const state = animate ? Flip.getState(bento.children) : null;
+  const keep = new Set(out.map(g => g.id));
+  libEls.forEach((el, id) => { if(!keep.has(id)) el.style.display = 'none'; });
+  const rising = [], pops = [];
+  out.forEach(g => {
+    let el = libEls.get(g.id);
+    if(!el){ el = bentoCard(g); libEls.set(g.id, el); }
+    el.style.display = '';
+    el.classList.toggle('ready', isReady(g));
+    const prev = el.dataset.freeze || '', now = g.installed ? (g.freeze || '') : '';
+    el.dataset.freeze = now;
+    if(now === 'deep' && prev !== 'deep') rising.push(el.querySelector('.b-ice'));
+    if(now === 'light' && prev !== 'light') pops.push(el.querySelector('.b-frost'));
+    el.querySelector('.b-ico').innerHTML = now === 'deep' ? SNOW : g.installed ? '' : ICON.down;
+    bento.append(el);
+  });
+  bentoCells = cells; bentoFrozen = frozen;
+  layoutBento();
+  $('#libReady').textContent = ready; $('#libPending').textContent = pending; $('#libDeep').textContent = deep;
+  $('#libDeepWrap').style.display = deep ? '' : 'none';
+  $('#libEmpty').style.display = out.length ? 'none' : 'block';
+  // Congelado profundo: el velo azul esmerilado sube desde abajo.
+  if(rising.length) gsap.fromTo(rising, {clipPath:'inset(100% 0% 0% 0%)'}, {clipPath:'inset(0% 0% 0% 0%)', duration:1.3, ease:'power2.out', delay:state ? .5 : .9, stagger:.15});
+  if(pops.length) gsap.fromTo(pops, {scale:0, rotation:-120, opacity:0}, {scale:1, rotation:0, opacity:1, duration:.8, ease:'back.out(2)', delay:state ? .4 : .9});
+  if(!state) return;
+  Flip.from(state, {
+    duration:.75, ease:'expo.inOut', absolute:true, stagger:.01,
+    onEnter: els => gsap.fromTo(els, {opacity:0, scale:.5}, {opacity:1, scale:1, duration:.6, ease:'back.out(1.4)'}),
+    onLeave: els => gsap.to(els, {opacity:0, scale:0, duration:.5, ease:'power2.inOut'}),
+    onComplete: () => libEls.forEach((el, id) => { if(!keep.has(id)){ el.remove(); libEls.delete(id); } }),
+  });
+}
+// Pastillas de la librería (abajo, junto a la búsqueda): solo instalados o solo favoritos.
+document.querySelectorAll('.lib-pills .chip').forEach(p => p.addEventListener('click', () => {
+  libFilter = libFilter === p.dataset.filter ? null : p.dataset.filter;
+  document.querySelectorAll('.lib-pills .chip').forEach(x => x.setAttribute('aria-pressed', x.dataset.filter === libFilter));
+  gsap.fromTo(p, {scale:.92}, {scale:1, duration:.5, ease:'elastic.out(1,.45)'});
+  renderLibrary(true);
+}));
+// Al cambiar el ancho cambia la cantidad de columnas: las tarjetas se reubican animadas.
+let bentoCols = 0;
+addEventListener('resize', () => {
+  const cols = getComputedStyle(bento).gridTemplateColumns.split(' ').length;
+  if(view !== 'library' || cols === bentoCols){ sizeBento(); return; }
+  bentoCols = cols;
+  const state = Flip.getState(bento.children);
+  layoutBento();
+  Flip.from(state, {duration:.6, ease:'expo.inOut', absolute:true});
+});
+
+
+/* ---------- Cambio de vista: giro 3D + deslizamiento ---------- */
+let switching = false;
+function switchView(next){
+  if(next === view || switching) return;
+  switching = true;
+  const prev = view, dir = next === 'library' ? 1 : -1;
+  const outEl = views[prev], inEl = views[next];
+  view = next;
+  document.body.dataset.view = next;
+  document.querySelectorAll('.view-btn').forEach(x => x.setAttribute('aria-pressed', x.dataset.view === next));
+  if(next === 'library'){ spotTl?.pause(); }
+  else { applyFilter(); }
+  const go = () => {
+    inEl.hidden = false;
+    if(next === 'library') renderLibrary();
+    gsap.set(outEl, {position:'absolute', top:0, left:0, right:0});
+    const tl = gsap.timeline({defaults:{duration:1, ease:'expo.inOut'}, onComplete:() => {
+      outEl.hidden = true; gsap.set([outEl, inEl], {clearProps:'all'}); switching = false;
+      if(next === 'catalog') spotTl?.resume();
+      ScrollTrigger.refresh();
+    }});
+    tl.to(outEl, {xPercent:-55 * dir, rotationY:38 * dir, z:-200, opacity:0, transformOrigin:dir > 0 ? '0% 50%' : '100% 50%'}, 0)
+      .fromTo(inEl, {xPercent:55 * dir, rotationY:-38 * dir, z:-200, opacity:0, transformOrigin:dir > 0 ? '100% 50%' : '0% 50%'}, {xPercent:0, rotationY:0, z:0, opacity:1}, 0)
+      .to(words[prev], {y:-innerHeight * 1.3 * dir, duration:1.1, overwrite:'auto'}, 0)
+      .fromTo(words[next], {y:innerHeight * 1.3 * dir}, {y:0, duration:1.1, overwrite:'auto'}, .05)
+      .fromTo('.crumb', {y:0, opacity:1}, {y:-12, opacity:0, duration:.25, ease:'power2.in'}, 0)
+      .add(() => $('.crumb').textContent = next === 'library' ? 'Librería' : 'Catálogo', .25)
+      .to('.crumb', {y:0, opacity:1, duration:.4, ease:'power3.out'}, .3);
+    if(next === 'library'){
+      tl.from('.b-card', {opacity:0, y:40, scale:.9, stagger:{each:.03, from:'start'}, duration:.8, ease:'expo.out'}, .55)
+        .fromTo('.lib-pills .chip', {opacity:0, y:16}, {opacity:1, y:0, stagger:.06, duration:.5, ease:'back.out(1.6)'}, .6);
+    } else {
+      tl.from('.spotlight', {scale:.94, duration:1.1, ease:'expo.out'}, .4);
+    }
+  };
+  if(scrollY > 0){
+    const s = {y:scrollY};
+    gsap.to(s, {y:0, duration:.35, ease:'power2.inOut', onUpdate:() => scrollTo(0, s.y), onComplete:go});
+  } else go();
+}
+document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+addEventListener('keydown', e => {
+  if(openGame || document.activeElement === input) return;
+  if(e.key === 'PageDown' && e.altKey) switchView('library');
+  if(e.key === 'PageUp' && e.altKey) switchView('catalog');
+});
+
+/* ---------- Dock que se esconde al bajar ---------- */
+const dockTween = gsap.to('.dock-area', {yPercent:70, opacity:.0, duration:.35, ease:'power2.inOut', paused:true});
+ScrollTrigger.create({start:0, end:'max', onUpdate: s => {
+  if(document.activeElement === input) return;
+  s.direction === 1 && s.scroll() > 120 ? dockTween.play() : dockTween.reverse();
+}});
+
+/* ---------- Destacado rotativo ---------- */
+const spotImgs = [...document.querySelectorAll('.spot-bg img')], dots = $('#spotDots');
+let spotIdx = -1, spotLayer = 0, spotSplit, spotTl;
+SPOT.forEach((id, i) => {
+  const d = document.createElement('button');
+  d.className = 'spot-dot'; d.title = byId(id).name; d.innerHTML = '<i></i>';
+  d.addEventListener('click', () => showSpot(i));
+  dots.append(d);
+});
+function showSpot(i){
+  if(i === spotIdx) return;
+  spotIdx = i;
+  const g = byId(SPOT[i]);
+  const next = spotImgs[spotLayer ^= 1], prev = spotImgs[spotLayer ^ 1];
+  next.src = art(g.id, 'library_hero.jpg');
+  gsap.fromTo(next, {opacity:0, scale:1.12}, {opacity:1, scale:1, duration:1.6, ease:'power2.out'});
+  gsap.to(prev, {opacity:0, duration:1});
+  spotSplit?.revert();
+  $('#spotTitle').textContent = g.name;
+  const days = ADDED_DAYS[g.id] || 1;
+  $('#spotEyebrow').textContent = `Nuevo en Steam · hace ${days} día${days > 1 ? 's' : ''} · ${g.genres.join(' · ')}`;
+  $('#spotDesc').textContent = g.desc;
+  spotSplit = new SplitText('#spotTitle', {type:'chars,words', mask:'chars'});
+  gsap.from(spotSplit.chars, {yPercent:110, duration:.8, ease:'expo.out', stagger:.025});
+  gsap.fromTo(['#spotEyebrow', '#spotDesc', '.spot-actions'], {y:16, opacity:0}, {y:0, opacity:1, duration:.6, stagger:.08, delay:.15, ease:'power3.out'});
+  setAmbient(g.id, true);
+  dots.querySelectorAll('i').forEach((bar, k) => gsap.set(bar, {scaleX: k < i ? 1 : 0}));
+  spotTl?.kill();
+  spotTl = gsap.to(dots.children[i].querySelector('i'), {scaleX:1, duration:7, ease:'none', onComplete:() => showSpot((i + 1) % SPOT.length)});
+}
+$('#spotPrimary').addEventListener('click', () => openDetail(byId(SPOT[spotIdx]), $('.spotlight')));
+$('#spotFav').addEventListener('click', e => toggleFav(byId(SPOT[spotIdx]), e.currentTarget));
+$('.spotlight').addEventListener('pointerenter', () => spotTl?.pause());
+$('.spotlight').addEventListener('pointerleave', () => spotTl?.resume());
+
+/* ---------- Favoritos con estallido ---------- */
+function burst(el){
+  const r = el.getBoundingClientRect(), cx = r.left + r.width/2, cy = r.top + r.height/2;
+  for(let i = 0; i < 12; i++){
+    const p = document.createElement('span'); p.className = 'particle'; document.body.append(p);
+    const a = (i / 12) * Math.PI * 2, d = 34 + Math.random() * 26;
+    gsap.fromTo(p, {x:cx-3, y:cy-3, scale:1}, {x:cx-3+Math.cos(a)*d, y:cy-3+Math.sin(a)*d, scale:0, duration:.7, ease:'power3.out', onComplete:() => p.remove()});
+  }
+}
+function toggleFav(g, el){
+  g.fav = !g.fav;
+  refreshMarks(g); chipCounts();
+  if(g.fav) burst(el);
+  gsap.fromTo(el.querySelector('svg'), {scale:.4, rotation:-30}, {scale:1, rotation:0, duration:.6, ease:'elastic.out(1,.45)'});
+  if(openGame === g) $('#dFav').style.color = g.fav ? 'var(--ga-orange)' : '';
+  if(activeFilter === 'fav') applyFilter();
+  if(view === 'library') renderLibrary(true);
+}
+
+/* ---------- Ficha: la portada se expande hasta ser la ficha ---------- */
+const detail = $('#detail'), panel = $('#panel'), backdrop = $('#backdrop');
+let titleSplit, scoreTween;
+function fillDetail(g){
+  $('#dHero').src = art(g.id, 'library_hero.jpg');
+  $('#dGenres').textContent = g.genres.join(' · ');
+  $('#dTitle').textContent = g.name;
+  $('#dMeta').innerHTML = `<span>${g.year}</span><span>${g.size}</span><span>Windows</span>`;
+  $('#dModes').innerHTML = g.modes.map(m => `<span class="mode">${ICON.user}${m}</span>`).join('');
+  $('#dDesc').textContent = g.desc;
+  $('#dScoreLabel').innerHTML = `${g.score >= 90 ? 'Extremadamente positivas' : 'Muy positivas'}<span>Valoración de usuarios en Steam</span>`;
+  $('#dFav').style.color = g.fav ? 'var(--ga-orange)' : '';
+  setPrimary(g);
+  const shots = ['capsule_616x353.jpg', 'header.jpg', 'library_hero.jpg'];
+  const media = [...document.querySelectorAll('#media img')];
+  media[0].src = art(g.id, shots[0]); gsap.set(media[0], {opacity:1}); gsap.set(media[1], {opacity:0});
+  $('#thumbs').innerHTML = '';
+  shots.forEach((s, i) => {
+    const t = document.createElement('button');
+    t.className = 'thumb'; t.setAttribute('aria-pressed', i === 0); t.title = `Captura ${i+1}`;
+    t.append(imgWithFallback(g, s));
+    t.addEventListener('click', () => swapMedia(g, s, t));
+    $('#thumbs').append(t);
+  });
+}
+let mediaLayer = 0;
+function swapMedia(g, s, t){
+  document.querySelectorAll('.thumb').forEach(x => x.setAttribute('aria-pressed', x === t));
+  const imgs = [...document.querySelectorAll('#media img')];
+  const next = imgs[mediaLayer ^= 1], prev = imgs[mediaLayer ^ 1];
+  next.src = art(g.id, s);
+  gsap.fromTo(next, {opacity:0, scale:1.08, clipPath:'inset(0 0 0 100%)'}, {opacity:1, scale:1, clipPath:'inset(0 0 0 0%)', duration:.7, ease:'expo.out'});
+  gsap.to(prev, {opacity:0, duration:.5, delay:.2});
+}
+function setPrimary(g){
+  const b = $('#dPrimary');
+  const deep = g.installed && g.freeze === 'deep';
+  b.querySelector('.ico').innerHTML = deep ? FLAME : g.installed ? ICON.play : ICON.down;
+  b.querySelector('.label').textContent = deep ? 'Descongelar para jugar' : g.installed ? 'Jugar ahora' : `Descargar · ${g.size}`;
+  gsap.set(b.querySelector('.fill'), {scaleX:0});
+  b.disabled = false;
+}
+let morphSrc = null, pushed = [];
+function srcRect(el){
+  const d = detail.getBoundingClientRect(), W = d.width, H = d.height;
+  const r = el && el.isConnected && el.offsetParent ? el.getBoundingClientRect() : null;
+  if(!r || !r.width) return {x:W*.3, y:H*.3, w:W*.4, h:H*.4, W, H};
+  return {x:r.left - d.left, y:r.top - d.top, w:r.width, h:r.height, W, H};
+}
+const clipFor = r => `inset(${r.y}px ${r.W - r.x - r.w}px ${r.H - r.y - r.h}px ${r.x}px round 8px)`;
+function visibleImg(el){
+  return [...el.querySelectorAll('img')].find(i => getComputedStyle(i).opacity !== '0') || el.querySelector('img');
+}
+// Las demás tarjetas visibles se alejan del centro de la tarjeta que se abre.
+function pushOthers(srcEl){
+  const c = srcEl.getBoundingClientRect(), cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+  const pool = view === 'library' ? [...bento.children] : GAMES.map(g => g.el);
+  pushed = pool.filter(el => el !== srcEl && !el.contains(srcEl) && el.style.display !== 'none').filter(el => {
+    const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight;
+  });
+  pushed.forEach(el => {
+    const r = el.getBoundingClientRect(), dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy;
+    const len = Math.hypot(dx, dy) || 1, force = 260 + 120000 / (len + 200);
+    gsap.to(el, {x:dx / len * force, y:dy / len * force, scale:.82, opacity:.35, duration:.85, ease:'expo.inOut'});
+  });
+}
+function openDetail(g, srcEl){
+  openGame = g; fillDetail(g);
+  morphSrc = srcEl || g.el.querySelector('.poster-art');
+  spotTl?.pause();
+  detail.style.display = 'block'; backdrop.style.display = 'block';
+  titleSplit?.revert();
+  titleSplit = new SplitText('#dTitle', {type:'chars', mask:'chars'});
+  const r = srcRect(morphSrc), ghost = $('#ghost'), img = visibleImg(morphSrc);
+  ghost.src = img ? img.currentSrc || img.src : '';
+  pushOthers(morphSrc);
+  gsap.set(morphSrc, {opacity:0});
+  const tl = gsap.timeline({defaults:{ease:'expo.out'}});
+  tl.to(backdrop, {opacity:1, duration:.6, ease:'power2.out'}, 0)
+    .fromTo(panel, {clipPath:clipFor(r)}, {clipPath:`inset(0px 0px 0px 0px round 12px)`, duration:.85, ease:'expo.inOut'}, 0)
+    .fromTo(ghost, {left:r.x, top:r.y, width:r.w, height:r.h, opacity:1}, {left:0, top:0, width:r.W, height:r.H, duration:.85, ease:'expo.inOut'}, 0)
+    .to(ghost, {opacity:0, duration:.45, ease:'power2.out'}, .6)
+    .fromTo('#dHero', {scale:1.25}, {scale:1, duration:1.4}, .45)
+    .fromTo('#dLine', {scaleX:0}, {scaleX:1, duration:.9}, .65)
+    .fromTo('.d-anim, .ga-close', {opacity:0, y:22}, {opacity:1, y:0, duration:.7, stagger:.06}, .6)
+    .from(titleSplit.chars, {yPercent:110, duration:.8, stagger:.022}, .65);
+  const s = {v:0};
+  scoreTween?.kill();
+  scoreTween = gsap.timeline({delay:.9})
+    .to(s, {v:g.score, duration:1.3, ease:'power2.out', onUpdate:() => $('#dScore').textContent = Math.round(s.v)}, 0)
+    .fromTo('#dScoreBar', {scaleX:0}, {scaleX:g.score/100, duration:1.3, ease:'power2.out'}, 0);
+  setTimeout(() => $('#dClose').focus({preventScroll:true}), 60);
+}
+function closeDetail(){
+  const g = openGame; if(!g) return;
+  openGame = null;
+  const src = morphSrc, ghost = $('#ghost');
+  gsap.set(src, {opacity:1});
+  const r = srcRect(src);
+  gsap.set(src, {opacity:0});
+  const img = visibleImg(src);
+  if(img) ghost.src = img.currentSrc || img.src;
+  gsap.timeline({onComplete:() => {
+    detail.style.display = 'none'; backdrop.style.display = 'none';
+    gsap.set(panel, {clearProps:'clipPath'}); gsap.set(src, {opacity:1});
+    if(view === 'catalog') spotTl?.resume();
+    (src.querySelector('button') || src.closest('button') || src)?.focus?.({preventScroll:true});
+  }})
+    .to('.d-anim, .ga-close', {opacity:0, duration:.2}, 0)
+    .to(ghost, {opacity:1, duration:.25}, 0)
+    .to(panel, {clipPath:clipFor(r), duration:.7, ease:'expo.inOut'}, .1)
+    .to(ghost, {left:r.x, top:r.y, width:r.w, height:r.h, duration:.7, ease:'expo.inOut'}, .1)
+    .to(pushed, {x:0, y:0, scale:1, opacity:1, duration:.8, ease:'expo.inOut'}, .1)
+    .to(backdrop, {opacity:0, duration:.5}, .3);
+}
+$('#dClose').addEventListener('click', closeDetail);
+backdrop.addEventListener('click', closeDetail);
+$('#dFav').addEventListener('click', e => openGame && toggleFav(openGame, e.currentTarget));
+
+/* ---------- Jugar / Descargar ---------- */
+$('#dPrimary').addEventListener('click', () => {
+  const g = openGame, b = $('#dPrimary'); if(!g || b.disabled) return;
+  if(g.installed && g.freeze === 'deep'){ b.disabled = true; runWithNotice(g, 'Descongelando…', 'Descongelado', 'Listo para jugar', 'ok', 1600, () => { g.freeze = null; setPrimary(g); if(view === 'library') renderLibrary(true); if(panelShown('manager')) renderManager(); }); return; }
+  b.disabled = true;
+  if(g.installed){
+    b.querySelector('.label').textContent = 'Preparando…';
+    gsap.timeline()
+      .to(b.querySelector('.fill'), {scaleX:1, duration:1.6, ease:'power1.inOut'})
+      .add(() => { b.querySelector('.ico').innerHTML = ICON.check; b.querySelector('.label').textContent = 'Jugando'; })
+      .fromTo(b, {scale:.96}, {scale:1, duration:.6, ease:'elastic.out(1,.4)'})
+      .add(() => playGame(g), '<');
+  } else startDownload(g);
+});
+
+/* ---------- Aviso único: resultados, pasos y confirmaciones ---------- */
+// Un solo aviso, abajo a la derecha, para todo (jugar, congelar, desinstalar, descargas). Si llega otro,
+// el mismo aviso cambia su contenido. Si todo salió bien, su OK se llena y se presiona solo en 3 s;
+// un error no se cierra solo y ofrece sus botones.
+const noticeEl = document.createElement('div');
+noticeEl.className = 'ga-notice'; noticeEl.setAttribute('role', 'status'); noticeEl.setAttribute('aria-live', 'polite');
+document.body.append(noticeEl);
+const TONE_GLYPH = {ok:ICON.check, info:ICON.down, frost:SNOW, danger:TRASH, error:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg>'};
+let noticeResolve = null, noticeProgress = null, noticeAuto = null;
+function notify({g = null, title, text = '', tone = 'info', progress = false, steps = null, actions = null}){
+  noticeProgress?.kill(); noticeProgress = null;
+  noticeAuto?.kill(); noticeAuto = null;
+  if(noticeResolve){ const r = noticeResolve; noticeResolve = null; r(false); }
+  // Sin botones propios: si salió bien lleva un OK que se presiona solo; un error nunca se cierra solo.
+  if(!actions) actions = progress || steps ? [] : tone === 'error' ? [{label:'Cerrar', run:hideNotice}] : [{label:'OK', kind:'primary', auto:true, run:hideNotice}];
+  noticeEl.dataset.tone = tone;
+  noticeEl.innerHTML = `<div class="nt-head">${g ? `<img class="nt-art" src="${art(g.id, 'library_600x900.jpg')}" alt="">` : `<span class="nt-ico">${TONE_GLYPH[tone] || ''}</span>`}
+      <div class="nt-text"><strong>${title}</strong>${text ? `<span>${text}</span>` : ''}</div></div>
+    ${steps ? `<ol class="nt-steps">${steps.map(st => `<li><i></i>${st}</li>`).join('')}</ol>` : ''}
+    <div class="nt-actions"></div>${progress ? '<i class="nt-progress"><b></b></i>' : ''}`;
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.className = `btn ${a.kind === 'danger' ? 'btn-danger' : a.kind === 'frost' ? 'btn-frost' : a.kind === 'primary' ? 'btn-primary' : 'btn-secondary'}`;
+    b.innerHTML = `${a.auto ? '<span class="fill"></span>' : ''}<span class="label">${a.label}</span>`;
+    b.addEventListener('click', a.run);
+    noticeEl.querySelector('.nt-actions').append(b);
+    if(a.auto){
+      noticeAuto = gsap.fromTo(b.querySelector('.fill'), {scaleX:0}, {scaleX:1, duration:3, ease:'none', onComplete:() => {
+        gsap.fromTo(b, {scale:.94}, {scale:1, duration:.3, ease:'back.out(3)'});
+        setTimeout(() => b.click(), 160);
+      }});
+    }
+  });
+  if(!noticeEl.classList.contains('show')){
+    noticeEl.classList.add('show');
+    gsap.fromTo(noticeEl, {x:40, opacity:0}, {x:0, y:0, opacity:1, duration:.55, ease:'expo.out', overwrite:true});
+  } else gsap.fromTo(noticeEl.children, {opacity:0, y:6}, {opacity:1, y:0, duration:.3, stagger:.04, ease:'power3.out'});
+  if(actions.length && !actions[0].auto) setTimeout(() => noticeEl.querySelector('.nt-actions .btn')?.focus({preventScroll:true}), 80);
+}
+// Con el mouse encima, el OK automático espera.
+noticeEl.addEventListener('pointerenter', () => noticeAuto?.pause());
+noticeEl.addEventListener('pointerleave', () => noticeAuto?.resume());
+function hideNotice(){
+  noticeAuto?.kill(); noticeAuto = null;
+  gsap.to(noticeEl, {y:-24, opacity:0, duration:.4, ease:'power2.in', overwrite:true, onComplete:() => noticeEl.classList.remove('show')});
+}
+// Confirmación en el mismo aviso: no bloquea la pantalla ni queda detrás de nada.
+function confirmNotice({g, title, text, confirm, kind = 'danger'}){
+  return new Promise(resolve => {
+    const done = ok => { noticeResolve = null; if(!ok) hideNotice(); resolve(ok); };
+    notify({g, title, text, tone:kind === 'frost' ? 'frost' : 'danger',
+      actions:[{label:'Cancelar', run:() => done(false)}, {label:confirm, kind, run:() => done(true)}]});
+    noticeResolve = resolve;
+  });
+}
+// Trabajo con progreso dentro del aviso; al terminar, el mismo aviso muestra el resultado.
+function runWithNotice(g, working, doneTitle, doneText, tone, ms, apply){
+  notify({g, title:working, text:g ? g.name : '', tone, progress:true});
+  const p = {v:0};
+  noticeProgress = gsap.to(p, {v:1, duration:ms / 1000, ease:'power1.inOut',
+    onUpdate:() => { const bar = noticeEl.querySelector('.nt-progress b'); if(bar) gsap.set(bar, {scaleX:p.v}); },
+    onComplete:() => { noticeProgress = null; apply?.(); notify({g, title:doneTitle, text:doneText, tone}); }});
+}
+function toast(g, title, text){ notify({g, title, text, tone:'ok'}); }
+// Jugar puede llevar varios pasos que pueden fallar: el aviso los muestra y, si todo sale bien, confirma.
+const PLAY_STEPS = ['Aplicar el fix', 'Revisar el idioma', 'Buscar el ejecutable', 'Iniciar el juego'];
+const PLAY_FAILS = {1145360:2};
+function playGame(g){
+  notify({g, title:'Preparando para jugar', text:g.name, tone:'info', steps:PLAY_STEPS, progress:true});
+  const items = [...noticeEl.querySelectorAll('.nt-steps li')], failAt = PLAY_FAILS[g.id];
+  const tl = gsap.timeline();
+  noticeProgress = tl;
+  items.forEach((li, i) => {
+    tl.add(() => li.className = 'run').to(noticeEl.querySelector('.nt-progress b'), {scaleX:(i + 1) / items.length, duration:.5, ease:'power1.inOut'});
+    if(i === failAt){
+      tl.add(() => {
+        li.className = 'fail'; noticeProgress = null;
+        notify({g, title:'No se pudo iniciar', text:`${g.name}: no se encontró el ejecutable`, tone:'error',
+          actions:[{label:'Ver registro', run:() => notify({g, title:'Registro del juego', text:'En la app abre el registro con el detalle', tone:'info'})}, {label:'Reintentar', kind:'primary', run:() => playGame(g)}]});
+      });
+      return;
+    }
+    tl.add(() => li.className = 'done');
+  });
+  if(failAt === undefined) tl.add(() => { noticeProgress = null; notify({g, title:'Listo: ya estás jugando', text:`${g.name} está corriendo`, tone:'ok'}); });
+}
+addEventListener('keydown', e => { if(e.key === 'Escape' && noticeResolve){ e.stopImmediatePropagation(); noticeEl.querySelector('.nt-actions .btn')?.click(); } }, true);
+
+/* ---------- Descargas (modelo de demostración) ---------- */
+const DL = [], MB = {Torrent:24, Directa:62};
+let dlSeq = 0;
+function dlAdd(g, phase, p = 0, speed){
+  const d = {id:++dlSeq, g, phase, p, inst:phase === 'completed' ? 100 : 0, speed:speed ?? 6 + Math.random() * 3,
+    method:g.id % 3 === 0 ? 'Directa' : 'Torrent', samples:Array.from({length:40}, () => phase === 'downloading' ? .6 + Math.random() * .5 : 0)};
+  DL.push(d); return d;
+}
+const dlOpen = () => DL.filter(d => d.phase !== 'completed');
+const dlRunning = () => DL.filter(d => d.phase === 'downloading' || d.phase === 'installing');
+const dlOf = g => DL.find(d => d.g === g && d.phase !== 'completed');
+dlAdd(byId(1174180), 'downloading', 34, .9);
+dlAdd(byId(870780), 'queued');
+dlAdd(byId(632470), 'queued');
+dlAdd(byId(413150), 'completed', 100);
+
+function startDownload(g){
+  if(dlOf(g)){ togglePanel('downloads'); return; }
+  dlAdd(g, 'downloading');
+  g.inLib = true;
+  if(openGame === g){
+    const b = $('#dPrimary');
+    b.querySelector('.label').textContent = 'Descargando…';
+    gsap.to(b.querySelector('.fill'), {scaleX:1, duration:.5});
+  }
+  notify({g, title:'Agregado a descargas', text:`${g.name} · ${g.size}`, tone:'ok'});
+  bumpBadge();
+  refreshPanels();
+  if(view === 'library') renderLibrary(true);
+}
+function bumpBadge(){
+  $('#dlBadge').textContent = dlOpen().length;
+  if(dlOpen().length) delete $('#dlBadge').dataset.zero; else $('#dlBadge').dataset.zero = '';
+  gsap.fromTo('#dlBadge', {scale:1.8}, {scale:1, duration:.6, ease:'elastic.out(1,.35)'});
+  gsap.fromTo('#dlButton svg', {y:-5}, {y:0, duration:.5, ease:'bounce.out'});
+}
+function progressFor(host, d){
+  if(!host) return;
+  let p = host.querySelector(':scope > .poster-progress');
+  if(!d){ if(p) gsap.to(p, {opacity:0, duration:.4, onComplete:() => p.remove()}); return; }
+  if(!p){ p = document.createElement('span'); p.className = 'poster-progress'; p.innerHTML = '<i></i>'; host.append(p); }
+  gsap.set(p.firstChild, {scaleX:(d.phase === 'installing' ? 100 : d.p) / 100});
+}
+function syncProgress(){
+  GAMES.forEach(g => {
+    const d = dlOf(g);
+    progressFor(g.el.querySelector('.poster-art'), d);
+    progressFor(libEls.get(g.id), d);
+  });
+}
+function dlComplete(d){
+  const g = d.g;
+  g.installed = true;
+  refreshMarks(g); chipCounts();
+  notify({g, title:'Listo para jugar', text:`${g.name} se instaló`, tone:'ok', actions:[{label:'Después', run:hideNotice}, {label:'Jugar', kind:'primary', run:() => playGame(g)}]});
+  if(view === 'catalog') applyFilter();
+  if(openGame === g) setPrimary(g);
+  if(view === 'library') renderLibrary(true);
+}
+let dlLast = performance.now();
+function dlTick(){
+  const now = performance.now(), dt = Math.min(1, (now - dlLast) / 1000); dlLast = now;
+  let changed = false;
+  DL.forEach(d => {
+    if(d.phase === 'downloading'){
+      const rate = d.speed * (.7 + Math.random() * .6);
+      d.p = Math.min(100, d.p + rate * dt);
+      d.samples.push(rate / d.speed); d.samples.shift();
+      if(d.p >= 100){ d.phase = 'installing'; changed = true; }
+    } else if(d.phase === 'installing'){
+      d.inst = Math.min(100, d.inst + 40 * dt);
+      d.samples.push(0); d.samples.shift();
+      if(d.inst >= 100){ d.phase = 'completed'; dlComplete(d); changed = true; }
+    } else if(d.phase === 'paused'){ d.samples.push(0); d.samples.shift(); }
+  });
+  if(!dlRunning().length){ const q = DL.find(d => d.phase === 'queued'); if(q){ q.phase = 'downloading'; changed = true; } }
+  syncProgress();
+  if(changed){ bumpBadge(); refreshPanels(); }
+  else if(panelShown('downloads')) updateDownloads();
+}
+setInterval(dlTick, 250);
+
+/* ---------- Escritorio: paneles secundarios ---------- */
+// Ventana grande: Administrador, Descargas y Novedades se prenden y apagan como paneles al costado
+// (un cuarto de ancho; el catálogo o la librería se quedan con el resto). Ventana chica: uno por vez,
+// a pantalla completa, con la misma transición que catálogo/librería.
+const WIDE_MIN = 1800, FOOTER = 52;
+const PANEL_SIDE = {manager:'left', downloads:'right', news:'right'};
+const openPanels = new Set();
+let page = null;
+const isWide = () => innerWidth >= WIDE_MIN;
+const panelEl = name => document.querySelector(`.side-panel[data-panel="${name}"]`);
+const panelShown = name => isWide() ? openPanels.has(name) : page === name;
+const CLOSE_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>';
+function makePanel(name, eyebrow, title){
+  const el = document.createElement('aside');
+  el.className = 'side-panel'; el.dataset.panel = name; el.dataset.side = PANEL_SIDE[name]; el.setAttribute('aria-label', title);
+  el.innerHTML = `<div class="sp-inner"><header class="sp-head"><div><span class="eyebrow">${eyebrow}</span><h2 class="sp-title">${title}</h2><p class="sp-sub"></p></div>
+    <button class="ga-close sp-close" aria-label="Cerrar ${title}" title="Cerrar">${CLOSE_X}</button>
+    <button class="ga-back sp-back" aria-label="Volver">${BACK}<span>Volver</span></button></header><div class="sp-body"></div></div>`;
+  el.querySelector('.sp-close').addEventListener('click', () => togglePanel(name));
+  el.querySelector('.sp-back').addEventListener('click', () => closePage());
+  el.addEventListener('pointerenter', () => setPanelFocus(el, true));
+  el.addEventListener('pointerleave', () => { if(!el.contains(document.activeElement)) setPanelFocus(el, false); });
+  el.addEventListener('focusin', () => setPanelFocus(el, true));
+  el.addEventListener('focusout', () => setTimeout(() => { if(!el.contains(document.activeElement) && !el.matches(':hover')) setPanelFocus(el, false); }));
+  document.body.append(el);
+  return el;
+}
+makePanel('manager', 'Biblioteca', 'Administrador');
+makePanel('downloads', 'Digital', 'Descargas');
+makePanel('news', 'Game Access', 'Novedades');
+
+// Sin foco, los paneles quedan en gris y girados hacia el centro, como pantallas que envuelven
+// al catálogo; con el mouse o el teclado encima se enderezan y toman color.
+function setPanelFocus(el, on){
+  if(el.classList.contains('as-page') || !openPanels.has(el.dataset.panel)) return;
+  const left = el.dataset.side === 'left';
+  el.classList.toggle('is-idle', !on);
+  gsap.to(el, {rotationY:on ? 0 : left ? 9 : -9, transformPerspective:1300, transformOrigin:left ? '100% 50%' : '0% 50%', duration:.7, ease:'power3.out'});
+}
+function syncFooter(){
+  document.body.classList.toggle('wide', isWide());
+  document.querySelectorAll('.foot-btn[data-panel]').forEach(b => b.setAttribute('aria-pressed', panelShown(b.dataset.panel)));
+}
+function panelWidth(){
+  const both = openPanels.has('manager') && (openPanels.has('downloads') || openPanels.has('news'));
+  return Math.round(Math.min(560, Math.max(380, innerWidth * (both ? .22 : .25))));
+}
+function rightSlots(){
+  const H = innerHeight - FOOTER, d = openPanels.has('downloads'), n = openPanels.has('news');
+  const split = Math.round(H * .62);
+  return {downloads:d ? {top:0, height:n ? split : H} : null, news:n ? {top:d ? split : 0, height:d ? H - split : H} : null, H};
+}
+function mainCards(){
+  return (view === 'library' ? [...bento.children] : GAMES.map(g => g.el)).filter(e => e.style.display !== 'none');
+}
+function applyDesk(changed, opening, instant){
+  const state = instant ? null : Flip.getState(mainCards());
+  const spot = view === 'catalog' ? $('.spotlight') : null, oldW = spot?.offsetWidth;
+  const w = panelWidth(), slots = rightSlots(), d = instant ? 0 : .7;
+  const pl = openPanels.has('manager') ? w : 0, pr = openPanels.has('downloads') || openPanels.has('news') ? w : 0;
+  document.documentElement.style.setProperty('--pl', pl + 'px');
+  document.documentElement.style.setProperty('--pr', pr + 'px');
+  openPanels.forEach(name => {
+    const el = panelEl(name), slot = PANEL_SIDE[name] === 'left' ? {top:0, height:slots.H} : slots[name];
+    if(name === changed && opening){
+      el.classList.remove('as-page'); el.style.display = 'flex';
+      gsap.set(el, {width:w, top:slot.top, height:slot.height});
+      renderPanel(name);
+      gsap.fromTo(el, {xPercent:PANEL_SIDE[name] === 'left' ? -100 : 100, rotationY:0}, {xPercent:0, duration:d, ease:'expo.out', onComplete:() => { if(!el.matches(':hover')) setPanelFocus(el, false); }});
+      if(!instant) gsap.from(el.querySelectorAll('.sp-head > div > *, .sp-anim'), {opacity:0, y:18, duration:.5, stagger:.045, delay:.25, ease:'power3.out'});
+    } else gsap.to(el, {width:w, top:slot.top, height:slot.height, duration:d, ease:'expo.inOut'});
+  });
+  if(changed && !opening){
+    const el = panelEl(changed);
+    gsap.to(el, {xPercent:PANEL_SIDE[changed] === 'left' ? -100 : 100, duration:instant ? 0 : .5, ease:'expo.in', onComplete:() => { if(!openPanels.has(changed)) el.style.display = 'none'; }});
+  }
+  if(view === 'library') layoutBento();
+  syncChips(true); syncFooter();
+  if(state) Flip.from(state, {duration:.7, ease:'expo.inOut', stagger:.004});
+  if(spot && !instant) gsap.fromTo(spot, {width:oldW}, {width:spot.offsetWidth, duration:.7, ease:'expo.inOut', clearProps:'width'});
+}
+const MAIN = ['.workspace', '.rail', '.dock-area'];
+function openPage(name, focusGame){
+  if(page) closePage(true);
+  page = name;
+  const el = panelEl(name), dir = PANEL_SIDE[name] === 'left' ? -1 : 1;
+  gsap.set(el, {clearProps:'all'});
+  el.classList.remove('is-idle');
+  el.classList.add('as-page'); el.style.display = 'flex';
+  renderPanel(name, focusGame);
+  syncFooter();
+  gsap.timeline({defaults:{duration:.9, ease:'expo.inOut'}})
+    .to(MAIN, {xPercent:-45 * dir, rotationY:32 * dir, z:-200, opacity:0, transformPerspective:1800, transformOrigin:dir > 0 ? '0% 50%' : '100% 50%'}, 0)
+    .fromTo(el, {xPercent:50 * dir, rotationY:-32 * dir, z:-200, opacity:0, transformPerspective:1800, transformOrigin:dir > 0 ? '100% 50%' : '0% 50%'}, {xPercent:0, rotationY:0, z:0, opacity:1}, 0)
+    .from(el.querySelectorAll('.sp-head > div > *, .sp-anim'), {opacity:0, y:18, duration:.5, stagger:.045, ease:'power3.out'}, .55);
+}
+function closePage(instant){
+  const name = page; if(!name) return;
+  page = null; syncFooter();
+  const el = panelEl(name), dir = PANEL_SIDE[name] === 'left' ? -1 : 1;
+  const done = () => { el.style.display = 'none'; el.classList.remove('as-page'); gsap.set(el, {clearProps:'all'}); gsap.set(MAIN, {clearProps:'transform,opacity'}); };
+  if(instant) return done();
+  gsap.timeline({defaults:{duration:.8, ease:'expo.inOut'}, onComplete:done})
+    .to(el, {xPercent:50 * dir, rotationY:-32 * dir, z:-200, opacity:0}, 0)
+    .to(MAIN, {xPercent:0, rotationY:0, z:0, opacity:1}, 0);
+}
+function togglePanel(name, focusGame){
+  if(isWide()){
+    if(openPanels.has(name)){
+      if(focusGame) return renderPanel(name, focusGame);
+      openPanels.delete(name); applyDesk(name, false);
+    } else {
+      openPanels.add(name); applyDesk(name, true);
+      if(focusGame) renderPanel(name, focusGame);
+    }
+  } else if(page === name){
+    focusGame ? renderPanel(name, focusGame) : closePage();
+  } else openPage(name, focusGame);
+}
+function renderPanel(name, focusGame){
+  if(name === 'manager') renderManager(focusGame);
+  if(name === 'downloads') renderDownloads();
+  if(name === 'news') renderNews();
+}
+function refreshPanels(){
+  if(panelShown('downloads')) renderDownloads();
+  if(panelShown('manager')) renderManager();
+}
+document.querySelectorAll('.foot-btn[data-panel]').forEach(b => b.addEventListener('click', () => togglePanel(b.dataset.panel)));
+addEventListener('keydown', e => { if(e.key === 'Escape' && page && !openGame && !flip) closePage(); });
+let wasWide = isWide();
+addEventListener('resize', () => {
+  const wide = isWide();
+  if(wide !== wasWide){
+    wasWide = wide;
+    if(!wide && openPanels.size){ openPanels.forEach(n => panelEl(n).style.display = 'none'); openPanels.clear(); applyDesk(null, false, true); }
+    if(wide && page){ const p = page; closePage(true); openPanels.add(p); applyDesk(p, true, true); }
+  } else if(wide && openPanels.size) applyDesk(null, false, true);
+  syncFooter();
+});
+syncFooter();
+$('#dlBadge').textContent = dlOpen().length;
+
+/* ---------- Panel: administrador de biblioteca ---------- */
+const OUTDATED = [1145360];
+const WRENCH = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 7.5a5.5 5.5 0 01-7.6 5.1L6 20a2 2 0 01-2.8-2.8l7.4-7.4A5.5 5.5 0 0117.5 3l-3 3 .5 3 3 .5z"/></svg>';
+const PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>';
+const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+const DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
+const DISK_GB = 1000;
+let mgrFilter = 'all';
+function mgrInfo(g){
+  const gb = parseInt(g.size), d = dlOf(g);
+  if(g.installed && g.freeze === 'deep') return {key:'frozen', badge:['frost', 'Congelado profundo'], line:'No se juega hasta descongelarlo', disk:Math.round(gb * .42), real:gb};
+  if(g.installed && g.freeze === 'light') return {key:'frozen', badge:['frost', 'Congelado'], line:'Comprimido: se juega igual', disk:Math.round(gb * .6), real:gb};
+  if(g.installed && OUTDATED.includes(g.id)) return {key:'outdated', badge:['warn', 'Fuera de estándar'], line:'Carpeta con formato anterior.', warn:true, disk:gb};
+  if(g.installed) return {key:'ready', badge:['ok', 'Listo'], line:'Listo para jugar', disk:gb};
+  if(d) return {key:'partial', badge:['dl', d.phase === 'queued' ? 'En cola' : d.phase === 'paused' ? 'En pausa' : 'Descargando'], line:`Descarga sin terminar: ${Math.round(d.p)} %`, disk:Math.round(gb * d.p / 100)};
+  return {key:'idle', badge:['idle', 'Sin instalar'], line:'En tu librería', disk:0};
+}
+function mgrActs(g, info){
+  const a = (act, icon, title, cls = '') => `<button class="mg-act ${cls}" data-act="${act}" data-id="${g.id}" title="${title}" aria-label="${title}: ${g.name}">${icon}</button>`;
+  const out = [];
+  if(info.key === 'outdated') out.push(a('fix', WRENCH, 'Corregir', 'accent'));
+  if(g.installed && g.freeze !== 'deep') out.push(a('play', ICON.play, 'Jugar'));
+  if(!g.installed && !dlOf(g)) out.push(a('install', ICON.down, 'Instalar', 'accent'));
+  if(g.installed && !g.freeze) out.push(a('freeze', SNOW, 'Congelar', 'frost'));
+  if(g.installed && g.freeze !== 'deep') out.push(a('deep', SNOW + '<b>+</b>', 'Congelado profundo', 'frost'));
+  if(g.installed && g.freeze) out.push(a('thaw', FLAME, 'Descongelar'));
+  if(g.installed) out.push(a('folder', FOLDER, 'Abrir carpeta de instalación'));
+  if(g.installed) out.push(a('uninstall', TRASH, 'Desinstalar', 'danger'));
+  out.push(a('remove', MINUS, 'Quitar de biblioteca', 'danger'));
+  return out.join('');
+}
+function renderManager(focusGame){
+  const el = panelEl('manager'), body = el.querySelector('.sp-body');
+  const games = GAMES.filter(g => g.inLib).map(g => ({g, info:mgrInfo(g)}));
+  const count = k => games.filter(x => x.info.key === k).length;
+  const used = games.reduce((s, x) => s + x.info.disk, 0), partial = games.filter(x => x.info.key === 'partial').reduce((s, x) => s + x.info.disk, 0);
+  const saved = games.filter(x => x.info.real).reduce((s, x) => s + x.info.real - x.info.disk, 0);
+  el.querySelector('.sp-sub').textContent = `${games.length} juegos · ${used} GB en disco`;
+  const filters = [['all', 'Todos', games.length], ['outdated', 'Fuera de estándar', count('outdated')], ['partial', 'Descargas sin terminar', count('partial')], ['frozen', 'Congelados', count('frozen')]];
+  const rows = games.filter(x => mgrFilter === 'all' || x.info.key === mgrFilter).sort((a, b) => (b.info.real || b.info.disk) - (a.info.real || a.info.disk));
+  body.innerHTML = `
+    <section class="mg-summary sp-anim">
+      <div class="mg-donut-wrap">
+        <svg class="mg-donut" viewBox="0 0 200 200" aria-hidden="true"><g class="mg-rings" transform="rotate(-90 100 100)"></g>
+          <circle cx="100" cy="100" r="47" class="mg-hole"/><text x="100" y="98" text-anchor="middle" class="mg-c1"></text><text x="100" y="120" text-anchor="middle" class="mg-c2"></text></svg>
+        <ul class="mg-legend2"></ul>
+      </div>
+      <div class="mg-stats"><div><strong>${count('ready') + count('outdated') + count('frozen')}</strong><span>Instalados</span></div><div><strong>${count('outdated')}</strong><span>Fuera de estándar</span></div><div><strong>${saved} GB</strong><span>Ahorrado al congelar</span></div></div>
+    </section>
+    <div class="mg-actions sp-anim">
+      <button class="btn btn-primary" data-act="fixall" ${count('outdated') ? '' : 'disabled'}>${WRENCH}<span class="label">Corregir todo (${count('outdated')})</span></button>
+      <button class="btn btn-secondary" data-act="import">Importar juegos</button>
+      <button class="btn btn-secondary mg-icon" data-act="scan" title="Escanear" aria-label="Escanear la carpeta de juegos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M4 12h16"/></svg></button>
+    </div>
+    <div class="mg-chips sp-anim">${filters.map(([k, l, n]) => `<button class="chip" data-mgf="${k}" aria-pressed="${mgrFilter === k}">${l}<b>${n}</b></button>`).join('')}</div>
+    <div class="mg-list">${rows.map(({g, info}) => `
+      <div class="mg-row sp-anim" data-id="${g.id}">
+        <div class="mg-thumb ${info.key === 'frozen' ? 'is-frozen' : ''}"><img src="${art(g.id, 'header.jpg')}" alt="" loading="lazy"></div>
+        <div class="mg-main">
+          <div class="mg-name">${g.name}</div>
+          <div class="mg-line ${info.warn ? 'warn' : ''}">${info.line}</div>
+          <div class="mg-size">${info.real ? `<span class="frost">${SNOW}${info.disk} GB</span><s>${info.real} GB</s><em>Ahorra ${info.real - info.disk} GB</em>` : `<span>${info.disk ? info.disk + ' GB' : '—'}</span>`}</div>
+          <div class="mg-sbar"><i style="width:${Math.min(100, info.disk / 1.6)}%" class="${info.key}"></i></div>
+        </div>
+        <span class="mg-badge ${info.badge[0]}">${info.badge[1]}</span>
+        <div class="mg-acts">${mgrActs(g, info)}</div>
+      </div>`).join('') || '<p class="empty" style="display:block;padding:30px 0">No hay juegos con este estado.</p>'}</div>`;
+  drawDisk(body, games, used);
+  if(focusGame){
+    if(!rows.some(x => x.g === focusGame)){ mgrFilter = 'all'; return renderManager(focusGame); }
+    const row = body.querySelector(`.mg-row[data-id="${focusGame.id}"]`);
+    row.classList.add('focus');
+    setTimeout(() => {
+      row.scrollIntoView({block:'center', behavior:motion ? 'smooth' : 'auto'});
+      gsap.fromTo(row, {backgroundColor:'#ff6a0040', boxShadow:'0 0 0 1px #ff6a00'}, {backgroundColor:'#ffffff08', boxShadow:'0 0 0 1px #ff6a0000', duration:1.6, delay:.5, ease:'power2.out'});
+    }, 350);
+  }
+}
+// Dona del disco: cada parte es un círculo con trazo del largo de su porcentaje; las más grandes
+// son más gruesas. Se dibujan escalonadas y, al pasar por una parte o su fila, el centro muestra su valor.
+function drawDisk(body, games, used){
+  const sum = key => games.filter(x => x.info.key === key).reduce((t, x) => t + x.info.disk, 0);
+  const parts = [
+    {label:'Listos para jugar', gb:sum('ready'), color:'#ff6a00'},
+    {label:'Fuera de estándar', gb:sum('outdated'), color:'#f0a874'},
+    {label:'Congelados', gb:sum('frozen'), color:'#8fd3ff'},
+    {label:'Descargas a medias', gb:sum('partial'), color:'#9aa3a9'},
+    {label:'Libre', gb:DISK_GB - used, color:'#ffffff22', free:true},
+  ].filter(x => x.gb > 0);
+  const rings = body.querySelector('.mg-rings'), legend = body.querySelector('.mg-legend2');
+  const c1 = body.querySelector('.mg-c1'), c2 = body.querySelector('.mg-c2');
+  const center = (big, small) => { c1.textContent = big; c2.textContent = small; };
+  const idle = () => center(`${used} GB`, `ocupados de ${DISK_GB}`);
+  idle();
+  const ranked = parts.filter(x => !x.free).map(x => x.gb).sort((a, b) => b - a);
+  let start = 0;
+  parts.forEach((part, i) => {
+    const pct = part.gb / DISK_GB * 100, w = part.free ? 10 : 30 - ranked.indexOf(part.gb) * 4;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    Object.entries({cx:100, cy:100, r:70, fill:'none', stroke:part.color, 'stroke-width':w, pathLength:100, 'stroke-dasharray':'0 100', 'stroke-dashoffset':-start}).forEach(([k, v]) => c.setAttribute(k, v));
+    rings.append(c);
+    gsap.to(c, {attr:{'stroke-dasharray':`${Math.max(0, pct - .6)} ${100 - pct + .6}`}, duration:1.6 - i * .15, delay:.15 + i * .08, ease:'power3.inOut'});
+    start += pct;
+    const li = document.createElement('li');
+    li.innerHTML = `<i style="--c:${part.color}"><b></b></i><span>${part.label}</span><strong>${part.gb} GB</strong>`;
+    legend.append(li);
+    gsap.fromTo(li.querySelector('b'), {scaleX:0}, {scaleX:Math.max(.08, part.gb / Math.max(...parts.map(x => x.gb))), duration:1.2, delay:.2 + i * .08, ease:'power3.out'});
+    part.c = c; part.li = li; part.w = w;
+  });
+  parts.forEach(part => {
+    const on = () => {
+      parts.forEach(x => gsap.to(x.c, {opacity:x === part ? 1 : .25, attr:{'stroke-width':x === part ? x.w + 8 : x.w}, duration:.35, ease:'power2.out'}));
+      parts.forEach(x => x.li.classList.toggle('dim', x !== part));
+      center(`${part.gb} GB`, part.label.toLowerCase());
+    };
+    const off = () => {
+      parts.forEach(x => { gsap.to(x.c, {opacity:1, attr:{'stroke-width':x.w}, duration:.35}); x.li.classList.remove('dim'); });
+      idle();
+    };
+    [part.c, part.li].forEach(el => { el.addEventListener('pointerenter', on); el.addEventListener('pointerleave', off); });
+  });
+}
+function mgrAfter(g){
+  if(g) { refreshMarks(g); chipCounts(); }
+  renderManager();
+  if(view === 'library') renderLibrary(true); else applyFilter();
+}
+panelEl('manager').addEventListener('click', e => {
+  const chip = e.target.closest('[data-mgf]');
+  if(chip){ mgrFilter = chip.dataset.mgf; renderManager(); gsap.from(panelEl('manager').querySelectorAll('.mg-row'), {opacity:0, y:12, stagger:.03, duration:.35}); return; }
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  const g = b.dataset.id ? byId(b.dataset.id) : null, row = b.closest('.mg-row');
+  const acts = {
+    play:() => playGame(g),
+    install:() => startDownload(g),
+    freeze:() => runWithNotice(g, 'Congelando…', 'Congelado', `Se juega igual · ahorra ${Math.round(parseInt(g.size) * .4)} GB`, 'frost', 1800, () => { g.freeze = 'light'; mgrAfter(g); }),
+    deep:() => confirmNotice({g, title:`¿Congelado profundo de ${g.name}?`, text:`No se juega hasta descongelarlo · libera ~${Math.round(parseInt(g.size) * .58)} GB`, confirm:'Congelar', kind:'frost'})
+      .then(ok => ok && runWithNotice(g, 'Congelando en profundo…', 'Congelado profundo', 'Archivado: descongelalo para jugar', 'frost', 2000, () => { g.freeze = 'deep'; mgrAfter(g); })),
+    thaw:() => runWithNotice(g, 'Descongelando…', 'Descongelado', 'Listo para jugar', 'ok', 1600, () => { g.freeze = null; mgrAfter(g); }),
+    folder:() => toast(g, 'Abriendo carpeta', `C:\\juegos_GameAccess\\${g.id}-${g.name}`),
+    fix:() => { OUTDATED.splice(OUTDATED.indexOf(g.id), 1); toast(g, 'Corregido', 'La carpeta ya tiene el formato estándar'); mgrAfter(g); },
+    fixall:() => { OUTDATED.length = 0; toast(null, 'Biblioteca corregida', 'Todas las carpetas tienen el formato estándar'); mgrAfter(); },
+    import:() => toast(null, 'Importar juegos', 'En la app abre el asistente de importación'),
+    scan:() => toast(null, 'Escaneando', 'Buscando juegos en la carpeta de Game Access'),
+    uninstall:() => confirmNotice({g, title:`¿Desinstalar ${g.name}?`, text:'Se borran sus archivos; el juego sigue en tu librería', confirm:'Desinstalar'})
+      .then(ok => { if(!ok) return; g.installed = false; g.freeze = null; notify({g, title:'Desinstalado', text:'Sigue en tu librería para descargarlo', tone:'ok'}); mgrAfter(g); }),
+    remove:() => confirmNotice({g, title:`¿Quitar ${g.name} de la biblioteca?`, text:'También se desinstalarán los archivos locales del juego', confirm:'Quitar'}).then(ok => ok && gsap.to(row, {height:0, opacity:0, paddingTop:0, paddingBottom:0, marginTop:0, duration:.4, ease:'power2.in', onComplete:() => {
+      const d = dlOf(g); if(d) DL.splice(DL.indexOf(d), 1);
+      g.inLib = false; g.installed = false; g.fav = false; g.freeze = null; bumpBadge(); mgrAfter(g);
+      notify({g, title:'Quitado de la biblioteca', text:g.name, tone:'ok'});
+    }})),
+  };
+  acts[b.dataset.act]?.();
+});
+
+/* ---------- Panel: descargas ---------- */
+const PHASE = {downloading:'Descargando', installing:'Instalando', paused:'En pausa', queued:'En cola', completed:'Instalado'};
+const fmtGB = gb => gb >= 1 ? `${gb.toFixed(1).replace('.', ',')} GB` : `${Math.round(gb * 1024)} MB`;
+function renderDownloads(){
+  const el = panelEl('downloads'), body = el.querySelector('.sp-body');
+  const active = DL.filter(d => ['downloading', 'installing', 'paused'].includes(d.phase)), queue = DL.filter(d => d.phase === 'queued'), done = DL.filter(d => d.phase === 'completed');
+  el.querySelector('.sp-sub').textContent = `${active.length} en curso · ${queue.length} en cola · ${done.length} completadas`;
+  const feature = d => `
+    <article class="dl-feature sp-anim" data-dl="${d.id}">
+      <div class="dl-hero"><img src="${art(d.g.id, 'header.jpg')}" alt=""><div class="dl-hero-text"><div class="dl-pills"><span class="dl-pill ${d.method === 'Directa' ? 'plus' : ''}">${d.method === 'Directa' ? 'Directa · PLUS' : 'Torrent'}</span><span class="dl-pill state" data-f="ph">${PHASE[d.phase]}</span></div><strong>${d.g.name}</strong></div></div>
+      <div class="dl-fbody">
+        <svg class="dl-spark" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="sg${d.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6a00" stop-opacity=".45"/><stop offset="1" stop-color="#ff6a00" stop-opacity="0"/></linearGradient></defs><path class="area" fill="url(#sg${d.id})"/><path class="line" fill="none" stroke="#ff6a00" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>
+        <div class="dl-bar-line"><span>Descarga</span><b data-f="p"></b></div><div class="dl-bar"><i data-f="pb"></i></div>
+        <div class="dl-bar-line"><span>Instalación</span><b data-f="i"></b></div><div class="dl-bar inst"><i data-f="ib"></i></div>
+        <dl class="dl-metrics"><div><dt>Descargado</dt><dd data-f="got"></dd></div><div><dt>Velocidad</dt><dd data-f="spd"></dd></div><div><dt>Restante</dt><dd data-f="eta"></dd></div></dl>
+        <div class="dl-actions">${d.phase === 'paused'
+          ? `<button class="btn btn-secondary" data-act="resume" data-dl="${d.id}">${ICON.play}<span class="label">Reanudar</span></button>`
+          : `<button class="btn btn-secondary" data-act="pause" data-dl="${d.id}" ${d.phase === 'installing' ? 'disabled' : ''}>${PAUSE}<span class="label">Pausar</span></button>`}
+          <button class="btn btn-secondary" data-act="cancel" data-dl="${d.id}">${CLOSE_X}<span class="label">Cancelar</span></button></div>
+      </div>
+    </article>`;
+  const row = (d, i, kind) => `
+    <div class="dl-row sp-anim">
+      ${kind === 'queue' ? `<span class="dl-pos">${i + 1}</span>` : `<span class="dl-pos ok">${ICON.check}</span>`}
+      <img src="${art(d.g.id, 'header.jpg')}" alt="" loading="lazy">
+      <div class="dl-row-text"><strong>${d.g.name}</strong><span>${d.g.size} · ${kind === 'queue' ? d.method : 'Instalado'}</span></div>
+      <div class="dl-row-acts">${kind === 'queue'
+        ? `${i > 0 ? `<button class="mg-act" data-act="up" data-dl="${d.id}" title="Subir" aria-label="Subir ${d.g.name}">${UP}</button>` : ''}${i < queue.length - 1 ? `<button class="mg-act" data-act="down" data-dl="${d.id}" title="Bajar" aria-label="Bajar ${d.g.name}">${DOWN}</button>` : ''}<button class="mg-act danger" data-act="cancel" data-dl="${d.id}" title="Cancelar" aria-label="Cancelar ${d.g.name}">${CLOSE_X}</button>`
+        : `<button class="dl-play" data-act="play" data-dl="${d.id}">${ICON.play}Jugar</button>`}</div>
+    </div>`;
+  body.innerHTML = (active.length ? `<h3 class="dl-section sp-anim">En curso</h3>${active.map(feature).join('')}` : '')
+    + (queue.length ? `<h3 class="dl-section sp-anim">En cola · ${queue.length}</h3>${queue.map((d, i) => row(d, i, 'queue')).join('')}` : '')
+    + (done.length ? `<h3 class="dl-section sp-anim">Esta sesión</h3>${done.map((d, i) => row(d, i, 'done')).join('')}` : '')
+    + (!DL.length ? `<p class="empty sp-anim" style="display:block">No hay descargas. Elegí un juego del catálogo para empezar.</p>` : '')
+    + `<details class="dl-manual sp-anim"><summary>Añadir descarga manual</summary><p>Pegá un enlace magnet, un .torrent o un enlace directo.</p><div class="dl-manual-row"><input class="ga-field" placeholder="magnet:?xt=… o https://…" aria-label="Enlace de descarga"><button class="btn btn-primary" data-act="manual">Agregar</button></div></details>`;
+  updateDownloads();
+}
+function updateDownloads(){
+  panelEl('downloads').querySelectorAll('.dl-feature').forEach(card => {
+    const d = DL.find(x => x.id === +card.dataset.dl); if(!d) return;
+    const f = k => card.querySelector(`[data-f="${k}"]`), gb = parseInt(d.g.size), live = d.phase === 'downloading';
+    const mbps = live ? MB[d.method] * d.samples[d.samples.length - 1] : 0;
+    f('ph').textContent = PHASE[d.phase];
+    f('p').textContent = Math.floor(d.p) + ' %'; gsap.set(f('pb'), {scaleX:d.p / 100});
+    f('i').textContent = Math.floor(d.inst) + ' %'; gsap.set(f('ib'), {scaleX:d.inst / 100});
+    f('got').textContent = `${fmtGB(gb * d.p / 100)} / ${gb} GB`;
+    f('spd').textContent = live ? `${mbps.toFixed(1).replace('.', ',')} MB/s` : '—';
+    const secs = live && mbps ? gb * 1024 * (1 - d.p / 100) / mbps : 0;
+    f('eta').textContent = !live ? '—' : secs >= 3600 ? `${Math.floor(secs / 3600)} h ${Math.round(secs % 3600 / 60)} min` : `${Math.max(1, Math.round(secs / 60))} min`;
+    const max = Math.max(1.4, ...d.samples), pts = d.samples.map((v, i) => `${(i * 120 / 39).toFixed(1)},${(31 - v / max * 27).toFixed(1)}`);
+    card.querySelector('.dl-spark .line').setAttribute('d', 'M' + pts.join('L'));
+    card.querySelector('.dl-spark .area').setAttribute('d', 'M0,32L' + pts.join('L') + 'L120,32Z');
+  });
+}
+panelEl('downloads').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if(!b) return;
+  const d = DL.find(x => x.id === +b.dataset.dl);
+  const queue = DL.filter(x => x.phase === 'queued');
+  const move = dir => { const i = DL.indexOf(d), j = DL.indexOf(queue[queue.indexOf(d) + dir]); [DL[i], DL[j]] = [DL[j], DL[i]]; };
+  const acts = {
+    pause:() => { d.phase = 'paused'; },
+    resume:() => { d.phase = 'downloading'; },
+    cancel:() => { DL.splice(DL.indexOf(d), 1); toast(d.g, 'Descarga cancelada', d.g.name); },
+    up:() => move(-1), down:() => move(1),
+    play:() => playGame(d.g),
+    manual:() => toast(null, 'Descarga manual', 'En la app se agrega a la cola'),
+  };
+  if(!acts[b.dataset.act]) return;
+  acts[b.dataset.act]();
+  if(b.dataset.act !== 'play' && b.dataset.act !== 'manual'){ syncProgress(); bumpBadge(); refreshPanels(); if(view === 'library') renderLibrary(true); }
+});
+
+/* ---------- Panel: novedades ---------- */
+let unread = 4;
+function markNewsRead(){
+  if(!unread) return;
+  unread = 0;
+  gsap.to('#newsBadge', {scale:0, duration:.35, ease:'back.in(2)', onComplete:() => $('#newsBadge').dataset.zero = ''});
+}
+document.querySelectorAll('.lang-pop button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.lang-pop button').forEach(x => x.setAttribute('aria-checked', x === b));
+  $('#langLabel').textContent = b.textContent;
+  notify({title:`Idioma: ${b.textContent}`, text:'En la app cambia todos los textos', tone:'ok'});
+  b.blur();
+}));
+function renderNews(){
+  markNewsRead();
+  const el = panelEl('news'), body = el.querySelector('.sp-body');
+  const fresh = [1903340, 553850, 2420110].map(byId);
+  el.querySelector('.sp-sub').textContent = 'Versión 0.1.2 · 3 juegos nuevos';
+  body.innerHTML = `
+    <article class="nw-card sp-anim"><span class="nw-date">22 oct · Versión 0.1.2</span><strong class="nw-ver">Te avisamos antes de actualizar</strong><p>Cuando hay una versión nueva, Game Access te lo dice primero y te explica que Windows va a pedir permiso para instalarla.</p></article>
+    <h3 class="dl-section sp-anim">Nuevos en el catálogo</h3>
+    ${fresh.map(g => `<div class="dl-row sp-anim"><img src="${art(g.id, 'header.jpg')}" alt="" loading="lazy"><div class="dl-row-text"><strong>${g.name}</strong><span>Agregado hoy · ${g.genres.join(', ')}</span></div><div class="dl-row-acts"><button class="btn btn-secondary nw-see" data-id="${g.id}">Ver</button></div></div>`).join('')}
+    <p class="nw-tip sp-anim">Quedate 2 segundos sobre una tarjeta de tu librería y tocá las tres rayitas para ver sus opciones.</p>`;
+}
+panelEl('news').addEventListener('click', e => {
+  const b = e.target.closest('.nw-see'); if(!b) return;
+  const g = byId(b.dataset.id);
+  openDetail(g, b.closest('.dl-row').querySelector('img'));
+});
+
+/* ---------- Entrada ---------- */
+function intro(){
+  document.body.dataset.view = 'catalog';
+  syncChips(true);
+  sizeRail();
+  gsap.from(words.catalog, {y:innerHeight * 1.3, duration:1.6, ease:'expo.out', delay:.2});
+  GAMES.forEach(g => g.el.style.display = visible(g) ? '' : 'none');
+  syncHiddenHint();
+  $('#hiddenHint').addEventListener('click', () => switchView('library'));
+  const n = GAMES.filter(visible).length; countEl.textContent = 0;
+  const tl = gsap.timeline({defaults:{ease:'expo.out'}});
+  tl.from('.wordmark span', {yPercent:120, opacity:0, duration:.8, stagger:.035})
+    .from('.crumb, .mast-meta', {opacity:0, x:-12, duration:.6, stagger:.1}, .3)
+    .from('.spotlight', {clipPath:'inset(0 0 100% 0 round 12px)', duration:1.1, ease:'expo.inOut'}, .1)
+    .add(() => showSpot(0), .6)
+    .from('.chip', {opacity:0, y:14, duration:.5, stagger:.04}, .7)
+    .from('.chip-pill', {scaleX:0, transformOrigin:'left', duration:.6}, .9)
+    .from('.section-head', {opacity:0, duration:.5}, .9)
+    .to({v:0}, {v:n, duration:1, onUpdate(){ countEl.textContent = Math.round(this.targets()[0].v); }}, .9)
+    .from('.dock-area', {yPercent:100, duration:.9}, .8)
+    .from('.footer', {yPercent:100, duration:.7}, .7);
+  const shown = GAMES.filter(visible).map(g => g.el), firstRows = shown.slice(0, 12), rest = shown.slice(12);
+  tl.from(firstRows, {opacity:0, y:60, rotationX:-25, transformOrigin:'50% 100%', duration:1, stagger:{each:.05, grid:'auto', from:'start'}}, .85);
+  gsap.set(rest, {opacity:0, y:60});
+  ScrollTrigger.batch(rest, {start:'top 95%', once:true, onEnter: els => gsap.to(els, {opacity:1, y:0, duration:.8, stagger:.06, ease:'expo.out'})});
+}
+document.fonts.ready.then(intro);
+addEventListener('resize', () => { syncChips(true); sizeRail(); });
+</script>
+</body>
+</html>
