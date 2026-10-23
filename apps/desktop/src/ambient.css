@@ -27,3 +27,7 @@ html body .library-room:not(.surface-display):not(.surface-tablet) .library-room
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:hover .library-room-card-art { filter: none; }
 html body .ga-card-caption { margin-top: 10px; color: #f4f4f2; font-size: 13px; font-weight: 600; }
 html body .ga-card-caption small { color: #929ba2; font-size: 11px; font-weight: 500; }
+.ga-settings-language { display: flex; gap: 8px; }
+.ga-settings-language button { height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid #ffffff2c; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
+.ga-settings-language button[aria-checked="true"] { background: #f4f4f2; border-color: transparent; color: #111416; }
+.ga-settings-language button:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }

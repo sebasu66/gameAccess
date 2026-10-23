@@ -8,7 +8,7 @@ import {
   type Lang, type PremiumContent, type PremiumSource,
 } from "./premiumContent";
 import "./premium.css";
-import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
+import { GaButton, GaClose } from "./components/ga/Buttons";
 
 const copy = {
   es: {
@@ -89,7 +89,9 @@ export default function PremiumEntry() {
   const methods = methodsFor(content, region);
 
   return <>
-    {!tier ? <GaIconButton className="ga-premium-button" icon={<Sparkles size={19} aria-hidden="true" />} label={c.button} onClick={() => setOpen(true)} /> : null}
+    {!tier ? <button type="button" className="ga-premium-button" onClick={() => setOpen(true)}>
+      <Sparkles size={15} aria-hidden="true" />{c.button}
+    </button> : null}
     {open ? createPortal(<div className="ga-premium-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
       <section className="ga-premium-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header>

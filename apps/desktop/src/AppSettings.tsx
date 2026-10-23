@@ -1,6 +1,7 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
 import ParentalControlSection from "./ParentalControlSection";
 import GaTabs from "./GaTabs";
+import LanguageSwitch from "./LanguageSwitch";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
@@ -15,7 +16,7 @@ const copy = {
  en: { title: "Settings", tabGames: "Games", tabParental: "Parental control", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", field: "Animated pixel background", fieldHint: "Off: grey background that takes the colour of the game under the pointer.", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
 };
 function SettingsPanel({ onClose }: { onClose: () => void }) {
- const { locale } = useI18n(); const c = copy[locale];
+ const { locale, t } = useI18n(); const c = copy[locale];
  const panel = useDialogFocus(onClose);
  const [style, setStyle] = useState(loadPixelStyle);
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
@@ -27,6 +28,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
     { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
     { id: "parental", label: c.tabParental, content: <ParentalControlSection /> },
     { id: "style", label: c.tabStyle, content: <>
+      <fieldset><legend>{t("language")}</legend><LanguageSwitch /></fieldset>
       <fieldset><legend>{c.background}</legend><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.field} onChange={e => { const next = { ...style, field: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.field}</label>{style.field ? (["spd", "cob", "blink"] as StyleParam[]).map(slider) : <p className="ga-style-hint">{c.fieldHint}</p>}</fieldset>
       <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
       <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>

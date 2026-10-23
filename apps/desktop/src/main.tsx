@@ -19,8 +19,7 @@ import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
-import LanguageSwitch, { FooterLanguage } from "./LanguageSwitch";
-import { Bell, Globe2, RefreshCw } from "lucide-react";
+import { Bell, RefreshCw } from "lucide-react";
 import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
 import AmbientBackground from "./AmbientBackground";
@@ -114,7 +113,7 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><FooterLanguage /><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} onClick={news.show} /></div></div> : null}
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} onClick={news.show} /></div></div> : null}
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe> : null}
   </>;
 }
@@ -130,7 +129,7 @@ if (libraryDemo()) {
   ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><AmbientBackground /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
     <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );

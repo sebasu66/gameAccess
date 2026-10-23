@@ -1,0 +1,21 @@
+/* Search dock as in the approved demo, always centred in the window (side panels do not move it). With the animated
+   pixel background on, the search and the view buttons keep their LED look. */
+html body .library-catalog-toolbar.library-catalog-controls { z-index: 121; }
+html body:not(.ga-pixel-field-on) .ga-pixel-search > canvas, html body:not(.ga-pixel-field-on) .ga-led-button > canvas { display: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search { height: 62px; border-radius: 31px; background: #20282cdc; border: 1px solid #ffffff2c; backdrop-filter: blur(28px); box-shadow: 0 14px 40px #0008; transition: border-color .25s, box-shadow .25s; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #ff6a00; box-shadow: 0 14px 40px #0008, 0 0 0 1px #ff6a0066; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box { height: 100%; padding: 0 18px 0 22px; gap: 12px; border: 0; border-radius: inherit; background: none; box-shadow: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box svg { width: 26px; height: 26px; color: #ff6a00; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font: 500 17px Manrope, sans-serif; color: #f4f4f2; text-align: left; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input::placeholder { color: #8f969d; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs button { width: 62px; height: 62px; min-width: 62px; border-radius: 31px; background: #242d32d9; border: 1px solid #ffffff2c; color: #f4f4f2; backdrop-filter: blur(28px); box-shadow: 0 10px 30px #0007; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs button[aria-selected="true"] { background: #ff6a00; border-color: #ff6a00; color: #140a02; box-shadow: 0 10px 30px #ff6a0055; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs button svg { width: 28px; height: 28px; }
+
+/* Filters and sort above the grid. Labels stay visible here and the sort menu opens downward. */
+.ga-grid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 26px 14px 0; min-height: 40px; }
+html body .ga-grid-toolbar .library-catalog-filter-actions { width: auto; justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
+html body .ga-grid-toolbar button.ga-cube .ga-cube-label, html body .ga-grid-toolbar details.library-sort-dropdown > summary.ga-cube .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
+html body .ga-grid-toolbar button.ga-cube.ga-filter-open, html body .ga-grid-toolbar details.library-sort-dropdown > summary.ga-cube { width: auto; padding: 0 14px; }
+html body .ga-grid-toolbar .library-sort-menu { top: calc(100% + 8px) !important; bottom: auto !important; left: 0; right: auto; }
+html body .ga-grid-toolbar .ga-hidden-installed { position: static; margin: 0 0 0 auto; transform: none; }
