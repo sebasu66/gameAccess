@@ -735,5 +735,10 @@ export const es = {
   pillsLabel: "Filtros de la librería",
   pillInstalled: "Solo instalados",
   pillFavorites: "Solo favoritos",
+  flipMenuLabel: "Opciones de {{name}}",
+  flipPlay: "Jugar",
+  flipInstall: "Instalar",
+  flipManage: "Administrar",
+  flipFrozenHint: "Está congelado: descongelalo desde Administrar",
   noticeWorking: "Trabajando…",
 } as const;

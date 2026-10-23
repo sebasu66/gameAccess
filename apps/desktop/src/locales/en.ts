@@ -737,5 +737,10 @@ export const en: Record<keyof typeof es, string> = {
   pillsLabel: "Library filters",
   pillInstalled: "Installed only",
   pillFavorites: "Favorites only",
+  flipMenuLabel: "{{name}} options",
+  flipPlay: "Play",
+  flipInstall: "Install",
+  flipManage: "Manage",
+  flipFrozenHint: "It is frozen: thaw it from Manage",
   noticeWorking: "Working…",
 };

@@ -38,3 +38,30 @@
 /* The pills float above the search, centered, like the other controls at the bottom. */
 .library-catalog-toolbar:has(.ga-library-pills) { position: relative; }
 .library-catalog-toolbar > .ga-library-pills { position: absolute; left: 50%; bottom: calc(100% + 12px); margin: 0; transform: translateX(-50%); z-index: 3; }
+
+/* Menu dot (T8): three lines that draw themselves after 2 s on a card, then pulse. */
+.ga-bento-menu { position: absolute; right: 8px; bottom: 8px; z-index: 4; width: 30px; height: 30px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: #f4f4f2; background: #111416b8; border: 1px solid #ffffff38; backdrop-filter: blur(8px); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .25s .3s; }
+.ga-bento-menu svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.ga-bento-menu path { stroke-dasharray: 14; stroke-dashoffset: 14; transition: stroke-dashoffset .3s ease-in; }
+.ga-bento-menu path:nth-child(2) { transition-delay: .06s; } .ga-bento-menu path:nth-child(3) { transition-delay: .12s; }
+.ga-bento-menu[data-shown], .ga-bento-menu:focus-visible { opacity: 1; pointer-events: auto; transition: opacity .15s; animation: ga-bento-menu-pulse 1.8s ease-in-out .7s infinite; }
+.ga-bento-menu[data-shown] path, .ga-bento-menu:focus-visible path { stroke-dashoffset: 0; transition: stroke-dashoffset .45s ease-out; }
+.ga-bento-menu[data-shown] path:nth-child(2), .ga-bento-menu:focus-visible path:nth-child(2) { transition-delay: .12s; }
+.ga-bento-menu[data-shown] path:nth-child(3), .ga-bento-menu:focus-visible path:nth-child(3) { transition-delay: .24s; }
+.ga-bento-menu:hover { background: #ff6a00; color: #140a02; border-color: #ff6a00; }
+.ga-bento-menu:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
+.ga-bento-card[data-kind="pending"] ~ .ga-bento-menu, .ga-bento-card[data-kind="deep"] ~ .ga-bento-menu { width: 26px; height: 26px; right: 6px; bottom: 6px; }
+@keyframes ga-bento-menu-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
+/* Card back: the cover drawn in lines, a glass fading to the right, and the short menu on top. */
+.ga-flip-menu { position: fixed; z-index: 60; border-radius: 8px; overflow: hidden; isolation: isolate; background: #0b0e10; box-shadow: 0 24px 60px #0009; }
+.ga-flip-menu::before { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; padding: 1px; pointer-events: none; background: linear-gradient(135deg, #ffffff55, #ffffff08); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.ga-flip-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: url(#ga-sketch); mix-blend-mode: screen; pointer-events: none; }
+.ga-flip-glass { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(17,20,22,.86) 0, rgba(17,20,22,.6) 50%, rgba(17,20,22,0) 100%); backdrop-filter: blur(1.5px); }
+.ga-flip-items { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding: 12px; min-height: 100%; box-sizing: border-box; }
+.ga-flip-items button { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: #f4f4f2; font: 600 13px Manrope, sans-serif; text-align: left; white-space: nowrap; cursor: pointer; }
+.ga-flip-items button:hover:not(:disabled), .ga-flip-items button:focus-visible { background: #ff6a0026; outline: none; }
+.ga-flip-items button:disabled { opacity: .4; cursor: default; }
+.ga-flip-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #ff6a00; color: #140a02; font-weight: 800; }
+.ga-flip-items button.primary:hover:not(:disabled) { background: #ff8230; }
+@media (prefers-reduced-motion: reduce) { .ga-bento-menu, .ga-bento-menu path { transition: none; animation: none !important; } }
