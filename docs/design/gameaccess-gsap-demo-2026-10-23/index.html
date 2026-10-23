@@ -483,6 +483,13 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .btn-primary .label,.btn-primary svg,.dl-play svg{position:relative}
 .nt-actions .btn .fill{background:var(--ga-glass-orange)}
 
+/* El pie siempre queda por encima de los paneles (también cuando giran en perspectiva). */
+.footer{z-index:16}
+/* Paneles laterales: el mismo gris del centro junto al catálogo, oscureciéndose hacia el borde exterior. */
+.side-panel[data-side=left]{background:linear-gradient(90deg,#0c0f11 0%,#14181b 45%,#1b2024 100%)}
+.side-panel[data-side=right]{background:linear-gradient(270deg,#0c0f11 0%,#14181b 45%,#1b2024 100%)}
+.side-panel.as-page{background:#111416}
+
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
   display:none;flex-direction:column;gap:16px;padding:48px 22px 22px;border-radius:0 0 12px 12px;overflow:hidden;
