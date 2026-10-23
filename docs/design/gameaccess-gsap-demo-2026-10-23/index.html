@@ -477,6 +477,18 @@ body.wide .foot-btn[aria-pressed=true] .led{background:var(--ga-orange);box-shad
 .btn-primary .shine{display:none}
 .nt-actions .btn .fill{background:var(--ga-orange)}
 
+/* Administrador: estado de la fila con íconos */
+.mg-state{grid-area:badge;position:relative;width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+.mg-state svg{width:13px;height:13px}
+.mg-state.play{color:var(--ga-success);background:#8fe3b014;box-shadow:inset 0 0 0 1px #8fe3b04d}
+.mg-state.play svg{margin-left:2px}
+.mg-state.play:hover,.mg-state.play:focus-visible{background:#8fe3b02e;outline:none}
+.mg-state.warn{color:#f0a874;background:#ff6a0014;box-shadow:inset 0 0 0 1px #ff6a0040;cursor:default}
+.mg-state.warn i{position:absolute;right:calc(100% + 8px);top:50%;margin-top:-12px;white-space:nowrap;font-style:normal;font-size:11px;font-weight:700;padding:4px 8px;border-radius:5px;background:#1e2428;box-shadow:0 6px 16px #0008,inset 0 0 0 1px #ffffff1f;color:#f0a874;opacity:0;transform:translateX(4px);pointer-events:none;transition:opacity .2s,transform .2s}
+.mg-state.warn:hover i,.mg-state.warn:focus-visible i{opacity:1;transform:none}
+.mg-state.warn:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
+.mg-size .unfrozen{color:#ff6a00;opacity:.55}
+
 /* ---------- Aviso único: abajo a la derecha, el panel se desvanece hacia arriba ---------- */
 .ga-notice{position:fixed;z-index:45;right:calc(var(--pr) + 20px);bottom:calc(var(--footer) + 16px);width:min(380px,calc(100vw - 32px));
   display:none;flex-direction:column;gap:16px;padding:48px 22px 22px;border-radius:0 0 12px 12px;overflow:hidden;
@@ -1810,15 +1822,23 @@ function mgrInfo(g){
   if(g.installed && g.freeze === 'deep') return {key:'frozen', badge:['frost', 'Congelado profundo'], line:'No se juega hasta descongelarlo', disk:Math.round(gb * .42), real:gb};
   if(g.installed && g.freeze === 'light') return {key:'frozen', badge:['frost', 'Congelado'], line:'Comprimido: se juega igual', disk:Math.round(gb * .6), real:gb};
   if(g.installed && OUTDATED.includes(g.id)) return {key:'outdated', badge:['warn', 'Fuera de estándar'], line:'Carpeta con formato anterior.', warn:true, disk:gb};
-  if(g.installed) return {key:'ready', badge:['ok', 'Listo'], line:'Listo para jugar', disk:gb};
+  if(g.installed) return {key:'ready', badge:['ok', 'Listo'], line:'', disk:gb};
   if(d) return {key:'partial', badge:['dl', d.phase === 'queued' ? 'En cola' : d.phase === 'paused' ? 'En pausa' : 'Descargando'], line:`Descarga sin terminar: ${Math.round(d.p)} %`, disk:Math.round(gb * d.p / 100)};
   return {key:'idle', badge:['idle', 'Sin instalar'], line:'En tu librería', disk:0};
+}
+// Estado de la fila sin texto repetido: listo = un play (que juega), fuera de estándar = una advertencia
+// cuyo nombre aparece al pasar el mouse o con el foco; el resto mantiene su insignia.
+const WARN = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5L1.5 21h21zm-1 7h2v6h-2zm0 8h2v2h-2z"/></svg>';
+function stateMark(g, info){
+  if(info.key === 'ready') return `<button class="mg-state play" data-act="play" data-id="${g.id}" title="Jugar" aria-label="Jugar ${g.name}">${ICON.play}</button>`;
+  if(info.key === 'outdated') return `<span class="mg-state warn" tabindex="0" role="img" aria-label="Fuera de estándar">${WARN}<i>Fuera de estándar</i></span>`;
+  return `<span class="mg-badge ${info.badge[0]}">${info.badge[1]}</span>`;
 }
 function mgrActs(g, info){
   const a = (act, icon, title, cls = '') => `<button class="mg-act ${cls}" data-act="${act}" data-id="${g.id}" title="${title}" aria-label="${title}: ${g.name}">${icon}</button>`;
   const out = [];
   if(info.key === 'outdated') out.push(a('fix', WRENCH, 'Corregir', 'accent'));
-  if(g.installed && g.freeze !== 'deep') out.push(a('play', ICON.play, 'Jugar'));
+  if(g.installed && g.freeze !== 'deep' && info.key !== 'ready') out.push(a('play', ICON.play, 'Jugar'));
   if(!g.installed && !dlOf(g)) out.push(a('install', ICON.down, 'Instalar', 'accent'));
   if(g.installed && !g.freeze) out.push(a('freeze', SNOW, 'Congelar', 'frost'));
   if(g.installed && g.freeze !== 'deep') out.push(a('deep', SNOW + '<b>+</b>', 'Congelado profundo', 'frost'));
@@ -1857,11 +1877,11 @@ function renderManager(focusGame){
         <div class="mg-thumb ${info.key === 'frozen' ? 'is-frozen' : ''}"><img src="${art(g.id, 'header.jpg')}" alt="" loading="lazy"></div>
         <div class="mg-main">
           <div class="mg-name">${g.name}</div>
-          <div class="mg-line ${info.warn ? 'warn' : ''}">${info.line}</div>
-          <div class="mg-size">${info.real ? `<span class="frost">${SNOW}${info.disk} GB</span><s>${info.real} GB</s><em>Ahorra ${info.real - info.disk} GB</em>` : `<span>${info.disk ? info.disk + ' GB' : '—'}</span>`}</div>
+          ${info.line ? `<div class="mg-line ${info.warn ? 'warn' : ''}">${info.line}</div>` : ''}
+          <div class="mg-size">${info.real ? `<span class="frost" title="Tamaño congelado">${SNOW}${info.disk} GB</span><span class="unfrozen" title="Tamaño sin congelar">${info.real} GB</span>` : `<span>${info.disk ? info.disk + ' GB' : '—'}</span>`}</div>
           <div class="mg-sbar"><i style="width:${Math.min(100, info.disk / 1.6)}%" class="${info.key}"></i></div>
         </div>
-        <span class="mg-badge ${info.badge[0]}">${info.badge[1]}</span>
+        ${stateMark(g, info)}
         <div class="mg-acts">${mgrActs(g, info)}</div>
       </div>`).join('') || '<p class="empty" style="display:block;padding:30px 0">No hay juegos con este estado.</p>'}</div>`;
   drawDisk(body, games, used);
