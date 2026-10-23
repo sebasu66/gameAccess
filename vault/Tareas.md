@@ -43,7 +43,7 @@ Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera a
 - [x] T6 · Palabra gigante del costado (CATALOGO / LIBRERIA, sin tilde) y giro 3D entre catálogo y librería.
 - [x] T7 · Librería en grilla bento por bandas, congelados (jugable / profundo a la derecha), pastillas Solo instalados / Solo favoritos.
 - [x] T8 · Hamburguesa tras 2 s y menú en el dorso de la tarjeta (Jugar/Instalar, Cambiar nombre, Administrar).
-- [ ] T9 · Ficha: abrir desde la tarjeta sin portada gigante; cerrar con la grilla de cuadraditos.
+- [x] T9 · Ficha: abrir desde la tarjeta sin portada gigante; cerrar con la grilla de cuadraditos.
 - [ ] T10 · Paneles laterales (≥ 1800 px) y modo una pantalla por vez; paneles en gris y perspectiva sin foco.
 - [ ] T11 · Administrador de biblioteca compacto con dona del disco y acciones avanzadas.
 - [ ] T12 · Descargas rediseñadas (gráfico de velocidad, cola, sesión).

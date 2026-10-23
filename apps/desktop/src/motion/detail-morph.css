@@ -1,0 +1,8 @@
+/* Game detail growing from its card and folding back (docs/TAREA-interfaz-nueva.md T9). */
+.ga-detail-overlay.is-morph .ga-detail-dialog { animation: none; }
+.ga-detail-overlay.is-morphing { pointer-events: none; }
+.ga-detail-overlay.is-morphing::before, .ga-detail-overlay.is-morphing .ga-screen-dimmer { animation: ga-overlay-exit .7s ease-in both; }
+/* The cover copy travels only to the top strip and fades downward; it is never shown enlarged. */
+.ga-detail-ghost { --m: 100%; position: absolute; z-index: 25; object-fit: cover; border-radius: 8px; pointer-events: none; -webkit-mask: linear-gradient(#000 0, #000 var(--m), transparent 100%); mask: linear-gradient(#000 0, #000 var(--m), transparent 100%); }
+/* The cover coming back as a grid of small squares, drawn over the real card. */
+.ga-pixel-reveal { position: fixed; z-index: 290; pointer-events: none; }

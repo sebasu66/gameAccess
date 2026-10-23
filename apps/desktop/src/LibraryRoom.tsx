@@ -11,7 +11,7 @@ import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY
 import { applyParentalPolicy } from "./parentalControl";
 import { useParentalState } from "./ParentalControlSection";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
@@ -33,6 +33,7 @@ import { renderedGridColumns } from "./libraryNavigation";
 import BigScreenControls from "./BigScreenControls";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
+import { morphClose, morphOpen, pushCards, releaseCards } from "./motion/detailMorph";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
@@ -447,7 +448,20 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     return () => window.cancelAnimationFrame(frame);
   }, [detailOpen, auxiliarySurface]);
 
-  const { closing: detailClosing, close: closeGameDetail } = useOverlayClose(() => {
+  // The detail grows out of its card and folds back into it (docs/TAREA-interfaz-nueva.md T9).
+  const detailSource = useCallback(() => {
+    if (selectedGameIdResolved == null) return null;
+    const card = document.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
+    return card?.querySelector<HTMLElement>(".library-room-card-art") ?? card;
+  }, [selectedGameIdResolved]);
+  const detailMorphs = !auxiliarySurface && motionOk();
+  useLayoutEffect(() => {
+    const dialog = detailDialogRef.current, source = detailSource();
+    if (!detailOpen || !detailMorphs || !dialog || !source) return;
+    pushCards(source);
+    return morphOpen(dialog, source);
+  }, [detailOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { closing: detailClosing, morphing: detailMorphing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
     setDetailMenu(null);
     onDetailClose?.();
@@ -455,6 +469,11 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       const selected = selectedGameIdResolved == null ? null : gridRef.current?.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
       (selected ?? rootRef.current)?.focus({ preventScroll: true });
     });
+  }, () => {
+    const dialog = detailDialogRef.current, source = detailSource();
+    if (!detailMorphs || !dialog) return null;
+    releaseCards(source);
+    return morphClose(dialog, source);
   });
 
   /** The run dialog is shown on its own: an open game detail closes first (its exit takes 180 ms), then the game starts. */
@@ -721,7 +740,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}
-          {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
+          {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
               <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
