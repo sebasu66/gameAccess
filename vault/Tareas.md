@@ -45,7 +45,7 @@ Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera a
 - [x] T8 · Hamburguesa tras 2 s y menú en el dorso de la tarjeta (Jugar/Instalar, Cambiar nombre, Administrar).
 - [x] T9 · Ficha: abrir desde la tarjeta sin portada gigante; cerrar con la grilla de cuadraditos.
 - [x] T10 · Paneles laterales (≥ 1800 px) y modo una pantalla por vez; paneles en gris y perspectiva sin foco.
-- [ ] T11 · Administrador de biblioteca compacto con dona del disco y acciones avanzadas.
+- [x] T11 · Administrador de biblioteca compacto con dona del disco y acciones avanzadas.
 - [ ] T12 · Descargas rediseñadas (gráfico de velocidad, cola, sesión).
 - [ ] T13 · Novedades como panel con contador de no leídos.
 - [ ] T14 · Resto de las pantallas (configuración, ayuda, importar, etc.) con los mismos componentes.

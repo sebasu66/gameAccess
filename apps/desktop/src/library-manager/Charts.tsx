@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { gsap, motionOk } from "../motion/gsap";
 import { Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -98,5 +99,62 @@ export function UsageChart({ usage, c, className }: { usage: LibraryUsage | null
           </ChartContainer>}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Disk donut of the Library Manager (T11, like codepen.io/creativeocean/pen/KKypdeM): only Games (everything the
+ * library takes except frozen games), Frozen and Free (a faint ring). The parts draw in one after another, bigger
+ * parts are thicker; hovering a part or its legend row thickens it, dims the others and shows its value inside.
+ */
+export function DiskDonut({ summary, frozenBytes, c }: { summary: LibrarySummary; frozenBytes: number; c: LibraryCopy }) {
+  const ref = useRef<SVGGElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const free = summary.disk_free_bytes ?? 0;
+  const games = Math.max(0, summary.used_bytes - frozenBytes);
+  const used = games + frozenBytes;
+  // The ring holds only these three parts; the centre still says how much of the whole disk is used.
+  const total = Math.max(used + free, 1);
+  const disk = Math.max(summary.disk_total_bytes ?? 0, total);
+  const parts = [
+    { label: c.donutGames, value: games, color: "#ff6a00" },
+    { label: c.donutFrozen, value: frozenBytes, color: "#8fd3ff" },
+    { label: c.donutFree, value: free, color: "#ffffff22", free: true },
+  ].filter(part => part.value > 0);
+  const ranked = parts.filter(part => !part.free).map(part => part.value).sort((a, b) => b - a);
+  const widths = parts.map(part => part.free ? 10 : 30 - ranked.indexOf(part.value) * 4);
+  const starts = parts.map((_, i) => parts.slice(0, i).reduce((sum, part) => sum + part.value / total * 100, 0));
+  const largest = Math.max(1, ...parts.map(part => part.value));
+  const key = parts.map(part => Math.round(part.value / 1e8)).join("-");
+  useEffect(() => {
+    const rings = ref.current?.querySelectorAll("circle");
+    if (!rings || !motionOk()) return;
+    const tweens = [...rings].map((ring, i) => {
+      const pct = parts[i].value / total * 100;
+      return gsap.fromTo(ring, { attr: { "stroke-dasharray": "0 100" } }, { attr: { "stroke-dasharray": `${Math.max(0, pct - .6)} ${100 - pct + .6}` }, duration: 1.6 - i * .15, delay: .15 + i * .08, ease: "power3.inOut" });
+    });
+    return () => tweens.forEach(tween => tween.kill());
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = hover == null ? null : parts[hover];
+  return (
+    <div className="lm-donut-wrap">
+      <svg className="lm-donut" viewBox="0 0 200 200" role="img" aria-label={c.diskChart}>
+        <g ref={ref} transform="rotate(-90 100 100)">
+          {parts.map((part, i) => {
+            const pct = part.value / total * 100;
+            return <circle key={part.label} cx={100} cy={100} r={70} fill="none" stroke={part.color} pathLength={100} strokeDasharray={`${Math.max(0, pct - .6)} ${100 - pct + .6}`} strokeDashoffset={-starts[i]}
+              strokeWidth={widths[i] + (hover === i ? 8 : 0)} opacity={hover == null || hover === i ? 1 : .25} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)} />;
+          })}
+        </g>
+        <text className="lm-c1" x={100} y={100} textAnchor="middle">{formatBytes(shown ? shown.value : used)}</text>
+        <text className="lm-c2" x={100} y={120} textAnchor="middle">{shown ? shown.label.toLowerCase() : c.diskOf(formatBytes(used), formatBytes(disk))}</text>
+      </svg>
+      <ul className="lm-legend">
+        {parts.map((part, i) => <li key={part.label} className={hover != null && hover !== i ? "dim" : undefined} onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover(null)}>
+          <i style={{ "--c": part.free ? "#ffffff44" : part.color } as CSSProperties}><b style={{ transform: `scaleX(${Math.max(.08, part.value / largest)})` }} /></i>
+          <span>{part.label}</span><strong>{formatBytes(part.value)}</strong>
+        </li>)}
+      </ul>
+    </div>
   );
 }
