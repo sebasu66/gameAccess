@@ -33,6 +33,7 @@ import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaIconButton } from "./components/ga/Buttons";
 import CatalogSpotlight from "./CatalogSpotlight";
+import LibraryBento, { type LibraryPill } from "./LibraryBento";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -191,6 +192,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
   const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
@@ -356,6 +358,12 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
+        {view !== "catalog" ? (
+          <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+            <button type="button" aria-pressed={libraryPill === "installed"} onClick={() => setLibraryPill(current => (current === "installed" ? "all" : "installed"))}>{t("pillInstalled")}</button>
+            <button type="button" aria-pressed={libraryPill === "favorites"} onClick={() => setLibraryPill(current => (current === "favorites" ? "all" : "favorites"))}>{t("pillFavorites")}</button>
+          </div>
+        ) : null}
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
           <div className="ga-search-meta">
@@ -395,7 +403,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
-        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+        {view !== "catalog" ? <LibraryBento games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>

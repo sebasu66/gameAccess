@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { CatalogGame } from "./types";
+import { demoLibraryMembers, uiDemo } from "./devDemo/uiDemo";
 export const LIBRARY_KEY = "gameaccess.library.v1";
 const listeners = new Set<() => void>();
 let members: CatalogGame[] = [];
@@ -14,11 +15,13 @@ function load() {
   } catch { initialized = true; members = []; }
 }
 load();
+// Browser preview (`?uiDemo=1`, dev only): a first run starts with the sample library.
 function publish() {
   if (typeof localStorage !== "undefined") localStorage.setItem(LIBRARY_KEY, JSON.stringify(members));
   initialized = true;
   for (const listener of listeners) listener();
 }
+if (uiDemo() && !initialized) { members = demoLibraryMembers(); publish(); }
 export const libraryMembership = {
   getGames: () => members,
   has: (game: CatalogGame) => members.some(item => (item.app_id ?? item.id) === (game.app_id ?? game.id)),

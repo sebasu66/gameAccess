@@ -35,6 +35,9 @@ const game = ([appId, name, genres, score, released]: (typeof sample)[number], i
 });
 export const demoCatalog: CatalogGame[] = sample.map(game);
 
+/** Games the sample player keeps in the library without having them installed yet. */
+export const demoLibraryMembers = (): CatalogGame[] => demoCatalog.filter(item => [1086940, 1174180, 870780, 632470, 1850570, 2420110, 1903340, 1245620, 553850].includes(item.app_id ?? 0));
+
 /** Folder snapshot: the sample library's installed games are on disk. */
 export function demoInstalledStatuses(): Record<string, { folder: string; installed: boolean }> {
   return Object.fromEntries(demoGames.filter(entry => entry.installed).map(entry => [String(entry.app_id), { folder: entry.folder, installed: true }]));
