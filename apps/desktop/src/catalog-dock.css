@@ -2,15 +2,21 @@
    pixel background on, the search and the view buttons keep their LED look. */
 html body .library-catalog-toolbar.library-catalog-controls { z-index: 121; }
 html body:not(.ga-pixel-field-on) .ga-pixel-search > canvas, html body:not(.ga-pixel-field-on) .ga-led-button > canvas { display: none; }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search { height: 62px; border-radius: 31px; background: #20282cdc; border: 1px solid #ffffff2c; backdrop-filter: blur(28px); box-shadow: 0 14px 40px #0008; transition: border-color .25s, box-shadow .25s; }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #ff6a00; box-shadow: 0 14px 40px #0008, 0 0 0 1px #ff6a0066; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search { height: 62px; border-radius: 31px; background: #20282cdc; border: 1px solid #ffffff2c !important; backdrop-filter: blur(28px); box-shadow: 0 14px 40px #0008; transition: border-color .25s, box-shadow .25s; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #ff6a00 !important; box-shadow: 0 14px 40px #0008, 0 0 0 1px #ff6a0066; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box { height: 100%; padding: 0 18px 0 22px; gap: 12px; border: 0; border-radius: inherit; background: none; box-shadow: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box svg { width: 26px; height: 26px; color: #ff6a00; }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font: 500 17px Manrope, sans-serif; color: #f4f4f2; text-align: left; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font: 500 17px Manrope, sans-serif; color: #f4f4f2; text-align: left; padding: 0 22px 0 64px; }
+html body:not(.ga-pixel-field-on) .ga-pixel-search::after { display: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input::placeholder { color: #8f969d; }
-html body:not(.ga-pixel-field-on) .library-catalog-tabs button { width: 62px; height: 62px; min-width: 62px; border-radius: 31px; background: #242d32d9; border: 1px solid #ffffff2c; color: #f4f4f2; backdrop-filter: blur(28px); box-shadow: 0 10px 30px #0007; }
-html body:not(.ga-pixel-field-on) .library-catalog-tabs button[aria-selected="true"] { background: #ff6a00; border-color: #ff6a00; color: #140a02; box-shadow: 0 10px 30px #ff6a0055; }
-html body:not(.ga-pixel-field-on) .library-catalog-tabs button svg { width: 28px; height: 28px; }
+/* View buttons: demo colours, and they keep unfolding their label on hover (gameaccess-theme.css). The LED look
+   (pixel-appearance.css, with !important) stays for the animated pixel background. */
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #ff6a00 !important; border-color: #ff6a00 !important; color: #140a02 !important; box-shadow: 0 10px 30px #ff6a0055 !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::before, html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::after { display: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button svg { filter: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button > span { font: 700 14px Manrope, sans-serif; }
 
 /* Filters and sort above the grid. Labels stay visible here and the sort menu opens downward. */
 .ga-grid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 26px 14px 0; min-height: 40px; }

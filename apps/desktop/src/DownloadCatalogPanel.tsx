@@ -38,6 +38,7 @@ import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaIconButton } from "./components/ga/Buttons";
 import CatalogSpotlight from "./CatalogSpotlight";
+import { prefetchSpotlight } from "./spotlightSlides";
 import LibraryBento, { type LibraryPill } from "./LibraryBento";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
@@ -199,6 +200,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const managerOpen = useDesk().includes("manager");
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
   useCardHover(props.gridRef);
+  // The catalog banner is prepared right away, so it is complete before the catalog is shown.
+  useEffect(() => { void prefetchSpotlight(); }, []);
   // The game selected when the screen opens (or with the keyboard) tints the background like the one under the pointer.
   const selectedGameId = props.games[props.selectedIndex]?.id;
   useEffect(() => {

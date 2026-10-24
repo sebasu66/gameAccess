@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap, motionOk, SplitText, useGSAP } from "./motion/gsap";
-import { queryCatalogCache } from "./catalogCache";
+import { cachedSpotlight, prefetchSpotlight, type Slide } from "./spotlightSlides";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import type { CatalogGame } from "./types";
 
 const ROTATE_MS = 7000;
-const heroOf = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/library_hero.jpg` : game.hero_image ?? game.header_image ?? "";
 
 /** Days since release, or null when the date is unknown or in the future. */
 export function daysSinceRelease(date: string | null | undefined, now = Date.now()): number | null {
@@ -16,49 +15,48 @@ export function daysSinceRelease(date: string | null | undefined, now = Date.now
 }
 
 /**
- * Banner at the top of the catalog: the latest games that came out on Steam, one at a time. The image is decoded
- * before it shows and the visible layer is never replaced (no flicker); the title enters letter by letter.
+ * Banner at the top of the catalog: the latest games that came out on Steam, one at a time. The slides (game and a
+ * wide image that really loads) are fetched early (spotlightSlides.ts), so the banner is complete when the catalog
+ * appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
  */
 export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: CatalogGame) => boolean; onOpen: (game: CatalogGame) => void }) {
   const { t } = useI18n();
-  const [games, setGames] = useState<CatalogGame[]>([]);
+  const pick = (all: Slide[] | null) => (all ?? []).filter(slide => !exclude(slide.game)).slice(0, 5);
+  const [slides, setSlides] = useState<Slide[]>(() => pick(cachedSpotlight()));
   const [index, setIndex] = useState(0);
-  const [layers, setLayers] = useState<[string, string]>(["", ""]);
+  const [layers, setLayers] = useState<[string, string]>(() => [slides[0]?.url ?? "", ""]);
   const [front, setFront] = useState(0);
   const root = useRef<HTMLElement>(null);
   const excludeRef = useRef(exclude);
   excludeRef.current = exclude;
 
   useEffect(() => {
+    if (slides.length) return;
     let alive = true;
-    void queryCatalogCache({ sort_by: "release-date", sort_direction: "desc", limit: 12 })
-      .then(result => { if (alive) setGames(result.items.filter(game => !excludeRef.current(game)).slice(0, 5)); })
-      .catch(() => undefined);
-    return () => { alive = false; };
-  }, []);
-
-  const game = games[index % Math.max(1, games.length)];
-  // The new image is decoded first, drawn on the hidden layer, then the layers swap.
-  useEffect(() => {
-    if (!game) return;
-    let alive = true;
-    const url = heroOf(game);
-    const image = new Image();
-    image.src = url;
-    void image.decode().catch(() => undefined).then(() => {
+    void prefetchSpotlight().then(all => {
       if (!alive) return;
-      const next = front ? 0 : 1;
-      setLayers(current => (next ? [current[0], url] : [url, current[1]]));
-      setFront(next);
+      const chosen = all.filter(slide => !excludeRef.current(slide.game)).slice(0, 5);
+      setSlides(chosen);
+      if (chosen[0]) { setLayers([chosen[0].url, ""]); setFront(0); }
     });
     return () => { alive = false; };
-  }, [game?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const slide = slides[index % Math.max(1, slides.length)];
+  const game = slide?.game;
+  // Rotation: the next image (already decoded) goes on the hidden layer, then the layers swap.
+  useEffect(() => {
+    if (!slide || layers[front] === slide.url) return;
+    const next = front ? 0 : 1;
+    setLayers(current => (next ? [current[0], slide.url] : [slide.url, current[1]]));
+    setFront(next);
+  }, [slide?.url]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (games.length < 2) return;
-    const timer = window.setTimeout(() => setIndex(value => (value + 1) % games.length), ROTATE_MS);
+    if (slides.length < 2) return;
+    const timer = window.setTimeout(() => setIndex(value => (value + 1) % slides.length), ROTATE_MS);
     return () => window.clearTimeout(timer);
-  }, [index, games.length]);
+  }, [index, slides.length]);
 
   useGSAP(() => {
     if (!root.current || !motionOk() || !game) return;
@@ -81,9 +79,9 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
         <h2 className="ga-spotlight-title" key={game.id}>{game.name}</h2>
         <div className="ga-spotlight-actions"><GaButton variant="primary" onClick={() => onOpen(game)}>{t("spotlightOpen")}</GaButton></div>
       </div>
-      {games.length > 1 ? (
+      {slides.length > 1 ? (
         <div className="ga-spotlight-dots">
-          {games.map((item, dot) => <button key={item.id} type="button" className="ga-spotlight-dot" data-active={dot === index % games.length || undefined} aria-label={item.name} title={item.name} onClick={() => setIndex(dot)}><i style={dot === index % games.length ? { animationDuration: `${ROTATE_MS}ms` } : undefined} /></button>)}
+          {slides.map(({ game: item }, dot) => <button key={item.id} type="button" className="ga-spotlight-dot" data-active={dot === index % slides.length || undefined} aria-label={item.name} title={item.name} onClick={() => setIndex(dot)}><i style={dot === index % slides.length ? { animationDuration: `${ROTATE_MS}ms` } : undefined} /></button>)}
         </div>
       ) : null}
     </section>
