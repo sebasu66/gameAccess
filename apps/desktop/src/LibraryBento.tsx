@@ -32,6 +32,8 @@ interface Props {
   onInstall?: (game: CatalogGame) => void | Promise<void>;
   /** Opens the library manager (advanced actions: freeze, uninstall, remove) on this game. */
   onManage?: (game: CatalogGame) => void;
+  /** Where the "ready / not installed" counts show: the right end of the filter strip. */
+  infoTarget?: HTMLElement | null;
 }
 
 interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus }
@@ -163,7 +165,7 @@ function MenuDot({ shown, label, onOpen }: { shown: boolean; label: string; onOp
  * small landscape, deep-frozen ones grouped on the right with an ice veil. Removed games shrink in their place before
  * the rest move with Flip; a finished download grows from landscape to portrait.
  */
-export default function LibraryBento({ games, downloads, preferences = {}, pill, indexes, selectedId, onSelect, onContextMenu, onPlay, onInstall, onManage }: Props) {
+export default function LibraryBento({ games, downloads, preferences = {}, pill, indexes, selectedId, onSelect, onContextMenu, onPlay, onInstall, onManage, infoTarget }: Props) {
   const { t } = useI18n();
   const scan = useLibraryScan();
   // The menu dot appears after resting 2 s on a card (or at once with the keyboard); a click turns the card over.
@@ -241,12 +243,11 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     pending: cards.filter(card => card.kind === "pending").length,
     deep: cards.filter(card => card.kind === "deep").length,
   };
+  // The counts live in the filter strip above (a section title would repeat the side label).
+  const summary = <span className="ga-strip-count">{t("bentoCounts", { ready: counts.ready, pending: counts.pending })}{counts.deep ? t("bentoCountsDeep", { deep: counts.deep }) : ""}</span>;
   return (
     <div className="ga-bento-wrap">
-      <div className="ga-bento-head">
-        <h2>{t("bentoTitle")}</h2>
-        <span>{t("bentoCounts", { ready: counts.ready, pending: counts.pending })}{counts.deep ? t("bentoCountsDeep", { deep: counts.deep }) : ""}</span>
-      </div>
+      {infoTarget ? createPortal(summary, infoTarget) : null}
       <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns } as CSSProperties}>
         {placed.map(item => (
           <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` }}

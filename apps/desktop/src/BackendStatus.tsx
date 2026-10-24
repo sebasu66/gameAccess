@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getBackendConnection, type BackendConnectionKind } from "./settings";
 import { useI18n } from "./i18n";
 export function backendStatusPresentation(kind: BackendConnectionKind | null, locale: "es" | "en") {
- return { connected: kind === "local" || kind === "remote", label: kind === "local" ? "Local" : kind === "remote" ? (locale === "es" ? "Conectado" : "Connected") : (locale === "es" ? "Desconectado" : "Disconnected") };
+ return { connected: kind === "local" || kind === "remote", label: kind === "local" ? "Local" : kind === "remote" ? (locale === "es" ? "En línea" : "Online") : (locale === "es" ? "Desconectado" : "Disconnected") };
 }
 // How often the footer status asks the server whether it is up. Keeping the server awake is not this check's job
 // (it would grow with the number of players); once a minute is enough for the status to stay honest.

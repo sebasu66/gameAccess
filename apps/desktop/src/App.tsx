@@ -4,7 +4,6 @@ import ParentalSetupDialog from "./ParentalSetupDialog";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
-import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
@@ -55,7 +54,6 @@ import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
-import { PluginIndicator } from "./PluginIndicator";
 import { notify } from "./toasts";
 import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
@@ -610,8 +608,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <PluginIndicator />
-          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass /><ParentalSetupDialog />
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><ParentalSetupDialog />
         </div>
       </header>
 
