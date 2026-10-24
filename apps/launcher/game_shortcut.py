@@ -1,4 +1,4 @@
-"""Desktop links launch GameAccess with a game ID, never the game's executable."""
+"""Desktop links launch GameAccess with a game ID, never the game's executable, but they show the game's own icon."""
 import argparse
 import ctypes
 import json
@@ -49,7 +49,24 @@ $link.IconLocation = $data.icon
 $link.Save()
 """
 
-def create_shortcut(app_id: int, name: str, launcher: Path, desktop: Path | None = None) -> Path:
+def game_icon(app_id: int, name: str, launcher_dir: Path | None = None) -> Path | None:
+    """The game's main executable, whose icon the link shows; None when it cannot be found (GameAccess's icon then)."""
+    try:
+        from game_library_manager.storage import DigitalGameStorage
+        from game_execution_manager.execution_profile import load_profile
+        from game_execution_manager.executables import find_candidates
+        storage = DigitalGameStorage(launcher_dir or Path(__file__).resolve().parent)
+        linked = storage.linked.get(app_id)
+        folder = Path(linked["path"]) if linked else storage.folder(app_id, name)
+        patterns = load_profile(storage.launcher, app_id).get("executablePatterns", [])
+        # The first real .exe (a play.bat launcher has no icon of its own).
+        return next((exe for exe, _ in find_candidates(folder, name, patterns=patterns) if exe.suffix.lower() == ".exe" and exe.is_file()), None)
+    except Exception as error:  # no folder, no executable found yet: keep GameAccess's icon
+        log.info("AppID %s: icono del juego no disponible (%s)", app_id, error)
+        return None
+
+
+def create_shortcut(app_id: int, name: str, launcher: Path, desktop: Path | None = None, icon: Path | None = None) -> Path:
     launcher = launcher.resolve(strict=True)
     if launcher.suffix.lower() != ".exe":
         raise ValueError("El destino debe ser GameAccess.exe.")
@@ -58,7 +75,7 @@ def create_shortcut(app_id: int, name: str, launcher: Path, desktop: Path | None
     path = desktop / shortcut_name(app_id, name)
     payload = {"path": str(path), "launcher": str(launcher), "arguments": f"--launch-game {app_id}",
                "directory": str(launcher.parent), "description": f"Abrir {name} con GameAccess",
-               "icon": f"{launcher},0"}
+               "icon": f"{icon or launcher},0"}
     # Data is JSON on stdin; paths and names are never interpolated into shell code.
     result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _SCRIPT],
                             input=json.dumps(payload), text=True, encoding="utf-8", capture_output=True,
@@ -75,7 +92,8 @@ if __name__ == "__main__":
     parser.add_argument("--launcher", required=True, type=Path)
     args = parser.parse_args()
     try:
-        print(json.dumps({"ok": True, "path": str(create_shortcut(args.app_id, args.name, args.launcher))}, ensure_ascii=False))
+        icon = game_icon(args.app_id, args.name)
+        print(json.dumps({"ok": True, "path": str(create_shortcut(args.app_id, args.name, args.launcher, icon=icon)), "icon": str(icon or "")}, ensure_ascii=False))
     except Exception as error:
         print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))
         sys.exit(1)
