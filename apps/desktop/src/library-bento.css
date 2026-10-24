@@ -61,14 +61,15 @@
 
 /* Card menu (T8): a glass panel beside the card, like an augmented-reality label. The edge against the card is
    solid; the frosted glass fades out toward the top, the bottom and the far side. Bigger than the menu it holds. */
-.ga-side-menu { position: fixed; z-index: 60; min-width: 250px; padding: 38px 70px 38px 22px; box-sizing: border-box; isolation: isolate; }
-.ga-side-menu[data-side="left"] { padding: 38px 22px 38px 70px; }
-.ga-side-menu-glass { position: absolute; inset: 0; z-index: -1; pointer-events: none; border-left: 2px solid #ffffff59; background: linear-gradient(90deg, rgba(17,20,22,.86) 0, rgba(17,20,22,.6) 50%, rgba(17,20,22,0) 100%); backdrop-filter: blur(16px) saturate(1.15); -webkit-backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 45%, transparent 100%), linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%); -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(90deg, #000 0, #000 45%, transparent 100%), linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%); mask-composite: intersect; }
-.ga-side-menu[data-side="left"] .ga-side-menu-glass { border-left: 0; border-right: 2px solid #ffffff59; background: linear-gradient(270deg, rgba(17,20,22,.86) 0, rgba(17,20,22,.6) 50%, rgba(17,20,22,0) 100%);
-  -webkit-mask-image: linear-gradient(270deg, #000 0, #000 45%, transparent 100%), linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%);
-  mask-image: linear-gradient(270deg, #000 0, #000 45%, transparent 100%), linear-gradient(180deg, transparent 0, #000 24%, #000 76%, transparent 100%); }
+.ga-side-menu { position: fixed; z-index: 60; min-width: 250px; padding: 84px 150px 84px 26px; box-sizing: border-box; isolation: isolate; }
+.ga-side-menu[data-side="left"] { padding: 84px 26px 84px 150px; }
+/* A darker frosted surface, much bigger than the menu: dense near the card and around the menu, fading far away. */
+.ga-side-menu-glass { position: absolute; inset: 0; z-index: -1; pointer-events: none; border-left: 2px solid #ffffff66; background: linear-gradient(90deg, rgba(10,13,15,.94) 0, rgba(10,13,15,.86) 45%, rgba(10,13,15,.5) 75%, rgba(10,13,15,0) 100%); backdrop-filter: blur(22px) saturate(1.1); -webkit-backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 60%, transparent 100%), linear-gradient(180deg, transparent 0, #000 30%, #000 70%, transparent 100%); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, #000 0, #000 60%, transparent 100%), linear-gradient(180deg, transparent 0, #000 30%, #000 70%, transparent 100%); mask-composite: intersect; }
+.ga-side-menu[data-side="left"] .ga-side-menu-glass { border-left: 0; border-right: 2px solid #ffffff66; background: linear-gradient(270deg, rgba(10,13,15,.94) 0, rgba(10,13,15,.86) 45%, rgba(10,13,15,.5) 75%, rgba(10,13,15,0) 100%);
+  -webkit-mask-image: linear-gradient(270deg, #000 0, #000 60%, transparent 100%), linear-gradient(180deg, transparent 0, #000 30%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(270deg, #000 0, #000 60%, transparent 100%), linear-gradient(180deg, transparent 0, #000 30%, #000 70%, transparent 100%); }
 .ga-side-menu-items { display: flex; flex-direction: column; gap: 4px; }
 .ga-side-menu-items button { display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: #f4f4f2; font: 600 13px Manrope, sans-serif; text-align: left; white-space: nowrap; cursor: pointer; text-shadow: 0 1px 6px #000a; }
 .ga-side-menu-items button:hover:not(:disabled), .ga-side-menu-items button:focus-visible { background: #ffffff14; outline: none; }

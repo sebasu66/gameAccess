@@ -35,6 +35,11 @@ import { narrate, startClientErrorReporting, startNarrationSession } from "./nar
 import { translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
+
+// The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.
+document.addEventListener("contextmenu", event => {
+  if (!(event.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable='true']")) event.preventDefault();
+});
 import "./session.css";
 import "./experience.css";
 import "./polish.css";
