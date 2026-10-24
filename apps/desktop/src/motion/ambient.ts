@@ -1,9 +1,11 @@
 /**
- * The background that takes the colour of the game under the pointer (from the approved demo). Two tiny canvases
- * crossfade: the image is already decoded (it is the card's own cover), it is drawn on the hidden canvas and only
- * opacity animates, so the background never flashes an empty layer nor recomputes a large blur every frame.
+ * The background that takes the colours of the game under the pointer (from the approved demo). Only the cover's
+ * palette is used, painted as a soft gradient (not the picture itself), so colourful covers stay subtle. Two tiny
+ * canvases crossfade: the gradient is painted on the hidden canvas and only opacity animates, so the background
+ * never flashes an empty layer nor recomputes a large blur every frame.
  */
 import { gsap } from "./gsap";
+import { paintPalette, paletteOf } from "./palette";
 
 let layers: HTMLCanvasElement[] = [];
 let timer = 0;
@@ -21,13 +23,16 @@ export function setAmbient(image: HTMLImageElement): void {
   window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     const src = image.currentSrc || image.src;
-    if (!src || src === lastSrc || !image.complete || !image.naturalWidth) return;
+    if (!src || src === lastSrc) return;
     lastSrc = src;
-    const [a, b] = layers;
-    const next = Number(gsap.getProperty(a, "opacity")) <= Number(gsap.getProperty(b, "opacity")) ? a : b, prev = next === a ? b : a;
-    try { next.getContext("2d")?.drawImage(image, 0, 0, next.width, next.height); } catch { return; }
-    gsap.killTweensOf(layers);
-    gsap.to(next, { opacity: .55, duration: 1.2, ease: "power2.out" });
-    gsap.to(prev, { opacity: 0, duration: 1.2, ease: "power2.out" });
+    void paletteOf(src).then(colors => {
+      if (lastSrc !== src || !colors.length || !layers.length) return;
+      const [a, b] = layers;
+      const next = Number(gsap.getProperty(a, "opacity")) <= Number(gsap.getProperty(b, "opacity")) ? a : b, prev = next === a ? b : a;
+      paintPalette(next, colors);
+      gsap.killTweensOf(layers);
+      gsap.to(next, { opacity: .6, duration: 1.2, ease: "power2.out" });
+      gsap.to(prev, { opacity: 0, duration: 1.2, ease: "power2.out" });
+    });
   }, 140);
 }

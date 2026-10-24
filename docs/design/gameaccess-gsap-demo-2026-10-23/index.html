@@ -26,7 +26,7 @@ svg{flex:none}
 
 /* ---------- Fondo vivo ---------- */
 .ambient{position:fixed;inset:-10%;z-index:0;pointer-events:none}
-.ambient canvas{position:absolute;inset:0;width:100%;height:100%;filter:blur(18px) saturate(1.4);opacity:0;will-change:opacity}
+.ambient canvas{position:absolute;inset:0;width:100%;height:100%;filter:blur(18px);opacity:0;will-change:opacity}
 .ambient::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,transparent 0,#111416b8 55%,#111416 85%)}
 .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.06;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 .cursor-glow{position:fixed;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;z-index:1;pointer-events:none;background:radial-gradient(circle,#ff6a0016 0,transparent 65%);opacity:0}
@@ -891,19 +891,50 @@ let ambientIdx = 0, ambientId = null, ambientTimer;
 // La imagen se carga y decodifica antes de tocar nada; se dibuja en el lienzo que está apagado y
 // solo se anima la opacidad. Así el fondo nunca muestra una capa vacía ni cambia de golpe, y no
 // obliga a recalcular un desenfoque enorme en cada cuadro (con los paneles abiertos eso parpadeaba).
+// Solo la paleta de la portada, pintada como un degradado suave: las portadas muy cargadas no ensucian el fondo.
+function paletteOf(img){
+  const c = document.createElement('canvas'); c.width = 24; c.height = 36;
+  const x = c.getContext('2d', {willReadFrequently:true}); x.drawImage(img, 0, 0, 24, 36);
+  let d; try { d = x.getImageData(0, 0, 24, 36).data; } catch { return []; }
+  const buckets = new Map();
+  for(let i = 0; i < d.length; i += 4){
+    const r = d[i], g = d[i+1], b = d[i+2], mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if(mx < 28 || mn > 235) continue;
+    const k = (r >> 5) << 6 | (g >> 5) << 3 | (b >> 5), o = buckets.get(k) || {n:0, r:0, g:0, b:0};
+    o.n++; o.r += r; o.g += g; o.b += b; buckets.set(k, o);
+  }
+  const sat = c => { const mx = Math.max(...c), mn = Math.min(...c); return mx ? (mx - mn) / mx : 0; };
+  const ranked = [...buckets.values()].map(o => ({n:o.n, c:[o.r/o.n, o.g/o.n, o.b/o.n]})).sort((p, q) => q.n * (.35 + sat(q.c)) - p.n * (.35 + sat(p.c)));
+  const out = [];
+  for(const {c} of ranked){ if(out.every(o => Math.hypot(o[0]-c[0], o[1]-c[1], o[2]-c[2]) > 60)) out.push(c); if(out.length === 3) break; }
+  return out;
+}
+function paintPalette(canvas, colors){
+  const x = canvas.getContext('2d'), w = canvas.width, h = canvas.height, spots = [[.2,.15],[.8,.25],[.5,.9]];
+  x.fillStyle = '#111416'; x.fillRect(0, 0, w, h);
+  colors.forEach((c, i) => {
+    const k = Math.min(1, 150 / Math.max(...c, 1)), [r, g, b] = c.map(v => Math.round(v * k)), [px, py] = spots[i];
+    const glow = x.createRadialGradient(px*w, py*h, 0, px*w, py*h, Math.max(w, h) * .75);
+    glow.addColorStop(0, `rgba(${r},${g},${b},.9)`); glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = glow; x.fillRect(0, 0, w, h);
+  });
+}
 function setAmbient(id, now){
   clearTimeout(ambientTimer);
   ambientTimer = setTimeout(() => {
     if(id === ambientId) return;
     ambientId = id;
     const img = new Image();
-    img.src = art(id, 'library_hero.jpg');
+    img.crossOrigin = 'anonymous';
+    img.src = art(id, 'library_600x900.jpg');
     img.decode().then(() => {
       if(ambientId !== id) return;
+      const colors = paletteOf(img);
+      if(!colors.length) return;
       gsap.killTweensOf(ambientImgs);
       const [a, b] = ambientImgs, next = gsap.getProperty(a, 'opacity') <= gsap.getProperty(b, 'opacity') ? a : b, prev = next === a ? b : a;
-      next.getContext('2d').drawImage(img, 0, 0, next.width, next.height);
-      gsap.to(next, {opacity:.55, duration:1.2, ease:'power2.out'});
+      paintPalette(next, colors);
+      gsap.to(next, {opacity:.6, duration:1.2, ease:'power2.out'});
       gsap.to(prev, {opacity:0, duration:1.2, ease:'power2.out'});
     }).catch(() => {});
   }, now ? 0 : 140);
