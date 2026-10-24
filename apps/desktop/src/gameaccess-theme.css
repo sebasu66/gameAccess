@@ -305,10 +305,6 @@ body:has(.surface-tablet) .topbar-actions,body:has(.surface-display) .topbar-act
 .ga-media-play svg { width:48px; height:48px; margin-left:4px; }
 .ga-media-play:hover { box-shadow:0 0 24px #ff6a0060; filter:brightness(1.12); }
 .library-room:not(.surface-display):not(.surface-tablet) .ga-game-detail .library-detail-extended { background:transparent!important; padding:0!important; }
-.ga-detail-actions .glass-action::after { display:block; content:""; position:absolute; inset:-30% auto -30% -70%; width:55%; background:linear-gradient(110deg,transparent,#ffffff55,transparent); transform:skewX(-20deg); pointer-events:none; }
-.ga-detail-actions .glass-action:hover::after { animation:ga-button-shine .7s ease both; }
-@keyframes ga-button-shine { from { left:-70%; } to { left:130%; } }
-@media(prefers-reduced-motion:reduce) { .ga-detail-actions .glass-action::after { animation:none!important; display:none; } }
 
 /* Game options: React supplies position only; appearance stays with the theme. */
 .ga-game-options { z-index:10000; min-width:230px; padding:6px; border:1px solid #ffffff25; border-radius:8px; background:#222a30f5; box-shadow:0 18px 60px #0008; color:white; backdrop-filter:blur(28px); }
