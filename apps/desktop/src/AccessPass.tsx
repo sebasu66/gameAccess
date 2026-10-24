@@ -1,3 +1,4 @@
+import { GaClose } from "./components/ga/Buttons";
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { formatRemaining } from "./activationLifetime";
 import { KeyRound, X } from "lucide-react";
@@ -36,7 +37,7 @@ export default function AccessPass() {
   return <div className="ga-access-pass">
     {open ? <section id={id} className="ga-access-pass-panel" aria-labelledby={id + "-title"}>
       <header><h2 id={id + "-title"}>{t("accessPassTitle")}</h2>
-        <button type="button" onClick={() => setOpen(false)} aria-label={t("accessPassClose")}><X size={20} /></button></header>
+        <GaClose label={t("accessPassClose")} onClick={() => setOpen(false)} /></header>
       <strong className="ga-access-pass-tier" data-tier={access.access_tier}>{access.access_tier.toUpperCase()}</strong>
       <span>{t("activationKeyLabel")}</span>
       {access.key ? <code>{access.key}</code> : <p>{t("accessPassLegacy")}</p>}

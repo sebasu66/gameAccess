@@ -18,7 +18,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import { useFreezeJob } from "../freezeJobs";
-import { GaBack } from "../components/ga/Buttons";
+import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
 import "./manager.css";
@@ -297,9 +297,9 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
             </div>
           </section> : null}
           <div className="lm-actions">
-            <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
-            <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
-            <Button variant="secondary" size="icon" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}</Button>
+            <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
+            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
+            <GaButton className="lm-icon-button" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}</GaButton>
           </div>
           <div className="lm-filters">
             <Input className="lm-search" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />

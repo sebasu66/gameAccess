@@ -1,3 +1,4 @@
+import { GaButton } from "./components/ga/Buttons";
 import { useEffect, useState } from "react";
 import { useI18n } from "./i18n";
 import { digitalProcessManager, type DigitalStorageSettings as StorageSettings } from "./catalog/DigitalProcessManager";
@@ -49,7 +50,7 @@ export default function DigitalStorageSettings(){
     <div className="grid gap-1"><label htmlFor="ga-auto-freeze" className="text-sm font-semibold">{c.autoFreeze}</label><p className="m-0 text-sm text-muted-foreground">{c.autoFreezeHint}</p></div>
    </div>
    <p className="m-0 text-sm text-muted-foreground">{c.hint}</p>
-   <div><Button variant="default" disabled={locked||!settings} onClick={()=>void save()}>{c.save}</Button></div>
+   <div><GaButton variant="primary" disabled={locked||!settings} onClick={()=>void save()}>{c.save}</GaButton></div>
   </>:<p className="m-0 text-sm text-muted-foreground">{c.unavailable}</p>}
   <details className="ga-settings-group rounded-lg border border-border bg-card/50 p-4"><summary className="cursor-pointer text-sm font-bold">{c.library}</summary><div className="mt-3 flex items-center justify-between gap-4"><p className="m-0 text-sm text-muted-foreground">{c.count}: {members.length}</p><Button variant="destructive" disabled={locked||!members.length} onClick={()=>setConfirm(true)}>{c.clear}</Button></div></details>
   {active?<p role="status" className="m-0 text-sm text-muted-foreground">{c.blocked}</p>:null}{message?<p role="status" className="m-0 text-sm text-success">{message}</p>:null}{error?<p className="ga-settings-error m-0 text-sm" role="alert">{error}</p>:null}
