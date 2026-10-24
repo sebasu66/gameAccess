@@ -74,53 +74,43 @@ const LEAVE_MS = 450;
 const LEAVE_MARGIN = 70;
 
 /**
- * The back of a library card (docs/TAREA-interfaz-nueva.md T8): the card turns over and behind it are the same cover
- * drawn in lines (SVG #ga-sketch), a glass layer fading to the right and a short menu: Play or Install, Rename and
- * Manage. Advanced actions (freeze, uninstall, remove) live in the library manager. It closes when the pointer
- * leaves, with Escape or on scroll, and the card turns back.
+ * The short menu of a library card (docs/TAREA-interfaz-nueva.md T8): a glass panel that opens beside the card, like
+ * an augmented-reality label. Its edge against the card is solid and the glass fades away toward the other sides;
+ * the menu has Play or Install, Rename and Manage. Advanced actions (freeze, uninstall, remove) live in the library
+ * manager. It closes when the pointer moves away, with Escape or on scroll.
  */
-function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }: { card: Card; slot: HTMLElement; onClose: () => void; onPlay?: Props["onPlay"]; onInstall?: Props["onInstall"]; onRename: (game: CatalogGame) => void; onManage?: Props["onManage"] }) {
+function SideMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }: { card: Card; slot: HTMLElement; onClose: () => void; onPlay?: Props["onPlay"]; onInstall?: Props["onInstall"]; onRename: (game: CatalogGame) => void; onManage?: Props["onManage"] }) {
   const { t } = useI18n();
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
   const closing = useRef(false);
-  const front = slot.querySelector<HTMLElement>(".ga-bento-card");
-  const image = card.kind !== "pending" ? slot.querySelector<HTMLImageElement>(".ga-bento-cover img")?.currentSrc : landscape(card.game);
+  const [side, setSide] = useState<"right" | "left">("right");
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
     window.clearTimeout(timer.current);
-    const rect = slot.getBoundingClientRect();
-    if (!menu.current || !motionOk()) { if (front) gsap.set(front, { rotationY: 0 }); onClose(); return; }
-    gsap.timeline({ onComplete: () => { if (front) gsap.set(front, { rotationY: 0 }); onClose(); } })
-      .to(menu.current.querySelectorAll(".ga-flip-items button"), { opacity: 0, duration: .15 })
-      .to(menu.current, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, duration: .3, ease: "expo.inOut" })
-      .to(menu.current, { rotationY: 90, duration: .22, ease: "power2.in" })
-      .to(front, { rotationY: 0, duration: .3, ease: "power2.out" });
-  }, [slot, front, onClose]);
+    if (!menu.current || !motionOk()) { onClose(); return; }
+    gsap.to(menu.current, { opacity: 0, x: menu.current.dataset.side === "left" ? 10 : -10, duration: .2, ease: "power2.in", onComplete: onClose });
+  }, [onClose]);
 
   useLayoutEffect(() => {
     const host = menu.current;
     if (!host) return;
     const rect = slot.getBoundingClientRect();
-    const width = Math.max(rect.width, 210);
-    host.style.width = `${width}px`;
-    host.style.height = "auto";
-    const height = Math.max(rect.height, host.offsetHeight);
-    let left = rect.left, top = rect.top;
-    if (left + width > window.innerWidth - 12) left = rect.right - width;
-    if (top + height > window.innerHeight - 70) top = Math.max(12, Math.min(rect.bottom, window.innerHeight - 70) - height);
-    const items = host.querySelectorAll(".ga-flip-items button");
-    const focusFirst = () => (host.querySelector(".ga-flip-items button:not(:disabled)") as HTMLButtonElement | null)?.focus({ preventScroll: true });
-    if (!motionOk()) { gsap.set(host, { left, top, width, height }); focusFirst(); return; }
-    gsap.set(host, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, rotationY: -90, transformPerspective: 900 });
-    gsap.set(items, { opacity: 0, x: -12 });
+    const width = host.offsetWidth, height = host.offsetHeight;
+    // Beside the card, toward the side with more room; vertically centred on the card and kept inside the window.
+    const right = rect.right + width <= window.innerWidth - 8 || rect.left < width;
+    const left = right ? rect.right - 6 : rect.left - width + 6;
+    const top = Math.min(Math.max(8, rect.top + rect.height / 2 - height / 2), window.innerHeight - 60 - height);
+    setSide(right ? "right" : "left");
+    host.dataset.side = right ? "right" : "left";
+    gsap.set(host, { left, top });
+    const items = host.querySelectorAll(".ga-side-menu-items button");
+    const focusFirst = () => (host.querySelector(".ga-side-menu-items button:not(:disabled)") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+    if (!motionOk()) { focusFirst(); return; }
     const tl = gsap.timeline({ onComplete: focusFirst })
-      .to(front, { rotationY: 90, transformPerspective: 900, duration: .26, ease: "power2.in" })
-      .to(host, { rotationY: 0, duration: .3, ease: "power2.out" })
-      .to(host, { left, top, width, height, duration: .4, ease: "expo.out" })
-      .fromTo(host.querySelector(".ga-flip-art"), { opacity: 0 }, { opacity: 1, duration: .9, ease: "power2.out" }, "<-.25")
-      .to(items, { opacity: 1, x: 0, duration: .35, stagger: .07, ease: "power3.out" }, "<.15");
+      .fromTo(host, { opacity: 0, x: right ? -14 : 14 }, { opacity: 1, x: 0, duration: .35, ease: "power3.out" })
+      .fromTo(items, { opacity: 0, x: right ? -8 : 8 }, { opacity: 1, x: 0, duration: .3, stagger: .05, ease: "power3.out" }, "<.08");
     return () => { tl.kill(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -146,10 +136,9 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   const deep = card.kind === "deep";
   const run = (action: () => void) => () => { close(); action(); };
   return createPortal(
-    <div ref={menu} className="ga-flip-menu" role="menu" aria-label={t("flipMenuLabel", { name: card.game.name })}>
-      {image ? <img className="ga-flip-art" src={image} alt="" /> : null}
-      <span className="ga-flip-glass" />
-      <div className="ga-flip-items">
+    <div ref={menu} className="ga-side-menu" data-side={side} role="menu" aria-label={t("flipMenuLabel", { name: card.game.name })}>
+      <span className="ga-side-menu-glass" aria-hidden="true" />
+      <div className="ga-side-menu-items">
         {card.kind === "pending"
           ? <button type="button" role="menuitem" className="primary" onClick={run(() => void onInstall?.(card.game))}><Download size={15} aria-hidden="true" />{t("flipInstall")}</button>
           : <button type="button" role="menuitem" className="primary" disabled={deep} title={deep ? t("flipFrozenHint") : undefined} onClick={run(() => void onPlay?.(card.game))}><Play size={15} fill="currentColor" aria-hidden="true" />{t("flipPlay")}</button>}
@@ -161,7 +150,7 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   );
 }
 
-/** Three lines that draw themselves after the pointer rests 1 s on a card, then pulse; a click turns the card over. */
+/** Three lines that draw themselves after the pointer rests 1 s on a card, then pulse; a click opens the side menu. */
 function MenuDot({ shown, label, onOpen }: { shown: boolean; label: string; onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   return (
     <button type="button" className="ga-bento-menu" data-shown={shown || undefined} aria-label={label} title={label} onClick={event => { event.stopPropagation(); onOpen(event); }}>
@@ -278,10 +267,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         ))}
       </div>
       {!cards.length ? <p className="ga-bento-empty">{t("bentoEmpty")}</p> : null}
-      {menuFor ? <FlipMenu card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onRename={setRenaming}
+      {menuFor ? <SideMenu card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onRename={setRenaming}
         onClose={() => { setMenuFor(null); setDotFor(null); }} /> : null}
       {renaming ? <RenameGameDialog game={renaming} current={scan.games.find(entry => entry.app_id === renaming.app_id)?.label ?? ""} onClose={() => setRenaming(null)} /> : null}
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true"><filter id="ga-sketch" colorInterpolationFilters="sRGB"><feColorMatrix type="saturate" values="0" /><feConvolveMatrix order={3} kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true" /><feComponentTransfer><feFuncR type="linear" slope={4.2} /><feFuncG type="linear" slope={4.2} /><feFuncB type="linear" slope={4.2} /></feComponentTransfer></filter></svg>
     </div>
   );
 }
