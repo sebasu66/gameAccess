@@ -43,6 +43,7 @@ import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/Digi
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DeskPanel from "./desk/DeskPanel";
+import NewsPanel from "./NewsPanel";
 import { uiDemo } from "./devDemo/uiDemo";
 import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
@@ -636,6 +637,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
+      <DeskPanel id="news" eyebrow="GAME ACCESS" title={t("newsButton")}><NewsPanel games={games} onOpenGame={game => { if (!isWideDesk()) closePanel("news"); openGame(game); }} /></DeskPanel>
       <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
