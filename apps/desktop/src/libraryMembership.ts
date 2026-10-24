@@ -21,7 +21,7 @@ function publish() {
   initialized = true;
   for (const listener of listeners) listener();
 }
-if (uiDemo() && !initialized) { members = demoLibraryMembers(); publish(); }
+if (import.meta.env.DEV && uiDemo() && !initialized) { members = demoLibraryMembers(); publish(); }
 export const libraryMembership = {
   getGames: () => members,
   has: (game: CatalogGame) => members.some(item => (item.app_id ?? item.id) === (game.app_id ?? game.id)),

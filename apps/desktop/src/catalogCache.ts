@@ -125,7 +125,7 @@ export function withParentalPolicy(params: CatalogQueryParams, policy: ParentalP
 }
 
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
-  if (!native()) return uiDemo() ? queryDemoCatalog(params) : { items: [], total: 0 };
+  if (!native()) return import.meta.env.DEV && uiDemo() ? queryDemoCatalog(params) : { items: [], total: 0 };
   return invoke<CatalogQueryResult>("catalog_cache_query", { params: withParentalPolicy(params) });
 }
 

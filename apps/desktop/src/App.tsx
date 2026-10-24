@@ -70,7 +70,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const downloadsOpen = useDesk().includes("downloads");
   // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
   const demoService = useRef<ReturnType<typeof demoDownloadService>>();
-  if (uiDemo() && !demoService.current) demoService.current = demoDownloadService();
+  if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
   useDeskLayout();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);

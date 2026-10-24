@@ -3,7 +3,7 @@
 :root.ga-desk-both { --ga-desk-w: 22vw; }
 /* The catalog keeps clear of the open side panels. */
 .app-shell > main { margin-left: var(--ga-desk-left, 0px); margin-right: var(--ga-desk-right, 0px); }
-.ga-view-rail { left: var(--ga-desk-left, 0px); }
+html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 .ga-desk-panel { position: fixed; z-index: 120; top: var(--window-chrome-height, 34px); bottom: 0; width: var(--ga-desk-w); color: #f4f4f2; font-family: Manrope, sans-serif; }
 .ga-desk-panel[data-side="left"] { left: 0; }
 .ga-desk-panel[data-side="right"] { right: 0; }
