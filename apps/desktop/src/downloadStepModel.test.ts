@@ -5,11 +5,11 @@ const states = (steps: ReturnType<typeof downloadSteps>) => steps.map(step => `$
 
 describe("download steps", () => {
   it("uses the launcher's structured steps", () => {
-    const steps = downloadSteps({ gameId: 1, phase: "preparing", progress: 0, statusText: "Torbox está bajando el juego: 46 %",
-      step: { id: "server", detail: "Torbox está bajando el juego: 46 %", startedAt: 1000 },
+    const steps = downloadSteps({ gameId: 1, phase: "preparing", progress: 0, statusText: "El servicio de aceleración está bajando el juego: 46 %",
+      step: { id: "server", detail: "El servicio de aceleración está bajando el juego: 46 %", startedAt: 1000 },
       steps: [{ id: "route", state: "done", result: "El servidor todavía no lo tiene", ms: 1500 }, { id: "probe", state: "done", result: "Lento (0.4 MB/s)", ms: 20000 }] });
     expect(states(steps)).toEqual(["route:done", "probe:done", "server:current", "download:pending", "extract:pending", "install:pending"]);
-    expect(steps[2]).toMatchObject({ text: "Torbox está bajando el juego: 46 %", startedAt: 1000 });
+    expect(steps[2]).toMatchObject({ text: "El servicio de aceleración está bajando el juego: 46 %", startedAt: 1000 });
     expect(steps[1]).toMatchObject({ text: "Lento (0.4 MB/s)", ms: 20000 });
   });
 

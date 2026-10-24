@@ -25,6 +25,7 @@ from typing import Any, Callable
 import requests
 
 from game_download_manager.link_sealing import SealError, unseal
+from game_download_manager.ui_text import ui
 
 logger = logging.getLogger("digital_downloader")
 
@@ -47,12 +48,13 @@ MAX_REJOINS = 5                  # times the player asks again after the server 
 # asking again resumes the same job, which is what a manual retry used to do.
 RESUMABLE_ERRORS = {"server_restarted", "server_stopped", "unexpected_error", "",
                     "torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"}
+# What the player reads for each server error code; the provider behind the torrent bridge is never named.
 ERROR_WORDS = {
-    "torbox_too_slow": "la fuente casi no tiene semillas y Torbox tardaría demasiado",
-    "torbox_stalled": "Torbox no avanza con esta fuente (nadie la comparte o se estancó)",
-    "torbox_download_failed": "Torbox no pudo bajar esta fuente",
-    "too_many_files": "la fuente tiene demasiados archivos",
-    "server_budget_exhausted": "el servidor llegó a su límite de tráfico del mes",
+    "torbox_too_slow": ui("dlErrBridgeTooSlow"),
+    "torbox_stalled": ui("dlErrBridgeStalled"),
+    "torbox_download_failed": ui("dlErrBridgeFailed"),
+    "too_many_files": ui("dlErrTooManyFiles"),
+    "server_budget_exhausted": ui("dlErrServerBudget"),
 }
 
 
@@ -68,37 +70,38 @@ class SourceWithoutSeeds(Exception):
     """Nobody is sharing this source: the download is cancelled and the player is told to try another one."""
 
 
-def _duration_words(seconds: float) -> str:
+def _bridge_eta(seconds: float) -> str:
+    """How long the torrent bridge expected to take, in months, days or hours."""
     if seconds >= 86400 * 60:
-        return f"unos {seconds / 86400 / 30:.0f} meses"
+        return ui("dlBridgeEtaMonths", n=round(seconds / 86400 / 30))
     if seconds >= 86400 * 2:
-        return f"unos {seconds / 86400:.0f} días"
-    return f"unas {max(1, seconds / 3600):.0f} horas"
+        return ui("dlBridgeEtaDays", n=round(seconds / 86400))
+    return ui("dlBridgeEtaHours", n=round(max(1, seconds / 3600)))
 
 
 class ChunkedDownloadError(Exception):
     pass
 
 
-STEP3 = "Paso 3 de 3 · "
+STEP3 = ui("dlStepOf", n=3)
 
 
 def describe_wait(detail: dict | None, game_name: str = "") -> str:
     """Plain words for what the server is doing while the first files are not ready yet (the third step)."""
     if not detail or detail.get("stage") != "torbox":
-        return STEP3 + "El servidor está preparando la descarga acelerada..."
+        return STEP3 + ui("dlBridgePreparing")
     progress = float(detail.get("progress") or 0)
     seeds = int(detail.get("seeds") or 0)
     state = str(detail.get("state") or "").lower()
     if progress >= 99.5 or state in ("cached", "completed", "uploading"):
-        return STEP3 + "Torbox ya tiene el juego: empieza la descarga acelerada..."
-    extra = f" ({seeds} fuentes)" if seeds else ""
+        return STEP3 + ui("dlBridgeReady")
     if progress <= 0 and seeds == 0:
-        return STEP3 + "Torbox está buscando quién comparta el juego; si nadie lo comparte, la descarga se cancela sola..."
+        return STEP3 + ui("dlBridgeSearching")
     speed, eta = int(detail.get("speed") or 0), int(detail.get("eta") or 0)
-    left = (f" · faltan ~{max(1, eta // 60)} min" if eta < 7200 else f" · faltan ~{eta // 3600} h") if eta > 0 else ""
+    extra = ui("dlSeedsCount", n=seeds) if seeds else ""
+    left = (ui("dlLeftMinutes", n=max(1, eta // 60)) if eta < 7200 else ui("dlLeftHours", n=eta // 3600)) if eta > 0 else ""
     more = (f" · {speed / 1_000_000:.1f} MB/s" if speed > 0 else "") + left
-    return f"{STEP3}Torbox está bajando el juego para acelerarlo: {progress:.0f}%{extra}{more}"
+    return STEP3 + ui("dlBridgeProgress", progress=round(progress)) + extra + more
 
 
 @dataclass(frozen=True)
@@ -147,18 +150,18 @@ class ChunkedDownloader:
                 response = self.http.request(method, f"{self.session.api}{path}", headers=self._headers(), timeout=30, **kwargs)
             except requests.RequestException as exc:
                 if attempt == NETWORK_RETRIES or self.context.cancelled.is_set():
-                    raise ChunkedDownloadError(f"no se pudo conectar con el servidor: {type(exc).__name__}") from exc
+                    raise ChunkedDownloadError(f"{ui('dlErrNoServer')}: {type(exc).__name__}") from exc
                 self.sleep(NETWORK_RETRY_SECONDS)
                 continue
             if response.status_code in (401, 402, 403, 404, 422):
-                raise ChunkedDownloadUnavailable(f"el servidor respondió {response.status_code}", response.status_code)
+                raise ChunkedDownloadUnavailable(ui("dlErrServerAnswered", status=response.status_code), response.status_code)
             if response.status_code >= 500 and attempt < NETWORK_RETRIES and not self.context.cancelled.is_set():
                 self.sleep(NETWORK_RETRY_SECONDS)
                 continue
             if response.status_code >= 400:
-                raise ChunkedDownloadError(f"el servidor respondió {response.status_code}")
+                raise ChunkedDownloadError(ui("dlErrServerAnswered", status=response.status_code))
             return response.json()
-        raise ChunkedDownloadError("el servidor no respondió")
+        raise ChunkedDownloadError(ui("dlErrServerSilent"))
 
     def peek(self, source_url: str) -> str:
         """Where the server already holds this source ("viking" or "torbox"), or "" (also when it cannot tell).
@@ -276,7 +279,7 @@ class ChunkedDownloader:
                     # A restarted server forgets its jobs: ask again with the pieces already on disk. The piece that
                     # was half done and every later one come from the new job.
                     if rejoins >= MAX_REJOINS:
-                        raise ChunkedDownloadError("el servidor perdió la descarga varias veces")
+                        raise ChunkedDownloadError(ui("dlErrServerLost"))
                     rejoins += 1
                     self._drop_inflight(inflight)
                     manifest = self.start(source_url, item_name, have=done)
@@ -303,11 +306,10 @@ class ChunkedDownloader:
                             detail = manifest.get("detail") or {}
                             eta = int(detail.get("eta") or 0)
                             seeds = int(detail.get("seeds") or 0)
-                            how_long = f" Torbox calculaba {_duration_words(eta)} para bajarla." if eta > 0 else ""
-                            raise SourceWithoutSeeds(
-                                f"Esta descarga se canceló: la fuente está casi sin semillas ({seeds} personas compartiéndola).{how_long} "
-                                "Probá otra fuente desde el botón Descargar.")
-                        raise ChunkedDownloadError(f"el servidor no pudo preparar la descarga: {ERROR_WORDS.get(code, code)} ({code})")
+                            how_long = " " + _bridge_eta(eta) if eta > 0 else ""
+                            raise SourceWithoutSeeds(ui("dlSourceNoSeeds", seeds=seeds) + how_long + " " + ui("dlTryOtherSource"))
+                        logger.warning("El servidor no pudo preparar la descarga: %s", code)
+                        raise ChunkedDownloadError(f"{ui('dlErrServerPrepare')}: {ERROR_WORDS.get(code) or ui('dlErrUnknown')}")
                     if not manifest["pieces"]:
                         detail = manifest.get("detail") or {}
                         # The bar follows what Torbox reports (never 0: the job did start).
@@ -408,7 +410,7 @@ class ChunkedDownloader:
 
     def _idle(self, since: float) -> None:
         if time.time() - since > MAX_IDLE_SECONDS:
-            raise ChunkedDownloadError("el servidor tardó demasiado en preparar el siguiente fragmento")
+            raise ChunkedDownloadError(ui("dlErrServerSlowPiece"))
         self.sleep(POLL_SECONDS)
 
     @staticmethod
@@ -469,7 +471,7 @@ class ChunkedDownloader:
             try:
                 return unseal(link["sealed"], self.session.token, self.session.installation)
             except SealError as exc:
-                raise ChunkedDownloadError("el enlace no se pudo abrir") from exc
+                raise ChunkedDownloadError(ui("dlErrLinkSealed")) from exc
         return link["url"]
 
     def _download_piece(self, job_id: str, piece: dict, target: Path, work: Path) -> None:
@@ -496,7 +498,7 @@ class ChunkedDownloader:
                     if context.cancelled.is_set() or self.abort.is_set():
                         return
                     if written != piece["size"]:
-                        raise ChunkedDownloadError("el archivo llegó incompleto")
+                        raise ChunkedDownloadError(ui("dlErrFileIncomplete"))
                     took = max(time.time() - piece_started, 0.001)
                     logger.info("Archivo %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s a la vez)",
                                 index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
@@ -510,7 +512,7 @@ class ChunkedDownloader:
                         digest.update(block)
                 written = part.stat().st_size
                 if written != piece["size"] or digest.hexdigest() != piece["sha256"]:
-                    raise ChunkedDownloadError("el fragmento llegó incompleto o dañado")
+                    raise ChunkedDownloadError(ui("dlErrPieceDamaged"))
                 took = max(time.time() - piece_started, 0.001)
                 logger.info("Pieza %s: %.0f MB en %.0f s = %.1f MB/s con hasta %s conexiones (%s piezas a la vez)",
                             index, written / 1048576, took, written / 1048576 / took, peak, len(self.live))
@@ -528,7 +530,7 @@ class ChunkedDownloader:
                 part.unlink(missing_ok=True)
                 if attempt < PIECE_ATTEMPTS:
                     self.sleep(1.5 * attempt)
-        raise ChunkedDownloadError(f"no se pudo bajar el fragmento {index}: {last_error}")
+        raise ChunkedDownloadError(f"{ui('dlErrPieceFailed', index=index)}: {last_error}")
 
     def _fetch_piece(self, url: str, piece: dict, part: Path, offset: int | None = None) -> tuple[int, int]:
         """Download one piece into `part` over several range connections; return the most connections used at
@@ -596,7 +598,7 @@ class ChunkedDownloader:
                             cap = max(1, len(owned))  # ViKiNG wants fewer connections on this server
                     errors.clear()
                     if failures > RANGE_FAILURES:
-                        raise ChunkedDownloadError(f"conexiones fallidas: {last}")
+                        raise ChunkedDownloadError(f"{ui('dlErrConnectionsFailed')}: {last}")
                     wants = len(owned) < cap
                     alone = not owned
                 # The first connection waits for a free slot; more connections are added only when one is free.
@@ -634,15 +636,15 @@ class ChunkedDownloader:
         headers = {"Range": f"bytes={position}-{end}", "Accept-Encoding": "identity"}
         with self.http.get(url, stream=True, timeout=60, allow_redirects=True, headers=headers) as response:
             if response.status_code == 429:
-                raise ChunkedDownloadError("demasiadas conexiones (429)")
+                raise ChunkedDownloadError(ui("dlErrTooManyConnections", status=429))
             if response.status_code == 206:
                 if not str(response.headers.get("content-range", "")).lower().startswith(f"bytes {position}-"):
-                    raise ChunkedDownloadError("el servidor no respetó el rango pedido")
+                    raise ChunkedDownloadError(ui("dlErrNoRange"))
                 ranged.set()
             elif response.status_code != 200 or position != 0:
-                raise ChunkedDownloadError(f"descarga rechazada ({response.status_code})")
+                raise ChunkedDownloadError(ui("dlErrRefused", status=response.status_code))
             if "text/html" in response.headers.get("content-type", "").lower():
-                raise ChunkedDownloadError("el enlace devolvió una página y no el archivo")
+                raise ChunkedDownloadError(ui("dlErrHtmlPage"))
             with part.open("r+b") as handle:
                 for chunk in response.iter_content(chunk_size=STREAM_CHUNK):
                     context.wait_if_paused()
@@ -664,4 +666,4 @@ class ChunkedDownloader:
         with lock:
             complete = r[0] + r[2] > r[1]
         if not complete:
-            raise ChunkedDownloadError("la conexión se cortó antes de terminar")
+            raise ChunkedDownloadError(ui("dlErrCutOff"))

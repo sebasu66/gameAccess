@@ -14,6 +14,7 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } from "./downloadQueueClient";
 
 import { getActivationTier } from "../activation";
+import { localizeSnapshot } from "../launcherText";
 
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
 export interface DownloadSpeedSample { time: number; speedBps: number; }
@@ -433,7 +434,8 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (restore) this.updateSnapshot(restore);
   }
 
-  updateSnapshot(snapshot: DownloadProgressSnapshot): void {
+  updateSnapshot(launcherSnapshot: DownloadProgressSnapshot): void {
+    const snapshot = localizeSnapshot(launcherSnapshot);
     const previous = this.activeJobs.get(snapshot.gameId);
     if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
     if (previous?.phase !== snapshot.phase) void narrate(`Digital AppID ${snapshot.gameId} · phase ${previous?.phase ?? "new"} -> ${snapshot.phase}; bytes=${snapshot.bytesDownloaded ?? "unknown"}/${snapshot.bytesTotal ?? "unknown"}; ${snapshot.statusText ?? ""}.`, { area: "DIGITAL_DOWNLOAD" });

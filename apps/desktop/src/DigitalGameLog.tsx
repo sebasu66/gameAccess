@@ -5,6 +5,7 @@ import { useDialogFocus } from "./dialogFocus";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import type { CatalogGame } from "./types";
 import { GaClose } from "./components/ga/Buttons";
+import { localizeLauncherText } from "./launcherText";
 
 const copy = {
   es: { title: "Registro del juego", empty: "Todavía no hay pasos registrados para este juego.", loading: "Leyendo registro…", close: "Cerrar", hint: "Guardado en la carpeta del juego (gameaccess-log.txt)." },
@@ -17,7 +18,7 @@ export default function DigitalGameLog({ game, onClose }: { game: CatalogGame; o
   const [text, setText] = useState<string | null>(null); const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    void digitalProcessManager.gameLog(game).then(result => { if (live) setText(result.log ?? ""); })
+    void digitalProcessManager.gameLog(game).then(result => { if (live) setText(localizeLauncherText(result.log ?? "")); })
       .catch(failure => { if (live) { setError(String(failure)); setText(""); } });
     return () => { live = false; };
   }, [game.app_id, game.id]);

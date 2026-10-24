@@ -26,8 +26,8 @@ def test_accelerated_download_reports_each_step_with_result_and_duration():
     clock.t += 20
     steps.finish("Lento (0.4 MB/s): se acelera por el servidor")
     steps.start("server", "Pidiéndole al servidor la descarga acelerada")
-    steps.follow("preparing", "Torbox está bajando el juego: 46 %")
-    assert steps.payload()["step"]["detail"] == "Torbox está bajando el juego: 46 %"
+    steps.follow("preparing", "El servicio de aceleración está bajando el juego: 46 %")
+    assert steps.payload()["step"]["detail"] == "El servicio de aceleración está bajando el juego: 46 %"
     clock.t += 60
     steps.follow("downloading", "Descargando pieza 1 de 50")
     payload = steps.payload()

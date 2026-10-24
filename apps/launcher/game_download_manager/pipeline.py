@@ -12,6 +12,7 @@ from game_download_manager.source_validation import normalize_download_source, i
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
 from game_download_manager.client_events import DownloadReporter
+from game_download_manager.ui_text import ui
 
 class NotAGameError(RuntimeError):
     """The download holds no executable or installer at all (only music, artwork, documents...)."""
@@ -53,34 +54,35 @@ class DownloadPipeline:
         if use_server and is_torrent:
             # A torrent the server already holds is streamed from it. Any other one is measured first:
             # it stays with the player when it is small, well seeded or already fast.
-            self.step("start", "route", "Buscando si el servidor ya tiene el juego")
-            context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Buscando la forma más rápida de bajar el juego...")
+            self.step("start", "route", ui("dlRouteLooking"))
+            context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlRouteFastest"))
             where = self.chunked(chunk_session).peek(download_source)
             if where:
-                self.step("finish", f"El servidor ya lo tiene en {'Viking' if where == 'viking' else 'Torbox'}")
-                self.step("skip", "probe", "El servidor ya lo tiene")
-                context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El servidor ya tiene el juego en {'Viking' if where == 'viking' else 'Torbox'}: descarga acelerada.")
+                # The player is never told which service holds it (no provider names in the app).
+                self.step("finish", ui("dlRouteServerHas"))
+                self.step("skip", "probe", ui("dlRouteServerHas"))
+                context.emit_progress(app_id, "preparing", 2.0, status_text=ui("dlStepOf", n=2) + ui("dlRouteServerHasAccelerated"))
                 self.report("server", f"el juego ya estaba en {'Viking' if where == 'viking' else 'Torbox'}")
                 context.set_route("accelerated")
                 context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
             else:
-                self.step("finish", "El servidor todavía no lo tiene")
+                self.step("finish", ui("dlRouteServerHasNot"))
                 probe = TorrentProbe()
 
                 def decide(*sample):
                     verdict = probe.decide(*sample)
                     if verdict == "keep":
-                        self.step("finish", f"Rinde bien ({probe.reason}): se baja directo")
-                        self.step("skip", "server", "El torrent rinde bien")
-                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"Paso 2 de 3 · El torrent rinde bien ({probe.reason}): se baja directo.")
+                        self.step("finish", f"{ui('dlProbeKeep')} ({probe.why})")
+                        self.step("skip", "server", ui("dlProbeGood"))
+                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"{ui('dlStepOf', n=2)}{ui('dlProbeKeep')} ({probe.why})")
                         self.report("torrent", probe.reason)
                         context.set_route("torrent")
                         context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
                     return verdict
 
                 context.set_route("measuring")
-                self.step("start", "probe", "Midiendo fuentes y velocidad del torrent (hasta 20 s)")
-                context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Probando la velocidad del torrent (hasta 20 s)...")
+                self.step("start", "probe", ui("dlProbeMeasuring"))
+                context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlProbeMeasuring"))
                 self.report("measuring")
                 context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
                 try:
@@ -90,14 +92,15 @@ class DownloadPipeline:
                         return None, None, True
                     return None, torrent_path, False
                 except SwitchToServer as why:
-                    self.step("finish", f"Lento ({probe.reason or 'sin datos'}): se acelera por el servidor")
+                    why = probe.why or ui("dlProbeNoData")
+                    self.step("finish", f"{ui('dlProbeSlow')} ({why})")
                     self.report("server", f"el torrent no rinde: {probe.reason or 'sin datos'}")
-                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El torrent es lento ({probe.reason or 'sin datos'}): se le pide al servidor que acelere la descarga...")
+                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"{ui('dlStepOf', n=2)}{ui('dlProbeSlow')} ({why})")
                     context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
         if use_server:
             context.set_route("accelerated")
-            self.step("start", "server", "Pidiéndole al servidor la descarga acelerada")
-            context.emit_progress(app_id, "preparing", 5.0, status_text="Paso 3 de 3 · Pidiéndole al servidor la descarga acelerada...")
+            self.step("start", "server", ui("dlServerAsking"))
+            context.emit_progress(app_id, "preparing", 5.0, status_text=ui("dlStepOf", n=3) + ui("dlServerAsking"))
             try:
                 chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
                 if context.cancelled.is_set():
@@ -108,11 +111,11 @@ class DownloadPipeline:
                 context.set_route("accelerated")
                 raise
             except ChunkedDownloadUnavailable as unavailable:
-                self.step("finish", f"El servidor no pudo ({unavailable}): se baja directo", "skipped")
+                self.step("finish", f"{ui('dlServerCouldNot')} ({unavailable})", "skipped")
                 context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
                 self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")
             except ChunkedDownloadError as failure:
-                self.step("finish", f"Falló por el servidor ({failure}): se baja directo", "skipped")
+                self.step("finish", f"{ui('dlServerFailed')} ({failure})", "skipped")
                 context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
                 self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
         return chunk_path or None, None, False
@@ -388,7 +391,7 @@ class DownloadPipeline:
                 self.record_failure(storage, int(app_id), game_name, str(e))
             self.cleanup_on_cancel(error_message=None if context.cancelled.is_set() else str(e))
 
-    DEAD_SOURCE_HINTS = ("404", "410", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
+    DEAD_SOURCE_HINTS = ("404", "410", "dlsourcenoseeds", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
 
     def record_failure(self, storage, app_id, game_name, message):
         """Dead source: nothing worth keeping, remove the folder. Otherwise keep it as ERROR with error.txt."""

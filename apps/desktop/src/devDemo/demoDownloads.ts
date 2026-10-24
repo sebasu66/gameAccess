@@ -13,7 +13,7 @@ type Stage = { id: DownloadStepId; phase: DownloadProgressSnapshot["phase"]; det
 const STAGES: Stage[] = [
   { id: "route", phase: "preparing", detail: "Buscando si el servidor ya tiene el juego", result: "El servidor todavía no lo tiene", seconds: 3 },
   { id: "probe", phase: "preparing", detail: "Midiendo fuentes y velocidad del torrent: 12 fuentes · 0,4 MB/s", result: "Lento (0,4 MB/s): se acelera por el servidor", seconds: 5 },
-  { id: "server", phase: "preparing", detail: "Torbox está bajando el juego: 46 % · 38 fuentes · faltan ~6 min", result: "Listo en el servidor", seconds: 6 },
+  { id: "server", phase: "preparing", detail: "El servicio de aceleración de torrents está bajando el juego: 46 % · 38 fuentes · faltan ~6 min", result: "Listo en el servidor", seconds: 6 },
   { id: "download", phase: "downloading", detail: "Descargando pieza 20 de 50 · 4 a la vez", result: "Descargado", seconds: 10 },
   { id: "extract", phase: "decompressing", detail: "Descomprimiendo parte 2 de 4 · 63 %", result: "Descomprimido", seconds: 5 },
   { id: "install", phase: "installing", detail: "Verificando espacio en disco…", result: "Instalado en C:\\Juegos\\ELDEN RING", seconds: 3 },

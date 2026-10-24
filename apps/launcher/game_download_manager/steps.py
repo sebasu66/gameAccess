@@ -7,9 +7,11 @@ progress events move the rest along on their own. `statusText` stays as it was f
 """
 import time
 
+from game_download_manager.ui_text import ui
+
 ORDER = ("route", "probe", "server", "download", "extract", "install")
 _PHASE_STEP = {"downloading": "download", "decompressing": "extract", "installing": "install"}
-_DEFAULT_RESULT = {"server": "Listo en el servidor", "download": "Descargado", "extract": "Descomprimido", "install": "Instalado"}
+_DEFAULT_RESULT = {"server": ui("dlDoneServer"), "download": ui("dlDoneDownload"), "extract": ui("dlDoneExtract"), "install": ui("dlDoneInstall")}
 
 
 class StepTracker:
