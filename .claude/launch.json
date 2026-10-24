@@ -8,6 +8,12 @@
       "port": 38148
     },
     {
+      "name": "desktop-vite-alt",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--prefix", "apps/desktop", "vite", "apps/desktop", "--host", "127.0.0.1", "--port", "38149", "--strictPort"],
+      "port": 38149
+    },
+    {
       "name": "landing",
       "runtimeExecutable": "apps/api/.venv/Scripts/python.exe",
       "runtimeArgs": ["-m", "http.server", "8790", "--bind", "127.0.0.1", "--directory", "deploy/website"],

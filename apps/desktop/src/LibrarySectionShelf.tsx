@@ -21,6 +21,8 @@ interface Props {
 const FALLBACK_COLUMNS = 6;
 const FALLBACK_ROW_HEIGHT = 288;
 const FALLBACK_VIEWPORT_HEIGHT = 900;
+// Only the rows on screen plus one above and one below are mounted (sliding window); cards appear as they come in.
+const SHELF_BUFFER_ROWS = 1;
 
 export default function LibrarySectionShelf({ section, selectedId, renderGame, reset, scrollRoot }: Props) {
   const { t } = useI18n();
@@ -43,6 +45,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
     totalCount,
     metrics: metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 },
     maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+    bufferRows: SHELF_BUFFER_ROWS,
     previewLimit: metrics ? undefined : SECTION_PREVIEW_SIZE,
   }), [scrollTop, viewportHeight, totalCount, metrics]);
 
@@ -138,6 +141,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
         totalCount,
         metrics: metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 },
         maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+        bufferRows: SHELF_BUFFER_ROWS,
         previewLimit: metrics ? undefined : SECTION_PREVIEW_SIZE,
       });
       if (next.startIndex !== windowRange.startIndex || next.endIndex !== windowRange.endIndex) setScrollTop(root.scrollTop);
@@ -172,6 +176,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
       totalCount,
       metrics: active,
       maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+      bufferRows: SHELF_BUFFER_ROWS,
     });
     if (selectedPosition >= target.startIndex && selectedPosition < target.endIndex) return;
     const selectedRow = Math.floor(selectedPosition / active.columns);

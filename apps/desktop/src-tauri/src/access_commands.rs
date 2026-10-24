@@ -50,24 +50,25 @@ pub(crate) fn start_access_watchdog(app: tauri::AppHandle) {
     });
 }
 
+// DPAPI and file access run off the window's thread.
 #[tauri::command]
-pub(crate) fn activation_installation_id() -> Result<String, String> {
-    access_activation::installation_id()
+pub(crate) async fn activation_installation_id() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(access_activation::installation_id).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn activation_read_session() -> Result<Option<String>, String> {
-    access_activation::read_session()
+pub(crate) async fn activation_read_session() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(access_activation::read_session).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn activation_save_session(session_token: String, persistent: Option<bool>, access_key: Option<String>) -> Result<(), String> {
-    access_activation::save_session(&session_token, persistent.unwrap_or(false), access_key)
+pub(crate) async fn activation_save_session(session_token: String, persistent: Option<bool>, access_key: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || access_activation::save_session(&session_token, persistent.unwrap_or(false), access_key)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn activation_read_key() -> Result<Option<String>, String> {
-    access_activation::read_key()
+pub(crate) async fn activation_read_key() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(access_activation::read_key).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

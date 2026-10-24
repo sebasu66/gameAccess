@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bentoCells, bentoLayout, bentoRowHeight, bentoSections, type BentoItem } from "./bentoLayout";
+import { bentoCells, bentoInWindow, bentoLayout, bentoRowHeight, bentoRowTops, bentoSections, type BentoItem } from "./bentoLayout";
 
 const items = (ready: number, pending: number, deep = 0): BentoItem<string>[] => [
   ...Array.from({ length: ready }, (_, i) => ({ kind: "ready" as const, value: `r${i}` })),
@@ -63,5 +63,31 @@ describe("library bento sections", () => {
     expect(sections.map(s => s.kind)).toEqual(["pending"]);
     const slots = placements.flatMap(p => Array.from({ length: p.rowSpan }, (_, i) => `${p.column}:${p.row + i}`));
     expect(new Set(slots).size).toBe(slots.length);
+  });
+
+  it("keeps a collapsed group's divider and count but places none of its games", () => {
+    const { placements, sections, tracks } = bentoSections(items(5, 4, 2), 4, new Set(["deep", "pending"] as const));
+    expect(sections.map(s => [s.kind, s.count, s.collapsed])).toEqual([["ready", 5, false], ["deep", 2, true], ["pending", 4, true]]);
+    expect(placements.every(p => p.kind === "ready")).toBe(true);
+    // The two closed dividers follow the installed games, one row each.
+    expect(sections[2].row).toBe(sections[1].row + 1);
+    expect(tracks).toHaveLength(sections[2].row);
+    expect(sections.every(s => tracks[s.row - 1] === "label")).toBe(true);
+  });
+});
+
+describe("library sliding window", () => {
+  it("knows where each row starts and mounts only the cards near the band on screen", () => {
+    const { placements, tracks } = bentoSections(items(40, 0, 0), 4);
+    const tops = bentoRowTops(tracks, 100, 44);
+    // Label row: no height, then card rows every 144 px.
+    expect(tops.slice(0, 4)).toEqual([0, 44, 188, 332]);
+    // A portrait spans three rows (388 px). 10 bands of 4 portraits; a 900 px band in the middle touches 3 or 4 of them.
+    const start = tops[3 * 3 + 1];
+    const shown = bentoInWindow(placements, tops, 100, start, start + 900);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThanOrEqual(4 * 4);
+    expect(shown.every(p => (tops[p.row + 2] + 100) >= start && tops[p.row - 1] <= start + 900)).toBe(true);
+    expect(bentoInWindow(placements, tops, 100, 0, 900).map(p => p.value)).toContain("r0");
   });
 });

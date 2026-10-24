@@ -169,22 +169,25 @@ fn check_at(path: &Path, password: &str, now: i64) -> Result<(), String> {
 
 fn now() -> i64 { chrono::Utc::now().timestamp() }
 
+// DPAPI and argon2 run off the window's thread (a synchronous command would freeze the UI while hashing).
 #[tauri::command]
-pub fn parental_state() -> Result<ParentalState, String> {
-    let path = store_path()?;
-    Ok(state_of(read_at(&path)?.as_ref(), now()))
+pub async fn parental_state() -> Result<ParentalState, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let path = store_path()?;
+        Ok(state_of(read_at(&path)?.as_ref(), now()))
+    }).await.map_err(|e| e.to_string())?
 }
 
 /// Save the policy. With a password set, `password` must be it; `new_password` sets or changes it.
 #[tauri::command]
-pub fn parental_save(policy: ParentalPolicy, password: Option<String>, new_password: Option<String>) -> Result<ParentalState, String> {
-    save_at(&store_path()?, policy, password.as_deref(), new_password.as_deref(), now())
+pub async fn parental_save(policy: ParentalPolicy, password: Option<String>, new_password: Option<String>) -> Result<ParentalState, String> {
+    tauri::async_runtime::spawn_blocking(move || save_at(&store_path()?, policy, password.as_deref(), new_password.as_deref(), now())).await.map_err(|e| e.to_string())?
 }
 
 /// Whether `password` opens the settings (so the panel can be unlocked before any change).
 #[tauri::command]
-pub fn parental_check(password: String) -> Result<(), String> {
-    check_at(&store_path()?, &password, now())
+pub async fn parental_check(password: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || check_at(&store_path()?, &password, now())).await.map_err(|e| e.to_string())?
 }
 
 #[cfg(all(test, windows))]

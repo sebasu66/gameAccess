@@ -6,8 +6,16 @@
 .ga-bento { display: grid; grid-template-columns: repeat(var(--ga-bento-columns, 4), minmax(0, 1fr)); grid-auto-rows: var(--ga-bento-row, 84px); gap: 44px 28px; }
 /* Group divider: the name, then a thin line that fades out to the right. Its row is zero high; the label hangs into the gap. */
 .ga-bento-divider { display: flex; align-items: center; gap: 14px; height: 18px; margin: 6px 0 -24px; pointer-events: none; }
-.ga-bento-divider span { font: 800 11px Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; white-space: nowrap; }
 .ga-bento-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, #ffffff30, transparent); }
+/* Each divider is an accordion (GUI_DESIGN.md §4.18): arrow, name and count open or close the group. */
+.ga-bento-divider button { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 28px; margin-left: -6px; padding: 0 8px 0 6px; border: 0; border-radius: 6px; background: none; color: #929ba2; cursor: pointer; }
+.ga-bento-divider button span { font: 800 11px Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+.ga-bento-divider .ga-bento-divider-count { letter-spacing: .04em; color: #6f787f; }
+.ga-bento-divider button svg { flex: none; transform: rotate(90deg); transition: transform .2s ease; }
+.ga-bento-divider[data-collapsed] button svg { transform: none; }
+.ga-bento-divider button:hover, .ga-bento-divider button:focus-visible { color: #f4f4f2; outline: none; }
+.ga-bento-divider button:focus-visible { box-shadow: 0 0 0 2px #ff6a00; }
+
 .ga-bento-slot { position: relative; min-width: 0; min-height: 0; }
 .ga-bento-card { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 8px; background: #1b2024; box-shadow: 0 8px 22px #0007; cursor: pointer; text-align: left; color: #f4f4f2; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
 .ga-bento-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff18; pointer-events: none; transition: box-shadow .25s; }
@@ -77,3 +85,14 @@
 .ga-side-menu-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #ff6a00; color: #140a02; font-weight: 800; text-shadow: none; }
 .ga-side-menu-items button.primary:hover:not(:disabled) { background: #ff8230; }
 @media (prefers-reduced-motion: reduce) { .ga-bento-menu, .ga-bento-menu path { transition: none; animation: none !important; } }
+
+/* Sliding window (only the cards near the screen are mounted): each card rises into place on its own as it comes in,
+   with a slight tilt, like a showcase. Only `backwards` fill: once in, Flip and the detail morph own the transform. */
+@keyframes ga-card-reveal { from { opacity: 0; transform: perspective(900px) translateY(34px) rotateX(12deg) scale(.95); } }
+.ga-bento-slot:not([data-leaving]) { transform-origin: 50% 100%; animation: ga-card-reveal .7s cubic-bezier(.16,1,.3,1) backwards; animation-delay: var(--ga-reveal-delay, 0ms); }
+.library-section-grid > .library-room-card-shell { transform-origin: 50% 100%; animation: ga-card-reveal .7s cubic-bezier(.16,1,.3,1) backwards; }
+.library-section-grid > .library-room-card-shell:nth-child(5n+2) { animation-delay: 70ms; }
+.library-section-grid > .library-room-card-shell:nth-child(5n+3) { animation-delay: 30ms; }
+.library-section-grid > .library-room-card-shell:nth-child(5n+4) { animation-delay: 110ms; }
+.library-section-grid > .library-room-card-shell:nth-child(5n) { animation-delay: 50ms; }
+@media (prefers-reduced-motion: reduce) { .ga-bento-slot, .library-section-grid > .library-room-card-shell { animation: none; } }

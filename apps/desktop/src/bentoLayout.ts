@@ -65,16 +65,17 @@ export function bentoRowHeight(columnWidth: number, gap: number): number {
   return Math.max(40, (columnWidth * 1.5 - 2 * gap) / 3);
 }
 
-export interface BentoSectionMark { kind: BentoKind; row: number }
+export interface BentoSectionMark { kind: BentoKind; row: number; count: number; collapsed: boolean }
 export type BentoTrack = "label" | "row";
 
 /**
  * The library grouped by kind, one under the other, each under a thin divider: installed games (portrait), then
  * deep-frozen ones (portrait), then games to install (landscape, one row each). Every kind keeps the order it came in.
  * Rows are absolute in one grid: `tracks` says what each row is ("label" rows hold a divider, "row" rows a card row),
- * so cards can still move between groups (a finished download) with the same Flip animation.
+ * so cards can still move between groups (a finished download) with the same Flip animation. A collapsed group (an
+ * accordion) keeps its divider, with the count, and places no cards.
  */
-export function bentoSections<T>(items: BentoItem<T>[], columns: number): { placements: BentoPlacement<T>[]; sections: BentoSectionMark[]; tracks: BentoTrack[] } {
+export function bentoSections<T>(items: BentoItem<T>[], columns: number, collapsed: ReadonlySet<BentoKind> = new Set()): { placements: BentoPlacement<T>[]; sections: BentoSectionMark[]; tracks: BentoTrack[] } {
   const cols = Math.max(1, Math.floor(columns));
   const placements: BentoPlacement<T>[] = [];
   const sections: BentoSectionMark[] = [];
@@ -83,9 +84,11 @@ export function bentoSections<T>(items: BentoItem<T>[], columns: number): { plac
   for (const kind of ["ready", "deep", "pending"] as const) {
     const group = items.filter(item => item.kind === kind);
     if (!group.length) continue;
-    sections.push({ kind, row });
+    const closed = collapsed.has(kind);
+    sections.push({ kind, row, count: group.length, collapsed: closed });
     tracks.push("label");
     row++;
+    if (closed) continue;
     const portrait = kind !== "pending";
     const lines = Math.ceil(group.length / cols);
     group.forEach((item, index) => placements.push({ value: item.value, kind, column: (index % cols) + 1, row: row + Math.floor(index / cols) * (portrait ? 3 : 1), rowSpan: portrait ? 3 : 1 }));
@@ -94,4 +97,27 @@ export function bentoSections<T>(items: BentoItem<T>[], columns: number): { plac
     row += used;
   }
   return { placements, sections, tracks };
+}
+
+/**
+ * Top of every grid row in pixels (index = row - 1), for a grid whose label rows have no height of their own and whose
+ * card rows are `rowHeight` tall, all separated by `gap`. The library mounts only the cards near the screen from it.
+ */
+export function bentoRowTops(tracks: BentoTrack[], rowHeight: number, gap: number): number[] {
+  const tops: number[] = [];
+  let y = 0;
+  for (const track of tracks) {
+    tops.push(y);
+    y += (track === "label" ? 0 : rowHeight) + gap;
+  }
+  return tops;
+}
+
+/** The placements that touch the band [from, to] (pixels from the top of the grid): the sliding window of cards. */
+export function bentoInWindow<T>(placements: BentoPlacement<T>[], tops: number[], rowHeight: number, from: number, to: number): BentoPlacement<T>[] {
+  return placements.filter(item => {
+    const top = tops[item.row - 1] ?? 0;
+    const bottom = (tops[item.row + item.rowSpan - 2] ?? top) + rowHeight;
+    return bottom >= from && top <= to;
+  });
 }

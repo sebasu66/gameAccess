@@ -39,6 +39,11 @@ export function computeShelfWindow(input: {
    * window before the real viewport is known, defeating the preview.
    */
   previewLimit?: number;
+  /**
+   * Rows mounted above and below the visible ones. Without it the window fills `maxCards` and splits the spare rows
+   * evenly; with it only the visible rows plus this margin are mounted (still never more than `maxCards`).
+   */
+  bufferRows?: number;
 }): ShelfWindow {
   const { scrollTop, viewportHeight, totalCount, metrics, maxCards, previewLimit } = input;
   const columns = Math.max(1, Math.floor(metrics.columns));
@@ -57,11 +62,14 @@ export function computeShelfWindow(input: {
   const visibleRows = unmeasured
     ? Math.max(1, Math.ceil(previewLimit / columns))
     : Math.max(1, Math.ceil(viewportHeight / rowHeight));
-  const bufferRows = Math.max(0, Math.floor((maxRows - visibleRows) / 2));
+  const tight = input.bufferRows !== undefined && !unmeasured;
+  const bufferRows = tight ? Math.max(0, Math.floor(input.bufferRows!)) : Math.max(0, Math.floor((maxRows - visibleRows) / 2));
+  // A partly visible row at the bottom counts as visible too.
+  const windowRows = tight ? Math.max(1, Math.min(maxRows, visibleRows + 1 + bufferRows * 2)) : maxRows;
 
   let startRow = Math.max(0, firstVisibleRow - bufferRows);
-  if (startRow + maxRows > totalRows) startRow = Math.max(0, totalRows - maxRows);
-  const endRow = Math.min(totalRows - 1, startRow + maxRows - 1);
+  if (startRow + windowRows > totalRows) startRow = Math.max(0, totalRows - windowRows);
+  const endRow = Math.min(totalRows - 1, startRow + windowRows - 1);
 
   const startIndex = startRow * columns;
   const endIndex = unmeasured

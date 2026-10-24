@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import RenameGameDialog from "./RenameGameDialog";
-import { Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
+import { ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
@@ -9,7 +9,7 @@ import { useLibraryScan } from "./libraryScan";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { downloadManager } from "./downloadManager";
-import { bentoRowHeight, bentoSections, type BentoKind } from "./bentoLayout";
+import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, type BentoKind } from "./bentoLayout";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
@@ -40,6 +40,20 @@ interface Props {
 
 interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus }
 
+// The groups are accordions: only the installed games start open. What the player opens or closes is remembered here.
+const COLLAPSED_KEY = "gameaccess:library-collapsed";
+const DEFAULT_COLLAPSED: BentoKind[] = ["deep", "pending"];
+function readCollapsed(): Set<BentoKind> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "null");
+    if (Array.isArray(saved)) return new Set(saved.filter((kind): kind is BentoKind => kind === "ready" || kind === "deep" || kind === "pending"));
+  } catch { /* no storage: the default */ }
+  return new Set(DEFAULT_COLLAPSED);
+}
+function saveCollapsed(collapsed: Set<BentoKind>) {
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch { /* not remembered, still works */ }
+}
+
 const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void }) {
   const { t } = useI18n();
   const { game, kind, frozen, status } = card;
@@ -67,6 +81,9 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
     </button>
   );
 });
+
+// Cards come in one by one as they enter the window: each column a little later, landscape stacks top to bottom.
+const revealDelay = (item: { column: number; row: number; kind: BentoKind }) => (item.column - 1) * 55 + (item.kind === "pending" ? ((item.row - 1) % 3) * 35 : 0);
 
 const DWELL_MS = 1000;
 // The menu stays while the pointer is within this many pixels of the card or the menu, and closes a moment after it leaves.
@@ -211,28 +228,89 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     return () => observer?.disconnect();
   }, []);
 
-  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns), [cards, columns]);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, collapsed), [cards, columns, collapsed]);
   const placed = layout.placements;
   const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };
 
-  // Leaving cards stay one moment to shrink in place; then the rest move to their new slots.
+  // Sliding window: only the cards on screen plus one card row above and below are mounted; the grid keeps every row,
+  // so its height and the scrollbar never depend on what is mounted. A scroll renders only when the window changes.
+  const tops = useMemo(() => bentoRowTops(layout.tracks, rowHeight, ROW_GAP), [layout.tracks, rowHeight]);
+  const [band, setBand] = useState<{ from: number; to: number } | null>(null);
+  const bandInputs = useRef({ tops, rowHeight, placed });
+  bandInputs.current = { tops, rowHeight, placed };
+  const refreshBand = useRef(() => {});
+  useLayoutEffect(() => {
+    const host = grid.current;
+    const root = host?.closest<HTMLElement>(".library-section-scroll");
+    if (!host || !root) return;
+    let offset = 0, frame = 0, lastKey = "";
+    const update = () => {
+      frame = 0;
+      const { tops, rowHeight, placed } = bandInputs.current;
+      const margin = rowHeight * 3 + ROW_GAP * 3;
+      const from = root.scrollTop - offset - margin, to = root.scrollTop - offset + root.clientHeight + margin;
+      const key = bentoInWindow(placed, tops, rowHeight, from, to).map(item => item.value.game.id).join(",");
+      if (key !== lastKey) { lastKey = key; setBand({ from, to }); }
+    };
+    const measure = () => {
+      offset = host.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
+      lastKey = "";
+      update();
+    };
+    const scroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    refreshBand.current = () => { lastKey = ""; update(); };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(root);
+    observer?.observe(host);
+    root.addEventListener("scroll", scroll, { passive: true });
+    return () => { observer?.disconnect(); root.removeEventListener("scroll", scroll); window.cancelAnimationFrame(frame); };
+  }, [tops]);
+  // The selected card and the one with the menu open stay mounted (keyboard focus, the menu's anchor).
+  const shown = useMemo(() => {
+    if (!band) return placed.slice(0, columns * 2);
+    const inside = new Set(bentoInWindow(placed, tops, rowHeight, band.from, band.to));
+    return placed.filter(item => inside.has(item) || item.value.game.id === selectedId || item.value.game.id === menuFor?.card.game.id);
+  }, [placed, tops, rowHeight, band, columns, selectedId, menuFor]);
+
+  // Flip only when the set of cards really changes (one added, removed or moved to another group): never when the
+  // library appears (it would fight the 3D turn), on resize, on a download's progress or when a group opens or closes.
+  // Measuring every card forces a layout, so it happens once per real change, not on every render.
+  const flipKey = useMemo(() => placed.map(item => `${item.value.game.id}:${item.kind}`).join(","), [placed]);
+  const lastKey = useRef<string | null>(null);
+  const quiet = useRef(true);
   const [leaving, setLeaving] = useState<Array<{ card: Card; style: CSSProperties }>>([]);
   const lastPlaced = useRef(placed);
   const flipState = useRef<Flip.FlipState | null>(null);
-  if (grid.current && motionOk()) flipState.current = Flip.getState(grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"));
-  useEffect(() => {
+  if (grid.current && lastKey.current !== null && flipKey !== lastKey.current && !quiet.current && !flipState.current && motionOk()) {
+    flipState.current = Flip.getState(grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"));
+  }
+  useLayoutEffect(() => {
+    const still = quiet.current || lastKey.current === null;
+    quiet.current = false;
+    lastKey.current = flipKey;
+    const state = flipState.current;
+    flipState.current = null;
+    if (still || !grid.current || !motionOk()) return;
+    // Leaving cards stay one moment to shrink in place; then the rest move to their new slots.
     const now = new Set(placed.map(item => item.value.game.id));
     const gone = lastPlaced.current.filter(item => !now.has(item.value.game.id));
-    lastPlaced.current = placed;
-    if (!gone.length || !motionOk()) return;
-    setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` } })));
-  }, [placed]);
-  useLayoutEffect(() => {
-    if (!flipState.current || !grid.current) return;
-    Flip.from(flipState.current, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: leaving.length ? .25 : 0,
-      onEnter: elements => gsap.fromTo(elements, { opacity: 0, scale: .85 }, { opacity: 1, scale: 1, duration: .45, ease: "power3.out" }) });
-    flipState.current = null;
-  }, [placed]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (gone.length) setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` } })));
+    // A card that comes in shows itself with the reveal of the sliding window (CSS), not a second animation here.
+    if (state) Flip.from(state, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: gone.length ? .25 : 0 });
+  }, [flipKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { lastPlaced.current = placed; }, [placed]);
+  useLayoutEffect(() => refreshBand.current(), [flipKey]);
+  const toggleGroup = (kind: BentoKind) => {
+    quiet.current = true;  // opening or closing shows or hides the cards at once
+    setCollapsed(current => {
+      const next = new Set(current);
+      if (!next.delete(kind)) next.add(kind);
+      saveCollapsed(next);
+      return next;
+    });
+  };
   useEffect(() => {
     if (!leaving.length || !grid.current) return;
     const nodes = grid.current.querySelectorAll("[data-leaving]");
@@ -250,10 +328,16 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   return (
     <div className="ga-bento-wrap">
       {infoTarget ? createPortal(summary, infoTarget) : null}
-      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "auto" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
-        {layout.sections.map(section => <div key={`section-${section.kind}`} className="ga-bento-divider" style={{ gridColumn: "1 / -1", gridRow: section.row }}><span>{sectionNames[section.kind]}</span></div>)}
-        {placed.map(item => (
-          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` }}
+      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "0px" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
+        {layout.sections.map(section => (
+          <div key={`section-${section.kind}`} className="ga-bento-divider" data-collapsed={section.collapsed || undefined} style={{ gridColumn: "1 / -1", gridRow: section.row }}>
+            <button type="button" aria-expanded={!section.collapsed} onClick={() => toggleGroup(section.kind)}>
+              <ChevronRight size={14} aria-hidden="true" /><span>{sectionNames[section.kind]}</span><span className="ga-bento-divider-count">({section.count})</span>
+            </button>
+          </div>
+        ))}
+        {shown.map(item => (
+          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}`, "--ga-reveal-delay": `${revealDelay(item)}ms` } as CSSProperties}
             onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>
             <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} />
             <MenuDot shown={dotFor === item.value.game.id && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}

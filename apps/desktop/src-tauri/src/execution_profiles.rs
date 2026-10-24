@@ -64,7 +64,11 @@ pub(crate) fn open_cooptimus_page(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn save_execution_profile(app_id: u32, profile: serde_json::Value) -> Result<(), String> {
+pub(crate) async fn save_execution_profile(app_id: u32, profile: serde_json::Value) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || write_execution_profile(app_id, profile)).await.map_err(|e| e.to_string())?
+}
+
+fn write_execution_profile(app_id: u32, profile: serde_json::Value) -> Result<(), String> {
     let _guard = NARRATION_LOG_LOCK.get_or_init(|| Mutex::new(())).lock().map_err(|e| e.to_string())?;
     let raw = serde_json::to_vec(&profile).map_err(|e| e.to_string())?;
     if !profile.is_object() || raw.len() > 256 * 1024 { return Err("Invalid execution profile".into()); }
@@ -75,7 +79,11 @@ pub(crate) fn save_execution_profile(app_id: u32, profile: serde_json::Value) ->
     Ok(())
 }
 #[tauri::command]
-pub(crate) fn read_execution_profile(app_id: u32) -> Result<Option<serde_json::Value>, String> {
+pub(crate) async fn read_execution_profile(app_id: u32) -> Result<Option<serde_json::Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || load_execution_profile(app_id)).await.map_err(|e| e.to_string())?
+}
+
+fn load_execution_profile(app_id: u32) -> Result<Option<serde_json::Value>, String> {
     let path = execution_profile_path(app_id)?;
     if !path.is_file() { return Ok(None); }
     let raw = fs::read(path).map_err(|e| e.to_string())?;
