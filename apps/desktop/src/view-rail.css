@@ -20,6 +20,8 @@
 }
 .ga-rail-word[data-view="catalog"] { --rw-hi: #ffb070; --rw: #ff6a00; --rw-lo: #c94f00; }
 .ga-rail-word[data-view="library"] { --rw-hi: #e2fff0; --rw: #8fe3b0; --rw-lo: #4fb985; }
-/* The catalog and library content keep clear of the rail. */
-.library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-left: var(--ga-rail, 0px); }
-@media (max-width: 900px) { .ga-view-rail { display: none; } .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-left: 0; } }
+/* The catalog and library content is centred on the whole window, as if the word were not there: a column of at most
+   1600 px with the same margin on both sides. That margin is never less than how far the word reaches into the
+   content area (--ga-rail-clear, measured by ViewRail.tsx), so the word never covers the content. */
+.library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: max(var(--ga-rail-clear, 0px), (100% - 1600px) / 2); }
+@media (max-width: 900px) { .ga-view-rail { display: none; } .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { --ga-rail-clear: 0px; } }

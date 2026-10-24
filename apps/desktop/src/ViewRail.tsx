@@ -30,12 +30,30 @@ export default function ViewRail({ view }: { view: RailView }) {
         width = Math.max(width, word.offsetWidth);
       });
       document.documentElement.style.setProperty("--ga-rail", `${Math.round(width * .92)}px`);
+      clearance();
       host.querySelectorAll<HTMLElement>(".ga-rail-word").forEach(word => gsap.set(word, { yPercent: -50, rotation: 180, y: word.dataset.view === shown.current ? 0 : window.innerHeight * 1.3 }));
+    };
+    // The content is centred on the window, not beside the word; it only keeps clear of the word by as much as the
+    // word reaches into the content area (none on wide windows). Measured, because side panels move the room.
+    const clearance = () => {
+      const host = root.current, room = document.querySelector<HTMLElement>(".library-room");
+      if (!host || !room) return;
+      const contentLeft = room.getBoundingClientRect().left + (parseFloat(getComputedStyle(room).paddingLeft) || 0);
+      const clear = Math.max(0, Math.round(host.getBoundingClientRect().right - contentLeft));
+      document.documentElement.style.setProperty("--ga-rail-clear", `${clear}px`);
     };
     size();
     void document.fonts?.ready.then(size);
     window.addEventListener("resize", size);
-    return () => { window.removeEventListener("resize", size); document.documentElement.style.removeProperty("--ga-rail"); };
+    const room = document.querySelector<HTMLElement>(".library-room");
+    const observer = room && typeof ResizeObserver !== "undefined" ? new ResizeObserver(clearance) : null;
+    if (room) observer?.observe(room);
+    return () => {
+      window.removeEventListener("resize", size);
+      observer?.disconnect();
+      document.documentElement.style.removeProperty("--ga-rail");
+      document.documentElement.style.removeProperty("--ga-rail-clear");
+    };
   }, [words.catalog, words.library]);
 
   useEffect(() => {
