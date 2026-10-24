@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bentoCells, bentoLayout, bentoRowHeight, type BentoItem } from "./bentoLayout";
+import { bentoCells, bentoLayout, bentoRowHeight, bentoSections, type BentoItem } from "./bentoLayout";
 
 const items = (ready: number, pending: number, deep = 0): BentoItem<string>[] => [
   ...Array.from({ length: ready }, (_, i) => ({ kind: "ready" as const, value: `r${i}` })),
@@ -43,5 +43,25 @@ describe("library bento layout", () => {
 
   it("makes three landscape rows as tall as a portrait column", () => {
     expect(bentoRowHeight(180, 14) * 3 + 2 * 14).toBeCloseTo(270);
+  });
+});
+
+describe("library bento sections", () => {
+  it("stacks installed, frozen and installable games, each under its own divider row", () => {
+    const { placements, sections, tracks } = bentoSections(items(5, 4, 2), 4);
+    expect(sections.map(s => s.kind)).toEqual(["ready", "deep", "pending"]);
+    expect(tracks.filter(t => t === "label")).toHaveLength(3);
+    expect(tracks).toHaveLength(Math.max(...placements.map(p => p.row + p.rowSpan - 1)));
+    const rows = (kind: string) => placements.filter(p => p.kind === kind).map(p => p.row);
+    expect(Math.max(...rows("ready"))).toBeLessThan(Math.min(...rows("deep")));
+    expect(Math.max(...rows("deep"))).toBeLessThan(Math.min(...rows("pending")));
+    expect(sections.every(s => tracks[s.row - 1] === "label")).toBe(true);
+  });
+
+  it("skips empty groups and never overlaps two games", () => {
+    const { placements, sections } = bentoSections(items(0, 7, 0), 3);
+    expect(sections.map(s => s.kind)).toEqual(["pending"]);
+    const slots = placements.flatMap(p => Array.from({ length: p.rowSpan }, (_, i) => `${p.column}:${p.row + i}`));
+    expect(new Set(slots).size).toBe(slots.length);
   });
 });

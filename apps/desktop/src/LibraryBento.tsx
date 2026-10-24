@@ -9,15 +9,15 @@ import { useLibraryScan } from "./libraryScan";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { downloadManager } from "./downloadManager";
-import { bentoLayout, bentoRowHeight, type BentoKind } from "./bentoLayout";
+import { bentoRowHeight, bentoSections, type BentoKind } from "./bentoLayout";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 import "./library-bento.css";
 
 // Row gaps leave room for the game name under each card.
-const COLUMN_GAP = 20;
-const ROW_GAP = 32;
+const COLUMN_GAP = 28;
+const ROW_GAP = 44;
 const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
 export type LibraryPill = "all" | "installed" | "favorites";
 
@@ -133,14 +133,14 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
     });
     const move = (event: PointerEvent) => {
       if (inside(event)) { window.clearTimeout(timer.current); timer.current = 0; }
-      else if (!timer.current) timer.current = window.setTimeout(close, LEAVE_MS);
+      else if (!timer.current) timer.current = window.setTimeout(() => { timer.current = 0; close(); }, LEAVE_MS);
     };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); close(); } };
     const scroll = () => close();
     window.addEventListener("pointermove", move);
     window.addEventListener("keydown", key, true);
     window.addEventListener("scroll", scroll, true);
-    return () => { window.clearTimeout(timer.current); window.removeEventListener("pointermove", move); window.removeEventListener("keydown", key, true); window.removeEventListener("scroll", scroll, true); };
+    return () => { window.clearTimeout(timer.current); timer.current = 0; window.removeEventListener("pointermove", move); window.removeEventListener("keydown", key, true); window.removeEventListener("scroll", scroll, true); };
   }, [slot, close]);
 
   const deep = card.kind === "deep";
@@ -222,7 +222,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     return () => observer?.disconnect();
   }, []);
 
-  const placed = useMemo(() => bentoLayout(cards.map(card => ({ kind: card.kind, value: card })), columns), [cards, columns]);
+  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns), [cards, columns]);
+  const placed = layout.placements;
+  const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };
 
   // Leaving cards stay one moment to shrink in place; then the rest move to their new slots.
   const [leaving, setLeaving] = useState<Array<{ card: Card; style: CSSProperties }>>([]);
@@ -259,7 +261,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   return (
     <div className="ga-bento-wrap">
       {infoTarget ? createPortal(summary, infoTarget) : null}
-      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns } as CSSProperties}>
+      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "auto" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
+        {layout.sections.map(section => <div key={`section-${section.kind}`} className="ga-bento-divider" style={{ gridColumn: "1 / -1", gridRow: section.row }}><span>{sectionNames[section.kind]}</span></div>)}
         {placed.map(item => (
           <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` }}
             onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>

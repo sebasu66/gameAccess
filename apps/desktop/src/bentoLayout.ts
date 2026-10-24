@@ -64,3 +64,34 @@ export function bentoLayout<T>(items: BentoItem<T>[], columns: number): BentoPla
 export function bentoRowHeight(columnWidth: number, gap: number): number {
   return Math.max(40, (columnWidth * 1.5 - 2 * gap) / 3);
 }
+
+export interface BentoSectionMark { kind: BentoKind; row: number }
+export type BentoTrack = "label" | "row";
+
+/**
+ * The library grouped by kind, one under the other, each under a thin divider: installed games (portrait), then
+ * deep-frozen ones (portrait), then games to install (landscape, one row each). Every kind keeps the order it came in.
+ * Rows are absolute in one grid: `tracks` says what each row is ("label" rows hold a divider, "row" rows a card row),
+ * so cards can still move between groups (a finished download) with the same Flip animation.
+ */
+export function bentoSections<T>(items: BentoItem<T>[], columns: number): { placements: BentoPlacement<T>[]; sections: BentoSectionMark[]; tracks: BentoTrack[] } {
+  const cols = Math.max(1, Math.floor(columns));
+  const placements: BentoPlacement<T>[] = [];
+  const sections: BentoSectionMark[] = [];
+  const tracks: BentoTrack[] = [];
+  let row = 1;
+  for (const kind of ["ready", "deep", "pending"] as const) {
+    const group = items.filter(item => item.kind === kind);
+    if (!group.length) continue;
+    sections.push({ kind, row });
+    tracks.push("label");
+    row++;
+    const portrait = kind !== "pending";
+    const lines = Math.ceil(group.length / cols);
+    group.forEach((item, index) => placements.push({ value: item.value, kind, column: (index % cols) + 1, row: row + Math.floor(index / cols) * (portrait ? 3 : 1), rowSpan: portrait ? 3 : 1 }));
+    const used = lines * (portrait ? 3 : 1);
+    for (let i = 0; i < used; i++) tracks.push("row");
+    row += used;
+  }
+  return { placements, sections, tracks };
+}
