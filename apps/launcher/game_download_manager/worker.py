@@ -32,6 +32,7 @@ import requests
 import logging
 from flow_diagnostics import FlowDiagnostics, FlowLogger
 from launcher_data import data_dir
+from game_download_manager.steps import StepTracker
 from logging.handlers import RotatingFileHandler
 
 LAUNCHER_DIR = Path(__file__).resolve().parent.parent
@@ -109,6 +110,8 @@ g_temp_files: List[str] = []
 g_cancel_hooks: List[Any] = []
 g_app_id: str = ""
 g_route: str = ""
+# One download per worker process: its steps, sent with every progress and error event.
+g_steps = StepTracker()
 g_diagnostics = None
 
 def emit_json(payload: dict):
@@ -189,6 +192,7 @@ def emit_progress(
     clean_text = re.sub(r' — \d+(\.\d+)?%', '', clean_text)
     clean_text = re.sub(r' - \d+(\.\d+)?%', '', clean_text)
     clean_text = clean_text.strip()
+    g_steps.follow(phase, clean_text)
 
     emit_json({
         "type": "progress",
@@ -203,11 +207,14 @@ def emit_progress(
         "etaSeconds": int(eta_seconds),
         "statusText": clean_text,
         "route": g_route,
+        **g_steps.payload(),
     })
 
 def emit_error(app_id: str, error_message: str, error_code: str = "", error_detail=None):
     """`error_code` names failures the app explains in its own words (e.g. "not_a_game", with the content kinds found)."""
+    g_steps.fail(error_message)
     emit_json({
+        **g_steps.payload(),
         "type": "error",
         "appId": str(app_id),
         "phase": "error",
@@ -300,7 +307,7 @@ def _context():
         archive_enclosing_folder=archive_enclosing_folder,
         get_process=lambda: g_active_subprocess, set_process=_set_process,
         get_torrent=lambda: g_torrent_session, set_torrent=_set_torrent,
-        cancel_hooks=g_cancel_hooks, set_route=_set_route,
+        cancel_hooks=g_cancel_hooks, set_route=_set_route, steps=g_steps,
     )
 
 

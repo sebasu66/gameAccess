@@ -6,7 +6,7 @@ import { buildChunkSession, canAccelerate } from "../vikingResolver";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
-import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
 import { snapshotToManagedStatus } from "../downloadProvider";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { digitalProcessManager } from "./DigitalProcessManager";
@@ -31,6 +31,21 @@ type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
  * turns its state into snapshots for the interface. What stays here is what only the interface needs: the game
  * shown in each row, speed history, notices, the desktop shortcut after a download completes.
  */
+
+const STEP_IDS: readonly string[] = ["route", "probe", "server", "download", "extract", "install"];
+/** The launcher's current step, if it is well formed. */
+function stepNow(value: unknown): DownloadStepNow | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown };
+  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now() } : null;
+}
+/** The launcher's finished steps, keeping only well-formed ones. */
+function stepsDone(value: unknown): DownloadStepDone[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(raw => raw && STEP_IDS.includes(String(raw.id)) && ["done", "skipped", "failed"].includes(String(raw.state)))
+    .map(raw => ({ id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0 }));
+}
+
 export class DigitalDownloadService implements IDownloadProvider {
   readonly name = "digital-python-downloader";
   private activeJobs = new Map<number, DownloadProgressSnapshot>();
@@ -165,6 +180,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       error: job.error || undefined,
       errorCode: typeof status.errorCode === "string" ? status.errorCode : undefined,
       errorDetail: Array.isArray(status.errorDetail) ? status.errorDetail.map(String) : undefined,
+      ...("step" in status || "steps" in status ? { step: stepNow(status.step), steps: stepsDone(status.steps) } : {}),
     };
   }
 
@@ -182,7 +198,8 @@ export class DigitalDownloadService implements IDownloadProvider {
       const next = this.snapshotOf(gameId, job);
       const previous = this.activeJobs.get(gameId);
       if (!previous || previous.phase !== next.phase || previous.progress !== next.progress || previous.bytesDownloaded !== next.bytesDownloaded
-        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps) {
+        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps
+        || previous.step?.id !== next.step?.id || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
         this.updateSnapshot(next);
       }
     }

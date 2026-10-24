@@ -25,6 +25,8 @@ class DownloadContext:
     # How the bytes are being fetched, shown to the player: "measuring" (PLUS deciding), "torrent",
     # "accelerated" (the server's TorBox -> ViKiNG pieces) or "direct" (an HTTP link).
     set_route: Callable = lambda route: None
+    # The steps shown to the player as a sequence (game_download_manager.steps.StepTracker); None in tests.
+    steps: Any = None
 
     @property
     def active_subprocess(self):

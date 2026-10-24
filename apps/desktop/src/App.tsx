@@ -43,6 +43,8 @@ import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/Digi
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DeskPanel from "./desk/DeskPanel";
+import { uiDemo } from "./devDemo/uiDemo";
+import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import DigitalDownloadToast from "./DigitalDownloadToast";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
@@ -65,6 +67,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary(); }, []);
   const downloadsOpen = useDesk().includes("downloads");
+  // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
+  const demoService = useRef<ReturnType<typeof demoDownloadService>>();
+  if (uiDemo() && !demoService.current) demoService.current = demoDownloadService();
   useDeskLayout();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -631,7 +636,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}

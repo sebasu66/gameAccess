@@ -13,6 +13,7 @@ import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider
 import "./digital-downloads.css";
 import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
 import DownloadTelemetry from "./DownloadTelemetry";
+import DownloadSteps from "./DownloadSteps";
 import { useDialogFocus } from "./dialogFocus";
 import { useOverlayClose } from "./useOverlayClose";
 import { GaBack } from "./components/ga/Buttons";
@@ -86,7 +87,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
         <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
-        <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
+        {featured && !terminal(entry) ? <DownloadSteps snapshot={snapshot} phaseLabel={phaseLabel(phase)} /> : <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>}
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" && phase !== "external" ? <>
@@ -122,11 +123,11 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{summary}</p></div>
       <GaBack className="digital-download-back" label={t("back")} data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")} />
     </header>}
-    <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
     {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
     {queue.length ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
     {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsSession")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
+    <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
   </section>;
 }
