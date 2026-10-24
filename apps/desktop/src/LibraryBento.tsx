@@ -15,7 +15,9 @@ import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 import "./library-bento.css";
 
-const GAP = 14;
+// Row gaps leave room for the game name under each card.
+const COLUMN_GAP = 20;
+const ROW_GAP = 32;
 const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
 export type LibraryPill = "all" | "installed" | "favorites";
 
@@ -38,7 +40,7 @@ interface Props {
 
 interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus }
 
-const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onContextMenu }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onContextMenu: Props["onContextMenu"] }) {
+const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void }) {
   const { t } = useI18n();
   const { game, kind, frozen, status } = card;
   const active = gameStateManager.resolve(status).transferActive;
@@ -54,7 +56,7 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onC
       aria-label={`${game.name}${kind === "ready" ? t("cardAriaReady") : ""}${frozen ? ` · ${t(frozen === "deep" ? "bentoDeepFrozen" : "bentoFrozen")}` : ""}`}
       onFocus={() => onSelect(index, false)}
       onClick={() => onSelect(index)}
-      onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); onSelect(index, false); onContextMenu({ game, x: event.clientX, y: event.clientY, status }); }}
+      onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
       {kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
       {kind === "ready" ? <span className="ga-card-installed ga-bento-play" aria-hidden="true"><Play size={12} fill="currentColor" /></span> : null}
@@ -66,8 +68,10 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onC
   );
 });
 
-const DWELL_MS = 2000;
-const LEAVE_MS = 280;
+const DWELL_MS = 1000;
+// The menu stays while the pointer is within this many pixels of the card or the menu, and closes a moment after it leaves.
+const LEAVE_MS = 450;
+const LEAVE_MARGIN = 70;
 
 /**
  * The back of a library card (docs/TAREA-interfaz-nueva.md T8): the card turns over and behind it are the same cover
@@ -121,22 +125,28 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const leave = () => { window.clearTimeout(timer.current); timer.current = window.setTimeout(close, LEAVE_MS); };
-    const stay = () => window.clearTimeout(timer.current);
+    // Closing depends on where the pointer is, not on which element it crosses: moving between the card, the menu and
+    // its buttons never counts as leaving.
+    const inside = (event: PointerEvent) => [slot, menu.current].some(el => {
+      const r = el?.getBoundingClientRect();
+      return r ? event.clientX >= r.left - LEAVE_MARGIN && event.clientX <= r.right + LEAVE_MARGIN && event.clientY >= r.top - LEAVE_MARGIN && event.clientY <= r.bottom + LEAVE_MARGIN : false;
+    });
+    const move = (event: PointerEvent) => {
+      if (inside(event)) { window.clearTimeout(timer.current); timer.current = 0; }
+      else if (!timer.current) timer.current = window.setTimeout(close, LEAVE_MS);
+    };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); close(); } };
     const scroll = () => close();
-    slot.addEventListener("pointerleave", leave);
-    slot.addEventListener("pointerenter", stay);
+    window.addEventListener("pointermove", move);
     window.addEventListener("keydown", key, true);
     window.addEventListener("scroll", scroll, true);
-    return () => { window.clearTimeout(timer.current); slot.removeEventListener("pointerleave", leave); slot.removeEventListener("pointerenter", stay); window.removeEventListener("keydown", key, true); window.removeEventListener("scroll", scroll, true); };
+    return () => { window.clearTimeout(timer.current); window.removeEventListener("pointermove", move); window.removeEventListener("keydown", key, true); window.removeEventListener("scroll", scroll, true); };
   }, [slot, close]);
 
   const deep = card.kind === "deep";
   const run = (action: () => void) => () => { close(); action(); };
   return createPortal(
-    <div ref={menu} className="ga-flip-menu" role="menu" aria-label={t("flipMenuLabel", { name: card.game.name })}
-      onPointerEnter={() => window.clearTimeout(timer.current)} onPointerLeave={() => { window.clearTimeout(timer.current); timer.current = window.setTimeout(close, LEAVE_MS); }}>
+    <div ref={menu} className="ga-flip-menu" role="menu" aria-label={t("flipMenuLabel", { name: card.game.name })}>
       {image ? <img className="ga-flip-art" src={image} alt="" /> : null}
       <span className="ga-flip-glass" />
       <div className="ga-flip-items">
@@ -151,7 +161,7 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   );
 }
 
-/** Three lines that draw themselves after the pointer rests 2 s on a card, then pulse; a click turns the card over. */
+/** Three lines that draw themselves after the pointer rests 1 s on a card, then pulse; a click turns the card over. */
 function MenuDot({ shown, label, onOpen }: { shown: boolean; label: string; onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   return (
     <button type="button" className="ga-bento-menu" data-shown={shown || undefined} aria-label={label} title={label} onClick={event => { event.stopPropagation(); onOpen(event); }}>
@@ -165,14 +175,15 @@ function MenuDot({ shown, label, onOpen }: { shown: boolean; label: string; onOp
  * small landscape, deep-frozen ones grouped on the right with an ice veil. Removed games shrink in their place before
  * the rest move with Flip; a finished download grows from landscape to portrait.
  */
-export default function LibraryBento({ games, downloads, preferences = {}, pill, indexes, selectedId, onSelect, onContextMenu, onPlay, onInstall, onManage, infoTarget }: Props) {
+export default function LibraryBento({ games, downloads, preferences = {}, pill, indexes, selectedId, onSelect, onPlay, onInstall, onManage, infoTarget }: Props) {
   const { t } = useI18n();
   const scan = useLibraryScan();
-  // The menu dot appears after resting 2 s on a card (or at once with the keyboard); a click turns the card over.
+  // The menu dot appears after resting 1 s on a card (or at once with the keyboard); a click turns the card over.
   const [dotFor, setDotFor] = useState<number | null>(null);
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
   const [renaming, setRenaming] = useState<CatalogGame | null>(null);
   const dwell = useRef(0);
+  const openMenu = useCallback((card: Card, slot: HTMLElement) => setMenuFor(current => current ?? { card, slot }), []);
   const rest = (id: number) => { window.clearTimeout(dwell.current); dwell.current = window.setTimeout(() => setDotFor(id), DWELL_MS); };
   const leave = (id: number) => { window.clearTimeout(dwell.current); if (menuFor?.card.game.id !== id) setDotFor(current => (current === id ? null : current)); };
   useEffect(() => () => window.clearTimeout(dwell.current), []);
@@ -200,10 +211,10 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     if (!host) return;
     const measure = () => {
       const width = host.clientWidth;
-      const cols = Math.max(1, Math.floor((width + GAP) / (180 + GAP)));
-      const columnWidth = (width - GAP * (cols - 1)) / cols;
+      const cols = Math.max(1, Math.floor((width + COLUMN_GAP) / (180 + COLUMN_GAP)));
+      const columnWidth = (width - COLUMN_GAP * (cols - 1)) / cols;
       setColumns(cols);
-      setRowHeight(bentoRowHeight(columnWidth, GAP));
+      setRowHeight(bentoRowHeight(columnWidth, ROW_GAP));
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
@@ -252,9 +263,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         {placed.map(item => (
           <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` }}
             onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>
-            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onContextMenu={onContextMenu} />
+            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} />
             <MenuDot shown={dotFor === item.value.game.id || menuFor?.card.game.id === item.value.game.id} label={t("flipMenuLabel", { name: item.value.game.name })}
-              onOpen={event => { const slot = (event.currentTarget as HTMLElement).closest<HTMLElement>(".ga-bento-slot"); if (slot) setMenuFor({ card: item.value, slot }); }} />
+              onOpen={event => { const slot = (event.currentTarget as HTMLElement).closest<HTMLElement>(".ga-bento-slot"); if (slot) openMenu(item.value, slot); }} />
           </div>
         ))}
         {leaving.map(({ card, style }) => (
