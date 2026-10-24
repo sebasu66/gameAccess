@@ -167,6 +167,8 @@ interface DownloadCatalogPanelProps {
   downloads: DownloadMap;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
+  /** Opens the detail of a game that is not in the grid (the banner shows the newest games on Steam). */
+  onOpenGame?: (game: CatalogGame) => void;
   pinnedAppIds: Set<number>;
   onSelect: (index: number, openDetails?: boolean) => void;
   preferences?: Record<number, 1 | -1>;
@@ -200,6 +202,23 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const managerOpen = useDesk().includes("manager");
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
   useCardHover(props.gridRef);
+  // The wordmark and the top-right buttons line up with the catalog's edges (the row of filters above the grid).
+  useEffect(() => {
+    const row = document.querySelector<HTMLElement>(".ga-grid-toolbar");
+    if (!row) return;
+    const root = document.documentElement;
+    const place = () => {
+      const rect = row.getBoundingClientRect();
+      if (!rect.width) return;
+      root.style.setProperty("--ga-content-left", `${Math.round(rect.left)}px`);
+      root.style.setProperty("--ga-content-right", `${Math.round(window.innerWidth - rect.right)}px`);
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(row);
+    window.addEventListener("resize", place);
+    place();
+    return () => { observer.disconnect(); window.removeEventListener("resize", place); root.style.removeProperty("--ga-content-left"); root.style.removeProperty("--ga-content-right"); };
+  }, []);
   // The catalog banner is prepared right away, so it is complete before the catalog is shown.
   useEffect(() => { void prefetchSpotlight(); }, []);
   // The game selected when the screen opens (or with the keyboard) tints the background like the one under the pointer.
@@ -418,7 +437,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     <section className="library-room-catalog">
       {filtersOpen ? <LibraryFilterDialog games={view === "installed" ? allGames.filter(game => { const status = game.app_id ? props.downloads[game.app_id] : undefined; const state = gameStateManager.resolve(status); return state.installed || state.prepared || props.preferences?.[game.id] === 1; }) : allGames} countFromCatalog={view !== "installed"} query={searchQuery} filters={searchFilters} genres={facets.genres} onApply={next => { onSearchFiltersChange(next); setFiltersOpen(false); setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }} /> : null}
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
-      {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); }} /> : null}
+      {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
       <div className="ga-grid-toolbar">{filters}{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>
       <div className="ga-scroll-frame">

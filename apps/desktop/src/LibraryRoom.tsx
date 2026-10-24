@@ -72,7 +72,7 @@ interface LibraryRoomProps {
 
 const IDLE_SHOWCASE_ENABLED = false;
 
-export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale, t } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
@@ -90,6 +90,9 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const [columns, setColumns] = useState(4);
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
+  // A game opened from inside the catalog that is not in the grid (the banner's newest games) opens like an outside one.
+  const [ownDetailGame, setOwnDetailGame] = useState<CatalogGame | null>(null);
+  const externalDetailGame = externalDetailGameProp ?? ownDetailGame;
   const [detailOpen, setDetailOpen] = useState(Boolean(externalDetailGame));
   useEffect(() => {
     setDetailOpen(Boolean(externalDetailGame));
@@ -464,6 +467,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const { closing: detailClosing, morphing: detailMorphing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
     setDetailMenu(null);
+    setOwnDetailGame(null);
     onDetailClose?.();
     window.requestAnimationFrame(() => {
       const selected = selectedGameIdResolved == null ? null : gridRef.current?.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
@@ -751,7 +755,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

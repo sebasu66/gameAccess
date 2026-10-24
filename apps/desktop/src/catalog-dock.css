@@ -28,3 +28,16 @@ html body .ga-grid-toolbar .ga-hidden-installed { position: static; margin: 0 0 
 
 /* Room above the first row so a selected or lifted cover never gets its top edge cut by the scrolling area. */
 html body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame > .library-room-grid { padding-top: 16px; }
+
+/* Ultrawide windows: the catalog (banner, filters, grid) stops growing at 1600 px and stays centred, so the banner
+   image is not stretched into a thin strip. Heights depend on the window height only, never on its width. */
+html body .library-room:not(.surface-display):not(.surface-tablet) > .library-room-catalog { width: 100%; max-width: calc(1600px + var(--ga-rail, 0px)); margin-inline: auto; box-sizing: border-box; }
+
+/* The GameAccess wordmark and the buttons at the top right line up with the banner and the grid, as in the demo. */
+html body .ga-header-wordmark { left: var(--ga-content-left, 20px) !important; }
+html body .ga-header-utilities.topbar-actions { right: var(--ga-content-right, 36px) !important; }
+
+/* Footer buttons: one size (40 × 40, icon centred), one style and one label font; the label still unfolds on hover. */
+html body .catalog-bottom-actions .ga-cube { gap: 0 !important; min-width: 40px; height: 40px; padding: 0 10px; justify-content: center; box-sizing: border-box; }
+html body .catalog-bottom-actions .ga-cube .ga-cube-label { font: 800 12px Manrope, sans-serif !important; letter-spacing: .04em; text-transform: none; }
+html body .catalog-bottom-actions .library-back-to-top { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #ffffff1c; background: linear-gradient(180deg, #ffffff16, #ffffff05); color: #f4f4f2; font: 800 12px Manrope, sans-serif; }
