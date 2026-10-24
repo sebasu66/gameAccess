@@ -33,7 +33,13 @@ const game = ([appId, name, genres, score, released]: (typeof sample)[number], i
   genres, tags: genres, steam_review_score: score, steam_review_count: 50000 - index * 1500, recommendation_count: 90000 - index * 3000,
   release_date: daysAgo(released), short_description: `${name}.`, has_downloads: true, availableSourceCount: 2,
 });
-export const demoCatalog: CatalogGame[] = /* @__PURE__ */ sample.map(game);
+// `?uiDemo=1&demoCatalog=600` repeats the sample up to that many games (unique ids), to test scrolling a long catalog.
+const demoCatalogSize = () => (typeof window === "undefined" ? 0 : Number(new URLSearchParams(window.location.search).get("demoCatalog")) || 0);
+export const demoCatalog: CatalogGame[] = /* @__PURE__ */ Array.from({ length: Math.max(sample.length, demoCatalogSize()) }, (_, index) => {
+  const base = game(sample[index % sample.length], index % sample.length);
+  const copy = Math.floor(index / sample.length);
+  return copy ? { ...base, id: base.id * 1000 + copy, name: `${base.name} ${copy + 1}`, slug: `${base.slug}-${copy + 1}` } : base;
+});
 
 /** Games the sample player keeps in the library without having them installed yet. */
 export const demoLibraryMembers = (): CatalogGame[] => demoCatalog.filter(item => [1086940, 1174180, 870780, 632470, 1850570, 2420110, 1903340, 1245620, 553850].includes(item.app_id ?? 0));

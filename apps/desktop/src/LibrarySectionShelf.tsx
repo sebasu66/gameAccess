@@ -154,8 +154,13 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
   useLayoutEffect(() => {
     cancelTween.current();
-    selectionScrollPendingRef.current = true;
-    recenterPendingRef.current = true;
+    // A selection the scroll itself made (DownloadCatalogPanel moves it to a card on screen when the selected one
+    // leaves) must not move the scroll: tweening to it pulled the catalog back while scrolling, so it stopped loading.
+    const root = scrollRoot.current;
+    const fromScroll = root?.dataset.scrollClamping === "true";
+    if (fromScroll) delete root!.dataset.scrollClamping;
+    selectionScrollPendingRef.current = !fromScroll;
+    recenterPendingRef.current = !fromScroll;
   }, [selectedId]);
 
   // Keyboard navigation can target a card the window is not mounting yet:

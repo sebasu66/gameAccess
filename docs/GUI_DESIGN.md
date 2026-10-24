@@ -137,11 +137,12 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)
 - Acordeón: el separador entero es un botón (`aria-expanded`) con flecha a la izquierda (gira 90° al abrir), nombre del grupo en mayúsculas 11 px, cantidad entre paréntesis y la línea que se desvanece a la derecha. Al pasar el mouse o con foco, nombre y flecha en blanco; foco con anillo naranja.
 - Por defecto solo **Instalados** está abierto; **Congelados** e **Instalables** empiezan cerrados. Lo que el jugador abre o cierra se recuerda en ese equipo.
-- Abrir o cerrar no anima las tarjetas con Flip (sin medir todas las tarjetas): las que entran usan la entrada de la ventana deslizante.
+- Abrir o cerrar no anima las tarjetas con Flip (sin medir todas las tarjetas): aparecen o se van al instante.
 
 ### 4.19 Ventana deslizante de tarjetas (catálogo y librería)
 - Solo se montan las tarjetas visibles más una fila arriba y una abajo; al desplazarse, las que salen se desmontan y las que entran aparecen. La altura total de la grilla no cambia (barra estable). La tarjeta seleccionada queda montada.
-- Entrada de cada tarjeta, independiente: sube 34 px con una leve inclinación 3D (`rotateX(12deg)`, escala .95 → 1) y aparece, 0,7 s `cubic-bezier(.16,1,.3,1)`, escalonada por columna. `fill-mode: backwards` (después Flip y la ficha controlan el `transform`). Sin movimiento reducido: sin animación.
+- Sin animación de entrada por ahora. Un efecto de aparición solo se agrega a partir de una implementación de referencia (p. ej. la demo oficial de GSAP `ScrollTrigger.batch`) y probado en la app con datos reales.
+- En el catálogo, una selección que hace el propio desplazamiento (`scrollClamping`) nunca mueve el scroll.
 - Nunca medir todas las tarjetas en cada render (`Flip.getState` solo cuando cambia el conjunto de tarjetas) ni animar con Flip al aparecer la vista.
 
 ## 5. Reglas de uso

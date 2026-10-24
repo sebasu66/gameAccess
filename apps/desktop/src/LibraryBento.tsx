@@ -82,9 +82,6 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
   );
 });
 
-// Cards come in one by one as they enter the window: each column a little later, landscape stacks top to bottom.
-const revealDelay = (item: { column: number; row: number; kind: BentoKind }) => (item.column - 1) * 55 + (item.kind === "pending" ? ((item.row - 1) % 3) * 35 : 0);
-
 const DWELL_MS = 1000;
 // The menu stays while the pointer is within this many pixels of the card or the menu, and closes a moment after it leaves.
 const LEAVE_MS = 450;
@@ -297,8 +294,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     const now = new Set(placed.map(item => item.value.game.id));
     const gone = lastPlaced.current.filter(item => !now.has(item.value.game.id));
     if (gone.length) setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` } })));
-    // A card that comes in shows itself with the reveal of the sliding window (CSS), not a second animation here.
-    if (state) Flip.from(state, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: gone.length ? .25 : 0 });
+    if (state) Flip.from(state, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: gone.length ? .25 : 0,
+      onEnter: elements => gsap.fromTo(elements, { opacity: 0, scale: .85 }, { opacity: 1, scale: 1, duration: .45, ease: "power3.out" }) });
   }, [flipKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { lastPlaced.current = placed; }, [placed]);
   useLayoutEffect(() => refreshBand.current(), [flipKey]);
@@ -337,7 +334,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
           </div>
         ))}
         {shown.map(item => (
-          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}`, "--ga-reveal-delay": `${revealDelay(item)}ms` } as CSSProperties}
+          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}`}}
             onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>
             <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} />
             <MenuDot shown={dotFor === item.value.game.id && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}
