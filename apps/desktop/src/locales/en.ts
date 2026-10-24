@@ -765,5 +765,13 @@ export const en: Record<keyof typeof es, string> = {
   newsTip1: "On a wide window you can keep the library manager, downloads and news open at once.",
   newsTip2: "Rest two seconds on a card in your library and press the three lines to see its options.",
   newsTip3: "Freeze the games you do not use to save space: they are ready again when you thaw them.",
+  rescueTry: "Try another source",
+  rescueTitle: "Looking for another source",
+  rescueLooking: "Looking up this game’s other sources…",
+  rescueAnalyzing: "Analyzing other download sources · {{done}} of {{total}}",
+  rescueFoundTitle: "Found a source that works",
+  rescueFoundText: "The download starts again with {{source}}.",
+  rescueNoneTitle: "This download has no good source",
+  rescueNoneText: "We tried every source for this game and none has enough people sharing it. There is nothing we can do for now.",
   noticeWorking: "Working…",
 };

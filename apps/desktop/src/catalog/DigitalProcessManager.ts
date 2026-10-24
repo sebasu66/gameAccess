@@ -8,7 +8,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw";
   app_id: number;
   name?: string;
   pid?: number;
@@ -106,6 +106,8 @@ export class DigitalProcessManager {
   autoFreeze() { return this.execute("library-autofreeze", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ freeze_days: 30, deep_days: 90 })); }
   /** The player's own name for the game in their library; "" goes back to the download source's name. */
   setLabel(game: CatalogGame, label: string) { return this.execute("set-label", game, undefined, undefined, label); }
+  /** How healthy a download source is (seeds and peers of a torrent, or whether a direct link answers). Checked locally. */
+  probeSource(game: CatalogGame, source: string) { return this.execute("probe-source", game, undefined, undefined, source); }
 
   snapshot(games: CatalogGame[]): Promise<ProcessExecutionResult> {
     // Keep one native query even if callers change or a view is remounted.

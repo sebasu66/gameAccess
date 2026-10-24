@@ -94,6 +94,9 @@ class DigitalProcessRunner:
                     request = json.loads(command or "{}")
                     return {**result, "ok": True, "results": library.freezer.auto(int(request.get("freeze_days", 30)), int(request.get("deep_days", 90)))}
                 raise ValueError(f"Unknown action '{action}'")
+            if action == "probe-source":
+                from game_download_manager.source_probe import probe_source
+                return {**result, "ok": True, "probe": probe_source(command)}
             if action == "set-label":
                 return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
             freezer = GameFreezer(self.storage, logger)
@@ -275,7 +278,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "freeze", "deep-freeze", "thaw"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

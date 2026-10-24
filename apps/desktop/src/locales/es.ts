@@ -763,5 +763,13 @@ export const es = {
   newsTip1: "En una ventana ancha podés tener abiertos a la vez el administrador, las descargas y las novedades.",
   newsTip2: "Quedate dos segundos sobre una tarjeta de tu librería y tocá las tres rayitas para ver sus opciones.",
   newsTip3: "Congelá los juegos que no usás para ahorrar espacio: vuelven a estar listos cuando los descongelás.",
+  rescueTry: "Probar otra fuente",
+  rescueTitle: "Buscando otra fuente",
+  rescueLooking: "Buscando las otras fuentes de este juego…",
+  rescueAnalyzing: "Analizando otras fuentes de descarga · {{done}} de {{total}}",
+  rescueFoundTitle: "Encontramos una fuente que funciona",
+  rescueFoundText: "La descarga empieza de nuevo con {{source}}.",
+  rescueNoneTitle: "Esta descarga no tiene una fuente buena",
+  rescueNoneText: "Probamos todas las fuentes de este juego y ninguna tiene suficientes personas compartiéndolo. No hay nada que podamos hacer por ahora.",
   noticeWorking: "Trabajando…",
 } as const;

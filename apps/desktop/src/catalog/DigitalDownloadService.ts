@@ -193,6 +193,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.appIds.set(gameId, job.appId);
       this.positions.set(gameId, job.position);
       if (!this.jobs.has(gameId)) this.jobs.set(gameId, { game: { id: gameId, app_id: job.appId, name: job.name } as CatalogGame });
+      if (this.searching.has(gameId)) continue;
       const route = methodFromRoute(job.route);
       if (route) this.methods.set(gameId, route);
       const next = this.snapshotOf(gameId, job);
@@ -205,7 +206,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     // A row the Download Manager does not know (it was lost, for example a queue from an older version) cannot resume.
     for (const [gameId, snapshot] of this.activeJobs) {
-      if (seen.has(gameId) || isDownloadHistory(snapshot.phase) || !this.appIds.has(gameId)) continue;
+      if (seen.has(gameId) || isDownloadHistory(snapshot.phase) || !this.appIds.has(gameId) || this.searching.has(gameId)) continue;
       this.updateSnapshot({ ...snapshot, phase: "interrupted", speedBps: 0, statusText: translate("dlsLost"), error: translate("dlsLost") });
     }
     for (const gameId of this.positions.keys()) if (!seen.has(gameId)) this.positions.delete(gameId);
@@ -418,6 +419,18 @@ export class DigitalDownloadService implements IDownloadProvider {
   private reportFailure(snapshot: DownloadProgressSnapshot): void {
     if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) return;
     void narrate(digitalErrorMessage(snapshot, this.jobs.get(snapshot.gameId)?.game.name), { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+  }
+
+  /** Games whose other sources are being checked ("try another source"): the Download Manager's old failure must not
+   *  overwrite that row meanwhile. */
+  private readonly searching = new Set<number>();
+  showSourceSearch(gameId: number, text: string, fraction: number): void {
+    this.searching.add(gameId);
+    this.updateSnapshot({ gameId, phase: "preparing", progress: Math.round(fraction * 100), statusText: text, step: null, steps: [], speedBps: 0, etaSeconds: 0 });
+  }
+  endSourceSearch(gameId: number, restore: DownloadProgressSnapshot | null): void {
+    this.searching.delete(gameId);
+    if (restore) this.updateSnapshot(restore);
   }
 
   updateSnapshot(snapshot: DownloadProgressSnapshot): void {
