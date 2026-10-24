@@ -54,7 +54,7 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onC
       onClick={() => onSelect(index)}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); onSelect(index, false); onContextMenu({ game, x: event.clientX, y: event.clientY, status }); }}
     >
-      {kind === "ready" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
+      {kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
       {kind === "ready" ? <span className="ga-card-installed ga-bento-play" aria-hidden="true"><Play size={12} fill="currentColor" /></span> : null}
       {frozen && kind !== "deep" ? <span className="ga-bento-frost" title={t("bentoFrozen")} aria-hidden="true"><Snowflake size={15} /></span> : null}
       {kind === "deep" ? <span className="ga-bento-ice" aria-hidden="true"><Snowflake size={20} /><span>{t("bentoIce")}</span></span> : null}
@@ -79,7 +79,7 @@ function FlipMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   const timer = useRef(0);
   const closing = useRef(false);
   const front = slot.querySelector<HTMLElement>(".ga-bento-card");
-  const image = card.kind === "ready" ? slot.querySelector<HTMLImageElement>(".ga-bento-cover img")?.currentSrc : landscape(card.game);
+  const image = card.kind !== "pending" ? slot.querySelector<HTMLImageElement>(".ga-bento-cover img")?.currentSrc : landscape(card.game);
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
@@ -258,7 +258,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         ))}
         {leaving.map(({ card, style }) => (
           <div key={`leaving-${card.game.id}`} className="ga-bento-slot" style={style} data-leaving="true" aria-hidden="true">
-            <div className="ga-bento-card" data-kind={card.kind}>{card.kind === "ready" ? <span className="ga-bento-cover"><SteamCover game={card.game} /></span> : <img className="ga-bento-landscape" src={landscape(card.game)} alt="" />}</div>
+            <div className="ga-bento-card" data-kind={card.kind}>{card.kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={card.game} /></span> : <img className="ga-bento-landscape" src={landscape(card.game)} alt="" />}</div>
           </div>
         ))}
       </div>

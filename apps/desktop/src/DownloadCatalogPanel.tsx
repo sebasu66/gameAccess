@@ -3,6 +3,7 @@ import { useCatalogGenreNames } from "./catalogFilterParams";
 import { overviewCoverSizing } from "./overviewSizing";
 import "./catalog-dock.css";
 import { useCardHover } from "./motion/cardHover";
+import { setAmbient } from "./motion/ambient";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
@@ -198,6 +199,20 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const managerOpen = useDesk().includes("manager");
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
   useCardHover(props.gridRef);
+  // The game selected when the screen opens (or with the keyboard) tints the background like the one under the pointer.
+  const selectedGameId = props.games[props.selectedIndex]?.id;
+  useEffect(() => {
+    if (selectedGameId == null) return;
+    // The grid and its covers may still be arriving when the selection is set: try again for a moment.
+    let tries = 0, timer = 0;
+    const attempt = () => {
+      const image = props.gridRef.current?.querySelector<HTMLImageElement>(`[data-library-game-id="${selectedGameId}"] img`);
+      if (image?.complete && image.naturalWidth) { setAmbient(image); return; }
+      if (++tries < 30) timer = window.setTimeout(attempt, 150);
+    };
+    attempt();
+    return () => window.clearTimeout(timer);
+  }, [selectedGameId, props.gridRef]);
   const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same

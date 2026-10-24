@@ -19,3 +19,6 @@ html body .ga-grid-toolbar button.ga-cube .ga-cube-label, html body .ga-grid-too
 html body .ga-grid-toolbar button.ga-cube.ga-filter-open, html body .ga-grid-toolbar details.library-sort-dropdown > summary.ga-cube { width: auto; padding: 0 14px; }
 html body .ga-grid-toolbar .library-sort-menu { top: calc(100% + 8px) !important; bottom: auto !important; left: 0; right: auto; }
 html body .ga-grid-toolbar .ga-hidden-installed { position: static; margin: 0 0 0 auto; transform: none; }
+
+/* Room above the first row so a selected or lifted cover never gets its top edge cut by the scrolling area. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame > .library-room-grid { padding-top: 16px; }

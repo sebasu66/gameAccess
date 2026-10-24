@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { GaBack, GaClose } from "../components/ga/Buttons";
+import CircularScrollbar from "../CircularScrollbar";
 import { useI18n } from "../i18n";
 import { gsap, motionOk } from "../motion/gsap";
 import { closeAllPanels, closePanel, useDesk, useWideDesk, type DeskPanelId } from "./desk";
@@ -27,6 +28,7 @@ export default function DeskPanel({ id, eyebrow, title, children }: { id: DeskPa
   const [present, setPresent] = useState(open);
   const [subtitle, setSubtitle] = useState("");
   const host = useRef<HTMLElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const side = id === "manager" ? "left" : "right";
   if (open && !present) setPresent(true);
 
@@ -65,7 +67,10 @@ export default function DeskPanel({ id, eyebrow, title, children }: { id: DeskPa
           <div><span className="ga-desk-eyebrow">{eyebrow}</span><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div>
           {wide ? <GaClose label={t("close")} onClick={() => closePanel(id)} /> : <GaBack label={t("back")} onClick={closeAllPanels} />}
         </header>
-        <div className="ga-desk-body"><SubtitleContext.Provider value={setSubtitle}>{children}</SubtitleContext.Provider></div>
+        <div className="ga-scroll-frame ga-desk-frame">
+          <div ref={body} className="ga-desk-body"><SubtitleContext.Provider value={setSubtitle}>{children}</SubtitleContext.Provider></div>
+          <CircularScrollbar targetRef={body} label={title} />
+        </div>
       </div>
     </aside>,
     document.body,

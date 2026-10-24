@@ -31,7 +31,7 @@ describe("library bento layout", () => {
 
   it("groups deep-frozen games in the right-hand column", () => {
     const placed = bentoLayout(items(3, 3, 2), 5);
-    expect(placed.filter(p => p.kind === "deep").every(p => p.column === 5)).toBe(true);
+    expect(placed.filter(p => p.kind === "deep").every(p => p.column === 5 && p.rowSpan === 3)).toBe(true);
     expect(placed.filter(p => p.kind !== "deep").every(p => p.column < 5)).toBe(true);
   });
 

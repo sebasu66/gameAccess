@@ -16,12 +16,12 @@
 .ga-bento-name { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 28px 10px 8px; background: linear-gradient(transparent, #111416e8); font: 700 12px Manrope, sans-serif; pointer-events: none; }
 .ga-bento-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-bento-name svg { flex: none; color: #929ba2; }
-.ga-bento-card[data-kind="ready"] .ga-bento-name { padding: 40px 12px 10px; font-size: 13px; }
+.ga-bento-card:not([data-kind="pending"]) .ga-bento-name { padding: 40px 12px 10px; font-size: 13px; }
 .ga-bento-card .ga-bento-play { position: absolute; left: 10px; top: 10px; z-index: 3; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #8fe3b0; background: #0f1813c8; box-shadow: 0 0 0 1px #8fe3b055, 0 0 12px #8fe3b030; }
 .ga-bento-card .ga-bento-play svg { margin-left: 2px; }
 .ga-bento-frost { position: absolute; top: 10px; right: 10px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #8fd3ff; background: #0d1a24b8; box-shadow: 0 0 0 1px #8fd3ff55, 0 0 14px #8fd3ff44; }
 .ga-bento-ice { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding-top: 8px; color: #e6f6ff; font: 800 9px Manrope, sans-serif; letter-spacing: .18em; background: linear-gradient(0deg, #8fd3ff55 0, #8fd3ff26 55%, #8fd3ff10 100%); box-shadow: inset 0 0 0 1px #8fd3ff66, inset 0 -18px 30px #d8f1ff30; animation: ga-bento-ice-rise 1.3s ease-out both; }
-.ga-bento-card[data-kind="deep"] .ga-bento-landscape { filter: grayscale(.7) brightness(.85); }
+.ga-bento-card[data-kind="deep"] .ga-bento-cover img { filter: grayscale(.7) brightness(.85); }
 .ga-bento-card[data-kind="deep"] .ga-bento-name { color: #d8efff; z-index: 2; }
 .ga-bento-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: 3px; background: #0009; }
 .ga-bento-progress i { position: absolute; inset: 0; background: #ff6a00; transform-origin: left; }
@@ -50,7 +50,7 @@
 .ga-bento-menu[data-shown] path:nth-child(3), .ga-bento-menu:focus-visible path:nth-child(3) { transition-delay: .24s; }
 .ga-bento-menu:hover { background: #ff6a00; color: #140a02; border-color: #ff6a00; }
 .ga-bento-menu:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
-.ga-bento-card[data-kind="pending"] ~ .ga-bento-menu, .ga-bento-card[data-kind="deep"] ~ .ga-bento-menu { width: 26px; height: 26px; right: 6px; bottom: 6px; }
+.ga-bento-card[data-kind="pending"] ~ .ga-bento-menu { width: 26px; height: 26px; right: 6px; bottom: 6px; }
 @keyframes ga-bento-menu-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 
 /* Card back: the cover drawn in lines, a glass fading to the right, and the short menu on top. */

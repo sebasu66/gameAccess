@@ -3,7 +3,7 @@
  * covers; games in the library that are not installed are small landscape images; one portrait takes the space of
  * three landscapes stacked. The grid is built in bands of three rows: each band cell holds a portrait or a stack of
  * up to three landscapes. Portraits are spread evenly among the stacks, the incomplete stack goes last, and deep-frozen
- * games (archived) are grouped in the right-hand column.
+ * games (archived, still installed) keep the portrait size and are grouped in the right-hand column.
  */
 export type BentoKind = "ready" | "pending" | "deep";
 export interface BentoItem<T> { kind: BentoKind; value: T }
@@ -37,7 +37,7 @@ export function bentoLayout<T>(items: BentoItem<T>[], columns: number): BentoPla
   const cols = Math.max(1, Math.floor(columns));
   const ready = items.filter(item => item.kind === "ready").map(item => item.value);
   const pending = items.filter(item => item.kind === "pending").map(item => item.value);
-  const deep = stacks(items.filter(item => item.kind === "deep").map(item => item.value));
+  const deep = items.filter(item => item.kind === "deep").map(item => [item.value]);
   const cells = bentoCells(ready, pending);
   const bands = Math.max(1, Math.ceil((cells.length + deep.length) / cols));
   const taken = new Set<string>();
@@ -45,7 +45,7 @@ export function bentoLayout<T>(items: BentoItem<T>[], columns: number): BentoPla
   const place = (kind: BentoKind, values: T[], band: number, column: number) => {
     taken.add(`${band}:${column}`);
     const row = band * 3 + 1;
-    values.forEach((value, index) => out.push(kind === "ready"
+    values.forEach((value, index) => out.push(kind !== "pending"
       ? { value, kind, column: column + 1, row, rowSpan: 3 }
       : { value, kind, column: column + 1, row: row + index, rowSpan: 1 }));
   };

@@ -1,6 +1,7 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
 import ParentalControlSection from "./ParentalControlSection";
 import GaTabs from "./GaTabs";
+import CircularScrollbar from "./CircularScrollbar";
 import LanguageSwitch from "./LanguageSwitch";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -18,13 +19,14 @@ const copy = {
 function SettingsPanel({ onClose }: { onClose: () => void }) {
  const { locale, t } = useI18n(); const c = copy[locale];
  const panel = useDialogFocus(onClose);
+ const content = useRef<HTMLDivElement>(null);
  const [style, setStyle] = useState(loadPixelStyle);
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel" role="dialog" aria-modal="true" aria-labelledby="ga-settings-title">
    <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><GaClose label={c.close} onClick={onClose} data-dialog-initial /></header>
-   <div className="ga-settings-content"><GaTabs label={c.title} tabs={[
+   <div className="ga-scroll-frame ga-settings-frame"><div ref={content} className="ga-settings-content"><GaTabs label={c.title} tabs={[
     { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
     { id: "parental", label: c.tabParental, content: <ParentalControlSection /> },
     { id: "style", label: c.tabStyle, content: <>
@@ -34,7 +36,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
       <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>
     </> },
    ]} /><BuildStamp />
-   </div>
+   </div><CircularScrollbar targetRef={content} label={c.title} /></div>
    <footer><p>{c.saved}</p><div><Button onClick={() => { const next = { ...DEFAULT_PIXEL_STYLE }; setStyle(next); savePixelStyle(next); }}><RotateCcw size={16} />{c.reset}</Button><Button onClick={() => { onClose(); window.dispatchEvent(new Event("gameaccess:replay-logo")); }}><Play size={16} />{c.replay}</Button></div></footer>
   </section>
  </div>;

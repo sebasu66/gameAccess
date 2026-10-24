@@ -34,3 +34,22 @@
 /* While a panel covers the screen the catalog behind it does not need to be drawn. */
 .ga-desk-paged .app-shell > main { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .ga-desk-card { transition: none; } }
+/* One scrollbar look everywhere: the app's round handle (CircularScrollbar) instead of the native bar. */
+.ga-desk-frame { flex: 1; min-height: 0; }
+.ga-desk-frame > .ga-desk-body { height: 100%; box-sizing: border-box; scrollbar-width: none; }
+.ga-desk-frame > .ga-desk-body::-webkit-scrollbar { display: none; }
+.ga-desk-frame > .ga-circle-scrollbar { right: 4px; bottom: 72px; }
+.ga-settings-frame { min-height: 0; overflow: hidden; }
+.ga-settings-frame > .ga-settings-content { height: 100%; box-sizing: border-box; scrollbar-width: none; }
+.ga-settings-frame > .ga-settings-content::-webkit-scrollbar { display: none; }
+/* Small inner lists that keep a native bar get the same colours as the round handle. */
+* { scrollbar-width: thin; scrollbar-color: #ffffff40 transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+::-webkit-scrollbar-thumb { background: #ffffff40; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #ff6a00; }
+::-webkit-scrollbar-button { display: none; }
+/* A leaning panel would leave a wedge of background above and below its inner edge: the card reaches past the
+   window edges so the tilt never uncovers anything. */
+.ga-desk-panel[data-mode="panel"] .ga-desk-card { top: -90px; bottom: -90px; padding: 90px 0; }
+.ga-desk-panel[data-mode="panel"][data-slot="above"] .ga-desk-card { bottom: 0; padding-bottom: 0; }
+.ga-desk-panel[data-mode="panel"][data-slot="below"] .ga-desk-card { top: 0; padding-top: 0; }

@@ -8,14 +8,16 @@ import { gsap } from "./gsap";
 let layers: HTMLCanvasElement[] = [];
 let timer = 0;
 let lastSrc = "";
+let waiting: HTMLImageElement | null = null;
 
 export function registerAmbient(canvases: HTMLCanvasElement[]): () => void {
   layers = canvases;
+  if (waiting) { const image = waiting; waiting = null; setAmbient(image); }
   return () => { if (layers === canvases) { layers = []; lastSrc = ""; } };
 }
 
 export function setAmbient(image: HTMLImageElement): void {
-  if (!layers.length) return;
+  if (!layers.length) { waiting = image; return; }
   window.clearTimeout(timer);
   timer = window.setTimeout(() => {
     const src = image.currentSrc || image.src;
