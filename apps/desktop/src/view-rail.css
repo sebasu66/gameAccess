@@ -24,4 +24,7 @@
    1600 px with the same margin on both sides. That margin is never less than how far the word reaches into the
    content area (--ga-rail-clear, measured by ViewRail.tsx), so the word never covers the content. */
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: max(var(--ga-rail-clear, 0px), (100% - 1600px) / 2); }
+/* With a side panel open on the right the grid uses the room up to the panel, with a small margin: centring it would
+   leave a wide empty band beside the panel. */
+html.ga-desk-right-open .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-right: 16px; }
 @media (max-width: 900px) { .ga-view-rail { display: none; } .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { --ga-rail-clear: 0px; } }

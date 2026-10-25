@@ -1,0 +1,14 @@
+/* Static tab out of the right edge of the window that frames the sketched logo (BrandTab.tsx). */
+.ga-brand-tab { position: fixed; z-index: 30; right: 0; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.ga-brand-tab-frame { position: absolute; left: 0; top: -120px; overflow: visible; }
+/* What it holds stays inside the tab's cut shape (the guide lines fade out at its edges). */
+.ga-brand-tab-content { position: relative; padding: 22px 26px 26px 30px;
+  clip-path: polygon(16px 0, 100% 0, 100% 100%, 16px 100%, 0 calc(100% - 16px), 0 16px); }
+/* A panel a step darker than the app, with a faint technical grid. */
+.ga-brand-tab-panel { fill: #090c0e; fill-opacity: .86; }
+.ga-brand-tab-grid { opacity: .035; }
+.ga-brand-tab-outline { fill: none; stroke: #ffffff; stroke-opacity: .26; stroke-width: 1; }
+.ga-brand-tab-inner { fill: none; stroke: #ffffff; stroke-opacity: .12; stroke-width: .75; stroke-dasharray: 18 3 2 3; }
+.ga-brand-tab-accent { fill: none; stroke: #ff6a00; stroke-width: 1.6; stroke-linecap: square; }
+.ga-brand-tab-notch { fill: #ff6a00; fill-opacity: .18; stroke: #ff6a00; stroke-width: 1; }
+.ga-brand-tab-tick { stroke: #ffffff; stroke-opacity: .22; stroke-width: 1; }

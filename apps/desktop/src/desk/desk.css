@@ -11,14 +11,11 @@ html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 .ga-desk-panel[data-slot="below"] { top: calc(var(--window-chrome-height, 34px) + (100vh - var(--window-chrome-height, 34px)) * .62); }
 /* Opaque, no backdrop-filter: blurring what is behind flickered with every background change. Grey of the centre,
    darker toward the outer edge. */
-.ga-desk-card { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; transition: filter .7s, transform .7s cubic-bezier(.2,.8,.2,1); }
+.ga-desk-card { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
 .ga-desk-panel[data-side="left"] .ga-desk-card { background: linear-gradient(90deg, #0c0f11 0%, #14181b 45%, #1b2024 100%); box-shadow: inset -1px 0 #ffffff14; transform-origin: right center; }
 .ga-desk-panel[data-side="right"] .ga-desk-card { background: linear-gradient(270deg, #0c0f11 0%, #14181b 45%, #1b2024 100%); box-shadow: inset 1px 0 #ffffff14; transform-origin: left center; }
 .ga-desk-panel[data-slot="below"] .ga-desk-card { border-top: 1px solid #ffffff14; }
-/* Idle panel: grey and leaning 9° toward the centre (wrap-around); it straightens and takes colour when used. */
-.ga-desk-panel[data-mode="panel"]:not(:hover):not(:focus-within) .ga-desk-card { filter: grayscale(1) brightness(.8); }
-.ga-desk-panel[data-mode="panel"][data-side="left"]:not(:hover):not(:focus-within) .ga-desk-card { transform: perspective(1300px) rotateY(9deg); }
-.ga-desk-panel[data-mode="panel"][data-side="right"]:not(:hover):not(:focus-within) .ga-desk-card { transform: perspective(1300px) rotateY(-9deg); }
+/* The panels stand flat beside the catalog, in their own colours: no perspective and no grey when idle. */
 /* Small window: one panel covers the screen; the footer stays on top. */
 .ga-desk-panel[data-mode="page"] { left: 0; right: 0; width: auto; height: auto; top: var(--window-chrome-height, 34px); bottom: 0; }
 .ga-desk-panel[data-mode="page"] .ga-desk-card { background: #111416; }
@@ -48,8 +45,3 @@ html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 ::-webkit-scrollbar-thumb { background: #ffffff40; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #ff6a00; }
 ::-webkit-scrollbar-button { display: none; }
-/* A leaning panel would leave a wedge of background above and below its inner edge: the card reaches past the
-   window edges so the tilt never uncovers anything. */
-.ga-desk-panel[data-mode="panel"] .ga-desk-card { top: -90px; bottom: -90px; padding: 90px 0; }
-.ga-desk-panel[data-mode="panel"][data-slot="above"] .ga-desk-card { bottom: 0; padding-bottom: 0; }
-.ga-desk-panel[data-mode="panel"][data-slot="below"] .ga-desk-card { top: 0; padding-top: 0; }

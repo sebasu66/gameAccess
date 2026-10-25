@@ -7,14 +7,16 @@ import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { ArrowDown, ArrowUp, Download, ExternalLink, FolderOpen, Pause, Play, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, Download, ExternalLink, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
-import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
-import DownloadTelemetry from "./DownloadTelemetry";
+import DigitalDownloadArtwork, { DigitalDownloadThumb } from "./DigitalDownloadArtwork";
+import DownloadTelemetry, { DownloadDial } from "./DownloadTelemetry";
 import DownloadSteps from "./DownloadSteps";
+import { transferStarted } from "./downloadStepModel";
+import DownloadSpeedSpark from "./DownloadSpeedSpark";
 import { useDialogFocus } from "./dialogFocus";
 import { useOverlayClose } from "./useOverlayClose";
 import { GaBack } from "./components/ga/Buttons";
@@ -86,14 +88,54 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const queueLength = queue.filter(item => item.snapshot.phase === "queued").length;
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
+    if (featured) {
+      // An active download, top to bottom, with only what matters at this moment: the name and two small icons (the
+      // plan: grey arrow BASE, gold arrow PLUS; "+" when the server accelerates it); a small wide picture with the speed
+      // drawn over it while downloading; the progress of the stage running now (circle and bar, download or extract,
+      // never both); the steps (while preparing: the running one and the next, expandable; afterwards only the ones
+      // still to come); pause and cancel.
+      const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : null;
+      const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : 0;
+      const art = <DigitalDownloadThumb game={currentGame} />;
+      return <article className="ga-dl-card" key={gameId}>
+        <header className="ga-dl-card-head">
+          <h3 title={game.name}>{game.name}</h3>
+          <span className="ga-dl-card-badges">
+            {plan ? <span className={`ga-dl-badge plan-${tier}`} title={`${plan.label} · ${plan.hint}`} aria-label={`${plan.label}: ${plan.hint}`}><ArrowDownToLine size={14} aria-hidden="true" /></span> : null}
+            {method === "accelerated" && methodText ? <span className="ga-dl-badge route-accelerated" title={methodText.hint} aria-label={`${methodText.label}: ${methodText.hint}`}><Plus size={13} strokeWidth={3} aria-hidden="true" /></span> : null}
+          </span>
+        </header>
+        <div className="ga-dl-card-art">
+          {onOpenGame ? <button type="button" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}>{art}</button> : art}
+          {phase === "downloading" ? <DownloadSpeedSpark samples={service.getSpeedSamples(gameId)} speedBps={snapshot.speedBps} /> : null}
+        </div>
+        {/* The panel's own components (the telemetry dial and the progress line with its bar), as they were. */}
+        {stage ? <div className="ga-download-telemetry ga-dl-card-progress">
+          <DownloadDial percent={percent} label={stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")} />
+          <div className="ga-dl-card-bar">
+            <div className="digital-download-progress-line"><span>{stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")}</span><strong>{Math.round(percent)}%</strong></div>
+            <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")})} />
+            {stage === "download" ? <p className="ga-dl-card-eta">{t("downloadsRemaining")}: <strong>{eta(snapshot)}</strong></p> : null}
+          </div>
+        </div> : null}
+        <DownloadSteps snapshot={snapshot} />
+        <div className="ga-dl-card-actions">
+          {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
+          {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />{t("downloadsResume")}</button> : null}
+          <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsCancel")}</button>
+          {openFolder(entry)}
+        </div>
+      </article>;
+    }
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
         <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
-        {featured && !terminal(entry) ? <DownloadSteps snapshot={snapshot} phaseLabel={phaseLabel(phase)} /> : <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>}
+        <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
-        {phase !== "queued" && phase !== "cancelled" && phase !== "error" && phase !== "external" ? <>
+        {/* Bars, speed and time left only once the transfer has begun; before, the steps say what is happening. */}
+        {transferStarted(snapshot) ? <>
           <div className="digital-download-progress-line"><span>{t("downloadsDownloadBar")}</span><strong>{Math.round(bars.download)}%</strong></div>
           <progress className="download-phase-progress" max={100} value={bars.download} aria-label={t("downloadsProgress",{name:game.name,status:t("downloadsDownloadBar")})} />
           <div className="digital-download-progress-line digital-download-install-line"><span>{phase === "completed" ? t("downloadsInstalled") : t("downloadsInstallBar")}</span><strong>{Math.round(bars.install)}%</strong></div>

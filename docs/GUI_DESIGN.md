@@ -133,7 +133,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.17 Panel lateral `ga-side-panel`
 - En ventanas de 1800 px o más: Administrador a la izquierda, Descargas a la derecha y Novedades debajo de Descargas. Ancho `clamp(380px, 25vw, 560px)` (22 % si hay paneles en los dos costados).
 - Fondo opaco **sin** `backdrop-filter`: el gris del centro junto al catálogo, oscureciéndose hacia el borde exterior (`linear-gradient(90deg,#0c0f11 0%,#14181b 45%,#1b2024 100%)`, espejado a la derecha).
-- Sin foco: gris (`grayscale(1) brightness(.8)`) y girado 9° hacia el centro (perspectiva 1300 px). Con mouse o foco se endereza y toma color.
+- Sin foco: gris (`grayscale(1) brightness(.8)`); con mouse o foco toma color. Sin perspectiva: el panel queda plano.
+- Descargas se abre siempre como panel lateral (nunca pantalla completa), en cualquier ancho de ventana.
 - Encabezado §4.6 con `ga-close`; en ventanas chicas el panel es la pantalla completa con `ga-back` (§4.11). El pie queda siempre por encima de los paneles.
 
 ### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)

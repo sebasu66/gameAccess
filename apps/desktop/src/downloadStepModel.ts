@@ -50,6 +50,30 @@ function fromText(snapshot: DownloadProgressSnapshot): StepView[] {
   return STEP_ORDER.map(id => states.get(id) ?? { id, state: "pending", text: "" });
 }
 
+/** Whether the transfer itself has begun: from then on the row shows its bars, speed and time left. */
+export function transferStarted(snapshot: DownloadProgressSnapshot): boolean {
+  if (["downloading", "decompressing", "installing", "completed"].includes(snapshot.phase)) return true;
+  // Paused before anything arrived is still the preparation.
+  return snapshot.phase === "paused" && (snapshot.bytesDownloaded ?? 0) > 0;
+}
+
+/** Whether the download itself (or what follows it) is running: the preparation steps are behind. */
+export function stepsStarted(steps: StepView[]): boolean {
+  return steps.some(step => ["download", "extract", "install"].includes(step.id) && (step.state === "current" || step.state === "done"));
+}
+
+/**
+ * The steps worth showing in the timeline. While the download is prepared: the running step and the next one, or the
+ * whole sequence when expanded. Once the download has begun, its progress has its own block, so the timeline lists only
+ * the steps still to come (pending); a step before the running one that never ran will not run any more either.
+ */
+export function timelineSteps(steps: StepView[], expanded: boolean): StepView[] {
+  const at = steps.findIndex(step => step.state === "current" || step.state === "failed");
+  if (stepsStarted(steps)) return at < 0 ? [] : steps.slice(at + 1).filter(step => step.state === "pending");
+  if (expanded || at < 0) return steps;
+  return steps.slice(at, at + 2);
+}
+
 /** "1:20", "12:05", "1:02:03". */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));

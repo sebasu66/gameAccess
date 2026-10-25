@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import RenameGameDialog from "./RenameGameDialog";
 import { ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
+import { useBatchReveal } from "./motion/batchReveal";
 import GameSideMenu, { type SideMenuItem } from "./GameSideMenu";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
@@ -215,6 +216,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     const inside = new Set(bentoInWindow(placed, tops, rowHeight, band.from, band.to));
     return placed.filter(item => inside.has(item) || item.value.game.id === selectedId || item.value.game.id === menuFor?.card.game.id);
   }, [placed, tops, rowHeight, band, columns, selectedId, menuFor]);
+  // Cards reveal themselves in batches as they scroll into view (GSAP's official ScrollTrigger.batch demo).
+  useBatchReveal(grid, ".ga-bento-slot:not([data-leaving])", shown, tops);
 
   // Flip only when the set of cards really changes (one added, removed or moved to another group): never when the
   // library appears (it would fight the 3D turn), on resize, on a download's progress or when a group opens or closes.

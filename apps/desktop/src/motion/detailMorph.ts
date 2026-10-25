@@ -81,20 +81,30 @@ export function morphClose(dialog: HTMLElement, source: HTMLElement | null): Pro
 
 /**
  * The cover comes back as a grid of small squares (about 1/16 of the side, at least 8 px) filling from the centre
- * outward with some randomness, in 1.2 s. The real image stays hidden until the canvas is complete.
+ * outward with some randomness, in 1.2 s. The card is back in its place in the grid and the canvas is its own child,
+ * so it moves with the grid (scroll, a panel opening) while it fills; the card's content stays hidden until then.
  */
 export function pixelReveal(element: HTMLElement): void {
   const image = coverImage(element);
-  const rect = element.getBoundingClientRect();
-  const done = () => { gsap.set(element, { opacity: 1 }); delete element.dataset.revealing; };
-  if (!motionOk() || !image || !rect.width || rect.bottom < 0 || rect.top > window.innerHeight) { done(); return; }
+  const screen = element.getBoundingClientRect();
+  // Layout size, not the on-screen box: the canvas lives inside the card and shares its transforms.
+  const rect = { width: element.clientWidth, height: element.clientHeight };
+  let restorePosition = "";
+  const done = () => {
+    delete element.dataset.revealing;
+    if (restorePosition) element.style.position = restorePosition === "static" ? "" : restorePosition;
+    gsap.set(element, { opacity: 1 });
+  };
+  if (!motionOk() || !image || !rect.width || !rect.height || screen.bottom < 0 || screen.top > window.innerHeight) { done(); return; }
+  if (["", "static"].includes(getComputedStyle(element).position)) { restorePosition = element.style.position || "static"; element.style.position = "relative"; }
   element.dataset.revealing = "true";
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const canvas = document.createElement("canvas");
   canvas.className = "ga-pixel-reveal";
   canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr);
-  Object.assign(canvas.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, borderRadius: getComputedStyle(element).borderRadius });
-  document.body.append(canvas);
+  canvas.style.borderRadius = getComputedStyle(element).borderRadius;
+  element.append(canvas);
+  gsap.set(element, { opacity: 1 });
   const ctx = canvas.getContext("2d");
   if (!ctx) { canvas.remove(); done(); return; }
   const ar = rect.width / rect.height, iar = image.naturalWidth / image.naturalHeight;

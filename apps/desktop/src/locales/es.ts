@@ -166,6 +166,8 @@ export const es = {
   downloadsSpeed: "Velocidad",
   downloadsPeakSpeed: "Pico de velocidad",
   downloadsSpeedChart: "Velocidad de descarga durante el último minuto",
+  dlStepsAll: "Ver todos los pasos ({{count}})",
+  dlStepsFewer: "Ver menos",
   downloadsWaitingSamples: "Esperando mediciones de velocidad…",
   downloadsRemove: "Quitar de esta lista",
   downloadsRemoveAria: "Quitar {name} de esta lista",

@@ -57,7 +57,15 @@ export function demoDownloadService(): DigitalDownloadService {
     getDownloadMethod: (id: number) => id === active.id ? "accelerated" : undefined,
     planTier: () => "plus",
     queuePosition: (id: number) => id === queued.id ? 0 : -1,
-    getSpeedSamples: () => [],
+    // While it downloads, the last minute of speed (one sample every 1.5 s, wavering around 42 MB/s) for the charts.
+    getSpeedSamples: () => {
+      const now = Date.now();
+      if (snapshotAt(now).phase !== "downloading") return [];
+      return Array.from({ length: 40 }, (_, i) => {
+        const time = now - (39 - i) * 1500;
+        return { time, speedBps: 42e6 * (.72 + .18 * Math.sin(time / 2300) + .1 * Math.sin(time / 700)) };
+      });
+    },
     remove: async () => undefined, start: async () => undefined, play: async () => undefined, moveInQueue: () => undefined,
     pause: async () => undefined, resume: async () => undefined, cancel: async () => undefined, retry: async () => undefined,
   };

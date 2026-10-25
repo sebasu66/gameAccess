@@ -168,6 +168,8 @@ export const en: Record<keyof typeof es, string> = {
   downloadsSpeed: "Speed",
   downloadsPeakSpeed: "Peak speed",
   downloadsSpeedChart: "Download speed over the last minute",
+  dlStepsAll: "Show all steps ({{count}})",
+  dlStepsFewer: "Show fewer",
   downloadsWaitingSamples: "Waiting for speed measurements…",
   downloadsRemove: "Remove from this list",
   downloadsRemoveAria: "Remove {name} from this list",

@@ -1,7 +1,8 @@
 /**
  * Which secondary panels are open (docs/TAREA-interfaz-nueva.md T10). In a wide window (≥ WIDE_MIN) the footer
  * buttons are toggles and the panels sit beside the catalog: library manager on the left, downloads on the right and
- * news below downloads. In a smaller window one panel at a time covers the screen.
+ * news below downloads. In a smaller window one panel at a time covers the screen, except downloads, which is always
+ * a side panel (it needs no more room than that).
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -14,6 +15,10 @@ const listeners = new Set<() => void>();
 const publish = (next: DeskPanelId[]) => { open = next; listeners.forEach(listener => listener()); };
 
 export const isWideDesk = () => Boolean(globalThis.matchMedia?.(WIDE_QUERY).matches);
+/** Panels that open beside the catalog even in a small window. */
+const ALWAYS_SIDE: DeskPanelId[] = ["downloads"];
+/** Whether a panel sits beside the catalog (true) or covers the screen (false). */
+export const isSidePanel = (id: DeskPanelId, wide: boolean) => wide || ALWAYS_SIDE.includes(id);
 export const deskOpen = () => open;
 export function openPanel(id: DeskPanelId) {
   if (open.includes(id) && (isWideDesk() || open.length === 1)) return;
@@ -49,17 +54,20 @@ export function useDeskLayout(): void {
   const wide = useWideDesk();
   useEffect(() => {
     const root = document.documentElement;
-    const left = wide && panels.includes("manager");
-    const right = wide && (panels.includes("downloads") || panels.includes("news"));
+    // In a small window only the last panel opened shows.
+    const shown = wide ? panels : panels.slice(-1);
+    const left = shown.includes("manager") && isSidePanel("manager", wide);
+    const right = shown.some(id => id !== "manager" && isSidePanel(id, wide));
     root.classList.toggle("ga-desk-both", left && right);
+    root.classList.toggle("ga-desk-right-open", right);
     root.style.setProperty("--ga-desk-left", left ? "var(--ga-desk-w)" : "0px");
     root.style.setProperty("--ga-desk-right", right ? "var(--ga-desk-w)" : "0px");
     root.style.setProperty("--ga-panel-right", right ? "var(--ga-desk-w)" : "0px");
-    root.classList.toggle("ga-desk-paged", !wide && panels.length > 0);
+    root.classList.toggle("ga-desk-paged", shown.some(id => !isSidePanel(id, wide)));
   }, [panels, wide]);
   useEffect(() => () => {
     const root = document.documentElement;
-    root.classList.remove("ga-desk-both", "ga-desk-paged");
+    root.classList.remove("ga-desk-both", "ga-desk-paged", "ga-desk-right-open");
     for (const name of ["--ga-desk-left", "--ga-desk-right", "--ga-panel-right"]) root.style.removeProperty(name);
   }, []);
 }
