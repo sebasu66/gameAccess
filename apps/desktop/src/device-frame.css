@@ -1,0 +1,48 @@
+/* The app as the screen of a device (DeviceFrame.tsx): a reinforced metal bezel sits ON the screen
+   all the way around; the games, the banner, the big view word, the animated logo and the word sketched in the right
+   column are the screen under it, and the
+   controls (status, buttons) are mounted on it. */
+/* Under the app's title bar in the desktop window (--ga-frame-offset is its height; 0 in a browser). */
+.ga-frame-layer { position: fixed; left: 0; top: var(--ga-frame-offset, 0px); width: 100vw; height: calc(100vh - var(--ga-frame-offset, 0px)); pointer-events: none; overflow: visible; }
+/* The metal body: above the screen, below the controls mounted on it. Its shadow falls onto the screen, so the screen
+   reads as recessed under a bezel with some thickness. */
+.ga-frame-back { z-index: 50; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
+.ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: .7; stroke-width: 3; }
+.ga-frame-lip-light { fill: none; stroke: #ffffff; stroke-opacity: .24; stroke-width: 1; transform: translate(-.5px, -.5px); }
+/* Engraved lines and accents on the metal, never taking the pointer. */
+.ga-frame-lines { z-index: 51; }
+.ga-frame-outer { fill: none; stroke: #ffffff; stroke-opacity: .12; stroke-width: 1; }
+.ga-frame-inner { fill: none; stroke: #ffffff; stroke-opacity: .08; stroke-width: 1; }
+.ga-frame-ticks { fill: none; stroke: #ffffff; stroke-opacity: .28; stroke-width: 1; }
+.ga-frame-accent { fill: none; stroke: #ff6a00; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
+
+/* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
+.ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 24px); right: 26px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
+.ga-corner-logo video, .ga-corner-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
+
+/* What the frame replaces: the footer bar's own background (its controls sit on the bezel's tabs), the header logo
+   (now the corner logo and the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
+   in the catalog and in the library. */
+body.ga-device-frame .catalog-bottom-actions { background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
+body.ga-device-frame .topbar .ga-brand-lockup { display: none; }
+/* (The base rule sets the whole padding with !important, so this one has to as well.) */
+html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }
+
+/* Side panels (downloads, library manager, news) are part of the screen: they reach the window's edges, behind the
+   bezel, and keep their content clear of it from the inside (padding as deep as the band and its tabs: the
+   footer controls at the bottom), so nothing of the background shows around them and no tab covers their
+   content. A side panel grows by that padding; the catalog keeps clear of it. */
+html body.ga-device-frame .ga-desk-panel { z-index: 48; }
+html body.ga-device-frame .ga-desk-panel[data-mode="panel"][data-side="right"] { width: calc(var(--ga-desk-w) + var(--ga-frame-right, 0px)); }
+html body.ga-device-frame .ga-desk-panel[data-mode="panel"][data-side="left"] { width: calc(var(--ga-desk-w) + var(--ga-frame-left, 0px)); }
+html body.ga-device-frame .ga-desk-panel { top: var(--ga-frame-offset, 0px); }
+html body.ga-device-frame .ga-desk-panel[data-slot="above"] { height: calc((100vh - var(--ga-frame-offset, 0px)) * .62); }
+html body.ga-device-frame .ga-desk-panel[data-slot="below"] { top: calc(var(--ga-frame-offset, 0px) + (100vh - var(--ga-frame-offset, 0px)) * .62); }
+html body.ga-device-frame .ga-desk-card { padding-top: var(--ga-frame-top, 0px); padding-bottom: var(--ga-frame-bottom, 0px); box-sizing: border-box; }
+html body.ga-device-frame .ga-desk-panel[data-slot="above"] .ga-desk-card { padding-bottom: 0; }
+html body.ga-device-frame .ga-desk-panel[data-slot="below"] .ga-desk-card { padding-top: 0; }
+html body.ga-device-frame .ga-desk-panel[data-side="right"] .ga-desk-card, html body.ga-device-frame .ga-desk-panel[data-mode="page"] .ga-desk-card { padding-right: var(--ga-frame-right, 0px); }
+html body.ga-device-frame .ga-desk-panel[data-side="left"] .ga-desk-card, html body.ga-device-frame .ga-desk-panel[data-mode="page"] .ga-desk-card { padding-left: var(--ga-frame-left, 0px); }
+html body.ga-device-frame .app-shell > main {
+  margin-left: calc(var(--ga-desk-left, 0px) + min(var(--ga-desk-left, 0px), var(--ga-frame-left, 0px)));
+  margin-right: calc(var(--ga-desk-right, 0px) + min(var(--ga-desk-right, 0px), var(--ga-frame-right, 0px))); }

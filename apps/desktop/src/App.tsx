@@ -9,6 +9,7 @@ import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import VoxelLogo from "./VoxelLogo";
+import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
@@ -603,6 +604,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
   return (
     <div className="app-shell">
+      {/* The app as the screen of a device: a bezel with tabs, the animated logo in the corner and GAME / ACCESS
+          sketched in the right column. */}
+      {deviceFrameEnabled() ? <DeviceFrame /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}

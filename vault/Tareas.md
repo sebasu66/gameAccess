@@ -50,6 +50,7 @@ Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera a
 - [x] T13 · Novedades como panel con contador de no leídos.
 - [x] T14 · Resto de las pantallas (configuración, ayuda, importar, etc.) con los mismos componentes.
 - [x] T15 · Revisión final (movimiento reducido, anchos, mando, teclado, rendimiento, app instalada).
+- [x] T16 · Marco de dispositivo en la app (Seba, 2026-10-25): bisel con pestañas, logo animado en la esquina y GAME / ACCESS dibujado en la columna derecha, activado por defecto (antes solo `?deviceFrame=1` en desarrollo); en la ventana de escritorio empieza debajo de la barra de título. `?deviceFrame=0` lo apaga; tablet y TV no lo usan. Falta verlo en la app Tauri.
 
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).
