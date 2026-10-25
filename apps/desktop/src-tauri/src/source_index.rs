@@ -252,6 +252,10 @@ pub struct CatalogSourcesApplyResult {
     pub revision: String,
     pub sources_total: usize,
     pub matched_links: usize,
+    /// App ids that had no download before this sync and have one now (empty on the first sync, which links
+    /// everything and is not news).
+    #[serde(default)]
+    pub new_downloads: Vec<i64>,
     /// For the log: waiting for a worker thread, waiting for the shared catalog connection, and the work itself.
     #[serde(default)]
     pub queued_ms: u64,
@@ -406,6 +410,55 @@ impl GameTitleIndex {
     }
 }
 
+/// Games new to the catalog matched against the download sources already saved: a plugin often lists a game before
+/// Steam does, and nothing would link them later because the plugin does not send that entry again. Purely local:
+/// the plugin is not asked. Returns the app ids that got download links.
+pub(crate) fn link_new_games(tx: &Transaction<'_>, app_ids: &[i64]) -> Result<Vec<i64>, String> {
+    if app_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let has_sources: bool = tx
+        .query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='download_sources')", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if !has_sources {
+        return Ok(Vec::new());
+    }
+    ensure_source_tables(tx)?;
+    let mut name = tx
+        .prepare("SELECT name FROM game WHERE COALESCE(app_id, id) = ?1 AND trim(name) != '' LIMIT 1")
+        .map_err(|e| e.to_string())?;
+    let mut pairs = Vec::new();
+    for &app_id in app_ids {
+        match name.query_row(params![app_id], |r| r.get::<_, String>(0)) {
+            Ok(value) => pairs.push((app_id, value)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {}
+            Err(err) => return Err(err.to_string()),
+        }
+    }
+    let index = GameTitleIndex::from_pairs(pairs);
+    if index.games.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut sources = tx.prepare("SELECT source_key, title_raw FROM download_sources").map_err(|e| e.to_string())?;
+    let rows = sources
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut insert = tx
+        .prepare("INSERT INTO game_sources(app_id, source_key, score) VALUES (?1, ?2, ?3)
+                  ON CONFLICT(app_id, source_key) DO UPDATE SET score = MAX(game_sources.score, excluded.score)")
+        .map_err(|e| e.to_string())?;
+    let mut linked = std::collections::BTreeSet::new();
+    let mut candidates_buf = Vec::with_capacity(16);
+    for row in rows {
+        let (key, title) = row.map_err(|e| e.to_string())?;
+        for (app_id, score) in index.match_source(&title, &mut candidates_buf) {
+            insert.execute(params![app_id, &key, score]).map_err(|e| e.to_string())?;
+            linked.insert(app_id);
+        }
+    }
+    Ok(linked.into_iter().collect())
+}
+
 fn source_counts(conn: &Connection) -> Result<(usize, usize), String> {
     let sources_total: usize = conn
         .query_row("SELECT COUNT(*) FROM download_sources", [], |r| r.get(0))
@@ -441,7 +494,7 @@ fn apply_sources_blocking(
     let asked = std::time::Instant::now();
     if !full && added.is_empty() && removed.is_empty() {
         if let Some((sources_total, matched_links)) = empty_delta_counts(catalog) {
-            return Ok(CatalogSourcesApplyResult { plugin_id, revision, sources_total, matched_links,
+            return Ok(CatalogSourcesApplyResult { plugin_id, revision, sources_total, matched_links, new_downloads: Vec::new(),
                 queued_ms: 0, wait_ms: 0, work_ms: asked.elapsed().as_millis() as u64 });
         }
     }
@@ -465,6 +518,14 @@ pub fn apply_sources_conn(
 ) -> Result<CatalogSourcesApplyResult, String> {
     ensure_source_tables(conn)?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    // The games that could already be downloaded, so the ones this sync makes downloadable can be told apart.
+    let before: std::collections::HashSet<i64> = {
+        let mut stmt = tx.prepare("SELECT DISTINCT app_id FROM game_sources").map_err(|e| e.to_string())?;
+        let ids = stmt.query_map([], |r| r.get::<_, i64>(0)).map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+        ids
+    };
+    let mut linked = std::collections::BTreeSet::new();
 
     if full {
         tx.execute(
@@ -545,11 +606,13 @@ pub fn apply_sources_conn(
                 ins_gs
                     .execute(params![app_id, &key, score])
                     .map_err(|e| e.to_string())?;
+                linked.insert(app_id);
             }
         }
     }
 
     let (sources_total, matched_links) = source_counts(&tx)?;
+    let new_downloads = if before.is_empty() { Vec::new() } else { linked.into_iter().filter(|id| !before.contains(id)).collect() };
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(CatalogSourcesApplyResult {
@@ -557,6 +620,7 @@ pub fn apply_sources_conn(
         revision: revision.to_string(),
         sources_total,
         matched_links,
+        new_downloads,
         queued_ms: 0,
         wait_ms: 0,
         work_ms: 0,
@@ -781,6 +845,29 @@ mod tests {
         assert!(took < std::time::Duration::from_millis(500), "the empty sync waited {took:?} for the shared connection");
         assert_eq!((result.sources_total, result.matched_links), (3, 3));
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    fn entry(title: &str) -> SourceIndexEntry {
+        SourceIndexEntry { key: compute_source_key("FitGirl", title), title: title.into(), source: "FitGirl".into(), multiplayer: false }
+    }
+
+    #[test]
+    fn a_plugin_sync_reports_only_games_that_could_not_be_downloaded_before() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::catalog_cache::ensure_normalized_schema(&conn).unwrap();
+        conn.execute("INSERT INTO game(id, app_id, slug, name) VALUES
+             (1, 1245620, 'elden-ring', 'Elden Ring'), (2, 1091500, 'cyberpunk-2077', 'Cyberpunk 2077'), (3, 1693980, 'dead-space', 'Dead Space')", []).unwrap();
+        // First sync: everything it links is the starting point, not news.
+        let first = apply_sources_conn(&mut conn, "p", "1", true, vec![entry("Elden Ring Deluxe Edition [FitGirl Repack]")], vec![]).unwrap();
+        assert!(first.new_downloads.is_empty());
+        // A delta: another source for Elden Ring (already downloadable) and the first one for Dead Space.
+        let delta = apply_sources_conn(&mut conn, "p", "2", false,
+            vec![entry("Elden Ring v1.10 [FitGirl Repack]"), entry("Dead Space v1.0 [FitGirl Repack]")], vec![]).unwrap();
+        assert_eq!(delta.new_downloads, vec![1693980]);
+        // A full resync that sends the same entries again changes nothing for the player.
+        let again = apply_sources_conn(&mut conn, "p", "3", true,
+            vec![entry("Elden Ring Deluxe Edition [FitGirl Repack]"), entry("Dead Space v1.0 [FitGirl Repack]")], vec![]).unwrap();
+        assert!(again.new_downloads.is_empty());
     }
 
     #[test]

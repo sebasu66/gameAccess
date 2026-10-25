@@ -1,4 +1,5 @@
 import { getCatalogManifestUrl } from "../settings";
+import { recordNewDownloads } from "../newDownloads";
 import { queryCatalogCache, syncCatalogCache, type CatalogCacheSyncResult } from "../catalogCache";
 import type { CatalogGame } from "../types";
 import { narrate } from "../narrationLog";
@@ -36,7 +37,8 @@ export function catalogCheckLine(synced: CatalogCacheSyncResult): string {
   const download = synced.downloaded === "patch" || synced.downloaded === "package"
     ? `downloaded the ${synced.downloaded} (${((synced.downloaded_bytes ?? 0) / 1048576).toFixed(2)} MB)` : "downloaded nothing else";
   return `Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}; `
-    + `manifest ${synced.manifest_ms ?? "?"} ms, ${download}, check took ${synced.total_ms ?? "?"} ms.`;
+    + `manifest ${synced.manifest_ms ?? "?"} ms, ${download}, check took ${synced.total_ms ?? "?"} ms`
+    + (synced.updated ? `; new games matched to saved download sources: ${synced.new_downloads?.length ?? 0} in ${synced.link_ms ?? "?"} ms.` : ".");
 }
 
 export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<DiscoveryCatalogSummary | null> {
@@ -54,6 +56,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
             if (typeof window !== "undefined") window.dispatchEvent(new Event("gameaccess:catalog-data-changed"));
           }
           void narrate(catalogCheckLine(synced), {area: "CATALOG"});
+          if (synced.new_downloads?.length) recordNewDownloads(synced.new_downloads, "catalog");
           return synced;
         }
       } catch (error) {

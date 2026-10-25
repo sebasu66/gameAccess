@@ -1,3 +1,4 @@
+import { recordNewDownloads } from "../newDownloads";
 import type { ExecutionProfile } from "./ExecutionProfiles";
 import { getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { FlowDiagnostics } from "../FlowDiagnostics";
@@ -348,6 +349,7 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
     syncedSessionRevisions.set(plugin.id, currentHealthRev || revision);
     void narrate(pluginSyncLine(plugin.name, { since: lastRev, revision, full, added: added.length, removed: removed.length, fetchedMs, totalMs: Date.now() - started, save: applied }),
       { area: "DOWNLOAD_SOURCES" });
+    if (applied?.new_downloads?.length) recordNewDownloads(applied.new_downloads, "plugin");
     if (full || added.length > 0 || removed.length > 0) {
       publish();
     }

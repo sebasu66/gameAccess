@@ -12,6 +12,9 @@ export interface CatalogCacheSyncResult {
   downloaded_bytes?: number;
   manifest_ms?: number;
   total_ms?: number;
+  /** New games that matched download sources already saved, and how long matching took. */
+  new_downloads?: number[];
+  link_ms?: number;
 }
 
 const native = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -163,6 +166,8 @@ export interface CatalogSourcesApplyResult {
   queued_ms?: number;
   wait_ms?: number;
   work_ms?: number;
+  /** Games that had no download before this sync and have one now. */
+  new_downloads?: number[];
 }
 
 export async function applyCatalogSources(params: CatalogSourcesApplyParams): Promise<CatalogSourcesApplyResult | null> {

@@ -88,7 +88,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Uno solo a la vez, **abajo a la derecha** (16 px sobre el pie, 20 px del borde; si hay panel derecho abierto, a la izquierda del panel), 380 px de ancho. Si llega otro, el mismo aviso cambia su contenido: no se apilan.
 - Fondo que se desvanece hacia arriba (`rgba(20,24,28,.97)` abajo → transparente arriba) sin apagar el contenido; línea de 2 px abajo con el color del tono: verde (`ok`), celeste (`frost`), rojo (`danger`/`error`), naranja (`info`).
 - Padding 48/22/22 px, separación 16 px. Portada del juego (46 × 69 px) a la izquierda si hay juego; si no, ícono del tono en un círculo.
-- **Temporizador:** si salió bien y no tiene botones propios, círculo de 30 px arriba a la derecha que se completa en **3 s** y cierra el aviso (se pausa con el mouse encima; tocarlo cierra). También lo lleva "Listo para jugar", que tiene solo el botón Jugar.
+- **Temporizador:** si salió bien y no tiene botones propios, círculo de 30 px arriba a la derecha que se completa en **3 s** y cierra el aviso (se pausa con el mouse encima; tocarlo cierra). También lo lleva "Listo para jugar", que tiene solo el botón Jugar, y "Nuevas descargas" (juegos que pasaron a tener descarga), con Aceptar y Más: Más abre Novedades, donde la noticia queda en la campana hasta abrirla.
 - **Error:** nunca se cierra solo; muestra sus botones (p. ej. "Ver registro" y "Reintentar").
 - **Confirmación:** `Cancelar` + la acción (roja si destruye, celeste si congela). Esc cancela.
 - **Pasos:** lista de pasos con estado (pendiente, en curso, hecho, falló) y barra fina abajo; se usa al jugar.

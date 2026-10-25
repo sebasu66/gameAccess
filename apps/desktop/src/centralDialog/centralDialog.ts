@@ -39,6 +39,8 @@ export interface Announcement {
   title: string;
   body: string;
   date?: string;
+  /** App ids of the games the item lists (the download news; see newDownloads.ts). */
+  games?: number[];
 }
 
 export interface DialogState {

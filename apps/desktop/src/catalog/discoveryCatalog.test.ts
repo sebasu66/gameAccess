@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({ query: vi.fn(), sync: vi.fn(), api: vi.fn(), m
 vi.mock("../catalogCache", () => ({queryCatalogCache: mocks.query, syncCatalogCache: mocks.sync}));
 vi.mock("../settings", () => ({getApiBaseUrl: mocks.api, getCatalogManifestUrl: mocks.manifest}));
 vi.mock("../narrationLog", () => ({narrate: vi.fn()}));
+const recorded = vi.hoisted(() => vi.fn());
+vi.mock("../newDownloads", () => ({recordNewDownloads: recorded}));
 const game = (id: number, app_id: number, extra = {}): CatalogGame => ({
   id, app_id, name: "Fixture", slug: "fixture", credit_cost_per_hour: 0, copies_total: 0, copies_available: 0, ...extra,
 });
@@ -29,6 +31,16 @@ describe("discovery catalog", () => {
     expect(mocks.sync.mock.calls).toEqual([["https://raw.githubusercontent.com/example/catalog-manifest.json"]]);
     expect(fetch).not.toHaveBeenCalled();
   });
+  it("new games matched to saved download sources become news; a check that found none adds nothing", async () => {
+    mocks.manifest.mockResolvedValue("https://raw.githubusercontent.com/example/catalog-manifest.json");
+    mocks.sync.mockResolvedValueOnce({updated: true, revision: "r2", catalog_count: 3, new_downloads: [30], link_ms: 40});
+    await loadDiscoveryCatalog(true);
+    expect(recorded).toHaveBeenCalledWith([30], "catalog");
+    recorded.mockClear();
+    mocks.sync.mockResolvedValueOnce({updated: true, revision: "r3", catalog_count: 4, new_downloads: [], link_ms: 35});
+    await loadDiscoveryCatalog(true);
+    expect(recorded).not.toHaveBeenCalled();
+  });
   it("the shipped settings read the manifest as a plain GitHub file, not through the rate-limited GitHub API", () => {
     const settings = JSON.parse(readFileSync(new URL("../../public/gameaccess.settings.json", import.meta.url), "utf8"));
     const url = new URL(settings.catalog_manifest_url);
@@ -49,8 +61,10 @@ describe("discovery catalog", () => {
   it("the log line says what the check downloaded and how long it took", () => {
     expect(catalogCheckLine({updated: false, revision: "r2", catalog_count: 44711, downloaded: "nothing", downloaded_bytes: 0, manifest_ms: 65, total_ms: 80}))
       .toBe("Discovery catalog current: revision=r2, games=44711; manifest 65 ms, downloaded nothing else, check took 80 ms.");
-    expect(catalogCheckLine({updated: true, revision: "r3", catalog_count: 44800, downloaded: "patch", downloaded_bytes: 1153434, manifest_ms: 70, total_ms: 2400}))
-      .toBe("Discovery catalog updated: revision=r3, games=44800; manifest 70 ms, downloaded the patch (1.10 MB), check took 2400 ms.");
+    expect(catalogCheckLine({updated: true, revision: "r3", catalog_count: 44800, downloaded: "patch", downloaded_bytes: 1153434, manifest_ms: 70, total_ms: 2400,
+      new_downloads: [30, 40], link_ms: 180}))
+      .toBe("Discovery catalog updated: revision=r3, games=44800; manifest 70 ms, downloaded the patch (1.10 MB), check took 2400 ms; "
+        + "new games matched to saved download sources: 2 in 180 ms.");
   });
   it("a smaller API catalog keeps new games and verified third-party tags", () => {
     const result = mergeDiscoveryCatalog([game(7, 100, {tags: ["Couch co-op: 4 players"], local_players_max: 4}), game(8, 200)],

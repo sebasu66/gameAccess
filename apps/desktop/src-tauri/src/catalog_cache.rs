@@ -47,6 +47,9 @@ pub struct CatalogCacheSyncResult {
     pub updated: bool,
     pub revision: String,
     pub catalog_count: usize,
+    /// New games that matched download sources already saved (see source_index::link_new_games), and that time.
+    pub new_downloads: Vec<i64>,
+    pub link_ms: u64,
     /// What the check downloaded besides the manifest: "nothing", "patch" or "package" (for the log).
     pub downloaded: &'static str,
     /// Compressed bytes of that download, the time the manifest took and the time of the whole check.
@@ -291,6 +294,9 @@ fn incoming_snapshot_older(current: &str, incoming: &str) -> bool {
 
 #[derive(Deserialize)]
 struct DetailChange { game_id: i64, #[serde(default)] app_id: Option<i64>, language: String, country: String, payload: Value }
+/// What applying a batch did: the games in the catalog afterwards, and the new games that got download links.
+struct BatchApplied { count: usize, new_downloads: Vec<i64>, link_ms: u64 }
+
 #[derive(Deserialize)]
 struct CatalogBatch {
     schema_version: u32, base_revision: String, revision: String,
@@ -393,7 +399,7 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
 }
 
 fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
-                manifest: &CatalogManifest, progress: Progress) -> Result<usize, String> {
+                manifest: &CatalogManifest, progress: Progress) -> Result<BatchApplied, String> {
     let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
     ensure_normalized_schema(&conn)?;
     let tx = conn.transaction().map_err(|e|e.to_string())?;
@@ -402,6 +408,8 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
     // it. Without this the payload updates and the searchable tables do not: a
     // refresh that added genres left `game_genre` holding the previous values.
     let mut touched: Vec<(i64, String)> = Vec::new();
+    // Games the catalog did not have: matched against the saved download sources at the end.
+    let mut added_app_ids: Vec<i64> = Vec::new();
     let total = games.len() as u64;
     progress("apply", 0, total);
     for (position, mut game) in games.into_iter().enumerate() {
@@ -421,6 +429,7 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
                 let occupied: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM catalog_game WHERE id=?1)",
                     [incoming_id], |r|r.get(0)).map_err(|e|e.to_string())?;
                 let id = if occupied {tx.query_row("SELECT COALESCE(MAX(id),0)+1 FROM catalog_game",[],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?} else {incoming_id};
+                if let Some(app_id) = app_id { added_app_ids.push(app_id); }
                 (id,game.take())
             }
             Err(e) => return Err(e.to_string()),
@@ -466,15 +475,18 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
             params![id, detail.language, short_d, detailed_d, about_d]
         );
     }
+    let linking = std::time::Instant::now();
+    let new_downloads = crate::source_index::link_new_games(&tx, &added_app_ids)?;
+    let link_ms = linking.elapsed().as_millis() as u64;
     let count: usize = tx.query_row("SELECT COUNT(*) FROM catalog_game",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     for (key,value) in [("revision",manifest.revision.clone()),("generated_at",manifest.generated_at.clone()),("catalog_count",count.to_string())] {
         tx.execute("INSERT INTO metadata(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![key,value]).map_err(|e|e.to_string())?;
     }
     tx.commit().map_err(|e|e.to_string())?;
-    Ok(count)
+    Ok(BatchApplied { count, new_downloads, link_ms })
 }
 
-fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, progress: Progress) -> Result<usize,String> {
+fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, progress: Progress) -> Result<BatchApplied,String> {
     let conn=Connection::open(incoming).map_err(|e|e.to_string())?;
     let games = conn.prepare("SELECT payload FROM catalog_game").map_err(|e|e.to_string())?
         .query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?
@@ -537,7 +549,7 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
         // Same revision (or an older snapshot): the database is in sync; nothing is sent and nothing is downloaded.
         if *revision == manifest.revision || incoming_snapshot_older(&generated_at, &manifest.generated_at)
             || (manifest.generated_at.is_empty() && manifest.catalog_count < *count) {
-            return Ok(CatalogCacheSyncResult { updated: false, revision: revision.clone(), catalog_count: *count,
+            return Ok(CatalogCacheSyncResult { updated: false, revision: revision.clone(), catalog_count: *count, new_downloads: Vec::new(), link_ms: 0,
                 downloaded: "nothing", downloaded_bytes: 0, manifest_ms, total_ms: elapsed() });
         }
     }
@@ -595,8 +607,9 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
             || batch.base_revision != base || batch.base_revision != current.0 {
             return Err("Catalog update does not match the installed revision".into());
         }
-        let count=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count,
+        let applied=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:applied.count,
+            new_downloads:applied.new_downloads,link_ms:applied.link_ms,
             downloaded:"patch",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
     let next = target.with_extension("sqlite.next");
@@ -604,9 +617,10 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
     fs::write(&next, sqlite_bytes).map_err(|err| format!("Could not write catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
     if target.exists() {
-        let count = merge_baseline(&target,&next,&manifest,progress)?;
+        let applied = merge_baseline(&target,&next,&manifest,progress)?;
         let _=fs::remove_file(&next);
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count,
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:applied.count,
+            new_downloads:applied.new_downloads,link_ms:applied.link_ms,
             downloaded:"package",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
 
@@ -634,6 +648,8 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
         updated: true,
         revision: manifest.revision,
         catalog_count: manifest.catalog_count,
+        new_downloads: Vec::new(),
+        link_ms: 0,
         downloaded: "package",
         downloaded_bytes,
         manifest_ms,
@@ -1843,6 +1859,60 @@ mod tests {
         let _ = fs::remove_dir_all(target.parent().unwrap());
     }
 
+    /// The plugin's index, as saved by earlier syncs: one source for a game the catalog does not have yet (Gamma),
+    /// one for a game it has (Beta, already linked) and one that matches nothing.
+    fn saved_plugin_sources(path: &Path) {
+        let db = Connection::open(path).unwrap();
+        crate::catalog_cache::ensure_normalized_schema(&db).unwrap();
+        crate::source_index::ensure_source_tables(&db).unwrap();
+        for (key, title) in [("k-gamma", "Gamma v1.2 [FitGirl Repack]"), ("k-beta", "Beta-DODI"), ("k-other", "Unrelated Game v1.0")] {
+            db.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES (?1, 'p', 'FitGirl', ?2, 0, 'r1')",
+                params![key, title]).unwrap();
+        }
+        db.execute("INSERT INTO game_sources(app_id, source_key, score) VALUES (20, 'k-beta', 0.9)", []).unwrap();
+    }
+    fn linked_sources(path: &Path, app_id: i64) -> Vec<String> {
+        let db = Connection::open(path).unwrap();
+        let mut statement = db.prepare("SELECT source_key FROM game_sources WHERE app_id = ?1 ORDER BY source_key").unwrap();
+        let keys = statement.query_map([app_id], |r| r.get::<_, String>(0)).unwrap().map(Result::unwrap).collect();
+        keys
+    }
+
+    #[test]
+    fn a_new_steam_game_is_linked_to_a_source_the_plugin_sent_before_it_existed() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        saved_plugin_sources(&target);
+        assert!(linked_sources(&target, 30).is_empty());
+        // The patch brings Gamma (app 30). Only GitHub is asked; the match is made with what is on disk.
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-update-r1-r2.json.gz"]);
+        assert_eq!(result.new_downloads, vec![30], "Gamma is the only game that became downloadable");
+        assert_eq!(linked_sources(&target, 30), ["k-gamma"]);
+        assert_eq!(linked_sources(&target, 20), ["k-beta"], "Beta keeps its link and is not reported again");
+        // Next startup: catalog current, nothing new.
+        assert!(sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap().new_downloads.is_empty());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn new_games_without_a_saved_source_are_not_reported() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        let db = Connection::open(&target).unwrap();
+        crate::source_index::ensure_source_tables(&db).unwrap();
+        db.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES ('k', 'p', 'FitGirl', 'Unrelated Game v1.0', 0, 'r1')", []).unwrap();
+        drop(db);
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert!(result.updated);
+        assert!(result.new_downloads.is_empty());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
     #[test]
     fn too_far_behind_downloads_the_whole_package_once() {
         let github = FakeGithub::start();
@@ -1896,7 +1966,7 @@ mod tests {
         drop(db);
         let manifest=CatalogManifest{schema_version:1,revision:"new".into(),artifact_url:String::new(),sha256:String::new(),catalog_count:1,generated_at:String::new(),kind:"delta".into(),base_revision:"old".into(),updates:Default::default()};
         let count=apply_batch(&target,vec![serde_json::json!({"id":99,"app_id":233980,"short_description":"","tags":[],"steam_review_score":95})],
-            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest,&no_progress).unwrap();
+            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest,&no_progress).unwrap().count;
         assert_eq!(count,2);
         let db=Connection::open(&target).unwrap();
         let payload:String=db.query_row("SELECT payload FROM catalog_game WHERE id=7",[],|r|r.get(0)).unwrap();
