@@ -1,5 +1,5 @@
 import ActivityConsole from "./ActivityConsole";
-import Toaster from "./Toaster";
+import GaNotice from "./notice/GaNotice";
 import { startDownloadNotifications } from "./downloadNotifications";
 import RenderProbe from "./RenderProbe";
 import React from "react";
@@ -14,14 +14,18 @@ import RuntimeGate from "./RuntimeGate";
 import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
+import { togglePanel, useDesk } from "./desk/desk";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
 import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
-import LanguageSwitch from "./LanguageSwitch";
-import { Globe2, Megaphone, RefreshCw } from "lucide-react";
+import AccessPass from "./AccessPass";
+import { PluginIndicator } from "./PluginIndicator";
+import { Bell, RefreshCw } from "lucide-react";
+import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
+import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
@@ -31,6 +35,11 @@ import { narrate, startClientErrorReporting, startNarrationSession } from "./nar
 import { translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
+
+// The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.
+document.addEventListener("contextmenu", event => {
+  if (!(event.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable='true']")) event.preventDefault();
+});
 import "./session.css";
 import "./experience.css";
 import "./polish.css";
@@ -90,7 +99,8 @@ function CatalogShell() {
   // dialog shows the progress when it takes a while.
   const [prepared, setPrepared] = React.useState(false);
   React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
-  const showNews = useAnnouncements(prepared);
+  const news = useAnnouncements(prepared);
+  const newsOpen = useDesk().includes("news");
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
@@ -112,7 +122,7 @@ function CatalogShell() {
   }, [auxiliarySurface, mode]);
   return <>
     {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><button type="button" className="catalog-refresh-button ga-dock-btn" onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} aria-label={t("refreshGamesAria")} title={t("refreshGamesTitle")}><RefreshCw size={20} aria-hidden="true" /><span>{t("refreshGames")}</span></button><button type="button" className="ga-dock-btn" onClick={showNews} aria-label={t("newsButtonTitle")} title={t("newsButtonTitle")}><Megaphone size={20} aria-hidden="true" /><span>{t("newsButton")}</span></button></div></div> : null}
+    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div> : null}
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe> : null}
   </>;
 }
@@ -125,10 +135,10 @@ const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");
 
 if (libraryDemo()) {
-  ReactDOM.createRoot(root).render(<GameLibraryManager onClose={() => undefined} />);
+  ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
 } else ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><div className="ga-global-language ga-entry-languages"><Globe2 size={23} aria-hidden="true" /><LanguageSwitch /></div><ActivityConsole /><Toaster /><CentralDialogView /><NativeAccessBoundary />
+    <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
     <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
   </React.StrictMode>,
 );

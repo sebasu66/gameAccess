@@ -41,3 +41,7 @@ Si esta skill y ese documento se contradicen, manda el documento; avisa al usuar
 - Panel sin borde degradado ni vidrio: usa `ga-panel`.
 - Radios de 8 px en botones de acción. Excepciones con 5 px: los pulgares y tienda de la ficha, y `ga-back`. El círculo es solo para `ga-close`.
 - Títulos en Manrope: los títulos son Bebas Neue naranja.
+
+## Interfaz nueva
+
+Para las tareas de `docs/TAREA-interfaz-nueva.md` (catálogo, librería bento, paneles, aviso único, pie con cubos, animaciones GSAP) usá también la skill `gameaccess-motion-ui`.

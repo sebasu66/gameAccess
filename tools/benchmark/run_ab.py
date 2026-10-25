@@ -159,6 +159,64 @@ def phase(run: Run, label: str, runs: int, boost: bool) -> None:
             time.sleep(10)
 
 
+NONE = dict(suspend=False, priority=False, stop_services=False, standby=False, visual=False, one_display=False)
+VARIANTS = {  # name: (system_tune.apply options or None, raise benchmark priority, NVIDIA max-performance profile)
+    "normal": (None, False, False),
+    "suspend": ({**NONE, "suspend": True}, False, False),
+    "priority": ({**NONE, "priority": True}, False, False),
+    "services": ({**NONE, "stop_services": True}, False, False),
+    "standby": ({**NONE, "standby": True}, False, False),
+    "visual": ({**NONE, "visual": True}, False, False),
+    "one_display": ({**NONE, "one_display": True}, False, False),
+    "boost": (None, True, False),
+    "nvidia_max": (None, False, True),
+}
+ISOLATION_ORDER = ["normal", "suspend", "priority", "services", "standby", "normal",
+                   "visual", "one_display", "boost", "nvidia_max", "normal"]
+
+
+def isolate(run: Run, runs: int) -> None:
+    """Superposition with one tweak at a time, applied before each run and undone right after."""
+    import nvidia_profile
+    counters: dict[str, int] = {}
+    for variant in ISOLATION_ORDER:
+        tune, boost, nvidia = VARIANTS[variant]
+        for _ in range(runs):
+            counters[variant] = counters.get(variant, 0) + 1
+            change = None
+            try:
+                if tune:
+                    system_tune.apply(run.log, **tune)
+                    time.sleep(10)
+                if nvidia:
+                    change = nvidia_profile.set_for_app("superposition.exe", 0x1057EB71, 1)  # Prefer maximum performance
+                    run.log(f"NVIDIA profile {change['profile']!r}: power management -> prefer maximum performance")
+                run.results.append(run_benchmark(run, "superposition", variant, counters[variant], boost))
+                run.save()
+            finally:
+                if change:
+                    nvidia_profile.restore_for_app(change)
+                if tune:
+                    system_tune.restore(run.log)
+            time.sleep(10)
+
+
+def isolation_summary(run: Run) -> str:
+    rows = [r for r in run.results if r.get("bench") == "superposition"]
+    def values(variant, key):
+        return [r[key] if key in r else r.get("presentmon", {}).get(key) for r in rows if r["phase"] == variant]
+    normal = {key: [v for v in values("normal", key) if v is not None] for key in ("fps", "min_fps", "low_1", "stutters_per_min")}
+    lines = [f"{'variant':<12}{'avg fps':>10}{'min fps':>10}{'1% low':>10}{'stutter/min':>13}   min fps vs normal runs {normal['min_fps']}"]
+    for variant in dict.fromkeys(ISOLATION_ORDER):
+        med = {key: statistics.median([v for v in values(variant, key) if v is not None] or [float("nan")]) for key in normal}
+        mins = [v for v in values(variant, "min_fps") if v is not None]
+        verdict = ("" if variant == "normal" else "no data" if not mins else
+                   "LOWER min fps than every normal run" if mins and max(mins) < min(normal["min_fps"]) else
+                   "higher min fps than every normal run" if mins and min(mins) > max(normal["min_fps"]) else "within normal range")
+        lines.append(f"{variant:<12}{med['fps']:>10.1f}{med['min_fps']:>10.1f}{med['low_1']:>10.1f}{med['stutters_per_min']:>13.1f}   {verdict}")
+    return "\n".join(lines)
+
+
 def summary(run: Run) -> str:
     lines = []
     rows = [r for r in run.results if "bench" in r]
@@ -186,11 +244,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--isolate", action="store_true", help="Superposition only, one tweak at a time")
     args = parser.parse_args()
-    out = frame_benchmark.DEFAULT_OUT / f"ab-{datetime.now():%Y%m%d-%H%M%S}{'-smoke' if args.smoke else ''}"
+    suffix = "-smoke" if args.smoke else "-isolate" if args.isolate else ""
+    out = frame_benchmark.DEFAULT_OUT / f"ab-{datetime.now():%Y%m%d-%H%M%S}{suffix}"
     out.mkdir(parents=True, exist_ok=True)
     run = Run(out)
     run.log(f"Admin: {frame_benchmark.is_admin()}  output: {out}")
+    if args.isolate:
+        try:
+            isolate(run, args.runs)
+        except BaseException:
+            run.log("FAILED:\n" + traceback.format_exc())
+            raise
+        text = isolation_summary(run)
+        (out / "summary.txt").write_text(text, encoding="utf-8")
+        run.log("\n" + text)
+        return
     if args.smoke:
         try:
             state = system_tune.apply(run.log, visual=True, one_display=True)

@@ -66,4 +66,17 @@ describe("computeShelfWindow", () => {
     expect(window.endIndex - window.startIndex).toBeLessThanOrEqual(6);
     expect(reservedHeight(window)).toBe(fullHeight);
   });
+
+  it("with a one-row margin mounts only the visible rows plus one above and one below", () => {
+    // 900 px of 288 px rows touch up to 5 rows (depending on the offset), plus one row of margin on each side: 7 rows,
+    // 42 cards instead of the 72 the ceiling allows.
+    const scrollTop = 100 * ROW_HEIGHT + 40;
+    const window = computeShelfWindow({ scrollTop, viewportHeight: VIEWPORT, totalCount: TOTAL, metrics, maxCards: 72, bufferRows: 1 });
+    expect(window.startIndex).toBe(99 * COLUMNS);
+    expect((window.endIndex - window.startIndex) / COLUMNS).toBe(7);
+    expect(reservedHeight(window)).toBe(fullHeight);
+    const top = computeShelfWindow({ scrollTop: 0, viewportHeight: VIEWPORT, totalCount: TOTAL, metrics, maxCards: 72, bufferRows: 1 });
+    expect(top.startIndex).toBe(0);
+    expect(top.endIndex).toBe(7 * COLUMNS);
+  });
 });

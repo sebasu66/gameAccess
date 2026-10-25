@@ -11,16 +11,17 @@ import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY
 import { applyParentalPolicy } from "./parentalControl";
 import { useParentalState } from "./ParentalControlSection";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
 import { loadDetails } from "./api";
-import { useI18n } from "./i18n";
+import { translate, useI18n } from "./i18n";
 import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
-import DownloadCompleteDialog from "./DownloadCompleteDialog";
+import { showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle } from "./downloadLifecycle";
 import { downloadManager } from "./downloadManager";
@@ -32,6 +33,7 @@ import { renderedGridColumns } from "./libraryNavigation";
 import BigScreenControls from "./BigScreenControls";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
+import { morphClose, morphOpen, pushCards, releaseCards } from "./motion/detailMorph";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
@@ -43,6 +45,9 @@ import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails } from "./types";
+import { uiDemo } from "./devDemo/uiDemo";
+import ViewRail from "./ViewRail";
+import { gsap, motionOk } from "./motion/gsap";
 
 interface LibraryRoomProps {
   toolbarTarget?: HTMLDivElement | null;
@@ -67,7 +72,7 @@ interface LibraryRoomProps {
 
 const IDLE_SHOWCASE_ENABLED = false;
 
-export default function LibraryRoom({ externalDetailGame = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale, t } = useI18n();
   const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
@@ -85,6 +90,9 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const [columns, setColumns] = useState(4);
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
+  // A game opened from inside the catalog that is not in the grid (the banner's newest games) opens like an outside one.
+  const [ownDetailGame, setOwnDetailGame] = useState<CatalogGame | null>(null);
+  const externalDetailGame = externalDetailGameProp ?? ownDetailGame;
   const [detailOpen, setDetailOpen] = useState(Boolean(externalDetailGame));
   useEffect(() => {
     setDetailOpen(Boolean(externalDetailGame));
@@ -129,8 +137,20 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   }, [bigScreen]);
 
 
+  // Changing between catalog and library: the new view turns in from the side it comes from (3D slide).
+  const previousView = useRef(libraryView);
+  useEffect(() => {
+    const before = previousView.current;
+    previousView.current = libraryView;
+    const host = rootRef.current?.querySelector<HTMLElement>(".library-room-catalog");
+    if (!host || before === libraryView || auxiliarySurface || !motionOk()) return;
+    const into = libraryView === "catalog" ? -1 : 1;
+    const tween = gsap.fromTo(host, { xPercent: 30 * into, rotationY: -28 * into, opacity: 0, transformPerspective: 1800, transformOrigin: into > 0 ? "100% 50%" : "0% 50%" },
+      { xPercent: 0, rotationY: 0, opacity: 1, duration: .9, ease: "expo.out", clearProps: "transform,opacity" });
+    return () => { tween.kill(); };
+  }, [libraryView, auxiliarySurface]);
   const isCatalog = libraryView === "catalog";
-  const nativeCatalog = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const nativeCatalog = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || uiDemo());
   const activeQuery = (searchValue || searchQuery || "").trim();
   const genreNames = useCatalogGenreNames();
   // The parental policy wins over the player's filters in every view (catalog, library, favorites).
@@ -149,12 +169,18 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
   const libraryIds = useMemo(() => new Set(members.map(game => game.app_id ?? game.id)), [members]);
   const hasInstalledGames = useMemo(() => games.some(game => { const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : undefined); return state.installed || state.prepared; }), [games, effectiveDownloads]);
   const hasFavoriteGames = useMemo(() => games.some(game => preferences[game.id] === 1), [games, preferences]);
+  const isInstalledGame = useCallback((game: CatalogGame) => {
+    const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
+    return state.installed || state.prepared;
+  }, [effectiveDownloads]);
   const catalogCollection = useMemo(() => {
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
       // database (browser preview, tests) or on a query error does it filter what is in memory.
       const memoryOnly = !nativeCatalog || Boolean(catalogQuery.error);
-      const sourceItems = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
+      const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
+      // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
+      const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
       const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
@@ -173,7 +199,8 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
         title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
-        total: memoryOnly ? sourceItems.length : catalogQuery.total,
+        total: memoryOnly ? sourceItems.length : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length)),
+        hiddenInstalled: queried.length - sourceItems.length,
       };
     }
     const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
@@ -186,7 +213,7 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -424,14 +451,33 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     return () => window.cancelAnimationFrame(frame);
   }, [detailOpen, auxiliarySurface]);
 
-  const { closing: detailClosing, close: closeGameDetail } = useOverlayClose(() => {
+  // The detail grows out of its card and folds back into it (docs/TAREA-interfaz-nueva.md T9).
+  const detailSource = useCallback(() => {
+    if (selectedGameIdResolved == null) return null;
+    const card = document.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
+    return card?.querySelector<HTMLElement>(".library-room-card-art") ?? card;
+  }, [selectedGameIdResolved]);
+  const detailMorphs = !auxiliarySurface && motionOk();
+  useLayoutEffect(() => {
+    const dialog = detailDialogRef.current, source = detailSource();
+    if (!detailOpen || !detailMorphs || !dialog || !source) return;
+    pushCards(source);
+    return morphOpen(dialog, source);
+  }, [detailOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { closing: detailClosing, morphing: detailMorphing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
     setDetailMenu(null);
+    setOwnDetailGame(null);
     onDetailClose?.();
     window.requestAnimationFrame(() => {
       const selected = selectedGameIdResolved == null ? null : gridRef.current?.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
       (selected ?? rootRef.current)?.focus({ preventScroll: true });
     });
+  }, () => {
+    const dialog = detailDialogRef.current, source = detailSource();
+    if (!detailMorphs || !dialog) return null;
+    releaseCards(source);
+    return morphClose(dialog, source);
   });
 
   /** The run dialog is shown on its own: an open game detail closes first (its exit takes 180 ms), then the game starts. */
@@ -594,6 +640,21 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
     }
   };
 
+  // A finished download is announced in the single notice: Play, or it closes by itself and counts as "not now".
+  const completionJob = currentCompletion?.record.job_id;
+  const dismissCompletionRef = useRef(dismissCompletion);
+  dismissCompletionRef.current = dismissCompletion;
+  useEffect(() => {
+    if (!currentCompletion) return;
+    let played = false;
+    showNotice({
+      game: noticeGame(currentCompletion.game), tone: "ok", timer: true,
+      title: translate("dlsReady"), text: currentCompletion.game.name.replace(/\s+\+\s*$/, "").trim(),
+      actions: [{ label: translate("playNow"), kind: "primary", run: () => { played = true; void dismissCompletionRef.current(true); } }],
+      onDismiss: () => { if (!played) void dismissCompletionRef.current(false); },
+    });
+  }, [completionJob]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const confirmCancellation = async () => {
     if (!cancelGame || cancelling) return;
     if (getCatalogMode() === "digital") {
@@ -676,13 +737,14 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
+      {!auxiliarySurface ? <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} /> : null}
       {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
         <>
           {auxiliarySurface && selectedGame ? detailPanel : null}
-          {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailClosing ? " is-closing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
+          {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
               <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
@@ -693,11 +755,10 @@ export default function LibraryRoom({ externalDetailGame = null, onDetailClose, 
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />
-      {currentCompletion ? <DownloadCompleteDialog game={currentCompletion.game} busy={busy} onPlay={() => void dismissCompletion(true)} onClose={() => void dismissCompletion(false)} /> : null}
       {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
     </section>
   );

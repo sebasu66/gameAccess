@@ -9,7 +9,7 @@ const valid = () => ({
   intro: text("Intro"),
   plans: [{ id: "boost", name: text("Boost"), price: text("2 USD"), perks: { es: ["a"], en: ["a"] } }],
   regions: {
-    default: { label: text("Other"), methods: [{ label: text("Web"), url: "https://gameaccess.app" }] },
+    default: { label: text("Other"), methods: [{ label: text("Web"), url: "https://gameaccess.site/plus" }] },
     AR: { label: text("AR"), methods: [{ label: text("Pesos"), url: "https://www.patreon.com/x" }] },
   },
   region: "AR",

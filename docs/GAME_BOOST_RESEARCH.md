@@ -89,6 +89,41 @@ i5-14600K, RTX 2080 Ti, 32 GB, Windows 11 26200, two 1440p monitors. Unigine Hea
 
 Reading: average FPS goes up 6-8% in both, and Heaven is smoother too. Superposition gets faster on average but gets more and deeper hitches, in all three tuned runs, so one of the tweaks hurts it. Prime suspects: the standby-list purge and SysMain stop (Superposition streams assets during the run, Heaven loads everything up front), then the single-display switch. Next step: isolate each tweak on Superposition before any of them becomes a default. Caveat: tuned runs came after the normal ones (no interleaving).
 
+### Cyberpunk 2077 (DirectX 12), Seba's real settings
+
+4K native, ray tracing on, no DLSS, built-in benchmark (`tools/benchmark/cyberpunk_test.py lighten --keep-settings`), normal and lightened alternated twice. Lightened = Chrome and Game Access closed and reopened, 22 processes suspended, 62 lowered + EcoQoS, 11 services stopped, standby list purged, visual effects off. **Not** single display: switching screens made the game fall back from 4K to the 1024x768 stored in its settings, which invalidated a first attempt.
+
+| Metric | Normal | Lightened | Change |
+|---|---|---|---|
+| Avg FPS (game) | 37.2 | 38.8 | +4.3% |
+| Min FPS (game) | 32.5 | 34.1 | +4.9% |
+| 1% low | 28.7 | 30.9 | +7.7% |
+| 0.1% low | 27.9 | 30.3 | +8.6% |
+| CPU busy | 26.9% | 18.2% | |
+| GPU power / load | 258 W / 99% | 258 W / 99% | GPU-bound |
+
+Both lightened runs beat both normal runs. Even fully GPU-bound, the worst frames improve 8%. Seba's own run before the test: 37.8 avg, 33.2 min.
+
+## GPU driver profiles (NVIDIA, AMD)
+
+**NVIDIA App "Optimize"** (formerly GeForce Experience) changes the *game's own* graphics settings from NVIDIA's cloud database of tested configurations. There is no public API for it, so Game Access can't call it; at most we can link to it.
+
+**NVIDIA driver profiles** (Control Panel > Manage 3D settings, per program) are fully scriptable through **NVAPI DRS**. `nvapi64.dll` ships with every driver and NVIDIA publishes the headers under MIT (github.com/NVIDIA/nvapi). NVIDIA Profile Inspector (MIT, Orbmu2k) is built on the same API. The driver already ships a profile for most games (on this PC: "Unigine: Heaven demo", "Unigine: Superposition", "Cyberpunk 2077"), so Game Access only changes values inside it and restores them. Reading works without admin; writing needs admin. `tools/benchmark/nvidia_profile.py` reads and writes them; set + restore was tested on Superposition's profile with driver 596.49 (back to the predefined value afterwards).
+
+Settings worth exposing (IDs from `NvApiDriverSettings.h`):
+
+| Setting | ID | Useful value | Why |
+|---|---|---|---|
+| Power management mode | `0x1057EB71` | 1 = Prefer maximum performance (default 5 = Normal) | GPU stays at full clocks when the game is CPU-limited or light; candidate fix for frame-time spikes. |
+| Low latency mode (max pre-rendered frames) | `0x007BA09E` | 1 | Less input lag when GPU-bound. |
+| Max frame rate | `0x10835002` | user's choice | Caps FPS below refresh; steadier frame times, less heat. |
+| Texture filtering quality | `0x00CE2691` | 0x14 Performance | Small FPS gain, slight quality loss. |
+| Threaded optimization | `0x20C1221E` | Auto (already On here) | Leave alone. |
+
+Out of scope: overclocking and clock locking (`nvidia-smi -lgc`), which change hardware behaviour.
+
+**AMD**: the ADLX SDK (gpuopen.com) exposes Radeon Anti-Lag, Chill, Boost, Image Sharpening and Enhanced Sync, but **per GPU, not per game**: Game Access would switch them on at game start and restore them at exit, the same model as the rest of Game Boost. Chill and Anti-Lag are mutually exclusive. No per-application profile interface was found in the public SDK. Not tested (no AMD GPU here).
+
 ## Sources
 
 - Microsoft, `SetProcessInformation` and power throttling / EcoQoS: https://learn.microsoft.com/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessinformation

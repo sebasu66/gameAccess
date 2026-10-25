@@ -21,6 +21,8 @@ interface Props {
 const FALLBACK_COLUMNS = 6;
 const FALLBACK_ROW_HEIGHT = 288;
 const FALLBACK_VIEWPORT_HEIGHT = 900;
+// Only the rows on screen plus one above and one below are mounted (sliding window); cards appear as they come in.
+const SHELF_BUFFER_ROWS = 1;
 
 export default function LibrarySectionShelf({ section, selectedId, renderGame, reset, scrollRoot }: Props) {
   const { t } = useI18n();
@@ -43,6 +45,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
     totalCount,
     metrics: metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 },
     maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+    bufferRows: SHELF_BUFFER_ROWS,
     previewLimit: metrics ? undefined : SECTION_PREVIEW_SIZE,
   }), [scrollTop, viewportHeight, totalCount, metrics]);
 
@@ -138,6 +141,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
         totalCount,
         metrics: metrics ?? { columns: FALLBACK_COLUMNS, rowHeight: FALLBACK_ROW_HEIGHT, gridOffsetTop: 0 },
         maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+        bufferRows: SHELF_BUFFER_ROWS,
         previewLimit: metrics ? undefined : SECTION_PREVIEW_SIZE,
       });
       if (next.startIndex !== windowRange.startIndex || next.endIndex !== windowRange.endIndex) setScrollTop(root.scrollTop);
@@ -150,8 +154,13 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
   const selectedPosition = section.games.findIndex(game => game.id === selectedId);
   useLayoutEffect(() => {
     cancelTween.current();
-    selectionScrollPendingRef.current = true;
-    recenterPendingRef.current = true;
+    // A selection the scroll itself made (DownloadCatalogPanel moves it to a card on screen when the selected one
+    // leaves) must not move the scroll: tweening to it pulled the catalog back while scrolling, so it stopped loading.
+    const root = scrollRoot.current;
+    const fromScroll = root?.dataset.scrollClamping === "true";
+    if (fromScroll) delete root!.dataset.scrollClamping;
+    selectionScrollPendingRef.current = !fromScroll;
+    recenterPendingRef.current = !fromScroll;
   }, [selectedId]);
 
   // Keyboard navigation can target a card the window is not mounting yet:
@@ -172,6 +181,7 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
       totalCount,
       metrics: active,
       maxCards: RESOURCE_LIMITS.MAX_DOM_CARDS,
+      bufferRows: SHELF_BUFFER_ROWS,
     });
     if (selectedPosition >= target.startIndex && selectedPosition < target.endIndex) return;
     const selectedRow = Math.floor(selectedPosition / active.columns);

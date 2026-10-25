@@ -143,6 +143,7 @@ from .resolver_routes import router as resolver_router
 from .linkvertise_access import router as linkvertise_access_router
 from .discovery_service import router as discovery_router
 from .cooptimus import router as cooptimus_router
+from .steam_owned_routes import router as steam_owned_router
 from .premium_routes import router as premium_router
 app.include_router(premium_router)
 app.include_router(steam_search_router)
@@ -150,6 +151,7 @@ app.include_router(resolver_router)
 app.include_router(linkvertise_access_router)
 app.include_router(discovery_router)
 app.include_router(cooptimus_router)
+app.include_router(steam_owned_router)
 
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)

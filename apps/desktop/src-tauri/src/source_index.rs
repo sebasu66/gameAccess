@@ -252,6 +252,17 @@ pub struct CatalogSourcesApplyResult {
     pub revision: String,
     pub sources_total: usize,
     pub matched_links: usize,
+    /// App ids that had no download before this sync and have one now (empty on the first sync, which links
+    /// everything and is not news).
+    #[serde(default)]
+    pub new_downloads: Vec<i64>,
+    /// For the log: waiting for a worker thread, waiting for the shared catalog connection, and the work itself.
+    #[serde(default)]
+    pub queued_ms: u64,
+    #[serde(default)]
+    pub wait_ms: u64,
+    #[serde(default)]
+    pub work_ms: u64,
 }
 
 pub fn ensure_source_tables(conn: &Connection) -> Result<(), String> {
@@ -399,6 +410,104 @@ impl GameTitleIndex {
     }
 }
 
+/// Games new to the catalog matched against the download sources already saved: a plugin often lists a game before
+/// Steam does, and nothing would link them later because the plugin does not send that entry again. Purely local:
+/// the plugin is not asked. Returns the app ids that got download links.
+pub(crate) fn link_new_games(tx: &Transaction<'_>, app_ids: &[i64]) -> Result<Vec<i64>, String> {
+    if app_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let has_sources: bool = tx
+        .query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='download_sources')", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if !has_sources {
+        return Ok(Vec::new());
+    }
+    ensure_source_tables(tx)?;
+    let mut name = tx
+        .prepare("SELECT name FROM game WHERE COALESCE(app_id, id) = ?1 AND trim(name) != '' LIMIT 1")
+        .map_err(|e| e.to_string())?;
+    let mut pairs = Vec::new();
+    for &app_id in app_ids {
+        match name.query_row(params![app_id], |r| r.get::<_, String>(0)) {
+            Ok(value) => pairs.push((app_id, value)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {}
+            Err(err) => return Err(err.to_string()),
+        }
+    }
+    let index = GameTitleIndex::from_pairs(pairs);
+    if index.games.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut sources = tx.prepare("SELECT source_key, title_raw FROM download_sources").map_err(|e| e.to_string())?;
+    let rows = sources
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut insert = tx
+        .prepare("INSERT INTO game_sources(app_id, source_key, score) VALUES (?1, ?2, ?3)
+                  ON CONFLICT(app_id, source_key) DO UPDATE SET score = MAX(game_sources.score, excluded.score)")
+        .map_err(|e| e.to_string())?;
+    let mut linked = std::collections::BTreeSet::new();
+    let mut candidates_buf = Vec::with_capacity(16);
+    for row in rows {
+        let (key, title) = row.map_err(|e| e.to_string())?;
+        for (app_id, score) in index.match_source(&title, &mut candidates_buf) {
+            insert.execute(params![app_id, &key, score]).map_err(|e| e.to_string())?;
+            linked.insert(app_id);
+        }
+    }
+    Ok(linked.into_iter().collect())
+}
+
+fn source_counts(conn: &Connection) -> Result<(usize, usize), String> {
+    let sources_total: usize = conn
+        .query_row("SELECT COUNT(*) FROM download_sources", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let matched_links: usize = conn
+        .query_row("SELECT COUNT(*) FROM game_sources", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    Ok((sources_total, matched_links))
+}
+
+/// An index sync with nothing added or removed changes nothing; it only needs the counts. They are read on a
+/// read-only connection of its own (the database is in WAL mode, so it runs beside the long catalog queries that
+/// hold the shared connection at startup) instead of queueing behind them: that wait held the startup dialog for
+/// 1.7-3 s while writing took 4 ms. None when the database or its source tables are not there yet.
+fn empty_delta_counts(path: &std::path::Path) -> Option<(usize, usize)> {
+    if !path.is_file() {
+        return None;
+    }
+    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+    source_counts(&conn).ok()
+}
+
+/// What `catalog_sources_apply` runs on its worker thread; `catalog` is the database file (a parameter for the tests).
+fn apply_sources_blocking(
+    catalog: &std::path::Path,
+    plugin_id: String,
+    revision: String,
+    full: bool,
+    added: Vec<SourceIndexEntry>,
+    removed: Vec<String>,
+) -> Result<CatalogSourcesApplyResult, String> {
+    let asked = std::time::Instant::now();
+    if !full && added.is_empty() && removed.is_empty() {
+        if let Some((sources_total, matched_links)) = empty_delta_counts(catalog) {
+            return Ok(CatalogSourcesApplyResult { plugin_id, revision, sources_total, matched_links, new_downloads: Vec::new(),
+                queued_ms: 0, wait_ms: 0, work_ms: asked.elapsed().as_millis() as u64 });
+        }
+    }
+    crate::catalog_cache::with_catalog_conn(|conn| {
+        let wait_ms = asked.elapsed().as_millis() as u64;
+        let working = std::time::Instant::now();
+        let mut result = apply_sources_conn(conn, &plugin_id, &revision, full, added, removed)?;
+        result.wait_ms = wait_ms;
+        result.work_ms = working.elapsed().as_millis() as u64;
+        Ok(result)
+    })
+}
+
 pub fn apply_sources_conn(
     conn: &mut Connection,
     plugin_id: &str,
@@ -409,6 +518,14 @@ pub fn apply_sources_conn(
 ) -> Result<CatalogSourcesApplyResult, String> {
     ensure_source_tables(conn)?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    // The games that could already be downloaded, so the ones this sync makes downloadable can be told apart.
+    let before: std::collections::HashSet<i64> = {
+        let mut stmt = tx.prepare("SELECT DISTINCT app_id FROM game_sources").map_err(|e| e.to_string())?;
+        let ids = stmt.query_map([], |r| r.get::<_, i64>(0)).map_err(|e| e.to_string())?
+            .collect::<Result<_, _>>().map_err(|e| e.to_string())?;
+        ids
+    };
+    let mut linked = std::collections::BTreeSet::new();
 
     if full {
         tx.execute(
@@ -489,17 +606,13 @@ pub fn apply_sources_conn(
                 ins_gs
                     .execute(params![app_id, &key, score])
                     .map_err(|e| e.to_string())?;
+                linked.insert(app_id);
             }
         }
     }
 
-    let sources_total: usize = tx
-        .query_row("SELECT COUNT(*) FROM download_sources", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    let matched_links: usize = tx
-        .query_row("SELECT COUNT(*) FROM game_sources", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-
+    let (sources_total, matched_links) = source_counts(&tx)?;
+    let new_downloads = if before.is_empty() { Vec::new() } else { linked.into_iter().filter(|id| !before.contains(id)).collect() };
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(CatalogSourcesApplyResult {
@@ -507,6 +620,10 @@ pub fn apply_sources_conn(
         revision: revision.to_string(),
         sources_total,
         matched_links,
+        new_downloads,
+        queued_ms: 0,
+        wait_ms: 0,
+        work_ms: 0,
     })
 }
 
@@ -606,17 +723,14 @@ pub async fn catalog_sources_apply(
         serde_json::Value::Number(n) => n.to_string(),
         _ => String::new(),
     };
+    let called = std::time::Instant::now();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::catalog_cache::with_catalog_conn(|conn| {
-            apply_sources_conn(
-                conn,
-                &plugin_id,
-                &rev_str,
-                full.unwrap_or(false),
-                added.unwrap_or_default(),
-                removed.unwrap_or_default(),
-            )
-        })
+        let queued_ms = called.elapsed().as_millis() as u64;
+        let catalog = crate::catalog_cache::cache_db_path()?;
+        let mut result = apply_sources_blocking(&catalog, plugin_id, rev_str, full.unwrap_or(false),
+            added.unwrap_or_default(), removed.unwrap_or_default())?;
+        result.queued_ms = queued_ms;
+        Ok(result)
     })
     .await
     .map_err(|err| format!("Catalog sources apply task failed: {err}"))?
@@ -693,6 +807,67 @@ mod tests {
                 pair.score
             );
         }
+    }
+
+    /// A catalog file with the source tables and `sources` plugin entries, each matched to one game.
+    fn catalog_with_sources(sources: usize) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("gameaccess-sources-test-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("catalog.sqlite");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("PRAGMA journal_mode = WAL;").unwrap();
+        ensure_source_tables(&conn).unwrap();
+        for n in 0..sources {
+            conn.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES (?1, 'p', 's', 't', 0, 'r1')",
+                params![format!("k{n}")]).unwrap();
+            conn.execute("INSERT INTO game_sources(app_id, source_key, score) VALUES (?1, ?2, 1.0)", params![n as i64 + 10, format!("k{n}")]).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn an_empty_index_sync_does_not_wait_for_the_busy_catalog_connection() {
+        let path = catalog_with_sources(3);
+        // Startup: a long catalog query holds the shared connection for 1.5 s.
+        let (held, release) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+        let holder = std::thread::spawn(move || {
+            let _guard = crate::catalog_cache::CATALOG_SESSION_CONN.lock().unwrap();
+            held.0.send(()).unwrap();
+            let _ = release.1.recv_timeout(std::time::Duration::from_millis(1500));
+        });
+        held.1.recv().unwrap();
+        let started = std::time::Instant::now();
+        let result = apply_sources_blocking(&path, "p".into(), "r1".into(), false, vec![], vec![]).unwrap();
+        let took = started.elapsed();
+        let _ = release.0.send(());
+        holder.join().unwrap();
+        assert!(took < std::time::Duration::from_millis(500), "the empty sync waited {took:?} for the shared connection");
+        assert_eq!((result.sources_total, result.matched_links), (3, 3));
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    fn entry(title: &str) -> SourceIndexEntry {
+        SourceIndexEntry { key: compute_source_key("FitGirl", title), title: title.into(), source: "FitGirl".into(), multiplayer: false }
+    }
+
+    #[test]
+    fn a_plugin_sync_reports_only_games_that_could_not_be_downloaded_before() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::catalog_cache::ensure_normalized_schema(&conn).unwrap();
+        conn.execute("INSERT INTO game(id, app_id, slug, name) VALUES
+             (1, 1245620, 'elden-ring', 'Elden Ring'), (2, 1091500, 'cyberpunk-2077', 'Cyberpunk 2077'), (3, 1693980, 'dead-space', 'Dead Space')", []).unwrap();
+        // First sync: everything it links is the starting point, not news.
+        let first = apply_sources_conn(&mut conn, "p", "1", true, vec![entry("Elden Ring Deluxe Edition [FitGirl Repack]")], vec![]).unwrap();
+        assert!(first.new_downloads.is_empty());
+        // A delta: another source for Elden Ring (already downloadable) and the first one for Dead Space.
+        let delta = apply_sources_conn(&mut conn, "p", "2", false,
+            vec![entry("Elden Ring v1.10 [FitGirl Repack]"), entry("Dead Space v1.0 [FitGirl Repack]")], vec![]).unwrap();
+        assert_eq!(delta.new_downloads, vec![1693980]);
+        // A full resync that sends the same entries again changes nothing for the player.
+        let again = apply_sources_conn(&mut conn, "p", "3", true,
+            vec![entry("Elden Ring Deluxe Edition [FitGirl Repack]"), entry("Dead Space v1.0 [FitGirl Repack]")], vec![]).unwrap();
+        assert!(again.new_downloads.is_empty());
     }
 
     #[test]

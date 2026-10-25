@@ -16,7 +16,8 @@ export function downloadNotice(previous: DownloadPhase | undefined, next: Downlo
   if (next === "downloading") return previous !== undefined && STARTING.has(previous) ? { key: "toastDownloadStarted", tone: "info" } : null;
   if (previous === undefined) return null;
   if (next === "completed") return { key: "toastDownloadCompleted", tone: "success" };
-  if (next === "error") return { key: "toastDownloadFailed", tone: "error" };
+  // A failure has its own notice with "Try another source" (DigitalDownloadErrorDialog): no second one here.
+  if (next === "error") return null;
   if (next === "interrupted") return { key: "toastDownloadInterrupted", tone: "warning" };
   if (next === "cancelled") return { key: "toastDownloadCancelled", tone: "info" };
   return null;

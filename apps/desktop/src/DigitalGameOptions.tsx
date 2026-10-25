@@ -1,3 +1,4 @@
+import { GaClose } from "./components/ga/Buttons";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { getSteamStoreLanguage, useI18n } from "./i18n";
@@ -39,7 +40,7 @@ export default function DigitalGameOptions({game,onClose,disabled=false}:{game:C
  const locked=disabled||loading||busy;
  return <div className="ga-settings-backdrop" onPointerDown={event=>event.stopPropagation()} onClick={event=>{if(event.target===event.currentTarget&&!busy)onClose();}}>
   <section ref={ref} className="ga-settings-panel ga-game-config" role="dialog" aria-modal="true" aria-labelledby="game-config-title">
-   <header><div><span className="eyebrow">{game.name}</span><h2 id="game-config-title">{c.title}</h2></div><button type="button" onClick={onClose} disabled={busy} aria-label={c.close} data-dialog-initial><X size={20}/></button></header>
+   <header><div><span className="eyebrow">{game.name}</span><h2 id="game-config-title">{c.title}</h2></div><GaClose label={c.close} onClick={onClose} disabled={busy} data-dialog-initial /></header>
    <div className="ga-settings-content">
     {loading?<p role="status">{c.loading}</p>:null}
     <GaTabs label={c.title} tabs={[{id:"language",label:c.tabLanguage,content:<>

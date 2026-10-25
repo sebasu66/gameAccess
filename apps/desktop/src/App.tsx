@@ -4,12 +4,12 @@ import ParentalSetupDialog from "./ParentalSetupDialog";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
-import AccessPass from "./AccessPass";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import VoxelLogo from "./VoxelLogo";
+import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
@@ -35,11 +35,18 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
+import { hideNotice, runSteps } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
+import DeskPanel from "./desk/DeskPanel";
+import NewsPanel from "./NewsPanel";
+import { uiDemo } from "./devDemo/uiDemo";
+import { demoDownloadService } from "./devDemo/demoDownloads";
+import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import DigitalDownloadToast from "./DigitalDownloadToast";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
@@ -48,8 +55,9 @@ import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
 import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
-import { PluginIndicator } from "./PluginIndicator";
 import { notify } from "./toasts";
+import { installThroughSteam, isSteamOwned, steamOwnerLabel, syncSteamOnStartup } from "./steamLibrary";
+import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -58,8 +66,13 @@ const isPendingSteamMetadata = (game: CatalogGame) =>
 export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
-  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary(); }, []);
-  const [downloadsOpen, setDownloadsOpen] = useState(false);
+  // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
+  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
+  const downloadsOpen = useDesk().includes("downloads");
+  // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
+  const demoService = useRef<ReturnType<typeof demoDownloadService>>();
+  if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
+  useDeskLayout();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -88,7 +101,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
-  // Every message goes through the app-wide toast stack (see Toaster).
+  // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
@@ -471,6 +484,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
+    // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
+    const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
+    if (isSteamOwned(steamEntry)) {
+      try { await installThroughSteam(game); setToast(t("steamInstallHandedOff", { name: game.name })); }
+      catch (err) { setToast(err instanceof Error ? err.message : String(err)); }
+      return;
+    }
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -484,18 +504,27 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
-    setSession({ game, phase: "launching", title: translate("launchTitle"), detail: translate(deepFrozen ? "launchThawing" : "launchDetail") });
+    // A Steam game runs signed in to the account that owns it: Steam may restart to switch accounts.
+    const steamOwner = steamOwnerLabel(libraryScanState().games.find(entry => entry.app_id === game.app_id && entry.link_kind === "steam")?.steam_owner);
+    // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
+    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
+    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
+    run.set(0, "running");
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
-      setSession({ game, phase: "playing", title: translate("launchReady"), detail: translate("launchStarted") });
+      steps.forEach((_, index) => run.set(index, "done"));
+      run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
-      if (isBrokenInstall(message)) { setSession(null); setBrokenGame({ game, message }); }
-      else setSession({ game, phase: "error", title: translate("launchError"), detail: message });
+      if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }
+      else run.fail({ title: translate("launchError"), text: message, actions: [
+        { label: translate("close"), run: () => hideNotice() },
+        { label: translate("retry"), kind: "primary", run: () => void launchGame(game, managedShortcut) },
+      ] });
     } finally { setLaunchBusy(false); }
   };
 
@@ -586,18 +615,20 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
   return (
     <div className="app-shell">
+      {/* The app as the screen of a device: a bezel with tabs, the animated logo in the corner and GAME / ACCESS
+          sketched in the right column. */}
+      {deviceFrameEnabled() ? <DeviceFrame /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
         <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <PluginIndicator />
-          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><AccessPass /><ParentalSetupDialog />
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><ParentalSetupDialog />
         </div>
       </header>
 
       {(() => {
-        const downloadsButton = <button type="button" className="digital-download-nav ga-dock-btn" aria-pressed={downloadsOpen} aria-label={t("downloadsTitle")} title={t("downloadsTitle")} onClick={() => { setSelected(null); setDownloadsOpen(open => !open); }}><FilledIcon name="download" /><span>{t("downloadsTitle")}</span></button>;
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
@@ -618,14 +649,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      {downloadsOpen ? <DigitalDownloadsScreen catalogGames={games} onOpenGame={game => { setDownloadsOpen(false); openGame(game); }} onClose={() => setDownloadsOpen(false)} onPlay={async game => { setDownloadsOpen(false); await launchGame(game); }} /> : null}
+      <DeskPanel id="news" eyebrow="GAME ACCESS" title={t("newsButton")}><NewsPanel games={games} onOpenGame={game => { if (!isWideDesk()) closePanel("news"); openGame(game); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
-      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); setDownloadsOpen(true); }} /> : null}
+      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
     </div>
   );
 }

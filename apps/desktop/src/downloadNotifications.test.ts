@@ -20,7 +20,7 @@ describe("download notices", () => {
 
   it("announces the end of a download with a tone that matches the outcome", () => {
     expect(downloadNotice("installing", "completed")).toEqual({ key: "toastDownloadCompleted", tone: "success" });
-    expect(downloadNotice("downloading", "error")).toEqual({ key: "toastDownloadFailed", tone: "error" });
+    expect(downloadNotice("downloading", "error")).toBeNull();
     expect(downloadNotice("downloading", "interrupted")?.tone).toBe("warning");
     expect(downloadNotice("cancelling", "cancelled")?.key).toBe("toastDownloadCancelled");
   });

@@ -181,10 +181,14 @@ def test_an_interrupted_download_resumes_without_repeating_finished_pieces(tmp_p
 
 
 def test_waiting_message_explains_what_the_server_is_doing():
-    assert "buscando quién comparta" in cd.describe_wait({"stage": "torbox", "progress": 0, "seeds": 0})
-    assert "42%" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3}) and "3 fuentes" in cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3})
-    assert "Torbox ya tiene el juego" in cd.describe_wait({"stage": "torbox", "progress": 100, "state": "cached"})
-    assert cd.describe_wait(None).startswith("Paso 3 de 3")
+    # The texts travel as translation keys of the app (ui_text.py), never naming the torrent bridge's provider.
+    assert "dlBridgeSearching" in cd.describe_wait({"stage": "torbox", "progress": 0, "seeds": 0})
+    working = cd.describe_wait({"stage": "torbox", "progress": 42.4, "seeds": 3})
+    assert '⟦dlBridgeProgress {"progress": 42}⟧' in working and '⟦dlSeedsCount {"n": 3}⟧' in working
+    assert "dlBridgeReady" in cd.describe_wait({"stage": "torbox", "progress": 100, "state": "cached"})
+    assert cd.describe_wait(None).startswith('⟦dlStepOf {"n": 3}⟧')
+    for detail in (None, {"stage": "torbox", "progress": 0}, {"stage": "torbox", "progress": 50, "seeds": 2, "speed": 1, "eta": 60}):
+        assert "torbox" not in cd.describe_wait(detail).lower()
 
 
 def test_server_refusal_means_use_the_normal_download(tmp_path):
@@ -334,12 +338,12 @@ def test_torbox_hiccups_are_resumed_but_a_dead_source_is_not():
     for code in ("torbox_timeout", "torbox_unavailable", "torbox_server_error", "torbox_wait_timeout"):
         assert code in cd.RESUMABLE_ERRORS
     assert "torbox_stalled" not in cd.RESUMABLE_ERRORS
-    assert "nadie la comparte" in cd.ERROR_WORDS["torbox_stalled"]
+    assert cd.ERROR_WORDS["torbox_stalled"] == "⟦dlErrBridgeStalled⟧"
 
 
 def test_waiting_text_shows_speed_and_time_left_from_torbox():
     text = cd.describe_wait({"stage": "torbox", "progress": 37.2, "seeds": 4, "speed": 8_000_000, "eta": 720})
-    assert "37%" in text and "4 fuentes" in text and "8.0 MB/s" in text and "12 min" in text
+    assert '{"progress": 37}' in text and '⟦dlSeedsCount {"n": 4}⟧' in text and "8.0 MB/s" in text and '⟦dlLeftMinutes {"n": 12}⟧' in text
 
 
 class ForgetfulServer(FakeServer):
@@ -594,5 +598,5 @@ def test_a_source_without_seeds_stops_with_a_clear_message(tmp_path):
     downloader, _ = make(NoSeeds([("f", b"1")], 1), tmp_path)
     with pytest.raises(cd.SourceWithoutSeeds) as stopped:
         downloader.download("https://x", "F", str(tmp_path), "1", "F")
-    assert "casi sin semillas (1 personas" in str(stopped.value) and "unos 3 meses" in str(stopped.value)
-    assert "botón Descargar" in str(stopped.value)
+    assert '⟦dlSourceNoSeeds {"seeds": 1}⟧' in str(stopped.value) and '⟦dlBridgeEtaMonths {"n": 3}⟧' in str(stopped.value)
+    assert "dlTryOtherSource" in str(stopped.value) and "torbox" not in str(stopped.value).lower()

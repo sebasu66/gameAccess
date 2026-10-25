@@ -25,6 +25,11 @@ export type DownloadPhase =
  * - `<GenericDownloadProgressView />` (LibraryDetailPanel)
  * - `<DownloadGameCard />` (DownloadCatalogPanel)
  */
+/** The steps a download goes through (the launcher's game_download_manager/steps.py). */
+export type DownloadStepId = "route" | "probe" | "server" | "download" | "extract" | "install";
+export interface DownloadStepNow { id: DownloadStepId; detail: string; startedAt: number }
+export interface DownloadStepDone { id: DownloadStepId; state: "done" | "skipped" | "failed"; result: string; ms: number }
+
 export interface DownloadProgressSnapshot {
   /** Target game or app identifier */
   gameId: number;
@@ -65,6 +70,14 @@ export interface DownloadProgressSnapshot {
   /** A failure the app explains in its own words: "not_a_game" (errorDetail = what the download held instead). */
   errorCode?: string;
   errorDetail?: string[];
+
+  /** After a failure: the step a retry continues from ("extract": already downloaded, only unpacked again). Absent
+   *  when nothing was kept and the download starts over. */
+  resumeStep?: "download" | "extract";
+
+  /** The step running now and the ones already finished, when the launcher sends them. */
+  step?: DownloadStepNow | null;
+  steps?: DownloadStepDone[];
 }
 
 /**

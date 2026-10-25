@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, Loader2, ShoppingCart, X } from "lucide-react";
+import { Download, ExternalLink, Loader2, ShoppingCart } from "lucide-react";
 
 import { loadSteamApp } from "./api";
 import type { SteamMetadata, SteamSearchResult } from "./types";
 import { useI18n, translate } from "./i18n";
 import "./steam-store-detail.css";
+import { GaClose } from "./components/ga/Buttons";
 
 function stripHtml(value?: string) {
   return (value ?? "")
@@ -81,7 +82,7 @@ export default function SteamStoreDetail({ result, onClose }: Props) {
   return (
     <div className="modal-backdrop steam-store-backdrop" onMouseDown={onClose}>
       <article className="steam-store-detail" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="close-detail ga-close" onClick={onClose} aria-label={t("uiCerrar")}><X size={22} /></button>
+        <GaClose className="close-detail" label={t("uiCerrar")} size={22} onClick={onClose} />
 
         <section className="steam-store-hero" style={hero ? { backgroundImage: `url("${hero}")` } : undefined}>
           {trailer?.mp4 ? <video className="steam-store-video" src={trailer.mp4} poster={trailer.thumbnail} autoPlay muted loop playsInline /> : null}

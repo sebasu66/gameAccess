@@ -19,11 +19,15 @@ export const demoGames: LibraryGame[] = [
   row(284160, "BeamNG.drive", 50, { frozen: "freeze", frozen_bytes: 20.9 * GB, original_bytes: 50 * GB, plays: 6, last_played: "2026-10-22 05:36:44" }),
   row(413150, "Stardew Valley", 0.7, { plays: 31, last_played: "2026-10-16 18:02:00" }),
   row(881100, "Noita", 1.6, { plays: 6 }),
+  row(292030, "The Witcher 3", 50, { frozen: "deep", frozen_bytes: 21 * GB, original_bytes: 50 * GB, plays: 40, last_played: "2025-11-02 21:00:00" }),
+  row(782330, "DOOM Eternal", 50, { frozen: "deep", frozen_bytes: 21 * GB, original_bytes: 50 * GB, plays: 12, last_played: "2025-09-14 22:30:00" }),
   row(363860, "MythForce", 7.1, legacy({ installed: false, transfer_bytes: 7.4 * GB, issues: [{ code: "extract", message: "Hay archivos comprimidos sin descomprimir." }], warning: "Hay archivos comprimidos sin descomprimir." })),
   row(3905450, "WheelMates", 7.2, { plays: 2 }),
   row(42910, "Magicka", 2.9, { queued: true, unfinished: true, state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando descomprimir Magicka.rar: contraseña incorrecta", issues: [{ code: "error", message: "error intentando descomprimir Magicka.rar: contraseña incorrecta" }] }),
   row(1245620, "ELDEN RING", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 69.6 * GB, unfinished: true, transfer_kind: "pieces" }),
-  row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB }),
+  row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB, resume_step: "download" }),
+  // Downloaded, but the unpacking ran out of disk: it goes on from the unpacking.
+  row(1174180, "Red Dead Redemption 2", 0, { state: "ERROR", installed: false, transfer_bytes: 119.4 * GB, unfinished: true, resume_step: "extract" }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
 ];
 

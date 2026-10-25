@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { digitalProcessManager, type LibraryGame, type LibrarySummary, type LibraryTransfer, type LibraryUsage } from "./catalog/DigitalProcessManager";
 import { demoGames, demoSummary, demoTransfers, demoUsage } from "./library-manager/demoData";
+import { uiDemo } from "./devDemo/uiDemo";
 
 /** Result of the last library scan: the Library Manager screen and the game cards share it. */
 export interface LibraryScanState { games: LibraryGame[]; transfers: LibraryTransfer[]; summary: LibrarySummary | null; usage: LibraryUsage | null; scanning: boolean; error: string }
@@ -15,7 +16,7 @@ let pending: Promise<void> | null = null;
 
 /** Scan the games folder. Safe to call from anywhere: concurrent calls share one scan. */
 export function scanLibrary(): Promise<void> {
-  if (libraryDemo()) { publish({ games: demoGames, transfers: demoTransfers, summary: demoSummary, usage: demoUsage, scanning: false }); return Promise.resolve(); }
+  if (libraryDemo() || uiDemo()) { publish({ games: demoGames, transfers: demoTransfers, summary: demoSummary, usage: demoUsage, scanning: false }); return Promise.resolve(); }
   if (!hasTauriRuntime()) return Promise.resolve();
   if (pending) return pending;
   publish({ scanning: true, error: "" });

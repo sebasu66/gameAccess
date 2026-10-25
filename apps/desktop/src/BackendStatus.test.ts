@@ -7,8 +7,8 @@ describe("footer connection status", () => {
  });
  it("distinguishes a developer-local connection from an approved remote connection", () => {
   expect(backendStatusPresentation("local","es")).toEqual({ connected:true,label:"Local" });
-  expect(backendStatusPresentation("remote","es")).toEqual({ connected:true,label:"Conectado" });
-  expect(backendStatusPresentation("remote","en")).toEqual({ connected:true,label:"Connected" });
+  expect(backendStatusPresentation("remote","es")).toEqual({ connected:true,label:"En línea" });
+  expect(backendStatusPresentation("remote","en")).toEqual({ connected:true,label:"Online" });
  });
  it("asks the server once a minute, not every few seconds (it must not grow traffic with each open client)", () => {
   expect(STATUS_CHECK_MS).toBe(60_000);

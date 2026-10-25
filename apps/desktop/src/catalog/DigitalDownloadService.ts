@@ -6,7 +6,7 @@ import { buildChunkSession, canAccelerate } from "../vikingResolver";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
-import type { DownloadPhase, DownloadProgressSnapshot, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
 import { snapshotToManagedStatus } from "../downloadProvider";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { digitalProcessManager } from "./DigitalProcessManager";
@@ -14,6 +14,8 @@ import type { DigitalGameRecord } from "./DigitalCatalog";
 import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } from "./downloadQueueClient";
 
 import { getActivationTier } from "../activation";
+import { localizeSnapshot } from "../launcherText";
+import { parseDownloadSize } from "../downloadSize";
 
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
 export interface DownloadSpeedSample { time: number; speedBps: number; }
@@ -31,6 +33,21 @@ type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
  * turns its state into snapshots for the interface. What stays here is what only the interface needs: the game
  * shown in each row, speed history, notices, the desktop shortcut after a download completes.
  */
+
+const STEP_IDS: readonly string[] = ["route", "probe", "server", "download", "extract", "install"];
+/** The launcher's current step, if it is well formed. */
+function stepNow(value: unknown): DownloadStepNow | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown };
+  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now() } : null;
+}
+/** The launcher's finished steps, keeping only well-formed ones. */
+function stepsDone(value: unknown): DownloadStepDone[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(raw => raw && STEP_IDS.includes(String(raw.id)) && ["done", "skipped", "failed"].includes(String(raw.state)))
+    .map(raw => ({ id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0 }));
+}
+
 export class DigitalDownloadService implements IDownloadProvider {
   readonly name = "digital-python-downloader";
   private activeJobs = new Map<number, DownloadProgressSnapshot>();
@@ -165,6 +182,8 @@ export class DigitalDownloadService implements IDownloadProvider {
       error: job.error || undefined,
       errorCode: typeof status.errorCode === "string" ? status.errorCode : undefined,
       errorDetail: Array.isArray(status.errorDetail) ? status.errorDetail.map(String) : undefined,
+      resumeStep: status.resumeStep === "download" || status.resumeStep === "extract" ? status.resumeStep : undefined,
+      ...("step" in status || "steps" in status ? { step: stepNow(status.step), steps: stepsDone(status.steps) } : {}),
     };
   }
 
@@ -177,18 +196,20 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.appIds.set(gameId, job.appId);
       this.positions.set(gameId, job.position);
       if (!this.jobs.has(gameId)) this.jobs.set(gameId, { game: { id: gameId, app_id: job.appId, name: job.name } as CatalogGame });
+      if (this.searching.has(gameId)) continue;
       const route = methodFromRoute(job.route);
       if (route) this.methods.set(gameId, route);
       const next = this.snapshotOf(gameId, job);
       const previous = this.activeJobs.get(gameId);
       if (!previous || previous.phase !== next.phase || previous.progress !== next.progress || previous.bytesDownloaded !== next.bytesDownloaded
-        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps) {
+        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps
+        || previous.step?.id !== next.step?.id || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
         this.updateSnapshot(next);
       }
     }
     // A row the Download Manager does not know (it was lost, for example a queue from an older version) cannot resume.
     for (const [gameId, snapshot] of this.activeJobs) {
-      if (seen.has(gameId) || isDownloadHistory(snapshot.phase) || !this.appIds.has(gameId)) continue;
+      if (seen.has(gameId) || isDownloadHistory(snapshot.phase) || !this.appIds.has(gameId) || this.searching.has(gameId)) continue;
       this.updateSnapshot({ ...snapshot, phase: "interrupted", speedBps: 0, statusText: translate("dlsLost"), error: translate("dlsLost") });
     }
     for (const gameId of this.positions.keys()) if (!seen.has(gameId)) this.positions.delete(gameId);
@@ -198,7 +219,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   async start(game: CatalogGame, options?: JobOptions): Promise<void> {
     if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
     const id = game.app_id ?? game.id;
-    const size = game.download_size_bytes;
+    // Plugin sources give their size as text ("12.4 GB"): it counts for the check as well.
+    const size = game.download_size_bytes ?? parseDownloadSize(game.download_size);
     if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
       // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
       const room = await digitalProcessManager.librarySpace(size).then(result => result.space, () => undefined);
@@ -245,6 +267,36 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.updateSnapshot({ gameId: id, phase: "error", progress: 0,
         statusText: error instanceof QueueRefused ? message : translate("dlsStartProcessError"), error: message });
       throw error;
+    }
+    this.ensurePolling();
+  }
+
+  /**
+   * Goes on with a download that stopped (error, interrupted, no room) from the step it reached: an archive already
+   * downloaded is only unpacked again. The Download Manager knows the source (also after a restart, from what the
+   * install remembers), so the plugin is not needed. With nothing to go on with, the download starts over.
+   */
+  async retry(game: CatalogGame): Promise<void> {
+    const id = game.app_id ?? game.id;
+    const previous = this.activeJobs.get(id);
+    if (previous && !isDownloadHistory(previous.phase)) return;
+    if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
+    this.startedNow.add(id);
+    if (!this.jobs.has(id)) this.jobs.set(id, { game });
+    const appId = this.appIds.get(id) ?? game.app_id ?? id;
+    this.appIds.set(id, appId);
+    this.speeds.delete(id);
+    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
+    try {
+      this.apply(await this.queue.retry(appId));
+    } catch (error) {
+      if (!(error instanceof QueueRefused)) {
+        if (previous) this.updateSnapshot(previous);
+        throw error;
+      }
+      // Nothing was kept (cancelled, or a dead source removed it): a new download.
+      if (previous) this.activeJobs.set(id, previous); else this.activeJobs.delete(id);
+      return this.start(game);
     }
     this.ensurePolling();
   }
@@ -403,7 +455,20 @@ export class DigitalDownloadService implements IDownloadProvider {
     void narrate(digitalErrorMessage(snapshot, this.jobs.get(snapshot.gameId)?.game.name), { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
   }
 
-  updateSnapshot(snapshot: DownloadProgressSnapshot): void {
+  /** Games whose other sources are being checked ("try another source"): the Download Manager's old failure must not
+   *  overwrite that row meanwhile. */
+  private readonly searching = new Set<number>();
+  showSourceSearch(gameId: number, text: string, fraction: number): void {
+    this.searching.add(gameId);
+    this.updateSnapshot({ gameId, phase: "preparing", progress: Math.round(fraction * 100), statusText: text, step: null, steps: [], speedBps: 0, etaSeconds: 0 });
+  }
+  endSourceSearch(gameId: number, restore: DownloadProgressSnapshot | null): void {
+    this.searching.delete(gameId);
+    if (restore) this.updateSnapshot(restore);
+  }
+
+  updateSnapshot(launcherSnapshot: DownloadProgressSnapshot): void {
+    const snapshot = localizeSnapshot(launcherSnapshot);
     const previous = this.activeJobs.get(snapshot.gameId);
     if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
     if (previous?.phase !== snapshot.phase) void narrate(`Digital AppID ${snapshot.gameId} · phase ${previous?.phase ?? "new"} -> ${snapshot.phase}; bytes=${snapshot.bytesDownloaded ?? "unknown"}/${snapshot.bytesTotal ?? "unknown"}; ${snapshot.statusText ?? ""}.`, { area: "DIGITAL_DOWNLOAD" });

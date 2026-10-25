@@ -105,3 +105,6 @@ vault/.trash/
 # Papelera local: archivos movidos de la raíz, no se versionan
 /_papelera/
 tools/windows/plugin-payload.zip
+
+# Local caches (benchmarks, frozen registry, downloads)
+.cache/

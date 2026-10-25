@@ -94,6 +94,7 @@ fn main() {
             execution_profiles::read_execution_profile,
             activity_log::read_activity_console,
             execution_profiles::query_cooptimus,
+            execution_profiles::open_cooptimus_page,
             activity_log::append_narration_log,
             activity_log::append_narration_log_batch,
             steam_commands::steam_installed,

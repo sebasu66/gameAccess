@@ -6,6 +6,7 @@ import { genreLabel } from "./libraryGenres";
 import type { LibrarySearchFilters } from "./librarySearch";
 import type { CatalogGame } from "./types";
 import { useI18n } from "./i18n";
+import { GaClose } from "./components/ga/Buttons";
 
 export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, onOpen, onClose, detailOpen = false }: {
   games: CatalogGame[];
@@ -108,7 +109,7 @@ export function LibrarySphere({ games, query, setQuery, searchFilters = DEFAULT_
               </div>
             </details>
           </div>
-          <button type="button" className="library-close ga-close" onClick={onClose} aria-label={t("uiCerrarBiblioteca")}><X size={20} /></button>
+          <GaClose className="library-close" label={t("uiCerrarBiblioteca")} onClick={onClose} />
         </div>
       </div>
       <div className="dome-viewport">

@@ -16,6 +16,7 @@ from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
 from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
+from steam_account_manager import SteamAccountManager
 from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
@@ -72,8 +73,25 @@ class DigitalProcessRunner:
             if action == "snapshot":
                 games = json.loads(command)
                 return {"ok": True, "statuses": self.storage.snapshot(games)}
+            if action.startswith("steam-"):
+                steam = SteamAccountManager(self.storage.launcher)
+                request = json.loads(command or "{}")
+                if action == "steam-status":
+                    return {**result, "ok": True, "steam": steam.status()}
+                if action == "steam-save-settings":
+                    return {**result, "ok": True, "settings": steam.save_settings(request)}
+                if action == "steam-sync":
+                    if request.get("auto") and not steam.settings()["auto_import"]:
+                        return {**result, "ok": True, "skipped": True, "linked": [], "owned": []}
+                    library = GameLibraryManager(self.storage, steam=steam)
+                    return {**result, "ok": True, **library.steam_sync(bool(request.get("refresh")), str(request.get("api") or ""))}
+                if action == "steam-install":
+                    self.storage.linked.unhide(app_id)
+                    return {**result, "ok": True, **steam.install(app_id)}
+                raise ValueError(f"Unknown action '{action}'")
             if action.startswith(("library-", "import-")):
-                library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger))
+                library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger),
+                                             steam=SteamAccountManager(self.storage.launcher))
                 if action == "library-list":
                     games, transfers = library.list_games(), library.transfers()
                     return {**result, "ok": True, "library": games, "transfers": transfers, "usage": library.usage(), "summary": library.summary(games, transfers)}
@@ -94,6 +112,9 @@ class DigitalProcessRunner:
                     request = json.loads(command or "{}")
                     return {**result, "ok": True, "results": library.freezer.auto(int(request.get("freeze_days", 30)), int(request.get("deep_days", 90)))}
                 raise ValueError(f"Unknown action '{action}'")
+            if action == "probe-source":
+                from game_download_manager.source_probe import probe_source
+                return {**result, "ok": True, "probe": probe_source(command)}
             if action == "set-label":
                 return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
             freezer = GameFreezer(self.storage, logger)
@@ -105,7 +126,8 @@ class DigitalProcessRunner:
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
                 outcome = run_linked(action, linked_record, self.storage.linked, logger,
-                                     lambda game_folder, game_name: gem.find_candidates(game_folder, game_name, "", [], logger))
+                                     lambda game_folder, game_name: gem.find_candidates(game_folder, game_name, "", [], logger),
+                                     SteamAccountManager(self.storage.launcher) if linked_record["kind"] == "steam" else None)
                 return {**result, "ok": True, "folder": linked_record["path"], **outcome}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
@@ -145,6 +167,11 @@ class DigitalProcessRunner:
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
                 return {**result, "ok": True, "setup_ran": ran}
             if action == "open-folder":
+                if command == "download":
+                    # While it downloads (or after it stopped) the files are in the temporary download folder.
+                    transfer = next((Path(item["folder"]) for item in self.storage.transfers() if item["app_id"] == app_id), None)
+                    if transfer is not None and transfer.is_dir():
+                        folder = transfer
                 if not folder.is_dir():
                     raise ValueError("No existe la carpeta descargada.")
                 os.startfile(str(folder))
@@ -275,7 +302,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "freeze", "deep-freeze", "thaw"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

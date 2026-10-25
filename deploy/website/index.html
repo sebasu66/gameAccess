@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Access — Jugá más y mejor</title>
+  <meta name="description" content="Game Access: tu catálogo de juegos de PC. Buscá, filtrá, descargá, instalá y jugá desde un solo lugar. Beta gratuita para Windows.">
+  <link rel="icon" href="assets/brand/logo-header-poster.png">
+  <link rel="stylesheet" href="assets/site.css?v=6">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Game Access">
+      <span class="logo-loop" aria-hidden="true">
+        <video src="assets/brand/logo-header-loop.webm" poster="assets/brand/logo-header-poster.png" autoplay muted loop playsinline></video>
+        <img class="logo-still" src="assets/brand/logo-header-poster.png" alt="">
+      </span>
+      <span class="wordmark"><span>Game</span><span>Access</span></span>
+    </a>
+    <nav class="site-nav" data-i18n-attr="aria-label:navSections">
+      <a href="#como-funciona" data-i18n="navHow">Cómo funciona</a>
+      <a href="#plugins" data-i18n="navPlugins">Plugins</a>
+      <a class="btn btn-glass btn-small" href="#descargar" data-i18n="navDownload">Descargar</a>
+      <div class="lang-switch" role="group" aria-label="Idioma / Language">
+        <button type="button" data-lang="es" aria-pressed="true">ES</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- The app's docking film (the G breaks into cubes that fly to the header logo) and the same film reversed;
+       site.js plays them on scroll. -->
+  <video class="dock-film to-header" src="assets/brand/logo-to-header.webm" muted playsinline preload="auto" aria-hidden="true"></video>
+  <video class="dock-film from-header" src="assets/brand/logo-from-header.webm" muted playsinline preload="auto" aria-hidden="true"></video>
+
+  <main id="top">
+    <section class="stage">
+      <div class="cover-backdrop" aria-hidden="true"><div class="cover-grid"></div></div>
+      <div class="hero">
+        <div class="hero-panel glass">
+          <p class="eyebrow" data-i18n="eyebrow">Beta gratuita para Windows</p>
+          <h1><span data-i18n="heroA">Jugá más.</span><span class="accent" data-i18n="heroB">Jugá mejor.</span></h1>
+          <p class="lead" data-i18n="lead">Tu catálogo de juegos de PC en un solo lugar: buscá, filtrá, descargá, instalá y jugá sin salir de Game Access.</p>
+          <div class="actions">
+            <a class="btn led" href="#descargar"><span data-i18n="download">Descargar gratis</span></a>
+            <a class="btn btn-glass" href="#como-funciona" data-i18n="learnMore">Ver cómo funciona</a>
+          </div>
+          <p class="note" data-i18n="note">Estamos en beta: algunas funciones todavía están en desarrollo.</p>
+        </div>
+        <div class="hero-logo">
+          <div class="logo-loop" aria-hidden="true">
+            <video src="assets/brand/logo-hero-loop.webm" poster="assets/brand/logo-entry-poster.png" autoplay muted loop playsinline></video>
+            <img class="logo-still" src="assets/brand/logo-entry-poster.png" alt="">
+          </div>
+          <p class="wordmark wordmark-big" aria-hidden="true"><span>Game</span><span>Access</span></p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="assets/i18n.js?v=6"></script>
+  <script src="assets/pixel.js?v=6"></script>
+  <script src="assets/covers.js?v=6"></script>
+  <script src="assets/site.js?v=6"></script>
+</body>
+</html>

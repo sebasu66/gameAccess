@@ -49,9 +49,10 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Sombra de resplandor `0 0 14px #e5202e88`. Hover: fondo `--ga-danger-hover`, resplandor `0 0 20px #ff3342cc`.
 - Prohibido: X sin fondo, X en cuadrado redondeado, X en otro color.
 
-### 4.2 Botón principal `ga-btn-primary`
-- Fondo `--ga-orange`, texto `#140a02`, borde 1 px `--ga-orange`. **Altura 44 px**, padding horizontal 18 px, radio 8 px.
-- Hover: `--ga-orange-hover`, desplazamiento `translateY(-1px)`.
+### 4.2 Botón principal `ga-btn-primary` (componente `GaButton variant="primary"`)
+- Fondo `--ga-orange` **plano**, texto `#140a02`, borde 1 px `--ga-orange`. **Altura 44 px**, padding horizontal 18 px, radio 8 px.
+- Sin degradado, sin volumen, sin resplandor ni brillos (Seba, 2026-10-23; un efecto de vidrio que siga pareciendo plano queda pendiente de un ejemplo suyo).
+- Hover: `--ga-orange-hover`.
 - Una sola acción principal visible por diálogo. Confirmar, Activar, Guardar, Mostrar resultados: todos naranja.
 - Peligro (desinstalar, borrar): fondo `#c8321f`, texto blanco. Nunca naranja.
 
@@ -83,8 +84,16 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Fondo `#0d1114`, borde 1 px `#ffffff20`, radio 8 px, **altura 44 px**. Foco: borde naranja y contorno `2 px` naranja con 3 px de offset.
 - Etiqueta arriba, Manrope 500 13 px, `--ga-white`.
 
-### 4.9 Notificación `ga-toast`
-- Fondo `rgba(24,28,31,.94)`, borde 1 px `--ga-line`, borde izquierdo 3 px naranja (o verde, rojo, según tono), radio 8 px, sombra `0 12px 40px #0007`.
+### 4.9 Aviso único `ga-notice` (componente `GaNotice`; reemplaza al toast y a los diálogos de resultado y confirmación simple)
+- Uno solo a la vez, **abajo a la derecha** (16 px sobre el pie, 20 px del borde; si hay panel derecho abierto, a la izquierda del panel), 380 px de ancho. Si llega otro, el mismo aviso cambia su contenido: no se apilan.
+- Fondo que se desvanece hacia arriba (`rgba(20,24,28,.97)` abajo → transparente arriba) sin apagar el contenido; línea de 2 px abajo con el color del tono: verde (`ok`), celeste (`frost`), rojo (`danger`/`error`), naranja (`info`).
+- Padding 48/22/22 px, separación 16 px. Portada del juego (46 × 69 px) a la izquierda si hay juego; si no, ícono del tono en un círculo.
+- **Temporizador:** si salió bien y no tiene botones propios, círculo de 30 px arriba a la derecha que se completa en **3 s** y cierra el aviso (se pausa con el mouse encima; tocarlo cierra). También lo lleva "Listo para jugar", que tiene solo el botón Jugar, y "Nuevas descargas" (juegos que pasaron a tener descarga), con Aceptar y Más: Más abre Novedades, donde la noticia queda en la campana hasta abrirla.
+- **Error:** nunca se cierra solo; muestra sus botones (p. ej. "Ver registro" y "Reintentar").
+- **Confirmación:** `Cancelar` + la acción (roja si destruye, celeste si congela). Esc cancela.
+- **Pasos:** lista de pasos con estado (pendiente, en curso, hecho, falló) y barra fina abajo; se usa al jugar.
+- Texto largo: el aviso crece hacia arriba, el ancho no cambia. `z-index` por encima de la ficha y de los paneles.
+- Los diálogos que bloquean la app (actualización, base del catálogo, plugin) siguen en el diálogo central (`src/centralDialog`).
 
 ### 4.10 Insignia de estado
 - Pastilla de 20 px, texto 11 px, color según estado: naranja (en curso), verde (listo), rojo (error), gris (sin estado).
@@ -105,6 +114,39 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - **Salen del ciclo de Tab** (`tabIndex={-1}`; siguen funcionando con el mouse): sliders (`input type="range"`), casillas (`input type="checkbox"`), controles de grilla que no son botones, barras de desplazamiento, imágenes, videos y bloques de texto desplazables.
 - Si una pantalla necesita que otro control entre en el ciclo, se pide primero y se documenta aquí.
 
+### 4.14 Botón cubo `GaIconButton` (pie y comandos de la pantalla principal)
+- Solo ícono (19 px), 41 × 38 px, radio 8. Vidrio: fondo `linear-gradient(180deg,#ffffff16,#ffffff05)`, borde `#ffffff1c`, brillo `inset 0 1px 0 #ffffff24`.
+- Al pasar el mouse o con foco **se enciende** (fondo naranja translúcido, borde `#ff8a38`, resplandor `0 0 18px #ff6a0055`) y **despliega su nombre** al lado del ícono. Sin mouse ni foco no muestra texto.
+- `pressed` (interruptor encendido): fondo naranja suave y una rayita naranja abajo. `badge`: numerito naranja arriba a la derecha, oculto en 0.
+- En la pantalla principal los comandos son cubos; dentro de diálogos y paneles los botones llevan texto (§4.2, §4.3).
+
+### 4.15 Marca de instalado `play-mark`
+- Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
+- En reposo las portadas de las grillas (catálogo y librería) se ven apagadas (`saturate(.55) brightness(.9)`); la tarjeta bajo el puntero o seleccionada se ve con todo su color.
+- Las grillas muestran al menos 6 portadas por fila (mientras cada una tenga 110 px o más); la separación entre portadas sigue a la ventana (24–40 px) y hay aire entre la grilla y las palabras grandes de los costados.
+- Congelado jugable: copito celeste de 26 px arriba a la derecha. Congelado profundo: velo celeste esmerilado sobre la tarjeta apaisada.
+
+### 4.16 Palabra lateral de la vista
+- A la izquierda de la zona principal, la palabra de la vista actual en vertical (de abajo hacia arriba), la más larga al 110 % del alto de la ventana y las dos con el mismo tamaño de letra (igual de gruesas). **Sin tilde**: `CATALOGO` / `LIBRERIA` (`CATALOG` / `LIBRARY`).
+- Archivo Black; silueta lisa al 28 % y encima el interior pixelado (cuadraditos de 6 px con ranura de 2 px); las letras se desvanecen hacia el centro con una máscara. Catálogo en naranja, librería en verde (`--ga-success`). Se oculta debajo de 900 px.
+
+### 4.17 Panel lateral `ga-side-panel`
+- En ventanas de 1800 px o más: Administrador a la izquierda, Descargas a la derecha y Novedades debajo de Descargas. Ancho `clamp(380px, 25vw, 560px)` (22 % si hay paneles en los dos costados).
+- Fondo opaco **sin** `backdrop-filter`: el gris del centro junto al catálogo, oscureciéndose hacia el borde exterior (`linear-gradient(90deg,#0c0f11 0%,#14181b 45%,#1b2024 100%)`, espejado a la derecha).
+- Sin foco: gris (`grayscale(1) brightness(.8)`) y girado 9° hacia el centro (perspectiva 1300 px). Con mouse o foco se endereza y toma color.
+- Encabezado §4.6 con `ga-close`; en ventanas chicas el panel es la pantalla completa con `ga-back` (§4.11). El pie queda siempre por encima de los paneles.
+
+### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)
+- Acordeón: el separador entero es un botón (`aria-expanded`) con flecha a la izquierda (gira 90° al abrir), nombre del grupo en mayúsculas 11 px, cantidad entre paréntesis y la línea que se desvanece a la derecha. Al pasar el mouse o con foco, nombre y flecha en blanco; foco con anillo naranja.
+- Por defecto solo **Instalados** está abierto; **Congelados** e **Instalables** empiezan cerrados. Lo que el jugador abre o cierra se recuerda en ese equipo.
+- Abrir o cerrar no anima las tarjetas con Flip (sin medir todas las tarjetas): aparecen o se van al instante.
+
+### 4.19 Ventana deslizante de tarjetas (catálogo y librería)
+- Solo se montan las tarjetas visibles más una fila arriba y una abajo; al desplazarse, las que salen se desmontan y las que entran aparecen. La altura total de la grilla no cambia (barra estable). La tarjeta seleccionada queda montada.
+- Sin animación de entrada por ahora. Un efecto de aparición solo se agrega a partir de una implementación de referencia (p. ej. la demo oficial de GSAP `ScrollTrigger.batch`) y probado en la app con datos reales.
+- En el catálogo, una selección que hace el propio desplazamiento (`scrollClamping`) nunca mueve el scroll.
+- Nunca medir todas las tarjetas en cada render (`Flip.getState` solo cuando cambia el conjunto de tarjetas) ni animar con Flip al aparecer la vista.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
@@ -112,6 +154,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 3. Los textos salen de `t("clave")`. Nada en español o inglés fijo en el JSX.
 4. Los íconos de acción llevan `aria-label` traducido; los botones solo-icono llevan `title`.
 5. Los estados vacíos usan texto muted centrado, sin ilustraciones.
+5b. No mostrar el mismo dato dos veces (un estado en una etiqueta y en una línea, una cifra arriba y en una pastilla). El estado normal (listo para jugar) no lleva indicador.
+5c. Movimiento: GSAP desde `src/motion/gsap.ts`; respetar "reducir movimiento"; animar `transform` y `opacity`; reglas detalladas en `.claude/skills/gameaccess-motion-ui`.
 6. El tamaño grande (`.ga-big-screen`) aumenta la altura mínima de botones a 44 px; no reduce tipografía.
 7. No introducir nuevos colores: si falta uno, se agrega a la tabla de tokens.
 8. Tab recorre todos los botones y ningún otro control (§4.13).

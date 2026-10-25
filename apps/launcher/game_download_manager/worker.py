@@ -32,6 +32,7 @@ import requests
 import logging
 from flow_diagnostics import FlowDiagnostics, FlowLogger
 from launcher_data import data_dir
+from game_download_manager.steps import StepTracker
 from logging.handlers import RotatingFileHandler
 
 LAUNCHER_DIR = Path(__file__).resolve().parent.parent
@@ -109,6 +110,8 @@ g_temp_files: List[str] = []
 g_cancel_hooks: List[Any] = []
 g_app_id: str = ""
 g_route: str = ""
+# One download per worker process: its steps, sent with every progress and error event.
+g_steps = StepTracker()
 g_diagnostics = None
 
 def emit_json(payload: dict):
@@ -189,6 +192,7 @@ def emit_progress(
     clean_text = re.sub(r' — \d+(\.\d+)?%', '', clean_text)
     clean_text = re.sub(r' - \d+(\.\d+)?%', '', clean_text)
     clean_text = clean_text.strip()
+    g_steps.follow(phase, clean_text)
 
     emit_json({
         "type": "progress",
@@ -203,21 +207,27 @@ def emit_progress(
         "etaSeconds": int(eta_seconds),
         "statusText": clean_text,
         "route": g_route,
+        **g_steps.payload(),
     })
 
-def emit_error(app_id: str, error_message: str, error_code: str = "", error_detail=None):
-    """`error_code` names failures the app explains in its own words (e.g. "not_a_game", with the content kinds found)."""
+def emit_error(app_id: str, error_message: str, error_code: str = "", error_detail=None, resume_step: str = ""):
+    """`error_code` names failures the app explains in its own words (e.g. "not_a_game", with the content kinds found);
+    `resume_step` is where a retry continues ("download" or "extract"), empty when it has to start over."""
+    g_steps.fail(error_message)
     emit_json({
+        **g_steps.payload(),
         "type": "error",
         "appId": str(app_id),
         "phase": "error",
         "error": error_message,
         "statusText": f"Error: {error_message}",
         **({"errorCode": error_code, "errorDetail": error_detail or []} if error_code else {}),
+        **({"resumeStep": resume_step} if resume_step else {}),
     })
 
-def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code="", error_detail=None):
-    """Graceful cleanup handler for SIGINT/SIGTERM."""
+def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code="", error_detail=None, resume_step=""):
+    """Graceful cleanup handler for SIGINT/SIGTERM, and the end of a failed download (`error_message`): a failure keeps
+    what was downloaded so a retry goes on from `resume_step` ("download" or "extract")."""
     global g_cancelled, g_active_subprocess, g_temp_files, g_app_id, g_torrent_session
     g_cancelled.set()
     
@@ -237,8 +247,8 @@ def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code=""
         except Exception:
             pass
 
-    # Delete incomplete files
-    for path in g_temp_files:
+    # Delete incomplete files (only on cancel: after an error they are what the retry continues from)
+    for path in ([] if error_message else g_temp_files):
         if os.path.isfile(path):
             try:
                 os.remove(path)
@@ -251,7 +261,7 @@ def cleanup_on_cancel(signum=None, frame=None, error_message=None, error_code=""
                 pass
 
     if error_message:
-        emit_error(g_app_id, error_message, error_code, error_detail)
+        emit_error(g_app_id, error_message, error_code, error_detail, resume_step)
     else:
         # Aborting a download removes the whole game folder (it used to leave an empty one behind).
         for hook in list(g_cancel_hooks):
@@ -291,6 +301,20 @@ def _set_route(route):
     g_route = str(route or "")
 
 
+# Whether the download and its unpacking fit on disk, set by the pipeline once it knows the folders.
+g_room_check = None
+
+
+def _set_room_check(check):
+    global g_room_check
+    g_room_check = check
+
+
+def _ensure_room(total_bytes, on_disk_bytes=0):
+    if g_room_check is not None and total_bytes:
+        g_room_check(int(total_bytes), int(on_disk_bytes or 0))
+
+
 def _context():
     return DownloadContext(
         launcher_dir=LAUNCHER_DIR, app_id=g_app_id, cancelled=g_cancelled,
@@ -300,7 +324,8 @@ def _context():
         archive_enclosing_folder=archive_enclosing_folder,
         get_process=lambda: g_active_subprocess, set_process=_set_process,
         get_torrent=lambda: g_torrent_session, set_torrent=_set_torrent,
-        cancel_hooks=g_cancel_hooks, set_route=_set_route,
+        cancel_hooks=g_cancel_hooks, set_route=_set_route, steps=g_steps,
+        ensure_room=_ensure_room, set_room_check=_set_room_check,
     )
 
 

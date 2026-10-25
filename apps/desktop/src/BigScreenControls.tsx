@@ -6,6 +6,7 @@ import { InputSourceArbiter } from "./inputSource";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useI18n } from "./i18n";
+import { GaIconButton } from "./components/ga/Buttons";
 
 type Props = { footerTarget?: HTMLDivElement | null; enabled: boolean; onToggle: () => void; onDirection: (key: string) => void; onAccept: () => void; onBack: () => void; onView: (view: "installed" | "catalog") => void; query: string; onQuery: (query: string) => void };
 function dialogScope() { return document.querySelector<HTMLElement>('[role="menu"]') ?? document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]'); }
@@ -87,7 +88,7 @@ export default function BigScreenControls(props: Props) {
     return () => { cancelAnimationFrame(frame); window.clearTimeout(idle); window.removeEventListener("keydown", keyboardUsed, true); };
   }, []);
   useEffect(() => { if (keyboard) document.querySelector<HTMLElement>(".ga-pad-keyboard button")?.focus({preventScroll:true}); }, [keyboard]);
-  const toggle = <button type="button" className="ga-big-screen-toggle ga-dock-btn" aria-pressed={props.enabled} aria-label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} onClick={props.onToggle}>{props.enabled ? <Minimize size={22}/> : <Maximize size={22}/>}<span>{props.enabled ? t("bigScreenExitShort") : t("bigScreenEnter")}</span></button>;
+  const toggle = <GaIconButton className="ga-big-screen-toggle" icon={props.enabled ? <Minimize size={20} aria-hidden="true" /> : <Maximize size={20} aria-hidden="true" />} label={props.enabled ? t("bigScreenExitShort") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} pressed={props.enabled} onClick={props.onToggle} />;
   return <>
     {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
     {props.enabled ? <div className="ga-pad-hints" aria-label={t("uiControlesDeXbox")}>

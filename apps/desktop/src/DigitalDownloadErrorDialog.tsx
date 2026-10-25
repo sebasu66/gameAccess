@@ -1,69 +1,51 @@
-import { useEffect, useState } from "react";
-import AppDialog from "./AppDialog";
+import { useEffect } from "react";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { digitalErrorMessage } from "./digitalErrors";
 import { libraryMembership } from "./libraryMembership";
 import { reportClientError } from "./narrationLog";
-import {useI18n} from "./i18n";
-import GameRecoveryDialog from "./GameRecoveryDialog";
-import type { CatalogGame } from "./types";
-
-export type DownloadProblem = { key: string; name: string; error: string; reportMessage: string; reported: boolean | null; game?: CatalogGame;
-  /** The download held no executable at all: what it held instead ("audio", "images"...). */
-  notAGame?: string[] };
+import { getAppLocale, translate } from "./i18n";
+import { hideNotice, showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
+import { findAnotherSource } from "./sourceRescue";
 
 const KIND_KEYS = { audio: "notAGameKindAudio", images: "notAGameKindImages", video: "notAGameKindVideo", documents: "notAGameKindDocuments", other: "notAGameKindOther" } as const;
 
-/** Not an error to retry or repair: the launcher already deleted it; the player should pick another source. */
-export function NotAGameDialog({ problem, onClose }: { problem: DownloadProblem; onClose: () => void }) {
-  const { t, localeTag } = useI18n();
-  const kinds = (problem.notAGame?.length ? problem.notAGame : ["other"]).map(kind => t(KIND_KEYS[kind as keyof typeof KIND_KEYS] ?? "notAGameKindOther"));
-  return <AppDialog title={t("notAGameTitle", { name: problem.name })} tone="info"
-    message={t("notAGameBody", { kinds: new Intl.ListFormat(localeTag, { type: "conjunction" }).format(kinds) })} onClose={onClose} />;
-}
-
-export function DownloadProblemDialog({ problem, onClose }: { problem: DownloadProblem; onClose: () => void }) {
-  const {t}=useI18n();
-  const support = t(problem.reported === null ? "downloadSupportSending" : problem.reported ? "downloadSupportSent" : "downloadSupportFailed");
-  return <AppDialog title={t("downloadProblemTitle",{name:problem.name})} tone="error"
-    message={`${problem.error}\n\n${support} ${t("downloadSupportSorry")}`} onClose={onClose} />;
-}
-
+/**
+ * A failed download is told once, in the app's single notice (bottom right), never in a second dialog. Another
+ * download source may work, so the notice offers "Try another source" (sourceRescue.ts checks them one by one).
+ * The failure is still reported to support in the background. A download that held no game (music, artwork) is
+ * taken out of the library, and the notice says what it held.
+ */
 export default function DigitalDownloadErrorDialog() {
-  const [problems, setProblems] = useState<DownloadProblem[]>([]);
   useEffect(() => {
     const seen = new Map<number, string>();
-    let mounted = true;
-    const unsubscribe = digitalDownloadService.onGlobalUpdate(snapshot => {
-      // Opening the app must not greet the user with a dialog about an old failure; the library card is flagged instead.
+    return digitalDownloadService.onGlobalUpdate(snapshot => {
+      // Opening the app must not greet the user with a notice about an old failure; the library card is flagged instead.
       if (!digitalDownloadService.startedThisSession(snapshot.gameId)) return;
       if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) {
-        seen.delete(snapshot.gameId);
+        if (snapshot.phase !== "preparing") seen.delete(snapshot.gameId);
         return;
       }
       const game = digitalDownloadService.getDownloads().find(entry => entry.snapshot.gameId === snapshot.gameId)?.game;
-      const name = game?.name || `Juego ${snapshot.gameId}`;
+      const name = game?.name || `#${snapshot.gameId}`;
       const reportMessage = digitalErrorMessage(snapshot, name);
       if (seen.get(snapshot.gameId) === reportMessage) return;
       seen.set(snapshot.gameId, reportMessage);
-      const key = `${snapshot.gameId}:${Date.now()}:${reportMessage}`;
+      let text = snapshot.error || snapshot.statusText || "";
       if (snapshot.errorCode === "not_a_game") {
         // Nothing failed in Game Access: the source gave music or artwork. It is no longer in the library.
         if (game) libraryMembership.remove(game);
-        setProblems(current => [...current, { key, name, game, reportMessage, error: snapshot.error ?? "", reported: true, notAGame: snapshot.errorDetail ?? [] }]);
-        return;
-      }
-      setProblems(current => [...current, { key, name, game, reportMessage, error: snapshot.error || snapshot.statusText || "Error de ejecución", reported: null }]);
-      void reportClientError(reportMessage, "DIGITAL_DOWNLOAD").then(reported => {
-        if (mounted) setProblems(current => current.map(problem => problem.key === key ? { ...problem, reported } : problem));
+        const kinds = (snapshot.errorDetail?.length ? snapshot.errorDetail : ["other"]).map(kind => translate(KIND_KEYS[kind as keyof typeof KIND_KEYS] ?? "notAGameKindOther"));
+        text = translate("notAGameBody", { kinds: new Intl.ListFormat(getAppLocale() === "es" ? "es-AR" : "en-US", { type: "conjunction" }).format(kinds) });
+      } else void reportClientError(reportMessage, "DIGITAL_DOWNLOAD");
+      showNotice({
+        game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,
+        actions: [
+          ...(game ? [{ label: translate("rescueTry"), kind: "primary" as const, run: () => void findAnotherSource(game) }] : []),
+          { label: translate("close"), kind: "secondary", run: () => hideNotice() },
+        ],
       });
     });
-    return () => { mounted = false; unsubscribe(); };
   }, []);
-  const problem = problems[0];
-  const close = () => setProblems(current => current.slice(1));
-  if (problem?.notAGame) return <NotAGameDialog key={problem.key} problem={problem} onClose={close} />;
-  // With the game known, the failure is recoverable: show what failed, the editable parameters, retry or abort.
-  if (problem?.game) return <GameRecoveryDialog key={problem.key} game={problem.game} mode="error" message={problem.error} onClose={close} />;
-  return problem ? <DownloadProblemDialog key={problem.key} problem={problem} onClose={close} /> : null;
+  return null;
 }

@@ -8,6 +8,7 @@ import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
 import {translate, useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
+import { useMagneticButtons } from "./motion/magnetic";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
@@ -538,6 +539,8 @@ function ExtendedDetails({ details }: { details: GameDetails | null }) {
 function DesktopFeature(props: FeaturePanelProps) {
   const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  useMagneticButtons(actionsRef);
   const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
   const ratingGame = details ?? props.game;
@@ -563,14 +566,14 @@ function DesktopFeature(props: FeaturePanelProps) {
             {detailState.loading ? <span role="status">{t("uiCargandoFichaDeSteam")}</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
             <RatingBar score={ratingGame.steam_review_score} count={ratingGame.steam_review_count} />
             <ExtendedDetails details={details} />
-            <section className="ga-detail-metadata"><h3>{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} />{props.game.tags?.length ? <><h3>{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
+            <section className="ga-detail-metadata"><h3>{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} />{props.game.tags?.length ? <><h3>{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
             <ActiveDownloadFacts download={props.download} />
           </div>
           <CircularScrollbar targetRef={scrollRef} label={t("uiDesplazarInformacionDelJuego")} />
           </div>
-          <div className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
+          <div ref={actionsRef} className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /></section>
+        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
       </div>
     </article>
   );

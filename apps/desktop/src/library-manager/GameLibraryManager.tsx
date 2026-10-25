@@ -1,38 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import CircularScrollbar from "../CircularScrollbar";
-import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type RowSelectionState, type SortingState } from "@tanstack/react-table";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Flame, FolderInput, FolderOpen, Link2, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, Download, Gamepad2, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
 import { translate, useI18n } from "../i18n";
 import { notify } from "../toasts";
-import SteamCover from "../SteamCover";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
 import { libraryDemo, scanLibrary, useLibraryScan } from "../libraryScan";
 import type { CatalogGame } from "../types";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
-import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
-import { Progress } from "../components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
-import { cn } from "../lib/cn";
-import { DiskBar } from "./Charts";
+import { DiskDonut } from "./Charts";
 import { copy, type LibraryCopy } from "./copy";
 import { demoPlans } from "./demoData";
 import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
-import { addReadyGameToLibrary } from "../libraryMembership";
+import { addReadyGameToLibrary, libraryMembership, useLibraryGames } from "../libraryMembership";
+import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
-import FreezeDialog from "../FreezeDialog";
+import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import { useFreezeJob } from "../freezeJobs";
+import { GaBack, GaButton } from "../components/ga/Buttons";
+import { confirmNotice } from "../notice/notice";
+import { noticeGame } from "../notice/noticeGame";
+import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
+import "./manager.css";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
 const notifyLibraryChanged = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event("focus")); };
 
-type Filter = "all" | "outside" | "errors" | "partial";
+type Selection = { [key: string]: boolean };
+type Filter = "all" | "outside" | "errors" | "partial" | "frozen";
 type Pending =
   | { kind: "plan"; plans: LibraryPlan[]; ids: number[] }
   | { kind: "uninstall"; ids: number[] }
@@ -42,45 +39,51 @@ const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: g
 const hasError = (game: LibraryGame) => !game.unfinished && game.issues.some(issue => issue.code === "error");
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
+const landscape = (appId: number | null | undefined) => appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : "";
 
-function StatusBadges({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
-  const badges = [] as JSX.Element[];
-  if (game.linked) badges.push(<Badge key="s" variant="info"><Link2 className="size-3" />{c.linked}</Badge>);
-  else if (game.partial) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.partialDl}</Badge>);
-  // Still in the Download Manager (queued, paused or running): its folder is not judged until the download ends.
-  else if (game.unfinished && !isUnfinished(game)) badges.push(game.transfer_active ? <Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c.downloading}</Badge> : <Badge key="s" variant="info">{c.pendingDl}</Badge>);
-  else if (hasError(game)) badges.push(<Badge key="s" variant="destructive"><AlertTriangle className="size-3" />{c.error}</Badge>);
-  else if (!game.standard) badges.push(<Badge key="s" variant="warning"><AlertTriangle className="size-3" />{c.outsideStd}</Badge>);
-  else if (["installing", "downloading", "preparing"].includes(game.state)) badges.push(<Badge key="s" variant="info"><Loader2 className="size-3 animate-spin" />{c[game.state as "installing"]}</Badge>);
-  else badges.push(<Badge key="s" variant="success">{c.ready}</Badge>);
-  if (game.frozen) badges.push(<Badge key="f" className="border-frost/50 bg-frost/15 text-frost"><Snowflake className="size-3" />{game.frozen === "deep" ? c.deepFrozen : c.frozen}</Badge>);
-  if (!game.partial && game.transfer_bytes && !game.transfer_active) badges.push(<Badge key="t" variant="info">{c.partialDl} · {formatBytes(game.transfer_bytes)}</Badge>);
-  return <div className="flex flex-wrap items-center gap-1.5">{badges}</div>;
-}
-
-/** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a toast if it is closed). */
-function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
-  const running = useFreezeJob(game.app_id);
-  return <IconAction label={c.thaw} disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <Flame className="text-frost" />}</IconAction>;
+/**
+ * What a row says about its state, without repeating text (docs/TAREA-interfaz-nueva.md T11): ready → nothing;
+ * frozen → the grid's snowflake; outside the standard or with an error → a warning icon; both with their name on
+ * hover or focus. Downloads keep a short badge.
+ */
+function RowState({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
+  const flag = (kind: "frost" | "warn", label: string, icon: JSX.Element) => <span className={`lm-state ${kind}`} tabIndex={0} role="img" aria-label={label}>{icon}<i>{label}</i></span>;
+  if (game.frozen) return flag("frost", game.frozen === "deep" ? c.deepFrozen : c.frozen, <Snowflake />);
+  if (game.linked) return <span className="lm-badge">{c.linked}</span>;
+  if (game.partial || game.unfinished || isUnfinished(game)) {
+    if (game.transfer_active) return <span className="lm-badge"><Loader2 className="animate-spin" />{c.downloading}</span>;
+    if (game.queued) return <span className="lm-badge">{c.queued}</span>;
+    return <span />;
+  }
+  if (hasError(game)) return flag("warn", c.error, <AlertTriangle />);
+  if (!game.standard) return flag("warn", c.outsideStd, <AlertTriangle />);
+  if (["installing", "downloading", "preparing"].includes(game.state)) return <span className="lm-badge"><Loader2 className="animate-spin" />{c[game.state as "installing"]}</span>;
+  return <span />;
 }
 
 function subline(game: LibraryGame, c: LibraryCopy): string {
+  if (game.resume_step && !game.transfer_active) return game.resume_step === "extract" ? c.stoppedAtExtract : c.stoppedAtDownload;
   if (game.partial) return `${c.partialDl}: ${formatBytes(game.transfer_bytes)}`;
   if (game.unfinished && !game.standard) return c.pendingHint;
   if (!game.standard) return game.issues[0]?.message ?? game.warning;
-  if (game.last_played) return game.last_played.slice(0, 10);
   return "";
 }
 
-function IconAction({ label, onClick, disabled, destructive, children }: { label: string; onClick: () => void; disabled?: boolean; destructive?: boolean; children: React.ReactNode }) {
+function IconAction({ label, onClick, disabled, tone, children }: { label: string; onClick: () => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={label} disabled={disabled} onClick={onClick} className={destructive ? "hover:bg-destructive/20 hover:text-[#ff6b75]" : undefined}>{children}</Button>
+        <button type="button" className={`lm-act${tone ? ` ${tone}` : ""}`} aria-label={label} disabled={disabled} onClick={onClick}>{children}</button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
+}
+
+/** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a notice if it is closed). */
+function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
+  const running = useFreezeJob(game.app_id);
+  return <IconAction label={c.thaw} tone="frost" disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <Flame />}</IconAction>;
 }
 
 function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
@@ -91,10 +94,10 @@ function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
     void digitalProcessManager.gameLog(asGame(game)).then(result => { if (live) setText(result.log ?? ""); }).catch(() => { if (live) setText(""); });
     return () => { live = false; };
   }, [game.app_id]);
-  return <pre className="m-0 max-h-48 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed text-muted-foreground">{text === null ? c.working : text || c.noHistory}</pre>;
+  return <pre className="lm-history">{text === null ? c.working : text || c.noHistory}</pre>;
 }
 
-/** One toast per Library Manager action, saying how many games it changed and how many failed. */
+/** One notice per Library Manager action, saying how many games it changed and how many failed. */
 function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
   if (!results.length) return;
   const ok = results.filter(row => row.ok).length;
@@ -110,33 +113,129 @@ function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", resul
   notify(failed ? translate("toastBatchFailures", { summary, failed }) : summary, { tone: !failed ? "success" : ok ? "warning" : "error" });
 }
 
-export default function GameLibraryManager({ onClose, catalog = [], onInstall }: { onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void }) {
-  const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
+type RowProps = {
+  game: LibraryGame; c: LibraryCopy; busy: boolean; largest: number; focusId: number | null;
+  expanded: number | null; setExpanded: (id: number | null) => void;
+  selection: Selection; setSelection: (update: (current: Selection) => Selection) => void;
+  findCatalogGame: (game: LibraryGame) => CatalogGame | undefined;
+  onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
+  askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
+};
+
+/** A compact row: landscape picture, name, a status line only when it adds something, size, state icon; the actions
+ *  appear on hover or focus. */
+function ManagerRow({ game, c, busy, largest, focusId, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing }: RowProps) {
+  const id = game.app_id;
+  const key = String(id ?? game.folder);
+  const open = expanded === id;
+  const catalogGame = findCatalogGame(game);
+  const line = subline(game, c);
+  const unfinished = game.partial || isUnfinished(game);
+  const ref = useRef<HTMLDivElement>(null);
+  const focused = focusId != null && focusId === id;
+  useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
+  return (
+    <div ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
+      <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>
+        {id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}
+        {id != null ? <input type="checkbox" className="lm-check" aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}
+      </span>
+      <div className="lm-main">
+        <div className="lm-name">{game.name}</div>
+        {line ? <div className={`lm-line${!game.standard && !game.unfinished ? " warn" : ""}`}>{line}</div> : null}
+        {game.link_kind === "steam" && game.steam_owner ? <div className="lm-line">{translate("steamOwnerNote", { account: steamOwnerLabel(game.steam_owner) })}</div> : null}
+        <SizeCell game={game} largest={largest} c={c} />
+      </div>
+      <RowState game={game} c={c} />
+      <div className="lm-acts">
+        {unfinished && !game.transfer_active ? <>
+          {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
+              without one, the transfer starts again from the catalog. */}
+          {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><Play /></IconAction>
+            : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>}
+          {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction> : null}
+          <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
+          <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction>
+        </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction> : <>
+          {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><Download /></IconAction> : null}
+          {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><Wand2 /></IconAction> : null}
+          {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><Play /></IconAction> : null}
+          {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
+          {!game.frozen && !game.linked && game.installed && id != null ? <>
+            <IconAction label={c.freeze} tone="frost" disabled={busy} onClick={() => setThawing(game, "freeze")}><Snowflake /></IconAction>
+            <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><Snowflake /><b>+</b></IconAction>
+          </> : null}
+          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><ScrollText /></IconAction>
+          <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
+          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
+        </>}
+      </div>
+      {open ? <div className="lm-detail">
+        {game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
+          <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
+        {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} /></div> : null}
+      </div> : null}
+    </div>
+  );
+}
+
+/** A game of the library with no folder yet: Install, or take it out of the library. */
+function AbsentRow({ game, c, onInstall }: { game: CatalogGame; c: LibraryCopy; onInstall?: (game: CatalogGame) => void }) {
+  return (
+    <div className="lm-row">
+      <span className="lm-thumb">{game.app_id ? <img src={landscape(game.app_id)} alt="" loading="lazy" /> : null}</span>
+      <div className="lm-main"><div className="lm-name">{game.name}</div></div>
+      <span />
+      <div className="lm-acts">
+        {onInstall ? <IconAction label={c.install} tone="accent" onClick={() => onInstall(game)}><Download /></IconAction> : null}
+        <IconAction label={c.unlink} tone="danger" onClick={() => libraryMembership.remove(game)}><Link2Off /></IconAction>
+      </div>
+    </div>
+  );
+}
+
+export default function GameLibraryManager({ onClose, catalog = [], onInstall, onPlay, focusAppId, embedded = false }: {
+  onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
+  /** Highlights this game's row and scrolls to it ("Manage" on the back of a library card). */
+  focusAppId?: number | null;
+  /** Inside a desk panel (T10): the panel draws the title and the close button and handles Esc. */
+  embedded?: boolean;
+}) {
+  const { locale, t } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
+  const members = useLibraryGames();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([{ id: "size", desc: true }]);
-  const [selection, setSelection] = useState<RowSelectionState>({});
+  const [selection, setSelection] = useState<Selection>({});
   const [expanded, setExpanded] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [thawing, setThawing] = useState<LibraryGame | null>(null);
+  const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
+  const importSteam = async () => {
+    setBusy(true);
+    try {
+      const result = await syncSteamLibrary(catalog, { refresh: true });
+      notify(result.found ? t("steamImported", { linked: result.linked.length, owned: result.owned.length }) : t("steamNotFound"), { tone: result.found ? "success" : "error" });
+      notifyLibraryChanged();
+    } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
+  };
+  useEffect(() => { if (focusAppId != null) { setFilter("all"); setQuery(""); } }, [focusAppId]);
 
-  const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length }), [games]);
+  const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length, frozen: games.filter(game => game.frozen).length }), [games]);
   const rows = useMemo(() => games.filter(game => {
     if (query && !game.name.toLowerCase().includes(query.toLowerCase())) return false;
-    return filter === "all" || (filter === "outside" && needsFix(game)) || (filter === "errors" && hasError(game)) || (filter === "partial" && isUnfinished(game));
+    return filter === "all" || (filter === "outside" && needsFix(game)) || (filter === "errors" && hasError(game)) || (filter === "partial" && isUnfinished(game)) || (filter === "frozen" && Boolean(game.frozen));
   }), [games, filter, query]);
-  const largest = useMemo(() => Math.max(1, ...games.map(game => game.size_bytes ?? 0)), [games]);
+  const sorted = useMemo(() => [...rows].sort((a, b) => ((b.size_bytes ?? 0) + (b.transfer_bytes ?? 0)) - ((a.size_bytes ?? 0) + (a.transfer_bytes ?? 0))), [rows]);
+  const largest = useMemo(() => Math.max(1, ...games.map(game => game.original_bytes ?? game.size_bytes ?? 0)), [games]);
   const selectedIds = useMemo(() => rows.filter(game => game.app_id != null && selection[String(game.app_id)]).map(game => game.app_id as number), [rows, selection]);
   const fixable = useMemo(() => games.filter(needsFix).map(game => game.app_id as number), [games]);
   const selectedFixable = selectedIds.filter(id => fixable.includes(id));
 
-  const findCatalogGame = (game: LibraryGame) => catalog.find(item => (item.app_id ?? item.id) === game.app_id);
+  const findCatalogGame = (game: LibraryGame) => catalog.find(item => (item.app_id ?? item.id) === game.app_id) ?? members.find(item => (item.app_id ?? item.id) === game.app_id);
 
   const askPlan = async (ids: number[]) => {
     if (!ids.length) return;
@@ -156,193 +255,98 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall }:
       setSelection({});
     } catch (failure) { setMessage(String(failure)); notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
   };
-  const confirmPending = async () => {
-    if (!pending) return;
-    if (pending.kind === "plan") await runBatch("adopt", pending.ids);
-    else if (pending.kind === "uninstall") await runBatch("uninstall", pending.ids);
+  const confirmPending = async (current: Pending | null = pending) => {
+    if (!current) return;
+    if (current.kind === "plan") await runBatch("adopt", current.ids);
+    else if (current.kind === "uninstall") await runBatch("uninstall", current.ids);
     else {
-      const catalogGame = findCatalogGame(pending.game);
-      await runBatch("discard_transfer", [pending.game.app_id as number]);
-      if (pending.restart && catalogGame && onInstall) onInstall(catalogGame);
+      const catalogGame = findCatalogGame(current.game);
+      await runBatch("discard_transfer", [current.game.app_id as number]);
+      if (current.restart && catalogGame && onInstall) onInstall(catalogGame);
     }
   };
 
-  const columns = useMemo<ColumnDef<LibraryGame>[]>(() => [
-    {
-      id: "select", enableSorting: false,
-      header: ({ table }) => <Checkbox aria-label="all" checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? "indeterminate" : false} onCheckedChange={value => table.toggleAllRowsSelected(Boolean(value))} />,
-      cell: ({ row }) => <Checkbox aria-label={row.original.name} checked={row.getIsSelected()} onCheckedChange={value => row.toggleSelected(Boolean(value))} />,
-    },
-    {
-      id: "name", accessorFn: game => game.name.toLowerCase(), header: c.game,
-      cell: ({ row }) => {
-        const game = row.original; const open = expanded === game.app_id;
-        return (
-          <button type="button" className="flex w-full items-center gap-3 border-0 bg-transparent p-0 text-left text-foreground" onClick={() => setExpanded(open ? null : game.app_id)} aria-expanded={open}>
-            <span className="relative h-14 w-10 shrink-0 overflow-hidden rounded-sm bg-muted [&_*]:max-h-full"><SteamCover game={asGame(game)} /></span>
-            <span className="grid min-w-0 gap-0.5">
-              <span className="flex items-center gap-1 truncate text-sm font-bold">{open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}{game.name}</span>
-              <span className={cn("truncate text-xs", !game.standard && !game.unfinished ? "text-warning" : "text-muted-foreground")}>{subline(game, c)}</span>
-            </span>
-          </button>
-        );
-      },
-    },
-    {
-      id: "size", accessorFn: game => (game.size_bytes ?? 0) + (game.transfer_bytes ?? 0), header: c.size,
-      cell: ({ row }) => <SizeCell game={row.original} largest={largest} c={c} />,
-    },
-    { id: "status", enableSorting: false, header: c.status, cell: ({ row }) => <StatusBadges game={row.original} c={c} /> },
-    { id: "plays", accessorFn: game => game.plays ?? 0, header: c.plays, cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{row.original.plays ?? 0}</span> },
-    {
-      id: "actions", enableSorting: false, header: () => <span className="sr-only">{c.actions}</span>,
-      cell: ({ row }) => {
-        const game = row.original; const id = game.app_id;
-        const catalogGame = findCatalogGame(game);
-        return (
-          <div className="flex items-center justify-end gap-0.5">
-            {(game.partial || isUnfinished(game)) && !game.transfer_active ? <>
-              <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>
-              {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction> : null}
-              <IconAction label={c.discardAll} destructive disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
-              {!game.partial ? <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction> : null}
-            </> : game.partial ? null : <>
-              {needsFix(game) && id != null ? <IconAction label={c.fix} disabled={busy} onClick={() => void askPlan([id])}><Wand2 className="text-primary" /></IconAction> : null}
-              {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game)} /> : null}
-              <IconAction label={c.history} onClick={() => setExpanded(expanded === id ? null : id)}><ScrollText /></IconAction>
-              <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
-              <IconAction label={game.linked ? c.unlink : c.uninstall} destructive disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
-            </>}
-          </div>
-        );
-      },
-    },
-  ], [c, expanded, largest, busy, catalog, onInstall]);
-
-  const table = useReactTable({
-    data: rows, columns, state: { sorting, rowSelection: selection }, onSortingChange: setSorting, onRowSelectionChange: setSelection,
-    getRowId: game => String(game.app_id ?? game.folder), getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel(), enableRowSelection: game => game.original.app_id != null,
-  });
-
-  const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
-  const pendingIds = pending?.kind === "uninstall" ? pending.ids : [];
-  const allLinked = pendingIds.length > 0 && pendingIds.every(id => linkedIds.has(id));
-  const anyLinked = pendingIds.some(id => linkedIds.has(id));
-  const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(thawing)), [pending, importOpen, thawing]);
+  // Uninstall and discard ask in the app's single notice (T3), not in a dialog of their own.
   useEffect(() => {
+    if (!pending || pending.kind === "plan") return;
+    const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
+    const one = pending.kind === "uninstall" && pending.ids.length === 1 ? games.find(game => game.app_id === pending.ids[0]) : pending.kind === "discard" ? pending.game : undefined;
+    const allLinked = pending.kind === "uninstall" && pending.ids.every(id => linkedIds.has(id));
+    const anyLinked = pending.kind === "uninstall" && pending.ids.some(id => linkedIds.has(id));
+    let live = true;
+    void confirmNotice({
+      game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
+      title: pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
+      text: pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
+      confirmLabel: pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
+      cancelLabel: c.cancel, kind: "danger",
+    }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
+    return () => { live = false; };
+  }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [escapeGuard, setEscapeGuard] = useState(false);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(freezing)), [pending, importOpen, freezing]);
+  useEffect(() => {
+    if (embedded) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [escapeGuard, onClose]);
+  }, [escapeGuard, onClose, embedded]);
 
-  const stat = (label: string, value: string, tone = "") => <div className="grid gap-0.5 rounded-lg border border-border bg-card px-4 py-2.5"><span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span><span className={cn("font-sans text-xl font-extrabold tabular-nums", tone)}>{value}</span></div>;
-  const filters: [Filter, string, number][] = [["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial]];
+  const filters: [Filter, string, number][] = ([["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial], ["frozen", c.frozenFilter, counts.frozen]] as [Filter, string, number][]).filter(([id, , count]) => id === "all" || id === filter || count > 0);
+  const installed = sorted.filter(game => game.installed && !game.partial && !isUnfinished(game) && !game.unfinished);
+  const notInstalled = sorted.filter(game => !installed.includes(game));
+  const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && (!query || member.name.toLowerCase().includes(query.toLowerCase()))) : [];
+  const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
+  const rowProps = { c, busy, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }), focusId: focusAppId ?? null };
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] flex flex-col overflow-y-auto bg-background [color-scheme:dark] font-sans text-foreground" role="dialog" aria-modal="true" aria-label={c.title}>
-        <header className="ga-screen-header !max-w-none">
-          <h2 className="ga-screen-title mr-auto">{c.title}</h2>
-          <Button variant="secondary" disabled={busy} onClick={() => setImportOpen(true)}><FolderInput />{c.importGames}</Button>
-          <Button variant="secondary" disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 className="animate-spin" /> : <ScanSearch />}{scanning ? c.scanning : c.scan}</Button>
-          <Button variant="default" disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}><Wand2 />{c.fixAll} ({fixable.length})</Button>
-          <Button className="ga-back" onClick={onClose} data-dialog-initial><ArrowLeft />{c.back}</Button>
-        </header>
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-5 px-12 pb-8">
-          <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Input className="max-w-64" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />
-              <div className="flex flex-wrap gap-1.5">
-                {filters.map(([id, label, count]) => (
-                  <Button key={id} size="sm" variant={filter === id ? "default" : "outline"} onClick={() => setFilter(id)}>{label}<span className="tabular-nums opacity-70">{count}</span></Button>
-                ))}
-              </div>
-              {selectedIds.length ? <div className="ml-auto flex items-center gap-2 rounded-md border border-primary/60 bg-primary/10 px-3 py-1">
-                <b className="text-xs">{c.selected(selectedIds.length)}</b>
-                <Button size="sm" variant="default" disabled={busy || !selectedFixable.length} onClick={() => void askPlan(selectedFixable)}><Wand2 />{c.fixSelected}</Button>
-                <Button size="sm" variant="destructive" disabled={busy} onClick={() => setPending({ kind: "uninstall", ids: selectedIds })}><Trash2 />{c.uninstall}</Button>
-                <Button size="icon" variant="ghost" aria-label={c.clear} onClick={() => setSelection({})}><X /></Button>
-              </div> : null}
+      <div className={embedded ? "lm-root is-embedded" : "lm-root fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] overflow-y-auto bg-background"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label={c.title}>
+        {embedded ? null : <header className="ga-screen-header !max-w-none"><h2 className="ga-screen-title mr-auto">{c.title}</h2><GaBack label={c.back} onClick={onClose} data-dialog-initial /></header>}
+        <div className="lm-content">
+          {summary ? <section className="lm-summary">
+            <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
+            <div className="lm-stats">
+              <div><strong>{installed.length}</strong><span>{c.installedStat}</span></div>
+              <div><strong>{formatBytes(summary.frozen_saved_bytes ?? 0)}</strong><span>{c.frozenStat}</span></div>
             </div>
-            {message ? <p role="status" className="m-0 rounded-md border border-border bg-card px-3 py-2 text-sm">{message}</p> : null}
-            {error ? <p role="alert" className="m-0 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-[#ff6b75]">{error}</p> : null}
-            <div className="relative min-h-[200px] flex-1 rounded-lg border border-border bg-card/40">
-              <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden pr-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map(group => (
-                    <TableRow key={group.id} className="hover:bg-transparent">
-                      {group.headers.map(header => {
-                        const sorted = header.column.getIsSorted();
-                        return (
-                          <TableHead key={header.id} className={header.column.id === "select" ? "w-10" : undefined}>
-                            {header.isPlaceholder ? null : header.column.getCanSort()
-                              ? <button type="button" className="inline-flex items-center gap-1 border-0 bg-transparent p-0 font-[inherit] text-[inherit] uppercase tracking-[inherit] text-muted-foreground hover:text-foreground" onClick={header.column.getToggleSortingHandler()}>
-                                {flexRender(header.column.columnDef.header, header.getContext())}
-                                {sorted === "asc" ? <ArrowUp className="size-3" /> : sorted === "desc" ? <ArrowDown className="size-3" /> : <ArrowUpDown className="size-3 opacity-40" />}
-                              </button>
-                              : flexRender(header.column.columnDef.header, header.getContext())}
-                          </TableHead>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.length === 0 ? <TableRow><TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">{games.length ? c.empty : scanning ? c.scanning : c.noGames}</TableCell></TableRow> :
-                    table.getRowModel().rows.flatMap(row => {
-                      const game = row.original; const open = expanded === game.app_id;
-                      return [
-                        <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
-                          {row.getVisibleCells().map(cell => <TableCell key={cell.id} className={cell.column.id === "actions" ? "w-px whitespace-nowrap" : cell.column.id === "name" ? "min-w-[260px]" : undefined}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
-                        </TableRow>,
-                        open ? <TableRow key={`${row.id}-detail`} className="bg-background/60 hover:bg-background/60"><TableCell /><TableCell colSpan={columns.length - 1}>
-                          <div className="grid gap-3 py-1">
-                            {game.issues.length && !game.unfinished ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.whatNeeds}</b>
-                              <ul className="m-0 grid list-none gap-1 p-0">{game.issues.map(issue => <li key={issue.code} className="flex items-center gap-2 text-sm"><AlertTriangle className="size-3.5 text-warning" />{issue.message}{issue.bytes ? <b className="text-xs text-muted-foreground">({formatBytes(issue.bytes)})</b> : null}</li>)}</ul></div> : null}
-                            {!game.partial ? <div className="grid gap-1"><b className="text-xs uppercase tracking-wider text-muted-foreground">{c.historyTitle}</b><History game={game} c={c} /></div> : null}
-                          </div>
-                        </TableCell></TableRow> : null,
-                      ];
-                    })}
-                </TableBody>
-              </Table>
-              </div>
-              <CircularScrollbar targetRef={scrollRef} label={c.title} />
-            </div>
-          </section>
-          {summary ? <div className="grid flex-none gap-3">
-            <div className={cn("grid gap-3 max-[900px]:grid-cols-2", summary.frozen_saved_bytes ? "grid-cols-6" : "grid-cols-5")}>
-              {stat(c.games, String(summary.count))}
-              {stat(c.used, formatBytes(summary.used_bytes))}
-              {stat(c.partialStat, formatBytes(summary.transfers_bytes), summary.transfers_bytes ? "text-info" : "")}
-              {stat(c.broken, String(summary.nonstandard), summary.nonstandard ? "text-warning" : "")}
-              {stat(c.reclaim, formatBytes(summary.reclaimable_bytes), summary.reclaimable_bytes ? "text-warning" : "")}
-              {summary.frozen_saved_bytes ? stat(c.frozenStat, formatBytes(summary.frozen_saved_bytes), "text-frost") : null}
-            </div>
-            <DiskBar summary={summary} c={c} />
+          </section> : null}
+          <div className="lm-actions">
+            <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
+            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
+            <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
+            <GaButton className="lm-icon-button" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}</GaButton>
+          </div>
+          <div className="lm-filters">
+            <Input className="lm-search" placeholder={c.search} value={query} onChange={event => setQuery(event.target.value)} aria-label={c.search} />
+            {filters.map(([id, label, count]) => <button key={id} type="button" className="lm-chip" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}
+          </div>
+          {selectedIds.length ? <div className="lm-selection">
+            <b>{c.selected(selectedIds.length)}</b>
+            <Button size="sm" variant="default" disabled={busy || !selectedFixable.length} onClick={() => void askPlan(selectedFixable)}><Wand2 />{c.fixSelected}</Button>
+            <Button size="sm" variant="destructive" disabled={busy} onClick={() => setPending({ kind: "uninstall", ids: selectedIds })}><Trash2 />{c.uninstall}</Button>
+            <Button size="icon" variant="ghost" aria-label={c.clear} onClick={() => setSelection({})}><X /></Button>
           </div> : null}
+          {message ? <p role="status" className="lm-message">{message}</p> : null}
+          {error ? <p role="alert" className="lm-message is-error">{error}</p> : null}
+          <div className="lm-list">
+            {!installed.length && !notInstalled.length && !absent.length ? <p className="lm-empty">{games.length ? c.empty : scanning ? c.scanning : c.noGames}</p> : null}
+            {installed.map(game => <ManagerRow key={game.app_id ?? game.folder} game={game} {...rowProps} />)}
+          </div>
+          {notInstalled.length || absent.length ? <>
+            <h3 className="lm-section">{c.notInstalled} <b>{notInstalled.length + absent.length}</b></h3>
+            <div className="lm-list">
+              {notInstalled.map(game => <ManagerRow key={game.app_id ?? game.folder} game={game} {...rowProps} />)}
+              {absent.map(member => <AbsentRow key={member.app_id ?? member.id} game={member} c={c} onInstall={onInstall} />)}
+            </div>
+          </> : null}
         </div>
       </div>
 
-      {thawing ? <FreezeDialog game={asGame(thawing)} mode="thaw" onClose={() => setThawing(null)} /> : null}
+      {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
-      {pending && pending.kind !== "plan" ? (
-        <AlertDialog open onOpenChange={open => { if (!open && !busy) setPending(null); }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle}</AlertDialogTitle>
-              <AlertDialogDescription>{pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={busy}>{c.cancel}</AlertDialogCancel>
-              <AlertDialogAction disabled={busy} onClick={event => { event.preventDefault(); void confirmPending(); }}>{busy ? c.working : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard}</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : null}
     </TooltipProvider>
   );
 }

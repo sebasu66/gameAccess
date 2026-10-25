@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { CatalogGame } from "./types";
+import { demoLibraryMembers, uiDemo } from "./devDemo/uiDemo";
 export const LIBRARY_KEY = "gameaccess.library.v1";
 const listeners = new Set<() => void>();
 let members: CatalogGame[] = [];
@@ -14,11 +15,13 @@ function load() {
   } catch { initialized = true; members = []; }
 }
 load();
+// Browser preview (`?uiDemo=1`, dev only): a first run starts with the sample library.
 function publish() {
   if (typeof localStorage !== "undefined") localStorage.setItem(LIBRARY_KEY, JSON.stringify(members));
   initialized = true;
   for (const listener of listeners) listener();
 }
+if (import.meta.env.DEV && uiDemo() && !initialized) { members = demoLibraryMembers(); publish(); }
 export const libraryMembership = {
   getGames: () => members,
   has: (game: CatalogGame) => members.some(item => (item.app_id ?? item.id) === (game.app_id ?? game.id)),
@@ -26,6 +29,13 @@ export const libraryMembership = {
     if (busy) throw new Error("Espera a que termine la operación de biblioteca.");
     if (this.has(game)) return;
     members = [...members, game]; publish();
+  },
+  /** Many games at once (the Steam import): one save, games already in the library are skipped. */
+  addMany(games: CatalogGame[]) {
+    if (busy) throw new Error("Espera a que termine la operación de biblioteca.");
+    const known = new Set(members.map(item => item.app_id ?? item.id));
+    const fresh = games.filter(game => !known.has(game.app_id ?? game.id) && known.add(game.app_id ?? game.id));
+    if (fresh.length) { members = [...members, ...fresh]; publish(); }
   },
   remove(game: CatalogGame) {
     members = members.filter(item => (item.app_id ?? item.id) !== (game.app_id ?? game.id)); publish();

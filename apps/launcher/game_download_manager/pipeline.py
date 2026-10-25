@@ -12,12 +12,23 @@ from game_download_manager.source_validation import normalize_download_source, i
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
 from game_download_manager.client_events import DownloadReporter
+from game_download_manager.ui_text import ui
 
 class NotAGameError(RuntimeError):
     """The download holds no executable or installer at all (only music, artwork, documents...)."""
     def __init__(self, kinds: list[str]):
         self.kinds = kinds
         super().__init__("Lo que se descargó no es un juego: no tiene ningún ejecutable ni instalador.")
+
+
+class NoSpaceError(RuntimeError):
+    """The download and its unpacking do not fit on disk. What was downloaded stays: once the player makes room, a
+    retry continues from the same step."""
+    code = "no_space"
+
+    def __init__(self, room: dict):
+        self.room = room
+        super().__init__(room["message"])
 
 
 class DownloadPipeline:
@@ -34,6 +45,11 @@ class DownloadPipeline:
         if reporter is not None:
             reporter.send(event, detail, size, wait)
 
+    def step(self, action, *args):
+        steps = getattr(self.context, "steps", None)
+        if steps is not None:
+            getattr(steps, action)(*args)
+
     def server_or_torrent(self, args, download_source, is_torrent, dest_dir, app_id, game_name):
         """PLUS: download through the server (TorBox -> ViKiNG pieces) or let the torrent run here.
 
@@ -48,27 +64,35 @@ class DownloadPipeline:
         if use_server and is_torrent:
             # A torrent the server already holds is streamed from it. Any other one is measured first:
             # it stays with the player when it is small, well seeded or already fast.
-            context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Buscando la forma más rápida de bajar el juego...")
+            self.step("start", "route", ui("dlRouteLooking"))
+            context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlRouteFastest"))
             where = self.chunked(chunk_session).peek(download_source)
             if where:
-                context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El servidor ya tiene el juego en {'Viking' if where == 'viking' else 'Torbox'}: descarga acelerada.")
+                # The player is never told which service holds it (no provider names in the app).
+                self.step("finish", ui("dlRouteServerHas"))
+                self.step("skip", "probe", ui("dlRouteServerHas"))
+                context.emit_progress(app_id, "preparing", 2.0, status_text=ui("dlStepOf", n=2) + ui("dlRouteServerHasAccelerated"))
                 self.report("server", f"el juego ya estaba en {'Viking' if where == 'viking' else 'Torbox'}")
                 context.set_route("accelerated")
                 context.logger.info("Ruta de descarga: servidor (el juego ya está en %s).", "Viking" if where == "viking" else "Torbox")
             else:
+                self.step("finish", ui("dlRouteServerHasNot"))
                 probe = TorrentProbe()
 
                 def decide(*sample):
                     verdict = probe.decide(*sample)
                     if verdict == "keep":
-                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"Paso 2 de 3 · El torrent rinde bien ({probe.reason}): se baja directo.")
+                        self.step("finish", f"{ui('dlProbeKeep')} ({probe.why})")
+                        self.step("skip", "server", ui("dlProbeGood"))
+                        context.emit_progress(app_id, "downloading", 0.0, status_text=f"{ui('dlStepOf', n=2)}{ui('dlProbeKeep')} ({probe.why})")
                         self.report("torrent", probe.reason)
                         context.set_route("torrent")
                         context.logger.info("Ruta de descarga: torrent directo (%s).", probe.reason)
                     return verdict
 
                 context.set_route("measuring")
-                context.emit_progress(app_id, "preparing", 1.0, status_text="Paso 1 de 3 · Probando la velocidad del torrent (hasta 20 s)...")
+                self.step("start", "probe", ui("dlProbeMeasuring"))
+                context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlProbeMeasuring"))
                 self.report("measuring")
                 context.logger.info("Midiendo el torrent para elegir la ruta de descarga...")
                 try:
@@ -78,12 +102,15 @@ class DownloadPipeline:
                         return None, None, True
                     return None, torrent_path, False
                 except SwitchToServer as why:
+                    why = probe.why or ui("dlProbeNoData")
+                    self.step("finish", f"{ui('dlProbeSlow')} ({why})")
                     self.report("server", f"el torrent no rinde: {probe.reason or 'sin datos'}")
-                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"Paso 2 de 3 · El torrent es lento ({probe.reason or 'sin datos'}): se le pide al servidor que acelere la descarga...")
+                    context.emit_progress(app_id, "preparing", 2.0, status_text=f"{ui('dlStepOf', n=2)}{ui('dlProbeSlow')} ({why})")
                     context.logger.info("Ruta de descarga: servidor (%s: %s).", why, probe.reason or "sin datos")
         if use_server:
             context.set_route("accelerated")
-            context.emit_progress(app_id, "preparing", 5.0, status_text="Paso 3 de 3 · Pidiéndole al servidor la descarga acelerada...")
+            self.step("start", "server", ui("dlServerAsking"))
+            context.emit_progress(app_id, "preparing", 5.0, status_text=ui("dlStepOf", n=3) + ui("dlServerAsking"))
             try:
                 chunk_path = self.chunked(chunk_session).download(download_source, game_name, dest_dir, app_id, game_name)
                 if context.cancelled.is_set():
@@ -94,9 +121,11 @@ class DownloadPipeline:
                 context.set_route("accelerated")
                 raise
             except ChunkedDownloadUnavailable as unavailable:
+                self.step("finish", f"{ui('dlServerCouldNot')} ({unavailable})", "skipped")
                 context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
                 self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")
             except ChunkedDownloadError as failure:
+                self.step("finish", f"{ui('dlServerFailed')} ({failure})", "skipped")
                 context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
                 self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
         return chunk_path or None, None, False
@@ -138,6 +167,31 @@ class DownloadPipeline:
             except (OSError, ValueError) as rename_error:
                 context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
         set_status("preparing")
+
+        def room_check(total_bytes, on_disk_bytes):
+            # The games root is the folder's parent (a status rename keeps it there).
+            from disk_space import check_download
+            room = check_download(total_bytes, on_disk_bytes, Path(game_dir).parent, Path(dest_dir))
+            journal.note(game_dir, "espacio", f"descarga de {total_bytes} bytes ({on_disk_bytes} ya en disco); libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
+            if not room["ok"]:
+                raise NoSpaceError(room)
+        context.set_room_check(room_check)
+
+        # The step the download is at, kept with the install so a retry goes on from there (also without the plugin).
+        remember = not args.destination_dir
+        failed_step = "download"
+
+        def resume_at(step, archive="", error=""):
+            nonlocal failed_step
+            failed_step = step
+            if not remember:
+                return
+            try:
+                storage.set_resume(int(app_id), step, source=download_source, delivery=args.source_delivery,
+                                   source_title=getattr(args, "source_title", ""), source_provider=getattr(args, "source_provider", ""),
+                                   auto_installed=bool(args.auto_installed), archive=archive, error=error)
+            except (OSError, ValueError) as failure:
+                context.logger.warning("AppID %s: no se pudo guardar el paso de la descarga: %s", app_id, failure)
 
         control_file = data_dir(context.launcher_dir) / ".cache" / "digital_downloads" / f"{app_id}.control.json"
         threading.Thread(target=self.watch_controls, daemon=True).start()
@@ -183,6 +237,22 @@ class DownloadPipeline:
                 return
         is_torrent = is_torrent_source(download_source)
         context.logger.debug("Source validated; torrent=%s delivery=%s", is_torrent, args.source_delivery)
+        if remember and not args.extract_only:
+            # Already downloaded from this same source (unpacking failed or was cut): go on from the unpacking.
+            resume = storage.resume_point(int(app_id))
+            same = resume.get("source") in ("", None, download_source, args.download_source) or (
+                bool(getattr(args, "source_title", "")) and resume.get("source_title") == args.source_title)
+            if resume.get("step") == "extract" and same:
+                args.extract_only = resume["archive"]
+                target_content_path = os.path.abspath(args.extract_only)
+                context.logger.info("AppID %s: ya estaba descargado (%s); se sigue desde la descompresión.", app_id, target_content_path)
+                journal.note(game_dir, "descarga", "ya descargada; se retoma desde la descompresión")
+                for step_id in ("route", "probe", "server"):
+                    self.step("skip", step_id, ui("dlAlreadyDownloaded"))
+                self.step("start", "download", ui("dlAlreadyDownloaded"))
+                self.step("finish", ui("dlAlreadyDownloaded"))
+            else:
+                resume_at("download")
 
         try:
             if args.extract_only:
@@ -249,7 +319,14 @@ class DownloadPipeline:
                     )
 
                     if ok:
-                        validate_downloaded_file(out_filepath)
+                        try:
+                            validate_downloaded_file(out_filepath)
+                        except RuntimeError:
+                            # A web page instead of the game: nothing worth keeping for a retry.
+                            for leftover in (out_filepath, out_filepath + ".parts.json"):
+                                if os.path.exists(leftover):
+                                    os.remove(leftover)
+                            raise
                         context.logger.debug("Downloaded payload validated: %s", out_filepath)
                     if not ok or context.cancelled.is_set():
                         self.cleanup_on_cancel()
@@ -269,16 +346,17 @@ class DownloadPipeline:
             # Completed downloads must survive extraction/installation errors or cancellation.
             if target_content_path in context.temp_files:
                 context.temp_files.remove(target_content_path)
+            resume_at("extract", archive=target_content_path or dest_dir)
             context.logger.info("AppID %s: transfer complete; downloaded content=%s; installation folder=%s", app_id, target_content_path, game_dir)
             # 3. PHASE: DECOMPRESSING / EXTRACTING & CLEANUP
             should_delete_archive = bool(storage.preferences.load().get("delete_download_sources", True))  # The declared fix archive is retained either way.
-            from disk_space import check_space, folder_size
+            from disk_space import check_download, folder_size
             downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
-            # The archive is already on disk, so unpacking needs about as much again (factor 1.0).
-            room = check_space(downloaded_bytes, Path(game_dir), Path(dest_dir), factor=1.0)
+            # The archive is all here: unpacking needs about as much again in the games folder.
+            room = check_download(downloaded_bytes, downloaded_bytes, Path(game_dir).parent, Path(dest_dir))
             journal.note(game_dir, "espacio", f"descargado {downloaded_bytes} bytes; libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
             if not room["ok"]:
-                raise RuntimeError(room["message"])
+                raise NoSpaceError(room)
             journal.note(game_dir, "descompresión", "empieza")
             context.logger.info("AppID %s: extraction starting; auto_installed=%s; archive cleanup=%s", app_id, args.auto_installed, should_delete_archive)
             try:
@@ -330,6 +408,8 @@ class DownloadPipeline:
                 except GameExecutionError as manager_error:
                     raise RuntimeError(str(manager_error)) from manager_error
             set_status("ready")
+            if remember:
+                storage.clear_resume(int(app_id))
             # 5. PHASE: COMPLETED
             final_size = 0
             if target_content_path and os.path.exists(target_content_path):
@@ -369,15 +449,22 @@ class DownloadPipeline:
                 context.logger.info(f"Descarga cancelada por el usuario: '{game_name}'")
             self.report("cancelled", wait=True) if context.cancelled.is_set() else self.report("failed", str(e), wait=True)
             if not context.cancelled.is_set() and not args.destination_dir:
-                self.record_failure(storage, int(app_id), game_name, str(e))
-            self.cleanup_on_cancel(error_message=None if context.cancelled.is_set() else str(e))
+                self.record_failure(storage, int(app_id), game_name, str(e), dead_source_possible=not isinstance(e, NoSpaceError))
+                # Kept with the install (a dead source removed it): what the retry continues from, and why it stopped.
+                resume_at(failed_step, error=str(e))
+            if context.cancelled.is_set():
+                self.cleanup_on_cancel()
+            else:
+                # A dead source took everything with it: nothing to continue from.
+                kept = args.destination_dir or bool(storage.resume_point(int(app_id)))
+                self.cleanup_on_cancel(error_message=str(e), error_code=getattr(e, "code", ""), resume_step=failed_step if kept else "")
 
-    DEAD_SOURCE_HINTS = ("404", "410", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
+    DEAD_SOURCE_HINTS = ("404", "410", "dlsourcenoseeds", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
 
-    def record_failure(self, storage, app_id, game_name, message):
+    def record_failure(self, storage, app_id, game_name, message, dead_source_possible=True):
         """Dead source: nothing worth keeping, remove the folder. Otherwise keep it as ERROR with error.txt."""
         try:
-            if any(hint in message.lower() for hint in self.DEAD_SOURCE_HINTS):
+            if dead_source_possible and any(hint in message.lower() for hint in self.DEAD_SOURCE_HINTS):
                 storage.uninstall(app_id, game_name)
             else:
                 journal.note(storage.folder(app_id, game_name), "error", message)

@@ -12,6 +12,7 @@ request must carry the session token in `X-GameAccess-Token`. Orders and state a
     POST /suspend                         the activation ended: pending downloads pause, nothing starts
     POST /jobs       {appId, name, source, delivery, autoInstalled, keepArchive}
     POST /jobs/<id>/pause | resume | cancel | remove
+    POST /jobs/<id>/retry                 go on with a stopped download from the step it reached
     POST /jobs/<id>/move {delta}
     POST /shutdown                        the app is closing: stop workers, remember what to resume
 
@@ -178,7 +179,7 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     on_shutdown()
                     return
                 else:
-                    match = re.fullmatch(r"/jobs/(\d+)/(pause|resume|cancel|remove|move)", self.path)
+                    match = re.fullmatch(r"/jobs/(\d+)/(pause|resume|cancel|remove|move|retry)", self.path)
                     if not match:
                         self._reply(404, {"error": "not found"})
                         return
@@ -196,9 +197,20 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
     return Handler
 
 
+def stored_resume_point(app_id: int) -> dict:
+    """Where an unfinished download stopped, with the game's name, as its install remembers it ({} when unknown)."""
+    try:
+        from game_library_manager.storage import DigitalGameStorage
+        storage = DigitalGameStorage()
+        point = storage.resume_point(app_id)
+        return {**point, "name": storage._record(app_id).get("name", "")} if point else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def serve(token: str, status_dir: Path = STATUS_DIR, tick_seconds: float = 0.5) -> None:
     workers = ProcessWorkers(status_dir)
-    queue = DownloadQueue(workers, status_dir / "queue.json")
+    queue = DownloadQueue(workers, status_dir / "queue.json", resume_point=stored_resume_point)
     queue.restore()
     server = ThreadingHTTPServer(("127.0.0.1", 0), None)
     stopping = threading.Event()

@@ -1,3 +1,4 @@
+import { GaButton, GaClose } from "./components/ga/Buttons";
 import { useEffect, useState } from "react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
@@ -69,7 +70,7 @@ export default function GameRecoveryDialog({ game, mode, message, onClose }: { g
   const file = fileInProgress(message);
   return <div className="ga-settings-backdrop" onPointerDown={event => event.stopPropagation()}>
     <section ref={ref} className="ga-settings-panel ga-game-config" role="alertdialog" aria-modal="true" aria-labelledby="game-recovery-title">
-      <header><div><span className="eyebrow">{game.name}</span><h2 id="game-recovery-title">{mode === "broken" ? c.broken : c.error}</h2></div></header>
+      <header><div><span className="eyebrow">{game.name}</span><h2 id="game-recovery-title">{mode === "broken" ? c.broken : c.error}</h2></div><GaClose label={c.close} disabled={busy} onClick={onClose} data-dialog-initial /></header>
       <div className="ga-settings-content">
         <p className="ga-settings-error" role="alert">{message}</p>
         {file ? <p><strong>{c.file}:</strong> {file}</p> : null}
@@ -79,11 +80,10 @@ export default function GameRecoveryDialog({ game, mode, message, onClose }: { g
         {note ? <p role="status">{note}</p> : null}{failure ? <p className="ga-settings-error" role="alert">{failure}</p> : null}
       </div>
       <footer>
-        <button type="button" disabled={busy} onClick={onClose} data-dialog-initial>{c.close}</button>
-        <button type="button" disabled={busy} onClick={() => void repair()}>{c.repair}</button>
+        <GaButton disabled={busy} onClick={() => void repair()}>{c.repair}</GaButton>
         {mode === "broken"
-          ? <><button type="button" disabled={busy} onClick={() => void abort()}>{c.remove}</button><button type="button" disabled={busy} onClick={() => void reinstall()}>{c.reinstall}</button></>
-          : <><button type="button" disabled={busy} onClick={() => void abort()}>{c.abort}</button><button type="button" disabled={busy} onClick={() => void retry()}>{c.retry}</button></>}
+          ? <><GaButton variant="danger" disabled={busy} onClick={() => void abort()}>{c.remove}</GaButton><GaButton variant="primary" disabled={busy} onClick={() => void reinstall()}>{c.reinstall}</GaButton></>
+          : <><GaButton variant="danger" disabled={busy} onClick={() => void abort()}>{c.abort}</GaButton><GaButton variant="primary" disabled={busy} onClick={() => void retry()}>{c.retry}</GaButton></>}
       </footer>
     </section>
   </div>;

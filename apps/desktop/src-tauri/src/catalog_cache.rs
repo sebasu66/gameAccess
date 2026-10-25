@@ -16,7 +16,7 @@ use std::{
 const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
 static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
+pub(crate) static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -31,8 +31,15 @@ struct CatalogManifest {
     kind: String,
     #[serde(default)]
     base_revision: String,
+    /// Patches to the current revision, keyed by the revision they start from (deploy/catalog-cache, daily job).
     #[serde(default)]
-    inventory_sha256: String,
+    updates: std::collections::HashMap<String, CatalogUpdateArtifact>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CatalogUpdateArtifact {
+    artifact_url: String,
+    sha256: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,6 +47,15 @@ pub struct CatalogCacheSyncResult {
     pub updated: bool,
     pub revision: String,
     pub catalog_count: usize,
+    /// New games that matched download sources already saved (see source_index::link_new_games), and that time.
+    pub new_downloads: Vec<i64>,
+    pub link_ms: u64,
+    /// What the check downloaded besides the manifest: "nothing", "patch" or "package" (for the log).
+    pub downloaded: &'static str,
+    /// Compressed bytes of that download, the time the manifest took and the time of the whole check.
+    pub downloaded_bytes: u64,
+    pub manifest_ms: u64,
+    pub total_ms: u64,
 }
 
 fn cache_dir() -> Result<PathBuf, String> {
@@ -52,7 +68,7 @@ fn cache_dir() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn cache_db_path() -> Result<PathBuf, String> {
+pub(crate) fn cache_db_path() -> Result<PathBuf, String> {
     Ok(cache_dir()?.join("catalog.sqlite"))
 }
 
@@ -278,6 +294,9 @@ fn incoming_snapshot_older(current: &str, incoming: &str) -> bool {
 
 #[derive(Deserialize)]
 struct DetailChange { game_id: i64, #[serde(default)] app_id: Option<i64>, language: String, country: String, payload: Value }
+/// What applying a batch did: the games in the catalog afterwards, and the new games that got download links.
+struct BatchApplied { count: usize, new_downloads: Vec<i64>, link_ms: u64 }
+
 #[derive(Deserialize)]
 struct CatalogBatch {
     schema_version: u32, base_revision: String, revision: String,
@@ -380,7 +399,7 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
 }
 
 fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
-                manifest: &CatalogManifest, progress: Progress) -> Result<usize, String> {
+                manifest: &CatalogManifest, progress: Progress) -> Result<BatchApplied, String> {
     let mut conn = Connection::open(target).map_err(|e|e.to_string())?;
     ensure_normalized_schema(&conn)?;
     let tx = conn.transaction().map_err(|e|e.to_string())?;
@@ -389,6 +408,8 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
     // it. Without this the payload updates and the searchable tables do not: a
     // refresh that added genres left `game_genre` holding the previous values.
     let mut touched: Vec<(i64, String)> = Vec::new();
+    // Games the catalog did not have: matched against the saved download sources at the end.
+    let mut added_app_ids: Vec<i64> = Vec::new();
     let total = games.len() as u64;
     progress("apply", 0, total);
     for (position, mut game) in games.into_iter().enumerate() {
@@ -408,6 +429,7 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
                 let occupied: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM catalog_game WHERE id=?1)",
                     [incoming_id], |r|r.get(0)).map_err(|e|e.to_string())?;
                 let id = if occupied {tx.query_row("SELECT COALESCE(MAX(id),0)+1 FROM catalog_game",[],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?} else {incoming_id};
+                if let Some(app_id) = app_id { added_app_ids.push(app_id); }
                 (id,game.take())
             }
             Err(e) => return Err(e.to_string()),
@@ -453,15 +475,18 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
             params![id, detail.language, short_d, detailed_d, about_d]
         );
     }
+    let linking = std::time::Instant::now();
+    let new_downloads = crate::source_index::link_new_games(&tx, &added_app_ids)?;
+    let link_ms = linking.elapsed().as_millis() as u64;
     let count: usize = tx.query_row("SELECT COUNT(*) FROM catalog_game",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     for (key,value) in [("revision",manifest.revision.clone()),("generated_at",manifest.generated_at.clone()),("catalog_count",count.to_string())] {
         tx.execute("INSERT INTO metadata(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![key,value]).map_err(|e|e.to_string())?;
     }
     tx.commit().map_err(|e|e.to_string())?;
-    Ok(count)
+    Ok(BatchApplied { count, new_downloads, link_ms })
 }
 
-fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, progress: Progress) -> Result<usize,String> {
+fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, progress: Progress) -> Result<BatchApplied,String> {
     let conn=Connection::open(incoming).map_err(|e|e.to_string())?;
     let games = conn.prepare("SELECT payload FROM catalog_game").map_err(|e|e.to_string())?
         .query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?
@@ -476,56 +501,27 @@ fn merge_baseline(target: &Path, incoming: &Path, manifest: &CatalogManifest, pr
 }
 
 
-fn catalog_identities(path: &Path) -> Result<Vec<i64>,String> {
-    let db=Connection::open(path).map_err(|e|e.to_string())?;
-    let mut query=db.prepare("SELECT COALESCE(app_id,id) FROM catalog_game ORDER BY COALESCE(app_id,id)").map_err(|e|e.to_string())?;
-    let rows=query.query_map([],|r|r.get::<_,i64>(0)).map_err(|e|e.to_string())?;
-    rows.map(|r|r.map_err(|e|e.to_string())).collect()
-}
-fn reconcile_missing(client: &Client, manifest_url: &str, target: &Path, manifest: &CatalogManifest) -> Result<usize,String> {
-    let present=catalog_identities(target)?;
-    let hash=format!("{:x}",Sha256::digest(serde_json::to_vec(&present).map_err(|e|e.to_string())?));
-    if manifest.inventory_sha256.is_empty() || hash == manifest.inventory_sha256 {
-        return Ok(present.len());
-    }
-    let mut url=reqwest::Url::parse(manifest_url).map_err(|e|e.to_string())?;
-    if url.path() != "/library/catalog/manifest" { return Ok(present.len()); }
-    url.set_path("/library/catalog/reconcile"); url.set_query(None);
-    let base=current_cache_info(target)?.ok_or("Missing catalog baseline")?.0;
-    let response=client.post(url).json(&serde_json::json!({"present":present,"base_revision":base}))
-        .send().and_then(|r|r.error_for_status()).map_err(|e|e.to_string())?;
-    let expected=response.headers().get("X-Catalog-SHA256").and_then(|v|v.to_str().ok()).ok_or("Catalog repair has no checksum")?.to_string();
-    let compressed=response.bytes().map_err(|e|e.to_string())?;
-    if compressed.len()>MAX_COMPRESSED_BYTES || format!("{:x}",Sha256::digest(&compressed)) != expected {
-        return Err("Catalog repair checksum failed".into());
-    }
-    let batch:CatalogBatch=serde_json::from_reader(GzDecoder::new(compressed.as_ref())).map_err(|e|e.to_string())?;
-    if batch.schema_version!=CACHE_SCHEMA_VERSION || batch.base_revision!=base || batch.revision!=manifest.revision {
-        return Err("Catalog repair revision mismatch".into());
-    }
-    let added=batch.games.len();
-    let count=apply_batch(target,batch.games,batch.details,manifest,&no_progress)?;
-    let _=crate::activity_log::append_narration_lines(vec![format!("Catalog inventory reconciled: {added} missing game(s) restored; {count} retained")],"CATALOG".into(),"INFO".into());
-    Ok(count)
-}
-
 fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCacheSyncResult, String> {
     let _sync_guard = CATALOG_CACHE_SYNC_LOCK
         .get_or_init(|| Mutex::new(()))
         .lock()
         .map_err(|_| "Catalog cache synchronization lock was poisoned".to_string())?;
-    validate_github_https_url(&manifest_url)?;
+    let target = ready_cache_db_path_unlocked()?;
+    sync_into(&target, &manifest_url, progress)
+}
+
+/// One check of the catalog at `target` against the published manifest. Up to date: the manifest is the only request.
+/// Behind: one more request, the patch from the installed revision, or the whole package when the manifest has none.
+fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<CatalogCacheSyncResult, String> {
+    let target = target.to_path_buf();
+    let started = std::time::Instant::now();
+    let elapsed = || started.elapsed().as_millis() as u64;
+    validate_github_https_url(manifest_url)?;
     let client = Client::builder()
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|err| format!("Could not create catalog cache client: {err}"))?;
-    let target = ready_cache_db_path_unlocked()?;
-    let mut manifest_request = reqwest::Url::parse(&manifest_url).map_err(|e|e.to_string())?;
-    if manifest_request.path() == "/library/catalog/manifest" {
-        if let Some((revision,_)) = current_cache_info(&target)? {
-            manifest_request.query_pairs_mut().append_pair("since",&revision);
-        }
-    }
+    let manifest_request = reqwest::Url::parse(manifest_url).map_err(|e|e.to_string())?;
     let manifest = client
         .get(manifest_request)
         .header(USER_AGENT, "GameAccess/0.1")
@@ -536,6 +532,7 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
         .map_err(|err| format!("Could not download catalog manifest: {err}"))?
         .json::<CatalogManifest>()
         .map_err(|err| format!("Invalid catalog manifest: {err}"))?;
+    let manifest_ms = elapsed();
 
     if manifest.schema_version != CACHE_SCHEMA_VERSION {
         return Err(format!(
@@ -545,21 +542,28 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
     }
     validate_github_https_url(&manifest.artifact_url)?;
 
-    if let Some((revision, count)) = current_cache_info(&target)? {
+    let current = current_cache_info(&target)?;
+    if let Some((revision, count)) = &current {
         let conn = Connection::open(&target).map_err(|err| err.to_string())?;
         let generated_at = read_meta(&conn, "generated_at")?.unwrap_or_default();
-        if revision == manifest.revision || incoming_snapshot_older(&generated_at, &manifest.generated_at)
-            || (manifest.generated_at.is_empty() && manifest.catalog_count < count) {
-            return Ok(CatalogCacheSyncResult {
-                updated: false,
-                revision: revision.clone(),
-                catalog_count: if revision == manifest.revision { reconcile_missing(&client,&manifest_url,&target,&manifest)? } else {count},
-            });
+        // Same revision (or an older snapshot): the database is in sync; nothing is sent and nothing is downloaded.
+        if *revision == manifest.revision || incoming_snapshot_older(&generated_at, &manifest.generated_at)
+            || (manifest.generated_at.is_empty() && manifest.catalog_count < *count) {
+            return Ok(CatalogCacheSyncResult { updated: false, revision: revision.clone(), catalog_count: *count, new_downloads: Vec::new(), link_ms: 0,
+                downloaded: "nothing", downloaded_bytes: 0, manifest_ms, total_ms: elapsed() });
         }
     }
+    // Behind: the patch from the installed revision when the manifest lists one (about 1 MB), else the whole package.
+    let patch = current.as_ref().and_then(|(revision, _)| manifest.updates.get(revision).map(|update| (revision.clone(), update)));
+    let (artifact_url, artifact_sha256, patch_base) = match &patch {
+        Some((base, update)) => (update.artifact_url.as_str(), update.sha256.as_str(), Some(base.clone())),
+        None if manifest.kind == "delta" => (manifest.artifact_url.as_str(), manifest.sha256.as_str(), Some(manifest.base_revision.clone())),
+        None => (manifest.artifact_url.as_str(), manifest.sha256.as_str(), None),
+    };
+    validate_github_https_url(artifact_url)?;
 
     let mut response = client
-        .get(&manifest.artifact_url)
+        .get(artifact_url)
         .header(CACHE_CONTROL, "public, max-age=31536000, immutable")
         .send()
         .and_then(|response| response.error_for_status())
@@ -584,8 +588,9 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
     }
     progress("download", compressed.len() as u64, total.max(compressed.len() as u64));
 
+    let downloaded_bytes = compressed.len() as u64;
     let actual_sha = format!("{:x}", Sha256::digest(&compressed));
-    if !actual_sha.eq_ignore_ascii_case(manifest.sha256.trim()) {
+    if !actual_sha.eq_ignore_ascii_case(artifact_sha256.trim()) {
         return Err("Catalog cache SHA-256 verification failed".into());
     }
 
@@ -595,26 +600,28 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
         .read_to_end(&mut sqlite_bytes)
         .map_err(|err| format!("Could not decompress catalog cache: {err}"))?;
 
-    if manifest.kind == "delta" {
+    if let Some(base) = patch_base {
         let batch: CatalogBatch=serde_json::from_slice(&sqlite_bytes).map_err(|e|e.to_string())?;
-        let current = current_cache_info(&target)?.ok_or("A baseline is required before applying catalog updates")?;
+        let current = current.ok_or("A baseline is required before applying catalog updates")?;
         if batch.schema_version != CACHE_SCHEMA_VERSION || batch.revision != manifest.revision
-            || batch.base_revision != manifest.base_revision || batch.base_revision != current.0 {
+            || batch.base_revision != base || batch.base_revision != current.0 {
             return Err("Catalog update does not match the installed revision".into());
         }
-        let _=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
-        let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+        let applied=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:applied.count,
+            new_downloads:applied.new_downloads,link_ms:applied.link_ms,
+            downloaded:"patch",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
     let next = target.with_extension("sqlite.next");
     let backup = target.with_extension("sqlite.bak");
     fs::write(&next, sqlite_bytes).map_err(|err| format!("Could not write catalog cache: {err}"))?;
     validate_database(&next, &manifest)?;
     if target.exists() {
-        let _ = merge_baseline(&target,&next,&manifest,progress)?;
+        let applied = merge_baseline(&target,&next,&manifest,progress)?;
         let _=fs::remove_file(&next);
-        let count=reconcile_missing(&client,&manifest_url,&target,&manifest)?;
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:applied.count,
+            new_downloads:applied.new_downloads,link_ms:applied.link_ms,
+            downloaded:"package",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
 
     if backup.exists() {
@@ -641,6 +648,12 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
         updated: true,
         revision: manifest.revision,
         catalog_count: manifest.catalog_count,
+        new_downloads: Vec::new(),
+        link_ms: 0,
+        downloaded: "package",
+        downloaded_bytes,
+        manifest_ms,
+        total_ms: elapsed(),
     })
 }
 
@@ -1701,6 +1714,7 @@ pub async fn catalog_cache_query(params: CatalogQueryParams) -> Result<CatalogQu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_target() -> PathBuf {
@@ -1716,6 +1730,228 @@ mod tests {
         root.join("catalog.sqlite")
     }
 
+    // ---- Catalog sync against a fake GitHub ----
+    // These run the real sync (HTTP, sha check, gunzip, apply) against a local server that records every request, so
+    // they fail if the app asks for anything it does not need: a second download, the whole package when a patch
+    // exists, or any request to our server (the old reconciliation POSTed every AppID on each startup).
+
+    struct FakeGithub { base: String, files: std::sync::Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>,
+        log: std::sync::Arc<Mutex<Vec<String>>> }
+
+    impl FakeGithub {
+        fn start() -> Self {
+            use std::io::{BufRead, BufReader};
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+            let files = std::sync::Arc::new(Mutex::new(std::collections::HashMap::<String, Vec<u8>>::new()));
+            let log = std::sync::Arc::new(Mutex::new(Vec::new()));
+            let (served, logged) = (files.clone(), log.clone());
+            std::thread::spawn(move || for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut request = String::new();
+                if reader.read_line(&mut request).is_err() { continue }
+                let mut length = 0usize;
+                loop {
+                    let mut header = String::new();
+                    if reader.read_line(&mut header).unwrap_or(0) == 0 || header == "\r\n" { break }
+                    if let Some(value) = header.to_ascii_lowercase().strip_prefix("content-length:") { length = value.trim().parse().unwrap_or(0) }
+                }
+                let mut body = vec![0; length];
+                let _ = reader.read_exact(&mut body);
+                let mut parts = request.split_whitespace();
+                let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("").to_string());
+                logged.lock().unwrap().push(format!("{method} {path}"));
+                let file = if method == "GET" { served.lock().unwrap().get(&path).cloned() } else { None };
+                let head = match &file { Some(bytes) => format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", bytes.len()),
+                    None => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string() };
+                let _ = stream.write_all(head.as_bytes());
+                if let Some(bytes) = file { let _ = stream.write_all(&bytes); }
+            });
+            Self { base, files, log }
+        }
+        fn put(&self, path: &str, bytes: Vec<u8>) { self.files.lock().unwrap().insert(path.into(), bytes); }
+        fn url(&self, path: &str) -> String { format!("{}{path}", self.base) }
+        /// The requests made since the last call.
+        fn take(&self) -> Vec<String> { std::mem::take(&mut *self.log.lock().unwrap()) }
+    }
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(bytes).unwrap();
+        encoder.finish().unwrap()
+    }
+    fn sha(bytes: &[u8]) -> String { format!("{:x}", Sha256::digest(bytes)) }
+
+    /// A catalog database at `revision` with these (id, app_id, name) games, as installed or as a published package.
+    fn catalog_db(path: &Path, revision: &str, generated_at: &str, games: &[(i64, i64, &str)]) {
+        let db = Connection::open(path).unwrap();
+        db.execute_batch("CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY,app_id INTEGER,payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER,language TEXT,country TEXT,payload TEXT,PRIMARY KEY(game_id,language,country));").unwrap();
+        for (key, value) in [("schema_version", CACHE_SCHEMA_VERSION.to_string()), ("revision", revision.into()), ("generated_at", generated_at.into())] {
+            db.execute("INSERT INTO metadata VALUES(?1,?2)", params![key, value]).unwrap();
+        }
+        for (id, app_id, name) in games {
+            db.execute("INSERT INTO catalog_game VALUES(?1,?2,?3)", params![id, app_id, serde_json::json!({"id":id,"app_id":app_id,"name":name}).to_string()]).unwrap();
+        }
+    }
+    fn names(path: &Path) -> Vec<String> {
+        let db = Connection::open(path).unwrap();
+        let mut statement = db.prepare("SELECT payload FROM catalog_game ORDER BY id").unwrap();
+        let rows = statement.query_map([], |r| r.get::<_, String>(0)).unwrap()
+            .map(|p| serde_json::from_str::<Value>(&p.unwrap()).unwrap()["name"].as_str().unwrap().to_string()).collect();
+        rows
+    }
+
+    /// GitHub as the daily job leaves it: revision r2 (3 games), the whole package, and the patch from r1.
+    fn publish_r2(github: &FakeGithub, patch_sha: Option<&str>, patch_base: &str) {
+        let package = temp_target();
+        catalog_db(&package, "r2", "2026-10-24T04:20:00Z", &[(1, 10, "Alpha renamed"), (2, 20, "Beta"), (3, 30, "Gamma")]);
+        let package_gz = gzip(&fs::read(&package).unwrap());
+        let patch_gz = gzip(serde_json::json!({"schema_version": CACHE_SCHEMA_VERSION, "base_revision": patch_base, "revision": "r2",
+            "games": [{"id":1,"app_id":10,"name":"Alpha renamed"}, {"id":3,"app_id":30,"name":"Gamma"}], "details": []}).to_string().as_bytes());
+        let manifest = serde_json::json!({"schema_version": CACHE_SCHEMA_VERSION, "revision": "r2", "generated_at": "2026-10-24T04:20:00Z",
+            "artifact_url": github.url("/catalog-cache-r2.sqlite.gz"), "sha256": sha(&package_gz), "catalog_count": 3,
+            "updates": {"r1": {"artifact_url": github.url("/catalog-update-r1-r2.json.gz"),
+                "sha256": patch_sha.map(String::from).unwrap_or_else(|| sha(&patch_gz)), "compressed_bytes": patch_gz.len()}}});
+        github.put("/catalog-manifest.json", manifest.to_string().into_bytes());
+        github.put("/catalog-cache-r2.sqlite.gz", package_gz);
+        github.put("/catalog-update-r1-r2.json.gz", patch_gz);
+        let _ = fs::remove_dir_all(package.parent().unwrap());
+    }
+    const MANIFEST: &str = "GET /catalog-manifest.json";
+
+    #[test]
+    fn startups_with_an_up_to_date_catalog_only_read_the_manifest() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r2", "2026-10-24T04:20:00Z", &[(1, 10, "Alpha renamed"), (2, 20, "Beta"), (3, 30, "Gamma")]);
+        for _ in 0..3 {
+            let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+            assert!(!result.updated);
+            assert_eq!(result.catalog_count, 3);
+            assert_eq!((result.downloaded, result.downloaded_bytes), ("nothing", 0));
+            assert!(result.manifest_ms <= result.total_ms);
+            assert_eq!(github.take(), vec![MANIFEST], "an up-to-date startup must make exactly one small request");
+        }
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn one_revision_behind_downloads_only_its_patch_and_then_stays_quiet() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert!(result.updated);
+        assert_eq!((result.revision.as_str(), result.catalog_count), ("r2", 3));
+        assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-update-r1-r2.json.gz"], "the patch, never the whole package");
+        assert_eq!(result.downloaded, "patch");
+        assert_eq!(result.downloaded_bytes, github.files.lock().unwrap()["/catalog-update-r1-r2.json.gz"].len() as u64);
+        assert_eq!(names(&target), ["Alpha renamed", "Beta", "Gamma"]);
+        assert_eq!(current_cache_info(&target).unwrap().unwrap().0, "r2");
+        // The next startup finds the catalog current: the manifest again and nothing else.
+        assert!(!sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap().updated);
+        assert_eq!(github.take(), vec![MANIFEST]);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    /// The plugin's index, as saved by earlier syncs: one source for a game the catalog does not have yet (Gamma),
+    /// one for a game it has (Beta, already linked) and one that matches nothing.
+    fn saved_plugin_sources(path: &Path) {
+        let db = Connection::open(path).unwrap();
+        crate::catalog_cache::ensure_normalized_schema(&db).unwrap();
+        crate::source_index::ensure_source_tables(&db).unwrap();
+        for (key, title) in [("k-gamma", "Gamma v1.2 [FitGirl Repack]"), ("k-beta", "Beta-DODI"), ("k-other", "Unrelated Game v1.0")] {
+            db.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES (?1, 'p', 'FitGirl', ?2, 0, 'r1')",
+                params![key, title]).unwrap();
+        }
+        db.execute("INSERT INTO game_sources(app_id, source_key, score) VALUES (20, 'k-beta', 0.9)", []).unwrap();
+    }
+    fn linked_sources(path: &Path, app_id: i64) -> Vec<String> {
+        let db = Connection::open(path).unwrap();
+        let mut statement = db.prepare("SELECT source_key FROM game_sources WHERE app_id = ?1 ORDER BY source_key").unwrap();
+        let keys = statement.query_map([app_id], |r| r.get::<_, String>(0)).unwrap().map(Result::unwrap).collect();
+        keys
+    }
+
+    #[test]
+    fn a_new_steam_game_is_linked_to_a_source_the_plugin_sent_before_it_existed() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        saved_plugin_sources(&target);
+        assert!(linked_sources(&target, 30).is_empty());
+        // The patch brings Gamma (app 30). Only GitHub is asked; the match is made with what is on disk.
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-update-r1-r2.json.gz"]);
+        assert_eq!(result.new_downloads, vec![30], "Gamma is the only game that became downloadable");
+        assert_eq!(linked_sources(&target, 30), ["k-gamma"]);
+        assert_eq!(linked_sources(&target, 20), ["k-beta"], "Beta keeps its link and is not reported again");
+        // Next startup: catalog current, nothing new.
+        assert!(sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap().new_downloads.is_empty());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn new_games_without_a_saved_source_are_not_reported() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        let db = Connection::open(&target).unwrap();
+        crate::source_index::ensure_source_tables(&db).unwrap();
+        db.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES ('k', 'p', 'FitGirl', 'Unrelated Game v1.0', 0, 'r1')", []).unwrap();
+        drop(db);
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert!(result.updated);
+        assert!(result.new_downloads.is_empty());
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn too_far_behind_downloads_the_whole_package_once() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r1");
+        let target = temp_target();
+        catalog_db(&target, "r0", "2026-10-01T04:20:00Z", &[(1, 10, "Alpha")]);
+        let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
+        assert_eq!((result.updated, result.revision.as_str(), result.catalog_count), (true, "r2", 3));
+        assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-cache-r2.sqlite.gz"]);
+        assert_eq!(result.downloaded, "package");
+        assert_eq!(names(&target), ["Alpha renamed", "Beta", "Gamma"]);
+        assert!(!sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap().updated);
+        assert_eq!(github.take(), vec![MANIFEST]);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn a_corrupted_patch_leaves_the_installed_catalog_untouched() {
+        let github = FakeGithub::start();
+        publish_r2(&github, Some("0000"), "r1");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        assert!(sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap_err().contains("SHA-256"));
+        assert_eq!(current_cache_info(&target).unwrap().unwrap(), ("r1".to_string(), 2));
+        assert_eq!(names(&target), ["Alpha", "Beta"]);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn a_patch_built_from_another_revision_is_refused() {
+        let github = FakeGithub::start();
+        publish_r2(&github, None, "r9");
+        let target = temp_target();
+        catalog_db(&target, "r1", "2026-10-23T04:20:00Z", &[(1, 10, "Alpha"), (2, 20, "Beta")]);
+        assert!(sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).is_err());
+        assert_eq!(names(&target), ["Alpha", "Beta"]);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
 
     #[test]
     fn catalog_batch_preserves_missing_games_and_rich_local_details() {
@@ -1728,9 +1964,9 @@ mod tests {
         db.execute("INSERT INTO catalog_game VALUES(8,10,?1)",[r#"{"id":8,"app_id":10,"name":"Retained"}"#]).unwrap();
         db.execute("INSERT INTO game_detail VALUES(7,'spanish','ar',?1)",[r#"{"steam":{"screenshots":[{"id":1}],"short_description":"Known description"}}"#]).unwrap();
         drop(db);
-        let manifest=CatalogManifest{schema_version:1,revision:"new".into(),artifact_url:String::new(),sha256:String::new(),catalog_count:1,generated_at:String::new(),kind:"delta".into(),base_revision:"old".into(),inventory_sha256:String::new()};
+        let manifest=CatalogManifest{schema_version:1,revision:"new".into(),artifact_url:String::new(),sha256:String::new(),catalog_count:1,generated_at:String::new(),kind:"delta".into(),base_revision:"old".into(),updates:Default::default()};
         let count=apply_batch(&target,vec![serde_json::json!({"id":99,"app_id":233980,"short_description":"","tags":[],"steam_review_score":95})],
-            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest,&no_progress).unwrap();
+            vec![DetailChange{game_id:99,app_id:Some(233980),language:"spanish".into(),country:"ar".into(),payload:serde_json::json!({"steam":{"screenshots":[],"short_description":null}})}],&manifest,&no_progress).unwrap().count;
         assert_eq!(count,2);
         let db=Connection::open(&target).unwrap();
         let payload:String=db.query_row("SELECT payload FROM catalog_game WHERE id=7",[],|r|r.get(0)).unwrap();
@@ -1743,6 +1979,13 @@ mod tests {
         assert!(detail.contains("screenshots"));
         drop(db);
         let _=fs::remove_dir_all(target.parent().unwrap());
+    }
+    #[test]
+    fn manifest_lists_the_patch_from_each_recent_revision() {
+        let manifest:CatalogManifest=serde_json::from_str(r#"{"schema_version":1,"revision":"new","artifact_url":"https://raw.githubusercontent.com/a/b/c.sqlite.gz",
+            "sha256":"x","catalog_count":3,"updates":{"old":{"artifact_url":"https://raw.githubusercontent.com/a/b/old-new.json.gz","sha256":"y","compressed_bytes":10}}}"#).unwrap();
+        assert_eq!(manifest.updates["old"].artifact_url,"https://raw.githubusercontent.com/a/b/old-new.json.gz");
+        assert!(manifest.updates.get("older").is_none());
     }
     #[test]
     fn older_remote_snapshot_cannot_replace_the_installer_catalog() {

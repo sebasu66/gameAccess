@@ -25,6 +25,12 @@ class DownloadContext:
     # How the bytes are being fetched, shown to the player: "measuring" (PLUS deciding), "torrent",
     # "accelerated" (the server's TorBox -> ViKiNG pieces) or "direct" (an HTTP link).
     set_route: Callable = lambda route: None
+    # The steps shown to the player as a sequence (game_download_manager.steps.StepTracker); None in tests.
+    steps: Any = None
+    # Called by a transport as soon as it knows the download's size (total, bytes already on disk): raises
+    # NoSpaceError when the download and its unpacking will not fit. Set by the pipeline; nothing is checked in tests.
+    ensure_room: Callable = lambda total_bytes, on_disk_bytes=0: None
+    set_room_check: Callable = lambda check: None
 
     @property
     def active_subprocess(self):

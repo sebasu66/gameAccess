@@ -85,7 +85,22 @@ pub fn plugin_directories() -> Vec<PathBuf> {
     dirs
 }
 
+/// `--no-plugins` on the command line (or `GAMEACCESS_NO_PLUGINS=1`): the app runs as if no plugin were installed.
+/// No plugin is started, listed to the app or asked anything, so a run shows in the log whether everything still
+/// works without one. A plugin process left running by an earlier session is not used either.
+pub(crate) fn plugins_disabled() -> bool {
+    plugins_disabled_by(std::env::args(), std::env::var("GAMEACCESS_NO_PLUGINS").ok())
+}
+
+fn plugins_disabled_by(args: impl IntoIterator<Item = String>, variable: Option<String>) -> bool {
+    args.into_iter().any(|arg| arg == "--no-plugins")
+        || variable.is_some_and(|value| matches!(value.trim(), "1" | "true" | "yes"))
+}
+
 pub fn get_registered_plugins_with_paths() -> Vec<(PluginManifest, PathBuf)> {
+    if plugins_disabled() {
+        return Vec::new();
+    }
     let mut results = Vec::new();
     let mut seen_ids = std::collections::HashSet::new();
 
@@ -170,6 +185,14 @@ pub fn is_endpoint_alive(endpoint: &str) -> bool {
 }
 
 pub fn start_registered_plugins() {
+    if plugins_disabled() {
+        let _ = crate::activity_log::append_narration_lines(
+            vec!["Plugins disabled (--no-plugins): none is started, listed or asked this session.".to_string()],
+            "PLUGINS".into(),
+            "INFO".into(),
+        );
+        return;
+    }
     let plugins = get_registered_plugins_with_paths();
     for (manifest, folder) in plugins {
         if manifest.autostart == Some(false) {
@@ -264,5 +287,19 @@ pub fn stop_all_plugins() {
             let _ = child.wait();
         }
         processes.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_no_plugins_flag_or_variable_disables_plugins() {
+        let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(plugins_disabled_by(args(&["GameAccess.exe", "--no-plugins"]), None));
+        assert!(plugins_disabled_by(args(&["GameAccess.exe"]), Some("1".into())));
+        assert!(!plugins_disabled_by(args(&["GameAccess.exe", "--launch-game", "400"]), None));
+        assert!(!plugins_disabled_by(args(&["GameAccess.exe"]), Some("0".into())));
     }
 }

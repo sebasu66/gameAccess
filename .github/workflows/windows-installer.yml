@@ -104,6 +104,7 @@ jobs:
             "runtime/python/python.exe",
             "runtime/launcher/digital_downloader.py",
             "runtime/launcher/digital_process_runner.py",
+            "runtime/launcher/steam_account_manager/manager.py",
             "runtime/catalog/catalog-manifest.json"
           )
           foreach ($relative in $required) {
@@ -126,6 +127,16 @@ jobs:
           if ($forbidden) {
             throw "Installer payload contains forbidden local/runtime cache paths: $($forbidden[0].FullName)"
           }
+
+      # The installer refuses to install without Steam (hooks.nsh, GAMEACCESS_REQUIRE_STEAM) and the runner has none:
+      # Steam's own registry value is enough for that check.
+      - name: Register a Steam client for the installer check
+        shell: pwsh
+        run: |
+          $steam = Join-Path $env:RUNNER_TEMP "steam"
+          New-Item -ItemType Directory -Force -Path $steam | Out-Null
+          New-Item -Path "HKCU:\Software\Valve\Steam" -Force | Out-Null
+          Set-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name SteamPath -Value $steam
 
       # The installed app must start: launcher, embedded Python and catalog seed in place.
       - name: Self-test the installed app

@@ -1,0 +1,12 @@
+/* GAME / ACCESS drawn huge in the empty column right of the content (BrandWall.tsx): behind the content like the view
+   word on the left, and barely there. The lines stay 1 px thin whatever the size (non-scaling strokes) and are
+   semi-transparent; the fill is a breath; the orange ghost line and the guides are fainter still. */
+.ga-brand-wall { position: fixed; z-index: 1; top: var(--wall-top, 0px); left: var(--wall-left, 0px); pointer-events: none; opacity: .64; }
+.ga-brand-wall[data-fits="false"] { display: none; }
+.ga-brand-wall .ga-brand-word { --ga-word-width: calc(var(--wall-height, 0px) * 60 / 384); }
+/* Each word centred on its own: ACCESS fills the six rows; GAME (four rows) moves down one row. */
+.ga-brand-wall .ga-sketch-word[data-word="game"] { top: calc(100% / 6); }
+.ga-brand-wall .ga-sketch-letter, .ga-brand-wall .ga-sketch-ghost, .ga-brand-wall .ga-sketch-guides line { vector-effect: non-scaling-stroke; }
+.ga-brand-wall .ga-sketch-letter { stroke-width: 1px; stroke-opacity: calc(.06 + var(--p) * .2); fill-opacity: calc(max(0, var(--p) - .6) * .07); }
+.ga-brand-wall .ga-sketch-ghost { stroke-width: 1px; opacity: calc(var(--p) * .12); }
+.ga-brand-wall .ga-sketch-guides line { stroke-width: 1px; opacity: calc(min(1, var(--w) * 2.5) * .1); }

@@ -1,3 +1,4 @@
+import { useDeskSubtitle } from "./desk/DeskPanel";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useRef, useState } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
@@ -6,14 +7,17 @@ import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { ArrowDown, ArrowUp, Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ExternalLink, FolderOpen, Pause, Play, RotateCcw, X } from "lucide-react";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
 import DigitalDownloadArtwork from "./DigitalDownloadArtwork";
 import DownloadTelemetry from "./DownloadTelemetry";
+import DownloadSteps from "./DownloadSteps";
 import { useDialogFocus } from "./dialogFocus";
 import { useOverlayClose } from "./useOverlayClose";
+import { GaBack } from "./components/ga/Buttons";
 
 const phaseKeys = {
   queued: "downloadQueued", preparing: "downloadPreparing", downloading: "downloadDownloading", paused: "downloadPaused",
@@ -31,7 +35,9 @@ function eta(snapshot: DownloadProgressSnapshot): string {
 }
 type Entry = ReturnType<DigitalDownloadService["getDownloads"]>[number];
 const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrupted", "external"].includes(entry.snapshot.phase);
-export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [] }: {
+export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [], embedded = false }: {
+  /** Inside a desk panel (T10): the panel draws the header and handles focus and Esc. */
+  embedded?: boolean;
   onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[]; onOpenGame?: (game: CatalogGame) => void;
 }) {
   const {t,locale} = useI18n();
@@ -39,10 +45,11 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
   const {closing,close:onClose}=useOverlayClose(onClosed);
   const dialogRef = useDialogFocus(onClose);
   useEffect(() => {
+    if (embedded) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previousOverflow; };
-  }, []);
+  }, [embedded]);
   const [entries, setEntries] = useState(() => service.getDownloads());
   const [busy, setBusy] = useState<number[]>([]);
   const [error, setError] = useState("");
@@ -63,6 +70,8 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     try { await action(); } catch (err) { setError(`${t("downloadsActionFailed")} ${err instanceof Error ? err.message : String(err)}`); }
     finally { pendingActions.current.delete(id); setBusy(current => current.filter(item => item !== id)); }
   };
+  // The folder the download is in (the temporary one while downloading, the game's once unpacked).
+  const openFolder = (entry: Entry) => <button type="button" disabled={busy.includes(entry.snapshot.gameId)} aria-label={`${t("downloadsOpenFolder")}: ${entry.game.name}`} title={t("downloadsOpenFolder")} onClick={() => void run(entry.snapshot.gameId, async () => { await digitalProcessManager.openFolder(entry.game, "download"); })}><FolderOpen size={16} /></button>;
   const row = (entry: Entry, index: number, featured = false) => {
     const { game, snapshot } = entry;
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
@@ -81,7 +90,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
         <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
-        <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
+        {featured && !terminal(entry) ? <DownloadSteps snapshot={snapshot} phaseLabel={phaseLabel(phase)} /> : <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>}
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}
         {phase !== "queued" && phase !== "cancelled" && phase !== "error" && phase !== "external" ? <>
@@ -104,22 +113,27 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsMoveDownAria",{name:game.name})} title={t("downloadsMoveDown")} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} />{t("downloadsMoveDown")}</button> : null}
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
         {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />{t("downloadsResume")}</button> : null}
-        {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}
+        {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
+        {["error", "interrupted"].includes(phase) ? <button className="ga-download-resume" disabled={busy.includes(gameId)} title={snapshot.resumeStep === "extract" ? t("downloadsResumeExtractHint") : snapshot.resumeStep === "download" ? t("downloadsResumeDownloadHint") : undefined} onClick={() => void run(gameId, () => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</button> : null}
+        {phase === "cancelled" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}
         {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsAbortAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsAbort")}</button> : null}
         {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsCancel")}</button> : null}
+        {!["cancelled", "cancelling", "external"].includes(phase) ? openFolder(entry) : null}
       </div>
     </article>;
   };
-  return <section ref={dialogRef} className={`digital-downloads-screen${closing ? " is-closing" : ""}`} role="dialog" aria-modal="true" aria-label={t("downloadsManager")}>
-    <header className="digital-downloads-heading">
-      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length})}</p></div>
-      <button type="button" className="digital-download-back ga-back" data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")}><X size={18} />{t("close")}</button>
-    </header>
-    <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
+  const summary = t("downloadsSummary",{pending:entries.filter(entry => !terminal(entry)).length,completed:history.filter(entry => entry.snapshot.phase === "completed").length});
+  useDeskSubtitle(embedded ? summary : "");
+  return <section ref={embedded ? undefined : dialogRef} className={`digital-downloads-screen${embedded ? " is-embedded" : ""}${closing ? " is-closing" : ""}`} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label={t("downloadsManager")}>
+    {embedded ? null : <header className="digital-downloads-heading">
+      <div><span className="digital-download-eyebrow">DIGITAL</span><h1>{t("downloadsTitle")}</h1><p>{summary}</p></div>
+      <GaBack className="digital-download-back" label={t("back")} data-dialog-initial onClick={onClose} aria-label={t("downloadsCloseAria")} />
+    </header>}
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
     {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
     {queue.length ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
     {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsSession")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
+    <details className="manual-download-entry"><summary>{locale === "es" ? "Añadir descarga manual" : "Add manual download"}</summary><ManualDownloadForm /></details>
   </section>;
 }

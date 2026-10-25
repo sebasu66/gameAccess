@@ -1,3 +1,4 @@
+import { GaButton } from "./components/ga/Buttons";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 import { useDialogFocus } from "./dialogFocus";
@@ -26,10 +27,10 @@ export default function SteamInstallFallbackDialog({ game, busy, error, onContin
           <p>{t("steamInstallBody")}</p>
           {error ? <p className="steam-install-fallback-error" role="alert">{t("steamInstallError", { error })}</p> : null}
           <div className="download-complete-actions">
-            <button type="button" className="primary-button" data-dialog-initial disabled={busy} onClick={onContinue}>
+            <GaButton variant="primary" data-dialog-initial disabled={busy} onClick={onContinue}>
               {busy ? <><Loader2 size={17} className="spin" /> {t("steamPreparing")}</> : t("steamContinue")}
-            </button>
-            <button type="button" className="secondary-button" disabled={busy} onClick={onClose}>{t("notNow")}</button>
+            </GaButton>
+            <GaButton disabled={busy} onClick={onClose}>{t("notNow")}</GaButton>
           </div>
         </div>
       </section>

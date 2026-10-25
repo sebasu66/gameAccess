@@ -30,16 +30,18 @@ export async function loadCooptimusDetails(appId:number,name="",force=false):Pro
  })().finally(()=>pending.delete(appId));pending.set(appId,request);return request;
 }
 export default function CooptimusDetails({appId,name="",enabled=true}:{appId:number|null;name?:string;enabled?:boolean}){
- const {locale}=useI18n();const es=locale==="es";const [data,setData]=useState<CoopDetails|null>(null);const [loading,setLoading]=useState(true);const [revision,setRevision]=useState(0);
- useEffect(()=>{setData(null);if(!enabled||!appId)return;let active=true;setLoading(true);void loadCooptimusDetails(appId,name,revision>0).then(value=>{if(active){setData(value);setLoading(false);}});return()=>{active=false;};},[appId,name,enabled,revision]);
+ const {locale}=useI18n();const es=locale==="es";const [data,setData]=useState<CoopDetails|null>(null);const [loading,setLoading]=useState(true);
+ useEffect(()=>{setData(null);if(!enabled||!appId)return;let active=true;setLoading(true);void loadCooptimusDetails(appId,name).then(value=>{if(active){setData(value);setLoading(false);}});return()=>{active=false;};},[appId,name,enabled]);
  if(!enabled||!appId)return null;
+ const pageUrl=data?.source_url?.startsWith("https://www.co-optimus.com/")?data.source_url:"https://www.co-optimus.com/games.php?system=4&game-title-filter="+encodeURIComponent(name);
+ // Shown under the gallery only when Co-Optimus has a verified page for the game.
+ if(!loading&&data?.state!=="ready")return null;
  return <section className="ga-detail-coop" aria-label={es?"Juego cooperativo":"Co-op play"}>
-  <div className="ga-detail-section-heading"><h3>{es?"Juego cooperativo":"Co-op play"}</h3><a href={data?.source_url?.startsWith("https://www.co-optimus.com/")?data.source_url:"https://www.co-optimus.com/games.php?system=4&game-title-filter="+encodeURIComponent(name)} target="_blank" rel="noreferrer">Co-Optimus ↗</a></div>
+  <div className="ga-detail-section-heading"><h3>{es?"Juego cooperativo":"Co-op play"}</h3><a href={pageUrl} target="_blank" rel="noreferrer" onClick={event=>{if(!hasTauriRuntime())return;event.preventDefault();invoke("open_cooptimus_page",{url:pageUrl}).catch(()=>void narrate("Co-Optimus page could not be opened",{area:"CATALOG",level:"WARN"}));}}>Co-Optimus ↗</a></div>
   {loading?<p role="status">{es?"Consultando detalles cooperativos…":"Loading co-op details…"}</p>:data?.state==="ready"?<>
    <CoopFacts data={data} es={es}/>
    {data.stale&&<small>{es?"Última consulta verificada; el sitio no respondió.":"Last verified result; site unavailable."}</small>}
-  </>:<p role="status">{es?(data?.state==="unverified"?"No se encontró una ficha verificada para este juego.":"Co-Optimus no respondió. La información de Steam sigue disponible."):"Co-Optimus details unavailable. Steam information remains available."}</p>}
-  {!loading&&<button className="ga-detail-text-action" type="button" onClick={()=>setRevision(v=>v+1)}>{es?"Volver a consultar":"Retry lookup"}</button>}
+  </>:null}
  </section>;
 }
 

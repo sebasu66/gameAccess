@@ -1,6 +1,9 @@
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
-import { loadOverviewZoom, normalizeOverviewZoom, overviewCoverSizing, saveOverviewZoom } from "./overviewSizing";
+import { overviewCoverSizing } from "./overviewSizing";
+import "./catalog-dock.css";
+import { useCardHover } from "./motion/cardHover";
+import { setAmbient } from "./motion/ambient";
 import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
@@ -9,6 +12,7 @@ import CatalogFilterToolbar from "./CatalogFilterToolbar";
 import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { gsap, motionOk, useGSAP } from "./motion/gsap";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
@@ -22,6 +26,7 @@ import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFa
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
+import CatalogGameMenu from "./CatalogGameMenu";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { useLibraryEntry, useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
@@ -31,6 +36,10 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
+import { GaClose, GaIconButton } from "./components/ga/Buttons";
+import CatalogSpotlight from "./CatalogSpotlight";
+import { prefetchSpotlight } from "./spotlightSlides";
+import LibraryBento, { type LibraryPill } from "./LibraryBento";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -51,7 +60,8 @@ function cardClass(selected: boolean, active: boolean, pinned: boolean) {
   ].filter(Boolean).join(" ");
 }
 
-type ContextMenuRequest = GameStorageContextMenuRequest;
+/** `anchor`: the card, beside which the catalog's side menu opens. */
+type ContextMenuRequest = GameStorageContextMenuRequest & { anchor?: HTMLElement | null };
 
 
 interface DownloadGameCardProps {
@@ -97,7 +107,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
   const showContextMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     onSelect(index, false);
-    onContextMenu({ game, x: event.clientX, y: event.clientY, status });
+    onContextMenu({ game, x: event.clientX, y: event.clientY, status, anchor: event.currentTarget.closest<HTMLElement>(".library-room-card-shell") ?? event.currentTarget });
   };
 
   return (
@@ -122,9 +132,10 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
           {favorite ? <span className="library-favorite-state" title={t("uiFavorito")} aria-label={t("uiFavorito")}><Star size={13} fill="currentColor" /></span> : null}
           {active ? <span className="library-download-state"><Loader2 className={status?.state === "paused" ? "" : "spin"} size={12} /> {label}</span> : null}
           {cardGenre ? <span className="library-room-card-genre" aria-hidden="true">{cardGenre}</span> : null}
+          {state.playButtonReady ? <InstalledMark /> : null}
         </span>
       </button>
-      <div className="ga-card-caption"><span>{game.name}</span>{state.playButtonReady ? <InstalledMark /> : null}</div>
+      <div className="ga-card-caption"><span>{game.name}</span>{game.release_date?.match(/\d{4}/)?.[0] ? <small>{game.release_date.match(/\d{4}/)![0]}</small> : null}</div>
       {/* Two downloads of one game can be different versions that cannot play online together: show which one this is. */}
       {/* The player's own name for it, or else the version as its download source names it ("SteamRIP · Game v1.2 - Repack"). */}
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
@@ -157,12 +168,19 @@ interface DownloadCatalogPanelProps {
   downloads: DownloadMap;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
+  /** Opens the detail of a game that is not in the grid (the banner shows the newest games on Steam). */
+  onOpenGame?: (game: CatalogGame) => void;
   pinnedAppIds: Set<number>;
   onSelect: (index: number, openDetails?: boolean) => void;
   preferences?: Record<number, 1 | -1>;
   history?: Record<number, number>;
   onPlay?: (game: CatalogGame) => void | Promise<void>;
   onInstall?: (game: CatalogGame) => void | Promise<void>;
+  /** Marks or unmarks a favorite (the same toggle as the detail screen's). */
+  onPreference?: (gameId: number, value: 1 | -1) => void;
+  /** Installed games the catalog leaves out while there is no search (they are in the library). */
+  hiddenInstalled?: number;
+  isInstalled?: (game: CatalogGame) => boolean;
 }
 
 type OpenContextMenu = ContextMenuRequest | null;
@@ -184,8 +202,74 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [infoTarget, setInfoTarget] = useState<HTMLElement | null>(null);
+  // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
-  const [gridZoom, setGridZoom] = useState(loadOverviewZoom);
+  const [managerFocus, setManagerFocus] = useState<number | null>(null);
+  const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
+  // Grid and manager swap with a short slide: what is shown leaves (up toward the manager, down back to the grid),
+  // then the other one comes in from the opposite side. Without motion they swap at once.
+  const swapping = useRef(false);
+  const toggleManager = (open: boolean) => {
+    const grid = props.gridRef.current;
+    const swap = () => { swapping.current = false; setManagerOpen(open); grid?.scrollTo({ top: 0, behavior: "auto" }); };
+    const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
+    if (open === showManager || swapping.current) { if (!swapping.current) swap(); return; }
+    if (!leaving.length || !motionOk()) { swap(); return; }
+    swapping.current = true;
+    gsap.to(leaving, { opacity: 0, y: open ? -16 : 16, duration: .2, ease: "power2.in", overwrite: true, onComplete: swap });
+  };
+  const swapped = useRef(false);
+  useGSAP(() => {
+    // Not on the first render: only when the grid and the manager trade places.
+    if (!swapped.current) { swapped.current = true; return; }
+    const entering = [props.gridRef.current?.firstElementChild, showManager ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
+    if (!entering.length || !motionOk()) { gsap.set(entering, { clearProps: "opacity,transform" }); return; }
+    gsap.fromTo(entering, { opacity: 0, y: showManager ? 24 : -24 }, { opacity: 1, y: 0, duration: .5, ease: "expo.out", overwrite: true, clearProps: "opacity,transform" });
+  }, { dependencies: [showManager] });
+  useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
+  useEffect(() => {
+    if (!showManager) return;
+    // Esc goes back to the grid, unless one of the manager's own dialogs is open.
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("[role=dialog], [role=alertdialog]")) { event.preventDefault(); toggleManager(false); } };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [showManager]);
+  useCardHover(props.gridRef);
+  // The wordmark and the top-right buttons line up with the catalog's edges (the row of filters above the grid).
+  useEffect(() => {
+    const row = document.querySelector<HTMLElement>(".ga-grid-toolbar");
+    if (!row) return;
+    const root = document.documentElement;
+    const place = () => {
+      const rect = row.getBoundingClientRect();
+      if (!rect.width) return;
+      root.style.setProperty("--ga-content-left", `${Math.round(rect.left)}px`);
+      root.style.setProperty("--ga-content-right", `${Math.round(window.innerWidth - rect.right)}px`);
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(row);
+    window.addEventListener("resize", place);
+    place();
+    return () => { observer.disconnect(); window.removeEventListener("resize", place); root.style.removeProperty("--ga-content-left"); root.style.removeProperty("--ga-content-right"); };
+  }, []);
+  // The catalog banner is prepared right away, so it is complete before the catalog is shown.
+  useEffect(() => { void prefetchSpotlight(); }, []);
+  // The game selected when the screen opens (or with the keyboard) tints the background like the one under the pointer.
+  const selectedGameId = props.games[props.selectedIndex]?.id;
+  useEffect(() => {
+    if (selectedGameId == null) return;
+    // The grid and its covers may still be arriving when the selection is set: try again for a moment.
+    let tries = 0, timer = 0;
+    const attempt = () => {
+      const image = props.gridRef.current?.querySelector<HTMLImageElement>(`[data-library-game-id="${selectedGameId}"] img`);
+      if (image?.complete && image.naturalWidth) { setAmbient(image); return; }
+      if (++tries < 30) timer = window.setTimeout(attempt, 150);
+    };
+    attempt();
+    return () => window.clearTimeout(timer);
+  }, [selectedGameId, props.gridRef]);
+  const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
   // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
@@ -213,9 +297,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, []);
 
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
-  const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length, gridZoom);
+  const { coverFloor, coverColumns, coverGap } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
   setCoverCardWidth(coverFloor);
-  const updateZoom = (value: number) => { const next = normalizeOverviewZoom(value); setGridZoom(next); saveOverviewZoom(next); };
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: t("tabCatalog") },
     { id: getCatalogMode() === "digital" ? "library" : "installed", label: t("uiBiblioteca") },
@@ -327,7 +410,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   useEffect(() => {
     if (!contextMenu) return;
     const close = (event?: Event) => {
-      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root")) return;
+      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root, .ga-side-menu")) return;
       setContextMenu(null);
     };
     const keydown = (event: KeyboardEvent) => {
@@ -350,11 +433,14 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
+        {view !== "catalog" ? (
+          <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+            <button type="button" aria-pressed={libraryPill === "installed"} onClick={() => setLibraryPill(current => (current === "installed" ? "all" : "installed"))}>{t("pillInstalled")}</button>
+            <button type="button" aria-pressed={libraryPill === "favorites"} onClick={() => setLibraryPill(current => (current === "favorites" ? "all" : "favorites"))}>{t("pillFavorites")}</button>
+          </div>
+        ) : null}
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
-          <div className="ga-search-meta">
-            <label className="ga-grid-zoom"><span>{t("uiZoom")}</span><input type="range" tabIndex={-1} min="100" max="160" step="5" value={gridZoom} onChange={event => updateZoom(Number(event.target.value))} aria-label={t("coverZoomAria")} aria-valuetext={`${gridZoom}%`} /><output>{gridZoom}%</output></label>
-          </div>
         </div>
         <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>
           {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
@@ -378,23 +464,34 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
   const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <button type="button" className="ga-dock-btn ga-library-manager-button" onClick={() => setManagerOpen(true)} aria-label={t("libraryManagerButton")} title={t("libraryManagerButton")}><HardDrive size={20} aria-hidden="true" /><span>{t("libraryManagerButton")}</span></button> : null;
+    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!showManager)} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
     <section className="library-room-catalog">
       {filtersOpen ? <LibraryFilterDialog games={view === "installed" ? allGames.filter(game => { const status = game.app_id ? props.downloads[game.app_id] : undefined; const state = gameStateManager.resolve(status); return state.installed || state.prepared || props.preferences?.[game.id] === 1; }) : allGames} countFromCatalog={view !== "installed"} query={searchQuery} filters={searchFilters} genres={facets.genres} onApply={next => { onSearchFiltersChange(next); setFiltersOpen(false); setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }} /> : null}
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
+      {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
+      {/* Filters and sort sit above the grid, where people look for them. */}
+      {showManager ? null : <div className="ga-grid-toolbar">{filters}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
-      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-zoom={gridZoom} data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
-        <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />
+      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
+        {showManager ? (
+          <div className="ga-manager-view">
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>
+            <GameLibraryManager embedded focusAppId={managerFocus} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+          </div>
+        ) : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
       {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
-      {props.actionsTarget ? createPortal(<>{filters}{backToTop}</>, props.actionsTarget) : filters}
+      {props.actionsTarget && backToTop ? createPortal(backToTop, props.actionsTarget) : null}
       {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
-      {managerOpen ? <GameLibraryManager onClose={() => setManagerOpen(false)} catalog={props.allGames} onInstall={props.onInstall} /> : null}
-      {contextMenu ? (
+      {/* A catalog card: the same glass side menu as the library, with only the catalog's actions. */}
+      {contextMenu && view === "catalog" && contextMenu.anchor ? (
+        <CatalogGameMenu game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}
+          onInstall={props.onInstall} onFavorite={props.onPreference ? game => props.onPreference!(game.id, 1) : undefined} onClose={() => setContextMenu(null)} />
+      ) : contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />
         ) : (

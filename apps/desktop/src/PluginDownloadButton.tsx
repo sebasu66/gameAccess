@@ -1,6 +1,6 @@
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
-import { Download, Loader2, MoreHorizontal, X } from "lucide-react";
+import { Download, Loader2, MoreHorizontal } from "lucide-react";
 import { useI18n } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
@@ -9,6 +9,7 @@ import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
 import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
 import type { CatalogGame } from "./types";
 import "./plugin-sources.css";
+import { GaClose } from "./components/ga/Buttons";
 
 export function pluginDownloadLabel(game: CatalogGame, sources: PluginSource[], locale: "es" | "en"): string {
   const size = sources[0]?.size || "";
@@ -60,7 +61,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
     {open && <section className="source-selector-panel ga-panel" aria-label={t("sourcesChoose")}>
-      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><button type="button" className="ga-close" onClick={() => setOpen(false)} aria-label={t("close")}><X size={18} /></button></div>
+      <div className="source-selector-heading"><strong>{t("sourcesChoose")}</strong><GaClose label={t("close")} size={18} onClick={() => setOpen(false)} /></div>
       <button type="button" aria-expanded={manualOpen} onClick={() => setManualOpen(value => !value)}>{locale === "es" ? "Añadir enlace manual" : "Add manual link"}</button>
       {manualOpen && <ManualDownloadForm game={game} onDone={() => { setManualOpen(false); setOpen(false); }} />}
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}

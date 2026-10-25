@@ -17,10 +17,13 @@ describe("download method pill", () => {
     expect(methodFromRoute(undefined)).toBeUndefined();
   });
 
-  it("only says Viking when the server accelerates it", () => {
+  it("names the route without naming the services behind the acceleration", () => {
     expect(downloadMethodLabel("torrent", "es").label).toBe("Torrent directo");
-    expect(downloadMethodLabel("accelerated", "es").label).toContain("Viking");
-    expect(downloadMethodLabel("torrent", "en").label).not.toContain("Viking");
+    expect(downloadMethodLabel("accelerated", "en").label).toBe("Accelerated");
+    expect(downloadMethodLabel("accelerated", "es").hint).toContain("servicio de aceleración de torrents");
+    for (const method of ["measuring", "torrent", "accelerated", "direct"] as const) {
+      for (const locale of ["es", "en"]) expect(JSON.stringify(downloadMethodLabel(method, locale))).not.toMatch(/torbox|viking/i);
+    }
   });
 
   it("names the plan", () => {

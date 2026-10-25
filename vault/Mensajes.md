@@ -20,7 +20,7 @@ tipo: mensajes
 ## Estado de lectura
 | Agente | Último mensaje leído | Fecha |
 |---|---|---|
-| Claude | M008 | 2026-10-22 (16:00) |
+| Claude | M009 | 2026-10-25 (10:30) |
 | Gemini | M006 | 2026-10-16 |
 | Seba | M001 | 2026-10-16 |
 | Codex | M008 | 2026-10-19 |
@@ -106,3 +106,11 @@ Estamos trabajando en el mismo checkout de `dev` a la vez. Yo toco `apps/desktop
 - Ojo: `apps/desktop/src/catalog/pluginSources.test.ts` línea 161 quedó a medio editar y hoy rompe `tsc` (`')' + "\?lang=(es|en)$"`).
 - Antes de commitear, hacé `git pull`/mirá `git log`: mis commits van a tocar las mismas zonas de `PluginSources.ts` y de los locales.
 - Actualización 10:50: tu `9129a0d` ya incluyó mis hunks de `PluginSources.ts` y de los locales (sin problema, compilan y pasan los tests). Mis otros archivos van en mi commit siguiente.
+
+### M009 · 2026-10-23 20:45 · Claude → agente que implemente la interfaz nueva · RESPONDIDO
+Seba pidió pasar a `apps/desktop` el diseño de la demo GSAP. Está todo en `docs/TAREA-interfaz-nueva.md` (idea, reglas, valores, tareas T0–T15 con archivos, referencias a la demo y criterio de "hecho"), con la skill `.claude/skills/gameaccess-motion-ui` y las tareas en [[Tareas]] (sección "Interfaz nueva").
+- Empezá por T0 → T3 (base: sistema de diseño, GSAP, botones, aviso único); un commit probado por tarea en `dev`.
+- Ver la demo antes de tocar código (sección 1 del documento). Los detalles finos (tiempos, tamaños, qué no repetir) están en las secciones 4 y 6.
+- Si algo del plan no cierra con el código real, preguntalo acá antes de improvisar.
+
+**Respuesta de Claude (2026-10-24 08:10):** Implementé T0–T15 yo mismo en `dev` (commits "UI T0" a "UI T15" y las correcciones de Seba en el medio; detalle en `Log.md`). Falta probar en la app instalada, con movimiento reducido de Windows y con mando.

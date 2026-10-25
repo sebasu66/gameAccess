@@ -16,10 +16,21 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] **B. Fuentes de descarga en la base** — tablas `download_sources` / `game_sources`, matching por nombre portado a Rust con test de contrato, deltas del plugin (`/api/source-index?since=`), filtro "con fuente" por SQL, fin del escaneo por lotes y del parpadeo online/offline. Dueño: Gemini (cliente y plugin). Verifica: Claude.
 - [x] **C. Instalación y detección** (C.1–C.5 hechos 2026-10-17; falta prueba en vivo de Seba: error de descompresión, `setup*.exe` de GOG, registro por juego) — carpeta `<appid>-<nombre>-<status>` (preparing/downloading/installing/ready/ERROR), `error.txt` + formulario de error, desinstalar/abortar borra la carpeta, instalado = carpeta con contenido y status `ready`, backup solo del fix, perfil de ejecución editable. Dueño: Gemini. Verifica: Claude.
 
+## Juegos de Steam (Seba, 2026-10-25)
+- [x] **Steam Account Manager** (Claude, 2026-10-25; `apps/launcher/steam_account_manager`): encuentra Steam (registro o carpetas de siempre), lee las cuentas recordadas (`loginusers.vdf`), las bibliotecas (`libraryfolders.vdf`) y los juegos instalados (`appmanifest_*.acf`); la cuenta dueña de un instalado es `LastOwner`. **Solo cuentas con "Recordarme"** (Seba, 2026-10-25): las demás y sus juegos quedan afuera. Los que tienen sin instalar los pide el launcher al servidor (`POST /steam/owned-games`, `apps/api/app/steam_owned_routes.py`), que tiene la clave `STEAM_WEB_API_KEY` en su entorno, guarda cada respuesta 12 h y limita 30 pedidos por hora por dirección; el usuario nunca carga una clave. Un perfil privado solo aporta sus instalados.
+- [x] **Importación automática** (Claude, 2026-10-25): al abrir la app se vinculan los instalados y se suman los propios sin instalar (sección "por instalar"); Configuración › Steam la apaga. También "Importar biblioteca de Steam" en el administrador de biblioteca y en Configuración. Un juego que el usuario quita no vuelve (`steam_hidden.json`).
+- [x] **Jugar con la cuenta dueña** (Claude, 2026-10-25): si Steam está en otra cuenta, Game Access lo cierra, pone `AutoLoginUser` en la dueña y lo abre; espera el inicio de sesión (hasta 3 min, por si Steam pide la contraseña) y corre `steam://rungameid`. Se apaga en Configuración › Steam.
+- [x] **Instalar con Steam** (Claude, 2026-10-25): los propios sin instalar muestran "Instalar con Steam" (`steam://install/<appid>`); nunca por las fuentes de Game Access. La cuenta dueña se ve en el menú de la tarjeta y en el administrador.
+- [x] **Instalador: Steam es requisito** (Claude, 2026-10-25): sin Steam, el instalador ofrece la página de descarga de Steam y se cierra (`GAMEACCESS_REQUIRE_STEAM` en `hooks.nsh`); las actualizaciones no lo revisan.
+- [x] Cambio real de cuenta (Claude, 2026-10-25): GTA V Legacy de `salidruki` lanzado por la acción `play`; Steam entró a esa cuenta en 4 s y corrió el juego.
+- [ ] Seba: confirmar que `STEAM_WEB_API_KEY` está cargada en Render (gameaccess-api-dev > Environment) y publicar el servidor (Render publica desde `main`); hasta entonces la lista de juegos sin instalar solo funciona con una API local.
+- [ ] Seba: probar Jugar desde la ventana de la app y el instalador en una PC sin Steam.
+- [ ] Página web: listar la importación de juegos de Steam como feature.
+
 ## Pasos ya decididos (ejecutar en orden)
 - [ ] **Importar juegos ajenos al catálogo**: usar `GameExecutionManager.prepare` para dejarlos listos dentro de Game Access (la importación todavía no existe). Pendiente también: marca de advertencia en la tarjeta del juego en la biblioteca (hoy solo en el menú y en el diálogo de Play fallido).
 - [ ] **Autoactualización segura** con el updater de Tauri: firmada, chequeo al abrir, aplica al reiniciar, conserva la versión anterior y revierte si crashea, config remota para arreglos sin release; repo público aparte para binarios/manifest. Debe estar en el primer build público.
-- [ ] **Traducciones es/en completas e instalador NSIS profesional.** Traducciones: avanzadas según `git log` (`f72557e` catálogos es/en con test de paridad, `79f52da` y `bbfe815` etiquetas movidas a los catálogos, script de control); falta confirmar que no queden textos fijos y la selección automática de idioma por ubicación (verifica Claude). Revisión 2026-10-18: traducidas las etiquetas de biblioteca y filtros, los estados de descarga y la descripción de respaldo. Pendiente: textos que llegan del launcher en español y las pistas (hints) de multijugador en `librarySearch.ts`. Plugin: envía textos traducidos por `?lang=` (ga-torrent-plugin, sin publicar todavía). Instalador NSIS pendiente: idioma automático y registro del protocolo `gameaccess://`.
+- [ ] **Traducciones es/en completas e instalador NSIS profesional.** Traducciones: avanzadas según `git log` (`f72557e` catálogos es/en con test de paridad, `79f52da` y `bbfe815` etiquetas movidas a los catálogos, script de control); falta confirmar que no queden textos fijos y la selección automática de idioma por ubicación (verifica Claude). Revisión 2026-10-18: traducidas las etiquetas de biblioteca y filtros, los estados de descarga y la descripción de respaldo. Textos del launcher: los de la ruta de descarga acelerada y sus errores ya viajan como claves traducibles (`ui_text.py` → `launcherText.ts`, 2026-10-24); pendiente pasar igual el resto (cola, torrent, descompresión, instalación) y las pistas (hints) de multijugador en `librarySearch.ts`. Plugin: envía textos traducidos por `?lang=` (ga-torrent-plugin, sin publicar todavía). Instalador NSIS pendiente: idioma automático y registro del protocolo `gameaccess://`.
 - [ ] **Landing en GitHub Pages** (qué es, cómo funciona, FAQ, privacidad, descarga), enlazada desde Patreon; Patreon solo para pago y comunidad.
 - [ ] **Pestaña nueva "Librería"**: estadísticas de uso de juegos por día y por mes (reutilizar `UsageChart` y los datos `usage` de `library-list`). Solo pendiente; el Library Manager ya trae los componentes shadcn/Recharts.
 - [ ] **Selector de idioma ES/EN**: moverlo a Configuración y quitarlo de las pantallas (hoy solo se oculta en las pantallas con `.ga-screen-header`, p. ej. el Library Manager). Usar `.ga-screen-header`/`.ga-screen-title` (gameaccess-theme.css) como cabecera estándar en todas las pantallas completas.
@@ -32,9 +43,31 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] **Importación: limpieza del escaneo** (Claude, 2026-10-21; falta verlo en la app): el escáner saltea programas y carpetas de soporte (Blender, ShapeLab, Foundry VTT, EasyPose, Nucleus, CoreFX, Open Brush, Blocks, Ubisoft Connect, Steamworks Common Redistributables, Spacewar), lo que Steam lista como herramienta o aplicación (`appinfo.vdf`), carpetas de descargas, carpetas con solo instaladores o sin `.exe` y descargas a medias; el mismo juego encontrado dos veces se marca «Repetido» y solo se importa el primero; un juego hallado por AppID toma el nombre del catálogo/Steam; el diálogo de importación ya no crece más que la ventana. Un juego vinculado se quita de la biblioteca sin tocar sus archivos (el menú no ofrece «Desinstalar»).
 - [ ] **Importación: pulir**: elegir manualmente el juego del catálogo con buscador (hoy un desplegable con sugerencias), opción «aplicar a todos» vincular/mover, progreso del escaneo por disco, opciones de lanzamiento (ejecutable/argumentos) para juegos vinculados, probar con discos reales y con una biblioteca Steam real.
 
+## Interfaz nueva (estilo de la demo GSAP)
+Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera antes de empezar). Referencia visual: `docs/design/gameaccess-gsap-demo-2026-10-23/index.html`. Skill: `.claude/skills/gameaccess-motion-ui`. Un commit probado por tarea en `dev`.
+- [x] T0 · Actualizar `docs/GUI_DESIGN.md` con los componentes y valores nuevos.
+- [x] T1 · Instalar GSAP + `@gsap/react` y crear `src/motion/gsap.ts` (plugins, movimiento reducido).
+- [x] T2 · Botones como componentes: `GaButton` (naranja de vidrio), `GaIconButton` (cubo), `GaClose`, `GaBack`.
+- [x] T3 · Aviso único abajo a la derecha (reemplaza toasts, diálogo al jugar, descarga terminada y confirmaciones simples).
+- [x] T4 · Pie: cubos sin texto que se encienden, campana con no leídos, globo de idioma.
+- [x] T5 · Catálogo para descubrir: sin instalados salvo al buscar, banner de lo nuevo en Steam, sin pastillas de filtro arriba, ▶ verde en vez de "INSTALADO", salida de tarjetas limpia.
+- [x] T6 · Palabra gigante del costado (CATALOGO / LIBRERIA, sin tilde) y giro 3D entre catálogo y librería.
+- [x] T7 · Librería en grilla bento por bandas, congelados (jugable / profundo a la derecha), pastillas Solo instalados / Solo favoritos.
+- [x] T8 · Hamburguesa tras 2 s y menú en el dorso de la tarjeta (Jugar/Instalar, Cambiar nombre, Administrar).
+- [x] T9 · Ficha: abrir desde la tarjeta sin portada gigante; cerrar con la grilla de cuadraditos.
+- [x] T10 · Paneles laterales (≥ 1800 px) y modo una pantalla por vez; paneles en gris y perspectiva sin foco.
+- [x] T11 · Administrador de biblioteca compacto con dona del disco y acciones avanzadas.
+- [x] T12 · Descargas rediseñadas (gráfico de velocidad, cola, sesión).
+- [x] T13 · Novedades como panel con contador de no leídos.
+- [x] T14 · Resto de las pantallas (configuración, ayuda, importar, etc.) con los mismos componentes.
+- [x] T15 · Revisión final (movimiento reducido, anchos, mando, teclado, rendimiento, app instalada).
+- [x] T16 · Marco de dispositivo en la app (Seba, 2026-10-25): bisel con pestañas, logo animado en la esquina y GAME / ACCESS dibujado en la columna derecha, activado por defecto (antes solo `?deviceFrame=1` en desarrollo); en la ventana de escritorio empieza debajo de la barra de título. `?deviceFrame=0` lo apaga; tablet y TV no lo usan. Falta verlo en la app Tauri.
+
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).
 - [ ] Registro de tiempo de juego (solo grabar, sin límites todavía).
+- [ ] **Aviso de driver de video viejo** (Seba 2026-10-22, Cyberpunk lo avisó y Game Access no): al abrir la app y antes de jugar, detectar GPU y versión del driver (NVIDIA: NVAPI `GetDriverAndBranchVersion` ya probado en `tools/benchmark/nvidia_profile.py`; AMD/Intel: `Win32_VideoController` DriverVersion/DriverDate) y compararla con la última publicada; si está vieja, aviso con enlace a la descarga oficial (NVIDIA App / AMD Adrenalin / Intel). Sin instalar nada por nuestra cuenta.
+- [ ] **Game Boost** (investigación y prototipo en `docs/GAME_BOOST_RESEARCH.md` y `tools/benchmark/`): opciones antes de jugar (cerrar/pausar apps elegidas, prioridad + EcoQoS, servicios, efectos visuales, un solo monitor, límite de FPS por perfil NVIDIA = Hz − 3) y restaurar al salir. Medido: límite de FPS en Heaven −66% consumo de GPU y mitad de CPU; alivianar +6-8% FPS pero la purga de RAM en espera empeoró los tirones de Superposition (falta aislar). Pendiente: medir en Cyberpunk con la configuración real de Seba.
 - [ ] Detalle del juego enriquecido: videos editoriales por Steam AppID/idioma, gameplay/walkthroughs y notas de prensa. El protocolo editorial v2 está documentado en `docs/EDITORIAL_VIDEO_FORMAT.md`; sigue pendiente diseñar e implementar el registro del video publicado y su reproducción en la ficha.
 - [ ] Congelado de juegos (freezer): comprimir un juego de forma fácil de descomprimir.
 - [ ] Congelado automático tras 1, 2 o 3 meses sin uso (parámetro), con ícono de frío junto a Play y tooltip.
@@ -85,15 +118,22 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [ ] Publicar deltas del catálogo en el servidor (`kind: "delta"`, `base_revision`, `revision`) — spec en `docs/game-access-todo.md`.
 - [ ] Logs de la app dentro del proyecto (`apps/launcher/logs` o `api/logs`).
 
+- [x] Espacio en disco antes de descargar (Seba, 2026-10-25): la app lo revisa al encolar también con el tamaño en texto de las fuentes del plugin; el worker lo revisa apenas sabe el tamaño real (torrent, enlace directo, piezas del servidor), contando lo ya bajado y los dos discos.
+- [x] Retomar desde el paso en que se cortó (Seba, 2026-10-25): el registro de instalación guarda el paso (descarga / descompresión), la fuente y el archivo bajado; un error ya no borra lo descargado (solo cancelar); "Reintentar" en el Download Manager (`/jobs/<id>/retry`) y en el administrador de biblioteca sigue desde ahí, sin plugin y también después de reiniciar la app.
+- [x] Botón "Abrir carpeta de descarga" mientras descarga, en descargas y en el administrador (Seba, 2026-10-25).
+- [x] Menú del catálogo = panel lateral de la biblioteca, solo con Instalar (si hay fuentes y plugin), Añadir a la biblioteca, Página de Steam y Favoritos (Seba, 2026-10-25).
+
 ## Premium y comercial (Paso 1 hecho, falta cerrar)
 - [x] **Llaves para testers** (Claude, pedido por Seba 2026-10-19; falta desplegar el servidor y probar con un amigo): en `/admin`, sección "Llaves para testers": nombre del tester, fecha de fin (por defecto un mes) y cantidad → llaves PLUS hasta esa fecha. La primera activación la ata a ese Windows; en otro la rechaza. "Desvincular" la libera si el tester reinstala Windows (no cambia la fecha). La lista muestra para quién es y su Windows (8 primeros caracteres).
   - Cliente: el identificador de instalación sale ahora del `MachineGuid` de Windows (hash, no se envía el GUID), no de un archivo al azar en `%LOCALAPPDATA%`. Copiar la carpeta de activación a otra PC ya no sirve. Las activaciones hechas antes con el identificador viejo hay que hacerlas de nuevo (no hay usuarios todavía).
 - [ ] Pendiente previo: `tests/test_current_product_routes.py` falla también sin estos cambios (quedan rutas `/downloads` o `/pool` que el test prohíbe).
-- [ ] Seba: pasar las URLs reales de Patreon y de pago en pesos (hoy todo apunta al placeholder `https://gameaccess.app`).
+- [ ] Seba: pasar las URLs reales de Patreon y de pago en pesos (hoy todo apunta a `https://gameaccess.site/plus`).
+- [x] **Dominio definitivo `gameaccess.site`** (Seba, 2026-10-25): la app y el servidor llevan al jugador a `https://gameaccess.site/plus` (cómo conseguir la llave PLUS y pagar); `SITE_URL` y `PLUS_URL` en `apps/desktop/src/projectConfig.ts`. Las actualizaciones siguen siendo automáticas (GitHub), sin enlace.
+- [ ] Publicar la web en `gameaccess.site` (hoy sin desplegar) con la página `/plus` y la sección de descarga; hasta entonces el botón de la pantalla PLUS abre una dirección que todavía no responde.
 - [ ] Reiniciar/redeployar el API para publicar `/premium/content` y ver el diálogo con planes en vivo; revisar los textos de planes (2 y 4 USD).
 - [ ] Probar la clave en vivo contra el server real desde el diálogo nuevo.
 - [ ] Probar el instalador `.exe` del plugin y el botón de la página (Seba).
-- [ ] Cuenta `gh`: la activa quedó la del plugin; volver a `sebasu66` (`gh auth switch -u sebasu66`).
+- [x] Cuenta `gh`: vuelta a `sebasu66` (2026-10-24); antes la activa era la del plugin (`gh auth switch -u sebasu66`).
 
 ## UI y cliente
 - [ ] Diseño Digital aprobado: aceptación visual y validación de ficha/descargas con datos reales (detalle del diseño en `TODO_OBSOLETO.md`, sección P1; mockup en `docs/design/gameaccess-ui-2026-10-06/`).
@@ -121,7 +161,7 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 
 ## Mantenimiento y dudas abiertas
 - [x] Commitear la limpieza y la bóveda: `23028b6` (limpieza de la raíz) y `ca31480` (vault, README, skill, AGENTS).
-- [ ] Primer push de `dev` a `origin`: hoy `dev` está 18 commits adelante de `origin/dev` (16 previos + los 2 de hoy). Seba debe aprobarlo antes: el remoto es el repo público `sebasu66/gameAccess` y el vault contiene planes, precios y la estrategia de fuentes.
+- [x] (Ya hecho: `dev` está al día con `origin/dev` el 2026-10-24.) Primer push de `dev` a `origin`: hoy `dev` está 18 commits adelante de `origin/dev` (16 previos + los 2 de hoy). Seba debe aprobarlo antes: el remoto es el repo público `sebasu66/gameAccess` y el vault contiene planes, precios y la estrategia de fuentes.
 - [ ] Seba: confirmar los estados marcados † en `vault/Proyecto.md` (biblioteca, cola de descargas, versión Plus, importador de juegos propios, planes y precios).
 - [x] `README.md` y `skill.md`: quitadas las menciones a la versión vieja de licencias Steam (2026-10-16) y alineados con el vault (entrada libre sin llave, disponibilidad de fuentes desde la base). Corrección: antes anoté por error que seguían con reglas viejas de leases; no los había leído.
 - [ ] Docs viejos que todavía hablan de licencias/leases de Steam (12 archivos, ver [[Limpieza]]): decidir si se archivan en `docs/archivo/`. Dueño: Seba decide, Claude mueve.

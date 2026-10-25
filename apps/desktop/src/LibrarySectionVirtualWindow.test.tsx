@@ -278,4 +278,23 @@ describe("LibrarySectionShelf virtual window contract", () => {
     expect(spacerTop(grid) % zoomedRowHeight).toBe(0);
     expect(spacerBottom(grid) % zoomedRowHeight).toBe(0);
   });
+
+  it("does not move the scroll for a selection the scroll itself made", async () => {
+    // Regression: while scrolling, the catalog moves the selection to a card on screen (scrollClamping); the shelf
+    // tweened back to that card, pulling the scroll up on every wheel step, so the catalog stopped loading.
+    const { scrollRoot, grid } = await mountShelf(TOTAL_GAMES);
+    const ref = { current: scrollRoot } as RefObject<HTMLDivElement>;
+    const render = (selectedId?: number) => act(() => root?.render(
+      <LibrarySectionShelf section={makeSection(TOTAL_GAMES)} selectedId={selectedId} reset={0} scrollRoot={ref}
+        renderGame={(game) => <button key={game.id} type="button" className={`library-room-card${game.id === selectedId ? " is-selected" : ""}`} data-game={game.id} />} />,
+    ));
+    render(1);
+    scrollTo(scrollRoot, 50 * ROW_HEIGHT + 40);
+    const onScreen = mountedIds(grid)[COLUMNS * 2];
+    scrollRoot.dataset.scrollClamping = "true";
+    render(onScreen);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 450)); });
+    expect(scrollRoot.scrollTop).toBe(50 * ROW_HEIGHT + 40);
+    expect(scrollRoot.dataset.scrollClamping).toBeUndefined();
+  });
 });

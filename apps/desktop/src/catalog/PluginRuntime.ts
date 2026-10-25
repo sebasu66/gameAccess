@@ -96,7 +96,7 @@ export function pollPluginRuntime(): Promise<void> {
       const key = JSON.stringify(next);
       if (key === signature) return;
       signature = key; statuses = next; generation++;
-      void narrate("Plugin state changed: " + next.map(item => item.name + "=" + (item.alive ? "online r" + item.revision + (item.dirty ? " (outdated)" : "") : "offline")).join(", "), { area: "DOWNLOAD_SOURCES" });
+      void narrate("Plugin state changed: " + (next.length ? next.map(item => item.name + "=" + (item.alive ? "online r" + item.revision + (item.dirty ? " (outdated)" : "") : "offline")).join(", ") : "no source plugins"), { area: "DOWNLOAD_SOURCES" });
       for (const listener of listeners) listener();
       if (typeof window !== "undefined") window.dispatchEvent(new Event(PLUGINS_CHANGED_EVENT));
     } catch (error) {

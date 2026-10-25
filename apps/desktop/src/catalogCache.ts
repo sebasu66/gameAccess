@@ -1,11 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame, GameDetails } from "./types";
 import { blockedDescriptorIds, getParentalPolicy, type ParentalPolicy } from "./parentalControl";
+import { queryDemoCatalog, uiDemo } from "./devDemo/uiDemo";
 
 export interface CatalogCacheSyncResult {
   updated: boolean;
   revision: string;
   catalog_count: number;
+  /** What the check downloaded besides the manifest, its compressed size, and the times (for the log). */
+  downloaded?: "nothing" | "patch" | "package";
+  downloaded_bytes?: number;
+  manifest_ms?: number;
+  total_ms?: number;
+  /** New games that matched download sources already saved, and how long matching took. */
+  new_downloads?: number[];
+  link_ms?: number;
 }
 
 const native = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -124,7 +133,7 @@ export function withParentalPolicy(params: CatalogQueryParams, policy: ParentalP
 }
 
 export async function queryCatalogCache(params: CatalogQueryParams): Promise<CatalogQueryResult> {
-  if (!native()) return { items: [], total: 0 };
+  if (!native()) return import.meta.env.DEV && uiDemo() ? queryDemoCatalog(params) : { items: [], total: 0 };
   return invoke<CatalogQueryResult>("catalog_cache_query", { params: withParentalPolicy(params) });
 }
 
@@ -153,6 +162,12 @@ export interface CatalogSourcesApplyResult {
   revision: string;
   sources_total: number;
   matched_links: number;
+  /** Waiting for a worker thread, waiting for the shared catalog connection, and the work itself (for the log). */
+  queued_ms?: number;
+  wait_ms?: number;
+  work_ms?: number;
+  /** Games that had no download before this sync and have one now. */
+  new_downloads?: number[];
 }
 
 export async function applyCatalogSources(params: CatalogSourcesApplyParams): Promise<CatalogSourcesApplyResult | null> {

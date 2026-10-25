@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import "./circle-scrollbar.css";
 
 function placeHandle(track: HTMLElement | null, thumb: HTMLElement | null, value: number, maximum: number): void {
   if (!track || !thumb || maximum <= 1) return;
@@ -26,6 +27,14 @@ export default function CircularScrollbar({ targetRef, label }: { targetRef: Ref
       placeHandle(trackRef.current, thumbRef.current, target.scrollTop, max);
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    // While the content scrolls the handle grows (data-active), then settles back shortly after.
+    let settle = 0;
+    const scrolling = () => {
+      schedule();
+      trackRef.current?.setAttribute("data-active", "");
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => { if (!trackRef.current?.hasAttribute("data-dragging")) trackRef.current?.removeAttribute("data-active"); }, 700);
+    };
     const resize = new ResizeObserver(schedule);
     resize.observe(target);
     const observeContent = () => {
@@ -36,13 +45,14 @@ export default function CircularScrollbar({ targetRef, label }: { targetRef: Ref
     };
     const mutation = new MutationObserver(observeContent);
     mutation.observe(target, { childList: true, subtree: true });
-    target.addEventListener("scroll", schedule, { passive: true });
+    target.addEventListener("scroll", scrolling, { passive: true });
     observeContent();
     return () => {
       if (frame) cancelAnimationFrame(frame);
       resize.disconnect();
       mutation.disconnect();
-      target.removeEventListener("scroll", schedule);
+      window.clearTimeout(settle);
+      target.removeEventListener("scroll", scrolling);
       if (!previousId && target.id === id) target.removeAttribute("id");
     };
   }, [targetRef, id]);
@@ -59,9 +69,9 @@ export default function CircularScrollbar({ targetRef, label }: { targetRef: Ref
   return <div ref={trackRef} className="ga-circle-scrollbar" role="scrollbar" tabIndex={-1}
     aria-label={label} aria-controls={targetRef.current?.id || id} aria-orientation="vertical"
     aria-valuemin={0} aria-valuemax={Math.round(maximum)} aria-valuenow={Math.round(Math.min(maximum, value))}
-    onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); moveTo(event.clientY); }}
+    onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); event.currentTarget.setAttribute("data-dragging", ""); event.currentTarget.setAttribute("data-active", ""); moveTo(event.clientY); }}
     onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) moveTo(event.clientY); }}
-    onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
+    onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); event.currentTarget.removeAttribute("data-dragging"); event.currentTarget.removeAttribute("data-active"); }}
     onKeyDown={event => {
       const target = targetRef.current;
       if (!target) return;

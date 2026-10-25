@@ -1,7 +1,8 @@
+import { GaButton } from "../components/ga/Buttons";
 import { ChevronDown, ChevronRight, Cog, FilePlus, PackageOpen, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import CircularScrollbar from "../CircularScrollbar";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import type { LibraryPlan } from "../catalog/DigitalProcessManager";
 import type { LibraryCopy } from "./copy";
 import { formatBytes } from "./format";
@@ -61,8 +62,8 @@ export function PlanDialog({ plans, c, busy, onConfirm, onCancel }: { plans: Lib
         {deletes ? <p className="m-0 text-xs text-muted-foreground">{c.planSources}</p> : null}
         {freed > 0 ? <p className="m-0 text-sm font-bold text-success">{c.planFree(formatBytes(freed))}</p> : null}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>{c.cancel}</AlertDialogCancel>
-          <AlertDialogAction disabled={busy || plans.length === 0} onClick={event => { event.preventDefault(); onConfirm(); }}>{busy ? c.working : c.confirm}</AlertDialogAction>
+          <GaButton disabled={busy} onClick={onCancel}>{c.cancel}</GaButton>
+          <GaButton variant="primary" disabled={busy || plans.length === 0} onClick={onConfirm}>{busy ? c.working : c.confirm}</GaButton>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

@@ -1,3 +1,4 @@
+import { GaButton, GaClose } from "../components/ga/Buttons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
 import CircularScrollbar from "../CircularScrollbar";
@@ -177,14 +178,14 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
       <div className="flex max-h-full min-h-0 w-[min(1000px,94vw)] flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-2xl">
         <header className="flex items-center gap-4">
           <h2 className="ga-screen-title mr-auto !text-4xl">{c.wzTitle}</h2>
-          <Button size="icon" variant="ghost" aria-label={c.wzClose} disabled={step === "scanning" || step === "importing"} onClick={() => onClose(imported.current)}><X /></Button>
+          <GaClose label={c.wzClose} disabled={step === "scanning" || step === "importing"} onClick={() => onClose(imported.current)} />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
         <footer className="flex justify-end gap-2">
-          {step === "results" ? <Button variant="outline" onClick={() => setStep("drives")}><ArrowLeft />{c.wzBack}</Button> : null}
-          {step === "drives" || step === "scanning" ? <Button disabled={step === "scanning" || chosen.size === 0} onClick={() => void scan()}>{step === "scanning" ? <Loader2 className="animate-spin" /> : <ScanSearch />}{step === "scanning" ? c.wzScanning : c.wzScan}</Button> : null}
-          {step === "results" ? <Button disabled={chosenRows.length === 0} onClick={() => void run()}>{c.wzImport(chosenRows.length)}</Button> : null}
-          {step === "done" ? <Button onClick={() => onClose(imported.current)}>{c.wzClose}</Button> : null}
+          {step === "results" ? <GaButton icon={<ArrowLeft size={16} />} onClick={() => setStep("drives")}>{c.wzBack}</GaButton> : null}
+          {step === "drives" || step === "scanning" ? <GaButton variant="primary" icon={step === "scanning" ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} disabled={step === "scanning" || chosen.size === 0} onClick={() => void scan()}>{step === "scanning" ? c.wzScanning : c.wzScan}</GaButton> : null}
+          {step === "results" ? <GaButton variant="primary" disabled={chosenRows.length === 0} onClick={() => void run()}>{c.wzImport(chosenRows.length)}</GaButton> : null}
+          {step === "done" ? <GaButton variant="primary" onClick={() => onClose(imported.current)}>{c.wzClose}</GaButton> : null}
         </footer>
       </div>
     </div>

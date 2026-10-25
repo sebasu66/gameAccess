@@ -45,9 +45,10 @@ const frozen: SteamDownloadStatus = {
   installed: false,
 };
 
-function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable = 1) {
+function render(downloads: Record<number, SteamDownloadStatus>, copiesAvailable = 1, searchValue = "") {
   return renderToStaticMarkup(
     <LibraryRoom
+      searchValue={searchValue}
       games={[{ ...game, copies_available: copiesAvailable }]}
       downloads={downloads}
       busy={false}
@@ -66,10 +67,17 @@ describe("LibraryRoom grid presentation", () => {
   });
 
   it("keeps file readiness independent from the available-copy count", () => {
-    expect(render({ 10: installed })).toContain("ga-card-installed");
-    const withoutLicense = render({ 10: installed }, 0);
+    // A search shows installed games in the catalog too (without one they live in the library).
+    expect(render({ 10: installed }, 1, "Test")).toContain("ga-card-installed");
+    const withoutLicense = render({ 10: installed }, 0, "Test");
     expect(withoutLicense).toContain("ga-card-installed");
     expect(withoutLicense).not.toContain("ga-card-installed no-license");
+  });
+
+  it("leaves installed games out of the catalog until there is a search", () => {
+    const markup = render({ 10: installed });
+    expect(markup).not.toContain('aria-label="Seleccionado: Test Game');
+    expect(markup).toContain("ga-hidden-installed");
   });
 
   it("does not mark a legacy frozen game as ready or playable", () => {

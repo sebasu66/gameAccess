@@ -1,0 +1,83 @@
+/* Search dock as in the approved demo, always centred in the window (side panels do not move it). With the animated
+   pixel background on, the search and the view buttons keep their LED look. */
+html body .library-catalog-toolbar.library-catalog-controls { z-index: 121; }
+html body:not(.ga-pixel-field-on) .ga-pixel-search > canvas, html body:not(.ga-pixel-field-on) .ga-led-button > canvas { display: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search { height: 62px; border-radius: 31px; background: #20282cdc; border: 1px solid #ffffff2c !important; backdrop-filter: blur(28px); box-shadow: 0 14px 40px #0008; transition: border-color .25s, box-shadow .25s; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #ff6a00 !important; box-shadow: 0 14px 40px #0008, 0 0 0 1px #ff6a0066; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box { height: 100%; padding: 0 18px 0 22px; gap: 12px; border: 0; border-radius: inherit; background: none; box-shadow: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box svg { width: 26px; height: 26px; color: #ff6a00; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font: 500 17px Manrope, sans-serif; color: #f4f4f2; text-align: left; padding: 0 22px 0 64px; }
+html body:not(.ga-pixel-field-on) .ga-pixel-search::after { display: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input::placeholder { color: #8f969d; }
+/* View buttons: demo colours, and they keep unfolding their label on hover (gameaccess-theme.css). The LED look
+   (pixel-appearance.css, with !important) stays for the animated pixel background. */
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #ff6a00 !important; border-color: #ff6a00 !important; color: #140a02 !important; box-shadow: 0 10px 30px #ff6a0055 !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::before, html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::after { display: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button svg { filter: none; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button > span { font: 700 14px Manrope, sans-serif; }
+
+/* The filter strip above the grid: filters, active tags, sort and the game counts on one line, closed above and below
+   by thin lines that fade out toward the sides. Its buttons are flat outlines at rest, and stand out (the footer's
+   raised look) and unfold their label on hover or focus. */
+.ga-grid-toolbar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 26px 14px 0; padding: 10px 0; min-height: 40px; }
+.ga-grid-toolbar::before, .ga-grid-toolbar::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; pointer-events: none; background: linear-gradient(90deg, transparent, #ffffff30 14%, #ffffff30 86%, transparent); }
+.ga-grid-toolbar::before { top: 0; }
+.ga-grid-toolbar::after { bottom: 0; }
+html body .ga-grid-toolbar .library-catalog-filter-actions { width: auto; justify-content: flex-start; flex-wrap: nowrap; gap: 12px !important; }
+html body .ga-grid-toolbar button.ga-cube.ga-filter-open:not(:hover):not(:focus-visible),
+html body .ga-grid-toolbar details.library-sort-dropdown:not([open]) > summary.ga-cube:not(:hover):not(:focus-visible) { background: transparent; box-shadow: none; border-color: #ffffff33; }
+.ga-strip-info { margin-left: auto; }
+.ga-strip-info:empty { display: none; }
+.ga-strip-count { font: 600 12px Manrope, sans-serif; color: #929ba2; white-space: nowrap; }
+html body .ga-grid-toolbar .library-sort-menu { top: calc(100% + 8px) !important; bottom: auto !important; left: 0; right: auto; }
+html body .ga-grid-toolbar .ga-hidden-installed { position: static; margin: 0 0 0 auto; transform: none; }
+
+/* Room above the first row so a selected or lifted cover never gets its top edge cut by the scrolling area. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame > .library-room-grid { padding-top: 16px; }
+
+/* Ultrawide windows: the catalog (banner, filters, grid) stops growing at 1600 px and stays centred on the window (the
+   side padding in view-rail.css), so the banner
+   image is not stretched into a thin strip. Heights depend on the window height only, never on its width. */
+html body .library-room:not(.surface-display):not(.surface-tablet) > .library-room-catalog { width: 100%; max-width: none; margin-inline: 0; box-sizing: border-box; }
+
+/* The GameAccess wordmark and the buttons at the top right line up with the banner and the grid, as in the demo. */
+html body .ga-header-wordmark { left: var(--ga-content-left, 20px) !important; }
+html body .ga-header-utilities.topbar-actions { right: var(--ga-content-right, 36px) !important; }
+
+/* Footer buttons: one size (40 × 40, icon centred), one style and one label font; the label still unfolds on hover. */
+html body .catalog-bottom-actions .ga-cube { gap: 0 !important; min-width: 40px; height: 40px; padding: 0 10px; justify-content: center; box-sizing: border-box; }
+html body .catalog-bottom-actions .ga-cube .ga-cube-label { font: 800 12px Manrope, sans-serif !important; letter-spacing: .04em; text-transform: none; }
+html body .catalog-bottom-actions .library-back-to-top { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #ffffff1c; background: linear-gradient(180deg, #ffffff16, #ffffff05); color: #f4f4f2; font: 800 12px Manrope, sans-serif; }
+
+/* The GameAccess wordmark sits at the right border of the grid, where the PLUS badge used to be. */
+html body .ga-header-wordmark { left: auto !important; right: var(--ga-content-right, 36px) !important; }
+
+/* Bottom left: server status, plugin and PLUS, separated by thin vertical lines. */
+html body .ga-footer-left { gap: 14px !important; align-items: center; }
+html body .ga-footer-left > * + * { display: inline-flex; align-items: center; min-height: 20px; padding-left: 14px; border-left: 1px solid #ffffff30; }
+html body .ga-footer-left .ga-backend-status { min-width: 0; }
+html body .ga-footer-left .plugin-indicator-group { max-width: 220px; gap: 10px; }
+html body .ga-footer-left .plugin-indicator-item { height: auto; padding: 0; border: 0; background: none; font: 650 10px Manrope, "Segoe UI", sans-serif; color: #bcc3c8; gap: 8px; }
+html body .ga-footer-left .ga-access-pass { position: relative; inset: auto; }
+html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px; border-radius: 8px; gap: 7px; font: 800 11px Manrope, sans-serif; letter-spacing: .06em; }
+html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }
+html body .ga-footer-left .ga-access-pass-panel { left: 0; right: auto; }
+html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; }
+/* Catalog covers at rest are clearly less saturated and a little darker, so the grid reads calmer; the card under the pointer or selected
+   keeps its full colour (ambient.css clears the filter for those). */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { filter: saturate(.55) brightness(.9); }
+/* Space between covers follows the window (overviewSizing.coverGap, set on the grid as --ga-cover-gap). */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-grid .library-section-grid { column-gap: var(--ga-cover-gap, 24px); row-gap: calc(var(--ga-cover-gap, 24px) + 6px); }
+/* Room between the grid and the big words on either side (CATALOGO / LIBRERIA on the left, GAME / ACCESS on the
+   right), on top of what keeps the grid clear of the left word. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: calc(max(var(--ga-rail-clear, 0px), (100% - 1600px) / 2) + clamp(24px, 3.5vw, 72px)); }
+/* The search field follows the window: about half its width, never narrower than 420 px nor wider than 870 px, and
+   lower and smaller text on small windows. */
+html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(420px, 45vw, 870px)); }
+html body .library-catalog-toolbar .global-search { height: clamp(52px, 4.4vw, 70px); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font-size: clamp(15px, 1.1vw, 17px); }
+/* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
+.library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }

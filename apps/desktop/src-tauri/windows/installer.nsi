@@ -528,6 +528,11 @@ Function .onInit
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_INIT
   !endif
+
+  ; GameAccess: Steam must be installed first (hooks.nsh).
+  !ifmacrodef GAMEACCESS_REQUIRE_STEAM
+    !insertmacro GAMEACCESS_REQUIRE_STEAM
+  !endif
 FunctionEnd
 
 

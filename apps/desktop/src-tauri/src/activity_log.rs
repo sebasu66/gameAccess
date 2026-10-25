@@ -114,18 +114,19 @@ pub(crate) fn narration_log_path() -> Result<String, String> {
     Ok(narration_log_file()?.to_string_lossy().to_string())
 }
 
+// Disk work never runs on the window's thread: synchronous commands run on Tauri's main thread and would freeze the UI.
 #[tauri::command]
-pub(crate) fn append_narration_log(message: String, area: String, level: String) -> Result<String, String> {
-    append_narration_lines(vec![message], area, level)
+pub(crate) async fn append_narration_log(message: String, area: String, level: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || append_narration_lines(vec![message], area, level)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn append_narration_log_batch(
+pub(crate) async fn append_narration_log_batch(
     messages: Vec<String>,
     area: String,
     level: String,
 ) -> Result<String, String> {
-    append_narration_lines(messages, area, level)
+    tauri::async_runtime::spawn_blocking(move || append_narration_lines(messages, area, level)).await.map_err(|e| e.to_string())?
 }
 
 pub(crate) fn read_log_tail(path: PathBuf, area: &str) -> Vec<String> {
