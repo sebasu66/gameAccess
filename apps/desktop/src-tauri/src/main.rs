@@ -24,6 +24,7 @@ mod plugin_registry;
 mod plugin_install;
 mod app_update;
 mod download_queue;
+mod game_controllers;
 
 use std::{env, sync::Mutex};
 
@@ -62,6 +63,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
             app_update::app_frontend_alive,
+            game_controllers::game_controllers_connected,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
             parental_lock::parental_state,

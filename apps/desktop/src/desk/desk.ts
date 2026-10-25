@@ -5,6 +5,7 @@
  * a side panel (it needs no more room than that).
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { bigPictureActive } from "../bigPicture";
 
 export type DeskPanelId = "manager" | "downloads" | "news";
 export const WIDE_MIN = 1800;
@@ -21,6 +22,8 @@ const ALWAYS_SIDE: DeskPanelId[] = ["downloads"];
 export const isSidePanel = (id: DeskPanelId, wide: boolean) => wide || ALWAYS_SIDE.includes(id);
 export const deskOpen = () => open;
 export function openPanel(id: DeskPanelId) {
+  // Big picture mode is the library and a controller only: no panel opens over it.
+  if (bigPictureActive()) return;
   if (open.includes(id) && (isWideDesk() || open.length === 1)) return;
   publish(isWideDesk() ? [...open, id] : [id]);
 }

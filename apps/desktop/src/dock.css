@@ -63,3 +63,14 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
   padding: 0 10px !important; border-radius: 8px !important; font: 800 12px Manrope, sans-serif !important; letter-spacing: .06em !important;
 }
 .ga-dock .ga-cube > svg, .ga-footer-left .ga-cube > svg { width: 19px !important; height: 19px !important; margin: 0 !important; }
+/* Refresh and big screen carry older rules with a solid fill (utility-controls.css, !important) that made them look
+   pressed: in the dock they look and react like the other cubes. */
+.ga-dock .ga-cube:is(.catalog-refresh-button, .ga-big-screen-toggle) {
+  border: 1px solid #ffffff1c !important; color: #cfd4d8 !important; background: linear-gradient(180deg, #ffffff16, #ffffff05) !important;
+  box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006 !important;
+}
+.ga-dock .ga-cube:is(.catalog-refresh-button, .ga-big-screen-toggle):is(:hover, :focus-visible) {
+  border-color: #ff8a38 !important; color: #fff !important; background: linear-gradient(180deg, #ff6a0038, #ff6a0012) !important;
+  box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #ff6a0055, 0 4px 12px #0006 !important;
+}
+.ga-dock .ga-cube.ga-big-screen-toggle[aria-pressed="true"] { border-color: #ff8a3899 !important; color: #fff !important; background: linear-gradient(180deg, #ff6a0026, #ff6a000a) !important; }

@@ -4,6 +4,7 @@ import RenameGameDialog from "./RenameGameDialog";
 import { ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
 import { useBatchReveal } from "./motion/batchReveal";
+import { bigPictureActive, useBigPicture } from "./bigPicture";
 import GameSideMenu, { type SideMenuItem } from "./GameSideMenu";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
@@ -121,12 +122,14 @@ function MenuDot({ shown, label, onOpen }: { shown: boolean; label: string; onOp
 export default function LibraryBento({ games, downloads, preferences = {}, pill, indexes, selectedId, onSelect, onPlay, onInstall, onManage, infoTarget }: Props) {
   const { t } = useI18n();
   const scan = useLibraryScan();
+  // Big picture mode: only the games ready to play, and no card menu (a controller picks a game and plays it).
+  const bigPicture = useBigPicture();
   // The menu dot appears after resting 1 s on a card (or at once with the keyboard); a click turns the card over.
   const [dotFor, setDotFor] = useState<number | null>(null);
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
   const [renaming, setRenaming] = useState<CatalogGame | null>(null);
   const dwell = useRef(0);
-  const openMenu = useCallback((card: Card, slot: HTMLElement) => setMenuFor(current => current ?? { card, slot }), []);
+  const openMenu = useCallback((card: Card, slot: HTMLElement) => { if (!bigPictureActive()) setMenuFor(current => current ?? { card, slot }); }, []);
   const rest = (id: number) => { window.clearTimeout(dwell.current); dwell.current = window.setTimeout(() => setDotFor(id), DWELL_MS); };
   const leave = (id: number) => { window.clearTimeout(dwell.current); if (menuFor?.card.game.id !== id) setDotFor(current => (current === id ? null : current)); };
   useEffect(() => () => window.clearTimeout(dwell.current), []);
@@ -143,11 +146,12 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       const entry = game.app_id ? entries.get(game.app_id) : undefined;
       const installed = state.installed || state.prepared || Boolean(entry?.installed);
       if (pill === "installed" && !installed) return [];
-      if (pill === "favorites" && preferences[game.id] !== 1) return [];
+      if (pill === "favorites" && !bigPicture && preferences[game.id] !== 1) return [];
       const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : "pending";
+      if (bigPicture && kind !== "ready") return [];
       return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined }];
     });
-  }, [games, downloads, scan.games, pill, preferences]);
+  }, [games, downloads, scan.games, pill, preferences, bigPicture]);
 
   // Columns and row height follow the grid width: three landscape rows are as tall as one portrait.
   useLayoutEffect(() => {
@@ -172,7 +176,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   }, []);
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, collapsed), [cards, columns, collapsed]);
+  // Big picture mode shows its one group (ready) open, whatever the player closed.
+  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, bigPicture ? new Set<BentoKind>() : collapsed), [cards, columns, collapsed, bigPicture]);
+  useEffect(() => { if (bigPicture) setMenuFor(null); }, [bigPicture]);
   const placed = layout.placements;
   const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };
 

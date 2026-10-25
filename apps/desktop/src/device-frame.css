@@ -27,6 +27,9 @@ body.ga-device-frame .catalog-bottom-actions { background: transparent !importan
 body.ga-device-frame .topbar .ga-brand-lockup { display: none; }
 /* (The base rule sets the whole padding with !important, so this one has to as well.) */
 html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }
+/* The old footer bar is gone (its controls sit on the bezel's tabs): the screen reaches down to the bezel, with no dark
+   band kept for it above the bottom edge. */
+html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 14px !important; }
 
 /* Side panels (downloads, library manager, news) are part of the screen: they reach the window's edges, behind the
    bezel, and keep their content clear of it from the inside (padding as deep as the band and its tabs: the

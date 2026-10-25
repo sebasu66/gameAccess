@@ -1,0 +1,27 @@
+/* Big picture mode (bigPicture.ts, BigScreenControls.tsx): the library's ready games and a controller, nothing else.
+   What would open something (search, filters, view switch, the footer's other buttons, card menus) is hidden; the
+   footer keeps only the button that leaves the mode. */
+body.ga-big-screen .ga-search-dock,
+body.ga-big-screen .ga-grid-toolbar,
+body.ga-big-screen .ga-spotlight,
+body.ga-big-screen .library-catalog-tabs,
+body.ga-big-screen .ga-library-pills,
+body.ga-big-screen .ga-footer-left,
+body.ga-big-screen .ga-dock > :not(.ga-big-screen-toggle),
+body.ga-big-screen .ga-bento-menu { display: none !important; }
+
+/* The label sits where the old footer bar was, at the bottom centre between the bezel's tabs; the grid ends above it. */
+html body.ga-device-frame.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 64px !important; }
+.ga-big-picture-label {
+  position: fixed; z-index: 60; left: 50%; bottom: 12px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 520px); margin: 0; padding: 8px 18px;
+  border: 1px solid #ff8a3866; border-radius: 8px; background: #111416e6; color: var(--ga-white);
+  font: 600 14px Manrope, "Segoe UI", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 6px 18px #0008;
+}
+.ga-big-picture-label svg { flex: none; color: var(--ga-orange); }
+.ga-big-picture-label strong { font: 400 20px "Bebas Neue", sans-serif; letter-spacing: .04em; color: var(--ga-orange); }
+.ga-big-picture-label span { overflow: hidden; text-overflow: ellipsis; }
+/* The focused card is the one A plays: it stands out clearly. */
+body.ga-big-screen .ga-bento-card:focus-visible, body.ga-big-screen .ga-bento-card:focus { outline: 3px solid var(--ga-orange); outline-offset: 4px; }
+@media (max-width: 1100px) { .ga-big-picture-label { max-width: calc(100vw - 32px); bottom: 64px; } }

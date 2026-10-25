@@ -38,6 +38,7 @@ import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaClose, GaIconButton } from "./components/ga/Buttons";
 import CatalogSpotlight from "./CatalogSpotlight";
+import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
 import LibraryBento, { type LibraryPill } from "./LibraryBento";
 
@@ -228,6 +229,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     gsap.fromTo(entering, { opacity: 0, y: showManager ? 24 : -24 }, { opacity: 1, y: 0, duration: .5, ease: "expo.out", overwrite: true, clearProps: "opacity,transform" });
   }, { dependencies: [showManager] });
   useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
+  // Big picture mode is the grid of ready games only: the library manager closes.
+  const bigPicture = useBigPicture();
+  useEffect(() => { if (bigPicture) setManagerOpen(false); }, [bigPicture]);
   useEffect(() => {
     if (!showManager) return;
     // Esc goes back to the grid, unless one of the manager's own dialogs is open.

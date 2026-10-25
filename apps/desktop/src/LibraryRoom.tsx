@@ -21,6 +21,8 @@ import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
+import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
+import { closeAllPanels } from "./desk/desk";
 import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle } from "./downloadLifecycle";
@@ -118,9 +120,23 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [artworkSlideIndex, setArtworkSlideIndex] = useState(0);
   const [bigScreen, setBigScreen] = useState(false);
   const previousFullscreen = useRef(false);
+  /**
+   * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
+   * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
+   */
   const toggleBigScreen = async () => {
-  const { t } = useI18n();
     const next = !bigScreen;
+    if (next && !(await controllerConnected())) {
+      showNotice({ tone: "info", title: t("bigPictureNoControllerTitle"), text: t("bigPictureNoControllerText"), timer: true });
+      return;
+    }
+    if (next) {
+      closeAllPanels();
+      setDetailMenu(null);
+      setDetailOpen(false);
+      setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
+    }
+    setBigPictureActive(next);
     setBigScreen(next);
     try {
       if ("__TAURI_INTERNALS__" in window) {
@@ -133,7 +149,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   };
   useEffect(() => {
     document.body.classList.toggle("ga-big-screen", bigScreen);
-    return () => document.body.classList.remove("ga-big-screen");
+    // The cleanup runs on every change too, so the current value is set here again after it.
+    setBigPictureActive(bigScreen);
+    return () => { document.body.classList.remove("ga-big-screen"); setBigPictureActive(false); };
   }, [bigScreen]);
 
 
@@ -487,10 +505,18 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     window.setTimeout(() => void onPlay(game), 200);
   };
 
+  // Big picture mode stays on the library with no detail open, whatever asks otherwise.
+  useEffect(() => {
+    if (!bigScreen) return;
+    if (detailOpen) setDetailOpen(false);
+    if (libraryView === "catalog") setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
+  }, [bigScreen, detailOpen, libraryView]);
+
   // Tab (handled by LibraryInputController) flips between Catalog and Library.
   useEffect(() => {
     if (auxiliarySurface) return;
     const toggle = () => {
+      if (bigPictureActive()) return;
       setLibraryView(current => (current === "catalog" ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog"));
       setSelectedGameId(null);
       gridRef.current?.scrollTo({ top: 0 });
@@ -624,7 +650,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     setSelectedGameId(gameId);
     setDetailRequestedGameId(gameId);
     setFocusZone("grid");
-    if (openDetails) setDetailOpen(true);
+    // Big picture mode never opens the game detail: a game is chosen and played, nothing else.
+    if (openDetails && !bigPictureActive()) setDetailOpen(true);
   }, []);
 
   const dismissCompletion = async (play: boolean) => {
@@ -738,7 +765,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
       {!auxiliarySurface ? <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} /> : null}
-      {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
+      {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={markActivity} onAccept={gameId => { markActivity(); const game = games.find(item => item.id === gameId); if (game) void playGame(game); }} /> : null}
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
