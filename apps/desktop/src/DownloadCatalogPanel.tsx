@@ -1,3 +1,4 @@
+import { rememberTasteGame } from "./tasteProfile";
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
 import { overviewCoverSizing } from "./overviewSizing";
@@ -494,7 +495,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {/* A catalog card: the same glass side menu as the library, with only the catalog's actions. */}
       {contextMenu && view === "catalog" && contextMenu.anchor ? (
         <CatalogGameMenu game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}
-          onInstall={props.onInstall} onFavorite={props.onPreference ? game => props.onPreference!(game.id, 1) : undefined} onClose={() => setContextMenu(null)} />
+          onInstall={props.onInstall} onFavorite={props.onPreference ? game => { rememberTasteGame(game); props.onPreference!(game.id, 1); } : undefined} onClose={() => setContextMenu(null)} />
       ) : contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

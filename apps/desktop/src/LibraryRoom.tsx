@@ -5,6 +5,7 @@ import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { useCatalogQuery } from "./useCatalogQuery";
+import { buildTasteProfile, rememberTasteGame, tailorCatalog } from "./tasteProfile";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -204,6 +205,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
     return state.installed || state.prepared;
   }, [effectiveDownloads]);
+  // The player's taste from the thumbs: the catalog adapts while browsing (tasteProfile.ts).
+  const taste = useMemo(() => buildTasteProfile(preferences, games), [preferences, games]);
   const catalogCollection = useMemo(() => {
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
@@ -212,7 +215,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
       // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
       const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
-      const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
+      const items = downloadManager.pinGames(tailorCatalog(sourceItems, preferences, taste), effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
         "steam-popularity": t("catalogTitlePopularity"),
@@ -244,7 +247,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -764,7 +767,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       details={currentDetails}
       download={detailDownload}
       preference={preferences[selectedGame.id]}
-      onPreference={(value) => onPreference(selectedGame.id, value)}
+      onPreference={(value) => { rememberTasteGame(currentDetails ? { ...selectedGame, ...currentDetails } : selectedGame); onPreference(selectedGame.id, value); }}
       actions={actions}
       focusZone={focusZone}
       actionIndex={actionIndex}

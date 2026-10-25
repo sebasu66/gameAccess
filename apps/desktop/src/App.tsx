@@ -1,3 +1,4 @@
+import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
 import ParentalSetupDialog from "./ParentalSetupDialog";
@@ -483,7 +484,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         .then(found => { if (found.length) setGames(current => current.some(game => game.id === gameId) ? current : [...current, ...found]); })
         .catch(() => undefined);
     }
-    setToast(value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : t("toastFewerLikeThis"));
+    rememberTasteGame(games.find(game => game.id === gameId));
+    const done = value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : (next[gameId] === -1 ? t("toastFewerLikeThis") : t("toastDislikeRemoved"));
+    setToast(next[gameId] === undefined ? done : `${done} ${tasteProgressText(buildTasteProfile(preferences, games), buildTasteProfile(next, games), t)}`);
   };
 
   const startDownload = async (game: CatalogGame) => {
