@@ -57,7 +57,9 @@ html body .ga-header-wordmark { left: auto !important; right: var(--ga-content-r
 /* Bottom left: server status, plugin and PLUS, separated by thin vertical lines. */
 html body .ga-footer-left { gap: 14px !important; align-items: center; }
 html body .ga-footer-left > * + * { display: inline-flex; align-items: center; min-height: 20px; padding-left: 14px; border-left: 1px solid #ffffff30; }
-html body .ga-footer-left .ga-backend-status { min-width: 0; }
+/* No inner padding: the status has no box of its own, so padding would only widen the space before the separator.
+   Every item then sits the same distance from the separators around it. */
+html body .ga-footer-left .ga-backend-status { min-width: 0; padding-inline: 0; }
 html body .ga-footer-left .plugin-indicator-group { max-width: 220px; gap: 10px; }
 html body .ga-footer-left .plugin-indicator-item { height: auto; padding: 0; border: 0; background: none; font: 650 10px Manrope, "Segoe UI", sans-serif; color: #bcc3c8; gap: 8px; }
 html body .ga-footer-left .ga-access-pass { position: relative; inset: auto; }
