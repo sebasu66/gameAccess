@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
+from game_download_manager.ui_text import ui
 
 GIB = 1024 ** 3
 # Disk needed to download AND unpack: the archive stays while its contents are written.
@@ -54,3 +55,21 @@ def check_space(download_bytes: int, games_root: Path, temporary_root: Path, fac
         return {"ok": False, "needed_bytes": needed, "free_bytes": free,
                 "message": f"No hay espacio para descargar y descomprimir este juego: hacen falta {needed / GIB:.1f} GB libres en la carpeta de {label} y hay {free / GIB:.1f} GB."}
     return {"ok": True, "needed_bytes": needed, "free_bytes": min(free for _, free in disks.values()), "message": ""}
+
+
+def check_download(total_bytes: int, on_disk_bytes: int, games_root: Path, temporary_root: Path) -> dict:
+    """Before the transfer, once its size is known: what is still to download lands in the temporary folder and the
+    unpacked game (about as big again) in the games folder; on one disk both add up. What already arrived counts."""
+    remaining = max(0, int(total_bytes) - int(on_disk_bytes))
+    wanted: dict[str, list] = {}
+    for label, path, size in (("dlNoSpaceDownloads", temporary_root, remaining), ("dlNoSpaceGames", games_root, int(total_bytes))):
+        resolved = Path(path).resolve()
+        drive = os.path.splitdrive(str(resolved))[0] or str(resolved.anchor)
+        entry = wanted.setdefault(drive, [label, disk_info(path)["disk_free_bytes"], SAFETY_MARGIN])
+        entry[2] += size
+    for label, free, needed in wanted.values():
+        if free < needed:
+            return {"ok": False, "needed_bytes": needed, "free_bytes": free,
+                    # A key of the app's translations (game_download_manager.ui_text): the app says it in its language.
+                    "message": ui(label, needed=f"{needed / GIB:.1f}", free=f"{free / GIB:.1f}")}
+    return {"ok": True, "needed_bytes": max(n for _, _, n in wanted.values()), "free_bytes": min(f for _, f, _ in wanted.values()), "message": ""}

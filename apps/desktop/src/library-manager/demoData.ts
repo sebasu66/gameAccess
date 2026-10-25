@@ -25,7 +25,9 @@ export const demoGames: LibraryGame[] = [
   row(3905450, "WheelMates", 7.2, { plays: 2 }),
   row(42910, "Magicka", 2.9, { queued: true, unfinished: true, state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando descomprimir Magicka.rar: contraseña incorrecta", issues: [{ code: "error", message: "error intentando descomprimir Magicka.rar: contraseña incorrecta" }] }),
   row(1245620, "ELDEN RING", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 69.6 * GB, unfinished: true, transfer_kind: "pieces" }),
-  row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB }),
+  row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB, resume_step: "download" }),
+  // Downloaded, but the unpacking ran out of disk: it goes on from the unpacking.
+  row(1174180, "Red Dead Redemption 2", 0, { state: "ERROR", installed: false, transfer_bytes: 119.4 * GB, unfinished: true, resume_step: "extract" }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
 ];
 

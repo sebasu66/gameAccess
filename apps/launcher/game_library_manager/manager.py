@@ -184,6 +184,11 @@ class GameLibraryManager:
             # fixed or marked ready until it ends.
             game["queued"] = game.get("app_id") in queued
             game["unfinished"] = game["unfinished"] or game["queued"]
+            # Where a stopped download goes on (download, extract): the same point the Download Manager retries from.
+            point = self.storage.resume_point(game["app_id"]) if game.get("app_id") is not None and not game.get("linked") else {}
+            game["resume_step"] = point.get("step", "") if point.get("source") else ""
+            if game["resume_step"] and not game.get("transfer_active"):
+                game["unfinished"] = True
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""

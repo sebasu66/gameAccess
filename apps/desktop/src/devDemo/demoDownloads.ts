@@ -22,6 +22,8 @@ const STAGES: Stage[] = [
 export function demoDownloadService(): DigitalDownloadService {
   const listeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   const active = game(1245620, "ELDEN RING"), queued = game(1086940, "Baldur's Gate 3"), finished = game(413150, "Stardew Valley");
+  // Downloaded, but the unpacking ran out of disk: it goes on from the unpacking once there is room.
+  const stopped = game(1174180, "Red Dead Redemption 2");
   const begun = Date.now();
   const total = STAGES.reduce((sum, stage) => sum + stage.seconds, 0) + 4;
   const snapshotAt = (now: number): DownloadProgressSnapshot => {
@@ -47,6 +49,9 @@ export function demoDownloadService(): DigitalDownloadService {
       { game: active, snapshot: snapshotAt(Date.now()) },
       { game: queued, snapshot: { gameId: queued.id, phase: "queued", progress: 0, statusText: "En cola" } as DownloadProgressSnapshot },
       { game: finished, snapshot: { gameId: finished.id, phase: "completed", progress: 100, statusText: "Listo" } as DownloadProgressSnapshot },
+      { game: stopped, snapshot: { gameId: stopped.id, phase: "error", progress: 50, downloadPercent: 100, resumeStep: "extract", errorCode: "no_space",
+        error: "No hay espacio libre suficiente: hacen falta 128.4 GB libres en la carpeta de juegos y hay 41.0 GB. Liberá espacio y continuá.",
+        statusText: "No hay espacio libre suficiente", step: null, steps: [{ id: "download", state: "done", result: "Descargado", ms: 0 }, { id: "extract", state: "failed", result: "Sin espacio", ms: 0 }] } as DownloadProgressSnapshot },
     ],
     onGlobalUpdate: (listener: (snapshot: DownloadProgressSnapshot) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
     getDownloadMethod: (id: number) => id === active.id ? "accelerated" : undefined,
@@ -54,7 +59,7 @@ export function demoDownloadService(): DigitalDownloadService {
     queuePosition: (id: number) => id === queued.id ? 0 : -1,
     getSpeedSamples: () => [],
     remove: async () => undefined, start: async () => undefined, play: async () => undefined, moveInQueue: () => undefined,
-    pause: async () => undefined, resume: async () => undefined, cancel: async () => undefined,
+    pause: async () => undefined, resume: async () => undefined, cancel: async () => undefined, retry: async () => undefined,
   };
   return service as unknown as DigitalDownloadService;
 }

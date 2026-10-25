@@ -331,6 +331,9 @@ class ChunkedDownloader:
                         saved_plan = {}
                         files_ready = False
                     if not files_ready:
+                        # The server said how big the game is: stop before writing what would not fit.
+                        getattr(context, "ensure_room", lambda *_: None)(int(manifest["total_bytes"] or sum(int(p["size"]) for p in manifest["pieces"])),
+                                            sum(int(p["size"]) for p in manifest["pieces"] if p["index"] in done))
                         paths = self._prepare_files(manifest, dest, item_name, created)
                         files_ready = True
                         sizes = {p["index"]: (p["file_index"], p["start"], int(p["size"])) for p in manifest["pieces"]}

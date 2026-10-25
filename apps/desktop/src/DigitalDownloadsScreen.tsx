@@ -7,7 +7,8 @@ import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { ArrowDown, ArrowUp, Download, ExternalLink, Pause, Play, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, ExternalLink, FolderOpen, Pause, Play, RotateCcw, X } from "lucide-react";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import "./digital-downloads.css";
@@ -69,6 +70,8 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     try { await action(); } catch (err) { setError(`${t("downloadsActionFailed")} ${err instanceof Error ? err.message : String(err)}`); }
     finally { pendingActions.current.delete(id); setBusy(current => current.filter(item => item !== id)); }
   };
+  // The folder the download is in (the temporary one while downloading, the game's once unpacked).
+  const openFolder = (entry: Entry) => <button type="button" disabled={busy.includes(entry.snapshot.gameId)} aria-label={`${t("downloadsOpenFolder")}: ${entry.game.name}`} title={t("downloadsOpenFolder")} onClick={() => void run(entry.snapshot.gameId, async () => { await digitalProcessManager.openFolder(entry.game, "download"); })}><FolderOpen size={16} /></button>;
   const row = (entry: Entry, index: number, featured = false) => {
     const { game, snapshot } = entry;
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
@@ -110,9 +113,12 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsMoveDownAria",{name:game.name})} title={t("downloadsMoveDown")} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} />{t("downloadsMoveDown")}</button> : null}
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} />{t("downloadsPause")}</button> : null}
         {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} />{t("downloadsResume")}</button> : null}
-        {["error", "interrupted", "cancelled"].includes(phase) ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}
+        {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
+        {["error", "interrupted"].includes(phase) ? <button className="ga-download-resume" disabled={busy.includes(gameId)} title={snapshot.resumeStep === "extract" ? t("downloadsResumeExtractHint") : snapshot.resumeStep === "download" ? t("downloadsResumeDownloadHint") : undefined} onClick={() => void run(gameId, () => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</button> : null}
+        {phase === "cancelled" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} />{t("downloadsRetry")}</button> : null}
         {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsAbortAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsAbort")}</button> : null}
         {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} />{t("downloadsCancel")}</button> : null}
+        {!["cancelled", "cancelling", "external"].includes(phase) ? openFolder(entry) : null}
       </div>
     </article>;
   };

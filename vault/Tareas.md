@@ -106,6 +106,11 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [ ] Publicar deltas del catálogo en el servidor (`kind: "delta"`, `base_revision`, `revision`) — spec en `docs/game-access-todo.md`.
 - [ ] Logs de la app dentro del proyecto (`apps/launcher/logs` o `api/logs`).
 
+- [x] Espacio en disco antes de descargar (Seba, 2026-10-25): la app lo revisa al encolar también con el tamaño en texto de las fuentes del plugin; el worker lo revisa apenas sabe el tamaño real (torrent, enlace directo, piezas del servidor), contando lo ya bajado y los dos discos.
+- [x] Retomar desde el paso en que se cortó (Seba, 2026-10-25): el registro de instalación guarda el paso (descarga / descompresión), la fuente y el archivo bajado; un error ya no borra lo descargado (solo cancelar); "Reintentar" en el Download Manager (`/jobs/<id>/retry`) y en el administrador de biblioteca sigue desde ahí, sin plugin y también después de reiniciar la app.
+- [x] Botón "Abrir carpeta de descarga" mientras descarga, en descargas y en el administrador (Seba, 2026-10-25).
+- [x] Menú del catálogo = panel lateral de la biblioteca, solo con Instalar (si hay fuentes y plugin), Añadir a la biblioteca, Página de Steam y Favoritos (Seba, 2026-10-25).
+
 ## Premium y comercial (Paso 1 hecho, falta cerrar)
 - [x] **Llaves para testers** (Claude, pedido por Seba 2026-10-19; falta desplegar el servidor y probar con un amigo): en `/admin`, sección "Llaves para testers": nombre del tester, fecha de fin (por defecto un mes) y cantidad → llaves PLUS hasta esa fecha. La primera activación la ata a ese Windows; en otro la rechaza. "Desvincular" la libera si el tester reinstala Windows (no cambia la fecha). La lista muestra para quién es y su Windows (8 primeros caracteres).
   - Cliente: el identificador de instalación sale ahora del `MachineGuid` de Windows (hash, no se envía el GUID), no de un archivo al azar en `%LOCALAPPDATA%`. Copiar la carpeta de activación a otra PC ya no sirve. Las activaciones hechas antes con el identificador viejo hay que hacerlas de nuevo (no hay usuarios todavía).

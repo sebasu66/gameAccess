@@ -192,6 +192,8 @@ class HttpDownloadTransport:
             context.logger.info(f"El archivo ya está descargado al 100% ({total_size} bytes). Saltando descarga y pasando a extracción.")
             context.emit_progress(app_id, "downloading", 100.0, total_size, total_size, 0, 0, f"{game_name} ya descargado.")
             return True
+        # Now the size is known: stop before downloading what would not fit (a started file already takes its room).
+        getattr(context, "ensure_room", lambda *_: None)(total_size, os.path.getsize(output_path) if os.path.exists(output_path) else 0)
 
         # Check Range support
         if 'bytes' not in accept_ranges:

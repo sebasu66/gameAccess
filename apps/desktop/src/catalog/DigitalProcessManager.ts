@@ -51,7 +51,7 @@ export interface LibraryPlanAction { code: string; label: string; bytes?: number
 export interface LibraryPlan { app_id: number; name: string; actions: LibraryPlanAction[]; freed_bytes?: number; delete_sources?: boolean; error?: string }
 export interface LibraryIssue { code: string; message: string; bytes?: number }
 export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
-export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder"; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null }
+export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder"; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null }
 /** "freeze": Windows compression, playable as it is; "deep": one 7-Zip archive, thawed before it runs. */
 export type FreezeLevel = "freeze" | "deep";
 export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; frozen_saved_bytes?: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
@@ -81,7 +81,8 @@ export class DigitalProcessManager {
 
   status(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("status", game); }
 
-  openFolder(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("open-folder", game); }
+  /** The game's folder; `download`: the temporary download folder while the download is there (the game's otherwise). */
+  openFolder(game: CatalogGame, which?: "download"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
 
   settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
   saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }

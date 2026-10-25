@@ -14,6 +14,7 @@ import { demoPlans } from "./demoData";
 import { formatBytes } from "./format";
 import { ImportWizard } from "./ImportWizard";
 import { addReadyGameToLibrary, libraryMembership, useLibraryGames } from "../libraryMembership";
+import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
@@ -60,6 +61,7 @@ function RowState({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
 }
 
 function subline(game: LibraryGame, c: LibraryCopy): string {
+  if (game.resume_step && !game.transfer_active) return game.resume_step === "extract" ? c.stoppedAtExtract : c.stoppedAtDownload;
   if (game.partial) return `${c.partialDl}: ${formatBytes(game.transfer_bytes)}`;
   if (game.unfinished && !game.standard) return c.pendingHint;
   if (!game.standard) return game.issues[0]?.message ?? game.warning;
@@ -145,11 +147,14 @@ function ManagerRow({ game, c, busy, largest, focusId, expanded, setExpanded, se
       <RowState game={game} c={c} />
       <div className="lm-acts">
         {unfinished && !game.transfer_active ? <>
-          <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>
+          {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
+              without one, the transfer starts again from the catalog. */}
+          {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><Play /></IconAction>
+            : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>}
           {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction> : null}
           <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
-          {!game.partial ? <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction> : null}
-        </> : game.partial || game.transfer_active ? null : <>
+          <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction>
+        </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction> : <>
           {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><Wand2 /></IconAction> : null}
           {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><Play /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}

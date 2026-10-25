@@ -25,6 +25,7 @@ import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFa
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
+import CatalogGameMenu from "./CatalogGameMenu";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { useLibraryEntry, useLibraryFlag } from "./libraryScan";
 import GameStorageContextMenu from "./GameStorageContextMenu";
@@ -58,7 +59,8 @@ function cardClass(selected: boolean, active: boolean, pinned: boolean) {
   ].filter(Boolean).join(" ");
 }
 
-type ContextMenuRequest = GameStorageContextMenuRequest;
+/** `anchor`: the card, beside which the catalog's side menu opens. */
+type ContextMenuRequest = GameStorageContextMenuRequest & { anchor?: HTMLElement | null };
 
 
 interface DownloadGameCardProps {
@@ -104,7 +106,7 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
   const showContextMenu = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     onSelect(index, false);
-    onContextMenu({ game, x: event.clientX, y: event.clientY, status });
+    onContextMenu({ game, x: event.clientX, y: event.clientY, status, anchor: event.currentTarget.closest<HTMLElement>(".library-room-card-shell") ?? event.currentTarget });
   };
 
   return (
@@ -173,6 +175,8 @@ interface DownloadCatalogPanelProps {
   history?: Record<number, number>;
   onPlay?: (game: CatalogGame) => void | Promise<void>;
   onInstall?: (game: CatalogGame) => void | Promise<void>;
+  /** Marks or unmarks a favorite (the same toggle as the detail screen's). */
+  onPreference?: (gameId: number, value: 1 | -1) => void;
   /** Installed games the catalog leaves out while there is no search (they are in the library). */
   hiddenInstalled?: number;
   isInstalled?: (game: CatalogGame) => boolean;
@@ -386,7 +390,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   useEffect(() => {
     if (!contextMenu) return;
     const close = (event?: Event) => {
-      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root")) return;
+      if (event?.target instanceof Element && event.target.closest(".ga-digital-menu-root, .ga-side-menu")) return;
       setContextMenu(null);
     };
     const keydown = (event: KeyboardEvent) => {
@@ -463,7 +467,11 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       </div>
       {props.actionsTarget && backToTop ? createPortal(backToTop, props.actionsTarget) : null}
       {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
-      {contextMenu ? (
+      {/* A catalog card: the same glass side menu as the library, with only the catalog's actions. */}
+      {contextMenu && view === "catalog" && contextMenu.anchor ? (
+        <CatalogGameMenu game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}
+          onInstall={props.onInstall} onFavorite={props.onPreference ? game => props.onPreference!(game.id, 1) : undefined} onClose={() => setContextMenu(null)} />
+      ) : contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />
         ) : (

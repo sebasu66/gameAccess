@@ -15,6 +15,7 @@ import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } fro
 
 import { getActivationTier } from "../activation";
 import { localizeSnapshot } from "../launcherText";
+import { parseDownloadSize } from "../downloadSize";
 
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
 export interface DownloadSpeedSample { time: number; speedBps: number; }
@@ -181,6 +182,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       error: job.error || undefined,
       errorCode: typeof status.errorCode === "string" ? status.errorCode : undefined,
       errorDetail: Array.isArray(status.errorDetail) ? status.errorDetail.map(String) : undefined,
+      resumeStep: status.resumeStep === "download" || status.resumeStep === "extract" ? status.resumeStep : undefined,
       ...("step" in status || "steps" in status ? { step: stepNow(status.step), steps: stepsDone(status.steps) } : {}),
     };
   }
@@ -217,7 +219,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   async start(game: CatalogGame, options?: JobOptions): Promise<void> {
     if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
     const id = game.app_id ?? game.id;
-    const size = game.download_size_bytes;
+    // Plugin sources give their size as text ("12.4 GB"): it counts for the check as well.
+    const size = game.download_size_bytes ?? parseDownloadSize(game.download_size);
     if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
       // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
       const room = await digitalProcessManager.librarySpace(size).then(result => result.space, () => undefined);
@@ -264,6 +267,36 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.updateSnapshot({ gameId: id, phase: "error", progress: 0,
         statusText: error instanceof QueueRefused ? message : translate("dlsStartProcessError"), error: message });
       throw error;
+    }
+    this.ensurePolling();
+  }
+
+  /**
+   * Goes on with a download that stopped (error, interrupted, no room) from the step it reached: an archive already
+   * downloaded is only unpacked again. The Download Manager knows the source (also after a restart, from what the
+   * install remembers), so the plugin is not needed. With nothing to go on with, the download starts over.
+   */
+  async retry(game: CatalogGame): Promise<void> {
+    const id = game.app_id ?? game.id;
+    const previous = this.activeJobs.get(id);
+    if (previous && !isDownloadHistory(previous.phase)) return;
+    if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
+    this.startedNow.add(id);
+    if (!this.jobs.has(id)) this.jobs.set(id, { game });
+    const appId = this.appIds.get(id) ?? game.app_id ?? id;
+    this.appIds.set(id, appId);
+    this.speeds.delete(id);
+    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
+    try {
+      this.apply(await this.queue.retry(appId));
+    } catch (error) {
+      if (!(error instanceof QueueRefused)) {
+        if (previous) this.updateSnapshot(previous);
+        throw error;
+      }
+      // Nothing was kept (cancelled, or a dead source removed it): a new download.
+      if (previous) this.activeJobs.set(id, previous); else this.activeJobs.delete(id);
+      return this.start(game);
     }
     this.ensurePolling();
   }

@@ -172,6 +172,8 @@ class TorrentDownloadTransport:
         tinfo = handle.torrent_file()
         torrent_name = tinfo.name() if tinfo else game_name
         total_wanted = handle.status().total_wanted or (tinfo.total_size() if tinfo else 0)
+        # Now the size is known: stop before downloading what would not fit (what is already here counts).
+        getattr(context, "ensure_room", lambda *_: None)(total_wanted, handle.status().total_wanted_done)
 
         target_path = os.path.join(dest_dir, torrent_name)
         context.temp_files.append(target_path)

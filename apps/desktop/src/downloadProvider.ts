@@ -71,6 +71,10 @@ export interface DownloadProgressSnapshot {
   errorCode?: string;
   errorDetail?: string[];
 
+  /** After a failure: the step a retry continues from ("extract": already downloaded, only unpacked again). Absent
+   *  when nothing was kept and the download starts over. */
+  resumeStep?: "download" | "extract";
+
   /** The step running now and the ones already finished, when the launcher sends them. */
   step?: DownloadStepNow | null;
   steps?: DownloadStepDone[];

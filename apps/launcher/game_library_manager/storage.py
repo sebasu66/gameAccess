@@ -105,6 +105,42 @@ class DigitalGameStorage:
         source = self._record(app_id).get("source")
         return source if isinstance(source, dict) else {}
 
+    # Where an unfinished download goes on (download, extract): a retry continues from there instead of starting over.
+    RESUME_STEPS = ("download", "extract")
+
+    def set_resume(self, app_id: int, step: str, *, source: str = "", delivery: str = "download", source_title: str = "",
+                   source_provider: str = "", auto_installed: bool = False, archive: str = "", error: str = "") -> None:
+        """Remember the step an unfinished download is at, with what is needed to go on from there without the
+        plugin: the source it came from and, once transferred, the downloaded archive."""
+        if step not in self.RESUME_STEPS:
+            raise ValueError(f"Paso desconocido: {step}")
+        record = self._record(app_id)
+        if not record:
+            return
+        previous = record.get("resume") if isinstance(record.get("resume"), dict) else {}
+        record["resume"] = {**previous, "step": step, "at": int(time.time()), "error": error,
+                            **({"source": source, "delivery": delivery, "source_title": source_title,
+                                "source_provider": source_provider, "auto_installed": bool(auto_installed)} if source else {}),
+                            **({"archive": archive} if archive else {})}
+        if step == "download":
+            record["resume"].pop("archive", None)
+        write_json(self.registry / f"{int(app_id)}.json", record)
+
+    def resume_point(self, app_id: int) -> dict:
+        """The step an unfinished download is at ({} when there is none). An extract step whose archive is gone
+        goes back to the download."""
+        resume = self._record(app_id).get("resume")
+        if not isinstance(resume, dict) or resume.get("step") not in self.RESUME_STEPS:
+            return {}
+        if resume["step"] == "extract" and not (resume.get("archive") and Path(resume["archive"]).exists()):
+            return {**resume, "step": "download", "archive": ""}
+        return dict(resume)
+
+    def clear_resume(self, app_id: int) -> None:
+        record = self._record(app_id)
+        if record.pop("resume", None) is not None:
+            write_json(self.registry / f"{int(app_id)}.json", record)
+
     def set_label(self, app_id: int, name: str, label: str) -> str:
         """The player's own name for the game in their library (only shown there; the catalog is not touched).
         An empty label goes back to the default: the game as its download source names it."""

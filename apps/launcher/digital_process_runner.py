@@ -148,6 +148,11 @@ class DigitalProcessRunner:
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
                 return {**result, "ok": True, "setup_ran": ran}
             if action == "open-folder":
+                if command == "download":
+                    # While it downloads (or after it stopped) the files are in the temporary download folder.
+                    transfer = next((Path(item["folder"]) for item in self.storage.transfers() if item["app_id"] == app_id), None)
+                    if transfer is not None and transfer.is_dir():
+                        folder = transfer
                 if not folder.is_dir():
                     raise ValueError("No existe la carpeta descargada.")
                 os.startfile(str(folder))

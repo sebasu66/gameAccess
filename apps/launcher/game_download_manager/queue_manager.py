@@ -20,7 +20,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 ACTIVE_PHASES = ("preparing", "downloading", "decompressing", "installing", "cancelling")
 TERMINAL_PHASES = ("completed", "error", "cancelled", "interrupted", "external")
@@ -65,8 +65,12 @@ def is_torrent(source: str) -> bool:
 
 
 class DownloadQueue:
-    def __init__(self, workers: Workers, state_file: Path | None = None, clock=time.monotonic):
+    def __init__(self, workers: Workers, state_file: Path | None = None, clock=time.monotonic,
+                 resume_point: Callable[[int], dict] | None = None):
         self.workers = workers
+        # Where an unfinished download stopped, kept with its install (storage.resume_point plus the game's name):
+        # lets a retry go on after the app was closed, without the plugin.
+        self.resume_point = resume_point or (lambda app_id: {})
         self.state_file = state_file
         self.clock = clock
         self.tier: str | None = None
@@ -120,6 +124,24 @@ class DownloadQueue:
             self.order.append(app_id)
             self.pump()
             return job
+
+    def retry(self, app_id: int) -> Job:
+        """Go on with a download that stopped (error, interrupted, no room): its worker continues from the step it
+        reached (an archive already downloaded is only unpacked). Works from the queue's own record or, after a
+        restart, from what the install remembers."""
+        with self.lock:
+            job = self.jobs.get(app_id)
+            if job and job.state != "done":
+                return job
+            if job and job.phase != "cancelled":
+                return self.enqueue(job.app_id, job.name, job.source, job.delivery, job.auto_installed, job.keep_archive,
+                                    job.source_title, job.source_provider)
+            point = self.resume_point(app_id) or {}
+            if not point.get("source"):
+                raise QueueError("No hay una descarga sin terminar para continuar; descargalo de nuevo.")
+            return self.enqueue(app_id, str(point.get("name") or ""), str(point["source"]), str(point.get("delivery") or "download"),
+                                bool(point.get("auto_installed")), False, str(point.get("source_title") or ""),
+                                str(point.get("source_provider") or ""))
 
     def pause(self, app_id: int) -> None:
         with self.lock:

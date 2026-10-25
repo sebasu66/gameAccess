@@ -52,5 +52,12 @@ export class FakeDownloadQueue extends DownloadQueueClient {
   override resume(appId: number) { return this.order("resume", appId, "queued"); }
   override cancel(appId: number) { return this.order("cancel", appId, "cancelled"); }
   override move(appId: number, delta: -1 | 1) { this.orders.push({ action: "move", appId, body: delta }); return Promise.resolve(this.answer()); }
+  override async retry(appId: number): Promise<QueueState> {
+    this.orders.push({ action: "retry", appId });
+    const job = this.jobs.get(appId);
+    if (!job) throw new QueueRefused("No hay una descarga sin terminar para continuar.");
+    this.set(appId, "queued", {}, { state: "waiting", error: "" });
+    return this.answer();
+  }
   override remove(appId: number) { this.orders.push({ action: "remove", appId }); this.jobs.delete(appId); return Promise.resolve(this.answer()); }
 }
