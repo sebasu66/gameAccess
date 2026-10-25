@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import type { CatalogGame } from "../types";
 import { loadDiscoveryCatalog, mergeDiscoveryCatalog } from "./DiscoveryCatalog";
 const mocks = vi.hoisted(() => ({ query: vi.fn(), sync: vi.fn(), api: vi.fn(), manifest: vi.fn() }));
@@ -17,12 +18,33 @@ describe("discovery catalog", () => {
     expect(mocks.api).not.toHaveBeenCalled();
     expect(mocks.sync).not.toHaveBeenCalled();
   });
-  it("detects new shared revisions even when the GameAccess server is stopped", async () => {
+  it("a startup check asks GitHub's manifest once and never the GameAccess server, even when the server is configured", async () => {
+    mocks.api.mockResolvedValue("https://gameaccess-api.example");
     mocks.manifest.mockResolvedValue("https://raw.githubusercontent.com/example/catalog-manifest.json");
     mocks.sync.mockResolvedValue({updated: true, revision: "next", catalog_count: 2});
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
     const result = await loadDiscoveryCatalog(true);
     expect(result).toMatchObject({updated: true, revision: "next", catalog_count: 2});
-    expect(mocks.sync).toHaveBeenCalledTimes(1);
+    expect(mocks.sync.mock.calls).toEqual([["https://raw.githubusercontent.com/example/catalog-manifest.json"]]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("the shipped settings read the manifest as a plain GitHub file, not through the rate-limited GitHub API", () => {
+    const settings = JSON.parse(readFileSync(new URL("../../public/gameaccess.settings.json", import.meta.url), "utf8"));
+    const url = new URL(settings.catalog_manifest_url);
+    expect(url.host).toBe("raw.githubusercontent.com"); // api.github.com allows 60 requests an hour per address
+    expect(url.pathname.endsWith("/deploy/catalog-cache/catalog-manifest.json")).toBe(true);
+  });
+  it("the published manifest offers patches the app can download, all from GitHub's file host", () => {
+    const manifest = JSON.parse(readFileSync(new URL("../../../../deploy/catalog-cache/catalog-manifest.json", import.meta.url), "utf8"));
+    const updates = Object.entries(manifest.updates ?? {}) as Array<[string, { artifact_url: string; sha256: string }]>;
+    expect(updates.length).toBeGreaterThan(0);
+    for (const [base, update] of updates) {
+      expect(base).not.toBe(manifest.revision);
+      expect(new URL(update.artifact_url).host).toBe("raw.githubusercontent.com");
+      expect(update.sha256).toMatch(/^[0-9a-f]{64}$/);
+    }
+    expect(new URL(manifest.artifact_url).host).toBe("raw.githubusercontent.com");
   });
   it("a smaller API catalog keeps new games and verified third-party tags", () => {
     const result = mergeDiscoveryCatalog([game(7, 100, {tags: ["Couch co-op: 4 players"], local_players_max: 4}), game(8, 200)],

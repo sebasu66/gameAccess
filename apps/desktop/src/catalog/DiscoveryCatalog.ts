@@ -1,4 +1,4 @@
-import { getApiBaseUrl, getCatalogManifestUrl } from "../settings";
+import { getCatalogManifestUrl } from "../settings";
 import { queryCatalogCache, syncCatalogCache } from "../catalogCache";
 import type { CatalogGame } from "../types";
 import { narrate } from "../narrationLog";
@@ -33,9 +33,9 @@ export function mergeDiscoveryCatalog(base: CatalogGame[], remote: CatalogGame[]
 
 export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<DiscoveryCatalogSummary | null> {
   if (requireRemote) {
-    const api = await Promise.resolve().then(() => getApiBaseUrl()).catch(() => "");
-    const fallback = await Promise.resolve().then(() => getCatalogManifestUrl()).catch(() => "");
-    const manifests = [api ? `${api}/library/catalog/manifest` : "", fallback].filter(Boolean);
+    // Only the small manifest GitHub publishes is read; the server is never asked (see catalog_cache.rs sync_blocking).
+    const manifest = await Promise.resolve().then(() => getCatalogManifestUrl()).catch(() => "");
+    const manifests = manifest ? [manifest] : [];
     for (const manifest of manifests) {
       try {
         const synced = await syncCatalogCache(manifest);
