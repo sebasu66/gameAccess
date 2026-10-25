@@ -9,6 +9,7 @@ import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 import {translate, useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { useMagneticButtons } from "./motion/magnetic";
+import { Flip, motionOk } from "./motion/gsap";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
@@ -16,7 +17,7 @@ import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Globe, Image as ImageIcon, Loader2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
+import { Globe, Image as ImageIcon, Loader2, Maximize2, Minimize2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
 import { hasTauriRuntime } from "./native";
 import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
@@ -369,7 +370,7 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   return { state, setState, videoRef, videoSrc, fallback, artwork, muted, setMuted, volume, setVolume, paused, setPaused, readyVideo, setReadyVideo, reducedMotion };
 }
 
-function MediaControls({ model }: { model: MediaController }) {
+function MediaControls({ model, expanded, onExpand }: { model: MediaController; expanded?: boolean; onExpand?: () => void }) {
   const { t } = useI18n();
   const toggle = () => {
     if (model.paused && model.reducedMotion && model.videoSrc) model.setState((current) => ({ ...current, phase: "video", videoAvailable: true }));
@@ -379,24 +380,55 @@ function MediaControls({ model }: { model: MediaController }) {
     <div className="library-room-media-controls">
       <button type="button" onClick={toggle} aria-label={model.paused ? "Reanudar medios" : "Pausar medios"}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
       {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
+      {onExpand ? <button type="button" className="ga-media-expand" onClick={onExpand} aria-pressed={expanded} aria-label={expanded ? t("mediaRestore") : t("mediaMaximize")} title={expanded ? t("mediaRestore") : t("mediaMaximize")}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
     </div>
   );
+}
+
+/**
+ * The trailer and screenshots can fill the whole detail window: the media box grows from its place to the window's
+ * size (Flip) and back. Escape, the same button or a double click returns it; Escape then does not close the detail.
+ */
+function useExpandedMedia() {
+  const [expanded, setExpanded] = useState(false);
+  const flipState = useRef<Flip.FlipState | null>(null);
+  const toggle = () => {
+    const media = document.querySelector<HTMLElement>(".ga-detail-gallery .library-room-feature-media");
+    flipState.current = media && motionOk() ? Flip.getState(media) : null;
+    setExpanded(current => !current);
+  };
+  useEffect(() => {
+    const state = flipState.current;
+    flipState.current = null;
+    if (state) Flip.from(state, { duration: .5, ease: "expo.inOut", absolute: false, zIndex: 40 });
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toggle();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [expanded]);
+  return { expanded, toggle };
 }
 
 function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
   const { t } = useI18n();
   const model = useDesktopMedia(game, details);
+  const { expanded, toggle } = useExpandedMedia();
   return (
-    <div className="library-detail-media">
+    <div className={`library-detail-media${expanded ? " is-expanded" : ""}`}>
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
-      <div className="library-room-feature-media">
+      <div className="library-room-feature-media" onDoubleClick={toggle}>
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
         {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
         {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label={t("uiReproducirTrailer")} onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
         <span className="ga-media-badge">{t("uiTrailerYCapturas")}</span>
         <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? "Tráiler del juego" : "Capturas del juego"}</span>
-        <MediaControls model={model} />
+        <MediaControls model={model} expanded={expanded} onExpand={toggle} />
       </div>
       <div className="ga-media-thumbnails">{model.state.images.slice(0, 4).map((source, index) => <button type="button" key={source} aria-label={`Ver captura ${index + 1}`} aria-pressed={model.state.phase === "image" && model.state.imageIndex === index} onClick={() => { model.setPaused(true); model.setState(current => ({ ...current, phase: "image", imageIndex: index })); }}><img src={source} alt="" /></button>)}</div>
       <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{model.state.images.length} capturas</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>

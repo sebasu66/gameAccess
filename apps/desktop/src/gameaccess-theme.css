@@ -303,6 +303,12 @@ body:has(.surface-tablet) .topbar-actions,body:has(.surface-display) .topbar-act
 /* A larger triangle in the existing 65px trailer control, not a larger button. */
 .ga-media-play { position:absolute; inset:0; margin:auto; z-index:4; width:65px; height:65px; display:grid; place-items:center; border:1px solid #ff6a0080; border-radius:50%; background:var(--ga-orange); color:#111; cursor:pointer; }
 .ga-media-play svg { width:48px; height:48px; margin-left:4px; }
+/* The trailer maximized to the whole detail window (LibraryDetailPanel useExpandedMedia): the media box leaves the gallery
+   and covers the dialog; the body's leftover entrance transform would otherwise become its frame. */
+.ga-detail-dialog:has(.library-detail-media.is-expanded) .ga-detail-body { transform:none!important; }
+.ga-detail-dialog .ga-detail-gallery .library-detail-media.is-expanded { position:static!important; }
+.ga-detail-dialog .ga-detail-gallery .library-detail-media.is-expanded .library-room-feature-media { position:absolute!important; inset:0!important; z-index:40; width:auto!important; height:auto!important; aspect-ratio:auto!important; border-radius:12px; background:#000; }
+.ga-detail-gallery .library-detail-media.is-expanded .ga-media-badge { display:none; }
 .ga-media-play:hover { box-shadow:0 0 24px #ff6a0060; filter:brightness(1.12); }
 .library-room:not(.surface-display):not(.surface-tablet) .ga-game-detail .library-detail-extended { background:transparent!important; padding:0!important; }
 
