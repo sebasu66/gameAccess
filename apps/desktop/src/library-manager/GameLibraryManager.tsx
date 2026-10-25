@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Download, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, Download, Gamepad2, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
 import { translate, useI18n } from "../i18n";
 import { notify } from "../toasts";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
@@ -22,6 +22,7 @@ import { useFreezeJob } from "../freezeJobs";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
+import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
 import "./manager.css";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
@@ -142,6 +143,7 @@ function ManagerRow({ game, c, busy, largest, focusId, expanded, setExpanded, se
       <div className="lm-main">
         <div className="lm-name">{game.name}</div>
         {line ? <div className={`lm-line${!game.standard && !game.unfinished ? " warn" : ""}`}>{line}</div> : null}
+        {game.link_kind === "steam" && game.steam_owner ? <div className="lm-line">{translate("steamOwnerNote", { account: steamOwnerLabel(game.steam_owner) })}</div> : null}
         <SizeCell game={game} largest={largest} c={c} />
       </div>
       <RowState game={game} c={c} />
@@ -155,6 +157,7 @@ function ManagerRow({ game, c, busy, largest, focusId, expanded, setExpanded, se
           <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
           <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction>
         </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction> : <>
+          {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><Download /></IconAction> : null}
           {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><Wand2 /></IconAction> : null}
           {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><Play /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
@@ -163,7 +166,7 @@ function ManagerRow({ game, c, busy, largest, focusId, expanded, setExpanded, se
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><Snowflake /><b>+</b></IconAction>
           </> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><ScrollText /></IconAction>
-          <IconAction label={c.openFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
+          <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
           <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
         </>}
       </div>
@@ -198,7 +201,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   /** Inside a desk panel (T10): the panel draws the title and the close button and handles Esc. */
   embedded?: boolean;
 }) {
-  const { locale } = useI18n(); const c = copy[locale] ?? copy.es;
+  const { locale, t } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
   const members = useLibraryGames();
   const [filter, setFilter] = useState<Filter>("all");
@@ -211,6 +214,14 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
+  const importSteam = async () => {
+    setBusy(true);
+    try {
+      const result = await syncSteamLibrary(catalog, { refresh: true });
+      notify(result.found ? t("steamImported", { linked: result.linked.length, owned: result.owned.length }) : t("steamNotFound"), { tone: result.found ? "success" : "error" });
+      notifyLibraryChanged();
+    } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
+  };
   useEffect(() => { if (focusAppId != null) { setFilter("all"); setQuery(""); } }, [focusAppId]);
 
   const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length, frozen: games.filter(game => game.frozen).length }), [games]);
@@ -304,6 +315,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
+            <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
             <GaButton className="lm-icon-button" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}</GaButton>
           </div>
           <div className="lm-filters">

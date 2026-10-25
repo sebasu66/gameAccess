@@ -45,11 +45,31 @@ class LinkedGames:
         write_json(self.dir / f"{int(app_id)}.json", record)
         self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
         journal.note(self.log_dir(app_id), "vinculado", f"{kind}: {record['path']}")
+        self.unhide(app_id)
         return record
 
     def unlink(self, app_id: int) -> None:
-        """Forget the link and its history. The game itself is never touched."""
+        """Forget the link and its history. The game itself is never touched. A Steam game the user takes out of the
+        library is remembered as hidden, so the automatic Steam import does not bring it back."""
+        record = self.get(app_id)
         (self.dir / f"{int(app_id)}.json").unlink(missing_ok=True)
+        if record and record.get("kind") == "steam":
+            self.hide(app_id)
+
+    # -- Steam games the user took out of the library ---------------------------------------------------
+    def hidden(self) -> set[int]:
+        try:
+            return {int(i) for i in json.loads((self.dir / "steam_hidden.json").read_text(encoding="utf-8"))}
+        except (OSError, ValueError, TypeError):
+            return set()
+
+    def hide(self, app_id: int) -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        write_json(self.dir / "steam_hidden.json", sorted(self.hidden() | {int(app_id)}))
+
+    def unhide(self, app_id: int) -> None:
+        if int(app_id) in self.hidden():
+            write_json(self.dir / "steam_hidden.json", sorted(self.hidden() - {int(app_id)}))
 
     def log_dir(self, app_id: int) -> Path:
         return self.dir / "logs" / str(int(app_id))
@@ -64,8 +84,9 @@ class LinkedGames:
                 "needs_repair": False, **({} if present else {"error": "La carpeta vinculada ya no existe."})}
 
 
-def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_candidates=None) -> dict:
-    """The few things that can be done with a linked game; nothing here writes inside its folder."""
+def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_candidates=None, steam=None) -> dict:
+    """The few things that can be done with a linked game; nothing here writes inside its folder. A Steam game is run
+    by Steam, signed in to the account that owns it (`steam`: the Steam Account Manager)."""
     app_id, folder = record["app_id"], Path(record["path"])
     if action == "status":
         return linked.status(record)
@@ -88,10 +109,15 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
         if not folder.is_dir():
             raise ValueError("La carpeta vinculada ya no existe.")
         if record["kind"] == "steam":
-            os.startfile(f"steam://rungameid/{app_id}")
+            if steam is not None:
+                outcome = steam.play(app_id)
+            else:
+                os.startfile(f"steam://rungameid/{app_id}")
+                outcome = {"command": f"steam://rungameid/{app_id}"}
             linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
-            journal.note(linked.log_dir(app_id), "play", "lanzado: Steam")
-            return {"command": f"steam://rungameid/{app_id}"}
+            owner = outcome.get("steam_owner")
+            journal.note(linked.log_dir(app_id), "play", f"lanzado: Steam{f' ({owner})' if owner else ''}")
+            return outcome
         exe = Path(record["executable"]) if record.get("executable") else None
         if not exe or not exe.is_file():
             candidates = find_candidates(folder, record["name"]) if find_candidates else []

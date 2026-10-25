@@ -1,6 +1,6 @@
 ---
 tipo: proyecto
-actualizado: 2026-10-19
+actualizado: 2026-10-25
 ---
 # Game Access — definición del proyecto
 
@@ -51,7 +51,8 @@ Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se 
 | Perfil de ejecución editable (descomprimir fix en cada ejecución, ejecutables a probar, correr como admin) | En desarrollo (tarea C) |
 | Versión Plus: aceleración por servidor (Viking Files / Torbox) | En desarrollo † |
 | Modo Pantalla grande con mando | Hecho con mando simulado; falta validar con mando físico |
-| Importador de juegos propios | Planeado † |
+| Importador de juegos propios | Hecho (escáner de discos y vínculos) |
+| Juegos de Steam de las cuentas del usuario: se importan solos (instalados y, con clave de la API, los que tiene sin instalar), cada uno con su cuenta dueña; Jugar cambia Steam a esa cuenta; Instalar lo hace Steam. Requisito: Steam instalado antes que Game Access | En desarrollo (Seba, 2026-10-25; ver [[Tareas]]) |
 | Registro de tiempo de juego | Planeado |
 | Aviso "¿descarga lenta?" | Planeado |
 | Detalle enriquecido (videos de gameplay, notas de prensa) | Planeado |
@@ -63,7 +64,8 @@ Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se 
 
 ## Lo que Game Access NO es
 - No incluye ni mantiene listas de descargas ni fomenta la piratería: es un gestor y acelerador de descargas genérico. Las fuentes llegan por plugins externos, que el usuario instala por su cuenta.
-- No es un servicio de préstamo de cuentas ni de licencias de Steam, ni reemplaza al cliente de Steam. Esa versión anterior del proyecto fue descartada; puede quedar código suyo en el repo, pero no define el producto.
+- No es un servicio de préstamo de cuentas ni de licencias de Steam, ni reemplaza al cliente de Steam. Esa versión anterior del proyecto (pool de cuentas, alquiler de licencias, contraseñas guardadas) fue descartada; su código quedó en el commit anterior a `43bd354`.
+- Sí trae los juegos de Steam **de las cuentas del propio usuario** que Steam ya recuerda en su PC (Seba, 2026-10-25): cambia de cuenta con el inicio de sesión recordado de Steam, sin leer ni guardar contraseñas. Los juegos de Steam son siempre vinculados: Game Access no los descarga por sus fuentes, no los mueve, no los congela ni los desinstala.
 
 ## Glosario
 - **AppID**: número que identifica un juego en el catálogo.

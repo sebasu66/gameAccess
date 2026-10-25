@@ -56,6 +56,7 @@ import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
+import { installThroughSteam, isSteamOwned, steamOwnerLabel, syncSteamOnStartup } from "./steamLibrary";
 import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
 
@@ -65,7 +66,8 @@ const isPendingSteamMetadata = (game: CatalogGame) =>
 export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
   const {t}=useI18n();
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
-  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary(); }, []);
+  // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
+  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
   const downloadsOpen = useDesk().includes("downloads");
   // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
   const demoService = useRef<ReturnType<typeof demoDownloadService>>();
@@ -482,6 +484,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
+    // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
+    const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
+    if (isSteamOwned(steamEntry)) {
+      try { await installThroughSteam(game); setToast(t("steamInstallHandedOff", { name: game.name })); }
+      catch (err) { setToast(err instanceof Error ? err.message : String(err)); }
+      return;
+    }
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -495,9 +504,11 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
+    // A Steam game runs signed in to the account that owns it: Steam may restart to switch accounts.
+    const steamOwner = steamOwnerLabel(libraryScanState().games.find(entry => entry.app_id === game.app_id && entry.link_kind === "steam")?.steam_owner);
     // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
-    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), translate("launchStepPrepare"), translate("launchStepStart")];
-    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
+    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
+    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
     run.set(0, "running");
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);

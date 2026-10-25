@@ -7,6 +7,7 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
     game_journal          -> per-game history and play counts (game_journal)
     GameImporter          -> bring a folder up to the standard (adopt); import from outside later (game_importer)
     GameFreezer           -> compress rarely used games, two levels (freezer.py)
+    SteamAccountManager   -> who owns each Steam game, owned games not installed (steam_account_manager)
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
@@ -47,14 +48,20 @@ def play_history(folder: Path) -> dict:
 UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."
 
 
+def _owner(info: dict) -> dict:
+    return {"id64": info.get("owner_id64", ""), "account": info.get("owner_name", ""), "persona": info.get("owner_persona", ""),
+            "remembered": bool(info.get("remembered"))}
+
+
 def on_disk_bytes(game: dict) -> int:
     stored = game.get("frozen_bytes") if game.get("frozen") else None
     return stored if stored is not None else game["size_bytes"] or 0
 
 
 class GameLibraryManager:
-    def __init__(self, storage, manager=None, importer=None, freezer=None):
+    def __init__(self, storage, manager=None, importer=None, freezer=None, steam=None):
         self.storage = storage
+        self.steam = steam
         self.manager = manager or GameExecutionManager(storage)
         self.log = app_log.manager_logger("library")
         self.importer = importer or GameImporter(storage, self.manager)
@@ -78,7 +85,12 @@ class GameLibraryManager:
             for folder in sorted(root.iterdir()):
                 if folder.is_dir() and not folder.is_symlink():
                     games.append(self._entry(folder, with_sizes))
-        games += [self._linked_entry(record, with_sizes) for record in self.storage.linked.all()]
+        records = self.storage.linked.all()
+        owners, owned_rows = self._steam_rows({r["app_id"] for r in records})
+        games += [self._linked_entry(record, with_sizes, owners.get(record["app_id"])) for record in records]
+        # A game Game Access downloaded keeps its own row; the Steam copy of the same AppID is not listed twice.
+        present = {g["app_id"] for g in games}
+        games += [row for row in owned_rows if row["app_id"] not in present]
         self._merge_transfers(games, with_sizes)
         flagged = [g for g in games if not g["standard"]]
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
@@ -122,15 +134,46 @@ class GameLibraryManager:
         entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
         return entry
 
-    def _linked_entry(self, record: dict, with_sizes: bool) -> dict:
+    def _steam_rows(self, linked_ids: set[int]) -> tuple[dict[int, dict], list[dict]]:
+        """The owner of every Steam game, and a row for each owned Steam game that is not installed: Steam installs it."""
+        if self.steam is None:
+            return {}, []
+        try:
+            owners, owned = self.steam.library_rows(linked_ids)
+        except (OSError, ValueError) as error:
+            self.log.warning("Steam games not listed: %s", error)
+            return {}, []
+        hidden = self.storage.linked.hidden()
+        rows = [{"app_id": item["app_id"], "name": item["name"], "state": "steam_owned", "folder": "", "linked": True,
+                 "link_kind": "steam", "installed": False, "needs_repair": False, "error": "", "size_bytes": None, "issues": [],
+                 "standard": True, "reclaimable_bytes": 0, "warning": "", "label": "", "plays": 0, "last_played": "",
+                 "steam_owner": _owner(item)} for item in owned if item["app_id"] not in hidden]
+        return owners, rows
+
+    @staticmethod
+    def _linked_size(record: dict, folder: Path, with_sizes: bool, steam_owner: dict | None) -> int | None:
+        """A Steam game's size is in its manifest (walking hundreds of GB of Steam folders took most of a minute)."""
+        if not with_sizes or not folder.is_dir():
+            return None
+        if record["kind"] == "steam" and steam_owner and steam_owner.get("size_bytes"):
+            return int(steam_owner["size_bytes"])
+        return folder_size(folder)
+
+    def _linked_entry(self, record: dict, with_sizes: bool, steam_owner: dict | None = None) -> dict:
         """A game that stays where it is: always 'standard' (nothing about it is ours to fix), only launched and counted."""
         folder = Path(record["path"])
         status = self.storage.linked.status(record)
         entry = {"app_id": record["app_id"], "name": record["name"], "state": "linked", "folder": str(folder), "linked": True,
                  "link_kind": record["kind"], "installed": status["installed"], "needs_repair": False, "error": status.get("error", ""),
-                 "size_bytes": folder_size(folder) if with_sizes and folder.is_dir() else None, "issues": [], "standard": True,
+                 "size_bytes": self._linked_size(record, folder, with_sizes, steam_owner), "issues": [], "standard": True,
                  "reclaimable_bytes": 0, "warning": status.get("error", ""), "label": str(record.get("label") or ""),
                  **play_history(self.storage.linked.log_dir(record["app_id"]))}
+        if record["kind"] == "steam" and steam_owner is not None:
+            entry["steam_owner"] = _owner(steam_owner)
+            if not status["installed"]:
+                # Uninstalled from Steam: still owned, so it waits to be installed again through Steam.
+                entry.update(state="steam_owned", error="", warning="")
+                return entry
         if not status["installed"]:
             entry["issues"] = [{"code": "missing_link", "message": status["error"]}]
             entry["standard"] = False
@@ -277,6 +320,16 @@ class GameLibraryManager:
                 results.append({"app_id": item.get("app_id"), "ok": False, "error": str(error)})
         return results
 
+    def steam_sync(self, refresh: bool = False) -> dict:
+        """Link the installed Steam games that are not in the library (nor taken out of it by the user, nor already a
+        Game Access game with the same AppID) and list the owned ones Steam can install."""
+        if self.steam is None:
+            return {"found": False, "linked": [], "owned": []}
+        own = {split_folder_name(f.name)[0] for f in self.game_folders()}
+        result = self.steam.sync(self.storage.linked, refresh, exclude=own | self.storage.linked.hidden())
+        result["owned"] = [item for item in result["owned"] if item["app_id"] not in own]
+        return result
+
     def freeze(self, app_id: int, name: str, level: str = "freeze"):
         return (self.freezer.deep_freeze if level == "deep" else self.freezer.freeze)(app_id, name)
 
@@ -292,10 +345,18 @@ class GameLibraryManager:
         listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
         names = {g["app_id"]: g["name"] for g in listed}
         linked = {g["app_id"] for g in listed if g.get("linked")}
+        steam_only = {g["app_id"] for g in listed if g.get("state") == "steam_owned" and not self.storage.linked.get(g["app_id"])}
         unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
+            if app_id in steam_only:
+                if action == "uninstall":
+                    self.storage.linked.hide(app_id)      # out of the library; Steam keeps the game
+                    results.append({"app_id": app_id, "ok": True})
+                else:
+                    results.append({"app_id": app_id, "ok": False, "error": "Es un juego de Steam sin instalar: lo instala Steam."})
+                continue
             if app_id in linked and action != "uninstall":
                 results.append({"app_id": app_id, "ok": False, "error": "Es un juego vinculado: sus archivos no se modifican."})
                 continue

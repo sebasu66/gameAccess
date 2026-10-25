@@ -30,6 +30,13 @@ export const libraryMembership = {
     if (this.has(game)) return;
     members = [...members, game]; publish();
   },
+  /** Many games at once (the Steam import): one save, games already in the library are skipped. */
+  addMany(games: CatalogGame[]) {
+    if (busy) throw new Error("Espera a que termine la operación de biblioteca.");
+    const known = new Set(members.map(item => item.app_id ?? item.id));
+    const fresh = games.filter(game => !known.has(game.app_id ?? game.id) && known.add(game.app_id ?? game.id));
+    if (fresh.length) { members = [...members, ...fresh]; publish(); }
+  },
   remove(game: CatalogGame) {
     members = members.filter(item => (item.app_id ?? item.id) !== (game.app_id ?? game.id)); publish();
   },

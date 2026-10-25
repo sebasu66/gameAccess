@@ -1,5 +1,6 @@
 import DigitalStorageSettings from "./DigitalStorageSettings";
 import ParentalControlSection from "./ParentalControlSection";
+import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import CircularScrollbar from "./CircularScrollbar";
 import LanguageSwitch from "./LanguageSwitch";
@@ -27,6 +28,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
    <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-settings-title">{c.title}</h2><p>{c.subtitle}</p></div><GaClose label={c.close} onClick={onClose} data-dialog-initial /></header>
    <div className="ga-scroll-frame ga-settings-frame"><div ref={content} className="ga-settings-content"><GaTabs label={c.title} tabs={[
     { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
+    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
     { id: "parental", label: c.tabParental, content: <ParentalControlSection /> },
     { id: "style", label: c.tabStyle, content: <>
       <fieldset><legend>{t("language")}</legend><LanguageSwitch /></fieldset>

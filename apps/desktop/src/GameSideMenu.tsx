@@ -23,7 +23,7 @@ const LEAVE_MARGIN = 70;
  * away toward the other sides. It closes when the pointer moves away, with Escape or on scroll. Only the actions that
  * can run are listed: nothing greyed out.
  */
-export default function GameSideMenu({ anchor, label, items, onClose }: { anchor: HTMLElement; label: string; items: SideMenuItem[]; onClose: () => void }) {
+export default function GameSideMenu({ anchor, label, items, note, onClose }: { anchor: HTMLElement; label: string; items: SideMenuItem[]; /** One short line under the actions (the Steam account a game belongs to). */ note?: string; onClose: () => void }) {
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
   const closing = useRef(false);
@@ -81,6 +81,7 @@ export default function GameSideMenu({ anchor, label, items, onClose }: { anchor
       <span className="ga-side-menu-glass" aria-hidden="true" />
       <div className="ga-side-menu-items">
         {items.map(item => <button key={item.key} type="button" role="menuitem" className={item.primary ? "primary" : undefined} disabled={item.disabled} title={item.title} onClick={() => { close(); item.run(); }}>{item.icon}{item.label}</button>)}
+        {note ? <p className="ga-side-menu-note">{note}</p> : null}
       </div>
     </div>,
     document.body,

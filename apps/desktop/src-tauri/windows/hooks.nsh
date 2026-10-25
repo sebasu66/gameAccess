@@ -212,3 +212,34 @@ FunctionEnd
     SetRegView lastused
   ${EndIf}
 !macroend
+
+; Steam has to be installed before Game Access: the library brings in the Steam games and plays them signed in to
+; the account that owns each one. Found through the registry (SteamPath of the user, InstallPath of the machine) or
+; the default folder. Without it the installer offers Steam's download page and stops. Updates skip the check.
+!macro GAMEACCESS_REQUIRE_STEAM
+  ${If} $UpdateMode <> 1
+    ReadRegStr $0 HKCU "Software\Valve\Steam" "SteamPath"
+    ${If} $0 == ""
+      SetRegView 32
+      ReadRegStr $0 HKLM "SOFTWARE\Valve\Steam" "InstallPath"
+      SetRegView lastused
+    ${EndIf}
+    ${If} $0 == ""
+    ${AndIf} ${FileExists} "$PROGRAMFILES32\Steam\steam.exe"
+      StrCpy $0 "$PROGRAMFILES32\Steam"
+    ${EndIf}
+    ${If} $0 == ""
+      ${If} ${Silent}
+        Abort
+      ${EndIf}
+      ${If} $LANGUAGE = 1034
+        MessageBox MB_ICONEXCLAMATION|MB_YESNO "Game Access necesita Steam instalado antes.$\r$\n$\r$\n¿Abrir la página de descarga de Steam? Después de instalar Steam, volvé a ejecutar este instalador." IDNO ga_steam_quit
+      ${Else}
+        MessageBox MB_ICONEXCLAMATION|MB_YESNO "Game Access needs Steam to be installed first.$\r$\n$\r$\nOpen the Steam download page? Run this installer again once Steam is installed." IDNO ga_steam_quit
+      ${EndIf}
+      ExecShell "open" "https://store.steampowered.com/about/"
+      ga_steam_quit:
+      Quit
+    ${EndIf}
+  ${EndIf}
+!macroend

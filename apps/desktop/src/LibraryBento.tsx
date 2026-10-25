@@ -6,6 +6,7 @@ import { Flip, gsap, motionOk } from "./motion/gsap";
 import GameSideMenu, { type SideMenuItem } from "./GameSideMenu";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
+import { steamOwnerLabel } from "./steamLibrary";
 import { useLibraryScan } from "./libraryScan";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
@@ -39,7 +40,7 @@ interface Props {
   infoTarget?: HTMLElement | null;
 }
 
-interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus }
+interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus; steamOwner?: LibraryGame["steam_owner"] }
 
 // The groups are accordions: only the installed games start open. What the player opens or closes is remembered here.
 const COLLAPSED_KEY = "gameaccess:library-collapsed";
@@ -93,12 +94,13 @@ function SideMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }
   const deep = card.kind === "deep";
   const items: SideMenuItem[] = [
     card.kind === "pending"
-      ? { key: "install", primary: true, label: t("flipInstall"), icon: <Download size={15} aria-hidden="true" />, run: () => void onInstall?.(card.game) }
+      ? { key: "install", primary: true, label: t(card.steamOwner ? "steamInstallMenu" : "flipInstall"), icon: <Download size={15} aria-hidden="true" />, run: () => void onInstall?.(card.game) }
       : { key: "play", primary: true, disabled: deep, title: deep ? t("flipFrozenHint") : undefined, label: t("flipPlay"), icon: <Play size={15} fill="currentColor" aria-hidden="true" />, run: () => void onPlay?.(card.game) },
     { key: "rename", label: t("renameMenu"), icon: <Pencil size={15} aria-hidden="true" />, run: () => onRename(card.game) },
     { key: "manage", label: t("flipManage"), icon: <SlidersHorizontal size={15} aria-hidden="true" />, run: () => onManage?.(card.game) },
   ];
-  return <GameSideMenu anchor={slot} label={t("flipMenuLabel", { name: card.game.name })} items={items} onClose={onClose} />;
+  const owner = steamOwnerLabel(card.steamOwner);
+  return <GameSideMenu anchor={slot} label={t("flipMenuLabel", { name: card.game.name })} items={items} note={owner ? t("steamOwnerNote", { account: owner }) : undefined} onClose={onClose} />;
 }
 
 /** Three lines that draw themselves after the pointer rests 1 s on a card, then pulse; a click opens the side menu. */
@@ -142,7 +144,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       if (pill === "installed" && !installed) return [];
       if (pill === "favorites" && preferences[game.id] !== 1) return [];
       const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : "pending";
-      return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status }];
+      return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined }];
     });
   }, [games, downloads, scan.games, pill, preferences]);
 

@@ -8,7 +8,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
   app_id: number;
   name?: string;
   pid?: number;
@@ -51,7 +51,8 @@ export interface LibraryPlanAction { code: string; label: string; bytes?: number
 export interface LibraryPlan { app_id: number; name: string; actions: LibraryPlanAction[]; freed_bytes?: number; delete_sources?: boolean; error?: string }
 export interface LibraryIssue { code: string; message: string; bytes?: number }
 export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
-export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder"; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null }
+export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder"; /** The Steam account that owns a Steam game (state "steam_owned": owned, not installed). */ steam_owner?: SteamOwner; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null }
+export interface SteamOwner { id64: string; account: string; persona: string; remembered: boolean }
 /** "freeze": Windows compression, playable as it is; "deep": one 7-Zip archive, thawed before it runs. */
 export type FreezeLevel = "freeze" | "deep";
 export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; frozen_saved_bytes?: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
@@ -99,6 +100,13 @@ export class DigitalProcessManager {
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
   importScan(drives: string[]) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives })); }
   importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
+  /** Steam Account Manager: the local Steam client, its accounts and who owns each game. */
+  steamStatus() { return this.execute("steam-status", {id:0,name:""} as CatalogGame); }
+  steamSaveSettings(values: Record<string, unknown>) { return this.execute("steam-save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
+  /** Link the installed Steam games not in the library yet; `refresh` asks Steam again for the owned games. */
+  steamSync(refresh = false, auto = false) { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto })); }
+  /** Steam installs the game itself: it asks the library folder and checks the space. */
+  steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
   /** Free disk space from a game nobody plays (only games Game Access owns, never linked ones). */
   freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
