@@ -22,7 +22,8 @@ Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (dep
 - [x] **Jugar con la cuenta dueña** (Claude, 2026-10-25): si Steam está en otra cuenta, Game Access lo cierra, pone `AutoLoginUser` en la dueña y lo abre; espera el inicio de sesión (hasta 3 min, por si Steam pide la contraseña) y corre `steam://rungameid`. Se apaga en Configuración › Steam.
 - [x] **Instalar con Steam** (Claude, 2026-10-25): los propios sin instalar muestran "Instalar con Steam" (`steam://install/<appid>`); nunca por las fuentes de Game Access. La cuenta dueña se ve en el menú de la tarjeta y en el administrador.
 - [x] **Instalador: Steam es requisito** (Claude, 2026-10-25): sin Steam, el instalador ofrece la página de descarga de Steam y se cierra (`GAMEACCESS_REQUIRE_STEAM` en `hooks.nsh`); las actualizaciones no lo revisan.
-- [ ] Seba: probar en la app Jugar con un juego de otra cuenta (cambio real de cuenta) y cargar una clave de la API para ver los juegos sin instalar. Probar el instalador en una PC sin Steam.
+- [x] Cambio real de cuenta (Claude, 2026-10-25): GTA V Legacy de `salidruki` lanzado por la acción `play`; Steam entró a esa cuenta en 4 s y corrió el juego.
+- [ ] Seba: probar Jugar desde la ventana de la app, cargar una clave de la API para ver los juegos sin instalar y probar el instalador en una PC sin Steam.
 - [ ] Página web: listar la importación de juegos de Steam como feature.
 
 ## Pasos ya decididos (ejecutar en orden)
