@@ -540,6 +540,8 @@ export const es = {
   toastActionFailed: "No se pudo completar la acción: {{error}}",
   pluginIndicatorName: "Plugin de fuentes de descarga",
   pluginIndicatorTip: "{{title}} ({{name}}) · {{state}}",
+  pluginIndicatorNone: "Sin plugin de fuentes",
+  pluginIndicatorNoneTip: "No hay un plugin de fuentes de descarga instalado: el catálogo no muestra fuentes ni deja descargar.",
   pluginStateConnected: "Conectado",
   pluginStateDisconnected: "Desconectado",
   digitalErrorFallback: "Error de ejecución",

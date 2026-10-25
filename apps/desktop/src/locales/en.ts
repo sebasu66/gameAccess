@@ -542,6 +542,8 @@ export const en: Record<keyof typeof es, string> = {
   toastActionFailed: "The action could not be completed: {{error}}",
   pluginIndicatorName: "Download sources plugin",
   pluginIndicatorTip: "{{title}} ({{name}}) · {{state}}",
+  pluginIndicatorNone: "No sources plugin",
+  pluginIndicatorNoneTip: "No download sources plugin is installed: the catalog shows no sources and cannot download.",
   pluginStateConnected: "Connected",
   pluginStateDisconnected: "Disconnected",
   digitalErrorFallback: "Execution error",
