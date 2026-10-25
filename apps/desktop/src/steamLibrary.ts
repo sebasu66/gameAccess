@@ -1,11 +1,12 @@
 import { digitalProcessManager, type LibraryGame, type SteamOwner } from "./catalog/DigitalProcessManager";
 import { libraryMembership } from "./libraryMembership";
 import { scanLibrary } from "./libraryScan";
+import { getApiBaseUrl } from "./settings";
 import type { CatalogGame } from "./types";
 
 /** What the Steam Account Manager (apps/launcher/steam_account_manager) reports about the local Steam client. */
-export interface SteamAccountInfo { steam_id64: string; account_id: number; account_name: string; persona_name: string; remembered: boolean; active: boolean; owned_count: number; installed_count: number; error: string }
-export interface SteamSettings { auto_import: boolean; switch_accounts: boolean; has_api_key: boolean }
+export interface SteamAccountInfo { steam_id64: string; account_id: number; account_name: string; persona_name: string; remembered: boolean; active: boolean; owned_count: number; installed_count: number; private: boolean; error: string }
+export interface SteamSettings { auto_import: boolean; switch_accounts: boolean }
 export interface SteamStatus { found: boolean; path: string; active_id64: string; accounts: SteamAccountInfo[]; libraries: string[]; installed_count: number; owned_count: number; owned_fetched_at: number; settings: SteamSettings }
 interface SyncedGame { app_id: number; name: string; owner_name?: string }
 export interface SteamSyncResult { found: boolean; skipped?: boolean; linked: SyncedGame[]; owned: SyncedGame[] }
@@ -17,7 +18,7 @@ export async function steamStatus(): Promise<SteamStatus | null> {
   return (await digitalProcessManager.steamStatus() as unknown as { steam: SteamStatus }).steam;
 }
 
-export async function saveSteamSettings(values: Partial<SteamSettings> & { api_key?: string }): Promise<SteamSettings> {
+export async function saveSteamSettings(values: Partial<SteamSettings>): Promise<SteamSettings> {
   return (await digitalProcessManager.steamSaveSettings(values) as unknown as { settings: SteamSettings }).settings;
 }
 
@@ -35,7 +36,9 @@ export function installThroughSteam(game: { app_id?: number | null; id: number; 
  * a light record, so thousands of owned games do not fill the browser storage.
  */
 export async function syncSteamLibrary(catalog: CatalogGame[] = [], options: { refresh?: boolean; auto?: boolean } = {}): Promise<SteamSyncResult> {
-  const result = await digitalProcessManager.steamSync(Boolean(options.refresh), Boolean(options.auto)) as unknown as SteamSyncResult;
+  // The owned games come from the GameAccess server, which holds the Steam Web API key (the user never needs one).
+  const api = await getApiBaseUrl().catch(() => "");
+  const result = await digitalProcessManager.steamSync(Boolean(options.refresh), Boolean(options.auto), api) as unknown as SteamSyncResult;
   if (result.skipped || !result.found) return result;
   const byId = new Map(catalog.map(game => [game.app_id ?? game.id, game]));
   const games = [...result.linked, ...result.owned].map(item => byId.get(item.app_id) ?? ({ id: item.app_id, app_id: item.app_id, name: item.name || `Steam ${item.app_id}` } as CatalogGame));

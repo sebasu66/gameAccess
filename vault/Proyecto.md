@@ -52,7 +52,7 @@ Cada juego se identifica por su **AppID**, el número de la tienda de Steam; se 
 | Versión Plus: aceleración por servidor (Viking Files / Torbox) | En desarrollo † |
 | Modo Pantalla grande con mando | Hecho con mando simulado; falta validar con mando físico |
 | Importador de juegos propios | Hecho (escáner de discos y vínculos) |
-| Juegos de Steam de las cuentas del usuario: se importan solos (instalados y, con clave de la API, los que tiene sin instalar), cada uno con su cuenta dueña; Jugar cambia Steam a esa cuenta; Instalar lo hace Steam. Requisito: Steam instalado antes que Game Access | En desarrollo (Seba, 2026-10-25; ver [[Tareas]]) |
+| Juegos de Steam de las cuentas que Steam recuerda en la PC del usuario: se importan solos en cada instalación (instalados y los que tiene sin instalar, estos últimos pedidos al servidor de Game Access, que tiene la clave de la API de Steam; el usuario nunca carga una clave), cada uno con su cuenta dueña; Jugar cambia Steam a esa cuenta; Instalar lo hace Steam. Requisito: Steam instalado antes que Game Access | En desarrollo (Seba, 2026-10-25; ver [[Tareas]]) |
 | Registro de tiempo de juego | Planeado |
 | Aviso "¿descarga lenta?" | Planeado |
 | Detalle enriquecido (videos de gameplay, notas de prensa) | Planeado |

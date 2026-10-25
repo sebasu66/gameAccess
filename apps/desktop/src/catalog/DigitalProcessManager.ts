@@ -104,7 +104,7 @@ export class DigitalProcessManager {
   steamStatus() { return this.execute("steam-status", {id:0,name:""} as CatalogGame); }
   steamSaveSettings(values: Record<string, unknown>) { return this.execute("steam-save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
   /** Link the installed Steam games not in the library yet; `refresh` asks Steam again for the owned games. */
-  steamSync(refresh = false, auto = false) { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto })); }
+  steamSync(refresh = false, auto = false, api = "") { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto, api })); }
   /** Steam installs the game itself: it asks the library folder and checks the space. */
   steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }

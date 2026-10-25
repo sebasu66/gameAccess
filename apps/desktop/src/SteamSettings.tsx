@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { GaButton } from "./components/ga/Buttons";
 import { Checkbox } from "./components/ui/checkbox";
-import { Input } from "./components/ui/input";
 import { useI18n } from "./i18n";
 import { saveSteamSettings, steamStatus, syncSteamLibrary, type SteamSettings as Settings, type SteamStatus } from "./steamLibrary";
 import { useLibraryGames } from "./libraryMembership";
@@ -11,7 +10,6 @@ export default function SteamSettings() {
   const { t } = useI18n();
   const native = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const [status, setStatus] = useState<SteamStatus | null>(null);
-  const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -19,7 +17,7 @@ export default function SteamSettings() {
   const load = () => steamStatus().then(setStatus).catch(failure => setError(String(failure)));
   useEffect(() => { if (native) void load(); }, [native]);
 
-  const save = async (values: Partial<Settings> & { api_key?: string }) => {
+  const save = async (values: Partial<Settings>) => {
     setError(""); setMessage("");
     try {
       const settings = await saveSteamSettings(values);
@@ -35,7 +33,6 @@ export default function SteamSettings() {
       await load();
     } catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); } finally { setBusy(false); }
   };
-  const saveKey = async (value: string) => { setBusy(true); if (await save({ api_key: value })) { setKey(""); setMessage(t(value ? "steamKeySaved" : "steamKeyRemoved")); } setBusy(false); };
 
   const toggle = (id: string, label: string, hint: string, checked: boolean, name: "auto_import" | "switch_accounts") => (
     <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
@@ -54,15 +51,6 @@ export default function SteamSettings() {
         <p className="m-0 text-sm text-muted-foreground">{t("steamFound", { path: status.path, games: status.installed_count, libraries: status.libraries.length })}</p>
         {toggle("ga-steam-auto", t("steamAutoImport"), t("steamAutoImportHint"), settings?.auto_import ?? true, "auto_import")}
         {toggle("ga-steam-switch", t("steamSwitch"), t("steamSwitchHint"), settings?.switch_accounts ?? true, "switch_accounts")}
-        <div className="grid gap-2">
-          <label htmlFor="ga-steam-key" className="text-sm font-semibold">{t("steamApiKey")}</label>
-          <p className="m-0 text-sm text-muted-foreground">{t(settings?.has_api_key ? "steamApiKeySet" : "steamApiKeyHint")}</p>
-          <div className="flex items-center gap-3">
-            <Input id="ga-steam-key" type="password" autoComplete="off" spellCheck={false} value={key} placeholder={settings?.has_api_key ? "••••••••••••••••" : ""} onChange={event => setKey(event.target.value)} />
-            <GaButton disabled={busy || !key.trim()} onClick={() => void saveKey(key.trim())}>{t("steamApiKeySave")}</GaButton>
-            {settings?.has_api_key ? <GaButton disabled={busy} onClick={() => void saveKey("")}>{t("steamApiKeyRemove")}</GaButton> : null}
-          </div>
-        </div>
         <div><GaButton variant="primary" disabled={busy} onClick={() => void importNow()}>{busy ? t("steamImporting") : t("steamImportNow")}</GaButton></div>
         <details className="ga-settings-group rounded-lg border border-border bg-card/50 p-4">
           <summary className="cursor-pointer text-sm font-bold">{t("steamAccounts", { count: accounts.length })}</summary>
@@ -71,8 +59,8 @@ export default function SteamSettings() {
               <li key={account.steam_id64} className="flex items-center justify-between gap-4 text-sm">
                 <span className="min-w-0 truncate"><b>{account.persona_name}</b> <span className="text-muted-foreground">{account.account_name}</span></span>
                 <span className="shrink-0 text-muted-foreground">
-                  {[account.active ? t("steamAccountActive") : "", !account.remembered ? t("steamAccountNeedsPassword") : "",
-                    settings?.has_api_key ? t("steamAccountGames", { installed: account.installed_count, owned: account.owned_count }) : t("steamAccountInstalled", { installed: account.installed_count })].filter(Boolean).join(" · ")}
+                  {[account.active ? t("steamAccountActive") : "", account.private ? t("steamAccountPrivate") : "",
+                    t("steamAccountGames", { installed: account.installed_count, owned: account.owned_count })].filter(Boolean).join(" · ")}
                 </span>
               </li>
             ))}

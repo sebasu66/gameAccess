@@ -3,15 +3,16 @@
 Installed games: the manifest's `LastOwner` is the account whose license installed and last updated the game.
 Games that are not installed: Steam keeps the license list only encrypted on disk (`userdata/<id>/config/licensecache`),
 and `localconfig.vdf` lists the apps an account has *touched* (played, Family Sharing, free weekends), not what it
-owns. So the owned list comes from the Steam Web API (`IPlayerService/GetOwnedGames`) with the user's own key, which
-leaves borrowed Family Sharing games out. Without a key only the installed games are known."""
+owns. So the owned list comes from the Steam Web API (`IPlayerService/GetOwnedGames`, borrowed Family Sharing games
+left out), asked through the GameAccess server, which holds the key (`apps/api/app/steam_owned_routes.py`): no user
+needs one. Without the server only the installed games are known."""
 from __future__ import annotations
 import json
-import urllib.parse
 import urllib.request
 from .client import SteamAccount, InstalledSteamGame
 
-OWNED_GAMES_URL = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
+SERVER_PATH = "/steam/owned-games"
+SERVER_BATCH = 50
 
 
 def pick_owner(app_id: int, accounts: list[SteamAccount], owned: dict[str, list[int]], installed_owner: str = "",
@@ -47,11 +48,21 @@ def ownership_table(accounts: list[SteamAccount], installed: list[InstalledSteam
     return table
 
 
-def fetch_owned_games(api_key: str, steam_id64: str, opener=urllib.request.urlopen, timeout: float = 15) -> list[dict]:
-    """[{app_id, name}] the account owns. A private profile answers with an empty response: that is an empty list."""
-    query = urllib.parse.urlencode({"key": api_key, "steamid": steam_id64, "include_appinfo": 1, "include_played_free_games": 0,
-                                    "skip_unvetted_apps": 1, "format": "json"})
-    with opener(f"{OWNED_GAMES_URL}?{query}", timeout=timeout) as response:
-        data = json.loads(response.read().decode("utf-8"))
-    games = (data.get("response") or {}).get("games") or []
-    return [{"app_id": int(g["appid"]), "name": str(g.get("name") or "")} for g in games if str(g.get("appid", "")).isdigit()]
+def fetch_owned_games(api_url: str, steam_ids: list[str], opener=urllib.request.urlopen, timeout: float = 60) -> dict:
+    """{"accounts": {id64: [{app_id, name}]}, "private": [id64], "errors": {id64: text}} from the GameAccess server, in
+    batches of 50 accounts. A private profile has no games and is listed in `private`."""
+    if not api_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
+        raise ValueError("Dirección del servidor de Game Access inválida.")
+    result: dict = {"accounts": {}, "private": [], "errors": {}}
+    for start in range(0, len(steam_ids), SERVER_BATCH):
+        batch = steam_ids[start:start + SERVER_BATCH]
+        request = urllib.request.Request(api_url.rstrip("/") + SERVER_PATH, data=json.dumps({"steam_ids": batch}).encode("utf-8"),
+                                         headers={"Content-Type": "application/json", "User-Agent": "gameAccess launcher"}, method="POST")
+        with opener(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        for steam_id, games in (data.get("accounts") or {}).items():
+            result["accounts"][steam_id] = [{"app_id": int(g["app_id"]), "name": str(g.get("name") or "")} for g in games
+                                            if str(g.get("app_id", "")).isdigit()]
+        result["private"] += [str(i) for i in data.get("private") or []]
+        result["errors"].update({str(k): str(v) for k, v in (data.get("errors") or {}).items()})
+    return result

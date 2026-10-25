@@ -14,6 +14,8 @@ from game_library_manager.linked import run_linked
 from game_library_manager.storage import DigitalGameStorage
 
 OWNER, OTHER, BORROWER = "76561198000000001", "76561198000000002", "76561198000000003"
+STRANGER = "76561198000000004"          # in loginusers.vdf without "Remember me"
+SERVER = "https://api.example.test"
 
 
 class Log:
@@ -52,6 +54,11 @@ def _steam(tmp_path: Path) -> Path:
 \t{{
 \t\t"AccountName"\t\t"other_acc"
 \t\t"PersonaName"\t\t"Other"
+\t\t"RememberPassword"\t\t"1"
+\t}}
+\t"{STRANGER}"
+\t{{
+\t\t"AccountName"\t\t"stranger"
 \t\t"RememberPassword"\t\t"0"
 \t}}
 }}
@@ -76,6 +83,7 @@ def _steam(tmp_path: Path) -> Path:
     _manifest(root / "steamapps", 10, "Alpha", OWNER)
     _manifest(second / "steamapps", 20, "Beta", OTHER)
     _manifest(second / "steamapps", 30, "Gamma", OWNER, flags=1026)          # still updating
+    _manifest(second / "steamapps", 40, "Delta", STRANGER)                    # its owner is not remembered
     return root
 
 
@@ -102,7 +110,7 @@ def test_vdf_tolerates_bom_and_unbalanced_braces():
 # -- Steam client files ----------------------------------------------------------------------------------
 def test_reads_remembered_accounts(tmp_path):
     accounts = read_accounts(_steam(tmp_path))
-    assert [(a.account_name, a.remembered, a.most_recent) for a in accounts] == [("owner_acc", True, True), ("other_acc", False, False)]
+    assert [(a.account_name, a.remembered, a.most_recent) for a in accounts] == [("owner_acc", True, True), ("other_acc", True, False), ("stranger", False, False)]
     assert accounts[0].persona_name == 'Owner "Big" One'
     assert accounts[0].account_id == 39734273 and id64(accounts[0].account_id) == OWNER
 
@@ -117,7 +125,7 @@ def test_reads_every_library_once_new_and_old_format(tmp_path):
 def test_reads_manifests_with_owner_and_install_state(tmp_path):
     root = _steam(tmp_path)
     games = {g.app_id: g for g in installed_games(read_libraries(root))}
-    assert set(games) == {10, 20, 30}
+    assert set(games) == {10, 20, 30, 40}
     assert games[10].owner_id64 == OWNER and games[10].fully_installed and games[10].size_bytes == 1234
     assert games[20].owner_id64 == OTHER and Path(games[20].folder).name == "Beta"
     assert not games[30].fully_installed
@@ -156,15 +164,24 @@ def test_installed_by_an_account_not_remembered_keeps_its_id():
     assert table[41]["owner_name"] == "owner_acc" and not table[41]["installed"]
 
 
-def test_fetch_owned_games_parses_the_web_api_answer():
-    calls = []
+def _server(answers: dict, calls: list | None = None, private=()):
+    def opener(request, timeout):
+        body = json.loads(request.data)
+        if calls is not None:
+            calls.append((request.full_url, body["steam_ids"]))
+        return io.BytesIO(json.dumps({"accounts": {i: answers.get(i, []) for i in body["steam_ids"]},
+                                      "private": [i for i in body["steam_ids"] if i in private], "errors": {}}).encode())
+    return opener
 
-    def opener(url, timeout):
-        calls.append(url)
-        return io.BytesIO(json.dumps({"response": {"game_count": 2, "games": [{"appid": 10, "name": "Alpha"}, {"appid": 11}]}}).encode())
-    assert fetch_owned_games("k" * 32, OWNER, opener) == [{"app_id": 10, "name": "Alpha"}, {"app_id": 11, "name": ""}]
-    assert f"steamid={OWNER}" in calls[0] and "include_appinfo=1" in calls[0]
-    assert fetch_owned_games("k", OWNER, lambda url, timeout: io.BytesIO(b'{"response": {}}')) == []   # private profile
+
+def test_fetch_owned_games_asks_the_gameaccess_server_in_batches():
+    calls = []
+    ids = [str(76561198000000100 + n) for n in range(120)]
+    result = fetch_owned_games(SERVER + "/", ids, _server({ids[0]: [{"app_id": 10, "name": "Alpha"}]}, calls, private={ids[1]}))
+    assert [len(batch) for _, batch in calls] == [50, 50, 20] and calls[0][0] == SERVER + "/steam/owned-games"
+    assert result["accounts"][ids[0]] == [{"app_id": 10, "name": "Alpha"}] and result["private"] == [ids[1]]
+    with pytest.raises(ValueError):
+        fetch_owned_games("file:///etc", ids, _server({}))
 
 
 # -- switching ------------------------------------------------------------------------------------------
@@ -231,14 +248,14 @@ def setup(tmp_path, monkeypatch):
     return steam, storage, started, switched
 
 
-def test_settings_hide_the_key_and_validate_it(setup):
-    steam, *_ = setup
-    assert steam.public_settings() == {"auto_import": True, "switch_accounts": True, "has_api_key": False}
-    with pytest.raises(ValueError):
-        steam.save_settings({"api_key": "short"})
-    saved = steam.save_settings({"api_key": "A" * 32, "auto_import": False})
-    assert saved == {"auto_import": False, "switch_accounts": True, "has_api_key": True}
-    assert "A" * 32 not in json.dumps(steam.status())
+def test_only_remembered_accounts_and_their_games(setup):
+    steam, storage, *_ = setup
+    assert [a.account_name for a in steam.accounts()] == ["owner_acc", "other_acc"]
+    assert steam.public_settings() == {"auto_import": True, "switch_accounts": True}
+    assert steam.save_settings({"auto_import": False, "api_key": "x"}) == {"auto_import": False, "switch_accounts": True}
+    steam.save_settings({"auto_import": True})
+    result = GameLibraryManager(storage, steam=steam).steam_sync()
+    assert 40 not in {g["app_id"] for g in result["linked"]} and storage.linked.get(40) is None
 
 
 def test_sync_links_installed_games_once_and_skips_unfinished_hidden_and_own(setup):
@@ -256,11 +273,13 @@ def test_sync_links_installed_games_once_and_skips_unfinished_hidden_and_own(set
 
 def test_owned_games_not_installed_become_library_rows_without_network(setup, monkeypatch):
     steam, storage, *_ = setup
-    steam.save_settings({"api_key": "A" * 32})
-    steam.opener = lambda url, timeout: io.BytesIO(json.dumps({"response": {"games": [{"appid": 10, "name": "Alpha"}, {"appid": 50, "name": "Epsilon"}]}}).encode())
+    calls = []
+    steam.opener = _server({OWNER: [{"app_id": 10, "name": "Alpha"}, {"app_id": 50, "name": "Epsilon"}]}, calls, private={OTHER})
     library = GameLibraryManager(storage, steam=steam)
-    library.steam_sync(refresh=True)
-    steam.opener = lambda url, timeout: (_ for _ in ()).throw(AssertionError("the library list must not fetch"))
+    library.steam_sync(refresh=True, api_url=SERVER)
+    assert calls == [(SERVER + "/steam/owned-games", [OWNER, OTHER])]          # never the account Steam does not remember
+    assert steam.status()["accounts"][1]["private"] is True
+    steam.opener = lambda request, timeout: (_ for _ in ()).throw(AssertionError("the library list must not fetch"))
     rows = {g["app_id"]: g for g in library.list_games(with_sizes=False)}
     assert rows[50]["state"] == "steam_owned" and not rows[50]["installed"] and rows[50]["link_kind"] == "steam"
     assert rows[50]["steam_owner"]["account"] in ("owner_acc", "other_acc")
@@ -277,8 +296,8 @@ def test_a_steam_game_uninstalled_in_steam_waits_to_be_installed_again(setup):
     library.steam_sync()
     (Path(storage.linked.get(20)["path"])).rmdir()
     (Path(storage.linked.get(20)["path"]).parents[1] / "appmanifest_20.acf").unlink()
-    steam.save_settings({"api_key": "A" * 32})
-    steam.cache.joinpath("owned.json").write_text(json.dumps({"fetched_at": 9e12, "accounts": {OTHER: [{"app_id": 20, "name": "Beta"}]}}))
+    steam.cache.mkdir(parents=True, exist_ok=True)
+    steam.cache.joinpath("owned.json").write_text(json.dumps({"fetched_at": 9e12, "accounts": {OWNER: [], OTHER: [{"app_id": 20, "name": "Beta"}]}}))
     row = next(g for g in library.list_games(with_sizes=False) if g["app_id"] == 20)
     assert row["state"] == "steam_owned" and row["issues"] == [] and row["steam_owner"]["account"] == "other_acc"
 

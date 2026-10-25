@@ -1,7 +1,7 @@
 """Steam Account Manager: the user's Steam client, its remembered accounts and the games each one owns.
 
     client.py     find Steam, read loginusers.vdf, libraryfolders.vdf and the appmanifest_*.acf files (read-only)
-    ownership.py  which account owns each game (LastOwner on disk, the Web API list for games not installed)
+    ownership.py  which account owns each game (LastOwner on disk, the owned list from the GameAccess server)
     switch.py     sign Steam in to the owner and run the game
 
 It talks to the Game Library Manager: installed Steam games become *linked* games (never moved, frozen or
@@ -23,12 +23,10 @@ from .switch import SteamSwitcher, active_id64
 
 OWNED_MAX_AGE = 12 * 3600
 DEFAULT_SETTINGS = {
-    # Bring the installed Steam games (and, with a key, the owned ones) into the library on its own.
+    # Bring the Steam games of the remembered accounts (installed and owned) into the library on its own.
     "auto_import": True,
     # Sign Steam in to the game's owner before playing.
     "switch_accounts": True,
-    # Steam Web API key (https://steamcommunity.com/dev/apikey), only to list owned games that are not installed.
-    "api_key": "",
 }
 
 
@@ -50,30 +48,22 @@ class SteamAccountManager:
         return {**DEFAULT_SETTINGS, **{k: v for k, v in saved.items() if k in DEFAULT_SETTINGS}}
 
     def public_settings(self) -> dict:
-        """What the UI sees: never the key itself."""
-        values = self.settings()
-        key = values.pop("api_key")
-        return {**values, "has_api_key": bool(key)}
+        return self.settings()
 
     def save_settings(self, values: dict) -> dict:
         current = self.settings()
-        for name in ("auto_import", "switch_accounts"):
+        for name in DEFAULT_SETTINGS:
             if name in values:
                 current[name] = bool(values[name])
-        if "api_key" in values:
-            key = str(values["api_key"] or "").strip()
-            if key and not (len(key) == 32 and all(c in "0123456789abcdefABCDEF" for c in key)):
-                raise ValueError("La clave de la API de Steam tiene 32 caracteres (0-9, A-F).")
-            if key != current["api_key"]:
-                (self.cache / "owned.json").unlink(missing_ok=True)
-            current["api_key"] = key
         self.cache.mkdir(parents=True, exist_ok=True)
         write_json(self.cache / "settings.json", current)
         return self.public_settings()
 
     # -- what Steam has ----------------------------------------------------------------------------
     def accounts(self) -> list[SteamAccount]:
-        return client.read_accounts(self.root) if self.root else []
+        """Only the accounts Steam signs in to on its own ("Remember me"): Game Access can switch to those without a
+        password. The others are left out entirely, their games too."""
+        return [a for a in client.read_accounts(self.root) if a.remembered] if self.root else []
 
     def libraries(self) -> list[Path]:
         return client.read_libraries(self.root) if self.root else []
@@ -105,42 +95,46 @@ class SteamAccountManager:
                 write_json(path, {str(k): v for k, v in known.items()})
         return known
 
-    def owned(self, refresh: bool = False, fetch: bool = True) -> dict:
-        """{"fetched_at", "accounts": {id64: [{app_id, name}]}, "errors": {id64: text}} from the cache, refreshed from the
-        Web API when it is older than 12 hours (or `refresh`) and there is a key. `fetch=False` only reads the cache
-        (the library list must never wait for the network)."""
+    def owned(self, refresh: bool = False, fetch: bool = True, api_url: str = "") -> dict:
+        """{"fetched_at", "accounts": {id64: [{app_id, name}]}, "private": [id64], "errors": {id64: text}} from the cache,
+        refreshed from the GameAccess server (`api_url`) when it is older than 12 hours or `refresh`. Without a server
+        address, or with `fetch=False` (the library list never waits for the network), only the cache is read."""
         path = self.cache / "owned.json"
         try:
             cached = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
         except (OSError, ValueError):
             cached = {}
-        key = self.settings()["api_key"]
-        fresh = time.time() - float(cached.get("fetched_at", 0)) < OWNED_MAX_AGE
-        if not key or not fetch or (fresh and not refresh):
-            return {"fetched_at": cached.get("fetched_at", 0), "accounts": cached.get("accounts", {}) if key else {},
-                    "errors": cached.get("errors", {}) if key else {}}
-        result = {"fetched_at": time.time(), "accounts": {}, "errors": {}}
-        for account in self.accounts():
-            try:
-                kwargs = {"opener": self.opener} if self.opener else {}
-                result["accounts"][account.steam_id64] = fetch_owned_games(key, account.steam_id64, **kwargs)
-            except Exception as error:      # one private profile or network hiccup never stops the rest
-                result["errors"][account.steam_id64] = str(error)[:200]
-                result["accounts"][account.steam_id64] = cached.get("accounts", {}).get(account.steam_id64, [])
-        self.log.info("Steam owned games: %s accounts, %s games, %s errors", len(result["accounts"]),
-                      sum(len(v) for v in result["accounts"].values()), len(result["errors"]))
+        remembered = {a.steam_id64 for a in self.accounts()}
+        kept = {"fetched_at": cached.get("fetched_at", 0), "private": [i for i in cached.get("private", []) if i in remembered],
+                "accounts": {k: v for k, v in cached.get("accounts", {}).items() if k in remembered},
+                "errors": {k: v for k, v in cached.get("errors", {}).items() if k in remembered}}
+        fresh = time.time() - float(kept["fetched_at"]) < OWNED_MAX_AGE and remembered <= set(kept["accounts"])
+        if not api_url or not fetch or not remembered or (fresh and not refresh):
+            return kept
+        try:
+            kwargs = {"opener": self.opener} if self.opener else {}
+            answer = fetch_owned_games(api_url, sorted(remembered), **kwargs)
+        except Exception as error:          # server asleep or offline: keep what was known
+            self.log.warning("Steam owned games not refreshed: %s", str(error)[:200])
+            return kept
+        result = {"fetched_at": time.time(), "accounts": {**kept["accounts"], **answer["accounts"]},
+                  "private": answer["private"], "errors": answer["errors"]}
+        self.log.info("Steam owned games: %s accounts, %s games, %s private, %s errors", len(answer["accounts"]),
+                      sum(len(v) for v in answer["accounts"].values()), len(answer["private"]), len(answer["errors"]))
         self.cache.mkdir(parents=True, exist_ok=True)
         write_json(path, result)
         return result
 
-    def table(self, refresh: bool = False, fetch: bool = True) -> tuple[dict[int, dict], dict[int, str]]:
-        """Ownership of every installed or owned game, and the name of each owned one."""
-        owned = self.owned(refresh, fetch)
+    def table(self, refresh: bool = False, fetch: bool = True, api_url: str = "") -> tuple[dict[int, dict], dict[int, str]]:
+        """Ownership of every installed or owned game of the remembered accounts, and the name of each one."""
+        owned = self.owned(refresh, fetch, api_url)
         ids = {id64: [g["app_id"] for g in games] for id64, games in owned["accounts"].items()}
         names = {g["app_id"]: g["name"] for games in owned["accounts"].values() for g in games}
         installed = self.installed()
         names.update({g.app_id: g.name for g in installed})
-        return ownership_table(self.accounts(), installed, ids, active_id64()), names
+        table = ownership_table(self.accounts(), installed, ids, active_id64())
+        # A game installed with an account Steam does not remember is not this user's to play through Game Access.
+        return {app_id: info for app_id, info in table.items() if info["owner_name"]}, names
 
     def status(self) -> dict:
         accounts = self.accounts()
@@ -151,21 +145,22 @@ class SteamAccountManager:
                 "accounts": [{**a.to_dict(), "active": a.steam_id64 == active,
                               "owned_count": len(owned["accounts"].get(a.steam_id64, [])),
                               "installed_count": sum(1 for g in installed if g.owner_id64 == a.steam_id64),
+                              "private": a.steam_id64 in owned["private"],
                               "error": owned["errors"].get(a.steam_id64, "")} for a in accounts],
                 "libraries": [str(p.parent) for p in self.libraries() if p.is_dir()],
                 "installed_count": len(installed), "owned_count": len({g["app_id"] for v in owned["accounts"].values() for g in v}),
                 "owned_fetched_at": owned["fetched_at"], "settings": self.public_settings()}
 
     # -- the library connector ---------------------------------------------------------------------
-    def sync(self, linked, refresh: bool = False, exclude: set[int] = frozenset()) -> dict:
-        """Link every installed Steam game not in the library yet (and not in `exclude`); return them and the owned
-        ones not installed."""
+    def sync(self, linked, refresh: bool = False, exclude: set[int] = frozenset(), api_url: str = "") -> dict:
+        """Link every installed game of a remembered account not in the library yet (and not in `exclude`); return them
+        and the owned ones not installed (asked to the GameAccess server at `api_url`)."""
         if not self.root:
             return {"found": False, "linked": [], "owned": []}
-        table, names = self.table(refresh)
+        table, names = self.table(refresh, api_url=api_url)
         new = []
         for game in self.installed():
-            if game.app_id in exclude or not game.fully_installed or linked.get(game.app_id) or not Path(game.folder).is_dir():
+            if game.app_id not in table or game.app_id in exclude or not game.fully_installed or linked.get(game.app_id) or not Path(game.folder).is_dir():
                 continue
             linked.link(game.app_id, game.name, game.folder, "steam")
             new.append({"app_id": game.app_id, "name": game.name, **table.get(game.app_id, {})})

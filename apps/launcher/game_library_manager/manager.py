@@ -320,13 +320,13 @@ class GameLibraryManager:
                 results.append({"app_id": item.get("app_id"), "ok": False, "error": str(error)})
         return results
 
-    def steam_sync(self, refresh: bool = False) -> dict:
+    def steam_sync(self, refresh: bool = False, api_url: str = "") -> dict:
         """Link the installed Steam games that are not in the library (nor taken out of it by the user, nor already a
         Game Access game with the same AppID) and list the owned ones Steam can install."""
         if self.steam is None:
             return {"found": False, "linked": [], "owned": []}
         own = {split_folder_name(f.name)[0] for f in self.game_folders()}
-        result = self.steam.sync(self.storage.linked, refresh, exclude=own | self.storage.linked.hidden())
+        result = self.steam.sync(self.storage.linked, refresh, exclude=own | self.storage.linked.hidden(), api_url=api_url)
         result["owned"] = [item for item in result["owned"] if item["app_id"] not in own]
         return result
 

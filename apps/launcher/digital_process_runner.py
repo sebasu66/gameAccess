@@ -84,7 +84,7 @@ class DigitalProcessRunner:
                     if request.get("auto") and not steam.settings()["auto_import"]:
                         return {**result, "ok": True, "skipped": True, "linked": [], "owned": []}
                     library = GameLibraryManager(self.storage, steam=steam)
-                    return {**result, "ok": True, **library.steam_sync(bool(request.get("refresh")))}
+                    return {**result, "ok": True, **library.steam_sync(bool(request.get("refresh")), str(request.get("api") or ""))}
                 if action == "steam-install":
                     self.storage.linked.unhide(app_id)
                     return {**result, "ok": True, **steam.install(app_id)}
