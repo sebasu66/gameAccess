@@ -1,5 +1,5 @@
 import { getCatalogManifestUrl } from "../settings";
-import { queryCatalogCache, syncCatalogCache } from "../catalogCache";
+import { queryCatalogCache, syncCatalogCache, type CatalogCacheSyncResult } from "../catalogCache";
 import type { CatalogGame } from "../types";
 import { narrate } from "../narrationLog";
 import { invalidateCatalogMatchingCache } from "./PluginSources";
@@ -31,6 +31,14 @@ export function mergeDiscoveryCatalog(base: CatalogGame[], remote: CatalogGame[]
   return [...games.values()];
 }
 
+/** One log line saying what the catalog check did and how long it took. */
+export function catalogCheckLine(synced: CatalogCacheSyncResult): string {
+  const download = synced.downloaded === "patch" || synced.downloaded === "package"
+    ? `downloaded the ${synced.downloaded} (${((synced.downloaded_bytes ?? 0) / 1048576).toFixed(2)} MB)` : "downloaded nothing else";
+  return `Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}; `
+    + `manifest ${synced.manifest_ms ?? "?"} ms, ${download}, check took ${synced.total_ms ?? "?"} ms.`;
+}
+
 export async function loadDiscoveryCatalog(requireRemote: boolean, language?: string): Promise<DiscoveryCatalogSummary | null> {
   if (requireRemote) {
     // Only the small manifest GitHub publishes is read; the server is never asked (see catalog_cache.rs sync_blocking).
@@ -45,7 +53,7 @@ export async function loadDiscoveryCatalog(requireRemote: boolean, language?: st
             // Open grids and counters run their query again on the new data (see useCatalogQuery).
             if (typeof window !== "undefined") window.dispatchEvent(new Event("gameaccess:catalog-data-changed"));
           }
-          void narrate(`Discovery catalog ${synced.updated ? "updated" : "current"}: revision=${synced.revision}, games=${synced.catalog_count}.`, {area: "CATALOG"});
+          void narrate(catalogCheckLine(synced), {area: "CATALOG"});
           return synced;
         }
       } catch (error) {

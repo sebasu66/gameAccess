@@ -257,6 +257,13 @@ function normalizeIndexEntries(rawAdded: unknown, fallbackSourceName: string): S
 /** What a source sync is doing, for the central dialog: (detail, done, total). */
 export type SourcesProgress = (detail: string, done?: number, total?: number) => void;
 
+/** One log line saying what a plugin's source-index sync asked for, what it got and how long it took. */
+export function pluginSyncLine(name: string, sync: { since: string; revision: string; full: boolean; added: number; removed: number; fetchedMs: number; totalMs: number }): string {
+  const asked = sync.since ? `changes since revision ${sync.since}` : "the full index";
+  return `Provider '${name}' · source index: asked ${asked}, got ${sync.full ? "the full index" : "a delta"} → revision ${sync.revision} (+${sync.added} / -${sync.removed} entries); `
+    + `request ${sync.fetchedMs} ms, saving ${sync.totalMs - sync.fetchedMs} ms, total ${sync.totalMs} ms.`;
+}
+
 async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress = () => undefined): Promise<void> {
   const statuses = getPluginStatuses();
   const status = statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint);
@@ -265,8 +272,10 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
   const lastRev = getSavedPluginRevision(plugin.id);
   const currentHealthRev = status?.revision ?? "";
   if (currentHealthRev && syncedSessionRevisions.get(plugin.id) === currentHealthRev && lastRev === currentHealthRev) {
+    void narrate(`Provider '${plugin.name}' · source index already at revision ${lastRev}; nothing asked.`, { area: "DOWNLOAD_SOURCES" });
     return;
   }
+  const started = Date.now();
 
   const fetchIndex = async (since: string): Promise<PluginSourceIndexResponse> => {
     const query = since ? `?since=${encodeURIComponent(since)}` : "";
@@ -290,6 +299,7 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
   try {
     report(translate("pluginAsking", { name: plugin.name }));
     const payload = await fetchIndex(lastRev);
+    const fetchedMs = Date.now() - started;
 
     let full = Boolean(payload.full);
     let added = normalizeIndexEntries(payload.added, plugin.name);
@@ -334,6 +344,8 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
 
     setSavedPluginRevision(plugin.id, revision);
     syncedSessionRevisions.set(plugin.id, currentHealthRev || revision);
+    void narrate(pluginSyncLine(plugin.name, { since: lastRev, revision, full, added: added.length, removed: removed.length, fetchedMs, totalMs: Date.now() - started }),
+      { area: "DOWNLOAD_SOURCES" });
     if (full || added.length > 0 || removed.length > 0) {
       publish();
     }

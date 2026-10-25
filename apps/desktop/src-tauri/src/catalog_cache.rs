@@ -47,6 +47,12 @@ pub struct CatalogCacheSyncResult {
     pub updated: bool,
     pub revision: String,
     pub catalog_count: usize,
+    /// What the check downloaded besides the manifest: "nothing", "patch" or "package" (for the log).
+    pub downloaded: &'static str,
+    /// Compressed bytes of that download, the time the manifest took and the time of the whole check.
+    pub downloaded_bytes: u64,
+    pub manifest_ms: u64,
+    pub total_ms: u64,
 }
 
 fn cache_dir() -> Result<PathBuf, String> {
@@ -496,6 +502,8 @@ fn sync_blocking(manifest_url: String, progress: Progress) -> Result<CatalogCach
 /// Behind: one more request, the patch from the installed revision, or the whole package when the manifest has none.
 fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<CatalogCacheSyncResult, String> {
     let target = target.to_path_buf();
+    let started = std::time::Instant::now();
+    let elapsed = || started.elapsed().as_millis() as u64;
     validate_github_https_url(manifest_url)?;
     let client = Client::builder()
         .timeout(Duration::from_secs(45))
@@ -512,6 +520,7 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
         .map_err(|err| format!("Could not download catalog manifest: {err}"))?
         .json::<CatalogManifest>()
         .map_err(|err| format!("Invalid catalog manifest: {err}"))?;
+    let manifest_ms = elapsed();
 
     if manifest.schema_version != CACHE_SCHEMA_VERSION {
         return Err(format!(
@@ -528,7 +537,8 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
         // Same revision (or an older snapshot): the database is in sync; nothing is sent and nothing is downloaded.
         if *revision == manifest.revision || incoming_snapshot_older(&generated_at, &manifest.generated_at)
             || (manifest.generated_at.is_empty() && manifest.catalog_count < *count) {
-            return Ok(CatalogCacheSyncResult { updated: false, revision: revision.clone(), catalog_count: *count });
+            return Ok(CatalogCacheSyncResult { updated: false, revision: revision.clone(), catalog_count: *count,
+                downloaded: "nothing", downloaded_bytes: 0, manifest_ms, total_ms: elapsed() });
         }
     }
     // Behind: the patch from the installed revision when the manifest lists one (about 1 MB), else the whole package.
@@ -566,6 +576,7 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
     }
     progress("download", compressed.len() as u64, total.max(compressed.len() as u64));
 
+    let downloaded_bytes = compressed.len() as u64;
     let actual_sha = format!("{:x}", Sha256::digest(&compressed));
     if !actual_sha.eq_ignore_ascii_case(artifact_sha256.trim()) {
         return Err("Catalog cache SHA-256 verification failed".into());
@@ -585,7 +596,8 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
             return Err("Catalog update does not match the installed revision".into());
         }
         let count=apply_batch(&target,batch.games,batch.details,&manifest,progress)?;
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count,
+            downloaded:"patch",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
     let next = target.with_extension("sqlite.next");
     let backup = target.with_extension("sqlite.bak");
@@ -594,7 +606,8 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
     if target.exists() {
         let count = merge_baseline(&target,&next,&manifest,progress)?;
         let _=fs::remove_file(&next);
-        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count});
+        return Ok(CatalogCacheSyncResult{updated:true,revision:manifest.revision,catalog_count:count,
+            downloaded:"package",downloaded_bytes,manifest_ms,total_ms:elapsed()});
     }
 
     if backup.exists() {
@@ -621,6 +634,10 @@ fn sync_into(target: &Path, manifest_url: &str, progress: Progress) -> Result<Ca
         updated: true,
         revision: manifest.revision,
         catalog_count: manifest.catalog_count,
+        downloaded: "package",
+        downloaded_bytes,
+        manifest_ms,
+        total_ms: elapsed(),
     })
 }
 
@@ -1799,6 +1816,8 @@ mod tests {
             let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
             assert!(!result.updated);
             assert_eq!(result.catalog_count, 3);
+            assert_eq!((result.downloaded, result.downloaded_bytes), ("nothing", 0));
+            assert!(result.manifest_ms <= result.total_ms);
             assert_eq!(github.take(), vec![MANIFEST], "an up-to-date startup must make exactly one small request");
         }
         let _ = fs::remove_dir_all(target.parent().unwrap());
@@ -1814,6 +1833,8 @@ mod tests {
         assert!(result.updated);
         assert_eq!((result.revision.as_str(), result.catalog_count), ("r2", 3));
         assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-update-r1-r2.json.gz"], "the patch, never the whole package");
+        assert_eq!(result.downloaded, "patch");
+        assert_eq!(result.downloaded_bytes, github.files.lock().unwrap()["/catalog-update-r1-r2.json.gz"].len() as u64);
         assert_eq!(names(&target), ["Alpha renamed", "Beta", "Gamma"]);
         assert_eq!(current_cache_info(&target).unwrap().unwrap().0, "r2");
         // The next startup finds the catalog current: the manifest again and nothing else.
@@ -1831,6 +1852,7 @@ mod tests {
         let result = sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap();
         assert_eq!((result.updated, result.revision.as_str(), result.catalog_count), (true, "r2", 3));
         assert_eq!(github.take(), vec![MANIFEST, "GET /catalog-cache-r2.sqlite.gz"]);
+        assert_eq!(result.downloaded, "package");
         assert_eq!(names(&target), ["Alpha renamed", "Beta", "Gamma"]);
         assert!(!sync_into(&target, &github.url("/catalog-manifest.json"), &no_progress).unwrap().updated);
         assert_eq!(github.take(), vec![MANIFEST]);

@@ -10,6 +10,8 @@
  * nothing long runs hidden in the background.
  */
 
+import { narrate } from "../narrationLog";
+
 export type StepState = "pending" | "running" | "done" | "skipped" | "failed";
 
 export interface TaskStep {
@@ -47,6 +49,10 @@ export interface DialogState {
 }
 
 export const SHOW_AFTER_MS = 600;
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(2)} s`;
+/** Time since the window opened, so a task's lines say where in the startup they happened. */
+const sinceOpen = () => typeof performance === "undefined" ? "" : `, ${seconds(performance.now())} after the app opened`;
 
 type Listener = (state: DialogState) => void;
 
@@ -102,10 +108,22 @@ class CentralDialog {
     const ready = this.chain.then(() => {
       this.set({ task: { id: ++this.sequence, title, steps: steps.map(step => ({ ...step, state: "pending" })) }, taskVisible: false });
       this.showTimer = setTimeout(() => this.set({ taskVisible: true }), SHOW_AFTER_MS);
+      // Every task and step logs when it starts and how long it took, so a slow startup can be read from the log.
+      const began = Date.now();
+      const stepStarted = new Map<string, number>();
+      const name = (stepId: string) => `"${steps.find(step => step.id === stepId)?.label ?? stepId}" (${stepId})`;
+      void narrate(`Task "${title}" started: ${steps.map(step => step.id).join(", ")}${sinceOpen()}.`, { area: "TASK" });
       const handle: TaskHandle = {
-        start: (stepId, detail) => this.updateStep(stepId, { state: "running", detail, startedAt: Date.now(), done: undefined, total: undefined }),
+        start: (stepId, detail) => {
+          stepStarted.set(stepId, Date.now());
+          this.updateStep(stepId, { state: "running", detail, startedAt: Date.now(), done: undefined, total: undefined });
+        },
         progress: (stepId, done, total, detail, unit) => this.updateStep(stepId, { state: "running", done, total, unit, ...(detail !== undefined ? { detail } : {}) }),
-        finish: (stepId, state = "done", detail) => this.updateStep(stepId, { state, ...(detail !== undefined ? { detail } : {}) }),
+        finish: (stepId, state = "done", detail) => {
+          const took = Date.now() - (stepStarted.get(stepId) ?? began);
+          void narrate(`Step ${name(stepId)} ${state} in ${seconds(took)}${detail ? `: ${detail}` : ""}.`, { area: "TASK", level: state === "failed" ? "WARN" : "INFO" });
+          this.updateStep(stepId, { state, ...(detail !== undefined ? { detail } : {}) });
+        },
         fail: (message, canRetry = false) => new Promise<"continue" | "retry">(resolve => {
           if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
           this.acknowledge = resolve;
@@ -113,6 +131,7 @@ class CentralDialog {
           if (task) this.set({ task: { ...task, failure: message, canRetry }, taskVisible: true });
         }),
         end: () => {
+          void narrate(`Task "${title}" finished in ${seconds(Date.now() - began)}; the dialog was ${this.state.taskVisible ? "shown" : "not shown (under " + SHOW_AFTER_MS + " ms)"}${sinceOpen()}.`, { area: "TASK" });
           if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
           this.set({ task: null, taskVisible: false });
           release();

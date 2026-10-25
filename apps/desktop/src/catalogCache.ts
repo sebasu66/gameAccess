@@ -7,6 +7,11 @@ export interface CatalogCacheSyncResult {
   updated: boolean;
   revision: string;
   catalog_count: number;
+  /** What the check downloaded besides the manifest, its compressed size, and the times (for the log). */
+  downloaded?: "nothing" | "patch" | "package";
+  downloaded_bytes?: number;
+  manifest_ms?: number;
+  total_ms?: number;
 }
 
 const native = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

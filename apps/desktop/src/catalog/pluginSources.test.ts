@@ -11,6 +11,7 @@ import {
   unregisterPluginSources,
   getAllAvailableSourceNames,
   sourcePluginReady,
+  pluginSyncLine,
 } from "./PluginSources";
 import { pollPluginRuntime, resetPluginRuntime } from "./PluginRuntime";
 import { pluginDownloadLabel } from "../PluginDownloadButton";
@@ -24,6 +25,15 @@ beforeEach(() => {
   (globalThis as any).window = { __TAURI_INTERNALS__: {}, dispatchEvent: vi.fn() };
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.mocked(invoke).mockReset(); });
+describe("plugin source-index log", () => {
+  it("says what was asked, what came back and where the time went", () => {
+    expect(pluginSyncLine("Torrent Source Provider", { since: "r26", revision: "r27", full: false, added: 12, removed: 3, fetchedMs: 140, totalMs: 1770 }))
+      .toBe("Provider 'Torrent Source Provider' · source index: asked changes since revision r26, got a delta → revision r27 (+12 / -3 entries); request 140 ms, saving 1630 ms, total 1770 ms.");
+    expect(pluginSyncLine("P", { since: "", revision: "r1", full: true, added: 40000, removed: 0, fetchedMs: 5000, totalMs: 9000 }))
+      .toContain("asked the full index, got the full index");
+  });
+});
+
 describe("External plugin sources", () => {
   it("syncs /api/source-index once per revision and sends ?since= on subsequent revisions", async () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {

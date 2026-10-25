@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
+import { narrate } from "../narrationLog";
 import { CentralDialog, centralDialog, SHOW_AFTER_MS, type DialogState } from "./centralDialog";
 import { markAnnouncementsSeen, presentAnnouncements, unseenAnnouncements, loadAnnouncements, type AnnouncementEntry } from "./announcements";
 import { runAppUpdateTask } from "./updateTask";
@@ -30,6 +31,31 @@ describe("central dialog: tasks", () => {
     finish();
     await slow;
     expect(dialog.snapshot().task).toBeNull();
+  });
+
+  it("the log says how long each step and the whole task took, and whether the player saw the dialog", async () => {
+    vi.mocked(narrate).mockClear();
+    const dialog = new CentralDialog();
+    const task = dialog.runTask("Preparing", [
+      { id: "catalog-updates", label: "Catalog news", run: () => new Promise<void>(resolve => setTimeout(resolve, 1500)) },
+      { id: "plugin-sources", label: "Plugin sources", run: () => new Promise<"skipped">(resolve => setTimeout(() => resolve("skipped"), 250)) },
+      { id: "broken", label: "Broken", run: () => new Promise<void>((_, reject) => setTimeout(() => reject(new Error("offline")), 100)) },
+    ]);
+    await vi.advanceTimersByTimeAsync(1500 + 250 + 100);
+    dialog.answerFailure("continue");
+    await task;
+    const lines = vi.mocked(narrate).mock.calls.map(([message]) => message);
+    expect(lines[0]).toMatch(/^Task "Preparing" started: catalog-updates, plugin-sources, broken/);
+    expect(lines).toContain('Step "Catalog news" (catalog-updates) done in 1.50 s.');
+    expect(lines).toContain('Step "Plugin sources" (plugin-sources) skipped in 0.25 s.');
+    expect(lines).toContain('Step "Broken" (broken) failed in 0.10 s: offline.');
+    expect(lines.at(-1)).toMatch(/^Task "Preparing" finished in 1\.85 s; the dialog was shown/);
+  });
+
+  it("a quick task logs that the dialog was never shown", async () => {
+    vi.mocked(narrate).mockClear();
+    await new CentralDialog().runTask("Quick", [{ id: "a", label: "A", run: async () => undefined }]);
+    expect(vi.mocked(narrate).mock.calls.at(-1)?.[0]).toMatch(/^Task "Quick" finished in 0\.00 s; the dialog was not shown/);
   });
 
   it("a failed step does not stop the next ones and waits for the player before closing", async () => {
