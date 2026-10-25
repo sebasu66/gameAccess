@@ -90,6 +90,13 @@ language repair and user launch preferences. It applies the selected optional
 profile before Play. No extraction or Play request fetches provider data from the
 GameAccess server. Locally saved per-game profiles remain usable with the plugin off.
 
+To check the app without plugins, start it with --no-plugins (or the environment
+variable GAMEACCESS_NO_PLUGINS=1): no plugin is started, listed to the app or asked,
+including one still running from an earlier session. The log says "Plugins disabled
+(--no-plugins)" and "Plugin state changed: no source plugins"; the plugin startup step
+is skipped, and games show no download button. Everything else must work and log no
+errors.
+
 Downloads has an Add manual download form. A detail's three-dot source chooser
 also accepts a manual link. Only name/link are required; Steam identity, size,
 archive passwords and a JSON profile stay behind Advanced options. Manual profiles
