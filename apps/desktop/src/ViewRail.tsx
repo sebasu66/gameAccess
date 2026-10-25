@@ -8,7 +8,7 @@ export type RailView = "catalog" | "library";
 
 /**
  * The name of the current view, huge and vertical on the left edge (docs/GUI_DESIGN.md §4.16): CATALOGO in
- * orange or LIBRERIA in green, 110 % of the window height, smooth outline with a pixelated inside, fading
+ * orange or LIBRERIA in green, the longer one 110 % of the window height and both as thick, smooth outline with a pixelated inside, fading
  * toward the center. Changing view slides the old word up and the new one in from below.
  */
 export default function ViewRail({ view }: { view: RailView }) {
@@ -17,18 +17,19 @@ export default function ViewRail({ view }: { view: RailView }) {
   const shown = useRef<RailView>(view);
   const words: Record<RailView, string> = { catalog: t("railCatalog"), library: t("railLibrary") };
 
-  // Each word is sized so its length is 110 % of the window height; the rail reserves the width it takes.
+  // Both words use one size, so they are equally thick: the longer word (at the same size) is 110 % of the window
+  // height and the other is a little shorter. The rail reserves the width they take.
   useLayoutEffect(() => {
     const size = () => {
       const host = root.current;
       if (!host) return;
+      const words = [...host.querySelectorAll<HTMLElement>(".ga-rail-word")];
+      const longest = Math.max(1, ...words.map(word => { word.style.fontSize = "100px"; return word.offsetHeight; }));
       let width = 0;
-      host.querySelectorAll<HTMLElement>(".ga-rail-word").forEach(word => {
-        word.style.fontSize = "100px";
-        const length = word.offsetHeight || 1;
-        word.style.fontSize = `${100 * window.innerHeight * 1.1 / length}px`;
+      for (const word of words) {
+        word.style.fontSize = `${100 * window.innerHeight * 1.1 / longest}px`;
         width = Math.max(width, word.offsetWidth);
-      });
+      }
       document.documentElement.style.setProperty("--ga-rail", `${Math.round(width * .92)}px`);
       clearance();
       host.querySelectorAll<HTMLElement>(".ga-rail-word").forEach(word => gsap.set(word, { yPercent: -50, rotation: 180, y: word.dataset.view === shown.current ? 0 : window.innerHeight * 1.3 }));

@@ -65,6 +65,14 @@ html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px
 html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }
 html body .ga-footer-left .ga-access-pass-panel { left: 0; right: auto; }
 html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; }
+/* Catalog covers at rest are 20 % less saturated, so the grid reads calmer; the card under the pointer or selected
+   keeps its full colour (ambient.css clears the filter for those). */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { filter: saturate(.8); }
+/* The search field follows the window: about half its width, never narrower than 420 px nor wider than 870 px, and
+   lower and smaller text on small windows. */
+html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(420px, 45vw, 870px)); }
+html body .library-catalog-toolbar .global-search { height: clamp(52px, 4.4vw, 70px); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font-size: clamp(15px, 1.1vw, 17px); }
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }

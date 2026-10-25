@@ -121,11 +121,12 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - En la pantalla principal los comandos son cubos; dentro de diálogos y paneles los botones llevan texto (§4.2, §4.3).
 
 ### 4.15 Marca de instalado `play-mark`
-- Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en catálogo y librería.
+- Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
+- En reposo las portadas de las grillas (catálogo y librería) tienen 20 % menos de saturación; la tarjeta bajo el puntero o seleccionada se ve con todo su color.
 - Congelado jugable: copito celeste de 26 px arriba a la derecha. Congelado profundo: velo celeste esmerilado sobre la tarjeta apaisada.
 
 ### 4.16 Palabra lateral de la vista
-- A la izquierda de la zona principal, la palabra de la vista actual en vertical (de abajo hacia arriba), al 110 % del alto de la ventana. **Sin tilde**: `CATALOGO` / `LIBRERIA` (`CATALOG` / `LIBRARY`).
+- A la izquierda de la zona principal, la palabra de la vista actual en vertical (de abajo hacia arriba), la más larga al 110 % del alto de la ventana y las dos con el mismo tamaño de letra (igual de gruesas). **Sin tilde**: `CATALOGO` / `LIBRERIA` (`CATALOG` / `LIBRARY`).
 - Archivo Black; silueta lisa al 28 % y encima el interior pixelado (cuadraditos de 6 px con ranura de 2 px); las letras se desvanecen hacia el centro con una máscara. Catálogo en naranja, librería en verde (`--ga-success`). Se oculta debajo de 900 px.
 
 ### 4.17 Panel lateral `ga-side-panel`

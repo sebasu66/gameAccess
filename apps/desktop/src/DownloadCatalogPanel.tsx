@@ -12,6 +12,7 @@ import CatalogFilterToolbar from "./CatalogFilterToolbar";
 import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { gsap, motionOk, useGSAP } from "./motion/gsap";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
 import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
@@ -206,12 +207,31 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
   const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
-  const toggleManager = (open: boolean) => { setManagerOpen(open); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); };
+  // Grid and manager swap with a short slide: what is shown leaves (up toward the manager, down back to the grid),
+  // then the other one comes in from the opposite side. Without motion they swap at once.
+  const swapping = useRef(false);
+  const toggleManager = (open: boolean) => {
+    const grid = props.gridRef.current;
+    const swap = () => { swapping.current = false; setManagerOpen(open); grid?.scrollTo({ top: 0, behavior: "auto" }); };
+    const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
+    if (open === showManager || swapping.current) { if (!swapping.current) swap(); return; }
+    if (!leaving.length || !motionOk()) { swap(); return; }
+    swapping.current = true;
+    gsap.to(leaving, { opacity: 0, y: open ? -16 : 16, duration: .2, ease: "power2.in", overwrite: true, onComplete: swap });
+  };
+  const swapped = useRef(false);
+  useGSAP(() => {
+    // Not on the first render: only when the grid and the manager trade places.
+    if (!swapped.current) { swapped.current = true; return; }
+    const entering = [props.gridRef.current?.firstElementChild, showManager ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
+    if (!entering.length || !motionOk()) { gsap.set(entering, { clearProps: "opacity,transform" }); return; }
+    gsap.fromTo(entering, { opacity: 0, y: showManager ? 24 : -24 }, { opacity: 1, y: 0, duration: .5, ease: "expo.out", overwrite: true, clearProps: "opacity,transform" });
+  }, { dependencies: [showManager] });
   useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
   useEffect(() => {
     if (!showManager) return;
     // Esc goes back to the grid, unless one of the manager's own dialogs is open.
-    const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("[role=dialog], [role=alertdialog]")) { event.preventDefault(); setManagerOpen(false); } };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("[role=dialog], [role=alertdialog]")) { event.preventDefault(); toggleManager(false); } };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [showManager]);

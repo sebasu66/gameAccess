@@ -11,6 +11,7 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { downloadManager } from "./downloadManager";
 import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, type BentoKind } from "./bentoLayout";
+import { coverMin } from "./overviewSizing";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
@@ -74,7 +75,6 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
       {kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
-      {kind === "ready" ? <span className="ga-card-installed ga-bento-play" aria-hidden="true"><Play size={12} fill="currentColor" /></span> : null}
       {frozen && kind !== "deep" ? <span className="ga-bento-frost" title={t("bentoFrozen")} aria-hidden="true"><Snowflake size={15} /></span> : null}
       {kind === "deep" ? <span className="ga-bento-ice" aria-hidden="true"><Snowflake size={20} /><span>{t("bentoIce")}</span></span> : null}
       <span className="ga-bento-name"><span>{game.name}</span>{kind === "pending" ? <Download size={15} aria-hidden="true" /> : kind === "deep" ? <Snowflake size={15} aria-hidden="true" /> : null}</span>
@@ -152,7 +152,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     if (!host) return;
     const measure = () => {
       const width = host.clientWidth;
-      const cols = Math.max(1, Math.floor((width + COLUMN_GAP) / (180 + COLUMN_GAP)));
+      // The same rule as the catalog: smaller covers on small windows (180 px on big ones).
+      const cols = Math.max(1, Math.floor((width + COLUMN_GAP) / (coverMin(window.innerWidth, window.innerHeight, 180) + COLUMN_GAP)));
       const columnWidth = (width - COLUMN_GAP * (cols - 1)) / cols;
       setColumns(cols);
       setRowHeight(bentoRowHeight(columnWidth, ROW_GAP));
@@ -160,7 +161,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(host);
-    return () => observer?.disconnect();
+    // The cover size also follows the window's height, which the grid's own size does not report.
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
