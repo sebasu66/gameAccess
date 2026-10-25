@@ -54,6 +54,7 @@ accFull.csv
 
 # Local GameAccess build/test artifacts
 GameAccess-latest.exe
+build-tester-package.local.json
 GameAccess-latest.build.json
 GameAccess-ctrlf-test.exe
 apps/desktop/src-tauri/target-*/

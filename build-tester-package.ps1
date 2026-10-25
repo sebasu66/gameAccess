@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     # The download sources plugin's package: the zip it publishes for "install plugin" links, which mirrors
-    # %APPDATA%\GameAccess\plugins. A local path or an https URL; also read from GAMEACCESS_TESTER_PLUGIN.
+    # %APPDATA%\GameAccess\plugins. A local path or an https URL. Without it: GAMEACCESS_TESTER_PLUGIN, then
+    # "pluginPackage" in build-tester-package.local.json next to this script (not versioned).
     [string]$PluginPackage = $env:GAMEACCESS_TESTER_PLUGIN,
     # The package's SHA-256. Optional: for a URL, "<package URL>.sha256" next to it is tried; the package is not
     # used if it does not match.
@@ -12,19 +13,23 @@ param(
 )
 
 # Builds a package for testers: Game Access and the download sources plugin in one installer,
-# GameAccess-<version>+download-plugin.exe in this folder. Nothing changes in the app or its own installer:
-# this package first copies the plugin into the user's plugins folder (as the app's "install plugin" link does:
-# the user's own top-level .json settings are kept, a running plugin is stopped first), then runs the normal Game
-# Access installer. Uninstalling Game Access removes the plugin as usual.
-#   .\build-tester-package.ps1 -PluginPackage <zip path or URL> [-AppInstaller <GameAccess setup .exe>]
+# GameAccess-<version>+download-plugin-<plugin version>.exe in this folder. Nothing changes in the app or its own
+# installer: this package first copies the plugin into the user's plugins folder (as the app's "install plugin" link
+# does: the user's own top-level .json settings are kept, a running plugin is stopped first), then runs the normal
+# Game Access installer, built here from this checkout (Steam import included). Uninstalling Game Access removes the
+# plugin as usual.
+#   .\build-tester-package.ps1
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $makensis = Join-Path $env:LOCALAPPDATA 'tauri\NSIS\Bin\makensis.exe'
 if (-not (Test-Path -LiteralPath $makensis)) { throw "NSIS not found at $makensis (it comes with the Tauri build tools: run build-installer.ps1 once)." }
-if (-not $PluginPackage) { throw 'Say which plugin package to include: -PluginPackage <zip path or https URL> (or set GAMEACCESS_TESTER_PLUGIN).' }
+$localSettings = Join-Path $projectRoot 'build-tester-package.local.json'
+if (-not $PluginPackage -and (Test-Path -LiteralPath $localSettings)) {
+    $PluginPackage = (Get-Content -LiteralPath $localSettings -Raw | ConvertFrom-Json).pluginPackage
+}
+if (-not $PluginPackage) { throw "Say which plugin package to include: `"pluginPackage`" in $localSettings (zip path or https URL), GAMEACCESS_TESTER_PLUGIN or -PluginPackage." }
 
 $version = (Get-Content (Join-Path $projectRoot 'apps\desktop\src-tauri\tauri.conf.json') -Raw | ConvertFrom-Json).version
-$output = Join-Path $projectRoot "GameAccess-$version+download-plugin.exe"
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('gameaccess-tester-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $staging | Out-Null
 
@@ -34,15 +39,32 @@ try {
         & (Join-Path $projectRoot 'build-installer.ps1')
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "build-installer.ps1 failed (exit $LASTEXITCODE)." }
         $AppInstaller = Join-Path $projectRoot "GameAccess-Setup-$version.exe"
+        $steamImport = Join-Path $projectRoot 'apps\desktop\src-tauri\target\release\runtime\launcher\steam_account_manager\manager.py'
+        if (-not (Test-Path -LiteralPath $steamImport)) { throw "The built app has no Steam import ($steamImport is missing)." }
     }
     $AppInstaller = (Resolve-Path -LiteralPath $AppInstaller).Path
 
     # 2. The plugin package, checked against its SHA-256 when one is known.
     $zip = Join-Path $staging 'plugin.zip'
+    $pluginVersion = ''
     if ($PluginPackage -match '^https://') {
+        $ProgressPreference = 'SilentlyContinue'
+        # A release asset behind /releases/latest/download/ first redirects to .../download/v<version>/...
+        $probe = [System.Net.HttpWebRequest]::Create($PluginPackage)
+        $probe.Method = 'HEAD'
+        $probe.AllowAutoRedirect = $false
+        try { $answer = $probe.GetResponse(); $location = $answer.Headers['Location']; $answer.Close() } catch { $location = $null }
+        if ("$location $PluginPackage" -match '/download/v?([0-9][^/]*)/') { $pluginVersion = $Matches[1] }
         Invoke-WebRequest -Uri $PluginPackage -OutFile $zip -UseBasicParsing
         if (-not $PluginSha256) {
-            try { $PluginSha256 = ((Invoke-WebRequest -Uri "$PluginPackage.sha256" -UseBasicParsing).Content -split '\s+')[0] } catch { }
+            foreach ($shaUrl in @("$PluginPackage.sha256", ($PluginPackage -replace '\.zip$', '.sha256'))) {
+                try {
+                    $content = (Invoke-WebRequest -Uri $shaUrl -UseBasicParsing).Content
+                    if ($content -is [byte[]]) { $content = [System.Text.Encoding]::ASCII.GetString($content) }
+                    $PluginSha256 = ($content.Trim() -split '\s+')[0]
+                    break
+                } catch { }
+            }
         }
     } else {
         Copy-Item -LiteralPath (Resolve-Path -LiteralPath $PluginPackage).Path -Destination $zip
@@ -58,6 +80,7 @@ try {
     Expand-Archive -LiteralPath $zip -DestinationPath $plugins
     $folders = @(Get-ChildItem -LiteralPath $plugins -Directory)
     if (-not $folders) { throw 'The plugin package has no plugin folder: it is not a plugins-folder package.' }
+    $output = if ($pluginVersion) { Join-Path $projectRoot "GameAccess-$version+download-plugin-$pluginVersion.exe" } else { Join-Path $projectRoot "GameAccess-$version+download-plugin.exe" }
 
     # 3. The NSIS script: plugin folders replaced, top-level settings kept (as plugin_install.rs does), then the app.
     $q = { param($path) $path.Replace('"', '$\"') }
@@ -78,6 +101,11 @@ Unicode true
 Name "Game Access $version + download plugin"
 OutFile "$(& $q $output)"
 Icon "$(& $q $icon)"
+VIProductVersion "$version.0"
+VIAddVersionKey "ProductName" "Game Access + download plugin"
+VIAddVersionKey "ProductVersion" "$version$(if ($pluginVersion) { "+download-plugin-$pluginVersion" })"
+VIAddVersionKey "FileVersion" "$version"
+VIAddVersionKey "FileDescription" "Game Access $version + download plugin$(if ($pluginVersion) { " $pluginVersion" })"
 ; The user's own plugins folder (%APPDATA%): this part runs without elevation; the Game Access installer asks for it.
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
@@ -105,7 +133,7 @@ SectionEnd
     Write-Host "Tester package: $output"
     Write-Host "SHA-256:        $((Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash)"
     Write-Host "Game Access:    $AppInstaller"
-    Write-Host "Plugin:         $PluginPackage ($pluginCheck)"
+    Write-Host "Plugin:         $PluginPackage$(if ($pluginVersion) { " v$pluginVersion" }) ($pluginCheck)"
 } finally {
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
 }
