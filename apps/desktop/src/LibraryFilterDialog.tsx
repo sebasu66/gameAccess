@@ -16,6 +16,7 @@ import { queryCatalogCache } from "./catalogCache";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
+import { usePluginReady } from "./usePluginReady";
 import { useI18n, translate } from "./i18n";
 import { GaClose } from "./components/ga/Buttons";
 
@@ -166,6 +167,8 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     };
   }, [open]);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  // The download sources filter exists only with a source plugin installed and connected.
+  const pluginReady = usePluginReady() === true;
   const sourcesChosen = (draft.sources?.length ?? 0) + (draft.excludeSources?.length ?? 0) > 0;
   const clearPlayers = () => setDraft(current => ({ ...current,
     features: current.features.filter(item => item !== "single_player" && item !== "multiplayer" && !MULTIPLAYER_OPTION_KEYS.includes(item)) }));
@@ -184,7 +187,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
       <header>
         <h2 id="ga-filter-title">{t("uiFiltros")}</h2>
         <div className="ga-sx-corner">
-          <div className="ga-sx-chipwrap">
+          {pluginReady ? <div className="ga-sx-chipwrap">
             <span className={"ga-sx-cat" + (draft.features.includes("has_downloads") || sourcesChosen ? " is-on" : "") + (sourcesOpen ? " is-open" : "")}>
               <button type="button" className="ga-sx-cat-main" aria-pressed={draft.features.includes("has_downloads")}
                 title={t("uiPedirQueElJuego")} onClick={() => toggleFeature("has_downloads")}><Download size={14} aria-hidden="true" />{t("uiFuentesDeDescarga")}</button>
@@ -195,7 +198,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
               {sourceNames.length === 0 ? <p className="ga-sx-tip">{t("uiTodaviaNoImportasteFuentes")}</p>
                 : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
             </div> : null}
-          </div>
+          </div> : null}
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>

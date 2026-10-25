@@ -24,6 +24,8 @@ import { showNotice } from "./notice/notice";
 import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
 import { hideForBigPicture, labelOut, showAfterBigPicture } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
+import { usePluginReady } from "./usePluginReady";
+import { withoutSourceFilters } from "./librarySearch";
 import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle } from "./downloadLifecycle";
@@ -182,7 +184,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const genreNames = useCatalogGenreNames();
   // The parental policy wins over the player's filters in every view (catalog, library, favorites).
   const parentalPolicy = useParentalState().policy;
-  const visibleFilters = useMemo(() => applyParentalPolicy(searchFilters, parentalPolicy), [searchFilters, parentalPolicy]);
+  // Without a ready source plugin there are no download sources to filter by (librarySearch.withoutSourceFilters).
+  const pluginReady = usePluginReady();
+  const visibleFilters = useMemo(() => applyParentalPolicy(pluginReady === false ? withoutSourceFilters(searchFilters) : searchFilters, parentalPolicy), [searchFilters, parentalPolicy, pluginReady]);
   const catalogQuery = useCatalogQuery({
     ...catalogParamsFromFilters(activeQuery, visibleFilters, genreNames),
     sort_by: catalogSort,

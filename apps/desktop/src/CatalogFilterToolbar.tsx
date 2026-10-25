@@ -1,6 +1,8 @@
 import { ArrowUpDown, X } from "lucide-react";
 import FilledIcon from "./FilledIcon";
 import { activeFilterTags, setCriterionState, type FilterTagGroup } from "./LibraryFilterDialog";
+import { usePluginReady } from "./usePluginReady";
+import { withoutSourceFilters } from "./librarySearch";
 import { type LibrarySearchFilters } from "./librarySearch";
 import type { CatalogSort } from "./librarySections";
 import type { CatalogGame } from "./types";
@@ -27,7 +29,9 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   onOpenFilters: () => void;
 }) {
   const { t } = useI18n();
-  const active = activeFilterTags(filters);
+  // Source criteria count only while a source plugin is ready (they do not apply without one).
+  const pluginReady = usePluginReady();
+  const active = activeFilterTags(pluginReady === false ? withoutSourceFilters(filters) : filters);
   const clearCriterion = (group: FilterTagGroup, value: string) => {
     if (group === "rating") {
       onFiltersChange({ ...filters, minReviewScore: undefined });

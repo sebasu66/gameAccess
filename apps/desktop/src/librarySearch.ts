@@ -366,6 +366,16 @@ export function gameIsSoftware(game: CatalogGame): boolean {
 }
 
 /** True when no criterion, in either direction, is selected. */
+/**
+ * The filters without their download-source criteria (sources to include or leave out, "has downloads"). Used while
+ * no source plugin is ready: without one there are no sources to filter by, and a saved source filter would hide
+ * games for no visible reason. The saved filters keep them, so they apply again when the plugin is back.
+ */
+export function withoutSourceFilters(filters: LibrarySearchFilters): LibrarySearchFilters {
+  if (!filters.sources?.length && !filters.excludeSources?.length && !filters.features.includes("has_downloads")) return filters;
+  return { ...filters, sources: undefined, excludeSources: undefined, features: filters.features.filter(feature => feature !== "has_downloads") };
+}
+
 export function hasNoActiveFilters(filters: LibrarySearchFilters): boolean {
   const pairs: [unknown[] | undefined, unknown[] | undefined][] = [
     [filters.genres, filters.excludeGenres],
