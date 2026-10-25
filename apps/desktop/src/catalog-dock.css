@@ -65,9 +65,14 @@ html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px
 html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }
 html body .ga-footer-left .ga-access-pass-panel { left: 0; right: auto; }
 html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; }
-/* Catalog covers at rest are 20 % less saturated, so the grid reads calmer; the card under the pointer or selected
+/* Catalog covers at rest are clearly less saturated and a little darker, so the grid reads calmer; the card under the pointer or selected
    keeps its full colour (ambient.css clears the filter for those). */
-html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { filter: saturate(.8); }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { filter: saturate(.55) brightness(.9); }
+/* Space between covers follows the window (overviewSizing.coverGap, set on the grid as --ga-cover-gap). */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-grid .library-section-grid { column-gap: var(--ga-cover-gap, 24px); row-gap: calc(var(--ga-cover-gap, 24px) + 6px); }
+/* Room between the grid and the big words on either side (CATALOGO / LIBRERIA on the left, GAME / ACCESS on the
+   right), on top of what keeps the grid clear of the left word. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: calc(max(var(--ga-rail-clear, 0px), (100% - 1600px) / 2) + clamp(24px, 3.5vw, 72px)); }
 /* The search field follows the window: about half its width, never narrower than 420 px nor wider than 870 px, and
    lower and smaller text on small windows. */
 html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(420px, 45vw, 870px)); }

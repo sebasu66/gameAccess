@@ -297,7 +297,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, []);
 
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
-  const { coverFloor, coverColumns } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
+  const { coverFloor, coverColumns, coverGap } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
   setCoverCardWidth(coverFloor);
   const views: { id: LibraryView; label: string }[] = [
     { id: "catalog", label: t("tabCatalog") },
@@ -475,7 +475,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {/* Filters and sort sit above the grid, where people look for them. */}
       {showManager ? null : <div className="ga-grid-toolbar">{filters}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
-      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns } as CSSProperties}>
+      <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
             <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>

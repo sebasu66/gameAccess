@@ -122,7 +122,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.15 Marca de instalado `play-mark`
 - Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
-- En reposo las portadas de las grillas (catálogo y librería) tienen 20 % menos de saturación; la tarjeta bajo el puntero o seleccionada se ve con todo su color.
+- En reposo las portadas de las grillas (catálogo y librería) se ven apagadas (`saturate(.55) brightness(.9)`); la tarjeta bajo el puntero o seleccionada se ve con todo su color.
+- Las grillas muestran al menos 6 portadas por fila (mientras cada una tenga 110 px o más); la separación entre portadas sigue a la ventana (24–40 px) y hay aire entre la grilla y las palabras grandes de los costados.
 - Congelado jugable: copito celeste de 26 px arriba a la derecha. Congelado profundo: velo celeste esmerilado sobre la tarjeta apaisada.
 
 ### 4.16 Palabra lateral de la vista

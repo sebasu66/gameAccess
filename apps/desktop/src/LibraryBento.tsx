@@ -11,14 +11,13 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { downloadManager } from "./downloadManager";
 import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, type BentoKind } from "./bentoLayout";
-import { coverMin } from "./overviewSizing";
+import { coverGap, coverMin, coverTracks } from "./overviewSizing";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 import "./library-bento.css";
 
 // Row gaps leave room for the game name under each card.
-const COLUMN_GAP = 28;
 const ROW_GAP = 44;
 const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
 export type LibraryPill = "all" | "installed" | "favorites";
@@ -131,6 +130,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const grid = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(4);
   const [rowHeight, setRowHeight] = useState(84);
+  const [columnGap, setColumnGap] = useState(28);
 
   const cards = useMemo<Card[]>(() => {
     const entries = new Map(scan.games.map(entry => [entry.app_id, entry]));
@@ -153,9 +153,11 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     const measure = () => {
       const width = host.clientWidth;
       // The same rule as the catalog: smaller covers on small windows (180 px on big ones).
-      const cols = Math.max(1, Math.floor((width + COLUMN_GAP) / (coverMin(window.innerWidth, window.innerHeight, 180) + COLUMN_GAP)));
-      const columnWidth = (width - COLUMN_GAP * (cols - 1)) / cols;
+      const gap = coverGap(window.innerWidth) + 4;
+      const cols = coverTracks(width, gap, coverMin(window.innerWidth, window.innerHeight, 180));
+      const columnWidth = (width - gap * (cols - 1)) / cols;
       setColumns(cols);
+      setColumnGap(gap);
       setRowHeight(bentoRowHeight(columnWidth, ROW_GAP));
     };
     measure();
@@ -266,7 +268,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   return (
     <div className="ga-bento-wrap">
       {infoTarget ? createPortal(summary, infoTarget) : null}
-      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "0px" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
+      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, "--ga-bento-gap": `${columnGap}px`, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "0px" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
         {layout.sections.map(section => (
           <div key={`section-${section.kind}`} className="ga-bento-divider" data-collapsed={section.collapsed || undefined} style={{ gridColumn: "1 / -1", gridRow: section.row }}>
             <button type="button" aria-expanded={!section.collapsed} onClick={() => toggleGroup(section.kind)}>
