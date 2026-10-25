@@ -307,3 +307,13 @@ def test_no_steam_means_nothing_to_import(tmp_path, monkeypatch):
     assert steam.status()["found"] is False and steam.accounts() == []
     storage = DigitalGameStorage(tmp_path)
     assert GameLibraryManager(storage, steam=steam).steam_sync() == {"found": False, "linked": [], "owned": []}
+
+
+def test_steam_running_reads_tasklist_in_any_code_page(monkeypatch):
+    import subprocess
+    from steam_account_manager import switch
+    monkeypatch.setattr(switch.os, "name", "nt")
+    answers = iter([bytes([73, 78, 70, 79, 0xE0, 78]) + b": no hay tareas", b"steam.exe   1234 Console   1   90.000 KB"])
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, next(answers), b""))
+    assert switch.steam_running() is False
+    assert switch.steam_running() is True

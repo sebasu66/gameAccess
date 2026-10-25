@@ -40,9 +40,10 @@ def active_id64() -> str:
 def steam_running() -> bool:
     if os.name != "nt":
         return False
-    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"], capture_output=True, text=True,
-                         check=False, creationflags=_flags()).stdout
-    return "steam.exe" in out.lower()
+    # Bytes, not text: tasklist answers in the console code page ("INFORMACIÓN" in cp850), which is not UTF-8.
+    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"], capture_output=True,
+                         check=False, creationflags=_flags()).stdout or b""
+    return b"steam.exe" in out.lower()
 
 
 def set_auto_login(account_name: str) -> None:
