@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTasteProfile, gameTraits, tailorCatalog, tasteProgressText, tasteScore } from "./tasteProfile";
+import { buildTasteProfile, gameTraits, likeChance, tailorCatalog, tasteProgressText, tasteQuery, tasteScore } from "./tasteProfile";
 import type { CatalogGame } from "./types";
 
 const game = (id: number, tags: string[]) => ({ id, name: `G${id}`, tags }) as CatalogGame;
@@ -43,16 +43,49 @@ describe("taste profile", () => {
     expect(mixed.ready).toBe(false);
   });
 
-  it("sinks only what leans to the dislikes, fills the hole with a match for the likes, leaves neutral games", () => {
+  it("gives each game a chance of pleasing: neutral at 0.5, up with liked traits, down with disliked ones", () => {
     const profile = buildTasteProfile(ratings, known, {});
-    const list = [noMansSky, game(23, ["Anime", "Casual"]), gta, game(24, ["Indie", "RPG"])];
-    expect(tailorCatalog(list, ratings, profile).map(item => item.id)).toEqual([20, 24, 21, 23]);
+    expect(likeChance(profile, noMansSky, ratings)).toBe(0.5);
+    expect(likeChance(profile, game(24, ["Indie", "RPG"]), ratings)).toBeGreaterThan(0.8);
+    expect(likeChance(profile, game(23, ["Anime", "Casual"]), ratings)).toBeLessThan(0.2);
+    expect(likeChance(profile, disliked[0], ratings)).toBe(0);
+    expect(likeChance(buildTasteProfile({ 1: 1 }, known, {}), game(24, ["Indie", "RPG"]), {})).toBe(0.5);
   });
 
-  it("before it is ready, only the disliked games go down", () => {
+  it("keeps the screen when nothing is much more likely, and adds the top below it", () => {
+    const profile = buildTasteProfile(ratings, known, {});
+    const list = [noMansSky, gta, game(30, ["Strategy"]), game(31, ["Racing"])];
+    expect(tailorCatalog(list, ratings, profile, { screen: list.slice(0, 2) }).map(item => item.id)).toEqual([20, 21, 30, 31]);
+    const candidates = [game(24, ["Indie", "RPG"])];
+    // A strong candidate takes the first neutral place on screen; the neutral game moves to its rank, not to the end.
+    expect(tailorCatalog(list, ratings, profile, { screen: list.slice(0, 2), candidates }).map(item => item.id)).toEqual([24, 21, 20, 30, 31]);
+  });
+
+  it("orders below the screen: top, neutral in their usual order, leaning to dislikes, disliked last", () => {
+    const profile = buildTasteProfile(ratings, known, {});
+    const list = [game(23, ["Anime", "Casual"]), noMansSky, disliked[1], gta, game(24, ["Indie", "RPG"])];
+    expect(tailorCatalog(list, ratings, profile).map(item => item.id)).toEqual([24, 20, 21, 23, 5]);
+  });
+
+  it("before it is ready, only the disliked games go down (from the screen too)", () => {
     const few = { 21: -1 } as Record<number, 1 | -1>;
     const profile = buildTasteProfile(few, [], {});
-    const list = [noMansSky, gta, game(23, ["Anime"])];
-    expect(tailorCatalog(list, few, profile).map(item => item.id)).toEqual([20, 23, 21]);
+    const list = [noMansSky, gta, game(23, ["Anime"]), game(24, ["RPG"])];
+    // The disliked game's place on screen goes to the next game below it.
+    expect(tailorCatalog(list, few, profile, { screen: list.slice(0, 3) }).map(item => item.id)).toEqual([20, 24, 23, 21]);
+  });
+
+  it("asks the database for liked genres without the disliked ones, inside the player's own filters", () => {
+    const genreProfile = buildTasteProfile(ratings, [], {
+      1: ["genre:rpg", "genre:indie"], 2: ["genre:rpg"], 3: ["genre:rpg", "genre:indie"],
+      4: ["genre:casual"], 5: ["genre:casual", "genre:puzzle"], 6: ["genre:casual", "genre:puzzle"],
+    });
+    const base = { query: "dragon", sort_by: "steam-popularity", exclude_genres: ["Racing"] };
+    expect(tasteQuery(genreProfile, base, ["RPG", "Indie", "Casual", "Puzzle"])).toMatchObject({
+      query: "dragon", genres: ["RPG", "Indie"], exclude_genres: ["Racing", "Casual", "Puzzle"],
+    });
+    expect(tasteQuery(genreProfile, { genres: ["Indie"] }, ["RPG", "Indie"])?.genres).toEqual(["Indie"]);
+    expect(tasteQuery(genreProfile, { genres: ["Racing"] }, [])).toBeNull();
+    expect(tasteQuery(buildTasteProfile({}, [], {}), base, [])).toBeNull();
   });
 });

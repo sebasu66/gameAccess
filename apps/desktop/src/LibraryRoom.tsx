@@ -5,7 +5,7 @@ import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { useCatalogQuery } from "./useCatalogQuery";
-import { buildTasteProfile, rememberTasteGame, tailorCatalog } from "./tasteProfile";
+import { buildTasteProfile, rememberTasteGame, tailorCatalog, tasteQuery } from "./tasteProfile";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -77,6 +77,26 @@ interface LibraryRoomProps {
 
 
 const IDLE_SHOWCASE_ENABLED = false;
+
+/**
+ * How far the catalog screen goes: the position (in the last catalog order) of the last card visible now, or at least
+ * as many games as there are cards on screen. Read when the order is recomputed, before the new one is drawn.
+ */
+function catalogScreenEnd(last: CatalogGame[]): number {
+  if (typeof document === "undefined") return 0;
+  const index = new Map(last.map((game, position) => [String(game.id), position]));
+  if (!last.length) return 0;
+  let end = 0, onScreen = 0;
+  for (const card of document.querySelectorAll<HTMLElement>(".library-room [data-library-game-id]")) {
+    if (card.closest(".ga-detail-overlay")) continue;
+    const box = card.getBoundingClientRect();
+    if (!box.width || box.bottom <= 0 || box.top >= window.innerHeight) continue;
+    onScreen++;
+    const position = index.get(card.dataset.libraryGameId ?? "");
+    if (position !== undefined) end = Math.max(end, position + 1);
+  }
+  return Math.max(end, onScreen);
+}
 
 export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale, t } = useI18n();
@@ -188,13 +208,20 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   // Without a ready source plugin there are no download sources to filter by (librarySearch.withoutSourceFilters).
   const pluginReady = usePluginReady();
   const visibleFilters = useMemo(() => applyParentalPolicy(pluginReady === false ? withoutSourceFilters(searchFilters) : searchFilters, parentalPolicy), [searchFilters, parentalPolicy, pluginReady]);
-  const catalogQuery = useCatalogQuery({
+  const catalogBase = useMemo(() => ({
     ...catalogParamsFromFilters(activeQuery, visibleFilters, genreNames),
     sort_by: catalogSort,
-    sort_direction: catalogSort === "name" ? "asc" : "desc",
-    limit: 1000,
-    enabled: isCatalog,
-  });
+    sort_direction: catalogSort === "name" ? "asc" as const : "desc" as const,
+  }), [activeQuery, visibleFilters, genreNames, catalogSort]);
+  const catalogQuery = useCatalogQuery({ ...catalogBase, limit: 1000, enabled: isCatalog });
+  // The player's taste from the thumbs (tasteProfile.ts): a second query brings the games most likely to please,
+  // which the catalog order places where they rank.
+  const taste = useMemo(() => buildTasteProfile(preferences, games), [preferences, games]);
+  const tasteParams = useMemo(() => tasteQuery(taste, catalogBase, genreNames), [taste, catalogBase, genreNames]);
+  const tasteCandidates = useCatalogQuery({ ...(tasteParams ?? {}), enabled: isCatalog && nativeCatalog && tasteParams !== null });
+  // What the catalog showed last for this search, filters and sort: the games on screen keep their places when the
+  // order adapts. A new search starts over.
+  const lastCatalogRef = useRef<{ key: string; games: CatalogGame[] }>({ key: "", games: [] });
 
   const history = usePlayHistory();
   const members = useLibraryGames();
@@ -205,8 +232,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
     return state.installed || state.prepared;
   }, [effectiveDownloads]);
-  // The player's taste from the thumbs: the catalog adapts while browsing (tasteProfile.ts).
-  const taste = useMemo(() => buildTasteProfile(preferences, games), [preferences, games]);
   const catalogCollection = useMemo(() => {
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
@@ -215,7 +240,12 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
       // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
       const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
-      const items = downloadManager.pinGames(tailorCatalog(sourceItems, preferences, taste), effectiveDownloads, trackedAppIds);
+      const candidates = tasteParams && !memoryOnly ? tasteCandidates.items.filter(game => activeQuery || !isInstalledGame(game)) : [];
+      const key = JSON.stringify(catalogBase);
+      const last = lastCatalogRef.current.key === key ? lastCatalogRef.current.games : [];
+      const tailored = tailorCatalog(sourceItems, preferences, taste, { screen: last.slice(0, catalogScreenEnd(last)), candidates });
+      lastCatalogRef.current = { key, games: tailored };
+      const items = downloadManager.pinGames(tailored, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
         "steam-popularity": t("catalogTitlePopularity"),
@@ -247,7 +277,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;

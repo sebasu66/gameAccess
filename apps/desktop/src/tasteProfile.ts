@@ -16,6 +16,7 @@
  */
 import type { CatalogGame, SteamMetadata } from "./types";
 import type { TranslationKey, TranslationParams } from "./i18n";
+import type { CatalogQueryParams } from "./catalogCache";
 
 export const MIN_EACH = 3;
 /** Certainty needed before the order adapts (0..1). */
@@ -118,31 +119,82 @@ export function tasteScore(profile: TasteProfile, game: CatalogGame): number {
   return profile.traits.length ? scoreOf(profile.traits, new Set(gameTraits(game))) : 0;
 }
 
+/** Above this chance a game belongs to the player's top (it moves up in the scroll, after the screen). */
+export const LIKELY = 0.6;
+/** A game on screen gives its place only to one at least this likely... */
+export const STRONG = 0.7;
+/** ...and clearly more likely than itself. */
+const CLEAR_GAIN = 0.15;
+/** At or below this chance a game leans to the dislikes. */
+const UNLIKELY = 0.35;
+
 /**
- * The catalog order, tailored while browsing. Disliked games always go to the end. With a ready profile, games
- * that clearly lean to the dislikes go to the end too, and each place they leave is taken by the best match for the
- * likes from further down the list; neutral games stay where they were, so only the holes change.
+ * Chance (0..1) that the player likes a game: 0.5 is neutral (no clear pattern, or a profile not ready yet). It moves
+ * toward 1 or 0 with the game's traits, as far as the profile's certainty allows. Disliked games are 0; liked ones
+ * never fall below neutral.
  */
-export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: TasteProfile): CatalogGame[] {
-  const score = new Map<number, number>();
-  if (profile.ready) for (const game of games) score.set(game.id, tasteScore(profile, game));
-  const sinks = (game: CatalogGame) => ratings[game.id] === -1 || (score.get(game.id) ?? 0) <= -LEAN;
-  if (!games.some(sinks)) return games;
-  const picks = games.filter(game => !sinks(game) && ratings[game.id] !== 1 && (score.get(game.id) ?? 0) >= LEAN)
-    .sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
-  const placed = new Set<number>();
-  const out: CatalogGame[] = [];
-  let next = 0;
-  for (const game of games) {
-    if (sinks(game)) {
-      while (next < picks.length && placed.has(picks[next].id)) next++;
-      if (next < picks.length) { out.push(picks[next]); placed.add(picks[next].id); next++; }
-    } else if (!placed.has(game.id)) { out.push(game); placed.add(game.id); }
+export function likeChance(profile: TasteProfile, game: CatalogGame, ratings: Ratings): number {
+  if (ratings[game.id] === -1) return 0;
+  const chance = profile.ready ? 0.5 + 0.5 * profile.certainty * Math.tanh(tasteScore(profile, game)) : 0.5;
+  return ratings[game.id] === 1 ? Math.max(0.5, chance) : chance;
+}
+
+/**
+ * The second catalog query, for the player's top: the same search and filters as the screen, but only genres the
+ * player likes (within the player's own genre filter, if any) and none of the disliked ones. Null without a ready
+ * profile or without liked genres. `genreNames` gives the database spelling of each genre.
+ */
+export function tasteQuery(profile: TasteProfile, base: CatalogQueryParams, genreNames: readonly string[]): CatalogQueryParams | null {
+  if (!profile.ready) return null;
+  const spelling = new Map(genreNames.map(name => [name.trim().toLowerCase(), name]));
+  const genres = (weight: (value: number) => boolean) => [...new Set(profile.traits
+    .filter(trait => trait.key.startsWith("genre:") && weight(trait.weight))
+    .map(trait => spelling.get(trait.label) ?? trait.label))];
+  const liked = genres(value => value > 0), disliked = genres(value => value < 0);
+  if (!liked.length) return null;
+  const own = base.genres ?? [];
+  const wanted = own.length ? own.filter(name => liked.some(like => like.toLowerCase() === name.toLowerCase())) : liked;
+  if (!wanted.length) return null;
+  return { ...base, genres: wanted, exclude_genres: [...new Set([...(base.exclude_genres ?? []), ...disliked])], offset: 0, limit: 300 };
+}
+
+/**
+ * The catalog order, tailored while browsing.
+ * - `screen`, the games the player is looking at (in the order shown), keep their places. A disliked game, or one that
+ *   leans to the dislikes, gives its place to the best of the rest; a neutral one gives it only to a game much more
+ *   likely to please (STRONG and CLEAR_GAIN), and then moves to its rank below instead of to the end.
+ * - Below the screen: the player's top (LIKELY and up, most likely first), then the neutral games in their usual
+ *   order, then the ones that lean to the dislikes, and the disliked games last.
+ * `candidates` are extra games from the taste query; they join only where they rank.
+ */
+export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: TasteProfile, options: { screen?: CatalogGame[]; candidates?: CatalogGame[] } = {}): CatalogGame[] {
+  const ids = new Set(games.map(game => game.id));
+  const all = [...games, ...(options.candidates ?? []).filter(game => !ids.has(game.id) && (ids.add(game.id), true))];
+  const chance = new Map(all.map(game => [game.id, likeChance(profile, game, ratings)]));
+  const order = new Map(all.map((game, index) => [game.id, index]));
+  // Neutral games keep the usual order among themselves: only clear chances rank.
+  const rank = (game: CatalogGame) => { const value = chance.get(game.id)!; return value >= LIKELY || value <= UNLIKELY ? value : 0.5; };
+  const byRank = (a: CatalogGame, b: CatalogGame) => rank(b) - rank(a) || order.get(a.id)! - order.get(b.id)!;
+  const byId = new Map(all.map(game => [game.id, game]));
+  const screen = (options.screen ?? []).map(game => byId.get(game.id)).filter((game): game is CatalogGame => Boolean(game));
+  const onScreen = new Set(screen.map(game => game.id));
+  const pool = all.filter(game => !onScreen.has(game.id)).sort(byRank);
+  const insert = (game: CatalogGame) => {
+    const at = pool.findIndex(other => byRank(game, other) < 0);
+    pool.splice(at < 0 ? pool.length : at, 0, game);
+  };
+  const head: CatalogGame[] = [];
+  for (const game of screen) {
+    const own = chance.get(game.id)!;
+    const best = pool[0];
+    if (own <= UNLIKELY) {
+      if (best && chance.get(best.id)! > own) { head.push(pool.shift()!); insert(game); } else head.push(game);
+    } else if (own < LIKELY && best && chance.get(best.id)! >= STRONG && chance.get(best.id)! - own >= CLEAR_GAIN) {
+      head.push(pool.shift()!);
+      insert(game);
+    } else head.push(game);
   }
-  for (const game of games) if (!sinks(game) && !placed.has(game.id)) out.push(game);
-  // Then what only looks like the dislikes (the least alike first), and the disliked games themselves last.
-  const alike = games.filter(game => sinks(game) && ratings[game.id] !== -1).sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
-  return [...out, ...alike, ...games.filter(game => ratings[game.id] === -1)];
+  return [...head, ...pool];
 }
 
 type Translate = (key: TranslationKey, params?: TranslationParams) => string;
