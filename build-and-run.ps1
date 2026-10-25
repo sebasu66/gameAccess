@@ -118,11 +118,14 @@ try {
         Write-Host 'Client only: the local server is neither built nor started (use -Server for that).'
     }
 
-    Write-Host 'Closing this project app (Steam, games and download workers are not stopped)...'
+    Write-Host 'Closing Game Access (Steam, games and download workers are not stopped)...'
     $appPaths = @($outputExe, $sourceExe)
+    # Only one Game Access runs at a time: an installed copy (C:\gameAccess) left open would take the new build's
+    # place, and the build would seem to have none of its changes. It is closed too.
+    $appNames = @('gameaccess-desktop', 'GameAccess-latest')
     foreach ($appProcess in Get-Process) {
         try { $processPath = $appProcess.Path } catch { continue }
-        if (-not $processPath -or $processPath -notin $appPaths) { continue }
+        if (-not $processPath -or ($processPath -notin $appPaths -and $appProcess.ProcessName -notin $appNames)) { continue }
         Write-Host "Closing $processPath (PID $($appProcess.Id))"
         $null = $appProcess.CloseMainWindow()
         if (-not $appProcess.WaitForExit(5000)) {
