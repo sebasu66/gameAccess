@@ -1,10 +1,15 @@
 /**
- * What the player likes, learned from the thumbs (gameaccess:preferences: 1 likes, -1 dislikes). Each rated game is
- * described by its traits (genres, Steam tags, categories, developers); a trait counts as part of the player's taste
- * when it shows up clearly more in one side than in the other (in most liked games and few disliked ones, or the
- * reverse). Once there are at least MIN_EACH examples on each side and the clearest trait is certain enough, the
- * profile is ready: the catalog sinks games that look like the dislikes and fills the holes with ones that look like
- * the likes (tailorCatalog). Before that, only the disliked games themselves go down.
+ * What the player likes, learned from the thumbs (gameaccess:preferences: 1 likes, -1 dislikes; no rating = neutral).
+ * A game is a mix of traits (genres, Steam tags, categories, developers), and a like says only that something in it
+ * is liked, not that everything else is not. So the profile keeps only clear patterns:
+ * - a liked trait is in most liked games (at least two) and almost never in the disliked ones;
+ * - a disliked trait is in most disliked games (at least two) and almost never in the liked ones.
+ * Everything else says nothing. A game matching neither is neutral and keeps its place.
+ *
+ * Certainty is how well the profile predicts the player's own ratings: each rated game is judged by a profile built
+ * from the others (leave-one-out), and the share of hits is discounted while there are few examples. From 75 %, with
+ * at least MIN_EACH examples on each side, the catalog adapts (tailorCatalog). Before that, only the disliked games
+ * themselves go down.
  *
  * The traits of a rated game are kept with the rating (gameaccess:taste-traits), so the profile does not depend on
  * which games happen to be loaded.
@@ -14,9 +19,13 @@ import type { TranslationKey, TranslationParams } from "./i18n";
 
 export const MIN_EACH = 3;
 /** Certainty needed before the order adapts (0..1). */
-export const READY_CERTAINTY = 0.6;
-/** A trait must split the two sides at least this much (share in likes minus share in dislikes). */
-const SPLIT = 0.5;
+export const READY_CERTAINTY = 0.75;
+/** A trait is characteristic of a side when at least this share of its games has it... */
+const CHARACTERISTIC = 0.5;
+/** ...and at most this share of the other side's games. */
+const RARE = 0.2;
+/** A game leans to a side when its traits add up to at least this. */
+const LEAN = 0.5;
 const TRAITS_KEY = "gameaccess:taste-traits";
 const MAX_TAGS = 10;
 
@@ -25,10 +34,10 @@ export interface TasteTrait { key: string; label: string; weight: number }
 export interface TasteProfile {
   likes: number;
   dislikes: number;
-  /** 0..1: how clearly the best trait separates likes from dislikes, discounted while there are few examples. */
+  /** 0..1: how well the profile predicts the player's own ratings, discounted while there are few examples. */
   certainty: number;
   ready: boolean;
-  /** Traits of the taste, strongest first; positive weight = liked, negative = disliked. */
+  /** Clear traits, strongest first; positive weight = liked, negative = disliked. */
   traits: TasteTrait[];
 }
 
@@ -59,16 +68,7 @@ export function rememberTasteGame(game: (CatalogGame & { steam?: SteamMetadata |
   try { localStorage.setItem(TRAITS_KEY, JSON.stringify(saved)); } catch { /* the profile then uses loaded games */ }
 }
 
-/** Builds the profile from the ratings; traits come from the saved ones, else from `known` games. */
-export function buildTasteProfile(ratings: Ratings, known: CatalogGame[] = [], saved: Record<number, string[]> = loadTraits()): TasteProfile {
-  const byId = new Map(known.map(game => [game.id, game]));
-  const traitsOf = (id: number) => saved[id] ?? (byId.has(id) ? gameTraits(byId.get(id)!) : []);
-  const liked: string[][] = [], disliked: string[][] = [];
-  for (const [id, value] of Object.entries(ratings)) {
-    const traits = traitsOf(Number(id));
-    if (!traits.length) continue;
-    (value === 1 ? liked : value === -1 ? disliked : []).push(traits);
-  }
+function patterns(liked: string[][], disliked: string[][]): TasteTrait[] {
   const count = (side: string[][]) => {
     const counts = new Map<string, number>();
     for (const traits of side) for (const key of traits) counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -78,35 +78,57 @@ export function buildTasteProfile(ratings: Ratings, known: CatalogGame[] = [], s
   const traits: TasteTrait[] = [];
   for (const key of new Set([...likedCounts.keys(), ...dislikedCounts.keys()])) {
     const inLikes = likedCounts.get(key) ?? 0, inDislikes = dislikedCounts.get(key) ?? 0;
-    if (inLikes + inDislikes < 2) continue;
-    const weight = (liked.length ? inLikes / liked.length : 0) - (disliked.length ? inDislikes / disliked.length : 0);
-    if (Math.abs(weight) >= SPLIT) traits.push({ key, label: key.slice(key.indexOf(":") + 1), weight });
+    const likeShare = liked.length ? inLikes / liked.length : 0, dislikeShare = disliked.length ? inDislikes / disliked.length : 0;
+    const label = key.slice(key.indexOf(":") + 1);
+    if (inLikes >= 2 && likeShare >= CHARACTERISTIC && dislikeShare <= RARE) traits.push({ key, label, weight: likeShare - dislikeShare });
+    else if (inDislikes >= 2 && dislikeShare >= CHARACTERISTIC && likeShare <= RARE) traits.push({ key, label, weight: likeShare - dislikeShare });
   }
-  traits.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight) || a.key.localeCompare(b.key));
-  const fewest = Math.min(liked.length, disliked.length);
-  const certainty = traits.length ? Math.abs(traits[0].weight) * fewest / (fewest + 1) : 0;
-  const ready = liked.length >= MIN_EACH && disliked.length >= MIN_EACH && certainty >= READY_CERTAINTY;
-  return { likes: liked.length, dislikes: disliked.length, certainty, ready, traits };
+  return traits.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight) || a.key.localeCompare(b.key));
 }
 
-/** How much a game looks like the likes (> 0) or the dislikes (< 0). */
+const scoreOf = (traits: TasteTrait[], own: Set<string>) => traits.reduce((score, trait) => own.has(trait.key) ? score + trait.weight : score, 0);
+
+/** Builds the profile from the ratings; traits come from the saved ones, else from `known` games. */
+export function buildTasteProfile(ratings: Ratings, known: CatalogGame[] = [], saved: Record<number, string[]> = loadTraits()): TasteProfile {
+  const byId = new Map(known.map(game => [game.id, game]));
+  const traitsOf = (id: number) => saved[id] ?? (byId.has(id) ? gameTraits(byId.get(id)!) : []);
+  const rated: Array<{ value: 1 | -1; traits: string[] }> = [];
+  for (const [id, value] of Object.entries(ratings)) {
+    const traits = traitsOf(Number(id));
+    if (traits.length && (value === 1 || value === -1)) rated.push({ value, traits });
+  }
+  const side = (items: typeof rated, value: 1 | -1) => items.filter(item => item.value === value).map(item => item.traits);
+  const traits = patterns(side(rated, 1), side(rated, -1));
+  const likes = rated.filter(item => item.value === 1).length, dislikes = rated.length - likes;
+  let hits = 0;
+  if (likes && dislikes) {
+    rated.forEach((item, index) => {
+      const others = rated.filter((_, other) => other !== index);
+      const score = scoreOf(patterns(side(others, 1), side(others, -1)), new Set(item.traits));
+      if (item.value === 1 ? score >= LEAN : score <= -LEAN) hits++;
+    });
+  }
+  const certainty = rated.length ? hits / rated.length * rated.length / (rated.length + 2) : 0;
+  const ready = likes >= MIN_EACH && dislikes >= MIN_EACH && certainty >= READY_CERTAINTY;
+  return { likes, dislikes, certainty, ready, traits };
+}
+
+/** How much a game leans to the likes (> 0) or the dislikes (< 0); 0 when it matches no clear pattern. */
 export function tasteScore(profile: TasteProfile, game: CatalogGame): number {
-  if (!profile.traits.length) return 0;
-  const own = new Set(gameTraits(game));
-  return profile.traits.reduce((score, trait) => own.has(trait.key) ? score + trait.weight : score, 0);
+  return profile.traits.length ? scoreOf(profile.traits, new Set(gameTraits(game))) : 0;
 }
 
 /**
  * The catalog order, tailored while browsing. Disliked games always go to the end. With a ready profile, games
- * that look like the dislikes go to the end too, and each place they leave is taken by the best match for the likes
- * from further down the list, so the games on screen stay where they were and only the holes change.
+ * that clearly lean to the dislikes go to the end too, and each place they leave is taken by the best match for the
+ * likes from further down the list; neutral games stay where they were, so only the holes change.
  */
 export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: TasteProfile): CatalogGame[] {
   const score = new Map<number, number>();
   if (profile.ready) for (const game of games) score.set(game.id, tasteScore(profile, game));
-  const sinks = (game: CatalogGame) => ratings[game.id] === -1 || (score.get(game.id) ?? 0) < 0;
+  const sinks = (game: CatalogGame) => ratings[game.id] === -1 || (score.get(game.id) ?? 0) <= -LEAN;
   if (!games.some(sinks)) return games;
-  const picks = games.filter(game => !sinks(game) && ratings[game.id] !== 1 && (score.get(game.id) ?? 0) > 0)
+  const picks = games.filter(game => !sinks(game) && ratings[game.id] !== 1 && (score.get(game.id) ?? 0) >= LEAN)
     .sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0));
   const placed = new Set<number>();
   const out: CatalogGame[] = [];
@@ -125,15 +147,8 @@ export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: T
 
 type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
-/** What the player reads after a thumb: how far the profile is from adapting the list, or what it learned. */
-export function tasteProgressText(before: TasteProfile, after: TasteProfile, t: Translate): string {
-  if (!after.ready) {
-    if (after.likes < MIN_EACH || after.dislikes < MIN_EACH) return t("tasteNeedMore", { likes: Math.min(after.likes, MIN_EACH), dislikes: Math.min(after.dislikes, MIN_EACH), min: MIN_EACH });
-    return t("tasteUnclear");
-  }
-  if (before.ready) return t("tasteAdapting");
-  // The same word can be a genre and a tag: each label once.
-  const labels = (positive: boolean) => [...new Set(after.traits.filter(trait => (trait.weight > 0) === positive).map(trait => trait.label))].slice(0, 2);
-  const liked = labels(true), disliked = labels(false);
-  return liked.length ? t("tasteReadyLikes", { traits: liked.join(", ") }) : t("tasteReadyDislikes", { traits: disliked.join(", ") });
+/** After a thumb: how far the profile is built, and whether the results adapt yet. */
+export function tasteProgressText(profile: TasteProfile, t: Translate): string {
+  const percent = Math.round(profile.certainty * 100);
+  return profile.ready ? t("tasteReady", { percent }) : t("tasteProgress", { percent });
 }

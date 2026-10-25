@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buildTasteProfile, gameTraits, tailorCatalog, tasteProgressText, tasteScore } from "./tasteProfile";
 import type { CatalogGame } from "./types";
 
-const game = (id: number, genres: string[], tags: string[] = []) => ({ id, name: `G${id}`, genres, tags }) as CatalogGame;
+const game = (id: number, tags: string[]) => ({ id, name: `G${id}`, tags }) as CatalogGame;
 const t = (key: string, params?: Record<string, string | number>) => `${key}${params ? JSON.stringify(params) : ""}`;
 
-// Likes: roguelikes. Dislikes: sports.
-const liked = [game(1, ["Action"], ["Roguelike"]), game(2, ["Indie"], ["Roguelike"]), game(3, ["Action"], ["Roguelike", "Pixel Graphics"])];
-const disliked = [game(4, ["Sports"], ["Football"]), game(5, ["Sports"], ["Racing"]), game(6, ["Sports", "Action"], [])];
+// Likes: indie RPGs, co-op, a bit adult. Dislikes: anime, casual, puzzle.
+const liked = [game(1, ["RPG", "Indie", "Co-op"]), game(2, ["RPG", "Indie", "Mature"]), game(3, ["RPG", "Co-op", "Indie"])];
+const disliked = [game(4, ["Anime", "Casual"]), game(5, ["Puzzle", "Casual"]), game(6, ["Anime", "Puzzle", "Casual"])];
 const ratings = { 1: 1, 2: 1, 3: 1, 4: -1, 5: -1, 6: -1 } as Record<number, 1 | -1>;
+const known = [...liked, ...disliked];
+const noMansSky = game(20, ["Adventure", "Survival", "Open World"]);
+const gta = game(21, ["Action", "Open World", "Mature"]);
 
 describe("taste profile", () => {
   it("describes a game by genres, tags, categories and developers", () => {
@@ -16,35 +19,40 @@ describe("taste profile", () => {
       .toEqual(["genre:action", "tag:co-op", "category:single-player", "developer:valve"]);
   });
 
-  it("is not ready before three examples on each side", () => {
-    const profile = buildTasteProfile({ 1: 1, 2: 1, 4: -1 }, [...liked, ...disliked], {});
-    expect(profile.ready).toBe(false);
-    expect(tasteProgressText(profile, profile, t as never)).toContain("tasteNeedMore");
+  it("keeps only clear patterns: a like does not make every other trait disliked", () => {
+    const profile = buildTasteProfile(ratings, known, {});
+    const weight = (key: string) => profile.traits.find(trait => trait.key === key)?.weight;
+    expect(weight("tag:rpg")).toBe(1);
+    expect(weight("tag:casual")).toBe(-1);
+    expect(weight("tag:mature")).toBeUndefined(); // only one liked game has it
+    expect(tasteScore(profile, noMansSky)).toBe(0);
+    expect(tasteScore(profile, gta)).toBe(0);
+    expect(tasteScore(profile, game(22, ["Anime", "Casual"]))).toBeLessThan(0);
   });
 
-  it("finds what the likes and the dislikes have in common", () => {
-    const profile = buildTasteProfile(ratings, [...liked, ...disliked], {});
+  it("is certain enough only when the profile predicts the player's own ratings", () => {
+    const profile = buildTasteProfile(ratings, known, {});
+    expect(profile.certainty).toBe(0.75);
     expect(profile.ready).toBe(true);
-    expect(profile.certainty).toBeGreaterThanOrEqual(0.6);
-    expect(profile.traits.find(trait => trait.key === "tag:roguelike")?.weight).toBe(1);
-    expect(profile.traits.find(trait => trait.key === "genre:sports")?.weight).toBe(-1);
-    // "Action" is in two likes and one dislike: not part of the taste.
-    expect(profile.traits.some(trait => trait.key === "genre:action")).toBe(false);
-    expect(tasteScore(profile, game(9, ["Indie"], ["Roguelike"]))).toBeGreaterThan(0);
-    expect(tasteScore(profile, game(10, ["Sports"]))).toBeLessThan(0);
-    expect(tasteProgressText(buildTasteProfile({}, [], {}), profile, t as never)).toContain("tasteReadyLikes");
+    expect(tasteProgressText(profile, t as never)).toBe('tasteReady{"percent":75}');
+    const few = buildTasteProfile({ 1: 1, 2: 1, 4: -1, 5: -1 }, known, {});
+    expect(few.ready).toBe(false);
+    expect(tasteProgressText(few, t as never)).toContain("tasteProgress");
+    // Likes and dislikes with nothing in common among themselves: no pattern, no certainty.
+    const mixed = buildTasteProfile({ 1: 1, 4: 1, 20: 1, 2: -1, 5: -1, 21: -1 }, [...known, noMansSky, gta], {});
+    expect(mixed.ready).toBe(false);
   });
 
-  it("sinks what looks like the dislikes and fills the hole with a match for the likes", () => {
-    const profile = buildTasteProfile(ratings, [...liked, ...disliked], {});
-    const list = [game(20, ["Puzzle"]), game(21, ["Sports"]), game(22, ["Puzzle"]), game(23, ["Indie"], ["Roguelike"])];
-    expect(tailorCatalog(list, ratings, profile).map(item => item.id)).toEqual([20, 23, 22, 21]);
+  it("sinks only what leans to the dislikes, fills the hole with a match for the likes, leaves neutral games", () => {
+    const profile = buildTasteProfile(ratings, known, {});
+    const list = [noMansSky, game(23, ["Anime", "Casual"]), gta, game(24, ["Indie", "RPG"])];
+    expect(tailorCatalog(list, ratings, profile).map(item => item.id)).toEqual([20, 24, 21, 23]);
   });
 
   it("before it is ready, only the disliked games go down", () => {
     const few = { 21: -1 } as Record<number, 1 | -1>;
     const profile = buildTasteProfile(few, [], {});
-    const list = [game(20, ["Puzzle"]), game(21, ["Sports"]), game(22, ["Sports"])];
-    expect(tailorCatalog(list, few, profile).map(item => item.id)).toEqual([20, 22, 21]);
+    const list = [noMansSky, gta, game(23, ["Anime"])];
+    expect(tailorCatalog(list, few, profile).map(item => item.id)).toEqual([20, 23, 21]);
   });
 });
