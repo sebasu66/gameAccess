@@ -1,0 +1,4 @@
+{
+  "api_url": "",
+  "_help": "Published to the permanent Here.now resolver site. Set api_url to the current production backend HTTPS base URL after deployment. Game Access probes http://127.0.0.1:38147 first, so a running local development API always takes precedence."
+}

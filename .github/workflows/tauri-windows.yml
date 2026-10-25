@@ -32,5 +32,8 @@ jobs:
         run: npm run build
       - name: Prepare desktop icon
         run: npm run prepare-icons
+      - name: Prepare declared runtime resource directories
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path "src-tauri/runtime/launcher", "src-tauri/runtime/python" -Force | Out-Null
       - name: Check native host
         run: cargo check --manifest-path src-tauri/Cargo.toml

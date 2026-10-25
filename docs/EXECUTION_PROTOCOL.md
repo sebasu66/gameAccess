@@ -10,6 +10,21 @@ The purpose is to prevent guess-driven work, duplicated mechanisms, random exper
 
 A task is not ready for implementation until the relevant repository state, code paths, tool contracts, and external-library behavior have been inspected.
 
+## Local and remote development workflow
+
+GameAccess uses `dev` for development and `main` for stable releases. Work on the existing `dev` branch; do not create a branch or worktree for each task. Do not delete historical branches or move work into `main` without an explicit request.
+
+**Local agents with direct filesystem access work locally first.** Inspect the checkout and remote state, edit files directly in the existing checkout, build/run/test locally, then commit and push the verified changes on `dev`. AI_Local_Access / monigote is optional for local execution, not a prerequisite for editing.
+
+**GitHub-first applies only to remote agents without direct filesystem access.** Author changes on the existing GitHub `dev` branch, commit/push them, synchronize that commit through AI_Local_Access / monigote, then build/run/test on the user's working copy. Do not create a new branch for routine work or rewrite source through ad-hoc monigote payloads.
+
+For both workflows:
+
+- Preserve pre-existing user changes and private configuration. Never discard or overwrite them while synchronizing.
+- Inspect branch divergence before pulling or pushing; reconcile safely without force pushes.
+- Stage only files belonging to the task, not unrelated dirty or untracked files.
+- Report the exact tested commit and any subsequent untested changes. A build alone is not runtime or visual acceptance.
+
 ## Mandatory preflight
 
 Before making a non-trivial change or running an experiment:
@@ -85,7 +100,7 @@ When using `AI_Local_Access`:
 - Wait for and read the prior result before submitting the next dependent job.
 - Do not create duplicate worktrees/branches for routine work when the project policy specifies one active copy.
 - Prefer targeted commits; never use blind `git add -A` in a dirty project tree.
-- Keep project-specific logic in the project repository when practical. The monigote should usually perform `fetch/pull -> execute project script`, rather than embedding large project-specific scripts inside job JSON.
+- Follow the local or remote workflow above. Local agents edit and test directly; remote agents use monigote for synchronization/execution, never ad-hoc source rewriting. Both work on the existing `dev` branch.
 
 ## Research-first rule for provider and Steam work
 

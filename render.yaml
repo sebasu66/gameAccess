@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: gameaccess-api
+    runtime: python
+    plan: free
+    branch: main
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: GAMEACCESS_DATABASE_URL
+        sync: false
+      - key: GAMEACCESS_ADMIN_TOKEN
+        sync: false
+      - key: TORBOX_API_KEY
+        sync: false
+      - key: VIKING_USER_HASH
+        sync: false
+      - key: STEAM_WEB_API_KEY
+        sync: false
+      - key: VIKING_COOKIE
+        sync: false
+      - key: VIKING_REMEMBERME
+        sync: false
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: GAMEACCESS_CHUNK_MAX_JOBS
+        value: "1"
+      - key: GAMEACCESS_CHUNK_UPLOADS
+        value: "2"
+      - key: GAMEACCESS_CHUNK_WORK_DIR
+        value: /tmp/gameaccess-chunks

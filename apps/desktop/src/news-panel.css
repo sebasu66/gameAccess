@@ -1,0 +1,19 @@
+/* News panel (docs/TAREA-interfaz-nueva.md T13). */
+.ga-news { display: grid; gap: 24px; font-family: Manrope, sans-serif; color: #f4f4f2; }
+.ga-news-latest { padding: 16px 18px; border-radius: 10px; background: #ffffff08; border: 1px solid #ffffff14; }
+.ga-news-eyebrow { display: block; font: 800 10px Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
+.ga-news-latest h3 { margin: 6px 0 10px; font: 400 26px/1 "Bebas Neue", sans-serif; color: #ff6a00; }
+.ga-news-latest, .ga-news-older { font-size: 13px; line-height: 1.6; color: #c9ced2; }
+.ga-news-section { margin: 0 0 12px; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
+.ga-news-games { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ga-news-games li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.ga-news-cover { position: relative; display: block; width: 40px; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden; background: #1b2024; }
+.ga-news-cover img { width: 100%; height: 100%; object-fit: cover; }
+.ga-news-games b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ga-news-games span { font-size: 11px; color: #929ba2; }
+.ga-news-older { padding: 10px 0; border-top: 1px solid #ffffff14; }
+.ga-news-older summary { display: flex; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; color: #e4e7e9; }
+.ga-news-older summary span { font-size: 11px; color: #929ba2; }
+.ga-news-empty { margin: 0; color: #929ba2; font-size: 13px; }
+.ga-news-tip { margin: 0; padding: 10px 12px; border-left: 3px solid #ff6a00; border-radius: 0 8px 8px 0; background: #ffffff05; font-size: 12px; color: #929ba2; }
+.ga-news-tip b { color: #e4e7e9; }

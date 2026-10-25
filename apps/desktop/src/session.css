@@ -34,6 +34,13 @@
   box-shadow: 0 38px 110px rgba(0,0,0,.62);
 }
 
+.app-dialog-backdrop { z-index: 12001; }
+.app-dialog-card { width: min(540px, 94vw); min-height: 0; }
+.app-dialog-card .session-content { width: 100%; padding: 42px; }
+.app-dialog-card .session-content h2 { font-size: clamp(27px, 4vw, 40px); line-height: 1.04; }
+.app-dialog-card .session-content p { overflow-wrap: anywhere; }
+.app-dialog-actions { position: relative; z-index: 2; }
+
 .session-shade {
   position: absolute;
   inset: 0;
@@ -81,6 +88,12 @@
   color: #aeb7c5;
   line-height: 1.6;
   font-size: 14px;
+}
+
+.session-content p.steam-install-fallback-error {
+  margin-top: 12px;
+  color: #ffaaaa;
+  overflow-wrap: anywhere;
 }
 
 .session-log {

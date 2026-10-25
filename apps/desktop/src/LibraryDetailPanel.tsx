@@ -1,6 +1,24 @@
+import {Store} from "lucide-react";
+import { openSteamStore } from "./native";
+import { usePluginReady } from "./usePluginReady";
+import CooptimusDetails from "./CooptimusDetails";
+import PluginDownloadButton from "./PluginDownloadButton";
+import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
+
+
+import {translate, useI18n} from "./i18n";
+import CircularScrollbar from "./CircularScrollbar";
+import { useMagneticButtons } from "./motion/magnetic";
+import { scheduleSelectedMedia } from "./selectedMediaDelay";
+import { useSharedMediaAudio } from "./sharedMediaAudio";
+import { cachedLibraryCover } from "./libraryCoverResolver";
+import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
+import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Loader2, Pause, Play, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
+import { Globe, Image as ImageIcon, Loader2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
+import { hasTauriRuntime } from "./native";
+import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
 import {
   afterDetailImage,
@@ -12,12 +30,35 @@ import {
   type DetailMediaSequenceState,
 } from "./detailMediaSequence";
 import { downloadManager } from "./downloadManager";
+import { GenericDownloadProgressView } from "./GenericDownloadProgress";
+import { steamDownloadMetrics } from "./nativeDownloadMetrics";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 import { useSelectedGameDetails } from "./useSelectedGameDetails";
 
 const SCREENSHOT_HOLD_MS = 8_000;
+
+/** Steam approval as a bar that fills on mount and whenever the value changes. */
+function RatingBar({ score, count }: { score?: number | null; count?: number | null }) {
+  const { t, localeTag } = useI18n();
+  const target = typeof score === "number" && Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null;
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    setShown(0);
+    if (target === null) return;
+    const frame = requestAnimationFrame(() => setShown(target));
+    return () => cancelAnimationFrame(frame);
+  }, [target]);
+  const tone = target === null ? "none" : target >= 80 ? "great" : target >= 60 ? "mixed" : "bad";
+  return <div className="ga-detail-rating">
+    <strong>{target === null ? "—" : `${Math.round(target)}%`}</strong>
+    <div className="ga-rating-main">
+      <div className={`ga-rating-bar is-${tone}`} role="progressbar" aria-label={t("uiValoracionDeUsuariosEn")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={target === null ? undefined : Math.round(target)}><i style={{ width: `${shown}%` }} /></div>
+      <span>{t("steamReviewsLabel", { value: count ? t("steamReviewsCount", { count: count.toLocaleString(localeTag) }) : t("noScore") })}</span>
+    </div>
+  </div>;
+}
 
 function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
   return values.find((value) => value != null) ?? undefined;
@@ -29,11 +70,11 @@ function plainText(value?: string | null): string {
 
 function selectedMovie(details: GameDetails | null): SteamMovie | undefined {
   const movies = details?.steam?.movies;
-  return movies?.find((item) => item.highlight) ?? movies?.[0];
+  return selectSteamTrailer(movies);
 }
 
 function selectedVideo(movie?: SteamMovie): string | undefined {
-  return firstPresent(movie?.mp4, movie?.webm);
+  return steamTrailerSource(movie);
 }
 
 function fallbackArtwork(game: CatalogGame, details: GameDetails | null): string | undefined {
@@ -126,7 +167,7 @@ function useCrossfadeArtwork(source?: string) {
     };
     if (image.complete && image.naturalWidth) void reveal();
     else image.onload = () => { void reveal(); };
-    return () => { cancelled = true; image.onload = null; };
+    return () => { cancelled = true; image.onload = null; image.src = ""; };
   }, [source]);
 
   return { layers, activeLayer };
@@ -169,40 +210,52 @@ function actionClass(action: LibraryAction, selected: boolean): string {
   return `glass-action ${kind} ${selected ? "is-selected" : ""}`.trim();
 }
 
+function SteamStoreButton({ game, primary, className, buttonRef, onFocus }: { game: CatalogGame; primary?: boolean; className?: string; buttonRef?: (node: HTMLButtonElement | null) => void; onFocus?: () => void }) {
+  const { t } = useI18n();
+  const appId = game.app_id ?? 0;
+  if (!appId) return null;
+  return <button type="button" ref={buttonRef} onFocus={onFocus} data-action="steam" title={t("detailViewOnSteam")} aria-label={t("detailViewOnSteam")}
+    className={primary ? className : "source-options-toggle steam-store-small"} onClick={() => void openSteamStore(appId)}>
+    {primary ? <><span className="glass-action-icon"><Store size={23} /></span><span className="glass-action-label">{t("detailViewOnSteam")}</span></> : <Store size={20} />}
+  </button>;
+}
+
 function ActionButtons(props: FeaturePanelProps) {
-  return (
-    <div className="library-room-actions glass-actions-row">
-      {props.actions.map((action, index) => (
-        <button
-          type="button"
-          key={`${action.kind}-${action.label}`}
-          ref={(node) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
-          data-action={action.kind}
-          title={action.reason ?? undefined}
-          className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
-          onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
-          onClick={() => props.onAction(index)}
-          disabled={action.disabled}
-        >
-          <span className="glass-action-icon">{action.icon}</span>
-          <span className="glass-action-label">{action.label}</span>
-        </button>
-      ))}
-    </div>
-  );
+  const { t } = useI18n();
+  // The download plugin is optional and installed by hand: until it is installed and synced the detail never
+  // says "no download sources"; it offers Play (installed games) or the Steam store page.
+  const pluginReady = usePluginReady() === true;
+  return <div className="library-room-actions glass-actions-row">
+    {props.actions.map((action, index) => action.kind === "download" && !pluginReady
+      ? <SteamStoreButton key="steam" game={props.game} primary className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : action.kind === "download"
+      ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : <button type="button" key={action.kind}
+        ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
+        data-action={action.kind} title={action.reason ?? undefined}
+        className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
+        onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
+        onClick={() => props.onAction(index)} disabled={action.disabled}>
+        <span className="glass-action-icon">{action.icon}</span>
+        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
+      </button>)}
+  {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
+  </div>;
 }
 
 function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
+  const { t } = useI18n();
   return (
     <div className="library-room-preferences">
       <span>¿Te gusta?</span>
-      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label="Me gusta"><ThumbsUp size={18} /></button>
-      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label="No me gusta"><ThumbsDown size={18} /></button>
+      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label={t("uiMeGusta")}><ThumbsUp size={18} /></button>
+      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={18} /></button>
     </div>
   );
 }
 
 function LegacyDisplayMedia(props: LegacyMediaProps) {
+  const { t } = useI18n();
   const muted = props.videoMuted || props.videoVolume === 0;
   return (
     <>
@@ -213,7 +266,7 @@ function LegacyDisplayMedia(props: LegacyMediaProps) {
         {props.artwork.layers.map((source, index) => source ? <img key={`hero-${index}-${source}`} className={`library-room-hero-layer ${index === props.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} /> : null)}
         {props.videoSrc ? <video key={props.videoSrc} ref={props.videoRef} className={`library-room-video ${props.readyVideoSrc === props.videoSrc ? "is-ready" : ""}`} src={props.videoSrc} poster={props.movie?.thumbnail} autoPlay muted={props.videoMuted} playsInline preload="auto" onLoadedMetadata={(event) => props.onVideoMetadata(event.currentTarget)} onCanPlay={(event) => props.onVideoReady(event.currentTarget)} onEnded={(event) => props.onVideoMetadata(event.currentTarget)} /> : null}
         <div className="library-room-feature-shade" />
-        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label="Volumen del video" type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
+        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
       </div>
     </>
   );
@@ -255,16 +308,21 @@ interface MediaController {
 
 function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaController {
   const reducedMotion = useReducedMotion();
-  const movie = selectedMovie(details);
+  const [mediaReady, setMediaReady] = useState(false);
+  useEffect(() => scheduleSelectedMedia(() => setMediaReady(true)), []);
+  const movie = mediaReady ? selectedMovie(details) : undefined;
   const videoSrc = selectedVideo(movie);
-  const images = useMemo(() => screenshotImages(details), [details]);
-  const fallback = fallbackArtwork(game, details);
-  const [muted, setMuted] = useState(true);
-  const [volume, setVolume] = useState(0.68);
+  const images = useMemo(() => mediaReady ? screenshotImages(details) : [], [details, mediaReady]);
+  const cachedPoster = useMediaPoster(game.app_id);
+  const fallback = cachedPoster ?? (mediaReady && details ? fallbackArtwork(game, details) : cachedLibraryCover(game.app_id) ?? game.capsule_image ?? undefined);
+  const posterSource = images[0] ?? fallbackArtwork(game, details);
+  useEffect(() => mediaReady ? cacheMediaImage(game.app_id, posterSource) : undefined, [game.app_id, posterSource, mediaReady]);
+  const { muted, volume, setMuted, setVolume } = useSharedMediaAudio();
   const [paused, setPaused] = useState(reducedMotion);
   const [readyVideo, setReadyVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<DetailMediaSequenceState>(() => createDetailMediaSequence({ videoSrc, images, reducedMotion }));
+  useSteamTrailer(videoRef, videoSrc, state.phase === "video" && state.videoAvailable, game.app_id, () => setState((current) => disableDetailVideo(current)));
   const currentImage = state.phase === "image" ? (state.images[state.imageIndex] ?? fallback) : fallback;
   const artwork = useCrossfadeArtwork(currentImage);
   useEffect(() => {
@@ -294,8 +352,8 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
     video.volume = volume;
     video.muted = muted;
     if (paused || state.phase !== "video") video.pause();
-    else void video.play().catch(() => setState((current) => disableDetailVideo(current)));
-  }, [paused, state.phase, volume, muted]);
+    else if (readyVideo) void video.play().catch(() => setPaused(true));
+  }, [paused, state.phase, volume, muted, readyVideo]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -312,6 +370,7 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
 }
 
 function MediaControls({ model }: { model: MediaController }) {
+  const { t } = useI18n();
   const toggle = () => {
     if (model.paused && model.reducedMotion && model.videoSrc) model.setState((current) => ({ ...current, phase: "video", videoAvailable: true }));
     model.setPaused((current) => !current);
@@ -319,92 +378,204 @@ function MediaControls({ model }: { model: MediaController }) {
   return (
     <div className="library-room-media-controls">
       <button type="button" onClick={toggle} aria-label={model.paused ? "Reanudar medios" : "Pausar medios"}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
-      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label="Volumen del video" type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
+      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
     </div>
   );
 }
 
 function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const { t } = useI18n();
   const model = useDesktopMedia(game, details);
   return (
     <div className="library-detail-media">
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
       <div className="library-room-feature-media">
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
-        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} src={model.videoSrc} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
+        {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
+        {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label={t("uiReproducirTrailer")} onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
+        <span className="ga-media-badge">{t("uiTrailerYCapturas")}</span>
+        <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? "Tráiler del juego" : "Capturas del juego"}</span>
         <MediaControls model={model} />
       </div>
+      <div className="ga-media-thumbnails">{model.state.images.slice(0, 4).map((source, index) => <button type="button" key={source} aria-label={`Ver captura ${index + 1}`} aria-pressed={model.state.phase === "image" && model.state.imageIndex === index} onClick={() => { model.setPaused(true); model.setState(current => ({ ...current, phase: "image", imageIndex: index })); }}><img src={source} alt="" /></button>)}</div>
+      <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{model.state.images.length} capturas</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>
     </div>
   );
 }
 
+function SteamHeaderArtwork({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const appId = game.app_id;
+  const sources = [...new Set([
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg` : undefined,
+    details?.steam?.hero_image,
+    game.hero_image,
+    details?.steam?.header_image,
+    game.header_image,
+    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : undefined,
+    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : undefined,
+    game.hero_image,
+    game.capsule_image,
+  ].filter((source): source is string => typeof source === "string" && Boolean(source.trim())).map(source => source.trim()))];
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const source = sources[sourceIndex];
+
+  // Reset failed-source state when fresh metadata or a different game arrives.
+  useEffect(() => setSourceIndex(0), [game.id, details?.steam?.hero_image]);
+  return <div className="library-detail-header-art" aria-hidden="true">
+    {source ? <img src={source} alt="" draggable={false} onError={() => setSourceIndex(index => index + 1)} /> : null}
+  </div>;
+}
+
+/** Only single-player / multiplayer capabilities belong in the detail view. */
+function DetailPlayModes({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+  const { t } = useI18n();
+  const categories = details?.steam?.categories ?? game.categories ?? [];
+  const normalized = categories.map(normalizeSearchText);
+  const evidence = { ...game, categories };
+  const has = (key: LibraryFeatureKey, expressions: string[]) => gameMatchesLibraryFeature(evidence, key)
+    || normalized.some(value => expressions.some(expression => value.includes(expression)));
+  const modes = [
+    { key: "single_player", label: t("modeSingle"), Icon: User, visible: has("single_player", ["un jugador", "single-player", "single player"]) },
+    { key: "local_coop", label: t("modeCoopLocal"), Icon: Monitor, visible: has("local_coop", ["cooperativo local", "local co-op", "cooperativo de pantalla", "shared/split screen co-op"]) },
+    { key: "coop_lan", label: t("modeCoopLan"), Icon: Network, visible: has("coop_lan", ["lan co-op", "cooperativo lan"]) },
+    { key: "online_coop", label: t("modeCoopOnline"), Icon: Users, visible: has("online_coop", ["cooperativo en linea", "online co-op"]) },
+    { key: "local_multiplayer", label: t("modeMultiLocal"), Icon: Monitor, visible: has("local_multiplayer", ["jcj de pantalla", "shared/split screen pvp"]) },
+    { key: "multiplayer_lan", label: t("modeMultiLan"), Icon: Network, visible: has("multiplayer_lan", ["lan pvp"]) },
+    { key: "online_multiplayer", label: t("modeMultiOnline"), Icon: Users, visible: has("online_multiplayer", []) },
+    { key: "mmo", label: "MMO", Icon: Globe, visible: has("mmo", ["multijugador masivo", "mmo", "massively multiplayer"]) },
+  ];
+  // General Steam flags are useful when the source has no local/online subtype.
+  if (!modes.some(mode => mode.key.includes("coop") && mode.visible) && has("coop", ["cooperativo", "co-op"])) modes.push({ key: "coop", label: t("modeCoop"), Icon: Users, visible: true });
+  if (!modes.some(mode => mode.key.includes("multiplayer") && mode.visible) && has("multiplayer", ["multijugador", "multi-player"])) modes.push({ key: "multiplayer", label: t("modeMulti"), Icon: Users, visible: true });
+  return <div className="ga-detail-modes">{modes.filter(mode => mode.visible).map(({ key, label, Icon }) => <span key={key}><Icon aria-hidden="true" />{label}</span>)}</div>;
+}
+
 function platforms(details: GameDetails | null): string {
   const steam = details?.steam;
-  if (!steam) return "No informado";
-  return [steam.windows ? "Windows" : null, steam.mac ? "macOS" : null, steam.linux ? "Linux" : null].filter(Boolean).join(" · ") || "No informado";
+  if (!steam) return translate("notReported");
+  return [steam.windows ? "Windows" : null, steam.mac ? "macOS" : null, steam.linux ? "Linux" : null].filter(Boolean).join(" · ") || translate("notReported");
 }
 
 function compactValue(values?: string[], limit = 3): string {
-  if (!values?.length) return "No informado";
-  return values.length > limit ? `${values.slice(0, limit).join(" · ")} · +${values.length - limit}` : values.join(" · ");
+  if (!values?.length) return translate("notReported");
+  return values.length > limit ? values.join(" · ") : values.join(" · ");
 }
 
-function SteamFacts({ details }: { details: GameDetails | null }) {
+function useInstallSize(appId: number | null): string {
+  const { t, localeTag } = useI18n();
+  const [size, setSize] = useState(t("notReported"));
+  useEffect(() => {
+    if (!appId) {
+      setSize(t("notReported"));
+      return;
+    }
+    let active = true;
+    setSize(t("sizeChecking"));
+    void steamDownloadMetrics(appId).then(metrics => {
+      if (!active) return;
+      const installedBytes = metrics.installed_size_bytes;
+      const estimatedBytes = metrics.estimated_install_size_bytes;
+      const bytes = installedBytes ?? estimatedBytes;
+      if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes <= 0) {
+        setSize(t("notReported"));
+        return;
+      }
+      const amount = new Intl.NumberFormat(localeTag, { maximumFractionDigits: 1 }).format(bytes / 1_000_000_000);
+      setSize(`${installedBytes != null ? "" : "≈ "}${amount} GB${installedBytes != null ? "" : t("sizeEstimated")}`);
+    });
+    return () => { active = false; };
+  }, [appId, t, localeTag]);
+  return size;
+}
+
+function SteamFacts({ details, game }: { details: GameDetails | null; game: CatalogGame }) {
+  const { t, localeTag } = useI18n();
   const steam = details?.steam;
+  game = details ?? game;
+  const installSize = useInstallSize(game.app_id);
+  const rating = typeof game.steam_review_score === "number"
+    ? t("scoreWithReviews", { score: Math.round(game.steam_review_score), count: game.steam_review_count ? new Intl.NumberFormat(localeTag).format(game.steam_review_count) : "0" })
+    : t("noScore");
+  const recommendations = steam?.recommendation_count ?? game.recommendation_count;
   const facts = [
-    ["Género", compactValue(steam?.genres)],
-    ["Funciones Steam", compactValue(steam?.categories, 4)],
-    ["Desarrollador", compactValue(steam?.developers, 2)],
-    ["Publisher", compactValue(steam?.publishers, 2)],
-    ["Lanzamiento", steam?.release_date || "No informado"],
-    ["Plataformas", platforms(details)],
+    [t("factSize"), installSize],
+    [t("factGenre"), compactValue(steam?.genres)],
+    [t("factUserRating"), rating],
+    [t("factRecommendations"), typeof recommendations === "number" ? new Intl.NumberFormat(localeTag).format(recommendations) : t("notReported")],
+    [t("factLanguages"), plainText(steam?.supported_languages) || t("notReported")],
+    [t("factDeveloper"), compactValue(steam?.developers, 2)],
+    [t("factPublisher"), compactValue(steam?.publishers, 2)],
+    [t("factRelease"), steam?.release_date || t("notReported")],
+    [t("factPlatforms"), platforms(details)],
+    [t("factSteamCategories"), compactValue(steam?.categories ?? game.categories)],
+    [t("factAchievements"), steam?.achievement_count != null ? String(steam.achievement_count) : t("notReported")],
+    ["Metacritic", steam?.metacritic?.score != null ? String(steam.metacritic.score) + "/100" : t("notReported")],
+    [t("factSteamPrice"), steam?.is_free ? t("factFree") : steam?.price?.final_formatted ?? t("notReported")],
   ];
   return <dl className="library-room-game-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 
 function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus }) {
-  if (!downloadManager.isTracked(download)) return null;
-  const rows = [
-    download?.bytes_total != null ? ["Tamaño", downloadManager.formatBytes(download.bytes_total)] : null,
-    download?.bytes_downloaded != null ? ["Descargado", downloadManager.formatBytes(download.bytes_downloaded)] : null,
-    download?.speed_bps != null ? ["Velocidad", downloadManager.formatSpeed(download.speed_bps)] : null,
-    download?.eta_seconds != null ? ["Tiempo restante", downloadManager.formatEta(download.eta_seconds)] : null,
-  ].filter((row): row is string[] => Boolean(row));
-  const progress = downloadManager.progress(download);
-  return <div className="library-room-active-download">{rows.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}{Number.isFinite(progress) ? <div className="library-room-progress-inline"><span style={{ width: `${progress}%` }} /><strong>{Math.round(progress)}%</strong></div> : null}</div>;
+  if (!download || (!downloadManager.isTracked(download) && !download.progress && !download.statusText)) return null;
+  return <GenericDownloadProgressView download={download} />;
 }
 
 function ExtendedDetails({ details }: { details: GameDetails | null }) {
+  const { t } = useI18n();
   const steam = details?.steam;
-  const about = steam?.about_the_game ?? "";
+  const about = steam?.about_the_game || steam?.detailed_description || "";
   const minimum = steam?.minimum_requirements ?? "";
   const recommended = steam?.recommended_requirements ?? "";
   return (
     <div className="library-detail-extended">
-      {about ? <section className="library-room-copy-block"><h3>Acerca del juego</h3><SteamRichText html={about} /></section> : null}
-      {steam?.categories?.length ? <section className="library-room-copy-block"><h3>Funciones de Steam</h3><p>{steam.categories.join(" · ")}</p></section> : null}
-      {minimum || recommended ? <section className="library-room-requirements-block">{minimum ? <div><h3>Requisitos mínimos</h3><SteamRichText html={minimum} /></div> : null}{recommended ? <div><h3>Requisitos recomendados</h3><SteamRichText html={recommended} /></div> : null}</section> : null}
-      {steam?.screenshots?.length ? <section className="library-room-gallery-block"><h3>Capturas</h3><div className="library-room-screenshots">{steam.screenshots.slice(0, 8).map((shot, index) => shot.full || shot.thumbnail ? <img key={shot.id ?? index} src={shot.full ?? shot.thumbnail} alt="" loading="lazy" /> : null)}</div></section> : null}
+      {about ? <section className="library-room-copy-block"><h3>{t("uiAcercaDelJuego")}</h3><SteamRichText html={about} /></section> : null}
+      {minimum || recommended ? <section className="library-room-requirements-block">{minimum ? <div><h3>{t("uiRequisitosMinimos")}</h3><SteamRichText html={minimum} /></div> : null}{recommended ? <div><h3>{t("uiRequisitosRecomendados")}</h3><SteamRichText html={recommended} /></div> : null}</section> : null}
+
     </div>
   );
 }
 
 function DesktopFeature(props: FeaturePanelProps) {
-  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true });
+  const { t } = useI18n();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  useMagneticButtons(actionsRef);
+  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
+  const ratingGame = details ?? props.game;
   const description = plainText(details?.steam?.short_description);
-  const summary = description || (detailState.loading ? "Cargando descripción de Steam…" : "Descripción no disponible");
+  const summary = description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"));
+  const installSize = useInstallSize(props.game.app_id);
+  const steam = details?.steam;
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "tablet") {
+    return <aside className="library-room-feature"><SteamHeaderArtwork game={props.game} details={details} /><section className="library-detail-essential" aria-label={t("uiResumenEsencialDelJuego")}><DesktopDetailMedia game={props.game} details={details} /><section className="library-room-first-row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p></header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section><section className="library-room-second-row"><SteamFacts details={details} game={props.game} /><ActiveDownloadFacts download={props.download} /></section></section><ExtendedDetails details={details} /></aside>;
+  }
   return (
-    <aside className="library-room-feature">
-      <section className="library-detail-essential" aria-label="Resumen esencial del juego">
-        <DesktopDetailMedia game={props.game} details={details} />
-        <div className="library-detail-essential-overlay" />
-        <section className="library-room-first-row" aria-label="First row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p>{detailState.loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando ficha de Steam…</span> : null}{!detailState.loading && detailState.error ? <span className="library-room-loading">Steam no respondió; podés seguir navegando.</span> : null}</header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section>
-        <section className="library-room-second-row" aria-label="Second row"><SteamFacts details={details} /><div className="library-room-gameaccess-fact"><span>Copias GameAccess</span><strong>{props.game.copies_available} / {props.game.copies_total} disponibles</strong></div><ActiveDownloadFacts download={props.download} /></section>
-      </section>
-      <ExtendedDetails details={details} />
-    </aside>
+    <article className="ga-game-detail">
+      <SteamHeaderArtwork game={props.game} details={details} />
+      <div className="ga-detail-body">
+        <section className="ga-detail-info" aria-label={t("uiInformacionDelJuego")}>
+          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{(steam?.genres ?? props.game.genres)?.join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
+          <h1>{props.game.name}</h1>
+          <div className="ga-detail-facts"><span>{steam?.release_date ?? props.game.release_date ?? "Lanzamiento no informado"}</span><span>{installSize}</span><span>{platforms(details)}</span></div>
+          <DetailPlayModes game={props.game} details={details} />
+          <div className="ga-scroll-frame ga-detail-scroll-frame">
+          <div ref={scrollRef} className="ga-detail-scroll">
+            <p className="ga-detail-lead">{summary}</p>
+            {detailState.loading ? <span role="status">{t("uiCargandoFichaDeSteam")}</span> : detailState.error ? <span role="status">Steam no respondió; podés seguir navegando.</span> : null}
+            <RatingBar score={ratingGame.steam_review_score} count={ratingGame.steam_review_count} />
+            <ExtendedDetails details={details} />
+            <section className="ga-detail-metadata"><h3>{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} />{props.game.tags?.length ? <><h3>{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}</section>
+            <ActiveDownloadFacts download={props.download} />
+          </div>
+          <CircularScrollbar targetRef={scrollRef} label={t("uiDesplazarInformacionDelJuego")} />
+          </div>
+          <div ref={actionsRef} className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
+        </section>
+        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
+      </div>
+    </article>
   );
 }
 
@@ -413,5 +584,5 @@ function isDisplaySurface(): boolean {
 }
 
 export function FeaturePanel(props: FeaturePanelProps) {
-  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature {...props} />;
+  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
 }

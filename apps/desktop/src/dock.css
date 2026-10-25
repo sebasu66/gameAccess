@@ -1,0 +1,65 @@
+/* One coherent set of controls.
+   Footer (bottom right): icon-only buttons that grow sideways on hover to show their label,
+   like the Catalog / Library tabs. Top right: language, access badge. Loaded last on purpose. */
+
+/* ---------- footer dock ---------- */
+.catalog-bottom-actions .ga-dock {
+  position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; z-index: 5;
+}
+.ga-dock .catalog-refresh-button[aria-busy="true"] svg { animation: ga-download-spin 1.5s linear infinite; }
+.ga-dock .catalog-refresh-button:disabled { cursor: wait; opacity: .55; }
+/* Visual order, whatever order React mounted them in. */
+.ga-dock .ga-library-manager-button { order: 0; }
+.ga-dock .digital-download-nav { order: 1; }
+.ga-dock .ga-settings-fab { order: 2; }
+.ga-dock .catalog-refresh-button { order: 3; }
+.ga-dock .ga-news-button { order: 3; }
+.ga-dock .ga-big-screen-toggle { order: 4; }
+@media (prefers-reduced-motion: reduce) { .ga-dock .catalog-refresh-button[aria-busy="true"] svg { animation: none; } }
+
+/* ---------- top right: language + access badge ---------- */
+.ga-global-language {
+  top: calc(var(--window-chrome-height, 34px) + 20px) !important; bottom: auto !important; right: 28px !important; height: 38px; gap: 8px;
+}
+.ga-global-language .app-language-switch button { height: 38px; min-width: 44px; padding: 0 10px; font-size: 13px; }
+.ga-header-utilities.topbar-actions { right: 190px !important; }
+.ga-header-utilities .ga-access-pass-toggle { gap: 8px; padding: 0 12px !important; }
+.ga-header-utilities .ga-access-pass-toggle strong { font-weight: 800; letter-spacing: .06em; color: #ff8a38; }
+.ga-header-utilities .ga-access-pass-toggle .ga-access-time { font-variant-numeric: tabular-nums; color: #dce1e5; font-weight: 650; }
+.ga-header-utilities .ga-access-pass-toggle svg { color: #ff8a35; }
+@media (max-width: 760px) { .ga-global-language { top: calc(var(--window-chrome-height, 34px) + 20px) !important; right: 16px !important; } .ga-header-utilities.topbar-actions { right: 16px !important; top: calc(var(--window-chrome-height, 34px) + 70px) !important; } }
+.ga-dock .ga-help-fab { order: 3; }
+
+/* Developer resource bar (only while the profiler is on). */
+.ga-resource-meter{position:fixed;left:12px;bottom:10px;z-index:9000;display:flex;gap:12px;padding:5px 11px;border-radius:8px;background:#0b0e12d9;border:1px solid #ffffff22;color:#9fe0b0;font:600 11px/1.4 ui-monospace,Consolas,monospace;pointer-events:none;font-variant-numeric:tabular-nums}
+.ga-resource-culprits{color:#ffd28a;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ga-resource-meter.is-hot{color:#ff9d8f;border-color:#ff7a6b}
+
+/* ---------- footer (docs/GUI_DESIGN.md §4.14): glass cubes, no fixed text on the main screen ---------- */
+/* The language lives in the footer globe while the catalog is open. */
+body:has(.catalog-bottom-actions) .ga-global-language { display: none !important; }
+.ga-footer-left { gap: 8px !important; }
+.ga-footer-language { position: relative; }
+.ga-footer-language-pop {
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 20; display: flex; flex-direction: column; gap: 2px; min-width: 140px; padding: 6px;
+  border-radius: 10px; background: rgba(22,26,30,.96); box-shadow: 0 14px 40px #0009, inset 0 0 0 1px #ffffff1f;
+  opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity .2s, transform .25s;
+}
+.ga-footer-language-pop::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px; }
+.ga-footer-language:hover .ga-footer-language-pop, .ga-footer-language:focus-within .ga-footer-language-pop { opacity: 1; transform: none; pointer-events: auto; }
+.ga-footer-language-pop button { height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: #f4f4f2; text-align: left; font: 600 13px Manrope, sans-serif; cursor: pointer; }
+.ga-footer-language-pop button:hover, .ga-footer-language-pop button:focus-visible { background: #ffffff12; outline: none; }
+.ga-footer-language-pop button[aria-pressed="true"] { color: #ff6a00; }
+/* Connection status: only its dot until the pointer or focus reaches it. */
+.catalog-bottom-actions .ga-backend-status { min-width: 0; height: 38px; padding: 0 12px; border-radius: 8px; gap: 0; }
+.catalog-bottom-actions .ga-backend-status > span { max-width: 0; opacity: 0; overflow: hidden; transition: max-width .35s, opacity .2s, margin .35s; }
+.catalog-bottom-actions .ga-backend-status:hover > span { max-width: 120px; opacity: 1; margin-left: 8px; }
+@media (prefers-reduced-motion: reduce) { .ga-footer-language-pop, .catalog-bottom-actions .ga-backend-status > span { transition: none; } }
+/* Older per-button rules (settings, help, big screen, refresh) placed them by hand; in the dock every cube sits in the row. */
+.ga-dock .ga-cube, .ga-footer-left .ga-cube {
+  position: relative !important; inset: auto !important; transform: none !important; margin: 0 !important;
+  width: auto !important; min-width: 41px !important; height: 38px !important; min-height: 0 !important;
+  padding: 0 10px !important; border-radius: 8px !important; font: 800 12px Manrope, sans-serif !important; letter-spacing: .06em !important;
+}
+.ga-dock .ga-cube > svg, .ga-footer-left .ga-cube > svg { width: 19px !important; height: 19px !important; margin: 0 !important; }

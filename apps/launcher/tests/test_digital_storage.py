@@ -1,0 +1,179 @@
+import http.server
+import functools
+import threading
+import subprocess
+import shutil
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from game_library_manager.storage import DigitalGameStorage
+from digital_process_runner import DigitalProcessRunner
+from game_download_manager.worker import extract_archives_in_path
+from game_download_manager import worker as digital_downloader
+import zipfile
+
+class DigitalStorageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="digital-storage-fixture-")
+        self.storage = DigitalGameStorage(Path(self.temp.name))
+        self.runner = DigitalProcessRunner(self.storage)
+    def tearDown(self):
+        self.temp.cleanup()
+    def test_unresolved_browser_hoster_is_not_reported_as_installed(self):
+        with patch.object(digital_downloader, "LAUNCHER_DIR", Path(self.temp.name)), patch("game_download_manager.worker.requests.post", return_value=type("Response", (), {"status_code": 503})()), patch("webbrowser.open") as open_browser, patch.object(sys, "argv", ["digital_downloader.py", "--app-id", "7", "--name", "Browser fixture", "--source", "https://gofile.io/file/fixture", "--source-delivery", "browser", "--destination-dir", str(Path(self.temp.name) / "games")]), patch.object(digital_downloader, "emit_progress") as emit:
+            digital_downloader.main()
+        open_browser.assert_called_once_with("https://gofile.io/file/fixture")
+        self.assertTrue(any((call.args[1] if len(call.args)>1 else call.kwargs.get("phase")) == "external" for call in emit.call_args_list))
+        self.assertFalse(any((call.args[1] if len(call.args)>1 else call.kwargs.get("phase")) == "completed" for call in emit.call_args_list))
+
+    def test_extract_play_delete_use_same_folder(self):
+        folder = self.storage.register(1, "Fixture")
+        archive = folder / "fixture.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            z.writestr("bin/game.exe", b"fixture executable")
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch.object(digital_downloader, "emit_progress"):
+            extract_archives_in_path(str(archive), str(folder), delete_archive=False, game_name="Fixture")
+        # A lone archive is the game itself: only a profile-declared fix is ever backed up.
+        self.assertFalse((folder / "Fixture_backup.zip").exists())
+        self.assertTrue(self.storage.status(1, "Fixture")["installed"])
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
+            spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
+            result = self.runner.run("play", 1, "Fixture")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(spawn.call_args.args[0], [str(folder / "bin" / "game.exe")])
+            self.assertEqual(spawn.call_args.kwargs["cwd"], str(folder / "bin"))
+        sibling = self.storage.register(2, "Other")
+        (sibling / "other.exe").write_bytes(b"fixture")
+        result = self.runner.run("uninstall", 1, "Fixture", "steam://uninstall/1")
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(folder.exists())
+        self.assertTrue(sibling.exists())
+        self.assertFalse(self.storage.status(1, "Fixture")["installed"])
+    def test_http_worker_downloads_and_extracts_in_place_without_install_command(self):
+        launcher = Path(self.temp.name)
+        original = Path(__file__).resolve().parents[1]
+        for file in [path.name for path in original.glob("*.py")]:
+            shutil.copyfile(original / file, launcher / file)
+        for package in [d for d in original.iterdir() if d.is_dir() and (d / "__init__.py").is_file() and d.name != "tests"]:
+            shutil.copytree(package, launcher / package.name, ignore=shutil.ignore_patterns("__pycache__"))
+        source = launcher / "source"
+        source.mkdir()
+        with zipfile.ZipFile(source / "fixture.zip", "w") as archive:
+            archive.writestr("game.exe", b"fixture executable")
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(source)))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            result = subprocess.run([sys.executable, str(launcher / "digital_downloader.py"),
+                "--app-id", "1", "--name", "Fixture", "--source",
+                f"http://127.0.0.1:{server.server_port}/fixture.zip",
+                "--keep-archive", "--install-process", "cmd /c exit 99"],
+                cwd=launcher, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout[-1000:])
+            folder = self.storage.folder(1, "Fixture")
+            self.assertFalse((folder / "Fixture_backup.zip").exists())
+            self.assertTrue((folder / "game.exe").is_file())
+            status = json.loads((launcher / ".cache" / "digital_downloads" / "1.json").read_text())
+            self.assertEqual(status["phase"], "completed")
+            log = (launcher / "logs" / "downloads.log").read_text(encoding="utf-8")
+            for expected in ["transfer complete", "extraction starting", "extraction finished", "DESCARGA COMPLETADA"]:
+                self.assertIn(expected, log)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_root_game_launcher_is_preferred_over_nested_binary_and_gdk_helper(self):
+        folder = self.storage.register(1, "Fixture")
+        (folder / "Dungeons.exe").write_bytes(b"fixture")
+        (folder / "wdapp.exe").write_bytes(b"helper")
+        nested = folder / "Dungeons" / "Binaries"
+        nested.mkdir(parents=True)
+        (nested / "Dungeons-Win64-Shipping.exe").write_bytes(b"fixture")
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
+            spawn.return_value.pid = 42
+            spawn.return_value.returncode = 0
+            result = self.runner.run("play", 1, "Fixture")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(spawn.call_args.args[0], [str(folder / "Dungeons.exe")])
+
+    def test_empty_and_archive_only_folders_are_not_playable(self):
+        folder = self.storage.register(1, "Fixture")
+        self.assertFalse(self.storage.status(1, "Fixture")["installed"])
+        (folder / "fixture.rar").write_bytes(b"encrypted")
+        self.assertFalse(self.storage.status(1, "Fixture")["installed"])
+    def test_existing_legacy_folder_is_used_without_moving(self):
+        legacy = self.storage.root / "Minecraft Dungeons II"
+        legacy.mkdir(parents=True)
+        (legacy / "game.exe").write_bytes(b"fixture")
+        self.assertEqual(self.storage.register(1, "Minecraft Dungeons II"), legacy)
+        self.assertEqual(self.storage.folder(1, "Renamed"), legacy)
+    def test_uninstall_refuses_root_or_external_registry_paths(self):
+        self.storage.registry.mkdir(parents=True)
+        for folder in [self.storage.root, Path(self.temp.name)]:
+            (self.storage.registry / "1.json").write_text(json.dumps({"folder": str(folder)}))
+            result = self.runner.run("uninstall", 1, "Fixture")
+            self.assertFalse(result["ok"])
+            self.assertTrue(Path(self.temp.name).exists())
+    def test_snapshot_ignores_remote_only_entries_and_finds_registered_and_legacy_games(self):
+        folder = self.storage.register(1, "Renamed")
+        (folder / "game.exe").write_bytes(b"fixture")
+        legacy = self.storage.root / "Legacy"
+        legacy.mkdir()
+        (legacy / "game.exe").write_bytes(b"fixture")
+        games = [{"id": 1, "name": "Old name"}, {"id": 2, "name": "Legacy"}]
+        games.extend({"id": value, "name": f"Remote {value}"} for value in range(3, 12680))
+        with patch.object(self.storage, "status", wraps=self.storage.status) as status:
+            result = self.runner.run("snapshot", 0, "", json.dumps(games))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(set(result["statuses"]), {"1", "2"})
+        self.assertTrue(all(item["installed"] for item in result["statuses"].values()))
+        self.assertEqual(status.call_count, 2)
+
+    def test_app_id_identifies_unregistered_folder_after_catalog_title_changes(self):
+        folder = self.storage.root / "1664220-Old Title"
+        folder.mkdir(parents=True)
+        (folder / "game.exe").write_bytes(b"fixture")
+        result = self.runner.run("snapshot", 0, "", json.dumps([{"id": 1664220, "name": "Renamed Title"}]))
+        self.assertTrue(result["statuses"]["1664220"]["installed"])
+        self.assertEqual(self.storage.folder(1664220, "Another Title"), folder)
+        self.assertTrue(self.runner.run("uninstall", 1664220, "Renamed Title")["ok"])
+        self.assertFalse(folder.exists())
+
+    def test_uninstall_refuses_ambiguous_app_id_folders(self):
+        for name in ["1-First", "1-Second"]:
+            (self.storage.root / name).mkdir(parents=True)
+        result = self.runner.run("uninstall", 1, "First")
+        self.assertFalse(result["ok"])
+        self.assertTrue((self.storage.root / "1-First").exists())
+        self.assertTrue((self.storage.root / "1-Second").exists())
+
+    def test_uninstall_partial_or_missing_game_without_installation_checks(self):
+        folder = self.storage.register(1, "Incomplete")
+        (folder / "download.part").write_bytes(b"partial")
+        downloads = self.storage.launcher / ".cache" / "digital_downloads"
+        downloads.mkdir(parents=True)
+        (downloads / "1.json").write_text('{"phase":"error"}')
+        with patch.object(self.storage, "status", side_effect=AssertionError("No installation check")):
+            result = self.runner.run("uninstall", 1, "Incomplete")
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(folder.exists())
+        self.assertFalse((self.storage.registry / "1.json").exists())
+        self.assertFalse((downloads / "1.json").exists())
+        self.assertTrue(self.runner.run("uninstall", 1, "Incomplete")["ok"])
+
+    def test_no_steam_or_external_launch(self):
+        folder = self.storage.register(1, "Fixture")
+        (folder / "game.exe").write_bytes(b"fixture")
+        for command in ["steam://run/1", "../external.exe", "game.exe && steam.exe"]:
+            self.assertFalse(self.runner.run("play", 1, "Fixture", command)["ok"])
+    def test_missing_folder_does_not_fall_back_to_launcher_cwd(self):
+        with patch.object(digital_downloader, "find_portable_7z", return_value=None), patch("digital_process_runner.subprocess.Popen") as spawn:
+            self.assertFalse(self.runner.run("play", 1, "Missing", "game.exe")["ok"])
+            spawn.assert_not_called()
+
+if __name__ == "__main__":
+    unittest.main()

@@ -75,7 +75,7 @@ export class DownloadManager {
   progress(status?: ManagedDownloadStatus): number {
     if (!status) return 0;
     const resolved = gameStateManager.resolve(status);
-    if (resolved.downloadComplete || resolved.frozen) return 100;
+    if (resolved.downloadComplete) return 100;
     const total = status.bytes_total ?? 0;
     const downloaded = status.bytes_downloaded ?? 0;
     const fromBytes = total > 0 ? downloaded / total * 100 : null;

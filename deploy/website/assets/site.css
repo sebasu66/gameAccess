@@ -1,0 +1,136 @@
+/* Game Access website. Tokens and materials from the app (docs/GUI_DESIGN.md, apps/desktop/src/pixel-appearance.css). */
+@font-face { font-family: "Bebas Neue"; src: url("fonts/BebasNeue-Mockup.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: Manrope; src: url("fonts/Manrope[wght].ttf") format("truetype"); font-weight: 400 800; font-display: swap; }
+@font-face { font-family: Audiowide; src: url("fonts/Audiowide-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+
+:root {
+  --ga-orange: #ff6a00; --ga-orange-hover: #ff8230; --ga-on-orange: #140a02;
+  --ga-bg: #0a0a0c; --ga-white: #f4f4f2; --ga-muted: #929ba2; --ga-line: #ffffff20;
+  --glass: .85;
+  --gutter: clamp(16px, 4vw, 48px);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-height: 100vh; background: var(--ga-bg); color: var(--ga-white); font: 400 15px/1.55 Manrope, "Segoe UI", sans-serif; isolation: isolate; overflow-x: hidden; }
+a { color: inherit; }
+
+/* Pixel field (same as the app's #ga-pixel-field) */
+#pixel-field { position: fixed; inset: 0; overflow: hidden; z-index: -1; pointer-events: none; --bg: #0a0a0c; }
+#pixel-field canvas { display: block; image-rendering: pixelated; }
+#pixel-field::after { content: ""; position: absolute; inset: 0; background-image: linear-gradient(to right, var(--bg) 1px, transparent 1px), linear-gradient(to bottom, var(--bg) 1px, transparent 1px); background-size: 4px 4px; }
+
+/* Frosted glass, the same material as the app's game detail screen (.ga-game-detail in gameaccess-theme.css) */
+.glass {
+  position: relative; border-radius: 12px;
+  background: #171c2066; border: 1px solid #ffffff2e;
+  backdrop-filter: blur(16px) saturate(1.15); -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: inset 0 1px 0 #ffffff26, 0 40px 110px #0006;
+}
+/* Letters on the lighter glass keep a soft shadow so they read over any cover behind */
+.glass :is(h1, h2, h3, p, li) { text-shadow: 0 1px 2px #000c, 0 0 18px #0009; }
+
+/* Orange LED button (same material as the app's .ga-led-button) */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 31px; font: 800 15px Manrope, sans-serif; text-decoration: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn:focus-visible { outline: 2px solid var(--ga-orange-hover); outline-offset: 4px; }
+.led { isolation: isolate; overflow: hidden; color: #fff; border: 0; box-shadow: 0 6px 22px rgba(255, 107, 0, .35); text-shadow: 0 1px 2px #000, 0 2px 6px #000, 0 0 3px #000; }
+.led:hover { box-shadow: 0 8px 30px rgba(255, 107, 0, .55); }
+.led canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; z-index: -2; }
+.led::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: multiply; opacity: var(--glass, .85); z-index: -1; background: radial-gradient(circle at 50% 50%, rgba(24,6,0,.02) 0%, rgba(24,6,0,.07) 38%, rgba(24,6,0,.4) 68%, rgba(10,2,0,.82) 90%, rgba(4,1,0,1) 100%); }
+.led::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0; background: radial-gradient(ellipse 58% 38% at 34% 22%, rgba(255,255,255,.2), transparent 72%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.95); }
+.led > span { position: relative; z-index: 1; }
+.btn-glass { color: var(--ga-white); background: #ffffff0d; border: 1px solid #ffffff38; backdrop-filter: blur(14px); }
+.btn-glass:hover { background: #ffffff1a; border-color: #ff8a35; }
+.btn-small { height: 42px; padding: 0 18px; font-size: 14px; }
+
+/* Language switch */
+.lang-switch { display: inline-flex; padding: 3px; border: 1px solid #ffffff2e; border-radius: 999px; background: #0b0d10b3; backdrop-filter: blur(12px); }
+.lang-switch button { border: 0; border-radius: 999px; padding: 6px 11px; background: transparent; color: #aeb6bc; font: 800 12px Manrope, sans-serif; letter-spacing: .06em; cursor: pointer; }
+.lang-switch button[aria-pressed="true"] { background: var(--ga-orange); color: var(--ga-on-orange); }
+.lang-switch button:focus-visible { outline: 2px solid var(--ga-orange-hover); outline-offset: 2px; }
+
+/* The app's docking film, moved and scaled frame by frame by site.js (1920 x 1080 frame) */
+.dock-film { position: fixed; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: 0 0; z-index: 30; pointer-events: none; opacity: 0; visibility: hidden; }
+.dock-film.is-playing { opacity: 1; visibility: visible; }
+
+/* Header: rotating voxel logo + wordmark, like the app's corner mark */
+.site-header { position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 76px; padding: 0 var(--gutter); transition: background .3s ease, box-shadow .3s ease; }
+.site-header.is-scrolled { background: linear-gradient(140deg, #1d130ccc, #0b0c0fe6); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); box-shadow: 0 10px 40px #0008, inset 0 -1px 0 #ff6a0040; }
+.brand { display: inline-flex; align-items: center; gap: 2px; text-decoration: none; pointer-events: none; }
+.site-header.show-brand .brand { pointer-events: auto; }
+/* The header logo appears when the cubes land on it, and leaves at once when they take off again. */
+.brand .logo-loop { opacity: 0; }
+.site-header.show-brand .brand .logo-loop { opacity: 1; }
+
+/* A name writes itself from left to right and erases itself from right to left: a soft mask edge slides across
+   the letters, so their metal and orange gradients stay intact. */
+.wordmark { -webkit-mask-image: linear-gradient(90deg, #000 45%, transparent 55%); mask-image: linear-gradient(90deg, #000 45%, transparent 55%);
+  -webkit-mask-size: 240% 100%; mask-size: 240% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0; mask-position: 0 0; transition: -webkit-mask-position .7s cubic-bezier(.4, 0, .2, 1), mask-position .7s cubic-bezier(.4, 0, .2, 1); }
+.site-header .wordmark, .wordmark-big.is-erased { -webkit-mask-position: 100% 0; mask-position: 100% 0; transition-duration: .45s; }
+.site-header.show-brand .wordmark { -webkit-mask-position: 0 0; mask-position: 0 0; transition-duration: .8s; transition-delay: .1s; }
+/* A looping logo with its still G on top: the still fades in when the page loses focus and the loop pauses. */
+.logo-loop { position: relative; display: inline-block; flex: 0 0 auto; }
+.logo-loop video, .logo-loop .logo-still { display: block; width: 100%; height: 100%; object-fit: contain; }
+.logo-loop .logo-still { position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+.logo-loop.is-still .logo-still { opacity: 1; }
+.brand .logo-loop { width: 64px; height: 64px; filter: drop-shadow(0 4px 14px #000c); }
+.wordmark { font: 400 25px/1.1 Audiowide, Manrope, sans-serif; letter-spacing: -.035em; filter: drop-shadow(0 3px 6px #0009); white-space: nowrap; }
+.wordmark span:first-child { background: linear-gradient(#fff 18%, #d9dde5 44%, #919bab 52%, #eef1f5 85%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.wordmark span:last-child { background: linear-gradient(#ffbb58 12%, #ff8b1b 45%, #d45806 58%, #ff9f3b 85%); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.site-nav { display: flex; align-items: center; gap: clamp(12px, 2.4vw, 30px); font-weight: 700; font-size: 14px; }
+.site-nav a { text-decoration: none; color: #d5d8db; }
+.site-nav a:hover { color: var(--ga-orange-hover); }
+
+/* Opening stage: pixel field, then the animated cover grid, then the hero; the grid fades out at the bottom */
+.stage { position: relative; isolation: isolate; overflow: hidden; padding-top: 76px; }
+.cover-backdrop { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent 98%); mask-image: linear-gradient(#000 55%, transparent 98%); }
+.cover-grid { position: absolute; inset: -18% -12%; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 18px; align-content: start; transform: rotate(-7deg); filter: saturate(.8); }
+.cover { position: relative; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 8px; background: #111318; box-shadow: 0 10px 30px #000a; }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.06); transition: opacity 1.4s ease, transform 2.4s ease; }
+.cover img.is-shown { opacity: .62; transform: none; }
+.cover-backdrop::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 70% at 50% 45%, #07090d55, #07090dd9 92%), linear-gradient(90deg, #07090d70, transparent 45%, #07090d55); }
+
+/* Hero */
+.hero { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); align-items: center; gap: clamp(24px, 4vw, 64px); padding: clamp(12px, 3vh, 36px) var(--gutter) clamp(90px, 14vh, 160px); max-width: 1320px; margin: 0 auto; }
+.hero-panel { padding: clamp(28px, 4vw, 52px); }
+.eyebrow { margin: 0 0 14px; color: var(--ga-orange); font: 800 12px Manrope, sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+.hero h1 { margin: 0; font: 400 clamp(64px, 9vw, 128px)/.88 "Bebas Neue", Impact, sans-serif; letter-spacing: .01em; text-transform: uppercase; }
+.hero h1 .accent { display: block; color: var(--ga-orange); text-shadow: 0 0 36px #ff6a0055; }
+.lead { margin: 22px 0 30px; max-width: 34em; color: #c9cdd1; font-size: clamp(16px, 1.4vw, 19px); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.note { margin: 18px 0 0; color: var(--ga-muted); font-size: 13px; }
+.hero-logo { display: grid; justify-items: center; }
+.hero-logo .logo-loop { width: min(100%, 460px); aspect-ratio: 1; filter: drop-shadow(0 30px 60px #000) drop-shadow(0 0 60px #ff6a0030); }
+.hero-logo .logo-loop { transition: opacity .2s ease; }
+.hero-logo .logo-loop.is-away { opacity: 0; }
+.wordmark-big { margin: -18px 0 0; font-size: clamp(40px, 5.6vw, 82px); }
+
+/* Sections below the opening stage */
+.section { position: relative; max-width: 1320px; margin: 0 auto; padding: clamp(56px, 9vh, 110px) var(--gutter); }
+.section-title { margin: 0 0 32px; color: var(--ga-orange); font: 400 clamp(44px, 5vw, 64px)/1 "Bebas Neue", Impact, sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 20px; }
+.feature-card { display: flex; flex-direction: column; overflow: hidden; min-height: 320px; }
+.feature-media { aspect-ratio: 16 / 9; background: linear-gradient(135deg, #0d1013, #1a2026); border-bottom: 2px solid var(--ga-orange); }
+.feature-body { display: flex; flex-direction: column; gap: 10px; padding: 22px 24px 26px; }
+.skeleton-line { display: block; height: 12px; width: 70%; border-radius: 6px; background: #ffffff14; }
+.skeleton-line.short { width: 45%; }
+
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; padding-top: 4px; }
+  .hero-logo { order: -1; }
+  .hero-logo .logo-loop { width: min(62vw, 280px); }
+  .wordmark-big { margin-top: -12px; }
+  .cover-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; inset: -10% -30%; }
+  .site-nav a:not(.btn) { display: none; }
+}
+@media (max-width: 480px) {
+  .site-header { padding-inline: 12px; height: 64px; }
+  .stage { padding-top: 64px; }
+  .brand .logo-loop { width: 46px; height: 46px; }
+  .site-header .wordmark { font-size: 19px; }
+  .wordmark-big { font-size: 36px; }
+  .site-nav .btn-small { display: none; } /* the opening section has its own download button */
+}
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }

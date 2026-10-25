@@ -1,0 +1,13 @@
+.digital-download-toast { position:fixed; z-index:340; right:clamp(16px,3vw,48px); bottom:110px; display:flex; align-items:center; gap:14px; width:min(430px,calc(100vw - 32px)); padding:16px; text-align:left; border:1px solid #4e6b4b; border-radius:12px; background:#111e21; color:#eff7f2; box-shadow:0 12px 35px rgba(0,0,0,.4); cursor:pointer; font:inherit; }
+.digital-download-toast:hover { border-color:#a0ee60; background:#18282b; }
+.digital-download-toast:focus-visible { outline:2px solid #a0ee60; outline-offset:4px; }
+.digital-download-toast-art { width:80px; height:58px; flex-shrink:0; display:grid; place-items:center; overflow:hidden; border-radius:5px; background:#243630; color:#a0ee60; }
+.digital-download-toast-art img { width:100%; height:100%; object-fit:cover; }
+.digital-download-toast-content { display:flex; flex-direction:column; gap:6px; min-width:0; flex:1; }
+.digital-download-toast-heading { display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:1.1px; color:#b5c8ba; }
+.digital-download-toast-content strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+.digital-download-toast-status { font-size:12px; color:#d0dcd4; }
+.digital-download-toast-link { font-size:11px; color:#b0f077; }
+.digital-download-toast progress { display:block; appearance:none; width:100%; height:4px; border:0; border-radius:2px; background:#30423a; accent-color:#9bef57; }
+.digital-download-toast progress::-webkit-progress-bar { background:#30423a; border-radius:2px; }
+.digital-download-toast progress::-webkit-progress-value { background:#9bef57; border-radius:2px; }

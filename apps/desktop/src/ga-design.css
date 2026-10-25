@@ -1,0 +1,169 @@
+/* Game Access design system: shared close button, primary button and glass panel.
+   Values come from docs/GUI_DESIGN.md. Loaded last so these rules win over older per-screen rules. */
+
+/* Close control: one red circle, 38 px, in every dialog and panel (the game detail keeps its own placement). */
+button.ga-close {
+  display: grid; place-items: center; flex: none;
+  width: 38px; height: 38px; min-width: 38px; min-height: 38px; padding: 0;
+  border: 1px solid #ff6b75; border-radius: 50%;
+  background: #e5202e; color: #fff; box-shadow: 0 0 14px #e5202e88;
+  cursor: pointer;
+}
+button.ga-close:hover { background: #ff3342; box-shadow: 0 0 20px #ff3342cc; }
+button.ga-close:focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }
+
+/* Primary action: orange, 44 px high, dark text. */
+button.ga-btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border: 1px solid #ff6a00; border-radius: 8px;
+  background: #ff6a00; color: #140a02; font: 700 14px Manrope, sans-serif; box-shadow: none;
+  cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease;
+}
+/* Flat: no gradient, no glow, no lift (docs/GUI_DESIGN.md §4.2). */
+button.ga-btn-primary:hover:not(:disabled) { background: #ff8230; border-color: #ff8230; }
+button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Secondary action: same height and shape as the primary one, quiet glass. */
+button.ga-btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border: 1px solid #ffffff25; border-radius: 8px;
+  background: #ffffff08; color: #fff; font: 700 14px Manrope, sans-serif; cursor: pointer;
+}
+button.ga-btn-secondary:hover:not(:disabled) { background: #ffffff14; }
+button.ga-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Glass panel with the light gradient ring used by the detail dialog. */
+.ga-panel {
+  position: relative;
+  background: rgba(21, 25, 29, .94);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid transparent; border-radius: 12px;
+}
+.ga-panel::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+/* Icon-only buttons in the game detail action row share one size: 48 × 54 px, like the thumbs. */
+.ga-detail-actions .ga-favorite,
+.ga-detail-actions .source-options-toggle,
+.ga-detail-actions .steam-store-small {
+  display: grid; place-items: center; flex: 0 0 48px;
+  width: 48px; min-width: 48px; height: 54px; min-height: 54px; padding: 0;
+  border: 1px solid #ffffff20; border-radius: 5px;
+}
+
+/* Full-screen back button (download manager, library manager): top right, where the close control sits in overlays.
+   Same height and corner radius as the thumbs in the game detail row, same red as the close control. */
+button.ga-back {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none;
+  height: 54px; min-height: 54px; padding: 0 18px;
+  border: 1px solid #ff6b75; border-radius: 5px;
+  background: #e5202e; color: #fff; box-shadow: 0 0 14px #e5202e88;
+  font: 700 14px Manrope, sans-serif; cursor: pointer;
+}
+button.ga-back:hover { background: #ff3342; box-shadow: 0 0 20px #ff3342cc; }
+button.ga-back:focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }
+
+/* Danger and frost actions: same shape as the primary one. */
+button.ga-btn-danger, button.ga-btn-frost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: 8px; font: 700 14px Manrope, sans-serif; cursor: pointer;
+}
+button.ga-btn-danger { border: 1px solid #c8321f; background: #c8321f; color: #fff; }
+button.ga-btn-danger:hover:not(:disabled) { background: #dc3d29; }
+button.ga-btn-frost { border: 1px solid #8fd3ff; background: #8fd3ff; color: #140a02; }
+button.ga-btn-danger:disabled, button.ga-btn-frost:disabled { opacity: .45; cursor: not-allowed; }
+button.ga-btn-tall { height: 54px; min-height: 54px; }
+button:is(.ga-btn-primary, .ga-btn-secondary, .ga-btn-danger, .ga-btn-frost):focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }
+
+/* Glass cube (docs/GUI_DESIGN.md §4.14): icon only; lights up and unfolds its name on hover or focus. */
+button.ga-cube {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  height: 38px; min-width: 41px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid #ffffff1c; color: #cfd4d8;
+  background: linear-gradient(180deg, #ffffff16, #ffffff05);
+  box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006;
+  font: 800 12px Manrope, sans-serif; letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+  transition: background .3s, border-color .3s, box-shadow .3s, color .3s;
+}
+button.ga-cube::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 0%, #ffb37a55, transparent 60%); opacity: 0; transition: opacity .3s;
+}
+button.ga-cube > svg { width: 19px; height: 19px; flex: none; position: relative; }
+button.ga-cube .ga-cube-label {
+  position: relative; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+  transition: max-width .35s cubic-bezier(.3,.7,.2,1), opacity .2s, margin .35s;
+}
+button.ga-cube:hover, button.ga-cube:focus-visible {
+  color: #fff; border-color: #ff8a38; outline: none;
+  background: linear-gradient(180deg, #ff6a0038, #ff6a0012);
+  box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #ff6a0055, 0 4px 12px #0006;
+}
+button.ga-cube:hover::before, button.ga-cube:focus-visible::before { opacity: 1; }
+button.ga-cube:hover .ga-cube-label, button.ga-cube:focus-visible .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
+button.ga-cube[aria-pressed="true"] { color: #fff; border-color: #ff8a3899; background: linear-gradient(180deg, #ff6a0026, #ff6a000a); }
+button.ga-cube[aria-pressed="true"]::after {
+  content: ""; position: absolute; left: 30%; right: 30%; bottom: -1px; height: 2px; border-radius: 2px;
+  background: #ff6a00; box-shadow: 0 0 8px #ff6a00;
+}
+button.ga-cube:disabled { opacity: .45; cursor: not-allowed; }
+.ga-cube-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: grid; place-items: center; background: #ff6a00; color: #140a02;
+  font: 800 10px Manrope, sans-serif; letter-spacing: 0; box-shadow: 0 0 0 2px #0e1214;
+}
+@media (prefers-reduced-motion: reduce) {
+  button.ga-cube, button.ga-cube .ga-cube-label, button.ga-cube::before { transition: none; }
+}
+
+/* Installed: a green play on the cover's top-left corner (docs/GUI_DESIGN.md §4.15). */
+.library-room-card-art .ga-card-installed {
+  position: absolute; left: 10px; top: 10px; z-index: 3; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; color: #8fe3b0; background: #0f1813c8; transform: none;
+  box-shadow: 0 0 0 1px #8fe3b055, 0 0 12px #8fe3b030; backdrop-filter: blur(6px);
+}
+.library-room-card-art .ga-card-installed svg { width: 12px; height: 12px; margin-left: 2px; }
+.library-room-card-shell:hover .library-room-card-art .ga-card-installed { transform: none; background: #0f1813e0; }
+
+/* Footer filters as cubes: the older footer rules emptied these buttons; the cube look wins here. */
+button.ga-cube.ga-filter-open, details.library-sort-dropdown > summary.ga-cube {
+  height: 38px; min-width: 41px; padding: 0 10px; border: 1px solid #ffffff1c; border-radius: 8px; color: #cfd4d8;
+  background: linear-gradient(180deg, #ffffff16, #ffffff05); box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006;
+  font: 800 12px Manrope, sans-serif; letter-spacing: .06em; gap: 0;
+}
+details.library-sort-dropdown > summary.ga-cube { display: inline-flex; align-items: center; list-style: none; cursor: pointer; position: relative; }
+details.library-sort-dropdown > summary.ga-cube::-webkit-details-marker { display: none; }
+details.library-sort-dropdown > summary.ga-cube:hover, details.library-sort-dropdown > summary.ga-cube:focus-visible, details.library-sort-dropdown[open] > summary.ga-cube {
+  color: #fff; border-color: #ff8a38; outline: none; background: linear-gradient(180deg, #ff6a0038, #ff6a0012); box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #ff6a0055, 0 4px 12px #0006;
+}
+details.library-sort-dropdown > summary.ga-cube:hover .ga-cube-label, details.library-sort-dropdown > summary.ga-cube:focus-visible .ga-cube-label, details.library-sort-dropdown[open] > summary.ga-cube .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
+
+/* Catalog banner: the latest games on Steam (decoded before they show; opacity-only swap). */
+.ga-spotlight { position: relative; flex: none; height: clamp(220px, 30vh, 340px); margin: 0 26px 22px 0; border-radius: 12px; overflow: hidden; isolation: isolate; background: #15191d; }
+.ga-spotlight::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: 1px; pointer-events: none; background: linear-gradient(135deg, #ffffff55, #ffffff08); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.ga-spotlight::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, #111416f2 0, #111416b0 38%, transparent 72%), linear-gradient(0deg, #111416d0 0, transparent 45%); }
+.ga-spotlight-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; opacity: 0; transition: opacity 1s ease; }
+.ga-spotlight-image[data-front] { opacity: 1; }
+.ga-spotlight-content { position: absolute; z-index: 2; left: 36px; right: 36px; bottom: 30px; max-width: 560px; }
+.ga-spotlight-eyebrow { display: block; font: 800 11px Manrope, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #ff6a00; }
+.ga-spotlight-title { margin: 8px 0 16px; font: 400 clamp(40px, 5.2vw, 68px)/.92 "Bebas Neue", sans-serif; letter-spacing: .01em; color: #ff6a00; }
+.ga-spotlight-dots { position: absolute; z-index: 2; right: 24px; bottom: 26px; display: flex; gap: 8px; }
+.ga-spotlight-dot { position: relative; width: 42px; height: 4px; padding: 0; border: 0; border-radius: 2px; background: #ffffff2a; overflow: hidden; cursor: pointer; }
+.ga-spotlight-dot::after { content: ""; position: absolute; inset: -10px 0; }
+.ga-spotlight-dot i { position: absolute; inset: 0; background: #ff6a00; transform-origin: left; transform: scaleX(0); }
+.ga-spotlight-dot[data-active] i { animation: ga-spotlight-progress linear forwards; }
+.ga-spotlight-dot:focus-visible { outline: 2px solid #ff6a00; outline-offset: 4px; }
+@keyframes ga-spotlight-progress { to { transform: scaleX(1); } }
+@media (max-height: 760px), (max-width: 900px) { .ga-spotlight { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ga-spotlight-image { transition: none; } .ga-spotlight-dot[data-active] i { animation: none; transform: scaleX(1); } }
+.ga-hidden-installed { align-self: flex-end; flex: none; margin: -8px 30px 8px 0; padding: 4px 0; border: 0; border-bottom: 1px dashed #ffffff40; background: none; color: #929ba2; font: 700 12px Manrope, sans-serif; cursor: pointer; }
+.ga-hidden-installed:hover, .ga-hidden-installed:focus-visible { color: #f4f4f2; border-color: #f4f4f2; outline: none; }
+details.library-sort-dropdown > summary.ga-cube .ga-cube-label { position: relative; display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .35s cubic-bezier(.3,.7,.2,1), opacity .2s, margin .35s; }
+details.library-sort-dropdown > summary.ga-cube > svg { width: 19px; height: 19px; flex: none; }

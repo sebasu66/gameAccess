@@ -6,6 +6,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Only -Server compiles, validates and runs the local API; without it only the client is built and run
+# (the client then uses a local server if one answers, otherwise the hosted backend).
+$useLocalServer = [bool]$Server
 $projectRoot = $PSScriptRoot
 $desktopRoot = Join-Path $projectRoot 'apps\desktop'
 $apiRoot = Join-Path $projectRoot 'apps\api'
@@ -22,6 +25,7 @@ $backupExe = "$temporaryExe.backup"
 $previousTarget = $env:CARGO_TARGET_DIR
 $previousStamp = $env:VITE_BUILD_TIMESTAMP
 $previousApi = $env:VITE_GAMEACCESS_API
+$previousLocalActivation = $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION
 $buildTimestamp = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
 $localApiUrl = "http://127.0.0.1:$ServerPort"
 $logBase = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'GameAccess\logs' } else { Join-Path $env:TEMP 'GameAccess\logs' }
@@ -94,10 +98,25 @@ try {
     Get-Command npm.cmd -ErrorAction Stop | Out-Null
     Get-Command cargo -ErrorAction Stop | Out-Null
 
-    Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
-    Write-Host "Preparing GameAccess server build: $buildTimestamp"
-    $serverRequirementsHash = Ensure-ServerBuild
-    Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"
+    $serverRequirementsHash = $null
+    if ($useLocalServer) {
+        Write-GameAccessNarration "Build-and-run started. Preparing the GameAccess server and desktop client. Build timestamp: $buildTimestamp."
+        Write-Host "Preparing GameAccess server build: $buildTimestamp"
+        $serverRequirementsHash = Ensure-ServerBuild
+        Write-GameAccessNarration "GameAccess server source compiled and imported successfully; server dependencies are ready." "SERVER"
+        # Validate the shared database before stopping the current server or client.
+        Push-Location $apiRoot
+        try {
+            & $apiPython -m app.database --verify-shared
+            if ($LASTEXITCODE -ne 0) { throw 'Shared Supabase database is not configured or reachable.' }
+        } finally { Pop-Location }
+        Write-Host "Stopping any existing local GameAccess server on port $ServerPort before rebuild..."
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort -StopOnly
+        if ($LASTEXITCODE -ne 0) { throw "Could not stop the local server before rebuild (exit $LASTEXITCODE)." }
+    } else {
+        Write-GameAccessNarration "Build-and-run started (client only; the server is neither built nor started). Build timestamp: $buildTimestamp."
+        Write-Host 'Client only: the local server is neither built nor started (use -Server for that).'
+    }
 
     Write-Host 'Closing this project app (Steam, games and download workers are not stopped)...'
     $appPaths = @($outputExe, $sourceExe)
@@ -118,7 +137,8 @@ try {
 
     $env:CARGO_TARGET_DIR = $targetRoot
     $env:VITE_BUILD_TIMESTAMP = $buildTimestamp
-    if ($Server) {
+    $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION = if ($useLocalServer) { "1" } else { "0" }
+    if ($useLocalServer) {
         # A -Server build is intentionally pinned to the local API even if the
         # packaged runtime settings normally resolve to a hosted backend.
         $env:VITE_GAMEACCESS_API = $localApiUrl
@@ -146,21 +166,26 @@ try {
     Write-Host "Built client: $outputExe"
     Write-GameAccessNarration "Desktop client build completed successfully: $outputExe." "FRONTEND"
     Install-SebaSUTailHelper
-    Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
+    if ($useLocalServer) {
+        Write-Host "Server source validated: apps/api/app.main:app | requirements SHA256: $serverRequirementsHash"
+    }
     Write-Host "Build UTC: $buildTimestamp | client SHA256: $expectedHash"
     @{
+        commit = (git -C $projectRoot rev-parse HEAD).Trim()
         built_at_utc = $buildTimestamp
         source_exe = $sourceExe
         output_exe = $outputExe
         sha256 = $expectedHash
-        server = @{
-            app = 'apps/api/app.main:app'
-            requirements_sha256 = $serverRequirementsHash
-            local_url = if ($Server) { $localApiUrl } else { $null }
-        }
+        server = if ($useLocalServer) {
+            @{
+                app = 'apps/api/app.main:app'
+                requirements_sha256 = $serverRequirementsHash
+                local_url = $localApiUrl
+            }
+        } else { $null }
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $projectRoot 'GameAccess-latest.build.json') -Encoding UTF8
 
-    if (-not $NoRun -and $Server) {
+    if (-not $NoRun -and $useLocalServer) {
         Write-Host "Starting local GameAccess server at $localApiUrl"
         Write-GameAccessNarration "Starting local GameAccess backend server at $localApiUrl." "SERVER"
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $apiRestartScript -Port $ServerPort
@@ -169,7 +194,7 @@ try {
     }
     if (-not $NoRun) {
         Write-GameAccessNarration "Starting the GameAccess desktop front end executable." "FRONTEND"
-        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Normal
+        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Hidden
     }
 } catch {
     Write-Error $_ -ErrorAction Continue
@@ -178,6 +203,7 @@ try {
     $env:CARGO_TARGET_DIR = $previousTarget
     $env:VITE_BUILD_TIMESTAMP = $previousStamp
     $env:VITE_GAMEACCESS_API = $previousApi
+    $env:GAMEACCESS_ALLOW_LOCAL_ACTIVATION = $previousLocalActivation
     if (Test-Path -LiteralPath $temporaryExe) { Remove-Item -LiteralPath $temporaryExe }
     if (Test-Path -LiteralPath $backupExe) { Remove-Item -LiteralPath $backupExe }
 }

@@ -1,33 +1,112 @@
+import AppSettings from "./AppSettings";
+import AppHelp from "./AppHelp";
+import ParentalSetupDialog from "./ParentalSetupDialog";
+import { startAutoFreeze } from "./autoFreeze";
+import { useParentalState } from "./ParentalControlSection";
+import RenderProbe from "./RenderProbe";
+import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
+import { libraryMembership, useLibraryGames } from "./libraryMembership";
+import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
+import VoxelLogo from "./VoxelLogo";
+import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
+import FilledIcon from "./FilledIcon";
+import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
+import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
-import { leaseGame, loadHome, releaseDownloadFallbackLease, releaseFailedLease } from "./api";
-import SteamGlobalSearch from "./SteamGlobalSearch";
+import { loadHome } from "./api";
+import { useCoverDiagnostics } from "./SteamCover";
+import { useCatalogSources } from "./useCatalogSources";
+import { INITIAL_CATALOG_FILTERS } from "./librarySearch";
+import { HERO_AUTOPLAY } from "./featureModes";
+import type { LibrarySearchFilters } from "./librarySearch";
 import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
-import { GAME_STORAGE_STATE_CHANGED_EVENT, steamFrozenStatuses } from "./gameStorage";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamInstall, openSteamClientInstall, openSteamRun, steamDownloadStatus, steamInstalled, steamInstalledAppIds, steamManagedDownloadStatuses, switchSteamAccount, setVisualDebugViewport, type MachineProfile, type SteamDownloadStatus } from "./native";
+import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
+import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
-import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, releaseScore, GlassActionButton } from "./AppPresentation";
+import { queryCatalogCache } from "./catalogCache";
+import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, SessionView, GlassActionButton } from "./AppPresentation";
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
-import { DetailPanel } from "./AppDetailPanel";
+import { hideNotice, runSteps } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
+import { getCatalogMode } from "./catalogMode";
+import { libraryScanState, scanLibrary } from "./libraryScan";
+import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
+import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
+import DeskPanel from "./desk/DeskPanel";
+import NewsPanel from "./NewsPanel";
+import { uiDemo } from "./devDemo/uiDemo";
+import { demoDownloadService } from "./devDemo/demoDownloads";
+import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
+import DigitalDownloadToast from "./DigitalDownloadToast";
+import CatalogNewGameNotices from "./CatalogNewGameNotices";
+import { useCatalogUpdates } from "./useCatalogUpdates";
+import {translate,useI18n} from "./i18n";
+import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
+import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
+import { digitalDownloadService } from "./catalog/DigitalDownloadService";
+import { narrate } from "./narrationLog";
+import { notify } from "./toasts";
+import { installThroughSteam, isSteamOwned, steamOwnerLabel, syncSteamOnStartup } from "./steamLibrary";
+import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
 
-export default function App() {
+const isPendingSteamMetadata = (game: CatalogGame) =>
+  Boolean(game.app_id) && new RegExp(`^Steam\s+${game.app_id}$`, "i").test(game.name.trim());
+
+export default function App({ catalogNavigation, actionsTarget, dockTarget = null }: { catalogNavigation?: React.ReactNode; actionsTarget?: HTMLDivElement | null; dockTarget?: HTMLElement | null }) {
+  const {t}=useI18n();
+  // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
+  // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
+  useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
+  const downloadsOpen = useDesk().includes("downloads");
+  // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
+  const demoService = useRef<ReturnType<typeof demoDownloadService>>();
+  if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
+  useDeskLayout();
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const update = () => document.documentElement.style.setProperty("--catalog-header-height", `${header.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    update();
+    return () => { observer.disconnect(); document.documentElement.style.removeProperty("--catalog-header-height"); };
+  }, []);
+  const libraryGames = useLibraryGames();
   const [games, setGames] = useState<CatalogGame[]>([]);
   const [user, setUser] = useState<UserSummary>({ id: 1, username: "demo", credits: 0 });
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
+  useCatalogSources(games, setGames);
+  useCoverDiagnostics();
+  useEffect(() => {
+    const changed = () => void digitalDownloadService.refreshParallelLimit();
+    window.addEventListener(ACTIVATION_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(ACTIVATION_CHANGED_EVENT, changed);
+  }, []);
+
   const [query, setQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
-  const [leaseBusy, setLeaseBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [steamOk, setSteamOk] = useState(true);
+  const [launchBusy, setLaunchBusy] = useState(false);
+  // Every message goes through the single notice (see src/notice).
+  const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
+  const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
+    getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
+  const [brokenGame, setBrokenGame] = useState<{ game: CatalogGame; message: string } | null>(null);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
@@ -48,114 +127,171 @@ export default function App() {
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const refresh = useCallback(async () => {
+    const startedAt = performance.now();
+    void narrate("Library catalog refresh started.", { area: "CATALOG" });
     setLoading(true);
     try {
       const home = await loadHome();
       setGames(home.games); setUser(home.user); setOfflineDemo(home.offlineDemo);
+      void narrate(`Library catalog refresh completed with ${home.games.length} game(s) in ${Math.round(performance.now() - startedAt)} ms.`, { area: "CATALOG" });
     } catch (error) {
-      setToast(`No pudimos actualizar la biblioteca: ${error instanceof Error ? error.message : String(error)}`);
+      setOfflineDemo(true);
+      void narrate(`Library catalog refresh failed after ${Math.round(performance.now() - startedAt)} ms: ${error instanceof Error ? error.message : String(error)}.`, { area: "CATALOG", level: "ERROR" });
+      setToast(t("libraryRefreshFailed", { error: error instanceof Error ? error.message : String(error) }));
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
     void refresh();
-    steamInstalled().then(setSteamOk).catch(() => setSteamOk(true));
     getMachineProfile().then(setMachine).catch(() => setMachine(null));
-    // Lightweight baseline only: installed AppIDs for green grid badges.
-    // Do not load per-game size/progress/details until that game is navigated to.
-    steamInstalledAppIds().then((appIds) => {
-      const installedMap: DownloadMap = {};
-      for (const appId of appIds) {
-        installedMap[appId] = {
-          app_id: appId, state: "installed", progress: 100,
-          bytes_downloaded: null, bytes_total: null, installed: true,
-        };
-      }
-      if (Object.keys(installedMap).length) {
-        setDownloads((current) => ({ ...installedMap, ...current }));
-      }
-    }).catch(() => undefined);
-    // Provider download state is durable on disk. Rehydrate it after F5/WebView
-    // reload so active downloads and Play-ready prepared games survive React state loss.
-    steamManagedDownloadStatuses().then((statuses) => {
-      const durableMap: DownloadMap = {};
-      for (const status of statuses) {
-        if (!downloadManager.isTracked(status) && !gameStateManager.isDownloadComplete(status)) continue;
-        durableMap[status.app_id] = status;
-      }
-      if (Object.keys(durableMap).length) {
-        setDownloads((current) => ({ ...current, ...durableMap }));
-      }
-    }).catch(() => undefined);
-    steamFrozenStatuses().then((statuses) => {
-      if (!statuses.length) return;
-      const frozenMap: DownloadMap = {};
-      for (const status of statuses) frozenMap[status.app_id] = status;
-      setDownloads((current) => ({ ...current, ...frozenMap }));
-    }).catch(() => undefined);
+    const restored: DownloadMap = {};
+    for (const { snapshot } of digitalDownloadService.getDownloads()) {
+      const status = digitalDownloadService.getManagedStatus(snapshot.gameId);
+      if (status) restored[snapshot.gameId] = status;
+    }
+    setDownloads(restored);
+    if (getCatalogMode() === "local") steamInstalledAppIds().then(ids => setDownloads(current => applyInstalledSnapshot(current, ids))).catch(() => undefined);
   }, [refresh]);
 
+  const hasPendingSteamMetadata = useMemo(() => games.some(isPendingSteamMetadata), [games]);
+
   useEffect(() => {
-    const storageStateChanged = (event: Event) => {
-      const status = (event as CustomEvent<{ status?: SteamDownloadStatus }>).detail?.status;
-      if (!status?.app_id) return;
-      setDownloads((current) => ({ ...current, [status.app_id]: status }));
+    if (!hasPendingSteamMetadata) return;
+    let cancelled = false;
+    let inFlight = false;
+    let delay = 5000;
+    let timer = 0;
+    let known = { total: -1, pending: -1 };
+    const refreshPendingMetadata = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const home = await loadHome();
+        if (cancelled) return;
+        // Re-rendering the whole catalog costs about a second, so only do it when something actually got enriched.
+        const next = { total: home.games.length, pending: home.games.filter(isPendingSteamMetadata).length };
+        const changed = next.total !== known.total || next.pending !== known.pending;
+        known = next;
+        delay = changed ? 5000 : Math.min(delay * 2, 120_000);
+        if (!changed) return;
+        setGames(home.games);
+        setUser(home.user);
+        setOfflineDemo(home.offlineDemo);
+        setSelected((current) => {
+          if (!current) return null;
+          return home.games.find((game) => game.id === current.id) ?? current;
+        });
+      } catch {
+        // Metadata enrichment is best-effort. Keep the current library visible.
+      } finally {
+        inFlight = false;
+      }
     };
-    window.addEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
-    return () => window.removeEventListener(GAME_STORAGE_STATE_CHANGED_EVENT, storageStateChanged);
+    const loop = async () => {
+      await refreshPendingMetadata();
+      if (!cancelled) timer = window.setTimeout(() => void loop(), delay);
+    };
+    void loop();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [hasPendingSteamMetadata]);
+
+  useEffect(() => {
+    if (getCatalogMode() !== "digital") return;
+    // Every active download reports once a second. Applying each report on its own
+    // re-rendered the whole library several times a second, so progress ticks are
+    // merged into one state update per second; a phase change still applies at once.
+    const pendingIds = new Set<number>();
+    const lastPhase = new Map<number, string>();
+    let timer: number | null = null;
+    const flush = () => {
+      if (timer !== null) { window.clearTimeout(timer); timer = null; }
+      const ids = [...pendingIds];
+      pendingIds.clear();
+      const updates: Array<[number, NonNullable<ReturnType<typeof digitalDownloadService.getManagedStatus>>]> = [];
+      for (const id of ids) {
+        const managed = digitalDownloadService.getManagedStatus(id);
+        if (managed) updates.push([id, managed]);
+      }
+      if (!updates.length) return;
+      setDownloads((current) => {
+        const next = { ...current };
+        for (const [id, managed] of updates) {
+          next[id] = managed;
+          if (managed.app_id) next[managed.app_id] = managed;
+        }
+        return next;
+      });
+    };
+    const unsub = digitalDownloadService.onGlobalUpdate((snapshot) => {
+      pendingIds.add(snapshot.gameId);
+      const phaseChanged = lastPhase.get(snapshot.gameId) !== snapshot.phase;
+      lastPhase.set(snapshot.gameId, snapshot.phase);
+      if (phaseChanged) flush();
+      else if (timer === null) timer = window.setTimeout(flush, 1000);
+    });
+    return () => { unsub(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
 
+  // Source/metadata updates do not change the folders we need to check.
+  const digitalFolderKey = useMemo(() => JSON.stringify(games.map(game => [game.app_id ?? game.id, game.name])), [games]);
+  const digitalGamesRef = useRef(games);
+  digitalGamesRef.current = games;
   useEffect(() => {
-    const activeIds = Object.entries(downloads)
-      .filter(([, status]) => downloadManager.isTracked(status))
-      .map(([id]) => Number(id));
-    if (!activeIds.length) return;
-    const timer = window.setInterval(() => {
-      void Promise.all(activeIds.map(async (appId) => {
-        try {
-          const status = await steamDownloadStatus(appId);
-          setDownloads((current) => ({ ...current, [appId]: status }));
-        } catch { /* keep last known state */ }
-      }));
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [downloads]);
+    if (getCatalogMode() !== "digital" || !digitalGamesRef.current.length) return;
+    let cancelled = false;
+    let pending = false;
+    const refreshDigital = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const games = digitalGamesRef.current;
+        const result = await digitalProcessManager.snapshot(games);
+        if (!cancelled) libraryMembership.migrate([
+          ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
+          ...digitalDownloadService.getDownloads().map(entry => entry.game),
+        ]);
+        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows.
+        if (!cancelled) for (const game of games) {
+          const id = game.app_id ?? game.id;
+          if (result.statuses?.[id] && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+        }
+        if (!cancelled) setDownloads(current => {
+          // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
+          let next: typeof current | null = null;
+          for (const game of games) {
+            const id = game.app_id ?? game.id;
+            const active = digitalDownloadService.getManagedStatus(id);
+            if (active && !["installed", "not-installed"].includes(active.state)) continue;
+            const installed = Boolean(result.statuses?.[id]?.installed);
+            const state = installed ? "installed" : "not-installed";
+            const existing = current[id];
+            if (existing && existing.state === state && Boolean(existing.installed) === installed && existing.bytes_downloaded === null) continue;
+            next ??= { ...current };
+            next[id] = { app_id: id, state, progress: installed ? 100 : null,
+              bytes_downloaded: null, bytes_total: null, installed };
+          }
+          return next ?? current;
+        });
+      } catch { /* Keep last confirmed folder state on probe errors. */ }
+      finally { pending = false; }
+    };
+    void refreshDigital();
+    const timer = window.setInterval(() => void refreshDigital(), 15000);
+    window.addEventListener("focus", refreshDigital);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshDigital); };
+  }, [digitalFolderKey]);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 4200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("es");
-    if (!needle) return games;
-    return games.filter((game) => game.name.toLocaleLowerCase("es").includes(needle));
-  }, [games, query]);
-
-  const heroPool = useMemo(() => {
-    const base = filtered.length ? filtered : games;
-    return [...base].sort((a, b) => {
-      const ra = detailsById[a.id]?.steam?.recommendation_count ?? 0;
-      const rb = detailsById[b.id]?.steam?.recommendation_count ?? 0;
-      return rb - ra || b.copies_available - a.copies_available;
-    }).slice(0, 6);
-  }, [filtered, games, detailsById]);
-
-  useEffect(() => {
-    if (heroIndex >= heroPool.length) setHeroIndex(0);
-  }, [heroIndex, heroPool.length]);
-
-  useEffect(() => {
-    if (heroPaused || heroPool.length < 2) return;
-    const timer = window.setInterval(() => setHeroIndex((current) => (current + 1) % heroPool.length), 18000);
-    return () => window.clearInterval(timer);
-  }, [heroPaused, heroPool.length]);
-
-  const continueGames = useMemo(() => {
-    const recent = recentIds.map((id) => filtered.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
-    return recent.length ? recent.slice(0, 8) : filtered.filter((game) => game.copies_available > 0).slice(0, 4);
-  }, [recentIds, filtered]);
+  const relevantCatalogGames = useMemo(() => {
+    const activeAppIds = new Set([
+      ...Object.keys(downloads).map(Number),
+      ...Object.keys(preferences).map(Number),
+      ...recentIds,
+    ]);
+    return games.filter(g => activeAppIds.has(g.id) || (g.app_id != null && activeAppIds.has(g.app_id)));
+  }, [games, downloads, preferences, recentIds]);
 
   const orderedLibrary = useMemo(() => {
     const order = new Map(recentIds.map((id, index) => [id, index]));
@@ -165,13 +301,54 @@ export default function App() {
       if (preferences[game.id] === 1 || gameStateManager.resolve(status).playButtonReady) return 0;
       return 1;
     };
-    return [...games].sort((left, right) => {
+    const combined = new Map([...libraryGames, ...relevantCatalogGames].map(game => [game.app_id ?? game.id, game]));
+    return [...combined.values()].sort((left, right) => {
       const rankDelta = rank(left) - rank(right); if (rankDelta) return rankDelta;
       const leftRecent = order.get(left.id); const rightRecent = order.get(right.id);
       if (leftRecent !== undefined || rightRecent !== undefined) return (leftRecent ?? Number.MAX_SAFE_INTEGER) - (rightRecent ?? Number.MAX_SAFE_INTEGER);
       return left.name.localeCompare(right.name, "es");
     });
-  }, [games, recentIds, preferences, downloads]);
+  }, [libraryGames, relevantCatalogGames, recentIds, preferences, downloads]);
+
+  const [newGames, setNewGames] = useState<CatalogGame[]>([]);
+  const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
+
+  useEffect(() => startAutoFreeze(), []);
+
+  // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
+  const parentalPolicy = useParentalState().policy;
+  useEffect(() => {
+    if (loading) return;
+    void queryCatalogCache({ sort_by: "release-date", sort_direction: "desc", limit: 10 })
+      .then(res => setNewGames(res.items))
+      .catch(() => {});
+    void queryCatalogCache({ sort_by: "steam-review-score", sort_direction: "desc", limit: 12 })
+      .then(res => setSuggestedGames(res.items))
+      .catch(() => {});
+  }, [loading, parentalPolicy]);
+
+  const heroPool = useMemo(() => {
+    const base = orderedLibrary.length ? orderedLibrary : (newGames.length ? newGames : suggestedGames);
+    return [...base].slice(0, 6);
+  }, [orderedLibrary, newGames, suggestedGames]);
+
+  useEffect(() => {
+    if (heroIndex >= heroPool.length) setHeroIndex(0);
+  }, [heroIndex, heroPool.length]);
+
+  useEffect(() => {
+    // Rotation is off until HERO_AUTOPLAY is enabled: advancing the featured game
+    // every 18 seconds moves the page while the user is reading it.
+    if (!HERO_AUTOPLAY || heroPaused || heroPool.length < 2) return;
+    const timer = window.setInterval(() => setHeroIndex((current) => (current + 1) % heroPool.length), 18000);
+    return () => window.clearInterval(timer);
+  }, [heroPaused, heroPool.length]);
+
+
+  const continueGames = useMemo(() => {
+    const recent = recentIds.map((id) => orderedLibrary.find((game) => game.id === id)).filter((game): game is CatalogGame => Boolean(game));
+    return recent.length ? recent.slice(0, 8) : orderedLibrary.filter((game) => game.copies_available > 0).slice(0, 4);
+  }, [recentIds, orderedLibrary]);
 
   useEffect(() => {
     if (loading || !games.length || visualDebugStarted) return;
@@ -205,7 +382,7 @@ export default function App() {
         setSelected(null); setLibraryOpen(false); setSession(null);
         await captureStep(profile, "home", [
           { selector: ".brand", label: "Brand", minWidth: 120, minHeight: 32 },
-          { selector: ".topbar-actions .global-search", label: "Global search", minWidth: 180, minHeight: 36 },
+          { selector: ".library-catalog-toolbar .global-search", label: "Library search", minWidth: 220, minHeight: 36 },
           { selector: ".hero", label: "Featured game", minWidth: 600, minHeight: 260 },
           { selector: ".game-card", label: "Library game card", minWidth: 100, minHeight: 160 },
         ]);
@@ -234,14 +411,14 @@ export default function App() {
 
         setSelected(firstGame);
         await captureStep(profile, "game-detail", [
-          { selector: ".detail-panel", label: "Game details", minWidth: 600, minHeight: 500, mustFitWidth: true },
-          { selector: ".close-detail", label: "Details close", minWidth: 36, minHeight: 36 },
-          { selector: ".detail-gear", label: "Game options", minWidth: 36, minHeight: 36 },
-          { selector: ".detail-hero h1", label: "Game title", minWidth: 120, minHeight: 30 },
+          { selector: ".ga-detail-dialog", label: "Game details", minWidth: 600, minHeight: 500, mustFitWidth: true },
+          { selector: ".ga-detail-close", label: "Details close", minWidth: 36, minHeight: 36 },
+          { selector: ".ga-detail-more", label: "Game options", minWidth: 36, minHeight: 36 },
+          { selector: ".library-room-overview h1", label: "Game title", minWidth: 120, minHeight: 30 },
         ]);
 
         setSelected(null); setLibraryOpen(false);
-        setSession({ game: firstGame, phase: "demo-ready", title: "Visual debug session", detail: "Synthetic state used only to validate the session dialog." });
+        setSession({ game: firstGame, phase: "demo-ready", title: "Sesión de depuración visual", detail: "Estado de prueba usado únicamente para validar el diálogo de sesión." });
         await captureStep(profile, "session-dialog", [
           { selector: ".session-card", label: "Session dialog", minWidth: 360, minHeight: 260 },
           { selector: ".session-card button", label: "Session dialog action", minWidth: 32, minHeight: 32 },
@@ -249,9 +426,9 @@ export default function App() {
       }
       setSession(null); setSelected(null); setLibraryOpen(false);
       const manifest = await finishVisualDebug({ session_dir: config.session_dir, created_at: new Date().toISOString(), results });
-      setToast(`Visual debug completo: ${manifest}`);
+      setToast(t("visualDebugDone", { manifest }));
     };
-    void run().catch((error) => setToast(`Visual debug falló: ${error instanceof Error ? error.message : String(error)}`));
+    void run().catch((error) => setToast(t("visualDebugFailed", { error: error instanceof Error ? error.message : String(error) })));
   }, [loading, games, orderedLibrary]);
 
   const magazineGames = orderedLibrary;
@@ -274,33 +451,17 @@ export default function App() {
     observer.observe(catalog);
     return () => observer.disconnect();
   }, [magazineGames.length]);
-  const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || filtered[0] || games[0];
+  const featured = magazineGames[magazineFocus] || heroPool[heroIndex] || orderedLibrary[0] || games[0];
   const heroDetails = featured ? detailsById[featured.id] : undefined;
   const heroMovie = heroDetails?.steam?.movies?.find((movie) => movie.highlight) || heroDetails?.steam?.movies?.[0];
+  const featuredPlayReady = gameStateManager.isPlayButtonReady(downloads[Number(featured?.app_id)]);
 
-  const newGames = useMemo(() => [...filtered].sort((a, b) => releaseScore(detailsById[b.id]) - releaseScore(detailsById[a.id])).slice(0, 10), [filtered, detailsById]);
-  const suggestedGames = useMemo(() => [...filtered].sort((a, b) => (preferences[b.id] ?? 0) - (preferences[a.id] ?? 0) || (detailsById[b.id]?.steam?.recommendation_count ?? 0) - (detailsById[a.id]?.steam?.recommendation_count ?? 0)).slice(0, 12), [filtered, detailsById, preferences]);
 
-  useEffect(() => {
-    const appId = selected?.app_id;
-    if (!appId) return;
-    let cancelled = false;
-    let pending = false;
-    const probe = async () => {
-      if (pending) return;
-      pending = true;
-      try {
-        const status = await steamDownloadStatus(appId);
-        if (!cancelled) setDownloads((current) => ({ ...current, [appId]: status }));
-      } catch { /* retain the last known installation state */ }
-      finally { pending = false; }
-    };
-    void probe();
-    const timer = window.setInterval(() => void probe(), 3000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [selected?.app_id]);
-
-  const openGame = (game: CatalogGame) => setSelected(game);
+  const openGame = (game: CatalogGame) => {
+    void narrate(`Game details opened for '${game.name}' (catalog game ${game.id}, Steam AppID ${game.app_id ?? "unknown"}).`, { area: "GAME" });
+    setLibraryOpen(false);
+    setSelected(game);
+  };
 
   const rememberRecent = (game: CatalogGame) => {
     const next = [game.id, ...recentIds.filter((id) => id !== game.id)].slice(0, 10);
@@ -313,123 +474,83 @@ export default function App() {
     if (next[gameId] === undefined) delete next[gameId];
     setPreferences(next);
     localStorage.setItem("gameaccess:preferences", JSON.stringify(next));
-    setToast(value === 1 ? "Lo tendremos en cuenta para recomendarte juegos." : "Perfecto, veremos menos juegos de este estilo.");
+    // A liked game found in the catalog grid joins the games kept in memory, so Favoritos shows it right away.
+    if (next[gameId] === 1 && !games.some(game => game.id === gameId)) {
+      void digitalCatalogService.getGamesByCatalogIds([gameId])
+        .then(found => { if (found.length) setGames(current => current.some(game => game.id === gameId) ? current : [...current, ...found]); })
+        .catch(() => undefined);
+    }
+    setToast(value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : t("toastFewerLikeThis"));
   };
 
   const startDownload = async (game: CatalogGame) => {
-    if (!game.app_id) return;
-    const markRequested = () => {
-      setDownloads((current) => ({ ...current, [game.app_id!]: { app_id: game.app_id!, state: "requested", progress: null, bytes_downloaded: null, bytes_total: null, installed: false } }));
-      rememberRecent(game);
-    };
-    try {
-      await openSteamInstall(game.app_id);
-      rememberRecent(game);
-      const status = await steamDownloadStatus(game.app_id);
-      setDownloads((current) => ({ ...current, [game.app_id!]: status }));
-      setToast(status.error ?? "Solicitud aceptada. gameAccess mostrará la preparación y el progreso real.");
-    } catch (directError) {
-      try {
-        const fallbackLease = await leaseGame(game.id, 5);
-        try {
-          await openSteamClientInstall(game.app_id);
-        } finally {
-          await releaseDownloadFallbackLease(fallbackLease);
-        }
-        markRequested();
-        setToast("No se pudo usar la descarga directa. gameAccess inició una cuenta proveedora y dejó la descarga a cargo de Steam.");
-      } catch (fallbackError) {
-        const directMessage = directError instanceof Error ? directError.message : String(directError);
-        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        setToast(`Descarga directa: ${directMessage} · Fallback Steam: ${fallbackMessage}`);
-      }
+    // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
+    const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
+    if (isSteamOwned(steamEntry)) {
+      try { await installThroughSteam(game); setToast(t("steamInstallHandedOff", { name: game.name })); }
+      catch (err) { setToast(err instanceof Error ? err.message : String(err)); }
+      return;
+    }
+    try { await digitalCatalogService.download(game); }
+    catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
+      setToast(message);
     }
   };
 
-  const launchLocal = async (game: CatalogGame) => {
-    if (!game.app_id) return;
-      const trace = [`Requested AppID = ${game.app_id}`, `Searching verified license-owner mapping for AppID ${game.app_id}`];
-      if (!game.local_account_labels?.length || !game.local_primary_account_label) {
-        trace.push(`No verified owner is available for AppID ${game.app_id}`);
-        setSession({ game, phase: "error", title: "Sin licencia disponible", detail: "El juego está instalado o visible en Steam, pero ninguna cuenta local verificada posee una licencia utilizable.", log: trace });
-        setLeaseBusy(false);
-        return;
-      }
-      try {
-        setSession({ game, phase: "preparing", title: "Resolviendo propietario de la licencia", detail: "gameAccess está buscando la cuenta que realmente posee esta licencia.", log: trace });
-        const localAccount = game.local_primary_account_label ?? game.local_account_labels?.[0];
-        if (!localAccount) throw new Error(`No verified original owner was found for AppID ${game.app_id}. Accessible/Family-visible accounts are not accepted as owners.`);
-        trace.push(`Owner map loaded at startup = ${game.local_account_labels?.join(", ") || localAccount}`);
-        trace.push(`Original owner selected = ${localAccount}`);
-        trace.push(`Selecting remembered Steam account = ${localAccount}`);
-        setSession({ game, phase: "preparing", title: "Iniciando la cuenta propietaria", detail: "La licencia fue resuelta. Steam iniciará la cuenta propietaria exacta.", log: [...trace] });
-        await switchSteamAccount(localAccount);
-        trace.push(`ActiveUser confirmed for account = ${localAccount}`);
-        trace.push(`Opening steam://run/${game.app_id}`);
-        setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Steam confirmó la cuenta propietaria. Ahora gameAccess abre el juego automáticamente.", log: [...trace] });
-        await openSteamRun(game.app_id);
-        trace.push("Launch command accepted");
-        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "El juego se inició usando la cuenta propietaria verificada.", log: [...trace] });
-      } catch (err) {
-        trace.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
-        setSession({ game, phase: "error", title: "No pudimos iniciar la sesión local", detail: err instanceof Error ? err.message : String(err), log: [...trace] });
-      } finally {
-        setLeaseBusy(false);
-      }
-
-  };
-
-  const doLease = async (game: CatalogGame) => {
-    setSelected(null);
-    rememberRecent(game);
-    setLeaseBusy(true);
-    setSession({ game, phase: "reserving", title: "Buscando una copia disponible", detail: "Estamos reservando una licencia disponible para esta sesión." });
-
-    if (hasLocalRoute(game)) {
-      await launchLocal(game);
-      return;
-    }
-
-    if (offlineDemo) {
-      await wait(650);
-      setSession({ game, phase: "preparing", title: "Preparando el acceso", detail: "gameAccess está dejando listo el entorno para iniciar el juego." });
-      await wait(900);
-      setSession({ game, phase: "demo-ready", title: "Flujo visual listo", detail: "Esta es la experiencia de preparación. Con el backend local conectado, acá continuaríamos con la sesión real." });
-      setLeaseBusy(false);
-      return;
-    }
-
-    let leaseForRollback: Awaited<ReturnType<typeof leaseGame>> | null = null;
+  const launchGame = async (game: CatalogGame, managedShortcut = false) => {
+    document.querySelectorAll("video").forEach(video => video.pause());
+    setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
+    // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
+    const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
+    // A Steam game runs signed in to the account that owns it: Steam may restart to switch accounts.
+    const steamOwner = steamOwnerLabel(libraryScanState().games.find(entry => entry.app_id === game.app_id && entry.link_kind === "steam")?.steam_owner);
+    // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
+    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
+    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
+    run.set(0, "running");
     try {
-      const lease = await leaseGame(game.id, 60);
-      leaseForRollback = lease;
-      setUser((current) => ({ ...current, credits: lease.credits_remaining }));
-      setSession({ game, phase: "preparing", title: "Reserva confirmada", detail: "Ahora gameAccess prepara la sesión de juego asignada a esta reserva." });
-      if (lease.session_action === "launch_ready" && lease.game.app_id) {
-        await wait(450);
-        setSession({ game, phase: "launching", title: "Abriendo el juego", detail: "Todo está listo. Estamos iniciando el juego en esta PC." });
-        await openSteamRun(lease.game.app_id);
-        // The launch command was accepted; from here this is a live session, not rollback work.
-        leaseForRollback = null;
-        await wait(450);
-        setSession({ game, phase: "playing", title: "¡A jugar!", detail: "La sesión está activa. El tiempo reservado ya está asociado a tu partida." });
-      } else {
-        // A waiting adapter intentionally owns the reservation.
-        leaseForRollback = null;
-        setSession({ game, phase: "waiting-adapter", title: "Reserva lista para el adaptador local", detail: "La reserva ya existe. Falta conectar a este cliente el paso local que prepara la sesión de Steam antes de lanzar el juego." });
-      }
-      await refresh();
+      if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
+      else await digitalCatalogService.play(game);
+      if (deepFrozen) void scanLibrary();  // it is no longer frozen
+      if (game.app_id) recordPlayed(game.app_id);
+      steps.forEach((_, index) => run.set(index, "done"));
+      run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
     } catch (err) {
-      if (leaseForRollback) {
-        await releaseFailedLease(leaseForRollback);
-        leaseForRollback = null;
-        await refresh().catch(() => undefined);
-      }
-      setSession({ game, phase: "error", title: "No pudimos iniciar la sesión", detail: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setLeaseBusy(false);
-    }
+      const message = err instanceof Error ? err.message : String(err);
+      // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
+      if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }
+      else run.fail({ title: translate("launchError"), text: message, actions: [
+        { label: translate("close"), run: () => hideNotice() },
+        { label: translate("retry"), kind: "primary", run: () => void launchGame(game, managedShortcut) },
+      ] });
+    } finally { setLaunchBusy(false); }
   };
+
+  const shortcutBusy = useRef(false);
+  useEffect(() => {
+    if (loading || !("__TAURI_INTERNALS__" in window)) return;
+    let stopped = false;
+    let unlisten: (()=>void) | undefined;
+    const consume = async () => {
+      if (stopped || shortcutBusy.current || !getActivationTier()) return;
+      shortcutBusy.current = true;
+      try {
+        const appId = await invoke<number | null>("take_launch_request");
+        if (typeof appId !== "number") return;
+        const game = libraryGames.find(item => (item.app_id ?? item.id) === appId)
+          || games.find(item => (item.app_id ?? item.id) === appId);
+        if (!game) { setToast(t("toastShortcutGameMissing")); return; }
+        await launchGame(game,true);
+      } catch (error) { if (!stopped) setToast(error instanceof Error ? error.message : String(error)); }
+      finally {shortcutBusy.current=false;}
+    };
+    void consume();
+    void listen("gameaccess:launch-request",()=>void consume()).then(dispose=>{if(stopped)dispose();else unlisten=dispose;});
+    const timer = window.setInterval(()=>void consume(),2000);
+    return ()=>{stopped=true;window.clearInterval(timer);unlisten?.();};
+  },[loading,games,libraryGames]);
 
   const previousHero = () => setHeroIndex((current) => (current - 1 + heroPool.length) % heroPool.length);
   const nextHero = () => setHeroIndex((current) => (current + 1) % heroPool.length);
@@ -460,33 +581,33 @@ export default function App() {
   };
 
   const renderMagazine = () => (<>{featured ? (
-          <section className="magazine-view" aria-label="Biblioteca en vista revista">
+          <section className="magazine-view" aria-label={t("uiBibliotecaEnVistaRevista")}>
           <div className="hero hero-video magazine-feature" style={featured.hero_image ? { backgroundImage: `url("${featured.hero_image}")` } : undefined}>
-            {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={!heroPaused} muted={heroMuted} playsInline loop /> : null}
+            {heroMovie?.mp4 ? <video key={heroMovie.mp4} ref={heroVideoRef} className="hero-video-media" src={heroMovie.mp4} poster={heroMovie.thumbnail} autoPlay={HERO_AUTOPLAY && !heroPaused} muted={heroMuted} playsInline loop /> : null}
             <div className="hero-shade" />
             <div className="hero-copy">
-              <span className="hero-kicker">TU BIBLIOTECA</span>
+              <span className="hero-kicker">{t("uiTuBiblioteca")}</span>
               <h1>{featured.name}</h1>
-              <p>Seleccionado de tus cuentas conectadas.</p>
+              <p>{t("uiSeleccionadoDeTusCuentas")}</p>
               <div className="hero-actions glass-actions-row">
-                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label="Jugar ahora" tone="play" pulse disabled={featured.copies_available <= 0 || leaseBusy} onClick={() => void doLease(featured)} />
-                <button type="button" className="secondary-button glass-info-button" onClick={() => setSelected(featured)}><Info size={19} /> Más información</button>
+                <GlassActionButton icon={<Play size={24} fill="currentColor" />} label={t("uiJugarAhora")} tone="play" pulse disabled={!featuredPlayReady || launchBusy} onClick={() => void launchGame(featured)} />
+                <button type="button" className="secondary-button glass-info-button" onClick={() => openGame(featured)}><Info size={19} /> {t("uiMasInformacion")}</button>
               </div>
             </div>
-            <section  className="hero-media-controls" aria-label="Controles del banner">
-              <button type="button" onClick={previousHero} aria-label="Anterior"><ChevronLeft size={19} /></button>
-              <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? "Reproducir" : "Pausar"}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
-              <button type="button" onClick={nextHero} aria-label="Siguiente"><ChevronRight size={19} /></button>
-              <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? "Activar sonido" : "Silenciar"}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
+            <section  className="hero-media-controls" aria-label={t("uiControlesDelBanner")}>
+              <button type="button" onClick={previousHero} aria-label={t("uiAnterior")}><ChevronLeft size={19} /></button>
+              <button type="button" onClick={toggleHeroPlayback} aria-label={heroPaused ? t("heroPlay") : t("heroPause")}>{heroPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}</button>
+              <button type="button" onClick={nextHero} aria-label={t("uiSiguiente")}><ChevronRight size={19} /></button>
+              <button type="button" onClick={toggleHeroVolume} aria-label={heroMuted ? t("heroUnmute") : t("heroMute")}>{heroMuted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
             </section>
           </div>
-          <section ref={magazineCatalogRef} className="magazine-catalog" aria-label="Juegos recientes y favoritos">
-            <div className="magazine-heading"><div><span className="eyebrow">RECIENTES Y FAVORITOS</span><h2>Elegí un juego</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label="Cambiar a vista esfera"><span /></button></div>
+          <section ref={magazineCatalogRef} className="magazine-catalog" aria-label={t("uiJuegosRecientesYFavoritos")}>
+            <div className="magazine-heading"><div><span className="eyebrow">{t("uiRecientesYFavoritos")}</span><h2>{t("uiElegiUnJuego")}</h2></div><button type="button" className="sphere-view-button" onClick={() => setLibraryOpen(true)} aria-label={t("uiCambiarAVistaEsfera")}><span /></button></div>
             <div className="magazine-grid" style={{ "--magazine-columns": magazineShape.columns, "--magazine-rows": magazineShape.rows } as React.CSSProperties}>
-              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={`Abrir ${game.name}`}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
+              {magazineGames.map((game, index) => <div key={game.id} className={index === magazineFocus ? "magazine-item is-focused" : "magazine-item"}><button type="button" className="magazine-card" onFocus={() => setMagazineFocus(index)} onKeyDown={moveMagazineFocus} data-magazine-index={index} onClick={() => openGame(game)} aria-label={t("openGameAria", { name: game.name })}><span className="magazine-card-art">{game.capsule_image ? <img src={game.capsule_image} alt="" loading="lazy" /> : <Gamepad2 size={34} />}</span><span className="magazine-card-title">{game.name}</span></button></div>)}
             </div>
           </section>
-          <div className="screen-controls-hint"><span>NAVEGAR · WASD / FLECHAS</span><span>DETALLES · ENTER</span><span>BUSCAR · CTRL+F</span></div>
+          <div className="screen-controls-hint"><span>{t("uiNavegarWasdFlechas")}</span><span>{t("uiDetallesEnter")}</span><span>{t("uiBuscarCtrlF")}</span></div>
           </section>
         ) : null}
 
@@ -494,46 +615,50 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar topbar-glass">
-        <button type="button" className="brand" onClick={() => { setQuery(""); setSelected(null); }}><span className="brand-mark">g</span><span>game<span>Access</span></span></button>
-        <nav className="glass-nav">
-          <button type="button" className="glass-static-nav active"><span>Inicio</span></button>
-          <button type="button" className="glass-static-nav"><span>Explorar</span></button>
-          <button type="button" className="glass-static-nav"><span>Mi lista</span></button>
-        </nav>
-        <div className="topbar-actions">
-          <SteamGlobalSearch query={query} setQuery={setQuery} onOpenCatalogGame={openGame} />
-          <div className="avatar">{user.username.slice(0, 1).toUpperCase()}</div>
+      {/* The app as the screen of a device: a bezel with tabs, the animated logo in the corner and GAME / ACCESS
+          sketched in the right column. */}
+      {deviceFrameEnabled() ? <DeviceFrame /> : null}
+      <header ref={headerRef} className="topbar topbar-glass">
+        <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
+        {catalogNavigation}
+        <div className="catalog-header-controls" ref={setToolbarTarget} />
+        <div className="topbar-actions ga-header-utilities">
+          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><ParentalSetupDialog />
         </div>
       </header>
 
-      {!steamOk ? <div className="system-banner">Steam no fue detectado en esta PC. Podés navegar el catálogo, pero descargar y jugar requerirá Steam.</div> : null}
-      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> No se pudo comunicar con el servidor de GameAccess. La biblioteca local y Store siguen disponibles; el catálogo de GameAccess volverá cuando haya conexión.</div> : null}
+      {(() => {
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
+        return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
+      })()}
+
+      {offlineDemo ? <div className="system-banner demo"><Sparkles size={15} /> {t("offlineBanner")}</div> : null}
 
       <main>
-        <LibraryRoom games={orderedLibrary} downloads={downloads} busy={leaseBusy} loading={loading} onPlay={doLease} onDownload={startDownload} preferences={preferences} onPreference={setPreference} />
+        <RenderProbe id="LibraryRoom"><LibraryRoom externalDetailGame={selected} onDetailClose={() => setSelected(null)} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={orderedLibrary} downloads={downloads} busy={launchBusy} loading={loading} catalogUnavailable={offlineDemo} onPlay={launchGame} onDownload={startDownload} preferences={preferences} onPreference={setPreference} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} searchValue={query} onSearchQueryChange={setQuery} /></RenderProbe>
         {renderMagazine()}
         <div className="content-wrap magazine-secondary">
-          {loading ? <div className="loading-home"><Loader2 className="spin" /> Cargando biblioteca…</div> : null}
+          {loading ? <div className="loading-home"><Loader2 className="spin" /> {t("uiCargandoBiblioteca")}</div> : null}
           
           {offlineDemo ? (
-            <Shelf title="Tu biblioteca" subtitle="Últimos jugados primero · catálogo combinado de tus cuentas locales" games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
+            <Shelf title={t("uiTuBiblioteca2")} subtitle={t("shelfLibrarySubtitle")} games={orderedLibrary.slice(0, 12)} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} onViewAll={() => setLibraryOpen(true)} />
           ) : <>
-            <Shelf title="Seguí donde estabas" subtitle="Tus juegos recientes y preparados" games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title="Nuevos lanzamientos" subtitle="Lo más nuevo del catálogo" games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
-            <Shelf title="Te pueden gustar" subtitle="Vamos aprendiendo tus gustos con cada pulgar" games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiSeguiDondeEstabas")} subtitle={t("shelfContinueSubtitle")} games={continueGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiNuevosLanzamientos")} subtitle={t("shelfNewSubtitle")} games={newGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} onOpen={openGame} onPreference={setPreference} />
+            <Shelf title={t("uiTePuedenGustar")} subtitle={t("shelfSuggestedSubtitle")} games={suggestedGames} detailsById={detailsById} machine={machine} downloads={downloads} preferences={preferences} showPreference onOpen={openGame} onPreference={setPreference} />
           </>}
         </div>
       </main>
+      <DeskPanel id="news" eyebrow="GAME ACCESS" title={t("newsButton")}><NewsPanel games={games} onOpenGame={game => { if (!isWideDesk()) closePanel("news"); openGame(game); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
-      {selected ? <DetailPanel game={selected} machine={machine} download={selected.app_id ? downloads[selected.app_id] : undefined} onClose={() => setSelected(null)} onLease={doLease} onDownload={startDownload} busy={leaseBusy} overLibrary={libraryOpen} /> : null}
-      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
+      {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
-      {toast ? <div className="toast">{toast}</div> : null}
+      <DigitalDownloadErrorDialog />
+      {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
+      <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
+      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
     </div>
   );
 }
 
-function hasLocalRoute(game: CatalogGame) {
-  return Boolean((game.local_access_labels?.length || game.local_account_labels?.length) && game.app_id);
-}

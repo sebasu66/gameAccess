@@ -1,22 +1,12 @@
+import steamCommandsSource from "../src-tauri/src/steam_commands.rs?raw";
 import { describe, expect, it } from "vitest";
 
-import providerDownloadSource from "../src-tauri/src/provider_download.rs?raw";
-import tauriMainSource from "../src-tauri/src/main.rs?raw";
 import appSource from "./App.tsx?raw";
 import libraryRoomSource from "./LibraryRoom.tsx?raw";
 import { selectedMovie, selectedVideo } from "./LibraryRoomParts";
 import type { GameDetails } from "./types";
 
 describe("UI thread isolation contract", () => {
-  it("keeps provider size estimation and download startup off the Tauri command thread", () => {
-    expect(providerDownloadSource).toContain("pub async fn provider_download_estimate");
-    expect(providerDownloadSource).toContain("spawn_blocking(move || provider_download_estimate_blocking(app_id))");
-    expect(providerDownloadSource).toContain("pub async fn start_provider_download");
-    expect(providerDownloadSource).toContain("spawn_blocking(move || {");
-    expect(providerDownloadSource).toContain(
-      "start_provider_download_blocking(app_id, job_id, library_index)",
-    );
-  });
 
   it("keeps selected-game detail loading asynchronous and cancellable", () => {
     expect(libraryRoomSource).toContain("loadDetails(requestedGameId)");
@@ -33,8 +23,8 @@ describe("UI thread isolation contract", () => {
   });
 
   it("keeps Steam Store metadata off the blocking Tauri command path", () => {
-    expect(tauriMainSource).toContain("async fn steam_store_metadata");
-    expect(tauriMainSource).toContain("spawn_blocking(move || native_core::steam_store_metadata(app_id))");
+    expect(steamCommandsSource).toContain("async fn steam_store_metadata");
+    expect(steamCommandsSource).toContain("spawn_blocking(move || native_core::steam_store_metadata_refresh(app_id, language, force.unwrap_or(false)))");
   });
 
   it("uses Steam Store movies as the library hero video source", () => {

@@ -1,0 +1,305 @@
+"""Server-owned activation keys and installation sessions.
+
+Printable keys and session tokens are returned once. Only SHA-256 digests are
+stored. Activation keys use pronounceable syllables with cryptographic randomness.
+"""
+
+from __future__ import annotations
+
+import base64
+import calendar
+import hashlib
+import os
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from uuid import UUID
+
+from sqlalchemy import inspect, or_, text, update
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Field as SQLField
+from sqlmodel import Session, SQLModel, select
+from cryptography.fernet import Fernet, InvalidToken
+
+
+class AccessKey(SQLModel, table=True):
+    id: Optional[int] = SQLField(default=None, primary_key=True)
+    key_hash: str = SQLField(index=True, unique=True)
+    duration_hours: Optional[int] = None
+    duration_months: Optional[int] = None
+    access_tier: str = "base"
+    created_at: datetime
+    key_expires_at: datetime
+    activated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    installation_id: Optional[str] = SQLField(default=None, index=True)
+    session_hash: Optional[str] = SQLField(default=None, index=True)
+    revoked_at: Optional[datetime] = None
+    # Who the key was given to ("Juan, tester"); only shown in the admin console.
+    label: Optional[str] = None
+    # The printable key, encrypted with the server's admin secret, so the admin console can show it again.
+    key_enc: Optional[str] = None
+    # Last time the installation using this key talked to the server, and from where.
+    last_seen_at: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    last_client: Optional[str] = None
+
+
+def utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def digest(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+def _cipher():
+    """Fernet keyed by GAMEACCESS_KEY_SECRET (or the admin token): without it keys cannot be shown again."""
+    secret = os.environ.get("GAMEACCESS_KEY_SECRET") or os.environ.get("GAMEACCESS_ADMIN_TOKEN") or ""
+    if not secret:
+        return None
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(("gameaccess-keys:" + secret).encode()).digest()))
+
+
+def seal_key(printable: str) -> str | None:
+    cipher = _cipher()
+    return cipher.encrypt(printable.encode()).decode() if cipher else None
+
+
+def reveal_key(row: "AccessKey") -> str | None:
+    """The printable key of an issued key, or None (issued before keys were kept, or the secret changed)."""
+    cipher = _cipher()
+    if not row.key_enc or cipher is None:
+        return None
+    try:
+        return cipher.decrypt(row.key_enc.encode()).decode()
+    except InvalidToken:
+        return None
+
+
+def note_client(session: Session, row: "AccessKey", ip: str, client: str, *, every_seconds: int = 120) -> None:
+    """Remember when and from where the installation using this key last talked to the server.
+
+    Written at most every two minutes (or when the address changes), so frequent status checks stay cheap."""
+    now = datetime.now(timezone.utc)
+    ip, client = (ip or "")[:64] or None, (client or "")[:240] or None
+    if (row.last_seen_at is not None and (now - utc(row.last_seen_at)).total_seconds() < every_seconds
+            and row.last_ip == ip and row.last_client == client):
+        return
+    row.last_seen_at, row.last_ip, row.last_client = now, ip, client
+    session.add(row)
+    session.commit()
+
+
+def canonical_installation_id(value: str) -> str:
+    try:
+        return str(UUID(value))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("Invalid installation identifier") from exc
+
+
+def expiration(start: datetime, hours: int | None, months: int | None) -> datetime:
+    if hours is not None:
+        return start + timedelta(hours=hours)
+    assert months is not None
+    month_index = start.month - 1 + months
+    year = start.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(start.day, calendar.monthrange(year, month)[1])
+    return start.replace(year=year, month=month, day=day)
+
+
+_KEY_CONSONANTS = "bcdfghjkmnpqrstvwxz"
+_KEY_VOWELS = "aeiou"
+_KEY_SYMBOLS = "!@#$%&*"
+
+
+def _new_printable_key() -> str:
+    # Six random consonant-vowel syllables are easy to say; the suffix adds
+    # additional entropy while keeping the key around twenty characters long.
+    word = "".join(
+        secrets.choice(_KEY_CONSONANTS) + secrets.choice(_KEY_VOWELS)
+        for _ in range(6)
+    )
+    word = word[0].upper() + word[1:]
+    return f"GA-{word}{secrets.choice(_KEY_SYMBOLS)}{secrets.randbelow(10_000):04d}"
+
+
+def issue_keys(
+    session: Session,
+    *,
+    hours: int | None,
+    months: int | None,
+    count: int,
+    key_ttl_hours: int = 24,
+    expires_at: datetime | None = None,
+    access_tier: str | None = None,
+    label: str | None = None,
+) -> list[tuple[int, str]]:
+    if sum(value is not None for value in (hours, months, expires_at)) != 1:
+        raise ValueError("Specify exactly one access expiry or duration")
+    if expires_at is not None and (expires_at.tzinfo is None or expires_at.utcoffset() is None or utc(expires_at) <= datetime.now(timezone.utc)):
+        raise ValueError("Expiry must be a future date with a timezone")
+    tier = access_tier or ("plus" if months is not None else "base")
+    if tier not in ("base", "plus"):
+        raise ValueError("Invalid access tier")
+    issued: list[tuple[AccessKey, str]] = []
+    for _ in range(count):
+        for _attempt in range(10):
+            printable = _new_printable_key()
+            created_at = datetime.now(timezone.utc)
+            row = AccessKey(
+                key_hash=digest(printable.upper()),
+                duration_hours=hours,
+                duration_months=months,
+                access_tier=tier,
+                created_at=created_at,
+                expires_at=utc(expires_at) if expires_at is not None else None,
+                key_expires_at=utc(expires_at) if expires_at is not None else created_at + timedelta(hours=key_ttl_hours),
+                label=(label or "").strip()[:80] or None,
+                key_enc=seal_key(printable),
+            )
+            try:
+                # The database unique index is authoritative. Retry collisions
+                # inside a savepoint and never return a duplicate key.
+                with session.begin_nested():
+                    session.add(row)
+                    session.flush()
+            except IntegrityError:
+                continue
+            issued.append((row, printable))
+            break
+        else:
+            session.rollback()
+            raise RuntimeError("Could not generate a unique activation key")
+    session.commit()
+    return [(int(row.id), printable) for row, printable in issued if row.id is not None]
+
+
+def ensure_access_key_schema(engine) -> None:
+    """Add pending-key expiry to existing databases without resetting them."""
+    columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
+    for name, kind in (("key_enc", "VARCHAR"), ("last_seen_at", "TIMESTAMP"), ("last_ip", "VARCHAR"), ("last_client", "VARCHAR")):
+        if name not in columns:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE accesskey ADD COLUMN {name} {kind}"))
+    if "label" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE accesskey ADD COLUMN label VARCHAR"))
+    if "access_tier" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE accesskey ADD COLUMN access_tier VARCHAR NOT NULL DEFAULT 'base'"))
+            connection.execute(text("UPDATE accesskey SET access_tier = 'plus' WHERE duration_months IS NOT NULL"))
+    if "key_expires_at" in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE accesskey ADD COLUMN key_expires_at TIMESTAMP"))
+        if engine.dialect.name == "sqlite":
+            connection.execute(text(
+                "UPDATE accesskey SET key_expires_at = datetime('now', '+1 day') "
+                "WHERE key_expires_at IS NULL"
+            ))
+        elif engine.dialect.name == "postgresql":
+            connection.execute(text(
+                "UPDATE accesskey SET key_expires_at = CURRENT_TIMESTAMP + INTERVAL '24 hours' "
+                "WHERE key_expires_at IS NULL"
+            ))
+
+
+def redeem_key(session: Session, printable: str, installation_id: str) -> tuple[str, datetime]:
+    installation_id = canonical_installation_id(installation_id)
+    normalized = printable.strip()
+    row = session.exec(select(AccessKey).where(AccessKey.key_hash == digest(normalized.upper()))).first()
+    if row is None:
+        # Preserve compatibility with older case-sensitive random keys.
+        row = session.exec(select(AccessKey).where(AccessKey.key_hash == digest(normalized))).first()
+    now = datetime.now(timezone.utc)
+    if row is None or row.revoked_at is not None:
+        raise ValueError("Invalid or unavailable activation key")
+    if row.activated_at is None and row.key_expires_at is not None and utc(row.key_expires_at) <= now:
+        raise ValueError("This activation key has expired")
+    if row.installation_id is not None and row.installation_id != installation_id:
+        raise ValueError("This key is already active on another installation")
+    if row.expires_at is not None and utc(row.expires_at) <= now:
+        raise ValueError("This activation has expired")
+
+    expires_at = utc(row.expires_at) if row.expires_at is not None else expiration(
+        now, row.duration_hours, row.duration_months
+    )
+    token = secrets.token_urlsafe(32)
+    # The conditional UPDATE makes first redemption single-installation even
+    # when two requests arrive at the same time on separate server workers.
+    changed = session.exec(
+        update(AccessKey)
+        .where(
+            AccessKey.id == row.id,
+            AccessKey.revoked_at.is_(None),
+            or_(AccessKey.installation_id.is_(None), AccessKey.installation_id == installation_id),
+        )
+        .values(
+            installation_id=installation_id,
+            activated_at=row.activated_at or now,
+            expires_at=expires_at,
+            session_hash=digest(token),
+        )
+    )
+    if changed.rowcount != 1:
+        session.rollback()
+        raise ValueError("This key is already active on another installation")
+    session.commit()
+    return token, expires_at
+
+
+def release_key(session: Session, key_id: int) -> AccessKey:
+    """Free an activated key from its Windows installation (the tester reinstalled Windows or changed PC): the old
+    installation's session ends and the key can be activated once more. Its end date does not change."""
+    row = session.get(AccessKey, key_id)
+    if row is None:
+        raise LookupError("Activation key not found")
+    if row.revoked_at is not None:
+        raise ValueError("A revoked key cannot be released")
+    row.installation_id = None
+    row.session_hash = None
+    session.add(row)
+    session.commit()
+    return row
+
+
+def valid_session(session: Session, token: str, installation_id: str) -> AccessKey | None:
+    try:
+        installation_id = canonical_installation_id(installation_id)
+    except ValueError:
+        return None
+    if not token or len(token) > 200:
+        return None
+    row = session.exec(
+        select(AccessKey).where(
+            AccessKey.session_hash == digest(token),
+            AccessKey.installation_id == installation_id,
+            AccessKey.revoked_at.is_(None),
+        )
+    ).first()
+    if row is None or row.expires_at is None or utc(row.expires_at) <= datetime.now(timezone.utc):
+        return None
+    return row
+
+def session_end_details(session: Session, token: str, installation_id: str) -> dict:
+    """Return dates only for a matching token and installation; never identify keys."""
+    try:
+        installation_id = canonical_installation_id(installation_id)
+    except ValueError:
+        return {"reason": "unavailable"}
+    if not token or len(token) > 200:
+        return {"reason": "unavailable"}
+    row = session.exec(select(AccessKey).where(
+        AccessKey.session_hash == digest(token),
+        AccessKey.installation_id == installation_id,
+    )).first()
+    if row is None:
+        return {"reason": "unavailable"}
+    if row.revoked_at is not None:
+        return {"reason": "revoked", "revoked_at": utc(row.revoked_at).isoformat(),
+                "expires_at": utc(row.expires_at).isoformat() if row.expires_at else None}
+    if row.expires_at is not None and utc(row.expires_at) <= datetime.now(timezone.utc):
+        return {"reason": "expired", "expires_at": utc(row.expires_at).isoformat()}
+    return {"reason": "unavailable"}

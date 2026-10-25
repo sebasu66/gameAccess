@@ -1,0 +1,367 @@
+{
+  "_comment": "Genre concepts shared by the client (apps/desktop/src/genreConcepts.json) and the catalog pipeline (apps/api/app/genre_concepts.json). The two files must stay identical; a test enforces it. Values in the catalog that match no alias keep their own text and get a slug id. Regenerate docs/CATALOG_GENRE_MAPPING.md after editing.",
+  "not_a_genre": [
+    "Violent",
+    "Gore",
+    "Sexual Content",
+    "Nudity"
+  ],
+  "concepts": [
+    {
+      "id": "action",
+      "canonical": "Action",
+      "label": "Acción",
+      "aliases": [
+        "Action",
+        "Acción"
+      ]
+    },
+    {
+      "id": "adventure",
+      "canonical": "Adventure",
+      "label": "Aventura",
+      "aliases": [
+        "Adventure",
+        "Aventura"
+      ]
+    },
+    {
+      "id": "indie",
+      "canonical": "Indie",
+      "label": "Indie",
+      "aliases": [
+        "Indie"
+      ]
+    },
+    {
+      "id": "casual",
+      "canonical": "Casual",
+      "label": "Casual",
+      "aliases": [
+        "Casual"
+      ]
+    },
+    {
+      "id": "simulation",
+      "canonical": "Simulation",
+      "label": "Simulación",
+      "aliases": [
+        "Simulation",
+        "Simulator",
+        "Simuladores",
+        "Simulación"
+      ]
+    },
+    {
+      "id": "strategy",
+      "canonical": "Strategy",
+      "label": "Estrategia",
+      "aliases": [
+        "Strategy",
+        "Estrategia"
+      ]
+    },
+    {
+      "id": "rpg",
+      "canonical": "RPG",
+      "label": "RPG",
+      "aliases": [
+        "RPG",
+        "Role-playing (RPG)",
+        "Role-playing",
+        "Role playing",
+        "Rol"
+      ]
+    },
+    {
+      "id": "free_to_play",
+      "canonical": "Free to Play",
+      "label": "Gratuito",
+      "aliases": [
+        "Free to Play",
+        "Free To Play",
+        "Gratis"
+      ]
+    },
+    {
+      "id": "early_access",
+      "canonical": "Early Access",
+      "label": "Acceso anticipado",
+      "aliases": [
+        "Early Access",
+        "Acceso anticipado"
+      ]
+    },
+    {
+      "id": "sports",
+      "canonical": "Sports",
+      "label": "Deportes",
+      "aliases": [
+        "Sports",
+        "Sport",
+        "Deportes"
+      ]
+    },
+    {
+      "id": "racing",
+      "canonical": "Racing",
+      "label": "Carreras",
+      "aliases": [
+        "Racing",
+        "Carreras"
+      ]
+    },
+    {
+      "id": "massively_multiplayer",
+      "canonical": "Massively Multiplayer",
+      "label": "Multijugador masivo",
+      "aliases": [
+        "Massively Multiplayer",
+        "Multijugador masivo"
+      ]
+    },
+    {
+      "id": "puzzle",
+      "canonical": "Puzzle",
+      "label": "Puzles",
+      "aliases": [
+        "Puzzle",
+        "Puzle",
+        "Puzles"
+      ]
+    },
+    {
+      "id": "shooter",
+      "canonical": "Shooter",
+      "label": "Disparos",
+      "aliases": [
+        "Shooter",
+        "Disparos"
+      ]
+    },
+    {
+      "id": "platformer",
+      "canonical": "Platform",
+      "label": "Plataformas",
+      "aliases": [
+        "Platform",
+        "Platformer",
+        "Plataformas"
+      ]
+    },
+    {
+      "id": "visual_novel",
+      "canonical": "Visual Novel",
+      "label": "Novela visual",
+      "aliases": [
+        "Visual Novel",
+        "Novela visual"
+      ]
+    },
+    {
+      "id": "arcade",
+      "canonical": "Arcade",
+      "label": "Arcade",
+      "aliases": [
+        "Arcade"
+      ]
+    },
+    {
+      "id": "point_and_click",
+      "canonical": "Point-and-click",
+      "label": "Point-and-click",
+      "aliases": [
+        "Point-and-click"
+      ]
+    },
+    {
+      "id": "turn_based_strategy",
+      "canonical": "Turn-based strategy (TBS)",
+      "label": "Estrategia por turnos",
+      "aliases": [
+        "Turn-based strategy (TBS)",
+        "Estrategia por turnos"
+      ]
+    },
+    {
+      "id": "real_time_strategy",
+      "canonical": "Real Time Strategy (RTS)",
+      "label": "Estrategia en tiempo real",
+      "aliases": [
+        "Real Time Strategy (RTS)",
+        "Estrategia en tiempo real"
+      ]
+    },
+    {
+      "id": "card_and_board",
+      "canonical": "Card & Board Game",
+      "label": "Cartas y tablero",
+      "aliases": [
+        "Card & Board Game",
+        "Card Game"
+      ]
+    },
+    {
+      "id": "tactical",
+      "canonical": "Tactical",
+      "label": "Táctico",
+      "aliases": [
+        "Tactical",
+        "Táctico"
+      ]
+    },
+    {
+      "id": "fighting",
+      "canonical": "Fighting",
+      "label": "Lucha",
+      "aliases": [
+        "Fighting",
+        "Lucha"
+      ]
+    },
+    {
+      "id": "hack_and_slash",
+      "canonical": "Hack and slash/Beat 'em up",
+      "label": "Hack and slash",
+      "aliases": [
+        "Hack and slash/Beat 'em up"
+      ]
+    },
+    {
+      "id": "music",
+      "canonical": "Music",
+      "label": "Música",
+      "aliases": [
+        "Music",
+        "Música"
+      ]
+    },
+    {
+      "id": "horror",
+      "canonical": "Horror",
+      "label": "Terror",
+      "aliases": [
+        "Horror",
+        "Terror"
+      ]
+    },
+    {
+      "id": "utilities",
+      "canonical": "Utilities",
+      "label": "Utilidades",
+      "aliases": [
+        "Utilities",
+        "Utilidades"
+      ],
+      "software": true
+    },
+    {
+      "id": "design_illustration",
+      "canonical": "Design & Illustration",
+      "label": "Diseño e ilustración",
+      "aliases": [
+        "Design & Illustration",
+        "Diseño e ilustración"
+      ],
+      "software": true
+    },
+    {
+      "id": "video_production",
+      "canonical": "Video Production",
+      "label": "Producción de vídeo",
+      "aliases": [
+        "Video Production",
+        "Producción de vídeo"
+      ],
+      "software": true
+    },
+    {
+      "id": "animation_modeling",
+      "canonical": "Animation & Modeling",
+      "label": "Animación y modelado",
+      "aliases": [
+        "Animation & Modeling",
+        "Animación y modelado"
+      ],
+      "software": true
+    },
+    {
+      "id": "photo_editing",
+      "canonical": "Photo Editing",
+      "label": "Edición fotográfica",
+      "aliases": [
+        "Photo Editing",
+        "Edición fotográfica"
+      ],
+      "software": true
+    },
+    {
+      "id": "web_publishing",
+      "canonical": "Web Publishing",
+      "label": "Publicación web",
+      "aliases": [
+        "Web Publishing",
+        "Publicación web"
+      ],
+      "software": true
+    },
+    {
+      "id": "audio_production",
+      "canonical": "Audio Production",
+      "label": "Producción de audio",
+      "aliases": [
+        "Audio Production",
+        "Producción de audio"
+      ],
+      "software": true
+    },
+    {
+      "id": "game_development",
+      "canonical": "Game Development",
+      "label": "Desarrollo de juegos",
+      "aliases": [
+        "Game Development",
+        "Desarrollo de juegos"
+      ],
+      "software": true
+    },
+    {
+      "id": "education",
+      "canonical": "Education",
+      "label": "Educación",
+      "aliases": [
+        "Education",
+        "Educación"
+      ],
+      "software": true
+    },
+    {
+      "id": "accounting",
+      "canonical": "Accounting",
+      "label": "Contabilidad",
+      "aliases": [
+        "Accounting",
+        "Contabilidad"
+      ],
+      "software": true
+    },
+    {
+      "id": "software_training",
+      "canonical": "Software Training",
+      "label": "Software Training",
+      "aliases": [
+        "Software Training"
+      ],
+      "software": true
+    },
+    {
+      "id": "programming",
+      "canonical": "Programming",
+      "label": "Programming",
+      "aliases": [
+        "Programming"
+      ],
+      "software": true
+    }
+  ]
+}

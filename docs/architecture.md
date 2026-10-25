@@ -1,182 +1,144 @@
-# Architecture
+# GameAccess architecture
 
-## Target topology
+## Current product
 
-`gameAccess` is **not** intended to ship as a local client/server pair on the customer's Windows machine.
+GameAccess is a library manager, searchable Steam metadata catalog and generic
+torrent/file download manager. User-supplied plugins own external download-source
+configuration. Catalog membership and tags do not grant download availability.
 
-The production customer application should be a **single installable Windows desktop application**. The current React/Vite UI can remain, wrapped by Tauri (or an equivalent desktop shell), but the user should not have to install, start, configure, or keep a separate local API/server process running.
+Steam account rosters, ownership/family inventories, license capacity, rental
+leases, provider credentials and account switching are preserved on
+`codex/legacy-steam-licenses` and excluded from this branch. Existing local private
+files and database records are not purged by the source cleanup.
 
-The target topology is:
+## Components
 
-```text
-                         +---------------------------+
-                         |   Admin web application   |
-                         +-------------+-------------+
-                                       |
-                                       | HTTPS/authenticated admin API
-                                       v
-+----------------------+       +-----------------------------+
-| Windows gameAccess   | HTTPS | Central gameAccess backend  |
-| desktop executable   +------>+-----------------------------+
-|                      |       | users / wallet / catalog    |
-| React UI + native    |       | provider accounts           |
-| Tauri/local adapters |       | licenses / entitlements     |
-+----------+-----------+       | leases / sessions           |
-           |                   | demand / operations         |
-           | local OS/native   +-------------+---------------+
-           v                                 |
-+----------------------+                     | operator/provider integrations
-| Steam client / game  |                     v
-| files / saves / OS   |            +------------------------+
-+----------------------+            | Steam/provider systems |
-                                    +------------------------+
-```
+- React/Tauri desktop: catalog and library UI, native caches, plugin discovery,
+  BASE/PLUS concurrency (one/four), persistent queue and session download history.
+- FastAPI server: GameAccess activation keys and plans, public discovery metadata,
+  daily Steam maintenance, immutable update packages, optional lazy Co-Optimus detail
+  enrichment, and PLUS TorBox → ViKiNG source resolution. For each request it receives
+  one client-provided URL, stores only a fingerprint/host and result metadata, and
+  verifies that the ViKiNG file still exists before reusing its URL. Provider feeds and
+  full source URLs are not stored.
+- Bundled Python helpers: torrent/file downloads, extraction, app-ID installation
+  folders, installed-file registry, executable selection, language repair and
+  launching. Existing launch fixes and execution logs remain part of that flow.
 
-There are therefore **two very different kinds of backend logic**:
+The customer installs one Windows application. A localhost API is a development
+convenience; production connects to a central HTTPS service. Both API processes
+must connect to the same GameAccess Supabase PostgreSQL project. Configure
+GAMEACCESS_DATABASE_URL in the server environment or ignored apps/api/.env;
+missing configuration must fail clearly instead of creating a separate SQLite DB.
+SQLite discovery packages remain client metadata caches, not the server database.
+Isolated API tests use GAMEACCESS_ALLOW_SQLITE_FOR_TESTS=1 and synthetic data.
 
-1. **Local native application logic**, bundled inside the Windows executable. This handles operations that must occur on the customer's PC: Steam detection, installation/launch orchestration, local session preparation, save handling, process observation, cleanup, and other narrowly scoped OS integrations. It is not a separately deployed localhost web server.
-2. **Central service backend**, deployed remotely and shared by all customers. This is authoritative for customer identity, catalog data, wallet/credits, provider profiles, license/entitlement inventory, capacity, leases, session coordination, revocation, demand telemetry, and administrative operations.
+## Discovery
 
-The current `apps/api` FastAPI project is a prototype of **the second category**. Running it at `127.0.0.1` is a development convenience only; production clients should call a hosted backend over HTTPS.
+The installer includes deploy/catalog-cache under runtime/catalog. Catalog data
+loads from the bundled SQLite snapshot before network synchronization.
+The server discovers the rolling last year of public Steam releases and relevant
+older titles, merges Store tags/reviews, and publishes a new immutable gzip only
+after complete date-boundary traversal. It runs outside request handling.
 
-The current `apps/desktop` Tauri project is the intended basis of **the first category**. Where prototype functionality currently depends on a localhost API purely for implementation convenience, it should either move into Tauri/native local commands when it is inherently local, or remain in `apps/api` and be deployed as part of the central backend when it is shared/authoritative state.
+The installer carries the complete discovery database before the first application
+launch. The server retains immutable revisions and distributes compressed batches
+of additions and changed records. Clients check once after startup and at most
+daily, or on explicit refresh. Hash/schema/base-revision checks precede one SQLite
+transaction. Updates never delete games or replace the local database; incomplete
+fields cannot erase known metadata or cached details. Exact Steam AppID inventories
+repair missing records independently of revision numbers. A legacy full package is
+merged with the same preservation rules. Failed updates retain the usable catalog.
+GitHub provides a fallback baseline and a daily installer-seed refresh.
 
-## Core idea
+Co-Optimus requests happen on opening a game detail. Exact Steam AppID matching
+and response caching keep that work out of discovery and startup. Service errors
+do not invent multiplayer details.
 
-`gameAccess` separates the customer identity from third-party provider accounts.
+## Library and game execution
 
-```text
-Customer -> Windows app -> central broker API -> lease allocator -> provider adapter
-                              |                    |
-                              |                    +-> provider account/license pool
-                              +-> users / wallet / catalog / demand / sessions
-```
+Adding a game to the library does not require installation. Uninstall removes game
+files and keeps membership; remove-from-library removes both after confirmation.
+Storage settings and per-game launch options remain separate from shared metadata.
 
-The customer application asks the central backend for authorization and allocation decisions, but performs the necessary endpoint-local work through bundled native adapters.
+Digital games launch through the existing executable detection/fix pipeline.
+Already-installed Steam games can use their ordinary launch URI; GameAccess does
+not log into Steam or switch its current account.
 
-## Administrative plane
+## Implementation workflow
 
-The resource administration UI should be a **web application connected to the same central backend** used by desktop clients, with separate operator authentication/authorization.
+Use `dev` for development and `main` for stable releases. Local agents with direct
+filesystem access edit and test the existing checkout first, then commit/push on
+`dev`. GitHub-first applies only to remote agents: author/push on the existing
+GitHub `dev` branch, synchronize through AI_Local_Access, then test that checkout.
+Do not create a new branch or worktree for each task. Preserve unrelated local
+changes and private runtime configuration; report the exact tested commit.
 
-It should eventually manage and observe at least:
+## Optional source and execution boundary
 
-- provider/Steam profiles;
-- licenses and per-game entitlements;
-- account pools and availability;
-- active and historical leases/sessions;
-- disabled/quarantined resources;
-- catalog and compatibility metadata;
-- users, wallet/ledger and subscriptions when implemented;
-- demand telemetry and procurement recommendations;
-- operational alerts, health and audit history.
+The discovery/access API owns catalog packages and GameAccess access keys only.
+Provider feeds, archive passwords and provider-specific game preparation belong to
+independent optional plugins. Retired provider administration modules are archived
+in Git history and are not imported or shipped by the active API.
 
-The admin web app should not become a second source of truth. It is an operator interface over the central backend and database.
+A plugin's /api/prepare reply may include executionProfile; /api/execution-profile
+can supply a profile for an existing installation. The profile is a versioned JSON
+object with archivePasswords and beforePlay. Supported steps are ini-set (glob,
+section, key, value) and run (an executable and argument list within the game's
+folder). The generic runner preserves backup restoration, executable detection,
+language repair and user launch preferences. It applies the selected optional
+profile before Play. No extraction or Play request fetches provider data from the
+GameAccess server. Locally saved per-game profiles remain usable with the plugin off.
 
-## Authority and trust boundaries
+To check the app without plugins, start it with --no-plugins (or the environment
+variable GAMEACCESS_NO_PLUGINS=1): no plugin is started, listed to the app or asked,
+including one still running from an earlier session. The log says "Plugins disabled
+(--no-plugins)" and "Plugin state changed: no source plugins"; the plugin startup step
+is skipped, and games show no download button. Everything else must work and log no
+errors.
 
-The central backend is authoritative for scarce/shared resources. A desktop client must not be trusted to decide that a license is free, mint credits, extend its own lease, or choose an account outside the allocation returned by the service.
+Downloads has an Add manual download form. A detail's three-dot source chooser
+also accepts a manual link. Only name/link are required; Steam identity, size,
+archive passwords and a JSON profile stay behind Advanced options. Manual profiles
+are never replaced automatically by provider defaults.
 
-Conversely, operations that inherently require access to the customer's Windows environment should remain local to the bundled desktop application rather than being awkwardly simulated by a remote service.
+The activity console opens with the physical key to the left of 1 (Backquote) or
+its Console button. It tails bounded application, download and execution logs only
+while open; it can expand or pause. It masks credentials, and remote error reports
+strip all download links and connection strings. Provider secrets never appear in
+central logs. Co-Optimus uses an on-demand public-browser lookup in the desktop
+with an exact Steam-link identity check, and a cached server lookup as fallback.
 
-A useful rule is:
+## Access to managed features and desktop shortcuts
 
-```text
-shared truth / scarce resources / money / authorization -> central backend
-Windows OS / Steam client / local files / processes      -> desktop executable
-operator visibility and control                           -> admin web app -> same backend
-```
+GameAccess validates entry into the application and returns to activation when
+its current session expires. Catalog synchronization is public and independent
+of activation; managed actions do not perform separate access checks. Installed games and existing game processes remain independent;
+expiry never deletes files or terminates a game.
 
-## Security boundary
+Activation status supplies the server time, subscription expiry, permissions
+and a lease expiry capped at five minutes. The native layer queries the trusted
+API directly over TLS (loopback requires the explicit development-build flag),
+refreshes the application session every minute. It never
+accepts a frontend boolean or locally editable tier as authorization. A watchdog
+expires the bounded grant independently of React, pauses transfers and exits
+fullscreen. Loss of connection cannot extend the last grant. The UI returns to
+activation. Leases are memory-only; session credentials retain Windows DPAPI.
 
-The desktop application should never receive stored provider passwords, email credentials, Steam Guard seeds, or other account-recovery secrets merely because those secrets exist in the operator system.
+Desktop .lnk files target the GameAccess executable with --launch-game APPID.
+A single instance receives launch requests, preserves them through activation
+and uses the existing folder/executable/profile launch pipeline after access
+verification. Completed installations create shortcuts; the game detail options
+also offer manual creation. No shortcut points directly at a game's executable.
 
-Provider-specific authentication belongs behind controlled provider/session mechanisms. For local third-party sessions, assume the endpoint is hostile: anything materialized on the customer's PC can potentially be inspected by an administrator.
+This is service access control, not game DRM. Local development API instances
+are trusted only for development; a distributed client must not contain database
+credentials or privileged server configuration. Server-side validation remains
+authoritative for remote protected endpoints.
 
-Therefore the design favors supported provider session mechanisms and short-lived/revocable access. It does not rely on obscurity of a SteamID and it does not emulate Steamworks or bypass license checks.
+## Module ownership and regression
 
-## Lease model
-
-A provider account/license is a scarce resource. A lease is exclusive for the MVP where the underlying provider requires exclusivity:
-
-```text
-FREE -> LEASED -> FREE
-              -> DISABLED (operator action)
-```
-
-A lease contains:
-
-- customer;
-- game;
-- provider account / entitlement;
-- endpoint/session identity;
-- start/expiration;
-- credits charged;
-- status.
-
-The lease must be created and released by the central backend so multiple desktop clients cannot independently allocate the same scarce resource.
-
-This also gives us a provider-neutral scheduler later for Steam, cloud gaming, or other fulfillment methods.
-
-## Credits/rewards
-
-Credits are ledger-backed and centrally authoritative. Future reward sources can implement a simple adapter contract:
-
-```text
-RewardProvider.verify(event) -> RewardGrant
-RewardGrant(user_id, credits, external_event_id)
-```
-
-Good candidates are rewarded advertising, referral payouts, surveys, sponsored trials, and other opt-in offers where the provider explicitly permits incentivized traffic. Every external event should be idempotent to prevent double-crediting.
-
-## Saves
-
-Save operations themselves occur on the customer's endpoint, but customer save identity/version metadata can be coordinated centrally. Future save adapters should be per game rather than assuming a universal Steam Cloud model:
-
-```text
-SaveAdapter.backup(customer, game)
-SaveAdapter.restore(customer, game)
-SaveAdapter.clean_provider_profile(account, game)
-```
-
-Each game can define paths, exclusions, Steam Cloud behavior, and compatibility notes.
-
-## Provider adapter interface
-
-Provider/session orchestration spans the central and local boundaries. The central backend decides **which authorized resource/session** is assigned; the desktop-side adapter performs only the local operations necessary to realize that assignment.
-
-Conceptually:
-
-```python
-# Central service responsibilities
-allocate(customer, game) -> SessionGrant
-release(session_id)
-revoke(session_id)
-
-# Bundled Windows-side responsibilities
-prepare_install(game)
-prepare_local_session(session_grant)
-launch(game, session_grant)
-observe_exit()
-cleanup_local_session(session_grant)
-```
-
-The first real Steam implementation should focus on observing and orchestrating legitimate Steam Client session state on a test machine, not credential extraction or DRM replacement.
-
-## Deployment rule
-
-For production, the expected deployment model is:
-
-```text
-Customer PC:
-  gameAccess.exe (single desktop application)
-  Steam + installed games as required
-
-Cloud / hosted infrastructure:
-  gameAccess central API/backend
-  persistent database
-  shared provider/license/session state
-  admin web application
-  background operational jobs/integrations as needed
-```
-
-A localhost FastAPI server may remain useful for development, tests, mocks, or debugging, but **it is not part of the intended customer installation architecture**.
+See [MODULE_MAP.md](MODULE_MAP.md) for flow owners and dependency directions,
+and [TESTING.md](TESTING.md) for focused and full regression batches.
+Diagnostic detail belongs to one transaction, is buffered without a size limit,
+discarded on success, and flushed once on failure. INFO milestones stay durable.

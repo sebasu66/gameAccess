@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#080b10" />
+  <meta name="description" content="Game Access beta for Windows — discover, install and launch your games from one place." />
+  <title>Game Access — Jugá más y mejor</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Game Access">
+      <span class="brand-mark" aria-hidden="true"><i></i></span>
+      <span>GAME <b>ACCESS</b></span>
+    </a>
+    <nav>
+      <a href="#como-funciona" data-i18n="navHow">Cómo funciona</a>
+      <a href="#beta" data-i18n="navBeta">Beta</a>
+      <a href="#descargar" data-i18n="navDownload">Descargar</a>
+    </nav>
+    <div class="locale-switch" role="group" aria-label="Language">
+      <button type="button" data-locale="es">ES</button>
+      <button type="button" data-locale="en">EN</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="glow glow-a"></div><div class="glow glow-b"></div>
+      <div class="hero-copy">
+        <p class="eyebrow" data-i18n="eyebrow">BETA PARA WINDOWS</p>
+        <h1><span data-i18n="heroA">Jugá más.</span><br /><em data-i18n="heroB">Jugá mejor.</em></h1>
+        <p class="lead" data-i18n="heroLead">Tu biblioteca de juegos, tus cuentas de Steam y el catálogo de Game Access en una sola experiencia.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/sebasu66/gameAccess/releases/latest" data-i18n="download">Descargar para Windows</a>
+          <a class="button ghost" href="#como-funciona" data-i18n="learnMore">Ver cómo funciona</a>
+        </div>
+        <p class="fine" data-i18n="betaNote">Acceso beta. Algunas funciones todavía están en desarrollo.</p>
+      </div>
+      <div class="portal-card" aria-hidden="true">
+        <div class="portal"><span></span><i></i></div>
+        <div class="portal-floor"></div>
+        <p>GAME ACCESS</p>
+      </div>
+    </section>
+
+    <section class="section" id="como-funciona">
+      <div class="section-title">
+        <p class="eyebrow" data-i18n="simple">SIMPLE Y DIRECTO</p>
+        <h2 data-i18n="howTitle">Entrá. Elegí. Jugá.</h2>
+      </div>
+      <div class="steps">
+        <article><span>01</span><h3 data-i18n="step1Title">Instalá Game Access</h3><p data-i18n="step1Body">Descargá la aplicación para Windows e instalala como cualquier otra app.</p></article>
+        <article><span>02</span><h3 data-i18n="step2Title">Activá tu beta</h3><p data-i18n="step2Body">Ingresá una clave de acceso. La aplicación verifica la vigencia directamente con el servidor.</p></article>
+        <article><span>03</span><h3 data-i18n="step3Title">Explorá tus juegos</h3><p data-i18n="step3Body">Buscá, filtrá, instalá y abrí juegos desde una biblioteca unificada.</p></article>
+      </div>
+    </section>
+
+    <section class="section beta" id="beta">
+      <div>
+        <p class="eyebrow" data-i18n="betaEyebrow">ACCESO BETA</p>
+        <h2 data-i18n="betaTitle">Estamos construyendo Game Access con usuarios reales.</h2>
+      </div>
+      <div class="beta-copy">
+        <p data-i18n="betaBody">La beta valida el catálogo, las descargas, la activación por tiempo y la integración con Steam antes del lanzamiento público.</p>
+        <ul>
+          <li data-i18n="beta1">Activación vinculada a tu instalación.</li>
+          <li data-i18n="beta2">Catálogo y disponibilidad administrados por el servidor.</li>
+          <li data-i18n="beta3">Actualizaciones manuales durante esta etapa.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section download-section" id="descargar">
+      <div>
+        <p class="eyebrow" data-i18n="ready">LISTO PARA PROBAR</p>
+        <h2 data-i18n="downloadTitle">Game Access para Windows</h2>
+        <p data-i18n="requirements">Requiere Windows 10/11, Steam y conexión a Internet para validar el acceso.</p>
+      </div>
+      <a class="button primary large" href="https://github.com/sebasu66/gameAccess/releases/latest" data-i18n="download">Descargar para Windows</a>
+    </section>
+  </main>
+
+  <footer>
+    <span>© 2026 Game Access</span>
+    <span data-i18n="footer">Beta de desarrollo · Córdoba, Argentina</span>
+  </footer>
+  <script src="./app.js" defer></script>
+</body>
+</html>

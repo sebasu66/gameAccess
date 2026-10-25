@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::{
     collections::HashSet,
     env, fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
 };
 
@@ -29,12 +29,6 @@ pub struct MachineProfile {
     pub gpus: Vec<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct SteamAccountSwitchResult {
-    pub ok: bool,
-    pub stage: String,
-    pub message: String,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RuntimePrerequisites {
@@ -99,27 +93,6 @@ fn find_steam_exe() -> Option<PathBuf> {
         .into_iter()
         .find(|path| path.is_file())
 }
-fn remembered_steam_accounts(steam_exe: &Path) -> (bool, usize) {
-    let Some(root) = steam_exe.parent() else {
-        return (false, 0);
-    };
-    let loginusers = root.join("config").join("loginusers.vdf");
-    let Ok(text) = fs::read_to_string(&loginusers) else {
-        return (loginusers.is_file(), 0);
-    };
-    let count = text
-        .lines()
-        .filter(|line| {
-            let lower = line.to_ascii_lowercase();
-            if !lower.contains("rememberpassword") {
-                return false;
-            }
-            let values: Vec<&str> = line.split('"').collect();
-            values.len() >= 4 && values[3].trim() == "1"
-        })
-        .count();
-    (true, count)
-}
 pub fn steam_installed() -> bool {
     find_steam_exe().is_some()
 }
@@ -133,13 +106,12 @@ pub fn runtime_prerequisites() -> RuntimePrerequisites {
             remembered_accounts: 0,
         };
     };
-    let (account_file_present, remembered_accounts) = remembered_steam_accounts(&steam_exe);
     RuntimePrerequisites {
         runtime_ok: true,
         steam_installed: true,
         steam_path: steam_exe.parent().map(|p| p.to_string_lossy().to_string()),
-        account_file_present,
-        remembered_accounts,
+        account_file_present: false,
+        remembered_accounts: 0,
     }
 }
 pub fn open_steam_client() -> Result<(), String> {
@@ -158,7 +130,7 @@ pub fn open_steam_client() -> Result<(), String> {
 }
 
 fn open_steam_uri(uri: &str) -> Result<(), String> {
-    if !uri.starts_with("steam://install/") && !uri.starts_with("steam://run/") {
+    if !uri.starts_with("steam://install/") && !uri.starts_with("steam://run/") && !uri.starts_with("steam://store/") {
         return Err("Unsupported Steam URI".into());
     }
 
@@ -205,6 +177,22 @@ pub fn open_steam_install(app_id: u32) -> Result<(), String> {
 
 pub fn open_steam_run(app_id: u32) -> Result<(), String> {
     open_steam_uri(&format!("steam://run/{app_id}"))
+}
+
+/// The game's Steam store page: in the Steam client when it is installed, otherwise in the default browser.
+pub fn open_steam_store(app_id: u32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if find_steam_exe().is_none() {
+            Command::new("explorer.exe")
+                .arg(format!("https://store.steampowered.com/app/{app_id}/"))
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|err| format!("Could not open the Steam store page: {err}"))?;
+            return Ok(());
+        }
+    }
+    open_steam_uri(&format!("steam://store/{app_id}"))
 }
 
 fn quoted_value(text: &str, key: &str) -> Option<String> {
@@ -392,209 +380,34 @@ pub fn machine_profile() -> MachineProfile {
 }
 
 #[cfg(target_os = "windows")]
-fn launcher_dir() -> Option<PathBuf> {
-    if let Some(value) = env::var_os("GAMEACCESS_LAUNCHER_DIR") {
-        let candidate = PathBuf::from(value);
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
-    }
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for candidate in [dir.join("launcher"), dir.join("runtime").join("launcher")] {
-                if candidate.is_dir() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .and_then(|desktop| desktop.parent())
-        .map(|apps| apps.join("launcher"))
-}
 
-pub fn local_steam_pool() -> Result<serde_json::Value, String> {
-    read_local_steam_pool()
-}
+#[cfg(target_os = "windows")]
 
-pub fn verify_local_steam_inventory() -> Result<serde_json::Value, String> {
-    let launcher =
-        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() {
-        venv_python
-    } else {
-        PathBuf::from("python")
-    };
-    let code = r#"import json; import steam_verified_inventory as inventory; from steam_verified_sync_v5 import deterministic_switch; inventory._switch=lambda identity,attempts=2: deterministic_switch(identity); result=inventory.verify_all_remembered_accounts(save=True); print(json.dumps(result,ensure_ascii=False))"#;
-    let output = Command::new(&python)
-        .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
-        .args(["-c", code])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|err| format!("Could not verify Steam ownership: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "Steam ownership verification failed".into()
-        } else {
-            stderr
-        });
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("Steam ownership verification returned invalid data: {err}"))
-}
 
-pub fn read_local_steam_pool() -> Result<serde_json::Value, String> {
-    let launcher =
-        launcher_dir().ok_or_else(|| "Could not locate the local Steam adapter".to_string())?;
-    let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-    let python = if venv_python.is_file() {
-        venv_python
-    } else {
-        PathBuf::from("python")
-    };
-    let code = r#"import json; from pathlib import Path; from steam_pool import scan_pool,steam_root; from steam_appinfo import read_local_app_catalog; p=scan_pool(); ids=set(); [ids.update(a.get('accessible_app_ids') or []) or ids.update(a.get('runnable_app_ids') or []) or ids.update(a.get('app_ids') or []) for a in p.get('accounts',[])]; root=steam_root(); ap=(root/'appcache'/'appinfo.vdf') if root else Path('__missing__'); cat=read_local_app_catalog(ap,ids) if ap.is_file() else {}; games=[]; valid=set();
-for app_id,item in cat.items():
- t=str(item.get('type') or '').casefold(); n=str(item.get('name') or '').strip(); oslist=str(item.get('oslist') or '').casefold();
- if t=='game' and n and (not oslist or 'windows' in oslist): valid.add(int(app_id)); games.append({'app_id':int(app_id),'name':n,'developer':item.get('developer') or '','publisher':item.get('publisher') or ''})
-accounts=[]
-for a in p.get('accounts',[]):
- accounts.append({'label':a.get('display_name') or a.get('account_name') or 'Steam','account_name':a.get('account_name') or '','steam_id64':a.get('steam_id64') or '','user_id32':a.get('user_id32'),'app_ids':[x for x in (a.get('app_ids') or []) if x in valid],'runnable_app_ids':[x for x in (a.get('runnable_app_ids') or []) if x in valid],'runnable_verified':bool(a.get('runnable_verified')),'runnable_verified_at':a.get('runnable_verified_at'),'accessible_app_ids':[x for x in (a.get('accessible_app_ids') or []) if x in valid],'ticketed_app_count':int(a.get('ticketed_app_count') or 0),'ownership_source':a.get('ownership_source') or 'unverified','ownership_verified':bool(a.get('ownership_verified')),'ownership_verified_at':a.get('ownership_verified_at'),'active':bool(a.get('active'))})
-out={'source':p.get('ownership_source') or 'none','verification_complete':bool(p.get('ownership_complete')),'verified_at':p.get('ownership_verified_at'),'ownership_error':p.get('ownership_error'),'verified_account_count':int(p.get('verified_account_count') or 0),'runnable_account_count':int(p.get('runnable_account_count') or 0),'accounts':accounts,'games':sorted(games,key=lambda g:g['app_id']),'library_folders':[]}; print(json.dumps(out,ensure_ascii=False))"#;
-    let output = Command::new(&python)
-        .current_dir(&launcher)
-        .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8")
-        .args(["-c", code])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output()
-        .map_err(|err| format!("Could not read the remembered personal Steam library: {err}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "Remembered personal Steam library scan failed".into()
-        } else {
-            stderr
-        });
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("Remembered personal Steam library returned invalid data: {err}"))
-}
 
-pub fn switch_steam_account(account_label: String) -> SteamAccountSwitchResult {
-    if account_label.trim().is_empty() {
-        return SteamAccountSwitchResult {
-            ok: false,
-            stage: "input".into(),
-            message: "No Steam account label was supplied".into(),
-        };
-    }
 
-    #[cfg(target_os = "windows")]
-    {
-        let Some(launcher) = launcher_dir() else {
-            return SteamAccountSwitchResult {
-                ok: false,
-                stage: "adapter".into(),
-                message: "Could not locate the local Steam adapter".into(),
-            };
-        };
-        let venv_python = launcher.join(".venv").join("Scripts").join("python.exe");
-        let python = if venv_python.is_file() {
-            venv_python
-        } else {
-            PathBuf::from("python")
-        };
-        let code = r#"import json,sys; from steam_pool import remembered_account_identities,active_user_id32; from steam_verified_sync_v5 import deterministic_switch; target=sys.argv[1].strip().casefold(); identity=next((i for i in remembered_account_identities() if str(i.get('account_name') or '').casefold()==target or str(i.get('display_name') or '').casefold()==target),None); ok,msg=(False,'Steam account is not remembered on this PC') if identity is None else deterministic_switch(identity); expected=None if identity is None else identity.get('user_id32'); active=active_user_id32(); verified=bool(ok and expected and active==expected); print(json.dumps({'ok':verified,'stage':'ready' if verified else 'switch','message':msg,'expected_user_id32':expected,'active_user_id32':active}, ensure_ascii=False))"#;
-        let output = Command::new(&python)
-            .current_dir(&launcher)
-            .env("PYTHONUTF8", "1")
-            .env("PYTHONIOENCODING", "utf-8")
-            .args(["-c", code, account_label.as_str()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
 
-        let output = match output {
-            Ok(output) => output,
-            Err(err) => {
-                return SteamAccountSwitchResult {
-                    ok: false,
-                    stage: "adapter".into(),
-                    message: format!("Could not run the local Steam UI adapter: {err}"),
-                }
-            }
-        };
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return SteamAccountSwitchResult {
-                ok: false,
-                stage: "adapter".into(),
-                message: if stderr.is_empty() {
-                    "Steam UI adapter failed".into()
-                } else {
-                    stderr
-                },
-            };
-        }
-
-        let parsed: serde_json::Value = match serde_json::from_slice(&output.stdout) {
-            Ok(value) => value,
-            Err(err) => {
-                return SteamAccountSwitchResult {
-                    ok: false,
-                    stage: "adapter".into(),
-                    message: format!("Steam UI adapter returned invalid data: {err}"),
-                }
-            }
-        };
-        let ok = parsed
-            .get("ok")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false);
-        let stage = parsed
-            .get("stage")
-            .and_then(|value| value.as_str())
-            .unwrap_or("switch")
-            .to_string();
-        let message = parsed
-            .get("message")
-            .and_then(|value| value.as_str())
-            .unwrap_or("Steam account switch finished")
-            .to_string();
-        SteamAccountSwitchResult { ok, stage, message }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        SteamAccountSwitchResult {
-            ok: false,
-            stage: "platform".into(),
-            message: "Remembered Steam account switching is currently implemented only on Windows"
-                .into(),
-        }
-    }
-}
-
-fn steam_media_cache_path(app_id: u32) -> Option<PathBuf> {
+fn steam_media_cache_path(app_id: u32, language: Option<&str>) -> Option<PathBuf> {
     let root = env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(env::temp_dir)
         .join("gameAccess")
         .join("media-cache");
     fs::create_dir_all(&root).ok()?;
-    Some(root.join(format!("steam-{app_id}.json")))
+    let lang = language.unwrap_or("spanish");
+    Some(root.join(format!("steam-{app_id}-{lang}.json")))
 }
 
-fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<serde_json::Value> {
-    let path = steam_media_cache_path(app_id)?;
+fn read_steam_media_cache(app_id: u32, language: Option<&str>, max_age_seconds: Option<u64>) -> Option<serde_json::Value> {
+    let path = steam_media_cache_path(app_id, language)?;
+    let target_path = if path.exists() {
+        path
+    } else {
+        let legacy = path.with_file_name(format!("steam-{app_id}.json"));
+        if legacy.exists() { legacy } else { return None; }
+    };
     if let Some(max_age) = max_age_seconds {
-        let modified = fs::metadata(&path).ok()?.modified().ok()?;
+        let modified = fs::metadata(&target_path).ok()?.modified().ok()?;
         let age = std::time::SystemTime::now()
             .duration_since(modified)
             .ok()?
@@ -603,124 +416,127 @@ fn read_steam_media_cache(app_id: u32, max_age_seconds: Option<u64>) -> Option<s
             return None;
         }
     }
-    let bytes = fs::read(path).ok()?;
+    let bytes = fs::read(target_path).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
-fn write_steam_media_cache(app_id: u32, data: &serde_json::Value) {
-    let Some(path) = steam_media_cache_path(app_id) else {
+fn write_steam_media_cache(app_id: u32, language: Option<&str>, data: &serde_json::Value) {
+    let Some(path) = steam_media_cache_path(app_id, language) else {
         return;
     };
     let Ok(body) = serde_json::to_vec(data) else {
         return;
     };
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(tmp, path);
     }
 }
 
-pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
-    const CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
-    if let Some(cached) = read_steam_media_cache(app_id, Some(CACHE_TTL_SECONDS)) {
-        return Ok(cached);
-    }
+pub fn steam_metadata_cache_fresh(app_id: u32) -> bool {
+    read_steam_media_cache(app_id, None, Some(24 * 60 * 60)).is_some_and(|data| cached_reviews_current(&data))
+}
 
-    #[cfg(target_os = "windows")]
-    {
-        let url = format!(
-            "https://store.steampowered.com/api/appdetails?appids={app_id}&cc=AR&l=spanish"
-        );
-        let script = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; $headers=@{{'User-Agent'='gameAccess/0.1'}}; $result=Invoke-RestMethod -Uri '{}' -Headers $headers -TimeoutSec 20; $result | ConvertTo-Json -Depth 32 -Compress", url);
-        let output = match Command::new("powershell.exe")
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                &script,
-            ])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-        {
-            Ok(output) => output,
-            Err(err) => {
-                if let Some(stale) = read_steam_media_cache(app_id, None) {
-                    return Ok(stale);
-                }
-                return Err(format!("Could not query Steam Store metadata: {err}"));
+fn cached_reviews_current(data: &serde_json::Value) -> bool {
+    let recent = data["gameaccess_reviews_updated_at"].as_str()
+        .and_then(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).ok())
+        .is_some_and(|stamp| { let age = chrono::Utc::now().signed_duration_since(stamp).num_seconds(); (0..24 * 60 * 60).contains(&age) });
+    data.get("gameaccess_reviews").is_some() && data.get("gameaccess_refresh_warning").is_none() && recent
+}
+
+// Lightweight catalog projection: avoid sending every full description/media list
+// across IPC when starting the worker or updating grid filters and sorting.
+pub fn steam_metadata_catalog_cache(app_ids: &[u32]) -> serde_json::Value {
+    let mut result = serde_json::Map::new();
+    for &app_id in app_ids {
+        if let Some(data) = read_steam_media_cache(app_id, None, None) {
+            let mut compact = serde_json::Map::new();
+            for key in ["genres", "categories", "release_date", "recommendations", "short_description", "gameaccess_reviews", "gameaccess_updated_at"] {
+                if let Some(value) = data.get(key) { compact.insert(key.into(), value.clone()); }
             }
-        };
-        if !output.status.success() {
-            if let Some(stale) = read_steam_media_cache(app_id, None) {
-                return Ok(stale);
-            }
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() {
-                "Steam Store metadata request failed".into()
-            } else {
-                stderr
-            });
+            result.insert(app_id.to_string(), compact.into());
         }
-        let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|err| format!("Steam Store returned invalid JSON: {err}"))?;
-        let key = app_id.to_string();
-        let entry = parsed.get(&key).ok_or_else(|| {
-            "Steam Store response did not contain the requested AppID".to_string()
-        })?;
-        if !entry
-            .get("success")
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-        {
-            if let Some(stale) = read_steam_media_cache(app_id, None) {
-                return Ok(stale);
-            }
+    }
+    result.into()
+}
+
+// Opening a detail reads a one-day cache; an explicit refresh bypasses it.
+// Only public Store data is queried. Installation sizes still come from local manifests.
+pub fn steam_store_metadata(app_id: u32) -> Result<serde_json::Value, String> {
+    steam_store_metadata_refresh(app_id, None, false)
+}
+
+pub fn steam_store_metadata_refresh(app_id: u32, language: Option<String>, force: bool) -> Result<serde_json::Value, String> {
+    if app_id == 0 { return Err("Invalid Steam AppID".into()); }
+    let lang_str = language.as_deref().unwrap_or("spanish");
+    let (steam_lang, steam_cc) = if lang_str.eq_ignore_ascii_case("english") || lang_str.eq_ignore_ascii_case("en") {
+        ("english", "US")
+    } else {
+        ("spanish", "AR")
+    };
+    if !force {
+        if let Some(cached) = read_steam_media_cache(app_id, Some(steam_lang), Some(24 * 60 * 60)) {
+            if cached_reviews_current(&cached) { return Ok(cached); }
+        }
+    }
+    let stale = read_steam_media_cache(app_id, Some(steam_lang), None);
+    let fetched = (|| -> Result<serde_json::Value, String> {
+        let client = reqwest::blocking::Client::builder()
+            .user_agent("gameAccess/0.1")
+            .timeout(std::time::Duration::from_secs(20))
+            .build().map_err(|err| err.to_string())?;
+        let response: serde_json::Value = client.get("https://store.steampowered.com/api/appdetails")
+            .query(&[("appids", app_id.to_string()), ("cc", steam_cc.into()), ("l", steam_lang.into())])
+            .send().and_then(|res| res.error_for_status()).and_then(|res| res.json())
+            .map_err(|err| format!("Steam Store: {err}"))?;
+        let entry = &response[app_id.to_string()];
+        if entry["success"].as_bool() != Some(true) || !entry["data"].is_object() {
             return Err("Steam Store did not return metadata for this AppID".into());
         }
-        let data = entry
-            .get("data")
-            .cloned()
-            .ok_or_else(|| "Steam Store response did not contain game data".to_string())?;
-        write_steam_media_cache(app_id, &data);
+        let mut data = entry["data"].clone();
+        // Keep the previous review summary if Steam is unavailable or rate-limits us.
+        if let Some(previous) = stale.as_ref().and_then(|value| value.get("gameaccess_reviews")) {
+            data["gameaccess_reviews"] = previous.clone();
+        }
+        let reviews = client.get(format!("https://store.steampowered.com/appreviews/{app_id}"))
+            .query(&[("json", "1"), ("filter", "all"), ("language", "all"), ("purchase_type", "all"), ("num_per_page", "1")])
+            .send().and_then(|res| res.error_for_status()).and_then(|res| res.json::<serde_json::Value>());
+        match reviews {
+            Ok(value) if value["success"].as_u64() == Some(1) && value["query_summary"]["total_reviews"].is_u64() => {
+                data["gameaccess_reviews"] = value["query_summary"].clone();
+                data["gameaccess_reviews_updated_at"] = chrono::Utc::now().to_rfc3339().into();
+            }
+            _ => { data["gameaccess_refresh_warning"] = "Steam no pudo actualizar las valoraciones. Se conserva la información anterior.".into(); }
+        }
+        data["gameaccess_updated_at"] = chrono::Utc::now().to_rfc3339().into();
+        write_steam_media_cache(app_id, Some(steam_lang), &data);
         Ok(data)
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        read_steam_media_cache(app_id, None).ok_or_else(|| {
-            "Steam Store metadata bridge is currently implemented for Windows".into()
-        })
+    })();
+    match fetched {
+        Ok(data) => Ok(data),
+        Err(err) if force => Err(err),
+        Err(err) => stale.ok_or(err),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::read_local_steam_pool;
 
+    // Opt-in integration check: two public Steam requests for one game, then
+    // a cache-only read. Never run this against the entire catalog.
     #[test]
-    fn local_steam_pool_contains_real_games_and_accounts() {
-        let pool = read_local_steam_pool().expect("local Steam pool should load");
-        let games = pool
-            .get("games")
-            .and_then(|value| value.as_array())
-            .expect("games array");
-        let accounts = pool
-            .get("accounts")
-            .and_then(|value| value.as_array())
-            .expect("accounts array");
-        assert!(
-            !games.is_empty(),
-            "local Steam pool must not silently become empty"
-        );
-        assert!(
-            !accounts.is_empty(),
-            "remembered Steam accounts must be present"
-        );
-        assert!(games.iter().all(|game| game
-            .get("app_id")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(0)
-            > 0));
+    #[ignore = "requires Steam network access"]
+    fn live_steam_metadata_refresh_caches_reviews() {
+        let fresh = super::steam_store_metadata_refresh(1174180, None, true).expect("Steam refresh");
+        assert_eq!(fresh["steam_appid"].as_u64(), Some(1174180));
+        let reviews = &fresh["gameaccess_reviews"];
+        let total = reviews["total_reviews"].as_u64().expect("review total");
+        let positive = reviews["total_positive"].as_u64().expect("positive reviews");
+        assert!(total > 0 && positive <= total);
+        assert!(fresh["gameaccess_reviews_updated_at"].is_string());
+        let cached = super::steam_store_metadata(1174180).expect("cached Steam data");
+        assert_eq!(cached["gameaccess_updated_at"], fresh["gameaccess_updated_at"]);
+        assert_eq!(cached["gameaccess_reviews"], fresh["gameaccess_reviews"]);
     }
+
 }

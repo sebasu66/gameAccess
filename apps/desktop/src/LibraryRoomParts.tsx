@@ -1,11 +1,13 @@
+import SteamCover from "./SteamCover";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Loader2, Play, Snowflake, XCircle } from "lucide-react";
+import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";
 
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
+import { useI18n, translate } from "./i18n";
 
 export type DownloadMap = Record<number, ManagedDownloadStatus>;
 export type FocusZone = "grid" | "actions";
@@ -23,8 +25,8 @@ export interface ArtworkState {
   activeLayer: number;
 }
 
-const ACTION_PREVIOUS_KEYS = new Set(["a", "arrowleft", "w", "arrowup"]);
-const ACTION_NEXT_KEYS = new Set(["d", "arrowright", "s", "arrowdown"]);
+const ACTION_PREVIOUS_KEYS = new Set(["arrowleft", "arrowup"]);
+const ACTION_NEXT_KEYS = new Set(["arrowright", "arrowdown"]);
 
 export function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
   for (const value of values) {
@@ -33,35 +35,11 @@ export function firstPresent<T>(...values: Array<T | null | undefined>): T | und
   return undefined;
 }
 
-function artworkCandidates(game: CatalogGame) {
-  const appId = game.app_id;
-  const candidates = [
-    game.capsule_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg` : null,
-    game.header_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : null,
-    appId ? `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg` : null,
-  ].filter((value): value is string => Boolean(value));
-  return [...new Set(candidates)];
-}
-
-function SteamCover({ game }: { game: CatalogGame }) {
-  const sources = artworkCandidates(game);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const source = sources[sourceIndex];
-  if (!source) return <span className="library-cover-fallback"><Gamepad2 size={34} /></span>;
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" onError={() => setSourceIndex((current) => current + 1)} />;
-}
-
 function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
+  const { t } = useI18n();
   const state = gameStateManager.resolve(status);
-  if (state.frozen) {
-    return <span className="library-install-state frozen" title="Juego congelado · compactado para ahorrar espacio. Se descomprime automáticamente al presionar Jugar."><Snowflake size={13} /></span>;
-  }
   if (!state.playButtonReady) return null;
-  return <span className="library-install-state ready" title="Listo para presionar Jugar"><Play size={12} fill="currentColor" /></span>;
+  return <span className="library-install-state ready" title={t("uiListoParaPresionarJugar")}><Play size={12} fill="currentColor" /></span>;
 }
 
 export function useCrossfadeArtwork(source?: string): ArtworkState {
@@ -150,7 +128,7 @@ export function selectedVideo(movie?: SteamMovie) {
 }
 
 export function selectedSummary(details: GameDetails | null) {
-  return firstPresent(details?.steam?.short_description, "Seleccionado de la biblioteca combinada de tus cuentas Steam.") ?? "";
+  return firstPresent(details?.steam?.short_description, translate("selectedFromLibraryFallback")) ?? "";
 }
 
 export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, hasSelection: boolean) {
@@ -164,20 +142,16 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   const state = gameStateManager.resolve(status);
 
   if (state.primaryAction === "wait") {
-    const label = state.technicalState === "freezing"
-      ? "Congelando…"
-      : state.technicalState === "thawing"
-        ? "Restaurando…"
-        : "Procesando…";
+    const label = translate("actionProcessing");
     return [{ label, icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
   if (state.primaryAction === "play") {
     return [{
-      label: "Jugar",
+      label: translate("actionPlay"),
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,
       disabled: busy,
-      reason: busy ? "GameAccess está preparando otra sesión." : null,
+      reason: busy ? translate("actionBusyReason") : null,
       kind: "play",
     }];
   }
@@ -185,7 +159,7 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   if (state.primaryAction === "cancel") {
     const cancelling = state.technicalState === "cancelling";
     return [{
-      label: cancelling ? "Cancelando…" : "Cancelar descarga",
+      label: cancelling ? translate("actionCancelling") : translate("actionCancelDownload"),
       icon: cancelling ? <Loader2 className="spin" size={23} /> : <XCircle size={23} />,
       disabled: cancelling,
       kind: "cancel",
@@ -193,13 +167,15 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
   }
 
   if (state.primaryAction === "verify") {
-    return [{ label: "Verificando…", icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
+    return [{ label: translate("actionVerifying"), icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
+    const srcCount = (game as any).availableSourceCount ?? 0;
+  
   return [{
-    label: "Descargar",
+    label: translate("actionDownload"),
     icon: <Download size={23} />,
-    disabled: !game.app_id,
+    disabled: (!game.app_id && !game.id),
     kind: "download",
   }];
 }
@@ -255,19 +231,19 @@ export function handleGridKey(key: string, context: GridKeyContext) {
     return true;
   }
   if (key === "escape") return true;
-  if (key === "a" || key === "arrowleft") {
+  if (key === "arrowleft") {
     if (context.selectedIndex % context.columns !== 0) context.moveGrid(-1);
     return true;
   }
-  if (key === "d" || key === "arrowright") {
+  if (key === "arrowright") {
     if (context.selectedIndex % context.columns !== context.columns - 1) context.moveGrid(1);
     return true;
   }
-  if (key === "w" || key === "arrowup") {
+  if (key === "arrowup") {
     context.moveGrid(-context.columns);
     return true;
   }
-  if (key === "s" || key === "arrowdown") {
+  if (key === "arrowdown") {
     context.moveGrid(context.columns);
     return true;
   }
@@ -275,34 +251,37 @@ export function handleGridKey(key: string, context: GridKeyContext) {
 }
 
 export function LibraryHint() {
+  const { t } = useI18n();
   return (
     <div className="library-room-hint">
-      <span>NAVEGAR · WASD / FLECHAS</span>
-      <span>ENTRAR / ACTIVAR · ENTER</span>
-      <span>VOLVER · ESC</span>
+      <span>{t("uiNavegarFlechas")}</span>
+      <span>{t("uiIrATituloLetras")}</span>
+      <span>{t("uiEntrarActivarEnter")}</span>
+      <span>{t("uiVolverEsc")}</span>
     </div>
   );
 }
 
 export function EmptyLibraryContent({ gridRef, loading }: { gridRef: RefObject<HTMLDivElement>; loading: boolean }) {
+  const { t } = useI18n();
   return (
     <>
       <aside className="library-room-feature">
         <div className="library-room-feature-shade" />
         <div className="library-room-feature-copy">
-          <span className="eyebrow">TU BIBLIOTECA</span>
-          <h1>{loading ? "Preparando tu biblioteca…" : "Tu biblioteca está vacía"}</h1>
-          <p>{loading ? "GameAccess está cargando las cuentas y juegos recordados en Steam." : "No encontramos juegos todavía. Podés seguir usando GameAccess; cuando aparezcan juegos en tus cuentas Steam, se mostrarán acá."}</p>
-          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> Cargando biblioteca…</span> : null}
+          <span className="eyebrow">{t("uiTuBiblioteca")}</span>
+          <h1>{loading ? t("emptyLibraryPreparing") : t("emptyLibraryTitle")}</h1>
+          <p>{loading ? t("emptyLibraryLoadingBody") : t("emptyLibraryBody")}</p>
+          {loading ? <span className="library-room-loading"><Loader2 size={14} className="spin" /> {t("uiCargandoBiblioteca")}</span> : null}
         </div>
       </aside>
       <section className="library-room-catalog">
-        <header className="library-room-heading"><small>0 juegos · WASD / FLECHAS</small></header>
+        <header className="library-room-heading"><small>{t("ui0Juegos")}</small></header>
         <div ref={gridRef} className="library-room-grid library-room-empty-grid">
           <div className="library-room-empty-state">
             <Gamepad2 size={42} />
-            <strong>{loading ? "Buscando juegos…" : "No hay juegos para mostrar"}</strong>
-            <span>{loading ? "La interfaz ya está lista; sólo estamos esperando los datos." : "Este es un estado válido y no bloquea GameAccess."}</span>
+            <strong>{loading ? t("emptyViewSearching") : t("emptyViewTitle")}</strong>
+            <span>{loading ? t("emptyViewLoadingBody") : t("emptyViewBody")}</span>
           </div>
         </div>
       </section>
@@ -315,18 +294,15 @@ export { FeaturePanel } from "./LibraryDetailPanel";
 interface CatalogPanelProps {
   games: CatalogGame[];
   downloads: DownloadMap;
-  accountCount: number;
   selectedIndex: number;
   gridRef: RefObject<HTMLDivElement>;
   onSelect: (index: number) => void;
 }
 
 export function CatalogPanel(props: CatalogPanelProps) {
-  const accountLabel = props.accountCount === 1 ? "cuenta" : "cuentas";
-  const accounts = props.accountCount ? ` · ${props.accountCount} ${accountLabel}` : "";
   return (
     <section className="library-room-catalog">
-      <header className="library-room-heading"><small>{props.games.length} juegos{accounts} · WASD / FLECHAS</small></header>
+      <header className="library-room-heading"><small>{props.games.length} juegos</small></header>
       <div ref={props.gridRef} className="library-room-grid">
         {props.games.map((game, index) => (
           <button
@@ -336,7 +312,7 @@ export function CatalogPanel(props: CatalogPanelProps) {
             data-library-game-id={game.id}
             onClick={() => props.onSelect(index)}
             aria-current={index === props.selectedIndex ? "true" : undefined}
-            aria-label={`${index === props.selectedIndex ? "Seleccionado: " : "Seleccionar "}${game.name}`}
+            aria-label={translate(index === props.selectedIndex ? "selectedGameAria" : "selectGameAria", { name: game.name })}
             tabIndex={-1}
           >
             <span className="library-room-card-art">
