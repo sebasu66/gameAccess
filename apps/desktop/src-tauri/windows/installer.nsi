@@ -357,6 +357,13 @@ Function PageLeaveReinstall
       ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
       ReadRegStr $R1 SHCTX "${UNINSTKEY}" "UninstallString"
       ${IfThen} $UpdateMode = 1 ${|} StrCpy $R1 "$R1 /UPDATE" ${|} ; append /UPDATE
+      ; Game Access: replacing the same or an older version is an update for the old uninstaller too, so its hook
+      ; keeps the source plugins (%APPDATA%\GameAccess\plugins) and the player's data. Without it, the default
+      ; "uninstall first" choice of a manual upgrade removed the plugins (0.1.1 -> 0.1.3, 2026-10-25).
+      ${If} $UpdateMode <> 1
+      ${AndIf} $R0 >= 0
+        StrCpy $R1 "$R1 /UPDATE"
+      ${EndIf}
       ${IfThen} $PassiveMode = 1 ${|} StrCpy $R1 "$R1 /P" ${|} ; append /P
       StrCpy $R1 "$R1 _?=$4" ; append uninstall directory
       ExecWait '$R1' $0
