@@ -145,6 +145,23 @@ details.library-sort-dropdown > summary.ga-cube:hover, details.library-sort-drop
 }
 details.library-sort-dropdown > summary.ga-cube:hover .ga-cube-label, details.library-sort-dropdown > summary.ga-cube:focus-visible .ga-cube-label, details.library-sort-dropdown[open] > summary.ga-cube .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
 
+/* "Personalized order" switch next to the sort (CatalogFilterToolbar): a cube like its neighbours; orange while on,
+   dimmed while the taste profile is not ready, and a glow for a moment when it becomes available. */
+button.ga-cube.ga-personal-order {
+  height: 38px; min-width: 41px; padding: 0 10px; display: inline-flex; align-items: center; border: 1px solid #ffffff1c; border-radius: 8px; color: #cfd4d8;
+  background: linear-gradient(180deg, #ffffff16, #ffffff05); box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006;
+  font: 800 12px Manrope, sans-serif; letter-spacing: .06em; gap: 0; cursor: pointer; transition: color .2s, border-color .2s, background .2s, box-shadow .2s, opacity .2s;
+}
+button.ga-cube.ga-personal-order .ga-cube-label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .25s, opacity .2s, margin .25s; }
+button.ga-cube.ga-personal-order:hover:not([aria-disabled="true"]), button.ga-cube.ga-personal-order:focus-visible {
+  color: #fff; border-color: #ff8a38; outline: none; background: linear-gradient(180deg, #ff6a0038, #ff6a0012); box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #ff6a0055, 0 4px 12px #0006;
+}
+button.ga-cube.ga-personal-order.is-on { color: #111; border-color: #ff8a38; background: var(--ga-orange); box-shadow: inset 0 1px 0 #ffffff55, 0 0 14px #ff6a0066, 0 4px 12px #0006; }
+button.ga-cube.ga-personal-order:is(:hover, :focus-visible, .is-on) .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
+button.ga-cube.ga-personal-order[aria-disabled="true"] { opacity: .38; cursor: help; box-shadow: none; }
+button.ga-cube.ga-personal-order.is-unlocked { color: #fff; border-color: #ffb06b; background: linear-gradient(180deg, #ff6a0066, #ff6a0022); box-shadow: 0 0 0 2px #ff6a0055, 0 0 28px #ff6a00aa, 0 0 60px #ff6a0055; }
+button.ga-cube.ga-personal-order.is-unlocked .ga-cube-label { max-width: 170px; opacity: 1; margin-left: 9px; }
+
 /* Catalog banner: the latest games on Steam (decoded before they show; opacity-only swap). */
 .ga-spotlight { position: relative; flex: none; height: clamp(220px, 30vh, 340px); margin: 0 26px 22px 0; border-radius: 12px; overflow: hidden; isolation: isolate; background: #15191d; }
 .ga-spotlight::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: 1px; pointer-events: none; background: linear-gradient(135deg, #ffffff55, #ffffff08); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }

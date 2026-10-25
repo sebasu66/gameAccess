@@ -127,6 +127,8 @@ export const STRONG = 0.7;
 const CLEAR_GAIN = 0.15;
 /** At or below this chance a game leans to the dislikes. */
 const UNLIKELY = 0.35;
+/** Below this chance a game is left out of the tailored results (disliked games are 0). */
+export const HIDDEN_BELOW = 0.2;
 
 /**
  * Chance (0..1) that the player likes a game: 0.5 is neutral (no clear pattern, or a profile not ready yet). It moves
@@ -164,13 +166,15 @@ export function tasteQuery(profile: TasteProfile, base: CatalogQueryParams, genr
  *   leans to the dislikes, gives its place to the best of the rest; a neutral one gives it only to a game much more
  *   likely to please (STRONG and CLEAR_GAIN), and then moves to its rank below instead of to the end.
  * - Below the screen: the player's top (LIKELY and up, most likely first), then the neutral games in their usual
- *   order, then the ones that lean to the dislikes, and the disliked games last.
+ *   order, then the ones that lean to the dislikes.
+ * - Games the player is not likely to like (below HIDDEN_BELOW, disliked ones included) are left out.
  * `candidates` are extra games from the taste query; they join only where they rank.
  */
 export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: TasteProfile, options: { screen?: CatalogGame[]; candidates?: CatalogGame[] } = {}): CatalogGame[] {
   const ids = new Set(games.map(game => game.id));
-  const all = [...games, ...(options.candidates ?? []).filter(game => !ids.has(game.id) && (ids.add(game.id), true))];
-  const chance = new Map(all.map(game => [game.id, likeChance(profile, game, ratings)]));
+  const every = [...games, ...(options.candidates ?? []).filter(game => !ids.has(game.id) && (ids.add(game.id), true))];
+  const chance = new Map(every.map(game => [game.id, likeChance(profile, game, ratings)]));
+  const all = every.filter(game => chance.get(game.id)! >= HIDDEN_BELOW);
   const order = new Map(all.map((game, index) => [game.id, index]));
   // Neutral games keep the usual order among themselves: only clear chances rank.
   const rank = (game: CatalogGame) => { const value = chance.get(game.id)!; return value >= LIKELY || value <= UNLIKELY ? value : 0.5; };
@@ -199,8 +203,10 @@ export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: T
 
 type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
-/** After a thumb: how far the profile is built, and whether the results adapt yet. */
-export function tasteProgressText(profile: TasteProfile, t: Translate): string {
-  const percent = Math.round(profile.certainty * 100);
-  return profile.ready ? t("tasteReady", { percent }) : t("tasteProgress", { percent });
+/** After a thumb: how far the profile is built, and what that means for the personalized order. */
+export function tasteProgressText(before: TasteProfile, after: TasteProfile, personalOn: boolean, t: Translate): string {
+  const percent = Math.round(after.certainty * 100);
+  if (!after.ready) return t("tasteProgress", { percent });
+  if (!before.ready) return t("tasteUnlocked", { percent });
+  return personalOn ? t("tasteReady", { percent }) : t("tasteReadyOff", { percent });
 }

@@ -6,6 +6,7 @@ import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorage
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { useCatalogQuery } from "./useCatalogQuery";
 import { buildTasteProfile, rememberTasteGame, tailorCatalog, tasteQuery } from "./tasteProfile";
+import { publishTasteReadiness, usePersonalOrder } from "./personalOrder";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -217,7 +218,11 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   // The player's taste from the thumbs (tasteProfile.ts): a second query brings the games most likely to please,
   // which the catalog order places where they rank.
   const taste = useMemo(() => buildTasteProfile(preferences, games), [preferences, games]);
-  const tasteParams = useMemo(() => tasteQuery(taste, catalogBase, genreNames), [taste, catalogBase, genreNames]);
+  useEffect(() => publishTasteReadiness(taste.ready, Math.round(taste.certainty * 100)), [taste]);
+  // Only with "personalized order" on (personalOrder.ts, next to the sort) and a ready profile.
+  const personalOrder = usePersonalOrder();
+  const tailoring = personalOrder.on && taste.ready;
+  const tasteParams = useMemo(() => tailoring ? tasteQuery(taste, catalogBase, genreNames) : null, [tailoring, taste, catalogBase, genreNames]);
   const tasteCandidates = useCatalogQuery({ ...(tasteParams ?? {}), enabled: isCatalog && nativeCatalog && tasteParams !== null });
   // What the catalog showed last for this search, filters and sort: the games on screen keep their places when the
   // order adapts. A new search starts over.
@@ -241,10 +246,12 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
       const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
       const candidates = tasteParams && !memoryOnly ? tasteCandidates.items.filter(game => activeQuery || !isInstalledGame(game)) : [];
-      const key = JSON.stringify(catalogBase);
+      const key = JSON.stringify({ catalogBase, tailoring });
       const last = lastCatalogRef.current.key === key ? lastCatalogRef.current.games : [];
-      const tailored = tailorCatalog(sourceItems, preferences, taste, { screen: last.slice(0, catalogScreenEnd(last)), candidates });
+      const tailored = tailoring ? tailorCatalog(sourceItems, preferences, taste, { screen: last.slice(0, catalogScreenEnd(last)), candidates }) : sourceItems;
       lastCatalogRef.current = { key, games: tailored };
+      const kept = new Set(tailored.map(game => game.id));
+      const hiddenByTaste = tailoring ? sourceItems.filter(game => !kept.has(game.id)).length : 0;
       const items = downloadManager.pinGames(tailored, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
@@ -263,7 +270,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
         title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
-        total: memoryOnly ? sourceItems.length : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length)),
+        total: memoryOnly ? sourceItems.length - hiddenByTaste : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length) - hiddenByTaste),
         hiddenInstalled: queried.length - sourceItems.length,
       };
     }
@@ -277,7 +284,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
