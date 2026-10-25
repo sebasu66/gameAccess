@@ -26,6 +26,7 @@ mod app_update;
 mod download_queue;
 mod game_controllers;
 mod game_focus;
+mod webview_rest;
 
 use std::{env, sync::Mutex};
 
@@ -41,11 +42,19 @@ fn main() {
             launch_intent::receive(&args);
             plugin_install::receive(&args);
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
+            // The page may be suspended while a game runs: wake it before asking it to launch.
+            webview_rest::wake(app);
             let _=app.emit("gameaccess:launch-request",());
         }))
         // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // Rests while minimized, or while a game runs and Game Access does not have the focus (webview_rest.rs).
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Focused(focused) => webview_rest::reconcile(window, Some(*focused)),
+            tauri::WindowEvent::Resized(_) => webview_rest::reconcile(window, None),
+            _ => {}
+        })
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);

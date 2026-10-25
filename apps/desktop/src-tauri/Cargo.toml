@@ -34,3 +34,8 @@ argon2 = "0.5"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[target.'cfg(windows)'.dependencies]
+# WebView2 rest while nobody looks at Game Access (webview_rest.rs); the versions Tauri's wry already uses.
+webview2-com = "0.38.2"
+windows-core = "0.61"

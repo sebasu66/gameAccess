@@ -165,6 +165,7 @@ fn watch(app: AppHandle, folder: String, session: u64) {
                     empty_polls += 1;
                     if empty_polls < 2 { continue; }
                     if SESSION.load(Ordering::SeqCst) != session { return; }
+                    crate::webview_rest::set_game_running(&app, false);
                     if let Some(main) = app.get_webview_window("main") {
                         let _ = main.unminimize();
                         let _ = main.show();
@@ -177,6 +178,7 @@ fn watch(app: AppHandle, folder: String, session: u64) {
             }
         }
         empty_polls = 0;
+        if appeared.is_none() { crate::webview_rest::set_game_running(&app, true); }
         let first_seen = *appeared.get_or_insert_with(Instant::now);
         // Give the game's window the focus, again when a new one shows (launcher -> game), as long as the player has
         // not moved somewhere else: the front window is still Game Access or the game.
@@ -197,6 +199,8 @@ fn watch(app: AppHandle, folder: String, session: u64) {
 #[tauri::command]
 pub fn game_focus_watch(app: AppHandle, folder: String) -> bool {
     let session = SESSION.fetch_add(1, Ordering::SeqCst) + 1;
+    // A new session replaces the previous one, which may have left the view resting.
+    crate::webview_rest::set_game_running(&app, false);
     if folder.trim().is_empty() || !Path::new(&folder).is_dir() { return false; }
     #[cfg(windows)]
     std::thread::spawn(move || watch(app, folder, session));
