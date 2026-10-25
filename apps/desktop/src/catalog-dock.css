@@ -65,3 +65,6 @@ html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px
 html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }
 html body .ga-footer-left .ga-access-pass-panel { left: 0; right: auto; }
 html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; }
+/* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
+.library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }
