@@ -16,7 +16,7 @@ use std::{
 const CACHE_SCHEMA_VERSION: u32 = 1;
 const MAX_COMPRESSED_BYTES: usize = 100 * 1024 * 1024;
 static CATALOG_CACHE_SYNC_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
+pub(crate) static CATALOG_SESSION_CONN: Mutex<Option<Connection>> = Mutex::new(None);
 
 #[derive(Debug, Deserialize)]
 struct CatalogManifest {
@@ -65,7 +65,7 @@ fn cache_dir() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn cache_db_path() -> Result<PathBuf, String> {
+pub(crate) fn cache_db_path() -> Result<PathBuf, String> {
     Ok(cache_dir()?.join("catalog.sqlite"))
 }
 

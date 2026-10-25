@@ -159,6 +159,10 @@ export interface CatalogSourcesApplyResult {
   revision: string;
   sources_total: number;
   matched_links: number;
+  /** Waiting for a worker thread, waiting for the shared catalog connection, and the work itself (for the log). */
+  queued_ms?: number;
+  wait_ms?: number;
+  work_ms?: number;
 }
 
 export async function applyCatalogSources(params: CatalogSourcesApplyParams): Promise<CatalogSourcesApplyResult | null> {

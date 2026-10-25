@@ -258,10 +258,12 @@ function normalizeIndexEntries(rawAdded: unknown, fallbackSourceName: string): S
 export type SourcesProgress = (detail: string, done?: number, total?: number) => void;
 
 /** One log line saying what a plugin's source-index sync asked for, what it got and how long it took. */
-export function pluginSyncLine(name: string, sync: { since: string; revision: string; full: boolean; added: number; removed: number; fetchedMs: number; totalMs: number }): string {
+export function pluginSyncLine(name: string, sync: { since: string; revision: string; full: boolean; added: number; removed: number; fetchedMs: number; totalMs: number;
+  save?: { queued_ms?: number; wait_ms?: number; work_ms?: number } | null }): string {
+  const save = sync.save ? ` (queued ${sync.save.queued_ms ?? "?"} ms, waiting for the catalog database ${sync.save.wait_ms ?? "?"} ms, writing ${sync.save.work_ms ?? "?"} ms)` : "";
   const asked = sync.since ? `changes since revision ${sync.since}` : "the full index";
   return `Provider '${name}' · source index: asked ${asked}, got ${sync.full ? "the full index" : "a delta"} → revision ${sync.revision} (+${sync.added} / -${sync.removed} entries); `
-    + `request ${sync.fetchedMs} ms, saving ${sync.totalMs - sync.fetchedMs} ms, total ${sync.totalMs} ms.`;
+    + `request ${sync.fetchedMs} ms, saving ${sync.totalMs - sync.fetchedMs} ms${save}, total ${sync.totalMs} ms.`;
 }
 
 async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress = () => undefined): Promise<void> {
@@ -344,7 +346,7 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
 
     setSavedPluginRevision(plugin.id, revision);
     syncedSessionRevisions.set(plugin.id, currentHealthRev || revision);
-    void narrate(pluginSyncLine(plugin.name, { since: lastRev, revision, full, added: added.length, removed: removed.length, fetchedMs, totalMs: Date.now() - started }),
+    void narrate(pluginSyncLine(plugin.name, { since: lastRev, revision, full, added: added.length, removed: removed.length, fetchedMs, totalMs: Date.now() - started, save: applied }),
       { area: "DOWNLOAD_SOURCES" });
     if (full || added.length > 0 || removed.length > 0) {
       publish();

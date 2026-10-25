@@ -252,6 +252,13 @@ pub struct CatalogSourcesApplyResult {
     pub revision: String,
     pub sources_total: usize,
     pub matched_links: usize,
+    /// For the log: waiting for a worker thread, waiting for the shared catalog connection, and the work itself.
+    #[serde(default)]
+    pub queued_ms: u64,
+    #[serde(default)]
+    pub wait_ms: u64,
+    #[serde(default)]
+    pub work_ms: u64,
 }
 
 pub fn ensure_source_tables(conn: &Connection) -> Result<(), String> {
@@ -399,6 +406,55 @@ impl GameTitleIndex {
     }
 }
 
+fn source_counts(conn: &Connection) -> Result<(usize, usize), String> {
+    let sources_total: usize = conn
+        .query_row("SELECT COUNT(*) FROM download_sources", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    let matched_links: usize = conn
+        .query_row("SELECT COUNT(*) FROM game_sources", [], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    Ok((sources_total, matched_links))
+}
+
+/// An index sync with nothing added or removed changes nothing; it only needs the counts. They are read on a
+/// read-only connection of its own (the database is in WAL mode, so it runs beside the long catalog queries that
+/// hold the shared connection at startup) instead of queueing behind them: that wait held the startup dialog for
+/// 1.7-3 s while writing took 4 ms. None when the database or its source tables are not there yet.
+fn empty_delta_counts(path: &std::path::Path) -> Option<(usize, usize)> {
+    if !path.is_file() {
+        return None;
+    }
+    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+    source_counts(&conn).ok()
+}
+
+/// What `catalog_sources_apply` runs on its worker thread; `catalog` is the database file (a parameter for the tests).
+fn apply_sources_blocking(
+    catalog: &std::path::Path,
+    plugin_id: String,
+    revision: String,
+    full: bool,
+    added: Vec<SourceIndexEntry>,
+    removed: Vec<String>,
+) -> Result<CatalogSourcesApplyResult, String> {
+    let asked = std::time::Instant::now();
+    if !full && added.is_empty() && removed.is_empty() {
+        if let Some((sources_total, matched_links)) = empty_delta_counts(catalog) {
+            return Ok(CatalogSourcesApplyResult { plugin_id, revision, sources_total, matched_links,
+                queued_ms: 0, wait_ms: 0, work_ms: asked.elapsed().as_millis() as u64 });
+        }
+    }
+    crate::catalog_cache::with_catalog_conn(|conn| {
+        let wait_ms = asked.elapsed().as_millis() as u64;
+        let working = std::time::Instant::now();
+        let mut result = apply_sources_conn(conn, &plugin_id, &revision, full, added, removed)?;
+        result.wait_ms = wait_ms;
+        result.work_ms = working.elapsed().as_millis() as u64;
+        Ok(result)
+    })
+}
+
 pub fn apply_sources_conn(
     conn: &mut Connection,
     plugin_id: &str,
@@ -493,13 +549,7 @@ pub fn apply_sources_conn(
         }
     }
 
-    let sources_total: usize = tx
-        .query_row("SELECT COUNT(*) FROM download_sources", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-    let matched_links: usize = tx
-        .query_row("SELECT COUNT(*) FROM game_sources", [], |r| r.get(0))
-        .map_err(|e| e.to_string())?;
-
+    let (sources_total, matched_links) = source_counts(&tx)?;
     tx.commit().map_err(|e| e.to_string())?;
 
     Ok(CatalogSourcesApplyResult {
@@ -507,6 +557,9 @@ pub fn apply_sources_conn(
         revision: revision.to_string(),
         sources_total,
         matched_links,
+        queued_ms: 0,
+        wait_ms: 0,
+        work_ms: 0,
     })
 }
 
@@ -606,17 +659,14 @@ pub async fn catalog_sources_apply(
         serde_json::Value::Number(n) => n.to_string(),
         _ => String::new(),
     };
+    let called = std::time::Instant::now();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::catalog_cache::with_catalog_conn(|conn| {
-            apply_sources_conn(
-                conn,
-                &plugin_id,
-                &rev_str,
-                full.unwrap_or(false),
-                added.unwrap_or_default(),
-                removed.unwrap_or_default(),
-            )
-        })
+        let queued_ms = called.elapsed().as_millis() as u64;
+        let catalog = crate::catalog_cache::cache_db_path()?;
+        let mut result = apply_sources_blocking(&catalog, plugin_id, rev_str, full.unwrap_or(false),
+            added.unwrap_or_default(), removed.unwrap_or_default())?;
+        result.queued_ms = queued_ms;
+        Ok(result)
     })
     .await
     .map_err(|err| format!("Catalog sources apply task failed: {err}"))?
@@ -693,6 +743,44 @@ mod tests {
                 pair.score
             );
         }
+    }
+
+    /// A catalog file with the source tables and `sources` plugin entries, each matched to one game.
+    fn catalog_with_sources(sources: usize) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("gameaccess-sources-test-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("catalog.sqlite");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("PRAGMA journal_mode = WAL;").unwrap();
+        ensure_source_tables(&conn).unwrap();
+        for n in 0..sources {
+            conn.execute("INSERT INTO download_sources(source_key, plugin_id, source_name, title_raw, multiplayer, revision) VALUES (?1, 'p', 's', 't', 0, 'r1')",
+                params![format!("k{n}")]).unwrap();
+            conn.execute("INSERT INTO game_sources(app_id, source_key, score) VALUES (?1, ?2, 1.0)", params![n as i64 + 10, format!("k{n}")]).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn an_empty_index_sync_does_not_wait_for_the_busy_catalog_connection() {
+        let path = catalog_with_sources(3);
+        // Startup: a long catalog query holds the shared connection for 1.5 s.
+        let (held, release) = (std::sync::mpsc::channel(), std::sync::mpsc::channel::<()>());
+        let holder = std::thread::spawn(move || {
+            let _guard = crate::catalog_cache::CATALOG_SESSION_CONN.lock().unwrap();
+            held.0.send(()).unwrap();
+            let _ = release.1.recv_timeout(std::time::Duration::from_millis(1500));
+        });
+        held.1.recv().unwrap();
+        let started = std::time::Instant::now();
+        let result = apply_sources_blocking(&path, "p".into(), "r1".into(), false, vec![], vec![]).unwrap();
+        let took = started.elapsed();
+        let _ = release.0.send(());
+        holder.join().unwrap();
+        assert!(took < std::time::Duration::from_millis(500), "the empty sync waited {took:?} for the shared connection");
+        assert_eq!((result.sources_total, result.matched_links), (3, 3));
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]

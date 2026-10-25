@@ -31,6 +31,9 @@ describe("plugin source-index log", () => {
       .toBe("Provider 'Torrent Source Provider' · source index: asked changes since revision r26, got a delta → revision r27 (+12 / -3 entries); request 140 ms, saving 1630 ms, total 1770 ms.");
     expect(pluginSyncLine("P", { since: "", revision: "r1", full: true, added: 40000, removed: 0, fetchedMs: 5000, totalMs: 9000 }))
       .toContain("asked the full index, got the full index");
+    expect(pluginSyncLine("P", { since: "r1", revision: "r1", full: false, added: 0, removed: 0, fetchedMs: 15, totalMs: 1735,
+      save: { queued_ms: 0, wait_ms: 1711, work_ms: 4 } }))
+      .toContain("saving 1720 ms (queued 0 ms, waiting for the catalog database 1711 ms, writing 4 ms), total 1735 ms.");
   });
 });
 
