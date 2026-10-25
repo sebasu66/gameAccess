@@ -25,6 +25,7 @@ mod plugin_install;
 mod app_update;
 mod download_queue;
 mod game_controllers;
+mod game_focus;
 
 use std::{env, sync::Mutex};
 
@@ -64,6 +65,7 @@ fn main() {
             plugin_registry::get_registered_plugins,
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
+            game_focus::game_focus_watch,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
             parental_lock::parental_state,

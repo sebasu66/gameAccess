@@ -39,6 +39,7 @@ import { hideNotice, runSteps } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
+import { useGridFocus, watchGameFocus } from "./gameFocus";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
@@ -73,6 +74,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const demoService = useRef<ReturnType<typeof demoDownloadService>>();
   if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
   useDeskLayout();
+  // The grid has the focus when the app is activated and when a game ends (gameFocus.ts).
+  useGridFocus();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -515,6 +518,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       else await digitalCatalogService.play(game);
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
+      // The game gets the focus; when it ends, Game Access comes back with the grid focused.
+      watchGameFocus(libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id))?.folder);
       steps.forEach((_, index) => run.set(index, "done"));
       run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
     } catch (err) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Gamepad2, Maximize, Minimize } from "lucide-react";
 import { GamepadInput, type PadAction } from "./gamepadInput";
@@ -6,6 +6,7 @@ import { InputSourceArbiter } from "./inputSource";
 import { useI18n } from "./i18n";
 import { GaIconButton } from "./components/ga/Buttons";
 import "./big-picture.css";
+import { labelIn } from "./motion/bigPictureMotion";
 
 /**
  * Big picture mode's controls (bigPicture.ts): the footer button, the controller and the label at the bottom centre.
@@ -37,6 +38,8 @@ export function focusCard(direction: "left" | "right" | "up" | "down") {
 export default function BigScreenControls(props: Props) {
   const { t } = useI18n();
   const latest = useRef(props); latest.current = props;
+  const label = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => { if (props.enabled) labelIn(label.current); }, [props.enabled]);
   // Entering the mode: the first ready card takes the focus, so A plays something right away.
   useEffect(() => {
     if (!props.enabled) return;
@@ -85,6 +88,6 @@ export default function BigScreenControls(props: Props) {
   const toggle = <GaIconButton className="ga-big-screen-toggle" icon={props.enabled ? <Minimize size={20} aria-hidden="true" /> : <Maximize size={20} aria-hidden="true" />} label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} pressed={props.enabled} onClick={props.onToggle} />;
   return <>
     {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
-    {props.enabled ? <p className="ga-big-picture-label" role="status"><Gamepad2 size={18} aria-hidden="true" /><strong>{t("bigPictureTitle")}</strong><span>{t("bigPictureHint")}</span></p> : null}
+    {props.enabled ? <p ref={label} className="ga-big-picture-label" role="status"><Gamepad2 size={18} aria-hidden="true" /><strong>{t("bigPictureTitle")}</strong><span>{t("bigPictureHint")}</span></p> : null}
   </>;
 }

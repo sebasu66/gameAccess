@@ -22,6 +22,7 @@ import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
 import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
+import { hideForBigPicture, labelOut, showAfterBigPicture } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
 import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
@@ -124,20 +125,28 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
    * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
    * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
    */
+  // The change is animated (motion/bigPictureMotion.ts): a second press while it runs is ignored.
+  const bigScreenChanging = useRef(false);
   const toggleBigScreen = async () => {
+    if (bigScreenChanging.current) return;
     const next = !bigScreen;
     if (next && !(await controllerConnected())) {
       showNotice({ tone: "info", title: t("bigPictureNoControllerTitle"), text: t("bigPictureNoControllerText"), timer: true });
       return;
     }
+    bigScreenChanging.current = true;
     if (next) {
       closeAllPanels();
       setDetailMenu(null);
       setDetailOpen(false);
+      // The controls the mode hides slide away first; then the library shows with only its ready games.
+      await hideForBigPicture();
       setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
-    }
+    } else await labelOut();
     setBigPictureActive(next);
     setBigScreen(next);
+    if (!next) showAfterBigPicture();
+    bigScreenChanging.current = false;
     try {
       if ("__TAURI_INTERNALS__" in window) {
         const appWindow = getCurrentWindow();
