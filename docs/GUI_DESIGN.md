@@ -120,6 +120,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - `pressed` (interruptor encendido): fondo naranja suave y una rayita naranja abajo. `badge`: numerito naranja arriba a la derecha, oculto en 0.
 - En la pantalla principal los comandos son cubos; dentro de diálogos y paneles los botones llevan texto (§4.2, §4.3).
 
+- Cubo interruptor (`aria-pressed`), como `ga-personal-order` junto al orden del catálogo: mismo tamaño y estilo que sus vecinos; encendido es naranja lleno con el texto visible; sin poder usarse va atenuado (`aria-disabled`, no `disabled`, para que el tooltip explique qué falta). Cuando pasa a estar disponible, una sola vez: pulso de escala con brillo naranja y un sonido corto, después de cerrar cualquier ficha abierta.
+
 ### 4.15 Marca de instalado `play-mark`
 - Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
 - En reposo las portadas de las grillas (catálogo y librería) se ven apagadas (`saturate(.55) brightness(.9)`); la tarjeta bajo el puntero o seleccionada se ve con todo su color.
