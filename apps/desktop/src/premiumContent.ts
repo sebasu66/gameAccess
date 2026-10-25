@@ -32,7 +32,7 @@ const CACHE_KEY = "gameaccess:premium-content";
 /** Hosts a payment or information link may point to. */
 export const ALLOWED_LINK_HOSTS = [
   "patreon.com", "www.patreon.com", "mpago.la", "mercadopago.com.ar", "www.mercadopago.com.ar",
-  "gameaccess.app", "www.gameaccess.app",
+  "gameaccess.site", "www.gameaccess.site",
 ];
 
 export function isAllowedLink(value: unknown): value is string {

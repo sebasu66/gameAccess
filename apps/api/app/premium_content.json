@@ -29,7 +29,7 @@
     "default": {
       "label": { "es": "Otros países", "en": "Other countries" },
       "methods": [
-        { "label": { "es": "Ver cómo conseguir una llave", "en": "See how to get a key" }, "url": "https://gameaccess.app" }
+        { "label": { "es": "Ver cómo conseguir una llave", "en": "See how to get a key" }, "url": "https://gameaccess.site/plus" }
       ]
     },
     "AR": {
@@ -38,7 +38,7 @@
         {
           "label": { "es": "Pagar en pesos", "en": "Pay in pesos" },
           "note": { "es": "Te explicamos cómo pagar en pesos argentinos.", "en": "We explain how to pay in Argentine pesos." },
-          "url": "https://gameaccess.app"
+          "url": "https://gameaccess.site/plus"
         }
       ]
     }
