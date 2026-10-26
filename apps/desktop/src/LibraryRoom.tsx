@@ -42,6 +42,8 @@ import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
+import { GAME_ENDED_EVENT } from "./gameFocus";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
@@ -185,6 +187,26 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     // The cleanup runs on every change too, so the current value is set here again after it.
     setBigPictureActive(bigScreen);
     return () => { document.body.classList.remove("ga-big-screen"); setBigPictureActive(false); };
+  }, [bigScreen]);
+  // Big picture mode stays on through a game: a fullscreen game minimizes Game Access, and the window comes back
+  // without its fullscreen. Whenever the window returns (the game ended, it got the focus or became visible) while the
+  // mode is on, it goes fullscreen again.
+  useEffect(() => {
+    if (!bigScreen || !("__TAURI_INTERNALS__" in window)) return;
+    const appWindow = getCurrentWindow();
+    let timer = 0;
+    const restore = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void appWindow.isFullscreen().then(full => { if (!full && bigPictureActive()) void appWindow.setFullscreen(true); }).catch(() => undefined);
+      }, 250);
+    };
+    const visible = () => { if (document.visibilityState === "visible") restore(); };
+    window.addEventListener("focus", restore);
+    document.addEventListener("visibilitychange", visible);
+    let unlisten: (() => void) | null = null, live = true;
+    void listen(GAME_ENDED_EVENT, restore).then(stop => { if (live) unlisten = stop; else stop(); }).catch(() => undefined);
+    return () => { live = false; window.clearTimeout(timer); window.removeEventListener("focus", restore); document.removeEventListener("visibilitychange", visible); unlisten?.(); };
   }, [bigScreen]);
 
 
