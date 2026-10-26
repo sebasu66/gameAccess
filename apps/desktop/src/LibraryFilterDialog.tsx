@@ -77,7 +77,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   countFromCatalog?: boolean;
   onApply: (filters: LibrarySearchFilters) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const parentalLocked = useParentalLocked();
   const sourceNames = [...new Set([...games.flatMap(game => game.download_source_names ?? []), ...getAllAvailableSourceNames()])].sort();
   const [draft, setDraft] = useState<LibrarySearchFilters>({ ...filters });
@@ -120,7 +120,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   });
   const set = (group: GroupKey, value: string, state: TriState) => setDraft(current => setCriterionState(current, group, value, state));
   const patch = (change: Partial<LibrarySearchFilters>) => setDraft(current => ({ ...current, ...change }));
-  const sentence = buildFilterSentence(draft);
+  const sentence = buildFilterSentence(draft, undefined, locale);
   const pickTerm = (slot: SentenceSlot) => {
     setOpen(current => current === slot ? null : slot);
   };

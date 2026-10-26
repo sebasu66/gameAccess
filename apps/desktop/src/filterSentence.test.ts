@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LIBRARY_FILTERS, type LibrarySearchFilters } from "./librarySearch";
 import { buildFilterSentence, sentenceText } from "./filterSentence";
+import type { AppLocale } from "./i18n";
 
 const NOW = 2026;
-const sentence = (patch: Partial<LibrarySearchFilters>) =>
-  sentenceText(buildFilterSentence({ ...DEFAULT_LIBRARY_FILTERS, minReviewScore: undefined, maxAgeDays: undefined, ...patch } as LibrarySearchFilters, NOW));
+const sentenceIn = (locale: AppLocale, patch: Partial<LibrarySearchFilters>) =>
+  sentenceText(buildFilterSentence({ ...DEFAULT_LIBRARY_FILTERS, minReviewScore: undefined, maxAgeDays: undefined, ...patch } as LibrarySearchFilters, NOW, locale));
+const sentence = (patch: Partial<LibrarySearchFilters>) => sentenceIn("es", patch);
+const english = (patch: Partial<LibrarySearchFilters>) => sentenceIn("en", patch);
 const DEFAULT_TAIL = "Con cualquier puntaje de reseñas, lanzados en cualquier fecha.";
 
-describe("filter sentence", () => {
+describe("filter sentence in Spanish", () => {
   it("reads as the permissive default when nothing is chosen", () => {
     expect(sentence({})).toBe(`Quiero encontrar juegos de cualquier género, para cualquier número de jugadores. ${DEFAULT_TAIL}`);
   });
@@ -56,8 +59,49 @@ describe("filter sentence", () => {
   it("marks only the changeable terms as clickable", () => {
     const [line1, line2] = buildFilterSentence({
       ...DEFAULT_LIBRARY_FILTERS, genres: ["action"], excludeGenres: ["horror"], features: ["single_player"], minReviewScore: 70,
-    } as LibrarySearchFilters, NOW);
+    } as LibrarySearchFilters, NOW, "es");
     expect(line1.filter(part => part.slot).map(part => part.text)).toEqual(["Acción", "Terror", "un solo jugador"]);
     expect(line2.filter(part => part.slot).map(part => part.text)).toEqual(["70 %", "en cualquier fecha"]);
+  });
+});
+
+describe("filter sentence in English", () => {
+  it("reads as the permissive default when nothing is chosen", () => {
+    expect(english({})).toBe("I want to find games in any genre, for any number of players. With any review score, released at any time.");
+  });
+
+  it("states the review bar and floor", () => {
+    expect(english({ minReviewScore: 60 })).toContain("With at least 60% positive reviews, released at any time.");
+    expect(english({ minReviewScore: 60, minReviewCount: 100 })).toContain("With at least 60% positive reviews and at least 100 reviews, released");
+    expect(english({ minReviewCount: 100 })).toContain("With any review score, but at least 100 reviews, released");
+  });
+
+  it("lists genres with and / or", () => {
+    expect(english({ genres: ["action", "adventure", "rpg"] })).toMatch(/games in \S+, \S+ and \S+, for/);
+    expect(english({ genres: ["action"], excludeGenres: ["horror", "rpg"] })).toMatch(/, but not in \S+ or \S+, for/);
+    expect(english({ genres: ["action", "adventure", "rpg", "horror"] })).toContain("games in several genres, for");
+  });
+
+  it("describes players", () => {
+    expect(english({ features: ["single_player"] })).toContain("for a single player.");
+    expect(english({ features: ["multiplayer", "coop", "online_multiplayer"] })).toContain("for multiplayer (co-op and online).");
+  });
+
+  it("describes release windows", () => {
+    expect(english({ maxAgeDays: 90 })).toContain("released in the last 3 months.");
+    expect(english({ maxAgeDays: 30 })).toContain("released in the last month.");
+    expect(english({ releaseYearFrom: 2025, releaseYearTo: NOW + 1 })).toContain("released in the last year.");
+    expect(english({ releaseYearFrom: 2024, releaseYearTo: NOW + 1 })).toContain("released in the last 2 years.");
+    expect(english({ releaseYearFrom: 2010, releaseYearTo: NOW + 1 })).toContain("released since 2010.");
+    expect(english({ releaseYearFrom: 2010, releaseYearTo: 2015 })).toContain("released between 2010 and 2015.");
+    expect(english({ releaseYearFrom: 1995, releaseYearTo: 2000 })).toContain("released up to 2000.");
+  });
+
+  it("keeps the same clickable slots", () => {
+    const [line1, line2] = buildFilterSentence({
+      ...DEFAULT_LIBRARY_FILTERS, features: ["single_player"], minReviewScore: 70,
+    } as LibrarySearchFilters, NOW, "en");
+    expect(line1.filter(part => part.slot).map(part => part.text)).toEqual(["any genre", "a single player"]);
+    expect(line2.filter(part => part.slot).map(part => part.text)).toEqual(["70%", "at any time"]);
   });
 });

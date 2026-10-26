@@ -21,8 +21,18 @@ describe("release scale", () => {
   });
   it("words", () => {
     expect(releaseWords(undefined)).toBeNull();
-    expect(releaseWords(60)).toBe("en los últimos 2 meses");
-    expect(releaseShort(730)).toBe("2 años");
-    expect(releaseShort(undefined)).toBe("cualquiera");
+    expect(releaseWords(60, "es")).toBe("en los últimos 2 meses");
+    expect(releaseShort(730, "es")).toBe("2 años");
+    expect(releaseShort(undefined, "es")).toBe("cualquiera");
+  });
+});
+
+describe("release scale in English", () => {
+  it("words", () => {
+    expect(releaseWords(60, "en")).toBe("in the last 2 months");
+    expect(releaseWords(365, "en")).toBe("in the last year");
+    expect(releaseShort(730, "en")).toBe("2 years");
+    expect(releaseShort(30, "en")).toBe("1 month");
+    expect(releaseShort(undefined, "en")).toBe("any");
   });
 });
