@@ -106,7 +106,7 @@ html body .library-room:not(.surface-display):not(.surface-tablet) .library-room
 html body { --ga-dock-h: clamp(42px, 3.6vw, 62px); --ga-dock-icon: calc(var(--ga-dock-h) * .46); }
 html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(300px, 45vw, 870px)); gap: clamp(8px, .7vw, 12px); }
 html body .library-catalog-toolbar .global-search:not(#_) { height: var(--ga-dock-h); border-radius: calc(var(--ga-dock-h) / 2); }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) svg { width: var(--ga-dock-icon); height: var(--ga-dock-icon); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) svg { width: calc(var(--ga-dock-h) * .34); height: calc(var(--ga-dock-h) * .34); }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) input { font-size: clamp(13px, 1.05vw, 17px); padding-left: calc(var(--ga-dock-icon) + 34px); }
 /* At rest the search is a short, half-transparent capsule, still centred; it grows with what is typed (the field
    sizes to its text) up to most of the window, and turns solid on hover, focus or with text in it. */
@@ -115,7 +115,10 @@ html body .library-catalog-toolbar .ga-search-dock:not(#_) { flex: none; min-wid
 html body .library-catalog-toolbar .library-catalog-tabs:not(#_) { margin: 0; }
 html body .library-catalog-toolbar .global-search:not(#_) { flex: none; transition: background .25s, border-color .25s, box-shadow .25s; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) input { field-sizing: content; width: auto; min-width: clamp(260px, 22vw, 364px); max-width: min(64vw, 760px); }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):not(:hover):not(:focus-within):has(input:placeholder-shown) { background: #20282c73; border-color: #ffffff1a !important; box-shadow: none; }
+/* Only the fill fades at rest: the border stays solid, so the search is always plainly there. */
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_) { border-color: #59636a !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):focus-within { border-color: var(--ga-orange) !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):not(:hover):not(:focus-within):has(input:placeholder-shown) { background: #20282c73; box-shadow: none; }
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }
