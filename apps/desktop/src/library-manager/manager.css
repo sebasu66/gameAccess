@@ -126,25 +126,38 @@
 .lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
 .lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
 .lm-history-row.has-frost > .lm-history { height: 13rem; }
-/* The bar: a cube area (9 × 4 cubes of 40 px, 12 px inside its edges) closed on the left, its top and bottom lines
-   running on to the right past the readout and fading out. */
-.lm-fbar { position: relative; flex: none; display: flex; align-items: stretch; height: 13rem; width: 600px; }
-.lm-fbar::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+/* The bar: the size of the game's landscape picture (460:215 at the log's height), the picture faint and half
+   desaturated inside it, the cubes over it (9 × 4 of 40 px, 12 px inside the edges), closed on the left; its top and
+   bottom lines run on 180 px to the right and fade, where the result and its OK show once the work ends. */
+.lm-fbar { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; margin-right: 180px; }
+.lm-fbar::before { content: ""; position: absolute; inset: 0 -180px 0 0; z-index: 2; pointer-events: none;
   --run: linear-gradient(90deg, #ffffff38 0, #ffffff38 70%, transparent);
   background: var(--run) 0 0 / 100% 1px no-repeat, var(--run) 0 100% / 100% 1px no-repeat,
               linear-gradient(#ffffff38, #ffffff38) 0 0 / 1px 100% no-repeat; }
-.lm-fbar-cubes { position: relative; flex: none; width: 408px; margin: 12px 0 12px 14px; }
+.lm-fbar-picture { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; filter: saturate(.5); }
+.lm-fbar-cubes { position: absolute; top: 12px; left: 14px; width: 408px; height: calc(100% - 24px); }
 .lm-fbar-cubes i { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 2px; transform-origin: 0 0;
-  border: 1px solid #ffffff2e; background: #ffffff0a; transition: transform .7s cubic-bezier(.6, .05, .3, 1), background .5s, border-color .5s; }
+  border: 1px solid #ffffff38; background: #ffffff0d; transition: transform .7s cubic-bezier(.6, .05, .3, 1), background .5s, border-color .5s; }
 /* Packed (frozen): frosted, in the tone of everything frozen. */
 .lm-fbar-cubes i.is-packed { border-color: #a5cee980; background: #a5cee92b; }
 .lm-fbar-cubes i.is-next { border-color: #a5cee9; animation: lm-fbar-next 1s ease-in-out infinite; }
 .lm-fbar.is-done .lm-fbar-cubes i.is-packed { border-color: #a5cee9a6; background: #a5cee938; }
 .lm-fbar.is-failed .lm-fbar-cubes i.is-packed { border-color: #be475080; background: #be475022; }
-.lm-fbar-readout { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding-left: 28px; color: #f4f4f2; opacity: .7; }
+/* The share and the size, written on the picture at its bottom right. */
+.lm-fbar-readout { position: absolute; right: 16px; bottom: 12px; z-index: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  color: #f4f4f2; text-shadow: 0 1px 6px #000c; pointer-events: none; }
 .lm-fbar-readout b { font: 400 40px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
 .lm-fbar-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
-.lm-fbar-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lm-fbar-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
+/* The result, between the lines that run on: its words and a small OK. */
+.lm-fbar-result { position: absolute; left: calc(100% + 24px); top: 50%; z-index: 3; width: 140px; transform: translateY(-50%); display: grid; gap: 10px; justify-items: start;
+  animation: lm-fbar-result .4s ease-out; }
+.lm-fbar-result span { font-size: 10px; font-weight: 800; letter-spacing: .16em; line-height: 1.5; text-transform: uppercase; color: var(--ga-frost, #a5cee9); }
+.lm-fbar.is-failed .lm-fbar-result span { color: #e1898f; }
+.lm-fbar-result button { height: 30px; min-width: 64px; padding: 0 14px; border-radius: 8px; border: 1px solid #a5cee980; background: #a5cee91a; color: #f4f4f2;
+  font: 700 13px Manrope, sans-serif; cursor: pointer; }
+.lm-fbar-result button:hover { background: #a5cee933; }
+@keyframes lm-fbar-result { from { opacity: 0; transform: translate(-6px, -50%); } }
 @keyframes lm-fbar-next { 50% { background: #a5cee933; } }
 @media (prefers-reduced-motion: reduce) { .lm-fbar-cubes i { transition: none; } .lm-fbar-cubes i.is-next { animation: none; } }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }

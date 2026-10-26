@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowCounterClockwise, DownloadSimple, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
@@ -219,6 +219,8 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
     const release = hostFreezeJob(id);
     return () => { release(); if (!freezeJob(id)) dismissFreezeJob(id); };
   }, [hosted, id]);
+  // The result is confirmed (OK, a click elsewhere, scrolled away): the job goes, and the row folds unless opened by hand.
+  const confirmFreeze = useCallback(() => { if (id != null) dismissFreezeJob(id); }, [id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
     <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
@@ -265,7 +267,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
         <History game={game} c={c} job={freezing} />
-        {freezing && id ? <FreezeBar mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+        {freezing && id ? <FreezeBar src={landscape(id)} onConfirm={confirmFreeze} mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}
