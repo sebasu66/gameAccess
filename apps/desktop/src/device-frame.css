@@ -66,6 +66,10 @@ html body.ga-device-frame .ga-in-frame { max-height: calc(100vh - var(--ga-frame
    in the catalog and in the library. */
 body.ga-device-frame .catalog-bottom-actions { z-index: 2147483603 !important; background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
 body.ga-device-frame .topbar .ga-brand-lockup { display: none; }
+/* The old top bar is empty with the frame (its controls live in the dock and the footer) but still lies over the top of
+   the screen: it lets clicks through to what is under it (the filter strip), except on what it still holds. */
+body.ga-device-frame header.topbar { pointer-events: none; }
+body.ga-device-frame header.topbar :is(button, a, input, select, summary, [role="button"], [role="tab"], .library-catalog-toolbar) { pointer-events: auto; }
 /* (The base rule sets the whole padding with !important, so this one has to as well.) */
 html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }
 /* The old footer bar is gone (its controls sit on the bezel's tabs): the screen reaches down to the bezel, with no dark
