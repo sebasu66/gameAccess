@@ -29,7 +29,7 @@ import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
+import { hasTauriRuntime, getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { queryCatalogCache } from "./catalogCache";
@@ -37,11 +37,12 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
-import { hideNotice, runSteps } from "./notice/notice";
+import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
-import { useGridFocus, watchGameFocus } from "./gameFocus";
+import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
+import { cancelFreezeJob, freezeJob, guardAppClose, pauseFreezesWhilePlaying, recoverFreezes, resumeFreezes } from "./freezeJobs";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
@@ -107,6 +108,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
+  const gameEndedStop = useRef<(() => void) | null>(null);
   // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
@@ -320,6 +322,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
 
   useEffect(() => startAutoFreeze(), []);
+  // A freeze cut short by a closed app is put right and told; closing the app with one going on asks first.
+  useEffect(() => { if (getCatalogMode() === "digital") void recoverFreezes(); guardAppClose(); }, []);
 
   // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
   const parentalPolicy = useParentalState().policy;
@@ -508,6 +512,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const launchGame = async (game: CatalogGame, managedShortcut = false) => {
+    // A game being frozen or thawed (or waiting for that) is not started: wait, or cancel that work and play.
+    const freezing = freezeJob(game.app_id ?? game.id);
+    if (freezing) {
+      showNotice({ game: noticeGame(game), title: translate("freezeBlocksPlayTitle", { name: game.name }), text: translate("freezeBlocksPlayText"), tone: "frost", timer: false, actions: [
+        { label: translate("freezeWait"), kind: "secondary", run: () => hideNotice() },
+        { label: translate("freezeCancelAndPlay"), kind: "frost", run: () => { hideNotice(); cancelFreezeJob(freezing.appId); void freezing.done.then(() => launchGame(game, managedShortcut)); } },
+      ] });
+      return;
+    }
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
@@ -518,16 +531,24 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
     const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
     run.set(0, "running");
+    // Another game's freeze waits while this one is thawed (if deep frozen) and played: it takes every core and the
+    // disk. It goes on when the game ends (or if it does not start). Only for a game whose end can be told (its folder).
+    const playedFolder = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id))?.folder;
+    if (playedFolder && hasTauriRuntime()) {
+      pauseFreezesWhilePlaying();
+      void listen(GAME_ENDED_EVENT, () => resumeFreezes()).then(stop => { gameEndedStop.current?.(); gameEndedStop.current = stop; });
+    }
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
       // The game gets the focus; when it ends, Game Access comes back with the grid focused.
-      watchGameFocus(libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id))?.folder);
+      watchGameFocus(playedFolder);
       steps.forEach((_, index) => run.set(index, "done"));
       run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
     } catch (err) {
+      resumeFreezes();
       const message = err instanceof Error ? err.message : String(err);
       // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
       if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }

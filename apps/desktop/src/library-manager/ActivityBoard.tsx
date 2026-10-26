@@ -21,11 +21,12 @@ function Ring({ percent }: { percent: number | null }) {
  */
 export default function ActivityBoard({ scanning, working }: { scanning: boolean; working: boolean }) {
   const { t } = useI18n();
-  const { jobs } = useFreezeConsole();
+  const { jobs, paused } = useFreezeConsole();
   const tasks: ActivityTask[] = [
     ...jobs.filter(job => !job.outcome).map(job => ({
-      key: `freeze-${job.appId}`, percent: job.progress?.percent ?? null, detail: job.name,
-      label: t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze"),
+      key: `freeze-${job.appId}`, percent: job.queued ? 0 : job.progress?.percent ?? null, detail: job.name,
+      label: job.queued ? t("lmActivityQueued") : paused ? t("lmActivityPaused")
+        : t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze"),
     })),
     ...(working ? [{ key: "batch", label: t("lmActivityWorking"), percent: null }] : []),
     ...(scanning ? [{ key: "scan", label: t("lmActivityScan"), percent: null }] : []),

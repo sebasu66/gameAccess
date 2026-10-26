@@ -115,3 +115,8 @@
   .ga-freeze-console, .gfc-doc, .gfc-plate, .gfc-belt, .gfc-spark, .gfc-steps li i, .gfc-bar i::after, .gfc-cursor span, .gfc-spin { animation: none !important; }
   .gfc-doc { transform: translate(60px, 54px); }
 }
+/* Cancel: a quiet secondary button under the log, on the right. */
+.gfc-cancel { justify-self: end; height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ffffff30; background: #ffffff08; color: #f4f4f2;
+  font: 700 13px Manrope, sans-serif; cursor: pointer; }
+.gfc-cancel:hover:not(:disabled) { background: #ffffff14; }
+.gfc-cancel:disabled { opacity: .5; cursor: default; }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Snowflake } from "lucide-react";
 import { GaClose } from "./components/ga/Buttons";
-import { collapseFreezeConsole, dismissFreezeJob, openFreezeConsole, useFreezeConsole, type FreezeJob } from "./freezeJobs";
+import { cancelFreezeJob, collapseFreezeConsole, dismissFreezeJob, openFreezeConsole, useFreezeConsole, type FreezeJob } from "./freezeJobs";
 import { formatBytes } from "./GenericDownloadProgress";
 import { useI18n, type TranslationKey } from "./i18n";
 import type { FreezeEvent, FreezeProgress } from "./native";
@@ -162,6 +162,8 @@ export default function FreezeConsole() {
         {jobs.map(item => <button key={item.appId} type="button" aria-pressed={item.appId === job.appId} onClick={() => openFreezeConsole(item.appId)}>{item.name}</button>)}
       </div> : null}
       <JobView key={job.appId} job={job} t={t} />
+      {job.outcome ? null : <button type="button" className="gfc-cancel" disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}>
+        {job.cancelling ? t("freezeCancelling") : t(job.mode === "thaw" ? "thawCancel" : "freezeCancel")}</button>}
     </aside>
   );
 }

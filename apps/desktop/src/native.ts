@@ -142,12 +142,18 @@ export interface FreezeEvent { at: number; kind: string; [value: string]: unknow
 export interface FreezeProgress {
   action: "freeze" | "deep" | "thaw" | "thaw-deep"; steps: string[]; step: string; step_share: number; percent: number;
   done_bytes: number; total_bytes: number; file: string; events: FreezeEvent[]; started_at: number; updated_at: number;
-  finished: boolean; ok: boolean | null;
+  finished: boolean; ok: boolean | null; cancelled?: boolean;
 }
 
 export async function freezeProgress(appId: number): Promise<FreezeProgress | null> {
   if (!hasTauriRuntime()) return null;
   return invoke<FreezeProgress | null>("freeze_progress", { appId });
+}
+
+/** Tell the freeze going on to stop ("cancel", that game's) or to wait ("pause" / "resume", any game's). */
+export async function freezeSignal(appId: number, signal: "cancel" | "pause" | "resume"): Promise<void> {
+  if (!hasTauriRuntime()) return;
+  await invoke("freeze_signal", { appId, signal });
 }
 
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {

@@ -8,7 +8,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
   app_id: number;
   name?: string;
   pid?: number;
@@ -111,6 +111,8 @@ export class DigitalProcessManager {
   /** Free disk space from a game nobody plays (only games Game Access owns, never linked ones). */
   freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
   thaw(game: CatalogGame) { return this.execute("thaw", game); }
+  /** After a closed app: every freeze cut short, put back in a safe state by the launcher (or still running). */
+  freezeRecover() { return this.execute("freeze-recover", {id:0,name:""} as CatalogGame); }
   /** Freeze at most one game unused for a month (Windows compression) or three (deep freeze). */
   autoFreeze() { return this.execute("library-autofreeze", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ freeze_days: 30, deep_days: 90 })); }
   /** The player's own name for the game in their library; "" goes back to the download source's name. */

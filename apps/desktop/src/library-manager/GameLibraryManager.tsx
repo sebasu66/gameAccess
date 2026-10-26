@@ -20,7 +20,7 @@ import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
-import { dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
+import { cancelFreezeJob, dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
@@ -67,6 +67,13 @@ function statusOf(game: LibraryGame, c: LibraryCopy, t: Translate): Status {
   if (!game.standard) return { rank: 4, label: c.outsideStd, tone: "warn", icon: <AlertTriangle /> };
   if (["installing", "downloading", "preparing"].includes(game.state)) return { rank: 5, label: c[game.state as "installing"], tone: "busy", icon: spin };
   return { rank: 6, label: t("lmStatusInstalled"), tone: "muted" };
+}
+
+/** The state of a game being frozen, thawed or waiting for that. */
+function freezeStatus(job: FreezeJob, tr: typeof translate): Status {
+  if (job.queued) return { rank: 1, label: tr("lmActivityQueued"), tone: "busy" };
+  return { rank: 0, label: tr(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze"), tone: "frost",
+    icon: <Loader2 className="animate-spin" /> };
 }
 
 /** Where the game comes from: a direct download (DD) through Game Access, Steam, or a folder of the user's linked as is. */
@@ -212,7 +219,10 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const focused = focusId != null && focusId === id;
   // A freeze or thaw of this game shows in its row: in the game's log and as its picture freezing (and not in the
   // floating console meanwhile). Once ended, it goes when the row does.
-  const freezing = useFreezeJobView(id);
+  const job = useFreezeJobView(id);
+  // Waiting in the queue, the row only says so; working (or just ended) it shows the log and the freeze bar.
+  const freezing = job && !job.queued ? job : undefined;
+  const busyFreezing = Boolean(job && !job.outcome);
   const hosted = Boolean(freezing) && id != null;
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -227,14 +237,19 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
-      <td><StatusCell status={row.status} /></td>
+      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
       <td><KindCell kind={row.kind} source={row.source} /></td>
       <td className="lm-cell-num">{row.plays || "—"}</td>
       <td className="lm-cell-num">{row.idle ?? "—"}</td>
       <td className="lm-acts">
-        {unfinished && !game.transfer_active ? <>
+        {busyFreezing && job ? <>
+          {/* While it is frozen, thawed or waiting for that, the game only offers to cancel it (nothing else touches it). */}
+          <IconAction label={job.cancelling ? translate("freezeCancelling") : translate(job.mode === "thaw" ? "thawCancel" : "freezeCancel")} tone="danger"
+            disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}><X /></IconAction>
+          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
+        </> : unfinished && !game.transfer_active ? <>
           {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
               without one, the transfer starts again from the catalog. */}
           {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><PhPlay /></IconAction>
@@ -265,8 +280,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
         <History game={game} c={c} job={freezing} />
-        {freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
+        {/* Cancelled, the cubes go back where they were: the game is as it was. */}
+        {freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}
   </>);

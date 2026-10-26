@@ -6,7 +6,7 @@ const FILES = ["Data/textures_01.pak", "Data/textures_02.pak", "Data/audio/music
 
 /** The browser previews have no launcher: a made-up freeze (about 14 s) that writes the same progress the launcher
  *  does, so the console can be seen working. */
-export function demoFreeze(mode: FreezeMode, report: (progress: FreezeProgress) => void): Promise<unknown> {
+export function demoFreeze(mode: FreezeMode, report: (progress: FreezeProgress) => void, cancelled: () => boolean = () => false): Promise<unknown> {
   const action = mode === "thaw" ? "thaw" : mode === "deep" ? "deep" : "freeze";
   const steps = action === "deep" ? [["scan", 1], ["compress", 82], ["verify", 15], ["clear", 2]] as const
     : action === "freeze" ? [["scan", 1], ["compress", 99]] as const : [["decompress", 100]] as const;
@@ -20,6 +20,7 @@ export function demoFreeze(mode: FreezeMode, report: (progress: FreezeProgress) 
   return new Promise(resolve => {
     let index = -1;
     const timer = window.setInterval(() => {
+      if (cancelled()) { window.clearInterval(timer); resolve({ cancelled: true }); return; }
       const share = Math.min(1, (Date.now() / 1000 - started) * 1000 / duration);
       let before = 0, step: string = steps[0][0], stepShare = 0;
       for (const [name, weight] of steps) {

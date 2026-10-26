@@ -82,6 +82,25 @@ pub(crate) async fn freeze_progress(app_id: u32) -> Result<Option<serde_json::Va
     Ok(std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()))
 }
 
+/// Signals to the freeze or thaw going on (game_library_manager/freeze_control.py), as small files next to its
+/// progress: "cancel" asks that game's work to stop and put the game back as it was; "pause" makes every freeze wait
+/// (a game is being played) until "resume".
+#[tauri::command]
+pub(crate) async fn freeze_signal(app_id: u32, signal: String) -> Result<(), String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let records = launcher_data_dir(&launcher).join(".cache").join("digital_frozen");
+    std::fs::create_dir_all(&records).map_err(|err| err.to_string())?;
+    match signal.as_str() {
+        "cancel" => std::fs::write(records.join(format!("{app_id}.cancel")), b"").map_err(|err| err.to_string()),
+        "pause" => std::fs::write(records.join("freeze.pause"), b"").map_err(|err| err.to_string()),
+        "resume" => match std::fs::remove_file(records.join("freeze.pause")) {
+            Err(err) if err.kind() != std::io::ErrorKind::NotFound => Err(err.to_string()),
+            _ => Ok(()),
+        },
+        other => Err(format!("Unknown freeze signal '{other}'")),
+    }
+}
+
 // Downloads are started, paused, resumed and cancelled by the launcher's Download Manager (download_queue.rs).
 
 #[tauri::command]
