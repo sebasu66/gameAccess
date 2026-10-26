@@ -7,7 +7,7 @@ import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { ArrowDown, ArrowDownToLine, ArrowUp, Download, ExternalLink, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, CircleCheck, CircleX, Download, ExternalLink, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
@@ -72,8 +72,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     try { await action(); } catch (err) { setError(`${t("downloadsActionFailed")} ${err instanceof Error ? err.message : String(err)}`); }
     finally { pendingActions.current.delete(id); setBusy(current => current.filter(item => item !== id)); }
   };
-  // The folder the download is in (the temporary one while downloading, the game's once unpacked).
-  const openFolder = (entry: Entry) => <button type="button" disabled={busy.includes(entry.snapshot.gameId)} aria-label={`${t("downloadsOpenFolder")}: ${entry.game.name}`} title={t("downloadsOpenFolder")} onClick={() => void run(entry.snapshot.gameId, async () => { await digitalProcessManager.openFolder(entry.game, "download"); })}><FolderOpen size={16} /></button>;
+  // The folder the download is in (the temporary one while downloading, the game's once unpacked). A download that
+  // has not written anything yet (queued, measuring sources) has no folder, so no button.
+  const hasFolder = ({ snapshot }: Entry) => transferStarted(snapshot) || Boolean(snapshot.resumeStep) || ["decompressing", "installing", "completed"].includes(snapshot.phase);
+  const openFolder = (entry: Entry) => !hasFolder(entry) ? null : <button type="button" disabled={busy.includes(entry.snapshot.gameId)} aria-label={`${t("downloadsOpenFolder")}: ${entry.game.name}`} title={t("downloadsOpenFolder")} onClick={() => void run(entry.snapshot.gameId, async () => { await digitalProcessManager.openFolder(entry.game, "download"); })}><FolderOpen size={16} /></button>;
   const row = (entry: Entry, index: number, featured = false) => {
     const { game, snapshot } = entry;
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
@@ -130,7 +132,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>
       {onOpenGame ? <button type="button" className="digital-download-art" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}><DigitalDownloadArtwork game={currentGame} /></button> : <div className="digital-download-art"><DigitalDownloadArtwork game={currentGame} /></div>}
       <div className="digital-download-info">
-        <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}<span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span></div>
+        <div className="digital-download-title"><h2>{game.name}</h2>{methodText && !["cancelled","error"].includes(phase) ? <span className={`ga-method-pill method-${method}`} title={methodText.hint}>{methodText.label}</span> : null}{plan && !terminal(entry) ? <span className={`ga-plan-pill plan-${tier}`} title={plan.hint}>{plan.label}</span> : null}{phase === "completed" || phase === "error" ? <span className={`digital-download-state state-${phase} is-icon`} role="img" aria-label={phaseLabel(phase)} title={phaseLabel(phase)}>{phase === "completed" ? <CircleCheck size={22} aria-hidden="true" /> : <CircleX size={22} aria-hidden="true" />}</span> : <span className={`digital-download-state state-${phase}`}>{phase === "queued" ? `${(position >= 0 ? position : index) + 1} · ${phaseLabel(phase)}` : phaseLabel(phase)}</span>}</div>
         <p>{snapshot.statusText || snapshot.error || phaseLabel(phase)}</p>
         <p className="ga-download-source-size">{t("downloadsSize")}: <strong>{sourceSize}</strong></p>
         {["downloading", "paused"].includes(phase) ? <DownloadTelemetry snapshot={snapshot} samples={service.getSpeedSamples(gameId)} /> : null}

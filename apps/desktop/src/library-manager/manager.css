@@ -21,7 +21,7 @@
 .lm-stats span { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
 .lm-actions { display: flex; flex-direction: column; gap: 10px; }
 .lm-actions > button { width: 100%; justify-content: flex-start; }
-.lm-filters .lm-scan { margin-left: auto; }
+.lm-filters .lm-scan { margin-left: auto; padding: 0; }
 .lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 18px; }
 .lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
 .lm-chip span { opacity: .6; font-variant-numeric: tabular-nums; }
@@ -52,10 +52,10 @@
 .lm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .lm-check { width: 15px; height: 15px; margin: 0; accent-color: #ff6a00; cursor: pointer; vertical-align: middle; }
 .lm-cell-name { min-width: 160px; max-width: 240px; }
-.lm-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-cell-path { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.lm-name { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.lm-cell-path { min-width: 140px; max-width: 200px; overflow-wrap: anywhere; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
 .lm-cell-size { min-width: 110px; }
-.lm-cell-source { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #c9ced2; }
+.lm-cell-source { max-width: 130px; overflow-wrap: anywhere; color: #c9ced2; }
 .lm-kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #c9ced2; }
 .lm-cell-num { white-space: nowrap; color: #c9ced2; }
 .lm-status { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
@@ -63,7 +63,7 @@
 .lm-status.busy { color: #ff8a38; background: #ff6a0014; }
 .lm-status.warn { color: #f0a874; background: #ff6a0014; box-shadow: inset 0 0 0 1px #ff6a0040; }
 .lm-status.frost { color: var(--ga-frost, #8fd3ff); background: #0d1a24b8; box-shadow: inset 0 0 0 1px #8fd3ff55; }
-.lm-acts { width: 168px; min-width: 168px; text-align: right; }
+.lm-acts { width: 1%; white-space: nowrap; text-align: right; }
 .lm-acts > * { margin: 2px 0 2px 4px; }
 /* The actions stay in view while a narrow window scrolls the grid sideways. */
 .lm-grid th.lm-cell-acts, .lm-row > td.lm-acts { position: sticky; right: 0; z-index: 1; background: #171b1f; box-shadow: -10px 0 12px -10px #000c; }

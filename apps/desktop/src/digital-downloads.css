@@ -72,8 +72,8 @@
 /* Active download steps (T12): one timeline, each step once. Sober colours: orange only for what is running. */
 .ga-dl-steps { display: grid; gap: 8px; margin: 0; }
 /* Expand / collapse the steps: only a thin chevron (two lines), down to show all, up to show fewer. */
-.ga-dl-steps-more { justify-self: center; display: inline-grid; place-items: center; width: 28px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: none; color: #7d878e; cursor: pointer; }
-.ga-dl-steps-more:hover, .ga-dl-steps-more:focus-visible { color: #f4f4f2; outline: none; }
+.digital-downloads-screen .ga-dl-steps-more, .ga-dl-steps-more { justify-self: center; display: inline-grid; place-items: center; width: 28px; height: 18px; min-height: 0; padding: 0; border: 0; border-radius: 4px; background: none; color: #7d878e; cursor: pointer; }
+.digital-downloads-screen .ga-dl-steps-more:hover, .digital-downloads-screen .ga-dl-steps-more:focus-visible, .ga-dl-steps-more:hover, .ga-dl-steps-more:focus-visible { color: #f4f4f2; outline: none; }
 .ga-dl-sequence { list-style: none; margin: 0; padding: 0; display: grid; }
 .ga-dl-sequence li { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 10px; padding: 0 0 12px; font-size: 12px; }
 .ga-dl-sequence li:not(:last-child)::before { content: ""; position: absolute; left: 10px; top: 20px; bottom: 0; width: 2px; background: #ffffff14; }
@@ -106,7 +106,12 @@
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-title h2 { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) :is(.digital-download-progress-line, progress, .digital-download-metrics, .ga-download-source-size) { display: none; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) p { margin: 4px 0 0; font-size: 12px; color: #929ba2; }
-.digital-downloads-screen.is-embedded .digital-download-actions { flex-wrap: wrap; justify-content: flex-start; }
+.digital-downloads-screen.is-embedded .digital-download-actions { flex-wrap: nowrap; justify-content: flex-start; max-width: none; }
+.digital-downloads-screen.is-embedded .digital-download-actions > button { flex: none; white-space: nowrap; }
+/* Ready to play and error say it with an icon (green check, red cross); the name is the tooltip. */
+.digital-download-state.is-icon { display: inline-grid; place-items: center; }
+.digital-download-state.state-completed.is-icon { color: var(--ga-success, #8fe3b0); }
+.digital-download-state.state-error.is-icon { color: var(--ga-danger, #e5202e); }
 .digital-downloads-screen.is-embedded .digital-download-dismiss { position: absolute; top: 8px; right: 8px; }
 .digital-downloads-screen.is-embedded .manual-download-entry { margin-top: 32px; }
 
@@ -131,7 +136,8 @@
 .ga-dl-card-bar progress { display: block; width: 100%; }
 .ga-dl-card-eta { margin: 8px 0 0; font-size: 12px; color: #a7b6bb; }
 .ga-dl-card-eta strong { color: #f4f4f2; }
-.ga-dl-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ga-dl-card-actions { display: flex; gap: 8px; flex-wrap: nowrap; }
+.ga-dl-card-actions > button { flex: none; white-space: nowrap; }
 /* The speed over the picture (the demo's spark): the curve along the bottom, the current speed in the corner. */
 .ga-dl-spark { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-end; padding: 4px 6px; pointer-events: none; background: linear-gradient(0deg, rgba(10, 12, 14, .82) 0, rgba(10, 12, 14, .2) 70%, transparent 100%); }
 .ga-dl-spark svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 62%; }
