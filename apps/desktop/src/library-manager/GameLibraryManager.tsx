@@ -265,7 +265,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
         <History game={game} c={c} job={freezing} />
-        {freezing && id ? <FrostImage src={landscape(id)} thaw={freezing.mode === "thaw"} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+        {freezing && id ? <FrostImage mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} size={frostSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}

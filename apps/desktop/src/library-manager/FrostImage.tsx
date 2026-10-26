@@ -1,32 +1,26 @@
-import type { CSSProperties } from "react";
+import { FreezeArt } from "../FreezeConsole";
+import type { FreezeMode } from "../FreezeDialog";
 import { formatBytes } from "../GenericDownloadProgress";
 
 type State = "working" | "done" | "failed";
 
 /**
- * The game's own picture freezing, beside its log: a layer of ice (pale blue, see-through, blurring what is under it)
- * spreads over the picture with a soft edge while the picture is pressed down to half its size, towards the centre
- * of its place; a thaw runs the other way (the ice withdraws and the picture grows back). Where the full picture
- * sits, fine lines fading at their ends keep the frame, with the share at one corner and the game's size at the
- * other (its size before and after, once done). Plain elements and CSS, nothing drawn frame by frame.
+ * The freeze shown beside the game's log: the same picture as the freeze console (files go into a press and come out
+ * as a block of ice that fills with the share; a strapped crate for the deep freeze; the other way for a thaw), drawn
+ * straight on the background, faint, in a place of constant size that keeps the log's top line and height. The share
+ * sits at one corner and the game's size at the other.
  */
-export default function FrostImage({ src, thaw, percent, state, size }: { src: string; thaw: boolean; percent: number; state: State; size: string }) {
-  // How much of the picture is ice, 0..1: freezing fills it, thawing empties it.
-  const ice = Math.max(0, Math.min(1, thaw ? 1 - percent / 100 : percent / 100));
+export default function FrostImage({ mode, percent, state, size }: { mode: FreezeMode; percent: number; state: State; size: string }) {
   return (
-    <div className={`lm-frost is-${state}`} style={{ "--ice": ice } as CSSProperties} aria-hidden="true">
-      <i className="lm-frost-lines" />
-      <div className="lm-frost-picture">
-        <img src={src} alt="" />
-        <i className="lm-frost-ice" />
-      </div>
+    <div className={`lm-frost is-${state}`} aria-hidden="true">
+      <FreezeArt mode={mode} percent={percent} state={state} />
       <b className="lm-frost-share">{Math.floor(percent)}<small>%</small></b>
       {size ? <span className="lm-frost-size">{size}</span> : null}
     </div>
   );
 }
 
-/** The game's size for the frame: what has been gone through of the total while working, before and after once done. */
+/** The game's size for the corner: what has been gone through of the total while working, before and after once done. */
 export function frostSize(progress: { done_bytes: number; total_bytes: number; events: Array<{ kind: string; [value: string]: unknown }> } | undefined): string {
   if (!progress?.total_bytes) return "";
   const end = progress.events.find(event => event.kind === "done");

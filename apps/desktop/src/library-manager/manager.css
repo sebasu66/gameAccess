@@ -121,35 +121,19 @@
 .lm-log-head { color: var(--ga-frost, #a5cee9); }
 .lm-log-foot { color: #c9ced2; }
 .lm-log-group.is-failed .lm-log-foot { color: #e1898f; }
-/* With a freeze going on, the log and, beside it, the game's picture: the same top, the same height (the log's
-   13rem, so the box keeps the picture's 460:215 shape), 32 px apart like the blocks above. The picture is pressed
-   down to half its size towards the log's corner while a layer of ice spreads over it with a soft edge. */
-@property --ice { syntax: "<number>"; inherits: true; initial-value: 0; }
+/* With a freeze going on, the log and, beside it, the freeze picture (FreezeArt, as in the freeze console) drawn
+   straight on the background and faint: the same top and height as the log (13rem), 32 px apart like the blocks
+   above, in a place of constant size with the picture centred in it. */
 .lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
 .lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
 .lm-history-row.has-frost > .lm-history { height: 13rem; }
-.lm-frost { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; transition: --ice .6s linear; }
-/* The frame of the full picture: four fine lines, each fading towards its ends. */
-.lm-frost-lines { position: absolute; inset: 0; pointer-events: none;
-  --line-h: linear-gradient(90deg, transparent, #ffffff40 18%, #ffffff40 82%, transparent);
-  --line-v: linear-gradient(180deg, transparent, #ffffff40 18%, #ffffff40 82%, transparent);
-  background: var(--line-h) 0 0 / 100% 1px no-repeat, var(--line-h) 0 100% / 100% 1px no-repeat,
-              var(--line-v) 0 0 / 1px 100% no-repeat, var(--line-v) 100% 0 / 1px 100% no-repeat; }
-/* The picture, pressed towards the centre of its place. */
-.lm-frost-picture { position: absolute; inset: 0; overflow: hidden; border-radius: 4px; transform-origin: center;
-  transform: scale(calc(1 - .5 * var(--ice))); transition: transform .6s linear; }
-.lm-frost-picture img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .85; }
-/* The share and the size at two corners of the frame, faint like the activity board. */
+.lm-frost { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; display: grid; place-items: center; opacity: .75; }
+.lm-frost .gfc-art { width: 92%; }
+.lm-frost .gfc-press-frame, .lm-frost .gfc-cube-back { fill: none; }
 .lm-frost-share, .lm-frost-size { position: absolute; z-index: 1; color: #f4f4f2; opacity: .6; pointer-events: none; }
 .lm-frost-share { top: 8px; left: 10px; font: 400 22px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
 .lm-frost-share small { font-size: 13px; margin-left: 1px; }
 .lm-frost-size { right: 10px; bottom: 8px; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
-.lm-frost-ice { position: absolute; inset: 0; background: linear-gradient(160deg, #d6ecf8b3, #a5cee980 60%, #7fb4d699); mix-blend-mode: screen;
-  -webkit-backdrop-filter: blur(5px) saturate(.6); backdrop-filter: blur(5px) saturate(.6);
-  -webkit-mask: linear-gradient(90deg, #000 calc(var(--ice) * 120% - 20%), transparent calc(var(--ice) * 120%));
-  mask: linear-gradient(90deg, #000 calc(var(--ice) * 120% - 20%), transparent calc(var(--ice) * 120%)); }
-.lm-frost.is-failed .lm-frost-ice { opacity: .4; }
-@media (prefers-reduced-motion: reduce) { .lm-frost, .lm-frost-picture { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
 /* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */
