@@ -300,6 +300,7 @@ class GameFreezer:
             raise ValueError("El juego ya está en congelado profundo.")
         progress = self._progress(app_id, "freeze")
         started = self.now()
+        self._note(folder, f"inicio: congelado (compresión de Windows, {self.workers} hilos)")
         try:
             files = _payload_files(folder)
             original = sum(size for _, size in files)
@@ -324,6 +325,7 @@ class GameFreezer:
             return record
         except BaseException as error:
             progress.finish(False, error=str(error))
+            self._note(folder, f"falló: {error}")
             raise
 
     def deep_freeze(self, app_id: int, name: str) -> dict:
@@ -334,6 +336,7 @@ class GameFreezer:
         tool = self._tool()
         progress = self._progress(app_id, "deep")
         started = self.now()
+        self._note(folder, f"inicio: congelado profundo (7-Zip, {self.workers} hilos)")
         archive, partial = folder / DEEP_ARCHIVE, folder / (DEEP_ARCHIVE + ".tmp")
         try:
             files = _payload_files(folder)
@@ -381,6 +384,7 @@ class GameFreezer:
             return record
         except BaseException as error:
             progress.finish(False, error=str(error))
+            self._note(folder, f"falló: {error}")
             raise
 
     def thaw(self, app_id: int, name: str) -> dict:
@@ -396,6 +400,7 @@ class GameFreezer:
         deep = record["level"] == "deep"
         progress = self._progress(app_id, "thaw-deep" if deep else "thaw")
         started = self.now()
+        self._note(folder, f"inicio: descongelado ({'congelado profundo' if deep else 'compresión de Windows'})")
         try:
             if deep:
                 archive = folder / DEEP_ARCHIVE
@@ -433,6 +438,7 @@ class GameFreezer:
             return {"thawed": True, "level": record["level"]}
         except BaseException as error:
             progress.finish(False, error=str(error))
+            self._note(folder, f"falló: {error}")
             raise
 
     def ensure_thawed(self, app_id: int, name: str) -> bool:

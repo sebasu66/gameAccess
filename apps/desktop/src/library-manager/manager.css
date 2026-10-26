@@ -2,7 +2,23 @@
 .lm-root { color: #f4f4f2; font-family: Manrope, sans-serif; color-scheme: dark; }
 .lm-root:not(.is-embedded) .lm-content { width: min(1100px, 100%); margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
 /* Summary on the left, the main buttons stacked in a column on the right. */
-.lm-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+.lm-top { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+/* The activity board: faint lines and letters on the background, like the side word; a little clearer while busy. */
+.lm-activity { align-self: center; justify-self: center; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; min-width: 0; opacity: .38; transition: opacity .4s; }
+.lm-activity.is-busy { opacity: .7; }
+.lm-activity-title { flex-basis: 100%; font-size: 10px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #f4f4f2; }
+.lm-activity-task { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lm-activity-ring { width: 44px; height: 44px; flex: none; transform: rotate(-90deg); }
+.lm-activity-ring circle { fill: none; stroke-width: 1.5; }
+.lm-activity-ring .track { stroke: #ffffff2e; }
+.lm-activity-ring .arc { stroke: var(--ga-frost, #a5cee9); transition: stroke-dasharray .4s linear; }
+.lm-activity-ring .turn { stroke: #f4f4f2; transform-origin: 22px 22px; animation: lm-activity-turn 2.4s linear infinite; }
+.lm-activity-task > b { position: absolute; left: 0; width: 44px; text-align: center; font: 400 15px/1 "Bebas Neue", sans-serif; color: #f4f4f2; }
+.lm-activity-task > span { display: flex; flex-direction: column; min-width: 0; max-width: 200px; }
+.lm-activity-task em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #f4f4f2; }
+.lm-activity-task small { font-size: 12px; color: #c9ced2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes lm-activity-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lm-activity-ring .turn { animation: none; } }
 .lm-summary { min-width: 0; }
 .lm-donut-wrap { display: grid; grid-template-columns: 190px minmax(0, 340px); gap: 24px; align-items: center; }
 .lm-donut { width: 190px; height: 190px; overflow: visible; }
@@ -95,7 +111,20 @@
 .lm-detail li { display: flex; align-items: center; gap: 6px; }
 .lm-detail li svg { width: 13px; height: 13px; color: #d7b48d; }
 .lm-detail em { font-style: normal; color: #929ba2; }
-.lm-history { margin: 0; max-height: 12rem; overflow: auto; padding: 10px; border-radius: 6px; border: 1px solid #ffffff14; background: #0c0f11; font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; white-space: pre-wrap; }
+/* The game's log: a small window barely darker than the grid, with a fine edge. */
+.lm-history { max-width: 680px; max-height: 13rem; overflow: auto; padding: 10px 12px; border-radius: 6px; border: 1px solid #ffffff17; background: #00000026;
+  font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; }
+.lm-history p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A freeze or thaw inside the log: its title, the launcher's details indented under a thin frost line, and its end. */
+.lm-log-group { margin-top: 2px; }
+.lm-log-group > p:not(.lm-log-head):not(.lm-log-foot) { padding-left: 14px; border-left: 1px solid #a5cee933; margin-left: 4px; color: #8f989e; }
+.lm-log-head { color: var(--ga-frost, #a5cee9); }
+.lm-log-foot { color: #c9ced2; }
+.lm-log-group.is-failed .lm-log-foot { color: #e1898f; }
+/* With a freeze going on, the log on the left and the game's picture freezing on the right, drawn on the background. */
+.lm-detail.has-frost { grid-template-columns: minmax(0, 680px) minmax(220px, 400px); align-items: start; column-gap: 40px; }
+.lm-detail-log { display: grid; gap: 10px; min-width: 0; }
+.lm-frost { display: block; width: 100%; aspect-ratio: 460 / 215; margin-top: 18px; }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
 /* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */

@@ -20,8 +20,11 @@ import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
-import { hostFreezeJob, useFreezeJob, useFreezeJobView } from "../freezeJobs";
-import FreezeTerminal from "../FreezeTerminal";
+import { dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
+import { eventText } from "../FreezeConsole";
+import { uiDemo } from "../devDemo/uiDemo";
+import ActivityBoard from "./ActivityBoard";
+import FrostImage from "./FrostImage";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
@@ -97,15 +100,41 @@ function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: Libr
   return <IconAction label={c.thaw} tone="frost" disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <PhFlame />}</IconAction>;
 }
 
-function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
+/** The game's log. A freeze or thaw of the game going on (or just ended) is one group at its end: its title, the
+ *  launcher's details indented inside it, and how it ended; the log's own lines of that freeze are left out
+ *  meanwhile, so nothing shows twice. When it ends, the log is read again. */
+function History({ game, c, job }: { game: LibraryGame; c: LibraryCopy; job?: FreezeJob }) {
+  const { t } = useI18n();
   const [text, setText] = useState<string | null>(null);
+  const ended = Boolean(job?.outcome);
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
-    if (libraryDemo()) { setText("2026-10-12 21:04:11 | importado | carpeta adaptada al estándar actual\n2026-10-12 21:04:12 | analisis | estado=ready; ejecutable=Game/game.exe"); return; }
+    if (libraryDemo() || uiDemo()) { setText("2026-10-12 21:04:11 | importado | carpeta adaptada al estándar actual\n2026-10-12 21:04:12 | analisis | estado=ready; ejecutable=Game/game.exe"); return; }
     void digitalProcessManager.gameLog(asGame(game)).then(result => { if (live) setText(result.log ?? ""); }).catch(() => { if (live) setText(""); });
     return () => { live = false; };
-  }, [game.app_id]);
-  return <pre className="lm-history">{text === null ? c.working : text || c.noHistory}</pre>;
+  }, [game.app_id, ended]);
+  const since = job ? job.startedAt - 5000 : null;
+  const lines = (text ?? "").split("\n").filter(line => line.trim() && (since == null || !isFreezeLineSince(line, since)));
+  const events = (job?.progress?.events ?? []).filter(event => !["start", "done", "failed"].includes(event.kind));
+  useEffect(() => { if (job && !job.outcome) box.current?.scrollTo({ top: box.current.scrollHeight }); }, [job, events.length]);
+  return (
+    <div ref={box} className="lm-history" tabIndex={-1}>
+      {text === null ? <p>{c.working}</p> : !lines.length && !job ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
+      {job ? <div className={`lm-log-group is-${job.outcome ? (job.outcome.ok ? "done" : "failed") : "working"}`}>
+        <p className="lm-log-head">{t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze")}{job.outcome ? "" : ` · ${Math.floor(job.progress?.percent ?? 0)} %`}</p>
+        {events.map((event, index) => <p key={index} className={`is-${event.kind}`}>{eventText(event, job, t)}</p>)}
+        {job.outcome ? <p className="lm-log-foot">{job.outcome.detail}</p> : null}
+      </div> : null}
+    </div>
+  );
+}
+
+/** A "freeze" line of the game's log written since `since` (ms): it belongs to the freeze group shown live. */
+function isFreezeLineSince(line: string, since: number): boolean {
+  const [stamp, step] = line.split(" | ");
+  const at = new Date((stamp ?? "").replace(" ", "T")).getTime();
+  return step?.trim() === "freeze" && !Number.isNaN(at) && at >= since;
 }
 
 /** One notice per Library Manager action, saying how many games it changed and how many failed. */
@@ -181,10 +210,15 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const unfinished = game.partial || isUnfinished(game);
   const ref = useRef<HTMLTableRowElement>(null);
   const focused = focusId != null && focusId === id;
-  // A freeze or thaw of this game shows in its row, as a terminal (and not in the floating console meanwhile).
+  // A freeze or thaw of this game shows in its row: in the game's log and as its picture freezing (and not in the
+  // floating console meanwhile). Once ended, it goes when the row does.
   const freezing = useFreezeJobView(id);
   const hosted = Boolean(freezing) && id != null;
-  useEffect(() => (hosted ? hostFreezeJob(id as number) : undefined), [hosted, id]);
+  useEffect(() => {
+    if (!hosted || id == null) return undefined;
+    const release = hostFreezeJob(id);
+    return () => { release(); if (!freezeJob(id)) dismissFreezeJob(id); };
+  }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
     <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
@@ -225,11 +259,14 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         </>}
       </td>
     </tr>
-    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
-      {freezing ? <FreezeTerminal job={freezing} /> : null}
-      {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
-        <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-      {open && !game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} /></div> : null}
+    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className={`lm-detail${freezing ? " has-frost" : ""}`}>
+      <div className="lm-detail-log">
+        {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
+          <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
+        {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} job={freezing} /></div> : null}
+      </div>
+      {freezing && id ? <FrostImage src={landscape(id)} thaw={freezing.mode === "thaw"} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+        state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} /> : null}
     </div></td></tr> : null}
   </>);
 }
@@ -397,6 +434,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           {summary ? <section className="lm-summary">
             <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
           </section> : null}
+          <ActivityBoard scanning={scanning} working={busy} />
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
