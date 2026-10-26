@@ -124,11 +124,12 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }
-/* The manager is not held to the covers' width: it takes a bit of the free margins (most of the right one, a little
-   of the left one, which keeps clear of the rail word). The grid box itself does not change, so the search dock stays put. */
-html:not(.ga-desk-right-open) .library-room:not(.surface-display):not(.surface-tablet) .library-room-grid:has(> .ga-manager-view) { overflow: visible !important; }
-html:not(.ga-desk-right-open) .library-room:not(.surface-display):not(.surface-tablet) .library-room-grid > .ga-manager-view {
-  margin-left: -24px; width: calc(100% + 24px + var(--ga-rail-clear, 0px) * .75); }
+/* The manager is not held to the covers' width: the central frame (the box that holds the catalog, the library or the
+   manager, with the round scrollbar on its right edge) takes a bit of the free margins, most of the right one and a
+   little of the left one, which keeps clear of the rail word. The scrollbar moves out with the frame's edge; the search
+   dock is centred on the panel around the frame, so it stays put. */
+html:not(.ga-desk-right-open) .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame:has(> .library-room-grid > .ga-manager-view) {
+  margin-left: -24px; margin-right: calc(var(--ga-rail-clear, 0px) * -.75); }
 /* Only the manager's game rows scroll (its own box, driven by the round scrollbar): the grid keeps still and the
    manager fills its height, leaving the grid's bottom padding free for the search dock. */
 .library-room-grid:has(> .ga-manager-view) { overflow: hidden !important; }
