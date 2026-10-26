@@ -189,6 +189,14 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.22 Buscador
 - En reposo es una cápsula corta con el relleno semitransparente y el borde opaco, centrada en el panel central (no en la ventana; el botón de vista cuelga a su derecha y no la mueve); crece con el texto que se escribe (hasta el 64 % de la ventana) y se vuelve opaca con mouse, foco o texto.
 
+### 4.23 Consola de congelado `ga-freeze-console` (componente `FreezeConsole`)
+- Congelar, congelado profundo y descongelar: el diálogo (`FreezeDialog`) solo confirma; el trabajo sigue en esta consola, que **no bloquea** la app (sin fondo oscuro, sin foco atrapado).
+- Panel flotante abajo a la izquierda, dentro del marco, sobre el pie; 520 px de ancho; vidrio y borde fino de la plantilla de diálogo.
+- Encabezado: eyebrow celeste (Congelando / Congelado profundo / Descongelando), nombre del juego en Bebas naranja, `ga-close`: mientras trabaja la pliega en una **pastilla** (44 px, copo girando, juego y %); al terminar, la cierra.
+- Dibujo SVG animado: archivos que entran a una prensa naranja y salen como bloque de hielo que se llena con el avance (caja con zunchos en el profundo; al descongelar corre al revés). Quieto al terminar y con "reducir movimiento".
+- Cifra grande (Bebas 54 px), bytes hechos / total, velocidad y tiempo restante; pasos con puntos (hecho celeste, actual latiendo); barra de 6 px celeste; archivo en curso en monoespaciada; registro tipo terminal (monoespaciada 12 px, tiempo desde el inicio, último renglón con cursor).
+- El avance lo escribe el launcher (`.cache/digital_frozen/<appid>.progress.json`) y la app lo lee con `freeze_progress` cada 400 ms. Con la consola plegada, el resultado llega como aviso.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.

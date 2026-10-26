@@ -136,6 +136,20 @@ export async function openSteamClient(): Promise<void> {
 }
 
 
+/** One line of a freeze's console, as the launcher wrote it (kind + its values: files, threads, step, file...). */
+export interface FreezeEvent { at: number; kind: string; [value: string]: unknown }
+/** What a freeze or thaw is doing now (`.cache/digital_frozen/<appid>.progress.json`, written by the launcher). */
+export interface FreezeProgress {
+  action: "freeze" | "deep" | "thaw" | "thaw-deep"; steps: string[]; step: string; step_share: number; percent: number;
+  done_bytes: number; total_bytes: number; file: string; events: FreezeEvent[]; started_at: number; updated_at: number;
+  finished: boolean; ok: boolean | null;
+}
+
+export async function freezeProgress(appId: number): Promise<FreezeProgress | null> {
+  if (!hasTauriRuntime()) return null;
+  return invoke<FreezeProgress | null>("freeze_progress", { appId });
+}
+
 export async function steamDownloadStatus(appId: number): Promise<SteamDownloadStatus> {
   if (hasTauriRuntime()) return invoke<SteamDownloadStatus>("steam_download_status", {appId});
   return {app_id:appId, state:"not-installed", progress:null, bytes_downloaded:null, bytes_total:null, installed:false};

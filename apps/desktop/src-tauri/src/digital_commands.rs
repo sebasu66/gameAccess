@@ -9,7 +9,7 @@ use std::io::{Write};
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
-use crate::launcher_runtime::{find_launcher_dir, find_launcher_python};
+use crate::launcher_runtime::{find_launcher_dir, find_launcher_python, launcher_data_dir};
 
 #[tauri::command]
 pub(crate) async fn run_digital_process(
@@ -71,6 +71,15 @@ pub(crate) async fn run_digital_process(
     })
     .await
     .map_err(|err| format!("Task failed: {err}"))?
+}
+
+/// The progress a freeze or thaw writes while it works (`.cache/digital_frozen/<appid>.progress.json` in the launcher's
+/// data); `None` when that game has none. Read a few times a second by the freeze console, so no Python is started.
+#[tauri::command]
+pub(crate) async fn freeze_progress(app_id: u32) -> Result<Option<serde_json::Value>, String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let path = launcher_data_dir(&launcher).join(".cache").join("digital_frozen").join(format!("{app_id}.progress.json"));
+    Ok(std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()))
 }
 
 // Downloads are started, paused, resumed and cancelled by the launcher's Download Manager (download_queue.rs).

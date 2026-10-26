@@ -1,0 +1,117 @@
+/* Freeze console (FreezeConsole.tsx, docs/GUI_DESIGN.md §4.23): a floating panel at the bottom left, inside the
+   device frame, above the footer. It never dims or blocks the app. Same glass and ring as the dialog template. */
+.ga-freeze-console, .ga-freeze-chip {
+  position: fixed; z-index: 2147482900; left: calc(var(--ga-frame-left, 0px) + 20px); bottom: calc(var(--ga-footer-height, 52px) + 16px);
+  font-family: Manrope, "Segoe UI", sans-serif; color: var(--ga-white);
+}
+.ga-freeze-console {
+  width: min(520px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; padding: 20px 22px 18px;
+  isolation: isolate; border: 1px solid transparent; border-radius: var(--ga-dialog-radius); background: var(--ga-dialog-bg);
+  -webkit-backdrop-filter: var(--ga-dialog-glass); backdrop-filter: var(--ga-dialog-glass); box-shadow: var(--ga-dialog-shadow);
+  animation: gfc-in .35s cubic-bezier(.2, .8, .2, 1);
+}
+.ga-freeze-console::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit; padding: 1px; background: var(--ga-dialog-ring);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
+}
+.ga-freeze-console > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ga-freeze-console > header > div { min-width: 0; }
+.gfc-eyebrow { display: block; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--ga-frost); }
+.ga-freeze-console h3 { margin: 2px 0 0; font: 400 32px/1 "Bebas Neue", sans-serif; color: var(--ga-orange); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gfc-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.gfc-tabs button { height: 28px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--ga-line); background: transparent; color: var(--ga-muted); font: 600 12px Manrope, sans-serif; cursor: pointer; }
+.gfc-tabs button[aria-pressed="true"] { border-color: var(--ga-frost); color: var(--ga-white); }
+
+/* The picture and the big figure. */
+.gfc-stage { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; align-items: center; }
+.gfc-art { width: 100%; height: auto; overflow: visible; }
+.gfc-figures { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; color: var(--ga-muted); font-variant-numeric: tabular-nums; }
+.gfc-figures strong { font: 400 54px/.9 "Bebas Neue", sans-serif; color: var(--ga-white); }
+.gfc-figures strong small { font-size: 26px; color: var(--ga-frost); margin-left: 2px; }
+.gfc-result { color: var(--ga-white); line-height: 1.4; }
+.gfc-result.is-failed { color: var(--ga-danger, #be4750); }
+
+/* Steps: a row of dots joined by a line; done in frost, the current one breathing. */
+.gfc-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
+.gfc-steps li { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #ffffff59; white-space: nowrap; }
+.gfc-steps li i { width: 9px; height: 9px; flex: none; border-radius: 50%; border: 1.5px solid currentColor; }
+.gfc-steps li.is-done { color: var(--ga-frost); }
+.gfc-steps li.is-done i { background: currentColor; }
+.gfc-steps li.is-active { color: var(--ga-white); }
+.gfc-steps li.is-active i { border-color: var(--ga-frost); background: var(--ga-frost); animation: gfc-breathe 1.2s ease-in-out infinite; }
+.gfc-steps li.is-failed { color: var(--ga-danger, #be4750); }
+
+.gfc-bar { position: relative; height: 6px; border-radius: 3px; background: #ffffff12; overflow: hidden; }
+.gfc-bar i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, #a5cee988, var(--ga-frost)); transition: width .4s linear; }
+.gfc-bar.is-working i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, #ffffff80, transparent); background-size: 60px 100%; background-repeat: no-repeat; animation: gfc-shine 1.4s linear infinite; }
+.gfc-bar.is-done i { background: var(--ga-success, #a0d2b4); }
+.gfc-bar.is-failed i { background: var(--ga-danger, #be4750); }
+.gfc-file { margin: -4px 0 0; font: 12px/1.3 Consolas, "Cascadia Mono", monospace; color: var(--ga-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+
+/* The log: a small terminal. */
+.gfc-log { list-style: none; margin: 0; padding: 10px 12px; height: 132px; overflow-y: auto; border-radius: 8px; border: 1px solid #ffffff14; background: #07090bcc;
+  font: 12px/1.55 Consolas, "Cascadia Mono", monospace; color: #c9ced2; scrollbar-width: thin; scrollbar-color: #ffffff30 transparent; }
+.gfc-log li { display: flex; gap: 10px; min-width: 0; }
+.gfc-log time { flex: none; color: #ffffff4d; }
+.gfc-log span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gfc-log li.is-step span, .gfc-log li.is-threads span { color: var(--ga-frost); }
+.gfc-log li.is-done span { color: var(--ga-success, #a0d2b4); }
+.gfc-log li.is-failed span, .gfc-log li.is-skipped span { color: var(--ga-danger, #be4750); white-space: normal; }
+.gfc-cursor span { color: var(--ga-frost); animation: gfc-blink 1s steps(2) infinite; }
+
+/* The chip the console folds into: the game, a turning snowflake and the share. */
+.ga-freeze-chip { display: inline-flex; align-items: center; gap: 10px; height: 44px; max-width: 320px; padding: 0 16px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #a5cee966; background: #0d1418e6; box-shadow: 0 12px 30px #0008; font: 600 14px Manrope, sans-serif; color: var(--ga-white); }
+.ga-freeze-chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-freeze-chip b { color: var(--ga-frost); font-variant-numeric: tabular-nums; }
+.ga-freeze-chip svg { color: var(--ga-frost); flex: none; }
+.ga-freeze-chip.is-done b { color: var(--ga-success, #a0d2b4); }
+.ga-freeze-chip.is-failed { border-color: var(--ga-danger, #be4750); }
+.ga-freeze-chip.is-failed b { color: var(--ga-danger, #be4750); }
+.ga-freeze-chip:hover { border-color: var(--ga-frost); }
+.gfc-spin { animation: gfc-turn 3s linear infinite; }
+
+/* The picture's parts. */
+.gfc-belt { stroke: #ffffff26; stroke-width: 2; stroke-dasharray: 4 5; fill: none; animation: gfc-belt .6s linear infinite; }
+.gfc-doc { fill: #ffffff10; stroke: #c9ced2; stroke-width: 1.4; stroke-linejoin: round; transform-box: view-box; animation: gfc-doc 2.8s linear infinite; }
+.gfc-doc-lines { stroke: #929ba2; stroke-width: 1.2; fill: none; }
+.gfc-press-frame { fill: #ffffff08; stroke: #ffffff40; stroke-width: 1.4; }
+.gfc-plate { fill: var(--ga-orange); transform-box: fill-box; }
+.gfc-plate-top { animation: gfc-press-top 1.4s cubic-bezier(.6, 0, .3, 1) infinite; }
+.gfc-plate-bottom { animation: gfc-press-bottom 1.4s cubic-bezier(.6, 0, .3, 1) infinite; }
+.gfc-cube-back { fill: #a5cee90d; }
+.gfc-cube-ice { fill: url(#gfc-frost); transition: opacity .3s; }
+.gfc-cube-ice.is-side { opacity: .7; }
+.gfc-cube-edge { fill: none; stroke: var(--ga-frost); stroke-width: 1.6; stroke-linejoin: round; }
+.gfc-strap { fill: none; stroke: var(--ga-orange); stroke-width: 2.2; opacity: .85; }
+.gfc-spark { stroke: var(--ga-frost); stroke-width: 1.3; stroke-linecap: round; transform-box: fill-box; transform-origin: center; animation: gfc-spark 2.2s ease-in-out infinite; opacity: 0; }
+.gfc-art.is-deep .gfc-cube-back { fill: #cc833314; }
+/* A thaw runs the other way: the block on the left melts back into files that leave on the right. */
+.gfc-art.is-thaw .gfc-flow { transform: translateX(300px) scaleX(-1); }
+.gfc-art.is-thaw .gfc-doc { animation-direction: reverse; }
+.gfc-art:is(.is-done, .is-failed) :is(.gfc-doc, .gfc-plate, .gfc-belt, .gfc-spark) { animation-play-state: paused; }
+.gfc-art.is-done .gfc-doc { animation: none; opacity: 0; }
+.gfc-art.is-done .gfc-spark { opacity: .8; }
+.gfc-art.is-failed .gfc-cube-edge { stroke: var(--ga-danger, #be4750); }
+
+@keyframes gfc-in { from { opacity: 0; transform: translateY(16px); } }
+@keyframes gfc-doc {
+  0% { transform: translate(6px, 54px) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  62% { transform: translate(104px, 54px) scale(1); opacity: 1; }
+  80% { transform: translate(140px, 60px) scale(.35, .7); opacity: .8; }
+  100% { transform: translate(176px, 66px) scale(.15, .3); opacity: 0; }
+}
+@keyframes gfc-press-top { 0%, 100% { transform: translateY(0); } 45%, 60% { transform: translateY(18px); } }
+@keyframes gfc-press-bottom { 0%, 100% { transform: translateY(0); } 45%, 60% { transform: translateY(-14px); } }
+@keyframes gfc-belt { to { stroke-dashoffset: -9; } }
+@keyframes gfc-spark { 0%, 100% { opacity: 0; transform: scale(.4) rotate(0deg); } 50% { opacity: .9; transform: scale(1) rotate(45deg); } }
+@keyframes gfc-breathe { 50% { box-shadow: 0 0 0 4px #a5cee933; } }
+@keyframes gfc-shine { from { background-position: -60px 0; } to { background-position: calc(100% + 60px) 0; } }
+@keyframes gfc-blink { 50% { opacity: 0; } }
+@keyframes gfc-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ga-freeze-console, .gfc-doc, .gfc-plate, .gfc-belt, .gfc-spark, .gfc-steps li i, .gfc-bar i::after, .gfc-cursor span, .gfc-spin { animation: none !important; }
+  .gfc-doc { transform: translate(60px, 54px); }
+}

@@ -138,3 +138,34 @@ def test_runner_freezes_thaws_and_forgets_on_uninstall(tmp_path):
         assert runner.run("freeze", 1, "Alpha")["frozen"]["level"] == "freeze"
         assert runner.run("uninstall", 1, "Alpha")["ok"]
     assert not (storage.data / ".cache" / "digital_frozen" / "1.json").exists()
+
+
+def test_each_level_writes_its_progress_for_the_console(tmp_path):
+    storage, folder = game(tmp_path)
+    progress = storage.data / ".cache" / "digital_frozen" / "1.progress.json"
+    freezer(storage, workers=3).freeze(1, "Alpha")
+    state = json.loads(progress.read_text(encoding="utf-8"))
+    assert state["action"] == "freeze" and state["finished"] and state["ok"] and state["percent"] == 100
+    kinds = [event["kind"] for event in state["events"]]
+    assert kinds[:2] == ["start", "files"] and {"kind": "threads", "count": 3} in [{k: e[k] for k in ("kind", "count") if k in e} for e in state["events"]]
+    assert kinds[-1] == "done" and state["events"][-1]["stored"] < state["events"][-1]["original"]
+    freezer(storage).thaw(1, "Alpha")
+    freezer(storage).deep_freeze(1, "Alpha")
+    state = json.loads(progress.read_text(encoding="utf-8"))
+    assert state["action"] == "deep" and state["ok"] and [e["name"] for e in state["events"] if e["kind"] == "step"] == ["compress", "verify", "clear"]
+    assert "archived" in [e["kind"] for e in state["events"]] and "verified" in [e["kind"] for e in state["events"]]
+    freezer(storage).thaw(1, "Alpha")
+    state = json.loads(progress.read_text(encoding="utf-8"))
+    assert state["action"] == "thaw-deep" and state["ok"]
+
+
+def test_a_failure_is_written_as_the_end_of_the_progress(tmp_path):
+    storage, folder = game(tmp_path)
+
+    class Usage:
+        total, used, free = 10, 10, 0
+    with patch("game_library_manager.freezer.shutil.disk_usage", return_value=Usage):
+        with pytest.raises(ValueError):
+            freezer(storage).deep_freeze(1, "Alpha")
+    state = json.loads((storage.data / ".cache" / "digital_frozen" / "1.progress.json").read_text(encoding="utf-8"))
+    assert state["finished"] and state["ok"] is False and state["events"][-1]["kind"] == "failed" and "espacio" in state["events"][-1]["error"]

@@ -51,6 +51,7 @@ import { uiDemo } from "./devDemo/uiDemo";
 import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import DigitalDownloadToast from "./DigitalDownloadToast";
+import FreezeConsole from "./FreezeConsole";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
@@ -667,6 +668,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
       {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
+      <FreezeConsole />
     </div>
   );
 }

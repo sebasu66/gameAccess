@@ -10,9 +10,10 @@ const GB = 1e9;
 let settle: { resolve: (value: unknown) => void; reject: (error: unknown) => void };
 const freeze = vi.hoisted(() => vi.fn(() => new Promise((resolve, reject) => { settle = { resolve, reject }; })));
 vi.mock("./catalog/DigitalProcessManager", () => ({ digitalProcessManager: { freeze, thaw: freeze } }));
-vi.mock("./libraryScan", () => ({ scanLibrary: vi.fn(() => Promise.resolve()) }));
+vi.mock("./libraryScan", () => ({ scanLibrary: vi.fn(() => Promise.resolve()), libraryDemo: () => false }));
 
 import FreezeDialog from "./FreezeDialog";
+import { collapseFreezeConsole, dismissFreezeJob, freezeConsoleState as useFreezeConsoleState } from "./freezeJobs";
 import { formatBytes } from "./GenericDownloadProgress";
 import { setAppLocale } from "./i18n";
 import { getToasts, dismissToast } from "./toasts";
@@ -38,19 +39,23 @@ beforeEach(() => { setAppLocale("es"); freeze.mockClear(); getToasts().forEach(t
 afterEach(closeMenu);
 
 describe("a freeze outlives the dialog that started it", () => {
-  it("reports the result when the menu was closed during the compression", async () => {
+  it("the dialog only confirms: the job goes on in the console and, with the console folded, the result is a toast", async () => {
     confirm(mount());
     expect(freeze).toHaveBeenCalledTimes(1);
+    expect(useFreezeConsoleState().open).toBe(true);
+    collapseFreezeConsole();
     closeMenu();
     await act(async () => { settle.resolve({ ok: true, frozen: { stored_bytes: 22.5 * GB, original_bytes: 53.7 * GB } }); });
     const toast = getToasts().at(-1);
     expect(toast?.tone).toBe("success");
     expect(toast?.message).toContain("BeamNG.drive");
     expect(toast?.message).toContain(formatBytes(22.5 * GB));
+    dismissFreezeJob(game.app_id!);
   });
 
-  it("reports a failure when the menu was closed, and the game can be frozen again", async () => {
+  it("reports a failure when the console is folded, and the game can be frozen again", async () => {
     confirm(mount());
+    collapseFreezeConsole();
     closeMenu();
     await act(async () => { settle.reject(new Error("La compresión de Windows terminó con código 1")); });
     const toast = getToasts().at(-1);
@@ -59,16 +64,19 @@ describe("a freeze outlives the dialog that started it", () => {
     confirm(mount());
     expect(freeze).toHaveBeenCalledTimes(2);
     await act(async () => { settle.resolve({ ok: true }); });
+    dismissFreezeJob(game.app_id!);
   });
 
-  it("reopening the dialog during the work shows the same job instead of starting a second one", async () => {
+  it("reopening the dialog during the work brings up the same job instead of starting a second one", async () => {
     confirm(mount());
+    collapseFreezeConsole();
     closeMenu();
     const view = mount();
-    expect(view.ownerDocument.body.textContent).toContain("Comprimiendo el juego");
+    expect(view.ownerDocument.querySelector(".ga-dialog-primary")).toBeNull();
+    expect(useFreezeConsoleState().open).toBe(true);
     expect(freeze).toHaveBeenCalledTimes(1);
     await act(async () => { settle.resolve({ ok: true, frozen: { stored_bytes: 1 * GB, original_bytes: 2 * GB } }); });
-    expect(view.ownerDocument.body.textContent).toContain("Ahora ocupa");
-    expect(getToasts()).toHaveLength(0);  // the open dialog already says it
+    expect(getToasts()).toHaveLength(0);  // the open console already says it
+    dismissFreezeJob(game.app_id!);
   });
 });
