@@ -8,6 +8,13 @@
 .digital-downloads-screen button:hover,.digital-download-nav:hover { background:#2a363a; border-color:#d79e60; }
 .digital-downloads-screen button:focus-visible,.digital-download-nav:focus-visible { outline:2px solid #d79e60; outline-offset:3px; }
 .digital-downloads-screen button:disabled { opacity:.5; cursor:wait; }
+/* A download's actions (play, pause, resume, cancel, folder, move in the queue) are square icon buttons, all alike;
+   the name unfolds on hover or focus. */
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:not(.digital-download-dismiss) { min-width:38px; height:38px; min-height:38px; padding:0 10px; gap:0; }
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button > svg { flex:none; width:16px; height:16px; }
+.digital-downloads-screen .ga-dl-label { max-width:0; opacity:0; overflow:hidden; white-space:nowrap; transition:max-width .25s, opacity .2s, margin .25s; }
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:is(:hover, :focus-visible) .ga-dl-label { max-width:180px; opacity:1; margin-left:8px; }
+@media (prefers-reduced-motion: reduce) { .digital-downloads-screen .ga-dl-label { transition:none; } }
 .digital-download-row { display:flex; align-items:center; gap:24px; padding:24px 0; border-top:1px solid #25333a; }
 .digital-download-featured { padding:32px 0; }
 .digital-download-art { width:160px; height:76px; display:grid; place-items:center; background:#18292c; border-radius:5px; overflow:hidden; flex-shrink:0; }
