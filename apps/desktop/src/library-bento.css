@@ -47,13 +47,10 @@
 @media (prefers-reduced-motion: reduce) { .ga-bento-card, .ga-bento-landscape { transition: none; } .ga-bento-ice { animation: none; } }
 
 /* Library pills: only installed / only favorites, next to the search. */
-.ga-library-pills { display: flex; justify-content: center; gap: 8px; margin: 0 0 10px; }
-.ga-library-pills button { height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid #ffffff2c; background: #20282cdc; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; backdrop-filter: blur(20px); }
-.ga-library-pills button[aria-pressed="true"] { background: #8fe3b0; border-color: transparent; color: #140a02; }
-.ga-library-pills button:focus-visible { outline: 2px solid #ff6a00; outline-offset: 3px; }
+/* The library's groups (installed, frozen, installable) as three square cubes on the filter strip, after sorting:
+   one pressed shows only that group. */
+.ga-grid-toolbar .ga-library-pills { display: flex; align-items: center; gap: 8px; margin-right: auto; padding-left: 12px; border-left: 1px solid #ffffff1f; }
 /* The pills float above the search, centered, like the other controls at the bottom. */
-.library-catalog-toolbar:has(.ga-library-pills) { position: relative; }
-.library-catalog-toolbar > .ga-library-pills { position: absolute; left: 50%; bottom: calc(100% + 12px); margin: 0; transform: translateX(-50%); z-index: 3; }
 
 /* Menu dot (T8): three lines that draw themselves after 2 s on a card, then pulse. */
 .ga-bento-menu { position: absolute; right: 8px; bottom: 8px; z-index: 4; width: 30px; height: 30px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: #f4f4f2; background: #111416b8; border: 1px solid #ffffff38; backdrop-filter: blur(8px); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .25s .3s; }

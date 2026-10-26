@@ -23,7 +23,8 @@ import "./library-bento.css";
 // Row gaps leave room for the game name under each card.
 const ROW_GAP = 44;
 const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
-export type LibraryPill = "all" | "installed" | "favorites";
+/** Which group of the library is shown: all of them, or only one (the three buttons on the filter strip). */
+export type LibraryPill = "all" | BentoKind;
 
 interface Props {
   games: CatalogGame[];
@@ -145,10 +146,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       const state = gameStateManager.resolve(status);
       const entry = game.app_id ? entries.get(game.app_id) : undefined;
       const installed = state.installed || state.prepared || Boolean(entry?.installed);
-      if (pill === "installed" && !installed) return [];
-      if (pill === "favorites" && !bigPicture && preferences[game.id] !== 1) return [];
       const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : "pending";
-      if (bigPicture && kind !== "ready") return [];
+      if (bigPicture ? kind !== "ready" : pill !== "all" && kind !== pill) return [];
       return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined }];
     });
   }, [games, downloads, scan.games, pill, preferences, bigPicture]);
@@ -176,8 +175,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   }, []);
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  // Big picture mode shows its one group (ready) open, whatever the player closed.
-  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, bigPicture ? new Set<BentoKind>() : collapsed), [cards, columns, collapsed, bigPicture]);
+  // Big picture mode, or a group picked with its button, shows that one group open, whatever the player closed.
+  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, bigPicture || pill !== "all" ? new Set<BentoKind>() : collapsed), [cards, columns, collapsed, bigPicture, pill]);
   useEffect(() => { if (bigPicture) setMenuFor(null); }, [bigPicture]);
   const placed = layout.placements;
   const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };

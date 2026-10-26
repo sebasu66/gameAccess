@@ -14,8 +14,8 @@ import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { gsap, motionOk, useGSAP } from "./motion/gsap";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
+import { ArrowUpDown, ArrowUpToLine, Download, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -277,6 +277,12 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.clearTimeout(timer);
   }, [selectedGameId, props.gridRef]);
   const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
+  // The library's groups, as three cubes on the filter strip: one pressed shows only that group.
+  const libraryGroups: Array<{ kind: Exclude<LibraryPill, "all">; label: string; icon: ReactNode }> = [
+    { kind: "ready", label: t("bentoSectionReady"), icon: <Play size={19} aria-hidden="true" /> },
+    { kind: "deep", label: t("bentoSectionDeep"), icon: <Snowflake size={19} aria-hidden="true" /> },
+    { kind: "pending", label: t("bentoSectionPending"), icon: <Download size={19} aria-hidden="true" /> },
+  ];
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
   // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
@@ -440,18 +446,20 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
-        {view !== "catalog" ? (
-          <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
-            <button type="button" aria-pressed={libraryPill === "installed"} onClick={() => setLibraryPill(current => (current === "installed" ? "all" : "installed"))}>{t("pillInstalled")}</button>
-            <button type="button" aria-pressed={libraryPill === "favorites"} onClick={() => setLibraryPill(current => (current === "favorites" ? "all" : "favorites"))}>{t("pillFavorites")}</button>
-          </div>
-        ) : null}
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
         </div>
-        <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>
-          {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
-          </div>
+        {/* One button for the two views: it shows the current one (icon and name, in its big word's colour) and
+            switches to the other. */}
+        <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
+          {(() => {
+            const current = view === "catalog" ? views[0] : views[1], next = view === "catalog" ? views[1] : views[0];
+            return <button key={current.id} type="button" className={`ga-view-toggle is-${current.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { current: current.label, next: next.label })} title={t("viewToggleAria", { current: current.label, next: next.label })}
+              onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
+              <FilledIcon name={current.id === "catalog" ? "catalog" : "library"} /><span>{current.label}</span>
+            </button>;
+          })()}
+        </div>
 
 
       </div>
@@ -480,7 +488,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{filters}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
+      {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+        {libraryGroups.map(group =>
+          <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
+      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
