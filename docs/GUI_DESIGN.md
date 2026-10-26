@@ -137,7 +137,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.16 Palabra lateral de la vista
 - A la izquierda de la zona principal, la palabra de la vista actual en vertical (de abajo hacia arriba), la más larga al 110 % del alto de la ventana y las dos con el mismo tamaño de letra (igual de gruesas). **Sin tilde**: `CATALOGO` / `LIBRERIA` (`CATALOG` / `LIBRARY`).
-- Archivo Black; dibujada como píxeles de pantalla vistos de cerca: grilla de 5 px donde cada celda se prende entera o no (bordes en escalera), con la silueta al 28 % y encima un cuadradito de 4 px por celda; las letras se desvanecen hacia el centro con una máscara. Catálogo en naranja, librería en verde (`--ga-success`). Se oculta debajo de 900 px.
+- Archivo Black; silueta lisa al 28 % y encima el interior pixelado (cuadraditos de 6 px con ranura de 2 px), con el borde de la letra liso (Seba descartó el borde en escalera); empieza en el borde interior del marco; las letras se desvanecen hacia el centro con una máscara. Catálogo en naranja, librería en verde (`--ga-success`). Se oculta debajo de 900 px.
 
 ### 4.17 Panel lateral `ga-side-panel`
 - En ventanas de 1800 px o más: Administrador a la izquierda, Descargas a la derecha y Novedades debajo de Descargas. Ancho `clamp(380px, 25vw, 560px)` (22 % si hay paneles en los dos costados).

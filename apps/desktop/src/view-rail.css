@@ -1,5 +1,6 @@
 /* The current view's name, vertical on the left edge (docs/GUI_DESIGN.md §4.16). */
-.ga-view-rail { position: fixed; left: 0; top: 0; bottom: 0; z-index: 1; width: var(--ga-rail, 0px); overflow: hidden; pointer-events: none; }
+/* It starts at the frame's inner edge (a margin, so it adds to the left set when a side panel is open on the left). */
+.ga-view-rail { position: fixed; left: 0; margin-left: var(--ga-frame-left, 0px); top: 0; bottom: 0; z-index: 1; width: var(--ga-rail, 0px); overflow: hidden; pointer-events: none; }
 .ga-rail-word {
   position: absolute; left: -.03em; top: 50%; writing-mode: vertical-rl; white-space: nowrap; will-change: transform;
   font-family: "Archivo Black", "Arial Black", sans-serif; font-weight: 400; line-height: 1; letter-spacing: .01em;
@@ -7,10 +8,17 @@
   -webkit-mask-image: linear-gradient(to left, #000 0, #000 18%, #0008 55%, #0000 92%);
   mask-image: linear-gradient(to left, #000 0, #000 18%, #0008 55%, #0000 92%);
 }
-/* The text only lays the word out (its size and place); the letters are pixels drawn on the canvas over it
-   (ViewRail.tsx, drawPixelWord): 4 px squares on a 5 px grid, the edges stepping like real screen pixels. */
-.ga-rail-word > .text { display: block; color: transparent; }
-.ga-rail-word > canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.ga-rail-word > span { display: block; -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Smooth, faint outline: the letter edge is not pixelated. */
+.ga-rail-word .solid { background-image: linear-gradient(to left, var(--rw-hi), var(--rw)); opacity: .28; }
+/* Pixelated inside: small squares separated by a thin gap. */
+.ga-rail-word .pix {
+  position: absolute; inset: 0; background-image: linear-gradient(to left, var(--rw-hi), var(--rw) 45%, var(--rw-lo));
+  -webkit-mask-image: repeating-linear-gradient(0deg, #000 0 6px, #0000 6px 8px), repeating-linear-gradient(90deg, #000 0 6px, #0000 6px 8px);
+  -webkit-mask-composite: source-in;
+  mask-image: repeating-linear-gradient(0deg, #000 0 6px, #0000 6px 8px), repeating-linear-gradient(90deg, #000 0 6px, #0000 6px 8px);
+  mask-composite: intersect;
+}
 .ga-rail-word[data-view="catalog"] { --rw-hi: #e2ba8d; --rw: #cc8333; --rw-lo: #a16628; }
 .ga-rail-word[data-view="library"] { --rw-hi: #e8f9f0; --rw: #a0d2b4; --rw-lo: #64a485; }
 /* The catalog and library content is centred on the whole window, as if the word were not there: a column of at most
