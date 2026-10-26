@@ -128,10 +128,22 @@
 .lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
 .lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
 .lm-history-row.has-frost > .lm-history { height: 13rem; }
-.lm-frost { flex: none; height: 13rem; aspect-ratio: 460 / 215; transition: --ice .6s linear; }
-.lm-frost-picture { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 6px; transform-origin: top left;
+.lm-frost { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; transition: --ice .6s linear; }
+/* The frame of the full picture: four fine lines, each fading towards its ends. */
+.lm-frost-lines { position: absolute; inset: 0; pointer-events: none;
+  --line-h: linear-gradient(90deg, transparent, #ffffff40 18%, #ffffff40 82%, transparent);
+  --line-v: linear-gradient(180deg, transparent, #ffffff40 18%, #ffffff40 82%, transparent);
+  background: var(--line-h) 0 0 / 100% 1px no-repeat, var(--line-h) 0 100% / 100% 1px no-repeat,
+              var(--line-v) 0 0 / 1px 100% no-repeat, var(--line-v) 100% 0 / 1px 100% no-repeat; }
+/* The picture, pressed towards the centre of its place. */
+.lm-frost-picture { position: absolute; inset: 0; overflow: hidden; border-radius: 4px; transform-origin: center;
   transform: scale(calc(1 - .5 * var(--ice))); transition: transform .6s linear; }
 .lm-frost-picture img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+/* The share and the size at two corners of the frame, faint like the activity board. */
+.lm-frost-share, .lm-frost-size { position: absolute; z-index: 1; color: #f4f4f2; opacity: .6; pointer-events: none; }
+.lm-frost-share { top: 8px; left: 10px; font: 400 22px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
+.lm-frost-share small { font-size: 13px; margin-left: 1px; }
+.lm-frost-size { right: 10px; bottom: 8px; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
 .lm-frost-ice { position: absolute; inset: 0; background: linear-gradient(160deg, #d6ecf8b3, #a5cee980 60%, #7fb4d699); mix-blend-mode: screen;
   -webkit-backdrop-filter: blur(5px) saturate(.6); backdrop-filter: blur(5px) saturate(.6);
   -webkit-mask: linear-gradient(90deg, #000 calc(var(--ice) * 120% - 20%), transparent calc(var(--ice) * 120%));
