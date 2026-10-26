@@ -12,7 +12,7 @@ button.ga-close {
 button.ga-close:hover { background: #d65c65; box-shadow: 0 0 20px #d65c65cc; }
 button.ga-close:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px; }
 
-/* Every button uses one lettering (--ga-btn-font: Bahnschrift semibold 17 px in capitals, Windows' own narrow DIN; Segoe UI where it is missing). */
+/* Every button uses one lettering (--ga-btn-font: the app's Manrope, bold 16 px, as written). */
 /* Every orange (primary) button looks the same, whatever component draws it: one fill, one ink, one lettering
    (docs/GUI_DESIGN.md §4.2). */
 :is(button.ga-btn-primary, .ga-detail-actions .glass-action, .ga-filter-dialog .ga-filter-apply,

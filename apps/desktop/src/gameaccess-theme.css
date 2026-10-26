@@ -17,7 +17,7 @@
   --ga-dialog-ring:linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
   --ga-dialog-radius:12px; --ga-dialog-shadow:0 24px 60px #0008;
 }
-:root { --ga-btn-font:600 17px/1 Bahnschrift,"Segoe UI",system-ui,sans-serif; --ga-btn-case:uppercase; --ga-btn-track:.04em; --ga-btn-bg:var(--ga-orange); --ga-btn-bg-hover:#d69959; --ga-btn-ink:#140a02; --ga-frost:#a5cee9; --ga-orange:#cc8333; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
+:root { --ga-btn-font:700 16px/1 Manrope,"Segoe UI",sans-serif; --ga-btn-case:none; --ga-btn-track:normal; --ga-btn-bg:var(--ga-orange); --ga-btn-bg-hover:#d69959; --ga-btn-ink:#140a02; --ga-frost:#a5cee9; --ga-orange:#cc8333; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
 /* Favorite/metadata sorting keeps the viewport fixed. Explicit keyboard
    selection is the only operation that reveals a card automatically. */
 .library-room-grid { overflow-anchor:none; scroll-behavior:auto; }
