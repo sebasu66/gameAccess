@@ -53,6 +53,7 @@
 .lm-cell-path { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
 .lm-cell-size { min-width: 110px; }
 .lm-cell-source { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #c9ced2; }
+.lm-kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #c9ced2; }
 .lm-cell-num { white-space: nowrap; color: #c9ced2; }
 .lm-status { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
 .lm-status svg { width: 12px; height: 12px; }

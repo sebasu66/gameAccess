@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download, Gamepad2, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
-import { translate, useI18n } from "../i18n";
+import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
@@ -62,10 +62,15 @@ function statusOf(game: LibraryGame, c: LibraryCopy, t: Translate): Status {
   return { rank: 6, label: t("lmStatusInstalled"), tone: "muted" };
 }
 
-function sourceOf(game: LibraryGame, t: Translate): string {
-  if (game.link_kind === "steam") return game.steam_owner ? t("lmSourceSteam", { account: steamOwnerLabel(game.steam_owner) }) : t("lmSourceSteamPlain");
-  if (game.linked) return t("lmSourceFolder");
-  return game.source_provider || t("lmSourceGameAccess");
+/** Where the game comes from: a direct download (DD) through Game Access, Steam, or a folder of the user's linked as is. */
+type Kind = "dd" | "steam" | "folder";
+const kindOf = (game: LibraryGame): Kind => game.link_kind === "steam" ? "steam" : game.linked ? "folder" : "dd";
+const kindLabels: Record<Kind, [TranslationKey, TranslationKey | null]> = { dd: ["lmKindDirect", "lmKindDirectTitle"], steam: ["lmKindSteam", null], folder: ["lmKindFolder", "lmKindFolderTitle"] };
+
+/** Who it belongs to or who provided it: the Steam account that owns it, or the download's provider. */
+function sourceOf(game: LibraryGame): string {
+  if (game.link_kind === "steam") return steamOwnerLabel(game.steam_owner);
+  return game.linked ? "" : game.source_provider ?? "";
 }
 
 function subline(game: LibraryGame, c: LibraryCopy): string {
@@ -121,8 +126,8 @@ function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", resul
 }
 
 /** One line of the grid, a game with a folder or a member of the library without one, with the values it sorts by. */
-type GridRow = { key: string; name: string; status: Status; path: string; size: number; source: string; plays: number; last: string; game?: LibraryGame; member?: CatalogGame };
-type SortKey = "name" | "status" | "path" | "size" | "source" | "plays" | "last";
+type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; last: string; game?: LibraryGame; member?: CatalogGame };
+type SortKey = "name" | "status" | "path" | "size" | "kind" | "source" | "plays" | "last";
 type Sort = { key: SortKey; dir: 1 | -1 };
 /** Numbers and dates start from the largest, words from A. */
 const firstDir = (key: SortKey): 1 | -1 => key === "size" || key === "plays" || key === "last" ? -1 : 1;
@@ -151,6 +156,12 @@ type RowProps = {
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
 };
 
+function KindCell({ kind }: { kind: Kind }) {
+  const { t } = useI18n();
+  const [label, title] = kindLabels[kind];
+  return <span className={`lm-kind ${kind}`} title={title ? t(title) : undefined}>{t(label)}</span>;
+}
+
 function StatusCell({ status }: { status: Status }) {
   return <span className={`lm-status ${status.tone}`}>{status.icon}{status.label}</span>;
 }
@@ -178,7 +189,8 @@ function ManagerRow({ row, game, c, busy, largest, focusId, locale, columns, exp
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
-      <td className="lm-cell-source" title={row.source}>{row.source}</td>
+      <td><KindCell kind={row.kind} /></td>
+      <td className="lm-cell-source" title={row.source || undefined}>{row.source || "—"}</td>
       <td className="lm-cell-num">{row.plays || "—"}</td>
       <td className="lm-cell-num">{shortDate(row.last, locale)}</td>
       <td className="lm-acts">
@@ -223,7 +235,8 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path">—</td>
       <td className="lm-cell-size">—</td>
-      <td className="lm-cell-source">{row.source}</td>
+      <td><KindCell kind={row.kind} /></td>
+      <td className="lm-cell-source">—</td>
       <td className="lm-cell-num">—</td>
       <td className="lm-cell-num">—</td>
       <td className="lm-acts">
@@ -355,10 +368,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const installedCount = rows.filter(game => game.installed && !game.partial && !isUnfinished(game) && !game.unfinished).length;
   const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && matches(member.name, member.app_id ?? member.id)) : [];
   const gridRows: GridRow[] = [
-    ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), source: sourceOf(game, t), plays: game.plays ?? 0, last: game.last_played ?? "", game })),
-    ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, source: t("lmSourceGameAccess"), plays: 0, last: "", member })),
+    ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), kind: kindOf(game), source: sourceOf(game), plays: game.plays ?? 0, last: game.last_played ?? "", game })),
+    ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, last: "", member })),
   ].sort(compareRows(sort));
-  const columns = 10;
+  const columns = 11;
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
@@ -402,6 +415,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <SortHeader id="status" label={t("lmColStatus")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="path" label={t("lmColPath")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="size" label={t("lmColSize")} sort={sort} setSort={setSort} t={t} />
+                <SortHeader id="kind" label={t("lmColKind")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="source" label={t("lmColSource")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="plays" label={t("lmColPlays")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="last" label={t("lmColLastPlayed")} sort={sort} setSort={setSort} t={t} />

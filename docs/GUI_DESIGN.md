@@ -150,7 +150,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - En el catálogo, una selección que hace el propio desplazamiento (`scrollClamping`) nunca mueve el scroll.
 - Nunca medir todas las tarjetas en cada render (`Flip.getState` solo cuando cambia el conjunto de tarjetas) ni animar con Flip al aparecer la vista.
 ### 4.20 Tabla de datos `lm-grid` (administrador de biblioteca)
-- Una fila por juego: casilla, portada apaisada de 76 px, nombre (con una línea de detalle solo si suma), estado como insignia (§4.10), carpeta en monoespaciada muted, tamaño (`SizeCell`), origen, partidas, última partida y las acciones de la fila.
+- Una fila por juego: casilla, portada apaisada de 76 px, nombre (con una línea de detalle solo si suma), estado como insignia (§4.10), carpeta en monoespaciada muted, tamaño (`SizeCell`), fuente (DD, Steam o Carpeta, pastilla neutra), cuenta o proveedor, partidas, última partida y las acciones de la fila.
 - Encabezados Manrope 800 11 px en mayúsculas, muted; cada columna de datos es un `button` que ordena: el primer clic ordena (palabras de la A, números y fechas del mayor), el segundo invierte. La columna activa va en blanco con flecha naranja; las demás con una flecha doble tenue. `aria-sort` en el `th`.
 - Filas sin dato (sin carpeta, sin partidas) quedan al final en los dos sentidos.
 - Contenedor con borde `#ffffff14` y radio 12 px; con la ventana angosta la tabla se desplaza de costado y la columna de acciones queda fija a la derecha.
