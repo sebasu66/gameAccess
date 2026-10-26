@@ -677,7 +677,7 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
   .library-room:not(.surface-display):not(.surface-tablet) .glass-action-label {
     opacity: 1;
     transform: none;
-    font-size: 12px;
+    font-size: 16px;
   }
   .library-room:not(.surface-display):not(.surface-tablet) .library-room-preferences {
     flex: 0 0 auto;

@@ -27,7 +27,7 @@ Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cál
 - **Títulos de pantalla y diálogo:** Bebas Neue, naranja, mayúsculas.
   - Pantalla completa: 56 px. Diálogo: 36–48 px. Nunca menos de 32 px.
 - **Cuerpo, botones, etiquetas:** Manrope. Base 14 px, interlineado 1.5.
-  - Botones: 700, 14 px. Etiquetas de sección: 800, 11 px, mayúsculas, `letter-spacing: .14em`.
+  - Botones: 700, 16 px (también las acciones de la ficha del juego). Etiquetas de sección: 800, 11 px, mayúsculas, `letter-spacing: .14em`.
 - **Eyebrow** (línea superior del encabezado, p. ej. "GAME ACCESS"): Manrope 800, 11 px, naranja, `letter-spacing: .18em`.
 - **Subtítulo:** Manrope 400, 14 px, `--ga-muted`.
 
