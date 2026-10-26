@@ -66,7 +66,7 @@ class DownloadPipeline:
             # it stays with the player when it is small, well seeded or already fast.
             self.step("start", "route", ui("dlRouteLooking"))
             context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlRouteFastest"))
-            where = self.chunked(chunk_session).peek(download_source)
+            where = self.chunked(chunk_session).peek(download_source, app_id)
             if where:
                 # The player is never told which service holds it (no provider names in the app).
                 self.step("finish", ui("dlRouteServerHas"))

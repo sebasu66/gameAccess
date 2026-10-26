@@ -125,8 +125,8 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [x] Menú del catálogo = panel lateral de la biblioteca, solo con Instalar (si hay fuentes y plugin), Añadir a la biblioteca, Página de Steam y Favoritos (Seba, 2026-10-25).
 - [ ] **Lo aprendido por juego** (Seba, 2026-10-26; diseño en [[Lo aprendido por juego]]): una lista por juego (AppID) en el servidor, con copia en el SQLite de cada cliente sincronizada con las novedades del catálogo (snapshot y diferencias); las consultas son locales y no esperan a la red. Tipos abiertos: `bad_source` (fuente que no sirve, por huella, nunca la URL), `how_to_run` (requisitos o pasos especiales), `abandoned` (el juego ya no es válido).
   - [x] Servidor (`game_lessons.py`: votos anónimos por instalación, umbral de 2, revisiones, `GET /game-lessons?since=`, administrador), tabla local y comandos en Rust (`game_lessons.rs`; consulta de 24 µs con 50.000 lecciones), fuente mala reportada al dar `not_a_game` y mandada al final del menú; Descargar nunca la elige por defecto.
-  - [ ] Decisiones de Seba: quién carga "cómo correrlo" y "abandonado", moderación, si "abandonado" oculta el juego o solo avisa, si una fuente marcada se oculta o solo baja, umbral, despliegue.
-  - [ ] Mostrar "cómo correrlo" en la ficha y al jugar, y "abandonado" según lo que decida Seba.
+  - [x] Decisiones de Seba aplicadas: "cómo correrlo" y "abandonado" los carga solo el administrador y requieren aprobación; las fuentes inválidas se publican solas; un juego abandonado se descarga pero sin la aceleración del servidor (rechazada también por el servidor); la fuente marcada baja al final.
+  - [ ] Mostrar "cómo correrlo" en la ficha y al jugar, y avisar en la ficha que un juego abandonado no se acelera. Pantalla de administración para cargar y aprobar lecciones.
   - [ ] Reportar también contraseña incorrecta y archivo dañado (falta su `errorCode` en el launcher). Prueba en la app.
 
 ## Premium y comercial (Paso 1 hecho, falta cerrar)

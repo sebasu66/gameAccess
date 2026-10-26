@@ -3,6 +3,7 @@ import { translate } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
+import { gameIsAbandoned } from "./gameLessons";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
@@ -246,7 +247,10 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     // PLUS can have a source accelerated by the server: the Download Manager needs the session to ask for it.
     let accelerated = false;
-    if (this.plan() === "plus" && canAccelerate(source)) {
+    // A game marked abandoned can still be downloaded, only not through the server (gameLessons.ts).
+    const abandoned = this.plan() === "plus" && canAccelerate(source) && await gameIsAbandoned(appId);
+    if (abandoned) void narrate(`${name} está marcado como abandonado: se descarga sin la aceleración del servidor.`, { area: "DOWNLOAD" });
+    if (this.plan() === "plus" && canAccelerate(source) && !abandoned) {
       const session = await buildChunkSession();
       if (session) {
         accelerated = true;

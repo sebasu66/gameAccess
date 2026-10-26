@@ -16,6 +16,7 @@ from .access_service import _activation_for_request
 from .api_dependencies import get_session
 from .local_database import get_local_session, local_engine
 from .download_events import log_event
+from .game_lessons import game_is_abandoned
 from .telemetry import record_transfer, record_transfers
 from .viking_link_cache import link_cache, probe_direct_link
 from .viking_map import VikingMapStore, restore_from_viking
@@ -45,6 +46,8 @@ class ChunkJobRequest(BaseModel):
     file_name: str = Field(default="", max_length=300)
     # Pieces the player already downloaded (a resumed download): they are not uploaded again for it.
     have_pieces: list[int] = Field(default_factory=list, max_length=20000)
+    # The game, so an abandoned one is not accelerated (game_lessons.py); older launchers do not send it.
+    app_id: int | None = Field(default=None, ge=1)
 
 
 async def _installation_for_plus_async(request: Request, session: Session) -> str:
@@ -134,6 +137,10 @@ async def start_chunk_download(
         identity = normalize_source_url(req.source_url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    # An abandoned game can still be downloaded, only not through the server (Seba, 2026-10-26): the launcher's
+    # answer to a 403 is the normal download.
+    if await run_in_threadpool(game_is_abandoned, session, req.app_id):
+        raise HTTPException(403, "game_abandoned")
 
     job = await _known_or_restored(local_session, identity.fingerprint, source_url=req.source_url.strip())
     existed = job is not None
@@ -178,6 +185,7 @@ async def start_chunk_download(
 
 class ChunkPeekRequest(BaseModel):
     source_url: str = Field(min_length=1, max_length=8192)
+    app_id: int | None = Field(default=None, ge=1)
 
 
 @router.post("/downloads/viking-chunks/peek")
@@ -194,6 +202,8 @@ async def peek_chunk_source(
         identity = normalize_source_url(req.source_url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    if await run_in_threadpool(game_is_abandoned, session, req.app_id):
+        return {"ready": False, "where": ""}
     job = await _known_or_restored(local_session, identity.fingerprint)
     if job is not None and job.status in ("ready", "partial", "running"):
         return {"ready": True, "where": "viking"}

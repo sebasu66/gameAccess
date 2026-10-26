@@ -201,6 +201,22 @@ def test_server_refusal_means_use_the_normal_download(tmp_path):
         downloader.download("https://x", "F", str(tmp_path), "1", "F")
 
 
+def test_the_game_is_named_so_the_server_can_refuse_an_abandoned_one(tmp_path):
+    sent = []
+
+    class Recording(FakeServer):
+        def request(self, method, url, headers=None, timeout=None, json=None):
+            if method == "POST":
+                sent.append(json)
+            return super().request(method, url, headers=headers, timeout=timeout, json=json)
+
+    server = Recording([("f", b"12")], 2)
+    downloader, _ = make(server, tmp_path)
+    downloader.download("https://x/f", "F", str(tmp_path), "1245620", "F")
+    downloader.peek("https://x/f", "730")
+    assert sent[0]["app_id"] == 1245620 and sent[-1] == {"source_url": "https://x/f", "app_id": 730}
+
+
 def test_links_are_asked_for_in_batches_and_an_old_server_falls_back(tmp_path):
     downloader, _ = make(FakeServer([("f", b"1")], 1), tmp_path, parallel=2)
     calls = []

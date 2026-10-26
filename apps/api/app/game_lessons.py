@@ -6,12 +6,14 @@ Every lesson belongs to a game (AppID) and has a kind; the kinds are open, today
   (`viking_cache_service.normalize_source_url`): the server never receives or keeps its URL. A whole provider can
   also be marked (`scope: "provider"`).
 - `how_to_run`: special requirements or steps to run the game (text, and later an execution profile).
-- `abandoned`: the game is no longer valid (its developers dropped it) and is discarded from the offer.
+- `abandoned`: the game is no longer valid (its developers dropped it). It stays visible and downloadable, but the
+  server does not accelerate it (TorBox -> ViKiNG): `game_is_abandoned`, checked by the acceleration routes.
 
-Players report bad sources on their own; each report is one vote of one installation, kept as a keyed hash of its id
-(no personal data, and the same player reporting twice counts once). A lesson is published once
-`GAMEACCESS_LESSON_MIN_REPORTS` different installations (default 2) agree, or right away when an administrator writes
-it; the other kinds are written by an administrator only.
+Who writes what (Seba, 2026-10-26): players report bad sources on their own; each report is one vote of one
+installation, kept as a keyed hash of its id (no personal data, and the same player reporting twice counts once). A bad
+source is published by itself once `GAMEACCESS_LESSON_MIN_REPORTS` different installations (default 2) agree, or when
+an administrator writes it. Every other kind is written by an administrator only and stays pending until it is
+approved (`/admin/game-lessons/approve`).
 
 Published lessons live in `game_lesson`, each with a revision (microseconds). Clients keep a copy in their local
 catalog database and ask only for what changed since their revision (`GET /game-lessons?since=`), together with the
@@ -73,6 +75,8 @@ class GameLessonReport(SQLModel, table=True):
     text: str = SQLField(default="", max_length=2000)
     # Keyed hash of the installation id (or "admin"): counts distinct reporters without keeping who they are.
     voter: str = SQLField(max_length=64)
+    # An administrator's lesson other than a bad source counts only once approved.
+    approved: bool = True
     created_at: datetime = SQLField(index=True)
 
 
@@ -106,6 +110,13 @@ class LessonReportRequest(BaseModel):
     reason: str = Field(min_length=2, max_length=40)
     app_id: Optional[int] = Field(default=None, ge=1)
     detail: list[str] = Field(default_factory=list, max_length=8)
+
+
+class LessonKeyRequest(BaseModel):
+    kind: str = Field(min_length=2, max_length=40)
+    scope: Scope
+    subject: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=2, max_length=40)
 
 
 class AdminLessonRequest(LessonReportRequest):
@@ -175,7 +186,7 @@ def _refresh_lesson(session: Session, kind: str, scope: str, subject: str, reaso
                                                    GameLesson.subject == subject, GameLesson.reason == reason)).first()
     if not votes and lesson is None:
         return
-    admin = next((vote for vote in votes if vote.voter == ADMIN_VOTER), None)
+    admin = next((vote for vote in votes if vote.voter == ADMIN_VOTER and vote.approved), None)
     players = [vote for vote in votes if vote.voter != ADMIN_VOTER]
     threshold = min_reports()
     if lesson is None:
@@ -208,7 +219,8 @@ def _validate(req: LessonReportRequest) -> str:
     return subject
 
 
-def _add_vote(session: Session, req: LessonReportRequest, subject: str, voter: str, *, action: str = "avoid", text: str = "") -> bool:
+def _add_vote(session: Session, req: LessonReportRequest, subject: str, voter: str, *, action: str = "avoid", text: str = "",
+              approved: bool = True) -> bool:
     """Store one vote; False when this voter had already said the same."""
     exists = session.exec(select(GameLessonReport.id).where(
         GameLessonReport.kind == req.kind, GameLessonReport.scope == req.scope, GameLessonReport.subject == subject,
@@ -217,7 +229,7 @@ def _add_vote(session: Session, req: LessonReportRequest, subject: str, voter: s
         return False
     session.add(GameLessonReport(kind=req.kind, scope=req.scope, subject=subject, reason=req.reason, app_id=req.app_id,
                                  action=action, text=text.strip()[:2000], detail=_detail(req.detail), voter=voter,
-                                 created_at=now_utc()))
+                                 approved=approved, created_at=now_utc()))
     session.commit()
     _refresh_lesson(session, req.kind, req.scope, subject, req.reason)
     return True
@@ -266,27 +278,60 @@ def list_lessons(response: Response, since: int = Query(default=0, ge=0), sessio
     return {**lessons_since(session, since), "min_reports": min_reports()}
 
 
+def game_is_abandoned(session: Session, app_id: int | None) -> bool:
+    """A published `abandoned` lesson: the game can still be downloaded, but the server does not accelerate it."""
+    if not app_id:
+        return False
+    return session.exec(select(GameLesson.id).where(
+        GameLesson.kind == "abandoned", GameLesson.scope == "game", GameLesson.subject == str(int(app_id)),
+        GameLesson.published == True)).first() is not None  # noqa: E712
+
+
+def _admin_vote(session: Session, kind: str, scope: str, subject: str, reason: str) -> GameLessonReport | None:
+    return session.exec(select(GameLessonReport).where(
+        GameLessonReport.kind == kind, GameLessonReport.scope == scope, GameLessonReport.subject == subject,
+        GameLessonReport.reason == reason, GameLessonReport.voter == ADMIN_VOTER)).first()
+
+
 @router.post("/admin/game-lessons")
 def admin_lesson(req: AdminLessonRequest, request: Request, session: Session = Depends(get_session)) -> dict:
-    """Something learned by hand (how to run a game, a game that is no longer valid) is published at once."""
+    """Something learned by hand. A bad source is published at once; how to run a game, a game that is no longer
+    valid (and any other kind) waits for approval."""
     _admin_activation_access(request)
     subject = _validate(req)
-    if req.retract:
-        vote = session.exec(select(GameLessonReport).where(
-            GameLessonReport.kind == req.kind, GameLessonReport.scope == req.scope, GameLessonReport.subject == subject,
-            GameLessonReport.reason == req.reason, GameLessonReport.voter == ADMIN_VOTER)).first()
-        if vote is not None:
-            session.delete(vote)
-            session.commit()
-        _refresh_lesson(session, req.kind, req.scope, subject, req.reason)
-        return {"ok": True}
-    # The administrator's word replaces an earlier one for the same lesson.
-    old = session.exec(select(GameLessonReport).where(
-        GameLessonReport.kind == req.kind, GameLessonReport.scope == req.scope, GameLessonReport.subject == subject,
-        GameLessonReport.reason == req.reason, GameLessonReport.voter == ADMIN_VOTER)).first()
+    # The administrator's word replaces an earlier one for the same lesson (a change needs approval again).
+    old = _admin_vote(session, req.kind, req.scope, subject, req.reason)
     if old is not None:
         session.delete(old)
         session.commit()
-    _add_vote(session, req, subject, ADMIN_VOTER, action=req.action, text=req.text)
-    return {"ok": True}
+    if req.retract:
+        _refresh_lesson(session, req.kind, req.scope, subject, req.reason)
+        return {"ok": True}
+    pending = req.kind != "bad_source"
+    _add_vote(session, req, subject, ADMIN_VOTER, action=req.action, text=req.text, approved=not pending)
+    return {"ok": True, "pending": pending}
 
+
+@router.get("/admin/game-lessons/pending")
+def admin_pending_lessons(request: Request, session: Session = Depends(get_session)) -> dict:
+    _admin_activation_access(request)
+    rows = session.exec(select(GameLessonReport).where(GameLessonReport.voter == ADMIN_VOTER,
+                                                       GameLessonReport.approved == False)  # noqa: E712
+                        .order_by(GameLessonReport.created_at)).all()
+    return {"pending": [{"kind": r.kind, "scope": r.scope, "subject": r.subject, "reason": r.reason, "app_id": r.app_id,
+                         "action": r.action, "text": r.text, "created_at": r.created_at.isoformat()} for r in rows]}
+
+
+@router.post("/admin/game-lessons/approve")
+def admin_approve_lesson(req: LessonKeyRequest, request: Request, session: Session = Depends(get_session)) -> dict:
+    """Validation: a pending lesson (how to run, abandoned...) reaches the players only from here."""
+    _admin_activation_access(request)
+    subject = _subject(req.scope, req.subject)
+    vote = _admin_vote(session, req.kind, req.scope, subject, req.reason)
+    if vote is None:
+        raise HTTPException(404, "No such lesson")
+    vote.approved = True
+    session.add(vote)
+    session.commit()
+    _refresh_lesson(session, req.kind, req.scope, subject, req.reason)
+    return {"ok": True}

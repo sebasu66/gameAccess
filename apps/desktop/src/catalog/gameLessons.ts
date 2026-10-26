@@ -70,6 +70,12 @@ export async function queryGameLessons(appId: number | null | undefined, fingerp
   } catch { return []; }
 }
 
+/** Whether the game is marked abandoned: it stays downloadable, but the server does not accelerate it. Local only. */
+export async function gameIsAbandoned(appId: number | null | undefined): Promise<boolean> {
+  if (!appId) return false;
+  return (await queryGameLessons(appId)).some(lesson => lesson.kind === "abandoned" && lesson.scope === "game" && lesson.subject === String(appId));
+}
+
 /** A bad source the player found: kept here at once (it counts for them right away) and sent to the server in the
  *  background; the server never receives its address. */
 export async function reportBadSource(report: { url?: string; fingerprint?: string | null; reason: BadSourceReason; appId?: number; detail?: string[] },

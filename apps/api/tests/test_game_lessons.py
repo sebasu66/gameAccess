@@ -93,7 +93,8 @@ def test_clients_get_a_snapshot_then_only_what_changed(client, admin):
     assert lessons(client, first["revision"]) == {"revision": first["revision"], "full": False, "lessons": [], "removed": [], "min_reports": 2}
 
     body = {"kind": "how_to_run", "scope": "game", "subject": "1245620", "reason": "run_as_admin", "action": "note", "text": "Correr como administrador."}
-    assert client.post("/admin/game-lessons", json=body).status_code == 200
+    assert client.post("/admin/game-lessons", json=body).json() == {"ok": True, "pending": True}
+    approve(client, body)
     delta = lessons(client, first["revision"])
     assert delta["full"] is False and delta["revision"] > first["revision"]
     lesson, = delta["lessons"]
@@ -106,12 +107,58 @@ def test_clients_get_a_snapshot_then_only_what_changed(client, admin):
     assert len(lessons(client)["lessons"]) == 1
 
 
-def test_an_abandoned_game_is_a_lesson_about_the_game(client, admin):
-    body = {"kind": "abandoned", "scope": "game", "subject": "730", "reason": "developer_dropped", "action": "discard"}
-    assert client.post("/admin/game-lessons", json=body).status_code == 200
-    assert client.post("/admin/game-lessons", json={**body, "scope": "source", "subject": FP}).status_code == 422
+def approve(client, body):
+    key = {k: body[k] for k in ("kind", "scope", "subject", "reason")}
+    assert client.post("/admin/game-lessons/approve", json=key).status_code == 200
+
+
+ABANDONED = {"kind": "abandoned", "scope": "game", "subject": "730", "reason": "developer_dropped", "action": "discard"}
+
+
+def test_only_bad_sources_are_published_without_validation(client, admin):
+    bad = {"kind": "bad_source", "scope": "provider", "subject": "Some Provider", "reason": "not_a_game"}
+    assert client.post("/admin/game-lessons", json=bad).json() == {"ok": True, "pending": False}
+    assert client.post("/admin/game-lessons", json=ABANDONED).json() == {"ok": True, "pending": True}
+    assert [l["kind"] for l in lessons(client)["lessons"]] == ["bad_source"]
+    pending, = client.get("/admin/game-lessons/pending").json()["pending"]
+    assert pending["kind"] == "abandoned" and pending["app_id"] == 730
+
+    approve(client, ABANDONED)
+    assert client.get("/admin/game-lessons/pending").json()["pending"] == []
+    assert sorted(l["kind"] for l in lessons(client)["lessons"]) == ["abandoned", "bad_source"]
+    assert client.post("/admin/game-lessons/approve", json={**{k: ABANDONED[k] for k in ("kind", "scope", "reason")}, "subject": "1"}).status_code == 404
+
+
+def test_a_changed_lesson_needs_validation_again(client, admin):
+    client.post("/admin/game-lessons", json=ABANDONED)
+    approve(client, ABANDONED)
+    client.post("/admin/game-lessons", json={**ABANDONED, "text": "Ya no tiene servidores."})
+    assert lessons(client)["lessons"] == []
+    approve(client, ABANDONED)
+    assert lessons(client)["lessons"][0]["text"] == "Ya no tiene servidores."
+
+
+def test_an_abandoned_game_is_downloadable_but_not_accelerated(client, admin, monkeypatch):
+    from app import viking_chunk_routes
+
+    async def plus(request, session):
+        return "inst"
+
+    monkeypatch.setattr(viking_chunk_routes, "_installation_for_plus_async", plus)
+    assert client.post("/admin/game-lessons", json={**ABANDONED, "scope": "source", "subject": FP}).status_code == 422
+    client.post("/admin/game-lessons", json=ABANDONED)
+    with Session(client.engine) as session:
+        assert game_lessons.game_is_abandoned(session, 730) is False  # pending: not yet
+    approve(client, ABANDONED)
     lesson, = lessons(client)["lessons"]
     assert lesson["action"] == "discard" and lesson["app_id"] == 730
+    with Session(client.engine) as session:
+        assert game_lessons.game_is_abandoned(session, 730) and not game_lessons.game_is_abandoned(session, 731)
+        assert not game_lessons.game_is_abandoned(session, None)
+    magnet = "magnet:?xt=urn:btih:" + "c" * 40
+    refused = client.post("/downloads/viking-chunks", json={"source_url": magnet, "app_id": 730})
+    assert refused.status_code == 403 and refused.json()["detail"] == "game_abandoned"
+    assert client.post("/downloads/viking-chunks/peek", json={"source_url": magnet, "app_id": 730}).json() == {"ready": False, "where": ""}
 
 
 def test_too_many_reports_from_one_address(client, monkeypatch):

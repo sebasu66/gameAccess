@@ -63,7 +63,7 @@ class FakeChunks:
     def __init__(self, where=""):
         self.where, self.downloads = where, []
 
-    def peek(self, source):
+    def peek(self, source, app_id=None):
         return self.where
 
     def download(self, source, *rest):
