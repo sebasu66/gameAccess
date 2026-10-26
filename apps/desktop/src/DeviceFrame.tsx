@@ -83,7 +83,7 @@ function ticksPath(m: FrameMetrics): string {
 export default function DeviceFrame() {
   const fill = useRef<SVGPathElement>(null);
   const sheen = useRef<SVGPathElement>(null);
-  const brush = useRef<SVGPathElement>(null);
+  const steel = useRef<SVGPathElement>(null);
   const lipDark = useRef<SVGPathElement>(null);
   const lipLight = useRef<SVGPathElement>(null);
   const outer = useRef<SVGPathElement>(null);
@@ -108,7 +108,7 @@ export default function DeviceFrame() {
       const m = metrics();
       for (const svg of layers.current) svg.setAttribute("viewBox", `0 0 ${m.width} ${m.height}`);
       const body = frameFillPath(m, tabs.current), edge = frameInnerPath(m, tabs.current);
-      for (const path of [fill, sheen, brush]) path.current?.setAttribute("d", body);
+      for (const path of [fill, steel, sheen]) path.current?.setAttribute("d", body);
       for (const path of [lipDark, lipLight]) path.current?.setAttribute("d", edge);
       outer.current?.setAttribute("d", frameOuterPath(m));
       inner.current?.setAttribute("d", edge);
@@ -172,7 +172,7 @@ export default function DeviceFrame() {
         <svg ref={keep} className="ga-frame-layer ga-frame-back" aria-hidden="true">
           <defs>
             {/* Gunmetal: lighter toward the top and bottom of the device, darker at its middle, with a diagonal sheen and a
-                fine brushed grain. */}
+                real brushed-steel texture (ambientCG Metal009, CC0) blended into it. */}
             <linearGradient id="ga-frame-metal" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#353c42" /><stop offset=".08" stopColor="#23292e" /><stop offset=".5" stopColor="#1b2024" />
               <stop offset=".92" stopColor="#22282d" /><stop offset="1" stopColor="#30373d" />
@@ -181,13 +181,13 @@ export default function DeviceFrame() {
               <stop offset="0" stopColor="#fff" stopOpacity=".07" /><stop offset=".35" stopColor="#fff" stopOpacity="0" />
               <stop offset=".62" stopColor="#fff" stopOpacity=".045" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
             </linearGradient>
-            <pattern id="ga-frame-brush" width="240" height="3" patternUnits="userSpaceOnUse">
-              <path d="M0 .5H240" stroke="#fff" strokeOpacity=".05" strokeWidth=".6" /><path d="M0 2H120" stroke="#000" strokeOpacity=".18" strokeWidth=".5" />
+            <pattern id="ga-frame-steel" width="512" height="512" patternUnits="userSpaceOnUse">
+              <image href="/textures/brushed-steel.jpg" width="512" height="512" preserveAspectRatio="none" />
             </pattern>
           </defs>
           <path ref={fill} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-metal)" />
+          <path ref={steel} className="ga-frame-fill ga-frame-steel" fillRule="evenodd" fill="url(#ga-frame-steel)" />
           <path ref={sheen} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-sheen)" />
-          <path ref={brush} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-brush)" />
           {/* The lip where the metal meets the screen: a dark groove and a thin bright bevel on the metal side. */}
           <path ref={lipDark} className="ga-frame-lip-dark" />
           <path ref={lipLight} className="ga-frame-lip-light" />
