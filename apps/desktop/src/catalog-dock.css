@@ -14,25 +14,27 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box in
 /* The single catalog / library switch: the current view's icon and name on its big word's colour (orange catalog,
    green library); a press turns it to the other view. `:not(#_)` outranks the LED button rules the pixel field adds
    to it. */
-/* It is on the screen, so it is flat (no shadow). Changing view, the new colour sweeps across the button from left to
-   right in 1 s over the old one: the button's own fill is the other view's gradient and its ::before, the current
-   view's, wipes in (a different animation per view, so it restarts on every change). The name in the section labels'
-   letter (Manrope 800, caps, wide spacing). */
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { position: relative; isolation: isolate; width: auto !important; min-width: 0; gap: 0; padding: 0 26px 0 20px; border: 0 !important; color: #140a02 !important; text-shadow: none; box-shadow: none !important; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { background: linear-gradient(90deg, #64a485, #a0d2b4 55%, #e8f9f0) !important; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { background: linear-gradient(90deg, #a16628, #cc8333 55%, #e2ba8d) !important; }
+/* A round button with the current view's icon; its name unfolds on hover or focus. Flat (it is on the screen): the
+   catalog in the orange of every primary button, the library in its green. Changing view, the new colour sweeps
+   across it from left to right in 1 s over the old one (its own fill is the other view's, its ::before the current
+   one wiping in; one animation per view so it restarts on every change). Its size follows the search field's. */
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { position: relative; isolation: isolate; width: auto !important; min-width: var(--ga-dock-h) !important; height: var(--ga-dock-h) !important; gap: 0; padding: 0 calc((var(--ga-dock-h) - var(--ga-dock-icon)) / 2) !important; border: 0 !important; color: var(--ga-btn-ink) !important; text-shadow: none; box-shadow: none !important; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { background: #a0d2b4 !important; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { background: var(--ga-btn-bg) !important; }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before { content: ""; display: block !important; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog::before { background: linear-gradient(90deg, #a16628, #cc8333 55%, #e2ba8d); animation: ga-view-fill-catalog 1s cubic-bezier(.65, 0, .35, 1) both; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library::before { background: linear-gradient(90deg, #64a485, #a0d2b4 55%, #e8f9f0); animation: ga-view-fill-library 1s cubic-bezier(.65, 0, .35, 1) both; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog::before { background: var(--ga-btn-bg); animation: ga-view-fill-catalog 1s cubic-bezier(.65, 0, .35, 1) both; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library::before { background: #a0d2b4; animation: ga-view-fill-library 1s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes ga-view-fill-catalog { from { clip-path: inset(0 100% 0 0 round 40px); } to { clip-path: inset(0 0 0 0 round 40px); } }
 @keyframes ga-view-fill-library { from { clip-path: inset(0 100% 0 0 round 40px); } to { clip-path: inset(0 0 0 0 round 40px); } }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_) > canvas { display: none; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { display: inline-flex; align-items: center; gap: 10px; max-width: none; opacity: 1; overflow: visible; animation: ga-view-toggle-in .35s cubic-bezier(.2, .8, .2, 1); }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face > span { max-width: none; opacity: 1; font: 800 14px/1 Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_):hover { filter: brightness(1.08); }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { display: inline-flex; align-items: center; max-width: none; opacity: 1; overflow: visible; animation: ga-view-toggle-in .35s cubic-bezier(.2, .8, .2, 1); }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face svg { width: var(--ga-dock-icon); height: var(--ga-dock-icon); }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face > span { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; margin-left: 0; font: var(--ga-btn-font); letter-spacing: var(--ga-btn-track); text-transform: var(--ga-btn-case); transition: max-width .25s, opacity .2s, margin .25s; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_):is(:hover, :focus-visible) .ga-view-toggle-face > span { max-width: 140px; opacity: 1; margin-left: 10px; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_):hover { filter: brightness(1.06); }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_):focus-visible { outline: 2px solid #f4f4f2; outline-offset: 3px; }
 @keyframes ga-view-toggle-in { from { opacity: 0; transform: translateY(8px); } }
-@media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before, html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { animation: none; } }
+@media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before, html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { animation: none; } html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face > span { transition: none; } }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #cc8333 !important; border-color: #cc8333 !important; color: #140a02 !important; box-shadow: 0 10px 30px #cc833355 !important; }
@@ -99,9 +101,13 @@ html body .library-room:not(.surface-display):not(.surface-tablet) .library-room
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: calc(max(var(--ga-rail-clear, 0px), (100% - 1600px) / 2) + clamp(24px, 3.5vw, 72px)); }
 /* The search field follows the window: about half its width, never narrower than 420 px nor wider than 870 px, and
    lower and smaller text on small windows. */
-html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(420px, 45vw, 870px)); }
-html body .library-catalog-toolbar .global-search { height: clamp(52px, 4.4vw, 70px); }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font-size: clamp(15px, 1.1vw, 17px); }
+/* The search dock follows the window: the field and the view button share one height (--ga-dock-h, 42 px on small
+   windows up to 62 px), the dock narrows to 300 px at the least, and the icon and text shrink with it. */
+html body { --ga-dock-h: clamp(42px, 3.6vw, 62px); --ga-dock-icon: clamp(20px, 1.7vw, 30px); }
+html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(100vw - 40px), clamp(300px, 45vw, 870px)); gap: clamp(8px, .7vw, 12px); }
+html body .library-catalog-toolbar .global-search:not(#_) { height: var(--ga-dock-h); border-radius: calc(var(--ga-dock-h) / 2); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) svg { width: var(--ga-dock-icon); height: var(--ga-dock-icon); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) input { font-size: clamp(13px, 1.05vw, 17px); padding-left: calc(var(--ga-dock-icon) + 34px); }
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }

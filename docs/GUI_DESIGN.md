@@ -27,7 +27,7 @@ Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cál
 - **Títulos de pantalla y diálogo:** Bebas Neue, naranja, mayúsculas.
   - Pantalla completa: 56 px. Diálogo: 36–48 px. Nunca menos de 32 px.
 - **Cuerpo, botones, etiquetas:** Manrope. Base 14 px, interlineado 1.5.
-  - Botones: Impact 18 px (19 px en las acciones de la ficha del juego), más alta y angosta: el texto crece sin alargar el botón. Etiquetas de sección: 800, 11 px, mayúsculas, `letter-spacing: .14em`.
+  - Botones: una sola letra para todos, `--ga-btn-font` (Bahnschrift semibold 17 px, en mayúsculas con `--ga-btn-track` .04em: la DIN angosta de Windows; Segoe UI si falta). Etiquetas de sección: 800, 11 px, mayúsculas, `letter-spacing: .14em`.
 - **Eyebrow** (línea superior del encabezado, p. ej. "GAME ACCESS"): Manrope 800, 11 px, naranja, `letter-spacing: .18em`.
 - **Subtítulo:** Manrope 400, 14 px, `--ga-muted`.
 
@@ -53,6 +53,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Fondo `--ga-orange` **plano**, texto `#140a02`, borde 1 px `--ga-orange`. **Altura 44 px**, padding horizontal 18 px, radio 8 px.
 - Sin degradado, sin volumen, sin resplandor ni brillos (Seba, 2026-10-23; un efecto de vidrio que siga pareciendo plano queda pendiente de un ejemplo suyo).
 - Hover: `--ga-orange-hover`.
+- **Todos los botones naranjas son el mismo componente**, los dibuje quien los dibuje (acción principal de un diálogo, Jugar/Descargar/Ver en Steam de la ficha, Jugar en descargas, Aplicar filtros, primario del diálogo central, opción principal del menú lateral): fondo `--ga-btn-bg`, texto `--ga-btn-ink`, letra `--ga-btn-font`, sin brillo; hover `--ga-btn-bg-hover` (`ga-design.css`).
 - Una sola acción principal visible por diálogo. Confirmar, Activar, Guardar, Mostrar resultados: todos naranja.
 - Peligro (desinstalar, borrar): fondo `#a64c41`, texto blanco. Nunca naranja.
 
@@ -123,7 +124,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Cubo interruptor (`aria-pressed`), como `ga-personal-order` junto al orden del catálogo: mismo tamaño y estilo que sus vecinos; encendido es naranja lleno con el texto visible; sin poder usarse va atenuado (`aria-disabled`, no `disabled`, para que el tooltip explique qué falta). Cuando pasa a estar disponible, una sola vez: pulso de escala con brillo naranja y un sonido corto, después de cerrar cualquier ficha abierta.
 
 - **Marco y pantalla:** los botones montados en el marco (los del pie) son teclas de metal con relieve y bisel (luz arriba a la izquierda, sombra abajo a la derecha, un canto oscuro debajo) que se hunden al apretarlos o mientras están encendidos. Los botones de la pantalla (barra de filtros y orden, buscador, botón de vista) son planos: sin degradé, bisel, brillo ni sombra (`device-frame.css`).
-- **Botón de vista** (catálogo / biblioteca): uno solo que muestra la vista actual, ícono y nombre con la letra de los rótulos de sección (Manrope 800 en mayúsculas, espaciada), sobre el degradé de su palabra grande (naranja catálogo, verde biblioteca); al cambiar, el color nuevo barre el botón de izquierda a derecha en 1 s.
+- **Botón de vista** (catálogo / biblioteca): uno solo, redondo, con el ícono de la vista actual; el nombre se despliega con el mouse o el foco. Plano: catálogo en el naranja de los botones principales, biblioteca en su verde; al cambiar, el color nuevo barre el botón de izquierda a derecha en 1 s.
+- **Buscador y botón de vista** comparten alto (`--ga-dock-h`: 42 px en ventanas chicas hasta 62 px) y se achican con la ventana (el buscador hasta 300 px de ancho).
 
 ### 4.15 Marca de instalado `play-mark`
 - Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
