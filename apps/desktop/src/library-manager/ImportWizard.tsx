@@ -51,11 +51,24 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const [folders, setFoldersState] = useState(readFolders);
   const [folderDraft, setFolderDraft] = useState("");
   const setFolders = (next: Array<{ path: string; on: boolean }>) => { setFoldersState(next); saveFolders(next); };
-  const addFolder = () => {
-    const path = folderDraft.trim().replace(/^"(.*)"$/, "$1");
-    if (!path) return;
-    if (!folders.some(item => item.path.toLowerCase() === path.toLowerCase())) setFolders([...folders, { path, on: true }]);
-    setFolderDraft("");
+  const addFolders = (paths: string[]) => {
+    const next = [...folders];
+    for (const raw of paths) {
+      const path = raw.trim().replace(/^"(.*)"$/, "$1");
+      if (path && !next.some(item => item.path.toLowerCase() === path.toLowerCase())) next.push({ path, on: true });
+    }
+    setFolders(next);
+  };
+  const addFolder = () => { addFolders([folderDraft]); setFolderDraft(""); };
+  // In the desktop app "Add folder" opens the system's folder picker (one or several); the typed path is only the
+  // browser preview's stand-in, where there is no picker.
+  const nativePicker = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const pickFolders = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const picked = await open({ directory: true, multiple: true, title: c.wzAddFolder });
+      addFolders(picked == null ? [] : Array.isArray(picked) ? picked : [picked]);
+    } catch (failure) { setMessage(String(failure)); }
   };
   const pickedFolders = folders.filter(item => item.on).map(item => item.path);
   const [rows, setRows] = useState<Row[]>([]);
@@ -154,11 +167,13 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
             </li>
           ))}
         </ul> : null}
-        <form className="flex gap-2" onSubmit={event => { event.preventDefault(); addFolder(); }}>
+        {nativePicker ? <div className="flex">
+          <GaButton icon={<FolderPlus size={16} />} disabled={step === "scanning"} onClick={() => void pickFolders()}>{c.wzAddFolder}</GaButton>
+        </div> : <form className="flex gap-2" onSubmit={event => { event.preventDefault(); addFolder(); }}>
           <input value={folderDraft} onChange={event => setFolderDraft(event.target.value)} disabled={step === "scanning"} placeholder={c.wzFolderPath} aria-label={c.wzFolderPath}
             className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-[#0d1114] px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
           <GaButton type="submit" icon={<FolderPlus size={16} />} disabled={step === "scanning" || !folderDraft.trim()}>{c.wzAddFolder}</GaButton>
-        </form>
+        </form>}
         {message ? <p role="alert" className="m-0 text-sm text-[#e1898f]">{message}</p> : null}
       </div>
     );

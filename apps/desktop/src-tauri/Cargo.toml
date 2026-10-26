@@ -22,6 +22,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-single-instance = "=2.4.5"
 tauri-plugin-updater = "=2.12.0"
 tauri-plugin-process = "=2.3.1"
+# The system folder picker (the import wizard's "Add folder").
+tauri-plugin-dialog = "=2.7.0"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls-native-roots", "system-proxy"] }
 uuid = { version = "1", features = ["v4"] }
 aes-gcm = "0.10"

@@ -50,6 +50,7 @@ fn main() {
         // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         // Rests while minimized, or while a game runs and Game Access does not have the focus (webview_rest.rs).
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(focused) => webview_rest::reconcile(window, Some(*focused)),
