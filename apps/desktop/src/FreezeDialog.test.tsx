@@ -13,70 +13,81 @@ vi.mock("./catalog/DigitalProcessManager", () => ({ digitalProcessManager: { fre
 vi.mock("./libraryScan", () => ({ scanLibrary: vi.fn(() => Promise.resolve()), libraryDemo: () => false }));
 
 import FreezeDialog from "./FreezeDialog";
-import { collapseFreezeConsole, dismissFreezeJob, freezeConsoleState as useFreezeConsoleState } from "./freezeJobs";
 import { formatBytes } from "./GenericDownloadProgress";
+import { freezeConsoleState, freezeJob } from "./freezeJobs";
 import { setAppLocale } from "./i18n";
-import { getToasts, dismissToast } from "./toasts";
+import { getNotice, hideNotice } from "./notice/notice";
 
 const game = { id: 284160, app_id: 284160, name: "BeamNG.drive" } as CatalogGame;
 let root: Root | null = null;
 let host: HTMLElement | null = null;
+const closed = vi.fn();
 
 const mount = () => {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
-  act(() => { root!.render(<FreezeDialog game={game} mode="freeze" onClose={() => undefined} />); });
-  return host;
+  act(() => { root!.render(<FreezeDialog game={game} mode="freeze" onClose={closed} />); });
 };
-const confirm = (view: HTMLElement) => {
-  act(() => { view.ownerDocument.querySelector<HTMLButtonElement>(".ga-dialog-primary")!.click(); });
-};
-// The game menu closes (Esc, another game, leaving the detail): the dialog it owned goes with it.
-const closeMenu = () => { act(() => { root?.unmount(); }); host?.remove(); root = null; host = null; };
+// Presses one of the notice's buttons by its label.
+const press = async (label: string) => { await act(async () => { getNotice()!.actions.find(action => action.label === label)!.run(); }); };
+const unmount = () => { act(() => { root?.unmount(); }); host?.remove(); root = null; host = null; };
 
-beforeEach(() => { setAppLocale("es"); freeze.mockClear(); getToasts().forEach(toast => dismissToast(toast.id)); });
-afterEach(closeMenu);
+beforeEach(() => { setAppLocale("es"); freeze.mockClear(); closed.mockClear(); hideNotice(); });
+afterEach(() => { unmount(); hideNotice(); });
 
-describe("a freeze outlives the dialog that started it", () => {
-  it("the dialog only confirms: the job goes on in the console and, with the console folded, the result is a toast", async () => {
-    confirm(mount());
+describe("freezing asks and answers in the app's notice", () => {
+  it("asks in the notice, then the work goes on as a job and its result comes back as a notice that closes itself", async () => {
+    mount();
+    expect(getNotice()?.tone).toBe("frost");
+    expect(getNotice()?.title).toContain("BeamNG.drive");
+    await press("Congelar");
     expect(freeze).toHaveBeenCalledTimes(1);
-    expect(useFreezeConsoleState().open).toBe(true);
-    collapseFreezeConsole();
-    closeMenu();
+    expect(closed).toHaveBeenCalled();
+    unmount();                                         // the game menu closed meanwhile: the job goes on
     await act(async () => { settle.resolve({ ok: true, frozen: { stored_bytes: 22.5 * GB, original_bytes: 53.7 * GB } }); });
-    const toast = getToasts().at(-1);
-    expect(toast?.tone).toBe("success");
-    expect(toast?.message).toContain("BeamNG.drive");
-    expect(toast?.message).toContain(formatBytes(22.5 * GB));
-    dismissFreezeJob(game.app_id!);
+    const result = getNotice()!;
+    expect(result.title).toBe("Congelado completado");
+    expect(result.text).toContain(formatBytes(22.5 * GB));
+    expect(result.timer).toBe(true);
+    expect(result.actions.map(action => action.label)).toEqual(["Aceptar"]);
+    await press("Aceptar");                            // the notice goes and so does the finished job
+    expect(getNotice()).toBeNull();
+    expect(freezeConsoleState().jobs).toHaveLength(0);
   });
 
-  it("reports a failure when the console is folded, and the game can be frozen again", async () => {
-    confirm(mount());
-    collapseFreezeConsole();
-    closeMenu();
+  it("cancelled in the notice, nothing starts", async () => {
+    mount();
+    await press("Cancelar");
+    expect(freeze).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalled();
+  });
+
+  it("a failure waits in the notice, and the game can be frozen again", async () => {
+    mount();
+    await press("Congelar");
+    unmount();
     await act(async () => { settle.reject(new Error("La compresión de Windows terminó con código 1")); });
-    const toast = getToasts().at(-1);
-    expect(toast?.tone).toBe("error");
-    expect(toast?.message).toContain("La compresión de Windows terminó con código 1");
-    confirm(mount());
+    expect(getNotice()?.tone).toBe("error");
+    expect(getNotice()?.timer).toBe(false);
+    expect(getNotice()?.text).toContain("código 1");
+    await press("Aceptar");
+    mount();
+    await press("Congelar");
     expect(freeze).toHaveBeenCalledTimes(2);
     await act(async () => { settle.resolve({ ok: true }); });
-    dismissFreezeJob(game.app_id!);
+    await press("Aceptar");
   });
 
-  it("reopening the dialog during the work brings up the same job instead of starting a second one", async () => {
-    confirm(mount());
-    collapseFreezeConsole();
-    closeMenu();
-    const view = mount();
-    expect(view.ownerDocument.querySelector(".ga-dialog-primary")).toBeNull();
-    expect(useFreezeConsoleState().open).toBe(true);
+  it("asked again during the work, it brings up the same job instead of asking", async () => {
+    mount();
+    await press("Congelar");
+    unmount();
+    mount();
+    expect(getNotice()).toBeNull();
+    expect(freezeJob(game.app_id!)).toBeTruthy();
     expect(freeze).toHaveBeenCalledTimes(1);
-    await act(async () => { settle.resolve({ ok: true, frozen: { stored_bytes: 1 * GB, original_bytes: 2 * GB } }); });
-    expect(getToasts()).toHaveLength(0);  // the open console already says it
-    dismissFreezeJob(game.app_id!);
+    await act(async () => { settle.resolve({ ok: true }); });
+    await press("Aceptar");
   });
 });

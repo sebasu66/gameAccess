@@ -539,7 +539,6 @@ export const es = {
   lmDeepFreezeComplete: "Congelado profundo completado",
   lmThawComplete: "Descongelado completado",
   lmFreezeIncomplete: "No se pudo completar",
-  lmFreezeOk: "OK",
   cardFrozen: "Congelado (compresión de Windows): ocupa {{stored}} de {{original}}",
   cardDeepFrozen: "Congelado profundo: ocupa {{stored}} de {{original}}. Se descongela al jugar.",
   launchThawing: "Descongelando el juego antes de abrirlo. Puede tardar unos minutos.",

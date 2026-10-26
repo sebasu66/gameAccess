@@ -6,7 +6,8 @@ import { formatBytes } from "./GenericDownloadProgress";
 import { translate } from "./i18n";
 import { libraryDemo, scanLibrary } from "./libraryScan";
 import { freezeProgress, hasTauriRuntime, type FreezeProgress } from "./native";
-import { notify } from "./toasts";
+import { hideNotice, showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import type { FreezeMode } from "./FreezeDialog";
 import type { CatalogGame } from "./types";
 
@@ -112,7 +113,14 @@ export function startFreezeJob(game: CatalogGame, mode: FreezeMode): FreezeJob {
     if (!demo) job.progress = (await freezeProgress(appId).catch(() => null)) ?? job.progress;
     // Whatever happened, the library shows the game's state as it is now (a failed freeze leaves no record).
     await scanLibrary().catch(() => undefined);
-    if (!open && !inline.has(appId)) notify(`${freezeTitle(mode, game.name)}: ${outcome.detail}`, { tone: outcome.ok ? "success" : "error", durationMs: outcome.ok ? undefined : 0 });
+    // The result is told like every result, in the app's notice: an OK that presses itself after a moment (an error
+    // waits for it). When the notice goes, so does the job (its row in the Library Manager folds).
+    const done = mode === "thaw" ? "lmThawComplete" : mode === "deep" ? "lmDeepFreezeComplete" : "lmFreezeComplete";
+    showNotice({
+      game: noticeGame(game), title: translate(outcome.ok ? done : "lmFreezeIncomplete"), text: outcome.detail,
+      tone: outcome.ok ? "frost" : "error", timer: outcome.ok, onDismiss: () => dismissFreezeJob(appId),
+      actions: [{ label: translate("noticeOk"), kind: outcome.ok ? "frost" : "secondary", run: () => hideNotice() }],
+    });
     emit();
     return outcome;
   });

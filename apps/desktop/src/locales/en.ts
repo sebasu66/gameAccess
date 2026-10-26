@@ -541,7 +541,6 @@ export const en: Record<keyof typeof es, string> = {
   lmDeepFreezeComplete: "Deep freeze complete",
   lmThawComplete: "Thaw complete",
   lmFreezeIncomplete: "Could not complete",
-  lmFreezeOk: "OK",
   cardFrozen: "Frozen (Windows compression): takes {{stored}} of {{original}}",
   cardDeepFrozen: "Deep frozen: takes {{stored}} of {{original}}. Playing thaws it.",
   launchThawing: "Thawing the game before opening it. It can take a few minutes.",
