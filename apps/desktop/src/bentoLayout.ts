@@ -66,16 +66,18 @@ export function bentoRowHeight(columnWidth: number, gap: number): number {
 }
 
 export interface BentoSectionMark { kind: BentoKind; row: number; count: number; collapsed: boolean }
-export type BentoTrack = "label" | "row";
+/** "row": a third of a portrait; "wide": a row of landscape games to install, as tall as their picture. */
+export type BentoTrack = "label" | "row" | "wide";
 
 /**
  * The library grouped by kind, one under the other, each under a thin divider: installed games (portrait), then
  * deep-frozen ones (portrait), then games to install (landscape, one row each). Every kind keeps the order it came in.
  * Rows are absolute in one grid: `tracks` says what each row is ("label" rows hold a divider, "row" rows a card row),
  * so cards can still move between groups (a finished download) with the same Flip animation. A collapsed group (an
- * accordion) keeps its divider, with the count, and places no cards.
+ * accordion) keeps its divider, with the count, and places no cards. Games to install are laid out `wideColumns` to a
+ * line (their own, wider slots: column numbers count those slots), one "wide" row per line.
  */
-export function bentoSections<T>(items: BentoItem<T>[], columns: number, collapsed: ReadonlySet<BentoKind> = new Set()): { placements: BentoPlacement<T>[]; sections: BentoSectionMark[]; tracks: BentoTrack[] } {
+export function bentoSections<T>(items: BentoItem<T>[], columns: number, collapsed: ReadonlySet<BentoKind> = new Set(), wideColumns = columns): { placements: BentoPlacement<T>[]; sections: BentoSectionMark[]; tracks: BentoTrack[] } {
   const cols = Math.max(1, Math.floor(columns));
   const placements: BentoPlacement<T>[] = [];
   const sections: BentoSectionMark[] = [];
@@ -90,34 +92,36 @@ export function bentoSections<T>(items: BentoItem<T>[], columns: number, collaps
     row++;
     if (closed) continue;
     const portrait = kind !== "pending";
-    const lines = Math.ceil(group.length / cols);
-    group.forEach((item, index) => placements.push({ value: item.value, kind, column: (index % cols) + 1, row: row + Math.floor(index / cols) * (portrait ? 3 : 1), rowSpan: portrait ? 3 : 1 }));
+    const perLine = portrait ? cols : Math.max(1, Math.floor(wideColumns));
+    const lines = Math.ceil(group.length / perLine);
+    group.forEach((item, index) => placements.push({ value: item.value, kind, column: (index % perLine) + 1, row: row + Math.floor(index / perLine) * (portrait ? 3 : 1), rowSpan: portrait ? 3 : 1 }));
     const used = lines * (portrait ? 3 : 1);
-    for (let i = 0; i < used; i++) tracks.push("row");
+    for (let i = 0; i < used; i++) tracks.push(portrait ? "row" : "wide");
     row += used;
   }
   return { placements, sections, tracks };
 }
 
 /**
- * Top of every grid row in pixels (index = row - 1), for a grid whose label rows have no height of their own and whose
- * card rows are `rowHeight` tall, all separated by `gap`. The library mounts only the cards near the screen from it.
+ * Top of every grid row in pixels (index = row - 1), for a grid whose label rows have no height of their own, whose
+ * card rows are `rowHeight` tall and wide rows `wideHeight`, all separated by `gap`. The library mounts only the cards
+ * near the screen from it.
  */
-export function bentoRowTops(tracks: BentoTrack[], rowHeight: number, gap: number): number[] {
+export function bentoRowTops(tracks: BentoTrack[], rowHeight: number, gap: number, wideHeight = rowHeight): number[] {
   const tops: number[] = [];
   let y = 0;
   for (const track of tracks) {
     tops.push(y);
-    y += (track === "label" ? 0 : rowHeight) + gap;
+    y += (track === "label" ? 0 : track === "wide" ? wideHeight : rowHeight) + gap;
   }
   return tops;
 }
 
 /** The placements that touch the band [from, to] (pixels from the top of the grid): the sliding window of cards. */
-export function bentoInWindow<T>(placements: BentoPlacement<T>[], tops: number[], rowHeight: number, from: number, to: number): BentoPlacement<T>[] {
+export function bentoInWindow<T>(placements: BentoPlacement<T>[], tops: number[], rowHeight: number, from: number, to: number, wideHeight = rowHeight): BentoPlacement<T>[] {
   return placements.filter(item => {
     const top = tops[item.row - 1] ?? 0;
-    const bottom = (tops[item.row + item.rowSpan - 2] ?? top) + rowHeight;
+    const bottom = (tops[item.row + item.rowSpan - 2] ?? top) + (item.kind === "pending" ? wideHeight : rowHeight);
     return bottom >= from && top <= to;
   });
 }

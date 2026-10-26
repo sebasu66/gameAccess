@@ -22,9 +22,10 @@
 .library-room-card-shell:is(:hover, :focus-within), .library-room-card-shell:has([data-revealing]) { z-index: 5; }
 .library-room-card-shell:is(:hover, :focus-within), .library-room-card-shell:has([data-revealing]) { position: relative; }
 .ga-bento-card { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 8px; background: #1b2024; box-shadow: 0 8px 22px #0007; cursor: pointer; text-align: left; color: #f4f4f2; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
-.ga-bento-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff18; pointer-events: none; transition: box-shadow .25s; }
+/* The card's border is drawn outside the picture (never over it). */
+.ga-bento-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 1px #ffffff24; pointer-events: none; transition: box-shadow .25s; }
 .ga-bento-card:hover, .ga-bento-card:focus-visible { transform: translateY(-4px); outline: none; }
-.ga-bento-card:hover::after, .ga-bento-card:focus-visible::after, .ga-bento-card[aria-current="true"]::after { box-shadow: inset 0 0 0 1px #cc8333cc; }
+.ga-bento-card:hover::after, .ga-bento-card:focus-visible::after, .ga-bento-card[aria-current="true"]::after { box-shadow: 0 0 0 1px #cc8333cc; }
 .ga-bento-cover, .ga-bento-cover > * { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* The card does not clip, so the name can hang below it; its pictures and veils clip themselves. */
 .ga-bento-cover, .ga-bento-landscape, .ga-bento-ice { border-radius: 8px; overflow: hidden; }

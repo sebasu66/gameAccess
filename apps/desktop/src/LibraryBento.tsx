@@ -22,6 +22,11 @@ import "./library-bento.css";
 
 // Row gaps leave room for the game name under each card.
 const ROW_GAP = 44;
+/** Steam's landscape picture (header.jpg, 460 × 215): games to install show it whole, never cropped or stretched. */
+const LANDSCAPE = 215 / 460;
+/** The grid counts half columns: a portrait spans two, a game to install three (1.5 times as wide). */
+const PORTRAIT_SPAN = 2, WIDE_SPAN = 3;
+const gridColumn = (kind: BentoKind, column: number) => kind === "pending" ? `${(column - 1) * WIDE_SPAN + 1} / span ${WIDE_SPAN}` : `${(column - 1) * PORTRAIT_SPAN + 1} / span ${PORTRAIT_SPAN}`;
 const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
 /** Which group of the library is shown: all of them, or only one (the three buttons on the filter strip). */
 export type LibraryPill = "all" | BentoKind;
@@ -137,6 +142,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const grid = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(4);
   const [rowHeight, setRowHeight] = useState(84);
+  const [wideHeight, setWideHeight] = useState(90);
   const [columnGap, setColumnGap] = useState(28);
 
   const cards = useMemo<Card[]>(() => {
@@ -152,7 +158,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     });
   }, [games, downloads, scan.games, pill, preferences, bigPicture]);
 
-  // Columns and row height follow the grid width: three landscape rows are as tall as one portrait.
+  // Columns and row height follow the grid width: three rows are as tall as one portrait; a game to install spans one
+  // and a half portrait columns and its row is exactly as tall as its picture.
   useLayoutEffect(() => {
     const host = grid.current;
     if (!host) return;
@@ -162,9 +169,11 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       const gap = coverGap(window.innerWidth) + 4;
       const cols = coverTracks(width, gap, coverMin(window.innerWidth, window.innerHeight, 180));
       const columnWidth = (width - gap * (cols - 1)) / cols;
+      const half = (width - gap * (cols * PORTRAIT_SPAN - 1)) / (cols * PORTRAIT_SPAN);
       setColumns(cols);
       setColumnGap(gap);
       setRowHeight(bentoRowHeight(columnWidth, ROW_GAP));
+      setWideHeight(Math.round((half * WIDE_SPAN + gap * (WIDE_SPAN - 1)) * LANDSCAPE));
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
@@ -176,17 +185,17 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
 
   const [collapsed, setCollapsed] = useState(readCollapsed);
   // Big picture mode, or a group picked with its button, shows that one group open, whatever the player closed.
-  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, bigPicture || pill !== "all" ? new Set<BentoKind>() : collapsed), [cards, columns, collapsed, bigPicture, pill]);
+  const layout = useMemo(() => bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, bigPicture || pill !== "all" ? new Set<BentoKind>() : collapsed, Math.floor(columns * PORTRAIT_SPAN / WIDE_SPAN)), [cards, columns, collapsed, bigPicture, pill]);
   useEffect(() => { if (bigPicture) setMenuFor(null); }, [bigPicture]);
   const placed = layout.placements;
   const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };
 
   // Sliding window: only the cards on screen plus one card row above and below are mounted; the grid keeps every row,
   // so its height and the scrollbar never depend on what is mounted. A scroll renders only when the window changes.
-  const tops = useMemo(() => bentoRowTops(layout.tracks, rowHeight, ROW_GAP), [layout.tracks, rowHeight]);
+  const tops = useMemo(() => bentoRowTops(layout.tracks, rowHeight, ROW_GAP, wideHeight), [layout.tracks, rowHeight, wideHeight]);
   const [band, setBand] = useState<{ from: number; to: number } | null>(null);
-  const bandInputs = useRef({ tops, rowHeight, placed });
-  bandInputs.current = { tops, rowHeight, placed };
+  const bandInputs = useRef({ tops, rowHeight, wideHeight, placed });
+  bandInputs.current = { tops, rowHeight, wideHeight, placed };
   const refreshBand = useRef(() => {});
   useLayoutEffect(() => {
     const host = grid.current;
@@ -195,10 +204,10 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     let offset = 0, frame = 0, lastKey = "";
     const update = () => {
       frame = 0;
-      const { tops, rowHeight, placed } = bandInputs.current;
+      const { tops, rowHeight, wideHeight, placed } = bandInputs.current;
       const margin = rowHeight * 3 + ROW_GAP * 3;
       const from = root.scrollTop - offset - margin, to = root.scrollTop - offset + root.clientHeight + margin;
-      const key = bentoInWindow(placed, tops, rowHeight, from, to).map(item => item.value.game.id).join(",");
+      const key = bentoInWindow(placed, tops, rowHeight, from, to, wideHeight).map(item => item.value.game.id).join(",");
       if (key !== lastKey) { lastKey = key; setBand({ from, to }); }
     };
     const measure = () => {
@@ -218,9 +227,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   // The selected card and the one with the menu open stay mounted (keyboard focus, the menu's anchor).
   const shown = useMemo(() => {
     if (!band) return placed.slice(0, columns * 2);
-    const inside = new Set(bentoInWindow(placed, tops, rowHeight, band.from, band.to));
+    const inside = new Set(bentoInWindow(placed, tops, rowHeight, band.from, band.to, wideHeight));
     return placed.filter(item => inside.has(item) || item.value.game.id === selectedId || item.value.game.id === menuFor?.card.game.id);
-  }, [placed, tops, rowHeight, band, columns, selectedId, menuFor]);
+  }, [placed, tops, rowHeight, wideHeight, band, columns, selectedId, menuFor]);
   // Cards reveal themselves in batches as they scroll into view (GSAP's official ScrollTrigger.batch demo).
   useBatchReveal(grid, ".ga-bento-slot:not([data-leaving])", shown, tops);
 
@@ -246,7 +255,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     // Leaving cards stay one moment to shrink in place; then the rest move to their new slots.
     const now = new Set(placed.map(item => item.value.game.id));
     const gone = lastPlaced.current.filter(item => !now.has(item.value.game.id));
-    if (gone.length) setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}` } })));
+    if (gone.length) setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: gridColumn(item.kind, item.column), gridRow: `${item.row} / span ${item.rowSpan}` } })));
     if (state) Flip.from(state, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: gone.length ? .25 : 0,
       onEnter: elements => gsap.fromTo(elements, { opacity: 0, scale: .85 }, { opacity: 1, scale: 1, duration: .45, ease: "power3.out" }) });
   }, [flipKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -278,7 +287,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   return (
     <div className="ga-bento-wrap">
       {infoTarget ? createPortal(summary, infoTarget) : null}
-      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns, "--ga-bento-gap": `${columnGap}px`, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "0px" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
+      <div ref={grid} className="ga-bento" style={{ "--ga-bento-row": `${rowHeight}px`, "--ga-bento-columns": columns * PORTRAIT_SPAN, "--ga-bento-wide": `${wideHeight}px`, "--ga-bento-gap": `${columnGap}px`, gridTemplateRows: layout.tracks.map(track => (track === "label" ? "0px" : track === "wide" ? "var(--ga-bento-wide)" : "var(--ga-bento-row)")).join(" ") } as CSSProperties}>
         {layout.sections.map(section => (
           <div key={`section-${section.kind}`} className="ga-bento-divider" data-collapsed={section.collapsed || undefined} style={{ gridColumn: "1 / -1", gridRow: section.row }}>
             <button type="button" aria-expanded={!section.collapsed} onClick={() => toggleGroup(section.kind)}>
@@ -287,7 +296,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
           </div>
         ))}
         {shown.map(item => (
-          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: item.column, gridRow: `${item.row} / span ${item.rowSpan}`}}
+          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: gridColumn(item.kind, item.column), gridRow: `${item.row} / span ${item.rowSpan}`}}
             onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>
             <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} />
             <MenuDot shown={dotFor === item.value.game.id && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}

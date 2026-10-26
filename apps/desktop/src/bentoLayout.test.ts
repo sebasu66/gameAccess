@@ -65,6 +65,17 @@ describe("library bento sections", () => {
     expect(new Set(slots).size).toBe(slots.length);
   });
 
+  it("lays games to install out in their own wide slots, one wide row per line", () => {
+    const { placements, tracks } = bentoSections(items(0, 7, 0), 6, new Set(), 4);
+    const pending = placements.filter(p => p.kind === "pending");
+    expect(Math.max(...pending.map(p => p.column))).toBe(4);
+    expect(new Set(pending.map(p => p.row)).size).toBe(2);
+    expect(tracks.filter(t => t === "wide")).toHaveLength(2);
+    const tops = bentoRowTops(tracks, 100, 44, 70);
+    expect(tops[2] - tops[1]).toBe(70 + 44);
+    expect(bentoInWindow(pending, tops, 100, tops[2] + 60, tops[2] + 65, 70).map(p => p.row)).toEqual(Array(3).fill(pending[4].row));
+  });
+
   it("keeps a collapsed group's divider and count but places none of its games", () => {
     const { placements, sections, tracks } = bentoSections(items(5, 4, 2), 4, new Set(["deep", "pending"] as const));
     expect(sections.map(s => [s.kind, s.count, s.collapsed])).toEqual([["ready", 5, false], ["deep", 2, true], ["pending", 4, true]]);

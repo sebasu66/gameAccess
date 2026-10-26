@@ -133,6 +133,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Las grillas muestran al menos 6 portadas por fila (mientras cada una tenga 110 px o más); la separación entre portadas sigue a la ventana (24–40 px) y hay aire entre la grilla y las palabras grandes de los costados.
 - Congelado jugable: copito celeste de 26 px arriba a la derecha. Congelado profundo: velo celeste esmerilado sobre la tarjeta apaisada.
 
+- **Nunca se cambia la proporción de una tarjeta de juego.** Portadas 2:3; los juegos para instalar de la librería muestran la imagen apaisada de Steam entera (460 × 215), una vez y media el ancho de una portada, sin recortar ni deformar. El borde de las tarjetas va por fuera de la imagen.
+
 ### 4.16 Palabra lateral de la vista
 - A la izquierda de la zona principal, la palabra de la vista actual en vertical (de abajo hacia arriba), la más larga al 110 % del alto de la ventana y las dos con el mismo tamaño de letra (igual de gruesas). **Sin tilde**: `CATALOGO` / `LIBRERIA` (`CATALOG` / `LIBRARY`).
 - Archivo Black; dibujada como píxeles de pantalla vistos de cerca: grilla de 5 px donde cada celda se prende entera o no (bordes en escalera), con la silueta al 28 % y encima un cuadradito de 4 px por celda; las letras se desvanecen hacia el centro con una máscara. Catálogo en naranja, librería en verde (`--ga-success`). Se oculta debajo de 900 px.
