@@ -66,7 +66,7 @@ html body .ga-footer-left .ga-access-pass { position: relative; inset: auto; }
 html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px; border-radius: 8px; gap: 7px; font: 800 11px Manrope, sans-serif; letter-spacing: .06em; }
 html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }
 html body .ga-footer-left .ga-access-pass-panel { left: 0; right: auto; }
-html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; }
+html body .ga-footer-left .ga-backend-status > span { max-width: none; opacity: 1; margin-left: 8px; }
 /* Catalog covers at rest are clearly less saturated and a little darker, so the grid reads calmer; the card under the pointer or selected
    keeps its full colour (ambient.css clears the filter for those). */
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { filter: saturate(.55) brightness(.9); }
