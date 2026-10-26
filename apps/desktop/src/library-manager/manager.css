@@ -20,7 +20,6 @@
 .lm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
 .lm-actions > button { flex: none; }
 .lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 18px; }
-.lm-search { flex: 1 1 100%; max-width: none; margin-bottom: 6px; }
 .lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
 .lm-chip span { opacity: .6; font-variant-numeric: tabular-nums; }
 .lm-chip:hover { background: #ffffff14; }
@@ -30,23 +29,47 @@
 .lm-selection b { margin-right: auto; }
 .lm-message { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #ffffff1c; background: #ffffff08; font-size: 13px; }
 .lm-message.is-error { border-color: #e5202e80; background: #e5202e1a; color: #ff8a92; }
-.lm-list { display: flex; flex-direction: column; gap: 4px; }
-.lm-root:not(.is-embedded) .lm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 6px; }
-.lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
-.lm-section { display: flex; align-items: center; gap: 8px; margin: 32px 0 12px; padding-top: 20px; border-top: 1px solid #ffffff14; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
-.lm-section b { color: #f4f4f2; }
-/* Row: picture | name, line, size | state icon; actions below on hover or focus. */
-.lm-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; grid-template-areas: "thumb main state" "thumb acts acts" "detail detail detail"; column-gap: 12px; row-gap: 6px; align-items: start; padding: 10px; border-radius: 8px; border: 1px solid transparent; }
-.lm-row:hover, .lm-row:focus-within, .lm-row.is-focus { background: #ffffff08; border-color: #ffffff14; }
-.lm-row.is-focus { border-color: #ff6a0088; box-shadow: 0 0 0 1px #ff6a0033; }
-.lm-row.is-selected { background: #ff6a000d; }
-.lm-thumb { grid-area: thumb; position: relative; aspect-ratio: 460 / 215; border-radius: 5px; overflow: hidden; background: #1b2024; }
+/* Grid (table): sortable headers, one line per game, the row's actions at the right. */
+.lm-grid-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #ffffff14; background: #ffffff04; }
+.lm-grid { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.lm-grid th { padding: 0 8px; height: 40px; text-align: left; background: #15191d; border-bottom: 1px solid #ffffff20; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #929ba2; }
+.lm-grid td { padding: 8px; vertical-align: middle; border-bottom: 1px solid #ffffff0d; }
+.lm-sort { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; text-align: left; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.lm-sort svg { width: 13px; height: 13px; opacity: .35; }
+.lm-sort:hover { color: #f4f4f2; background: #ffffff0d; }
+.lm-sort.is-active { color: #f4f4f2; }
+.lm-sort.is-active svg { opacity: 1; color: #ff6a00; }
+.lm-sort:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
+.lm-row:hover > td, .lm-row:focus-within > td { background: #ffffff08; }
+.lm-row.is-selected > td { background: #ff6a000d; }
+.lm-row.is-focus > td { background: #ff6a0012; box-shadow: inset 0 1px 0 #ff6a0088, inset 0 -1px 0 #ff6a0088; }
+.lm-cell-check { width: 28px; }
+.lm-cell-cover { width: 76px; }
+.lm-thumb { position: relative; display: block; width: 76px; aspect-ratio: 460 / 215; border-radius: 5px; overflow: hidden; background: #1b2024; }
 .lm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #8fd3ff66, #8fd3ff1a); pointer-events: none; }
-.lm-check { position: absolute; left: 4px; top: 4px; z-index: 1; width: 15px; height: 15px; margin: 0; accent-color: #ff6a00; opacity: 0; transition: opacity .2s; cursor: pointer; }
-.lm-row:hover .lm-check, .lm-row:focus-within .lm-check, .lm-check:checked { opacity: 1; }
-.lm-main { grid-area: main; min-width: 0; }
+.lm-check { width: 15px; height: 15px; margin: 0; accent-color: #ff6a00; cursor: pointer; vertical-align: middle; }
+.lm-cell-name { min-width: 160px; max-width: 240px; }
 .lm-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-cell-path { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.lm-cell-size { min-width: 110px; }
+.lm-cell-source { max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #c9ced2; }
+.lm-cell-num { white-space: nowrap; color: #c9ced2; }
+.lm-status { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
+.lm-status svg { width: 12px; height: 12px; }
+.lm-status.busy { color: #ff8a38; background: #ff6a0014; }
+.lm-status.warn { color: #f0a874; background: #ff6a0014; box-shadow: inset 0 0 0 1px #ff6a0040; }
+.lm-status.frost { color: var(--ga-frost, #8fd3ff); background: #0d1a24b8; box-shadow: inset 0 0 0 1px #8fd3ff55; }
+.lm-acts { width: 168px; min-width: 168px; text-align: right; }
+.lm-acts > * { margin: 2px 0 2px 4px; }
+/* The actions stay in view while a narrow window scrolls the grid sideways. */
+.lm-grid th.lm-cell-acts, .lm-row > td.lm-acts { position: sticky; right: 0; z-index: 1; background: #171b1f; box-shadow: -10px 0 12px -10px #000c; }
+.lm-grid th.lm-cell-acts { background: #15191d; }
+.lm-row:hover > td.lm-acts, .lm-row:focus-within > td.lm-acts { background: #1d2124; }
+.lm-row.is-selected > td.lm-acts { background: #22201d; }
+.lm-detail-row > td { padding: 0 8px 12px 120px; background: #ffffff05; }
+.lm-detail { display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
+.lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
+.lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #8fd3ff66, #8fd3ff1a); pointer-events: none; }
 .lm-line { font-size: 11px; color: #929ba2; }
 .lm-line.warn { color: #f0a874; }
 .lm-size { margin-top: 4px; }
@@ -58,21 +81,9 @@
 .lm-sbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #aeb4b9; }
 .lm-sbar i.frozen { background: #9cbfd4; }
 .lm-sbar i.partial { background: #737c83; }
-/* State: only when it adds something. Snowflake / warning with its name on hover or focus (to the left, so the row
-   never clips it). */
-.lm-row > :nth-child(3) { grid-area: state; }
-.lm-state { position: relative; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; cursor: default; }
-.lm-state svg { width: 14px; height: 14px; }
-.lm-state.frost { color: var(--ga-frost, #8fd3ff); background: #0d1a24b8; box-shadow: 0 0 0 1px #8fd3ff55, 0 0 12px #8fd3ff33; }
-.lm-state.warn { color: #f0a874; background: #ff6a0014; box-shadow: inset 0 0 0 1px #ff6a0040; }
-.lm-state i { position: absolute; right: calc(100% + 8px); top: 50%; margin-top: -12px; padding: 4px 8px; border-radius: 5px; white-space: nowrap; font-style: normal; font-size: 11px; font-weight: 700; background: #1e2428; box-shadow: 0 6px 16px #0008, inset 0 0 0 1px #ffffff1f; color: inherit; opacity: 0; transform: translateX(4px); pointer-events: none; transition: opacity .2s, transform .2s; }
-.lm-state:hover i, .lm-state:focus-visible i { opacity: 1; transform: none; }
-.lm-state:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
 .lm-badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 10px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
 .lm-badge svg { width: 11px; height: 11px; }
-.lm-acts { grid-area: acts; display: flex; flex-wrap: wrap; gap: 4px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height .3s, opacity .25s; }
-.lm-row:hover .lm-acts, .lm-row:focus-within .lm-acts, .lm-row.is-focus .lm-acts { max-height: 80px; opacity: 1; }
-.lm-act { position: relative; width: 32px; height: 32px; padding: 0; border-radius: 5px; display: grid; place-items: center; background: #ffffff08; border: 1px solid #ffffff22; color: #f4f4f2; cursor: pointer; }
+.lm-act { position: relative; width: 32px; height: 32px; padding: 0; border-radius: 5px; display: inline-grid; vertical-align: middle; place-items: center; background: #ffffff08; border: 1px solid #ffffff22; color: #f4f4f2; cursor: pointer; }
 .lm-act svg { width: 15px; height: 15px; }
 .lm-act b { position: absolute; right: 3px; top: 1px; font-size: 10px; color: var(--ga-frost, #8fd3ff); }
 .lm-act:hover:not(:disabled) { background: #ffffff1a; }
@@ -81,12 +92,11 @@
 .lm-act.frost { color: var(--ga-frost, #8fd3ff); }
 .lm-act.danger:hover:not(:disabled) { background: #c8321f; border-color: #c8321f; color: #fff; }
 .lm-act:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
-.lm-detail { grid-area: detail; display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
 .lm-detail b { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
 .lm-detail ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .lm-detail li { display: flex; align-items: center; gap: 6px; }
 .lm-detail li svg { width: 13px; height: 13px; color: #f0a874; }
 .lm-detail em { font-style: normal; color: #929ba2; }
 .lm-history { margin: 0; max-height: 12rem; overflow: auto; padding: 10px; border-radius: 6px; border: 1px solid #ffffff14; background: #0c0f11; font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; white-space: pre-wrap; }
-@media (prefers-reduced-motion: reduce) { .lm-acts, .lm-state i, .lm-donut circle { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }

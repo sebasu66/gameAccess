@@ -3,7 +3,7 @@ import { en } from "./en";
 import { es } from "./es";
 
 // Valores que pueden ser iguales en ambos idiomas (marcas, nombres propios, símbolos).
-const SAME_VALUE_ALLOWED = new Set<string>(["uiZoom", "chipPvp", "chipMmo", "chipLan", "chipOnline", "filterTagRating", "pluginIndicatorTip", "languageNameEs", "languageNameEn", "steamTitle", "bigScreenEnter"]);
+const SAME_VALUE_ALLOWED = new Set<string>(["uiZoom", "chipPvp", "chipMmo", "chipLan", "chipOnline", "filterTagRating", "pluginIndicatorTip", "languageNameEs", "languageNameEn", "steamTitle", "bigScreenEnter", "lmSourceSteam", "lmSourceSteamPlain", "lmSourceGameAccess"]);
 
 const esKeys = Object.keys(es);
 const enKeys = Object.keys(en);
