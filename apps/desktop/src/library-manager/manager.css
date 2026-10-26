@@ -104,3 +104,12 @@
 .lm-history { margin: 0; max-height: 12rem; overflow: auto; padding: 10px; border-radius: 6px; border: 1px solid #ffffff14; background: #0c0f11; font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
+/* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */
+.lm-import-grid { min-width: 0; }
+.lm-import-grid td { border-bottom: 1px solid #ffffff24; vertical-align: top; padding-top: 12px; padding-bottom: 12px; }
+.lm-import-grid tbody tr:last-child td { border-bottom: 0; }
+.lm-import-grid .lm-cell-name { max-width: none; }
+.lm-import-grid th.lm-cell-acts { text-align: right; }
+.lm-import-grid th, .lm-import-grid th.lm-cell-acts { background: #00000033; }
+.lm-import-grid .lm-row > td.lm-acts, .lm-import-grid th.lm-cell-acts { position: static; background-clip: padding-box; box-shadow: none; }
+.lm-import-grid .lm-row > td.lm-acts { background: transparent; }

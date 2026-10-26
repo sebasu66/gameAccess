@@ -28,7 +28,7 @@ export const copy = {
     wzLinkHint: "Vincular: el juego se queda donde está; solo se ejecuta y se cuentan sus partidas.", wzMoveHint: "Mover: sus archivos pasan a la carpeta de juegos y se adaptan al estándar.",
     wzImport: (n: number) => `Importar ${n}`, wzBack: "Atrás", wzClose: "Cerrar", wzImporting: "Importando…", wzDone: (ok: number, fail: number) => fail ? `${ok} importados, ${fail} con error.` : `${ok} importados.`,
     wzSource: { steam: "Steam", library: "Carpeta de juegos", downloads: "Descargas", custom: "Carpeta propia" } as Record<string, string>,
-    wzFolders: "Carpetas propias", wzFoldersHint: "Se revisan enteras, además de los discos: cada carpeta con un juego adentro cuenta como un juego.", wzFolderPath: "Ruta de la carpeta (por ejemplo C:\\Juegos\\Minecraft)", wzAddFolder: "Agregar carpeta", wzRemoveFolder: (path: string) => `Quitar ${path}`, wzSelectAll: "Todos", wzDuplicate: "Repetido", wzDuplicateOf: (path: string) => `Es el mismo juego que ${path}: solo se importa el primero.`,
+    wzOrigin: "Origen", wzFolders: "Carpetas propias", wzFoldersHint: "Se revisan enteras, además de los discos: cada carpeta con un juego adentro cuenta como un juego.", wzFolderPath: "Ruta de la carpeta (por ejemplo C:\\Juegos\\Minecraft)", wzAddFolder: "Agregar carpeta", wzRemoveFolder: (path: string) => `Quitar ${path}`, wzSelectAll: "Todos", wzDuplicate: "Repetido", wzDuplicateOf: (path: string) => `Es el mismo juego que ${path}: solo se importa el primero.`,
   },
   en: {
     queued: "Queued", play: "Play", freeze: "Freeze", install: "Install", frozenFilter: "Frozen", installedStat: "Installed", notInstalled: "Not installed",
@@ -59,7 +59,7 @@ export const copy = {
     wzLinkHint: "Link: the game stays where it is; it is only launched and its plays are counted.", wzMoveHint: "Move: its files go to the games folder and are brought to the standard.",
     wzImport: (n: number) => `Import ${n}`, wzBack: "Back", wzClose: "Close", wzImporting: "Importing…", wzDone: (ok: number, fail: number) => fail ? `${ok} imported, ${fail} failed.` : `${ok} imported.`,
     wzSource: { steam: "Steam", library: "Games folder", downloads: "Downloads", custom: "Own folder" } as Record<string, string>,
-    wzFolders: "Own folders", wzFoldersHint: "Checked whole, besides the disks: each folder with a game inside counts as one game.", wzFolderPath: "Folder path (for example C:\\Games\\Minecraft)", wzAddFolder: "Add folder", wzRemoveFolder: (path: string) => `Remove ${path}`, wzSelectAll: "All", wzDuplicate: "Duplicate", wzDuplicateOf: (path: string) => `Same game as ${path}: only the first one is imported.`,
+    wzOrigin: "Source", wzFolders: "Own folders", wzFoldersHint: "Checked whole, besides the disks: each folder with a game inside counts as one game.", wzFolderPath: "Folder path (for example C:\\Games\\Minecraft)", wzAddFolder: "Add folder", wzRemoveFolder: (path: string) => `Remove ${path}`, wzSelectAll: "All", wzDuplicate: "Duplicate", wzDuplicateOf: (path: string) => `Same game as ${path}: only the first one is imported.`,
   },
 };
 export type LibraryCopy = typeof copy.es;

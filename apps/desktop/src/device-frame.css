@@ -51,6 +51,12 @@ html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"]::after { box-shadow: none; }
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube.ga-personal-order.is-on { background: var(--ga-orange) !important; border-color: var(--ga-orange) !important; }
 
+/* Overlays (the game detail, the central dialog, PLUS, the import wizard, alert dialogs) live on the screen, inside
+   the bezel: their backdrop and their box fit in the frame's inner area, so the metal never covers a dialog's edge. */
+html body.ga-device-frame :is(.ga-detail-overlay, .central-dialog-backdrop, .ga-premium-overlay, .ga-overlay-root, .ga-in-frame) {
+  inset: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px)) var(--ga-frame-right, 0px) var(--ga-frame-bottom, 0px) var(--ga-frame-left, 0px) !important; }
+html body.ga-device-frame .ga-in-frame { max-height: calc(100vh - var(--ga-frame-offset, 0px) - var(--ga-frame-top, 0px) - var(--ga-frame-bottom, 0px) - 32px) !important; }
+
 /* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
 .ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 28px); right: 38px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
 .ga-corner-logo video, .ga-corner-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }

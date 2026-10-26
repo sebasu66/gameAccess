@@ -167,32 +167,44 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
       <div className="grid min-h-0 gap-3">
         <p className="m-0 text-sm text-muted-foreground">{c.wzLinkHint} {c.wzMoveHint}</p>
         {rows.length === 0 ? <p className="m-0 text-sm text-muted-foreground">{c.wzNone}</p> : (
-          <div className="relative min-h-0 rounded-lg border border-border bg-card/40">
+          <div className="lm-grid-wrap relative min-h-0">
             <div ref={scrollRef} className="max-h-[48vh] overflow-y-auto overflow-x-hidden pr-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <ul className="m-0 grid list-none p-0">
+              {/* The same grid as the Library Manager: one row per game, clearly separated from the next. */}
+              <table className="lm-grid lm-import-grid">
+                <thead><tr>
+                  <th className="lm-cell-check"><span className="sr-only">{c.wzSelectAll}</span></th>
+                  <th>{c.wzGame}</th>
+                  <th>{c.wzOrigin}</th>
+                  <th className="lm-cell-num">{c.size}</th>
+                  <th className="lm-cell-acts">{c.wzHow}</th>
+                </tr></thead>
+                <tbody>
                 {rows.map(row => {
                   const { candidate } = row;
                   const firstPath = repeated.get(candidate.id);
                   const title = candidate.app_id != null ? nameOf(candidate.app_id) ?? candidate.name : candidate.name;
                   return (
-                    <li key={candidate.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-border/60 px-4 py-3 last:border-b-0">
-                      <Checkbox checked={row.picked && !firstPath} disabled={row.choice == null || Boolean(firstPath)} onCheckedChange={value => patch(candidate.id, { picked: Boolean(value) })} aria-label={title} />
-                      <div className="grid min-w-0 gap-1">
-                        <div className="flex min-w-0 items-center gap-2"><b className="truncate text-sm">{title}</b><Badge variant={candidate.kind === "steam" ? "info" : "default"}>{c.wzSource[candidate.source] ?? candidate.source}</Badge>{firstPath ? <Badge variant="warning"><AlertTriangle className="size-3" />{c.wzDuplicate}</Badge> : null}</div>
-                        <span className="truncate text-xs text-muted-foreground">{candidate.path}</span>
-                        {firstPath ? <span role="note" className="text-xs text-warning">{c.wzDuplicateOf(firstPath)}</span> : null}
-                        {candidate.app_id == null ? (
-                          <select aria-label={c.wzCatalog} value={row.choice ?? ""} onChange={event => { const value = event.target.value ? Number(event.target.value) : null; patch(candidate.id, { choice: value, picked: value != null }); }}
-                            className="h-8 max-w-sm rounded-md border border-border bg-background px-2 text-xs text-foreground">
-                            <option value="">{c.wzNoMatch}</option>
-                            {row.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
-                          </select>
-                        ) : <span className="text-xs text-muted-foreground">{nameOf(candidate.app_id) ?? `AppID ${candidate.app_id}`}{candidate.app_id_file ? ` · ${c.wzDetected(candidate.app_id_file)}` : ""}</span>}
-                      </div>
-                      <div className="grid justify-items-end gap-1">
-                        <b className="text-sm tabular-nums">{formatBytes(candidate.size_bytes)}</b>
+                    <tr key={candidate.id} className={cn("lm-row", row.picked && !firstPath ? "is-selected" : "")}>
+                      <td className="lm-cell-check"><Checkbox checked={row.picked && !firstPath} disabled={row.choice == null || Boolean(firstPath)} onCheckedChange={value => patch(candidate.id, { picked: Boolean(value) })} aria-label={title} /></td>
+                      <td className="lm-cell-name">
+                        <div className="grid min-w-0 gap-1">
+                          <div className="flex min-w-0 items-center gap-2"><b className="lm-name">{title}</b>{firstPath ? <Badge variant="warning"><AlertTriangle className="size-3" />{c.wzDuplicate}</Badge> : null}</div>
+                          <span className="lm-cell-path !max-w-none" title={candidate.path}>{candidate.path}</span>
+                          {firstPath ? <span role="note" className="text-xs text-warning">{c.wzDuplicateOf(firstPath)}</span> : null}
+                          {candidate.app_id == null ? (
+                            <select aria-label={c.wzCatalog} value={row.choice ?? ""} onChange={event => { const value = event.target.value ? Number(event.target.value) : null; patch(candidate.id, { choice: value, picked: value != null }); }}
+                              className="h-8 max-w-sm rounded-md border border-border bg-background px-2 text-xs text-foreground">
+                              <option value="">{c.wzNoMatch}</option>
+                              {row.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+                            </select>
+                          ) : <span className="text-xs text-muted-foreground">{nameOf(candidate.app_id) ?? `AppID ${candidate.app_id}`}{candidate.app_id_file ? ` · ${c.wzDetected(candidate.app_id_file)}` : ""}</span>}
+                        </div>
+                      </td>
+                      <td><Badge variant={candidate.kind === "steam" ? "info" : "default"}>{c.wzSource[candidate.source] ?? candidate.source}</Badge></td>
+                      <td className="lm-cell-num"><b className="tabular-nums">{formatBytes(candidate.size_bytes)}</b></td>
+                      <td className="lm-acts">
                         {candidate.can_move ? (
-                          <div className="flex overflow-hidden rounded-md border border-border" role="group" aria-label={c.wzHow}>
+                          <div className="inline-flex overflow-hidden rounded-md border border-border" role="group" aria-label={c.wzHow}>
                             {(["link", "move"] as const).map(mode => (
                               <button key={mode} type="button" aria-pressed={row.mode === mode} onClick={() => patch(candidate.id, { mode })}
                                 className={cn("flex items-center gap-1 border-0 px-2.5 py-1 font-sans text-xs font-bold", row.mode === mode ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground")}>
@@ -201,11 +213,12 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
                             ))}
                           </div>
                         ) : <span className="text-xs text-muted-foreground">{c.wzSteamOnly}</span>}
-                      </div>
-                    </li>
+                      </td>
+                    </tr>
                   );
                 })}
-              </ul>
+                </tbody>
+              </table>
             </div>
             <CircularScrollbar targetRef={scrollRef} label={c.wzTitle} />
           </div>
@@ -216,7 +229,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   })();
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[700] flex items-center justify-center bg-black/70 p-6 font-sans text-foreground [color-scheme:dark]" role="dialog" aria-modal="true" aria-label={c.wzTitle}>
+    <div className="ga-overlay-root fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[700] flex items-center justify-center bg-black/70 p-6 font-sans text-foreground [color-scheme:dark]" role="dialog" aria-modal="true" aria-label={c.wzTitle}>
       <div className="ga-overlay-dialog flex max-h-full min-h-0 w-[min(1000px,94vw)] flex-col gap-4 p-6">
         <header className="flex items-center gap-4">
           <h2 className="ga-screen-title mr-auto !text-4xl">{c.wzTitle}</h2>
