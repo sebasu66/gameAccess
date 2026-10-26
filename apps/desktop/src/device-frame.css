@@ -16,6 +16,12 @@
 .ga-frame-ticks { fill: none; stroke: #ffffff; stroke-opacity: .28; stroke-width: 1; }
 .ga-frame-accent { fill: none; stroke: #ff6a00; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
 
+/* The device's name in its thin tab at the middle of the top edge (the tab wraps this label): engraved in the metal,
+   dark on top and a light edge underneath, with a short engraved bar between the words. */
+.ga-frame-name { position: fixed; z-index: 52; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 11px); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px; padding: 0 11px 0 14px; height: 13px; pointer-events: none; user-select: none;
+  font: 800 9px/1 Manrope, sans-serif; letter-spacing: .34em; color: #59626a; text-shadow: 0 1px 0 rgba(255, 255, 255, .2), 0 -1px 0 rgba(0, 0, 0, .85); }
+.ga-frame-name i { width: 1px; height: 9px; background: #00000099; box-shadow: 1px 0 0 rgba(255, 255, 255, .18); }
+
 /* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
 .ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 28px); right: 38px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
 .ga-corner-logo video, .ga-corner-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }

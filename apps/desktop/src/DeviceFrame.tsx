@@ -8,7 +8,8 @@ import "./device-frame.css";
 /**
  * The app as the screen of a device: a thin bezel around the window (below the app's own title bar, when there is
  * one) with a double line and cut corners, and tabs that come out of it where controls live on the edge: the status
- * and the footer buttons at the bottom. Everything else is the screen under the bezel: the new-games banner, the big
+ * and the footer buttons at the bottom, and a thin one at the middle of the top edge with GAME | ACCESS engraved in it.
+ * Everything else is the screen under the bezel: the new-games banner, the big
  * view word on the left, the animated logo in the top-right corner and, in the empty column on the right, the word
  * GAME / ACCESS sketched huge (BrandWall).
  *
@@ -119,6 +120,7 @@ export default function DeviceFrame() {
       offset = Math.round(titleBarHeight());
       const m = metrics();
       tabs.current = [
+        tabAround("top", below(rectOf(".ga-frame-name")), m, 5),
         tabAround("bottom", below(rectOf(".ga-footer-left")), m, 10),
         tabAround("bottom", below(rectOf(".ga-dock")), m, 10),
       ].filter((tab): tab is FrameTab => Boolean(tab));
@@ -201,6 +203,8 @@ export default function DeviceFrame() {
         </svg>,
         document.body,
       )}
+      {/* The device's name, engraved in a thin tab at the middle of the top edge. */}
+      {createPortal(<span className="ga-frame-name" aria-hidden="true">GAME<i />ACCESS</span>, document.body)}
       {/* The animated logo in the screen's top-right corner; its turn drives the word sketched in the right column. */}
       <BrandLogoVideo className="ga-corner-logo" />
       <BrandWall video=".ga-corner-logo video" />
