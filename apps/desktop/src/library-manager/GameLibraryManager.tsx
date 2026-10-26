@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download, Gamepad2, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RefreshCw, RotateCcw, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+// The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
+import { ArrowCounterClockwise, DownloadSimple, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -82,11 +84,13 @@ function subline(game: LibraryGame, c: LibraryCopy): string {
   return "";
 }
 
+const FILLED = { weight: "fill" as const };
+
 function IconAction({ label, onClick, disabled, tone, children }: { label: string; onClick: () => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button type="button" className={`lm-act${tone ? ` ${tone}` : ""}`} aria-label={label} disabled={disabled} onClick={onClick}>{children}</button>
+        <button type="button" className={`lm-act${tone ? ` ${tone}` : ""}`} aria-label={label} disabled={disabled} onClick={onClick}><IconContext.Provider value={FILLED}>{children}</IconContext.Provider></button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
@@ -96,7 +100,7 @@ function IconAction({ label, onClick, disabled, tone, children }: { label: strin
 /** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a notice if it is closed). */
 function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
   const running = useFreezeJob(game.app_id);
-  return <IconAction label={c.thaw} tone="frost" disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <Flame />}</IconAction>;
+  return <IconAction label={c.thaw} tone="frost" disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <PhFlame />}</IconAction>;
 }
 
 function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
@@ -198,25 +202,25 @@ function ManagerRow({ row, game, c, busy, largest, focusId, locale, columns, exp
         {unfinished && !game.transfer_active ? <>
           {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
               without one, the transfer starts again from the catalog. */}
-          {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><Play /></IconAction>
-            : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><Play /></IconAction>}
-          {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><RotateCcw /></IconAction> : null}
-          <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash2 /></IconAction>
-          <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction>
-        </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><FolderOpen /></IconAction> : <>
-          {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><Download /></IconAction> : null}
-          {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><Wand2 /></IconAction> : null}
-          {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><Play /></IconAction> : null}
+          {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><PhPlay /></IconAction>
+            : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><PhPlay /></IconAction>}
+          {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><ArrowCounterClockwise /></IconAction> : null}
+          <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash /></IconAction>
+          <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction>
+        </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction> : <>
+          {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><DownloadSimple /></IconAction> : null}
+          {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
+          {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><PhPlay /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
           {!game.frozen && !game.linked && game.installed && id != null ? <>
-            <IconAction label={c.freeze} tone="frost" disabled={busy} onClick={() => setThawing(game, "freeze")}><Snowflake /></IconAction>
-            <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><Snowflake /><b>+</b></IconAction>
+            <IconAction label={c.freeze} tone="frost" disabled={busy} onClick={() => setThawing(game, "freeze")}><PhSnowflake /></IconAction>
+            <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
-          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><ScrollText /></IconAction>
-          <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
+          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
+          <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
-          {game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? <IconAction label={c.steamUninstall} tone="danger" disabled={busy || id == null} onClick={() => setPending({ kind: "steam_uninstall", game })}><Trash2 /></IconAction> : null}
-          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}>{game.linked ? <Link2Off /> : <Trash2 />}</IconAction>
+          {game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? <IconAction label={c.steamUninstall} tone="danger" disabled={busy || id == null} onClick={() => setPending({ kind: "steam_uninstall", game })}><Trash /></IconAction> : null}
+          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}>{game.linked ? <LinkBreak /> : <Trash />}</IconAction>
         </>}
       </td>
     </tr>
@@ -243,8 +247,8 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
       <td className="lm-cell-num">—</td>
       <td className="lm-cell-num">—</td>
       <td className="lm-acts">
-        {onInstall ? <IconAction label={c.install} tone="accent" onClick={() => onInstall(game)}><Download /></IconAction> : null}
-        <IconAction label={c.unlink} tone="danger" onClick={() => libraryMembership.remove(game)}><Link2Off /></IconAction>
+        {onInstall ? <IconAction label={c.install} tone="accent" onClick={() => onInstall(game)}><DownloadSimple /></IconAction> : null}
+        <IconAction label={c.unlink} tone="danger" onClick={() => libraryMembership.remove(game)}><LinkBreak /></IconAction>
       </td>
     </tr>
   );
