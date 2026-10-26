@@ -171,3 +171,6 @@
 .digital-downloads-screen .ga-dl-card { margin: 0 0 12px; padding: 12px; border: 1px solid #ffffff12; border-top-color: #ffffff12; border-radius: 12px; background: #ffffff05; transition: background .2s, border-color .2s; }
 .digital-downloads-screen .ga-dl-card:is(:hover, :focus-within) { background: #ffffff0a; border-color: #ffffff22; }
 @media (prefers-reduced-motion: reduce) { .digital-downloads-screen .digital-download-actions, .ga-dl-card-actions, .digital-downloads-screen .digital-download-dismiss { transition: none; } }
+/* Pictures at rest as calm as the grid's covers (less colour, a little darker); the one under the pointer gets its colour back. */
+.digital-downloads-screen :is(.digital-download-art, .ga-dl-card-art) img { filter: saturate(.55) brightness(.9); transition: filter .3s; }
+.digital-downloads-screen :is(.digital-download-row, .ga-dl-card):is(:hover, :focus-within) :is(.digital-download-art, .ga-dl-card-art) img { filter: none; }

@@ -12,7 +12,7 @@ import LibraryFilterDialog from "./LibraryFilterDialog";
 import CatalogFilterToolbar from "./CatalogFilterToolbar";
 import { createPortal } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { gsap, motionOk, useGSAP } from "./motion/gsap";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { ArrowUpDown, ArrowUpToLine, Download, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
@@ -243,6 +243,18 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.removeEventListener("keydown", key);
   }, [showManager]);
   useCardHover(props.gridRef);
+  // The search dock is part of the central panel: it is centred on the grid, not on the window (side panels and the
+  // big word on the left move the grid).
+  useLayoutEffect(() => {
+    const grid = props.gridRef.current;
+    if (!grid) return;
+    const place = () => { const rect = grid.getBoundingClientRect(); if (rect.width) document.documentElement.style.setProperty("--ga-dock-center", `${Math.round(rect.left + rect.width / 2)}px`); };
+    place();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(grid);
+    window.addEventListener("resize", place);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", place); document.documentElement.style.removeProperty("--ga-dock-center"); };
+  }, [props.gridRef]);
   // The wordmark and the top-right buttons line up with the catalog's edges (the row of filters above the grid).
   useEffect(() => {
     const row = document.querySelector<HTMLElement>(".ga-grid-toolbar");
