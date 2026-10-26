@@ -26,11 +26,13 @@ export interface FreezeJob {
 const POLL_MS = 400;
 const jobs = new Map<number, FreezeJob>();     // running and finished, until dismissed from the console
 const listeners = new Set<() => void>();
-let snapshot: { jobs: FreezeJob[]; open: boolean; focus: number | null } = { jobs: [], open: false, focus: null };
+// Games whose job is shown in place (the Library Manager's row of the game): the floating console leaves them out.
+const inline = new Map<number, number>();
+let snapshot: { jobs: FreezeJob[]; open: boolean; focus: number | null; inline: number[] } = { jobs: [], open: false, focus: null, inline: [] };
 let open = false;
 let focus: number | null = null;
 const emit = () => {
-  snapshot = { jobs: [...jobs.values()].map(job => ({ ...job })), open, focus };
+  snapshot = { jobs: [...jobs.values()].map(job => ({ ...job })), open, focus, inline: [...inline.keys()] };
   listeners.forEach(listener => listener());
 };
 
@@ -54,6 +56,18 @@ export function openFreezeConsole(appId?: number): void {
 export function collapseFreezeConsole(): void {
   open = false;
   emit();
+}
+
+/** A view that shows this game's job in place (while mounted): the floating console leaves it out, and the result
+ *  needs no toast. Returns the function that ends it. */
+export function hostFreezeJob(appId: number): () => void {
+  inline.set(appId, (inline.get(appId) ?? 0) + 1);
+  emit();
+  return () => {
+    const count = (inline.get(appId) ?? 1) - 1;
+    if (count > 0) inline.set(appId, count); else inline.delete(appId);
+    emit();
+  };
 }
 
 /** Take a finished job out of the console. */
@@ -98,7 +112,7 @@ export function startFreezeJob(game: CatalogGame, mode: FreezeMode): FreezeJob {
     if (!demo) job.progress = (await freezeProgress(appId).catch(() => null)) ?? job.progress;
     // Whatever happened, the library shows the game's state as it is now (a failed freeze leaves no record).
     await scanLibrary().catch(() => undefined);
-    if (!open) notify(`${freezeTitle(mode, game.name)}: ${outcome.detail}`, { tone: outcome.ok ? "success" : "error", durationMs: outcome.ok ? undefined : 0 });
+    if (!open && !inline.has(appId)) notify(`${freezeTitle(mode, game.name)}: ${outcome.detail}`, { tone: outcome.ok ? "success" : "error", durationMs: outcome.ok ? undefined : 0 });
     emit();
     return outcome;
   });
@@ -119,6 +133,12 @@ export const freezeConsoleState = () => snapshot;
 
 export function useFreezeConsole() {
   return useSyncExternalStore(subscribe, () => snapshot, () => snapshot);
+}
+
+/** The job of a game, still working or finished and not dismissed yet. */
+export function useFreezeJobView(appId: number | null | undefined): FreezeJob | undefined {
+  const state = useFreezeConsole();
+  return appId ? state.jobs.find(job => job.appId === appId) : undefined;
 }
 
 export function useFreezeJob(appId: number | null | undefined): FreezeJob | undefined {

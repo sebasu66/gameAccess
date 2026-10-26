@@ -20,7 +20,8 @@ import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
-import { useFreezeJob } from "../freezeJobs";
+import { hostFreezeJob, useFreezeJob, useFreezeJobView } from "../freezeJobs";
+import FreezeTerminal from "../FreezeTerminal";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
@@ -180,6 +181,10 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const unfinished = game.partial || isUnfinished(game);
   const ref = useRef<HTMLTableRowElement>(null);
   const focused = focusId != null && focusId === id;
+  // A freeze or thaw of this game shows in its row, as a terminal (and not in the floating console meanwhile).
+  const freezing = useFreezeJobView(id);
+  const hosted = Boolean(freezing) && id != null;
+  useEffect(() => (hosted ? hostFreezeJob(id as number) : undefined), [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
     <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
@@ -220,10 +225,11 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         </>}
       </td>
     </tr>
-    {open ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
-      {game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
+    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
+      {freezing ? <FreezeTerminal job={freezing} /> : null}
+      {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
         <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-      {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} /></div> : null}
+      {open && !game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} /></div> : null}
     </div></td></tr> : null}
   </>);
 }

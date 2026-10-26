@@ -7,21 +7,21 @@ import { useI18n, type TranslationKey } from "./i18n";
 import type { FreezeEvent, FreezeProgress } from "./native";
 import "./freeze-console.css";
 
-type Translate = ReturnType<typeof useI18n>["t"];
-const STEP_KEYS: Record<string, TranslationKey> = {
+export type Translate = ReturnType<typeof useI18n>["t"];
+export const STEP_KEYS: Record<string, TranslationKey> = {
   scan: "freezeStepScan", compress: "freezeStepCompress", verify: "freezeStepVerify", clear: "freezeStepClear",
   decompress: "freezeStepDecompress", extract: "freezeStepExtract", check: "freezeStepCheck",
 };
-const STEPS_OF = { freeze: ["scan", "compress"], deep: ["scan", "compress", "verify", "clear"], thaw: ["decompress"] } as const;
+export const STEPS_OF = { freeze: ["scan", "compress"], deep: ["scan", "compress", "verify", "clear"], thaw: ["decompress"] } as const;
 
-const clock = (seconds: number) => {
+export const clock = (seconds: number) => {
   const whole = Math.max(0, Math.round(seconds));
   const hours = Math.floor(whole / 3600), minutes = Math.floor((whole % 3600) / 60), rest = whole % 60;
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}` : `${minutes}:${String(rest).padStart(2, "0")}`;
 };
 
 /** One line of the console from a launcher event. */
-function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): string {
+export function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): string {
   const size = (value: unknown) => formatBytes(Number(value) || 0);
   switch (event.kind) {
     case "start": return t(job.mode === "thaw" ? "freezeEvStartThaw" : job.mode === "deep" ? "freezeEvStartDeep" : "freezeEvStartFreeze");
@@ -42,7 +42,7 @@ function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): string {
 
 /** The picture of the work: files slide into a press and come out as a block of ice that fills up with the progress
  *  (a strapped crate for the deep freeze). A thaw runs the other way. Stands still when done or with reduced motion. */
-function FreezeArt({ mode, percent, state }: { mode: FreezeJob["mode"]; percent: number; state: "working" | "done" | "failed" }) {
+export function FreezeArt({ mode, percent, state }: { mode: FreezeJob["mode"]; percent: number; state: "working" | "done" | "failed" }) {
   const fill = mode === "thaw" ? 100 - percent : percent;
   const level = 74 - (fill / 100) * 56;
   return (
@@ -82,7 +82,7 @@ function FreezeArt({ mode, percent, state }: { mode: FreezeJob["mode"]; percent:
   );
 }
 
-function stats(progress: FreezeProgress | undefined) {
+export function stats(progress: FreezeProgress | undefined) {
   if (!progress || progress.finished) return { speed: 0, eta: 0 };
   const elapsed = Math.max(0.5, progress.updated_at - progress.started_at);
   const speed = progress.done_bytes / elapsed;
@@ -133,7 +133,10 @@ function JobView({ job, t }: { job: FreezeJob; t: Translate }) {
  *  the job out. */
 export default function FreezeConsole() {
   const { t } = useI18n();
-  const { jobs, open, focus } = useFreezeConsole();
+  const state = useFreezeConsole();
+  const { open, focus } = state;
+  // A job shown in place (its row in the Library Manager) is not repeated here.
+  const jobs = state.jobs.filter(item => !state.inline.includes(item.appId));
   if (!jobs.length) return null;
   const job = jobs.find(item => item.appId === focus) ?? jobs[jobs.length - 1];
   const working = jobs.filter(item => !item.outcome);

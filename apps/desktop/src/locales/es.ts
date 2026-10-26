@@ -531,6 +531,7 @@ export const es = {
   freezeEvDone: "Listo: {{original}} → {{stored}} en {{time}}",
   freezeEvDoneThaw: "Listo en {{time}}",
   freezeEvFailed: "Error: {{error}}",
+  freezeTermDismiss: "Cerrar registro",
   cardFrozen: "Congelado (compresión de Windows): ocupa {{stored}} de {{original}}",
   cardDeepFrozen: "Congelado profundo: ocupa {{stored}} de {{original}}. Se descongela al jugar.",
   launchThawing: "Descongelando el juego antes de abrirlo. Puede tardar unos minutos.",

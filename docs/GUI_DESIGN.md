@@ -196,6 +196,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Dibujo SVG animado: archivos que entran a una prensa naranja y salen como bloque de hielo que se llena con el avance (caja con zunchos en el profundo; al descongelar corre al revés). Quieto al terminar y con "reducir movimiento".
 - Cifra grande (Bebas 54 px), bytes hechos / total, velocidad y tiempo restante; pasos con puntos (hecho celeste, actual latiendo); barra de 6 px celeste; archivo en curso en monoespaciada; registro tipo terminal (monoespaciada 12 px, tiempo desde el inicio, último renglón con cursor).
 - El avance lo escribe el launcher (`.cache/digital_frozen/<appid>.progress.json`) y la app lo lee con `freeze_progress` cada 400 ms. Con la consola plegada, el resultado llega como aviso.
+- **En el administrador de biblioteca** el trabajo se muestra dentro de la fila expandida del juego como **terminal** (`FreezeTerminal`, `ga-term`): vidrio negro con esquinas cortadas, scanlines, monoespaciada celeste con brillo, etiqueta naranja `GA://`, pasos entre corchetes (`[✓ ANALIZAR] [▶ COMPRIMIR]`), barra de 40 celdas inclinadas, archivo en curso con `>` y registro con `$`. Mientras esa fila lo muestra, la consola flotante no repite ese trabajo. Al terminar queda con el resultado hasta `[ CERRAR REGISTRO ]`.
 
 ## 5. Reglas de uso
 
