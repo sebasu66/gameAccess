@@ -66,6 +66,12 @@ export function releaseCards(source?: HTMLElement | null): void {
   gsap.to(cards, { x: 0, y: 0, scale: 1, opacity: 1, duration: .6, ease: "expo.out", overwrite: true, clearProps: "transform,opacity" });
 }
 
+/** Shows the card the detail came from again, unless its cover is coming back as squares (pixelReveal). */
+export function restoreSource(source: HTMLElement): void {
+  if (source.dataset.revealing) return;
+  gsap.set(source, { clearProps: "opacity" });
+}
+
 /** Folds the dialog back into the card; resolves when the dialog may unmount. */
 export function morphClose(dialog: HTMLElement, source: HTMLElement | null): Promise<void> {
   if (!motionOk() || !source || !source.isConnected) return Promise.resolve();

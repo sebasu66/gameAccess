@@ -175,7 +175,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-detail-actions .glass-action:hover { filter:brightness(1.18); box-shadow:0 0 22px #cc833345!important; }
 .ga-detail-actions .glass-action-icon { position:static!important; transform:none!important; width:auto!important; height:auto!important; }
 .ga-detail-actions .glass-action-icon svg { width:27px; height:27px; }
-.ga-detail-actions .glass-action-label { position:static!important; display:block!important; opacity:1!important; transform:none!important; max-width:none!important; color:#101416!important; font:800 16px Manrope,sans-serif; }
+.ga-detail-actions .glass-action-label { position:static!important; display:block!important; opacity:1!important; transform:none!important; max-width:none!important; color:#101416!important; font:400 19px/1 Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; letter-spacing:.03em; }
 .ga-favorite { width:48px; flex-shrink:0; display:grid; place-items:center; border:1px solid #ffffff20; border-radius:5px; background:#ffffff05; color:#cbd1d5; }
 .ga-favorite[aria-pressed="true"] { color:var(--ga-orange); }
 .ga-detail-gallery { display:flex; flex-direction:column; min-height:0; min-width:0; padding:28px 30px 26px 0; }

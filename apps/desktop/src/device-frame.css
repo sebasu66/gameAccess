@@ -4,15 +4,17 @@
    controls (status, buttons) are mounted on it. */
 /* Under the app's title bar in the desktop window (--ga-frame-offset is its height; 0 in a browser). */
 .ga-frame-layer { position: fixed; left: 0; top: var(--ga-frame-offset, 0px); width: 100vw; height: calc(100vh - var(--ga-frame-offset, 0px)); pointer-events: none; overflow: visible; }
-/* The metal body: above the screen, below the controls mounted on it. Its shadow falls onto the screen, so the screen
+/* The frame is the top of everything (above the detail's dark backdrop, the central dialog and the notice): it is the
+   device, not the screen. The controls mounted on it sit above it, so they show over a backdrop too.
+   The metal body: above the screen, below the controls mounted on it. Its shadow falls onto the screen, so the screen
    reads as recessed under a bezel with some thickness. */
-.ga-frame-back { z-index: 50; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
+.ga-frame-back { z-index: 2147483600; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
 /* The brushed-steel texture over the gunmetal, on the band and its tabs only (the frame's own shape). */
 .ga-frame-steel { mix-blend-mode: overlay; opacity: .6; }
 .ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: .7; stroke-width: 3; }
 .ga-frame-lip-light { fill: none; stroke: #ffffff; stroke-opacity: .24; stroke-width: 1; transform: translate(-.5px, -.5px); }
 /* Engraved lines and accents on the metal, never taking the pointer. */
-.ga-frame-lines { z-index: 51; }
+.ga-frame-lines { z-index: 2147483601; }
 .ga-frame-outer { fill: none; stroke: #ffffff; stroke-opacity: .12; stroke-width: 1; }
 .ga-frame-inner { fill: none; stroke: #ffffff; stroke-opacity: .08; stroke-width: 1; }
 .ga-frame-ticks { fill: none; stroke: #ffffff; stroke-opacity: .28; stroke-width: 1; }
@@ -20,7 +22,7 @@
 
 /* The device's name in its thin tab at the middle of the top edge (the tab wraps this label): lit orange letters
    that glow on the metal, like a backlit inscription; Bebas Neue, the titles' font, reads best at this size. */
-.ga-frame-name { position: fixed; z-index: 52; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 14px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
+.ga-frame-name { position: fixed; z-index: 2147483602; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 14px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
   font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ebceae; text-shadow: 0 0 1px #cc8333aa, 0 0 3px #cc833355; }
 
 /* Buttons mounted on the frame (the footer's controls) are part of the device: raised metal keys with depth and a
@@ -56,7 +58,7 @@ html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button
 /* What the frame replaces: the footer bar's own background (its controls sit on the bezel's tabs), the header logo
    (now the corner logo and the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
    in the catalog and in the library. */
-body.ga-device-frame .catalog-bottom-actions { background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
+body.ga-device-frame .catalog-bottom-actions { z-index: 2147483603 !important; background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
 body.ga-device-frame .topbar .ga-brand-lockup { display: none; }
 /* (The base rule sets the whole padding with !important, so this one has to as well.) */
 html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }

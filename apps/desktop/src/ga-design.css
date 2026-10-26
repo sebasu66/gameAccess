@@ -12,11 +12,12 @@ button.ga-close {
 button.ga-close:hover { background: #d65c65; box-shadow: 0 0 20px #d65c65cc; }
 button.ga-close:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px; }
 
+/* Action buttons use Impact (taller and narrower, so a bigger text stays short), 18 px. */
 /* Primary action: orange, 44 px high, dark text. */
 button.ga-btn-primary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 44px; padding: 0 18px; border: 1px solid #cc8333; border-radius: 8px;
-  background: #cc8333; color: #140a02; font: 700 16px Manrope, sans-serif; box-shadow: none;
+  background: #cc8333; color: #140a02; font: 400 18px/1 Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; letter-spacing: .03em; box-shadow: none;
   cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease;
 }
 /* Flat: no gradient, no glow, no lift (docs/GUI_DESIGN.md §4.2). */
@@ -27,7 +28,7 @@ button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
 button.ga-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 44px; padding: 0 18px; border: 1px solid #ffffff25; border-radius: 8px;
-  background: #ffffff08; color: #fff; font: 700 16px Manrope, sans-serif; cursor: pointer;
+  background: #ffffff08; color: #fff; font: 400 18px/1 Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; letter-spacing: .03em; cursor: pointer;
 }
 button.ga-btn-secondary:hover:not(:disabled) { background: #ffffff14; }
 button.ga-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
@@ -65,7 +66,7 @@ button.ga-back {
   height: 54px; min-height: 54px; padding: 0 18px;
   border: 1px solid #e1898f; border-radius: 5px;
   background: #be4750; color: #fff; box-shadow: 0 0 14px #be475088;
-  font: 700 16px Manrope, sans-serif; cursor: pointer;
+  font: 400 18px/1 Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; letter-spacing: .03em; cursor: pointer;
 }
 button.ga-back:hover { background: #d65c65; box-shadow: 0 0 20px #d65c65cc; }
 button.ga-back:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px; }
@@ -73,7 +74,7 @@ button.ga-back:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px; 
 /* Danger and frost actions: same shape as the primary one. */
 button.ga-btn-danger, button.ga-btn-frost {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 44px; padding: 0 18px; border-radius: 8px; font: 700 16px Manrope, sans-serif; cursor: pointer;
+  height: 44px; padding: 0 18px; border-radius: 8px; font: 400 18px/1 Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif; letter-spacing: .03em; cursor: pointer;
 }
 button.ga-btn-danger { border: 1px solid #a64c41; background: #a64c41; color: #fff; }
 button.ga-btn-danger:hover:not(:disabled) { background: #b8594d; }

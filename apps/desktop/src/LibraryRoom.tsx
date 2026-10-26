@@ -40,7 +40,7 @@ import { renderedGridColumns } from "./libraryNavigation";
 import BigScreenControls from "./BigScreenControls";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
-import { morphClose, morphOpen, pushCards, releaseCards } from "./motion/detailMorph";
+import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
@@ -533,7 +533,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const dialog = detailDialogRef.current, source = detailSource();
     if (!detailOpen || !detailMorphs || !dialog || !source) return;
     pushCards(source);
-    return morphOpen(dialog, source);
+    const stop = morphOpen(dialog, source);
+    // However the detail closes (its own close folds back into the card; big picture, an outside caller or a new
+    // outside game just drop it), the card it came from shows again and the pushed cards go back to their places.
+    return () => { stop(); restoreSource(source); releaseCards(source); };
   }, [detailOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const { closing: detailClosing, morphing: detailMorphing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
