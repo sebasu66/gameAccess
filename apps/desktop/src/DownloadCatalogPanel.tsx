@@ -208,6 +208,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
+  // With the manager shown, the round scrollbar moves its games' rows; the rest of the manager stays put.
+  const managerScrollRef = useRef<HTMLDivElement>(null);
   const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
   // Grid and manager swap with a short slide: what is shown leaves (up toward the manager, down back to the grid),
   // then the other one comes in from the opposite side. Without motion they swap at once.
@@ -484,11 +486,11 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         {showManager ? (
           <div className="ga-manager-view">
             <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>
-            <GameLibraryManager embedded focusAppId={managerFocus} query={searchQuery} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+            <GameLibraryManager embedded focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
           </div>
         ) : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
-      {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
+      {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
       {props.actionsTarget && backToTop ? createPortal(backToTop, props.actionsTarget) : null}
       {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}

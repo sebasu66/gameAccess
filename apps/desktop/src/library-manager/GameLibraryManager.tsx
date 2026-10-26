@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download, Gamepad2, Flame, FolderInput, FolderOpen, Link2Off, Loader2, Play, RotateCcw, ScanSearch, ScrollText, Snowflake, Trash2, Wand2, X } from "lucide-react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
@@ -261,7 +261,7 @@ function SortHeader({ id, label, sort, setSort, t }: { id: SortKey; label: strin
   );
 }
 
-export default function GameLibraryManager({ onClose, catalog = [], onInstall, onPlay, focusAppId, embedded = false, query = "" }: {
+export default function GameLibraryManager({ onClose, catalog = [], onInstall, onPlay, focusAppId, embedded = false, query = "", scrollRef }: {
   onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   /** Highlights this game's row and scrolls to it ("Manage" on the back of a library card). */
   focusAppId?: number | null;
@@ -269,6 +269,9 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   embedded?: boolean;
   /** The catalog and library search (one search box for the whole app): it filters the manager's games too. */
   query?: string;
+  /** The box that scrolls the games' rows (the header, summary, buttons and filters stay put): the app's round
+   *  scrollbar drives it. */
+  scrollRef?: RefObject<HTMLDivElement>;
 }) {
   const { locale, t } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
@@ -382,6 +385,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       <div className={embedded ? "lm-root is-embedded" : "lm-root fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[600] overflow-y-auto bg-background"} role={embedded ? undefined : "dialog"} aria-modal={embedded ? undefined : true} aria-label={c.title}>
         {embedded ? null : <header className="ga-screen-header !max-w-none"><h2 className="ga-screen-title mr-auto">{c.title}</h2><GaBack label={c.back} onClick={onClose} data-dialog-initial /></header>}
         <div className="lm-content">
+          <div className="lm-top">
           {summary ? <section className="lm-summary">
             <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
             <div className="lm-stats">
@@ -393,10 +397,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
             <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
-            <GaButton className="lm-icon-button" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}</GaButton>
+          </div>
           </div>
           <div className="lm-filters">
             {filters.map(([id, label, count]) => <button key={id} type="button" className="lm-chip" aria-pressed={filter === id} onClick={() => setFilter(id)}>{label}<span>{count}</span></button>)}
+            <GaButton className="lm-icon-button lm-scan" aria-label={scanning ? c.scanning : c.scan} title={scanning ? c.scanning : c.scan} disabled={busy || scanning} onClick={() => void scanLibrary()}>{scanning ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />}</GaButton>
           </div>
           {selectedIds.length ? <div className="lm-selection">
             <b>{c.selected(selectedIds.length)}</b>
@@ -406,8 +411,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           </div> : null}
           {message ? <p role="status" className="lm-message">{message}</p> : null}
           {error ? <p role="alert" className="lm-message is-error">{error}</p> : null}
-          {gridRows.length ? <div className="lm-grid-wrap">
-            <table className="lm-grid">
+          <div ref={scrollRef} className="lm-grid-wrap">
+            {gridRows.length ? <table className="lm-grid">
               <thead><tr>
                 <th className="lm-cell-check"><input type="checkbox" className="lm-check" tabIndex={-1} aria-label={t("lmSelectAll")} title={t("lmSelectAll")} checked={allSelected} disabled={!selectable.length} onChange={event => { const value = event.target.checked; setSelection(() => value ? Object.fromEntries(selectable.map(key => [key, true])) : {}); }} /></th>
                 <th className="lm-cell-cover"><span className="sr-only">{t("lmColCover")}</span></th>
@@ -424,8 +429,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
               <tbody>
                 {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
               </tbody>
-            </table>
-          </div> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
+            </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
+          </div>
         </div>
       </div>
 

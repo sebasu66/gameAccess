@@ -83,3 +83,14 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box in
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }
+/* Only the manager's game rows scroll (its own box, driven by the round scrollbar): the grid keeps still and the
+   manager fills its height, leaving the grid's bottom padding free for the search dock. */
+.library-room-grid:has(> .ga-manager-view) { overflow: hidden !important; }
+.library-room-grid > .ga-manager-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ga-manager-view > .lm-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ga-manager-view > .lm-root > .lm-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ga-manager-view .lm-content > :not(.lm-grid-wrap) { flex: none; }
+.ga-manager-view .lm-grid-wrap { flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
+.ga-manager-view .lm-grid-wrap::-webkit-scrollbar { display: none; }
+.ga-manager-view .lm-grid th { position: sticky; top: 0; z-index: 2; }
+.ga-manager-view .lm-grid th.lm-cell-acts { z-index: 3; }

@@ -1,7 +1,9 @@
 /* Library Manager, compact (docs/TAREA-interfaz-nueva.md T11): sober colours, orange only on the main button. */
 .lm-root { color: #f4f4f2; font-family: Manrope, sans-serif; color-scheme: dark; }
 .lm-root:not(.is-embedded) .lm-content { width: min(1100px, 100%); margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
-.lm-summary { margin-bottom: 24px; }
+/* Summary on the left, the main buttons stacked in a column on the right. */
+.lm-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+.lm-summary { min-width: 0; }
 .lm-donut-wrap { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; align-items: center; }
 .lm-donut { width: 150px; height: 150px; overflow: visible; }
 .lm-donut circle { transition: stroke-width .35s, opacity .35s; }
@@ -17,8 +19,9 @@
 .lm-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #ffffff14; }
 .lm-stats strong { display: block; font: 400 28px/1 "Bebas Neue", sans-serif; color: #f4f4f2; }
 .lm-stats span { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
-.lm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
-.lm-actions > button { flex: none; }
+.lm-actions { display: flex; flex-direction: column; gap: 10px; }
+.lm-actions > button { width: 100%; justify-content: flex-start; }
+.lm-filters .lm-scan { margin-left: auto; }
 .lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 18px; }
 .lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
 .lm-chip span { opacity: .6; font-variant-numeric: tabular-nums; }
