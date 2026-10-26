@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 from game_library_manager.storage import DigitalGameStorage
+from game_library_manager.freeze_control import FreezeCancelled, holder as freeze_holder
 import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
@@ -119,10 +120,19 @@ class DigitalProcessRunner:
             if action == "set-label":
                 return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
             freezer = GameFreezer(self.storage, logger)
-            if action in ("freeze", "deep-freeze"):
-                return {**result, "ok": True, "frozen": (freezer.deep_freeze if action == "deep-freeze" else freezer.freeze)(app_id, name)}
-            if action == "thaw":
-                return {**result, "ok": True, **freezer.thaw(app_id, name)}
+            if action == "freeze-recover":
+                return {**result, "ok": True, "recovered": freezer.recover()}
+            if action in ("freeze", "deep-freeze", "thaw"):
+                try:
+                    if action == "thaw":
+                        return {**result, "ok": True, **freezer.thaw(app_id, name)}
+                    return {**result, "ok": True, "frozen": (freezer.deep_freeze if action == "deep-freeze" else freezer.freeze)(app_id, name)}
+                except FreezeCancelled as cancelled:
+                    return {**result, "ok": True, "cancelled": True, "message": str(cancelled)}
+            # While a game is being frozen or thawed, nothing else touches it (play, uninstall, repair...).
+            owner = freeze_holder(freezer.records)
+            if owner and int(owner.get("app_id", -1)) == int(app_id) and action not in ("status", "snapshot", "game-log", "open-folder", "game-options"):
+                raise ValueError("Se está congelando o descongelando este juego: esperá a que termine o cancelalo.")
             linked_record = self.storage.linked.get(app_id)
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
@@ -305,7 +315,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

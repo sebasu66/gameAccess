@@ -14,6 +14,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 import game_journal as journal
+from .freeze_control import holder as freeze_holder
 import app_log
 from game_execution_manager import GameExecutionManager
 from disk_space import check_space, disk_info, folder_size
@@ -369,8 +370,14 @@ class GameLibraryManager:
         steam_only = {g["app_id"] for g in listed if g.get("state") == "steam_owned" and not self.storage.linked.get(g["app_id"])}
         unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
         results = []
+        # A game being frozen or thawed is left alone until that ends.
+        owner = freeze_holder(self.freezer.records)
+        busy = int(owner["app_id"]) if owner else None
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
+            if app_id == busy:
+                results.append({"app_id": app_id, "ok": False, "error": "Se está congelando o descongelando: esperá a que termine o cancelalo."})
+                continue
             if action == "steam_uninstall":
                 results.append({"app_id": app_id, **self._steam_uninstall(app_id)})
                 continue

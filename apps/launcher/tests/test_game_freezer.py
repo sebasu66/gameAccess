@@ -1,5 +1,6 @@
 """The freezer on a small generated game, with the real Windows compression and 7-Zip."""
 import hashlib
+import os
 import json
 import sys
 import time
@@ -169,3 +170,126 @@ def test_a_failure_is_written_as_the_end_of_the_progress(tmp_path):
             freezer(storage).deep_freeze(1, "Alpha")
     state = json.loads((storage.data / ".cache" / "digital_frozen" / "1.progress.json").read_text(encoding="utf-8"))
     assert state["finished"] and state["ok"] is False and state["events"][-1]["kind"] == "failed" and "espacio" in state["events"][-1]["error"]
+
+
+# -- edge cases: one at a time, cancel, pause, a closed app -----------------------------------------
+from game_library_manager import freeze_control
+from game_library_manager.freeze_control import FreezeBusy, FreezeCancelled, FreezeControl
+from game_library_manager.freezer import compressed_sizes
+
+
+def records(storage):
+    return storage.data / ".cache" / "digital_frozen"
+
+
+def test_one_freeze_at_a_time_and_a_lock_left_by_a_dead_process_is_taken_over(tmp_path):
+    storage, folder = game(tmp_path)
+    records(storage).mkdir(parents=True, exist_ok=True)
+    other = FreezeControl(records(storage), 2)
+    other.acquire("freeze")
+    (records(storage) / "freeze.lock").write_text(json.dumps({"pid": 99999999, "app_id": 2, "action": "freeze"}))  # its process is gone
+    assert freezer(storage).freeze(1, "Alpha")["level"] == "freeze"
+    assert not (records(storage) / "freeze.lock").exists()                     # released at the end
+    import subprocess
+    alive = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (records(storage) / "freeze.lock").write_text(json.dumps({"pid": alive.pid, "app_id": 2, "action": "deep"}))
+        with pytest.raises(FreezeBusy):
+            freezer(storage).thaw(1, "Alpha")
+        assert freezer(storage).record(1)["level"] == "freeze"                   # untouched
+        # Play on a deep-frozen game goes ahead of the work holding the lock (it is paused meanwhile).
+        (records(storage) / "freeze.lock").unlink()
+        freezer(storage).thaw(1, "Alpha")
+        freezer(storage).deep_freeze(1, "Alpha")
+        (records(storage) / "freeze.lock").write_text(json.dumps({"pid": alive.pid, "app_id": 2, "action": "deep"}))
+        assert freezer(storage).ensure_thawed(1, "Alpha") is True
+    finally:
+        alive.kill()
+
+
+def test_a_cancelled_freeze_puts_the_game_back_as_it_was(tmp_path, monkeypatch):
+    storage, folder = game(tmp_path)
+    before = digest(folder)
+    monkeypatch.setattr(FreezeControl, "cancelled", lambda self: True)
+    with pytest.raises(FreezeCancelled):
+        freezer(storage).freeze(1, "Alpha")
+    assert compressed_sizes(folder) is None and digest(folder) == before and freezer(storage).record(1) is None
+    with pytest.raises(FreezeCancelled):
+        freezer(storage).deep_freeze(1, "Alpha")
+    assert digest(folder) == before and not any(p.name.startswith(DEEP_ARCHIVE) for p in folder.iterdir())
+    state = json.loads((records(storage) / "1.progress.json").read_text(encoding="utf-8"))
+    assert state["finished"] and state["cancelled"] and "cancelado" in journal.read(folder)
+    assert not (records(storage) / "freeze.lock").exists()
+
+
+def test_a_cancelled_deep_thaw_leaves_the_game_frozen(tmp_path, monkeypatch):
+    storage, folder = game(tmp_path)
+    before = digest(folder)
+    freezer(storage).deep_freeze(1, "Alpha")
+    monkeypatch.setattr(FreezeControl, "cancelled", lambda self: True)
+    with pytest.raises(FreezeCancelled):
+        freezer(storage).thaw(1, "Alpha")
+    assert sorted(p.name for p in folder.iterdir()) == sorted([DEEP_ARCHIVE, journal.JOURNAL_FILE]) and freezer(storage).is_deep(1)
+    monkeypatch.undo()
+    freezer(storage).thaw(1, "Alpha")
+    assert digest(folder) == before
+
+
+def test_the_work_waits_while_paused(tmp_path):
+    storage, _ = game(tmp_path)
+    records(storage).mkdir(parents=True, exist_ok=True)
+    (records(storage) / "freeze.pause").write_text("")
+    waits = []
+    control = FreezeControl(records(storage), 1, sleep=lambda seconds: waits.append(seconds) or (records(storage) / "freeze.pause").unlink())
+    control.checkpoint()
+    assert waits == [0.5]
+
+
+def test_after_a_closed_app_each_cut_freeze_is_put_back_in_a_safe_state(tmp_path):
+    storage, folder = game(tmp_path)
+    before = digest(folder)
+    dead = 99999999
+
+    def cut(action, **extra):
+        records(storage).mkdir(parents=True, exist_ok=True)
+        (records(storage) / "1.progress.json").write_text(json.dumps({"action": action, "pid": dead, "folder": str(folder), "percent": 42, "finished": False, **extra}))
+    # A deep freeze cut while compressing: the half-made archive goes, the game was never touched.
+    (folder / (DEEP_ARCHIVE + ".tmp")).write_bytes(b"half")
+    cut("deep")
+    assert freezer(storage).recover() == [{"app_id": 1, "action": "deep", "percent": 42, "outcome": "discarded"}]
+    assert digest(folder) == before and not (folder / (DEEP_ARCHIVE + ".tmp")).exists()
+    assert freezer(storage).recover() == []                                   # reported once
+    # A deep freeze cut while removing the files: the archive is complete, the removal ends.
+    record = freezer(storage).deep_freeze(1, "Alpha")
+    freezer(storage).thaw(1, "Alpha")
+    freezer(storage).deep_freeze(1, "Alpha")
+    (folder / "leftover.txt").write_text("x")
+    saved = freezer(storage).record(1)
+    freezer(storage)._save(1, {**saved, "phase": "clearing"})
+    cut("deep")
+    assert freezer(storage).recover()[0]["outcome"] == "completed"
+    assert not (folder / "leftover.txt").exists() and "phase" not in freezer(storage).record(1)
+    freezer(storage).thaw(1, "Alpha")
+    assert digest(folder) == before
+    # A normal freeze cut short can go on: the files already compressed are skipped.
+    cut("freeze")
+    assert freezer(storage).recover()[0]["outcome"] == "resumable"
+    assert "interrumpido al 42 %" in journal.read(folder)
+    # A freeze whose process still runs is only reported.
+    cut("freeze", pid=os.getpid())
+    assert freezer(storage).recover()[0]["outcome"] == "running"
+
+
+def test_nothing_else_touches_a_game_while_it_is_frozen(tmp_path):
+    storage, folder = game(tmp_path)
+    records(storage).mkdir(parents=True, exist_ok=True)
+    import subprocess
+    alive = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (records(storage) / "freeze.lock").write_text(json.dumps({"pid": alive.pid, "app_id": 1, "action": "freeze"}))
+        refused = DigitalProcessRunner(storage).run("uninstall", 1, "Alpha")
+        assert refused["ok"] is False and "Se está congelando" in refused["error"]
+        assert GameLibraryManager(storage, freezer=freezer(storage)).batch("uninstall", [1])[0]["error"].startswith("Se está congelando")
+        assert folder.is_dir()
+    finally:
+        alive.kill()

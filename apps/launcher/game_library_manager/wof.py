@@ -58,3 +58,21 @@ def uncompress(path: Path) -> int:
     # Opening a compressed file for writing may already bring it back; then Windows says it is not compressed.
     code = _control(path, GENERIC_READ | GENERIC_WRITE, FSCTL_DELETE_EXTERNAL_BACKING)
     return 0 if code == NOT_EXTERNALLY_BACKED else code
+
+
+FSCTL_GET_EXTERNAL_BACKING = 0x90310
+
+
+def is_compressed(path: Path) -> bool:
+    """Whether Windows already keeps this file compressed (a freeze cut short goes on from the files left)."""
+    if _kernel is None:
+        return False
+    payload = (ctypes.c_ulong * 8)()
+    handle = _kernel.CreateFileW("\\\\?\\" + str(Path(path).resolve()), GENERIC_READ, FILE_SHARE_READ, None, OPEN_EXISTING, 0, None)
+    if handle == _INVALID:
+        return False
+    try:
+        returned = wintypes.DWORD()
+        return bool(_kernel.DeviceIoControl(handle, FSCTL_GET_EXTERNAL_BACKING, None, 0, ctypes.byref(payload), ctypes.sizeof(payload), ctypes.byref(returned), None))
+    finally:
+        _kernel.CloseHandle(handle)

@@ -33,6 +33,7 @@ from atomic_json import write_json
 from disk_space import folder_size
 from game_download_manager.extractor import find_portable_7z
 from . import wof
+from .freeze_control import FreezeBusy, FreezeCancelled, FreezeControl, lower_priority, pid_alive, resume, suspend
 from .storage import BACKUP_MARKER, ERROR_FILE, split_folder_name
 
 LEVELS = ("freeze", "deep")
@@ -58,10 +59,11 @@ class FreezeProgress:
     share of the whole, bytes done, the file being worked on and the last events (files found, threads, a big file
     done...). Written a few times a second at most; events and the end are written at once."""
 
-    def __init__(self, path: Path, action: str, clock=time.time):
+    def __init__(self, path: Path, action: str, folder: Path | str = "", clock=time.time):
         self.path, self.clock, self._written = path, clock, 0.0
         self.steps = STEPS[action]
-        self.state = {"action": action, "steps": [name for name, _ in self.steps], "step": self.steps[0][0], "step_share": 0.0,
+        # The process and the folder let a later start tell a freeze still running from one cut short (recover).
+        self.state = {"action": action, "pid": os.getpid(), "folder": str(folder), "steps": [name for name, _ in self.steps], "step": self.steps[0][0], "step_share": 0.0,
                       "percent": 0.0, "done_bytes": 0, "total_bytes": 0, "file": "", "events": [], "started_at": clock(),
                       "updated_at": clock(), "finished": False, "ok": None}
         self.event("start")
@@ -99,7 +101,7 @@ class FreezeProgress:
     def finish(self, ok: bool, **values) -> None:
         if ok:
             self.state.update(step=self.steps[-1][0], step_share=1.0, percent=100.0, done_bytes=self.state["total_bytes"])
-        self.state.update(finished=True, ok=ok, file="")
+        self.state.update(finished=True, ok=ok, file="", cancelled=bool(values.get("cancelled")))
         self.event("done" if ok else "failed", **values)
 
     def write(self, force: bool = False) -> None:
@@ -234,12 +236,37 @@ class GameFreezer:
             raise RuntimeError(f"{what} terminó con código {done.returncode}: {(done.stderr or done.stdout or '').strip()[-300:]}")
         return done.stdout or ""
 
-    def _stream(self, args: list[str], what: str, progress: FreezeProgress, total: int, cwd: Path | None = None) -> None:
-        """Run 7-Zip with its progress on stdout (-bsp1): every "NN% ... file" it prints moves the step and the file."""
-        process = subprocess.Popen(args, cwd=str(cwd) if cwd else None, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
+    def _stream(self, args: list[str], what: str, progress: FreezeProgress, total: int, cwd: Path | None = None,
+                control: FreezeControl | None = None) -> None:
+        """Run 7-Zip (below normal priority) with its progress on stdout (-bsp1): every "NN% ... file" it prints moves
+        the step and the file. With `control`, a pause suspends 7-Zip where it is and a cancel stops it (FreezeCancelled)."""
+        process = subprocess.Popen(args, cwd=str(cwd) if cwd else None, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   creationflags=NO_WINDOW | (0x00004000 if sys.platform == "win32" else 0))
         errors: list[bytes] = []
         reader = threading.Thread(target=lambda: errors.append(process.stderr.read()), daemon=True)
         reader.start()
+        stop, stopped = threading.Event(), {"cancelled": False}
+
+        def watch() -> None:
+            held = False
+            while True:
+                if control.cancelled():
+                    if held:
+                        resume(process.pid)
+                    stopped["cancelled"] = True
+                    process.kill()
+                    return
+                if control.paused() != held:
+                    held = not held
+                    (suspend if held else resume)(process.pid)
+                if stop.wait(0.3):
+                    break
+            if held:
+                resume(process.pid)
+
+        watcher = threading.Thread(target=watch, daemon=True) if control else None
+        if watcher:
+            watcher.start()
         pending = ""
         while chunk := process.stdout.read1(65536):
             pending += chunk.decode("utf-8", "replace")
@@ -250,7 +277,12 @@ class GameFreezer:
                     share = int(match.group(1)) / 100
                     progress.advance(share, done=int(total * share), file=match.group(2) or None)
         process.wait()
+        stop.set()
+        if watcher:
+            watcher.join()
         reader.join()
+        if stopped["cancelled"]:
+            raise FreezeCancelled("Cancelado: el juego quedó como estaba.")
         if process.returncode != 0:
             text = b"".join(errors).decode("utf-8", "replace").strip()
             raise RuntimeError(f"{what} terminó con código {process.returncode}: {text[-300:]}")
@@ -270,37 +302,61 @@ class GameFreezer:
             self.log.info("%s: %s", folder.name, text)
 
     # -- the two levels ---------------------------------------------------------------------------
-    def _progress(self, app_id: int, action: str) -> FreezeProgress:
-        return FreezeProgress(self.records / f"{int(app_id)}.progress.json", action)
+    def _progress(self, app_id: int, action: str, folder: Path) -> FreezeProgress:
+        return FreezeProgress(self.records / f"{int(app_id)}.progress.json", action, folder)
 
-    def _parallel(self, folder: Path, files: list[tuple[Path, int]], work, progress: FreezeProgress, report_stored: bool) -> list[Path]:
+    def _control(self, app_id: int) -> FreezeControl:
+        return FreezeControl(self.records, app_id)
+
+    def _parallel(self, folder: Path, files: list[tuple[Path, int]], work, progress: FreezeProgress | None, report_stored: bool,
+                  control: FreezeControl | None = None) -> list[Path]:
         """`work` (compress or uncompress one file) on every file, on all cores at once, biggest files first so the
-        threads end together. Returns the files Windows refused (in use, read-only...); the others are done."""
+        threads end together. Before each file the work waits while paused and stops when cancelled (FreezeCancelled:
+        the files started go on to their end, the rest are not touched). Returns the files Windows refused (in use,
+        read-only...); the others are done."""
         total = sum(size for _, size in files) or 1
         done, refused = 0, []
+
+        def task(path: Path) -> int:
+            if control:
+                control.checkpoint()
+            return work(path)
+
         with ThreadPoolExecutor(self.workers) as pool:
-            jobs = {pool.submit(work, path): (path, size) for path, size in sorted(files, key=lambda item: -item[1])}
-            for job in as_completed(jobs):
-                path, size = jobs[job]
-                code = job.result()
-                done += size
-                name = str(path.relative_to(folder))
-                if code:
-                    refused.append(path)
-                    progress.event("skipped", name=name, code=code)
-                elif size >= BIG_FILE:
-                    progress.event("file", name=name, bytes=size, **({"stored": on_disk(path)} if report_stored else {}))
-                progress.advance(done / total, done=done, file=name)
+            jobs = {pool.submit(task, path): (path, size) for path, size in sorted(files, key=lambda item: -item[1])}
+            try:
+                for job in as_completed(jobs):
+                    path, size = jobs[job]
+                    code = job.result()
+                    done += size
+                    name = str(path.relative_to(folder))
+                    if progress is None:
+                        continue
+                    if code:
+                        refused.append(path)
+                        progress.event("skipped", name=name, code=code)
+                    elif size >= BIG_FILE:
+                        progress.event("file", name=name, bytes=size, **({"stored": on_disk(path)} if report_stored else {}))
+                    progress.advance(done / total, done=done, file=name)
+            except FreezeCancelled:
+                for job in jobs:
+                    job.cancel()
+                raise
         return refused
 
     def freeze(self, app_id: int, name: str) -> dict:
-        """Windows compression: playable without thawing. Every core compresses its own files at the same time."""
+        """Windows compression: playable without thawing. Every core compresses its own files at the same time; files
+        already compressed (a freeze cut short) are skipped. Cancelled, what was compressed is decompressed again."""
         folder = self._target(app_id, name)
         if self.is_deep(app_id):
             raise ValueError("El juego ya está en congelado profundo.")
-        progress = self._progress(app_id, "freeze")
+        control = self._control(app_id)
+        control.acquire("freeze")
+        progress = self._progress(app_id, "freeze", folder)
         started = self.now()
         self._note(folder, f"inicio: congelado (compresión de Windows, {self.workers} hilos)")
+        lower_priority()
+        files: list[tuple[Path, int]] = []
         try:
             files = _payload_files(folder)
             original = sum(size for _, size in files)
@@ -309,7 +365,8 @@ class GameFreezer:
             progress.step("compress")
             if wof.available():
                 progress.event("threads", count=self.workers)
-                refused = self._parallel(folder, files, wof.compress, progress, report_stored=True)
+                refused = self._parallel(folder, files, lambda path: 0 if wof.is_compressed(path) else wof.compress(path), progress,
+                                         report_stored=True, control=control)
                 if refused:
                     self.log and self.log.info("%s: %s files left uncompressed (in use or protected)", folder.name, len(refused))
             else:
@@ -323,18 +380,30 @@ class GameFreezer:
             self._note(folder, f"congelado (compresión de Windows, {self.workers} hilos): {original / 1e9:.1f} GB -> {stored / 1e9:.1f} GB en {seconds:.0f} s")
             progress.finish(True, original=original, stored=stored, seconds=round(seconds))
             return record
+        except FreezeCancelled:
+            # Back as it was: every file compressed so far is decompressed (a second or two).
+            self._parallel(folder, files, wof.uncompress, None, report_stored=False)
+            self._note(folder, f"cancelado al {progress.state['percent']:.0f} %: se descomprimió lo hecho")
+            progress.finish(False, cancelled=True)
+            raise
         except BaseException as error:
             progress.finish(False, error=str(error))
             self._note(folder, f"falló: {error}")
             raise
+        finally:
+            control.release()
 
     def deep_freeze(self, app_id: int, name: str) -> dict:
-        """One 7-Zip archive inside the game folder; the files are removed only after the archive checks out."""
+        """One 7-Zip archive inside the game folder; the files are removed only after the archive checks out.
+        Cancelled while compressing or checking, the half-made archive is deleted (the game was never touched); the
+        last step (removing the files) is not cancelled: it takes seconds and the archive is already complete."""
         folder = self._target(app_id, name)
         if self.is_deep(app_id):
             raise ValueError("El juego ya está en congelado profundo.")
         tool = self._tool()
-        progress = self._progress(app_id, "deep")
+        control = self._control(app_id)
+        control.acquire("deep")
+        progress = self._progress(app_id, "deep", folder)
         started = self.now()
         self._note(folder, f"inicio: congelado profundo (7-Zip, {self.workers} hilos)")
         archive, partial = folder / DEEP_ARCHIVE, folder / (DEEP_ARCHIVE + ".tmp")
@@ -352,10 +421,10 @@ class GameFreezer:
             progress.event("threads", count=self.workers)
             try:
                 self._stream([tool, "a", "-t7z", "-m0=lzma2", f"-mx{DEEP_LEVEL}", f"-mmt{self.workers}", "-y", "-sccUTF-8", "-bso0", "-bsp1",
-                              str(partial), "*", *excluded], "7-Zip", progress, original, cwd=folder)
+                              str(partial), "*", *excluded], "7-Zip", progress, original, cwd=folder, control=control)
                 progress.event("archived", bytes=partial.stat().st_size)
                 progress.step("verify")
-                self._stream([tool, "t", "-y", "-sccUTF-8", "-bso0", "-bsp1", str(partial)], "La prueba del archivo", progress, original)
+                self._stream([tool, "t", "-y", "-sccUTF-8", "-bso0", "-bsp1", str(partial)], "La prueba del archivo", progress, original, control=control)
                 listed = self._listed_bytes(tool, partial)
                 if listed != original:
                     raise RuntimeError(f"El archivo guarda {listed} bytes y el juego tiene {original}: no se borra nada.")
@@ -368,13 +437,7 @@ class GameFreezer:
                       "frozen_at": datetime.now().isoformat(timespec="seconds"), "phase": "clearing"}
             self._save(app_id, record)  # from here a thaw restores the game, whatever is left in the folder
             progress.step("clear")
-            items = [item for item in folder.iterdir() if item.name not in (*KEEP, DEEP_ARCHIVE)]
-            for index, item in enumerate(items, 1):
-                if item.is_dir() and not item.is_symlink():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
-                progress.advance(index / len(items), file=item.name)
+            self._clear(folder, progress)
             record.pop("phase")
             record["stored_bytes"] = folder_on_disk(folder)
             self._save(app_id, record)
@@ -382,13 +445,33 @@ class GameFreezer:
             self._note(folder, f"congelado profundo (7-Zip, {self.workers} hilos): {original / 1e9:.1f} GB -> {record['stored_bytes'] / 1e9:.1f} GB en {seconds:.0f} s")
             progress.finish(True, original=original, stored=record["stored_bytes"], seconds=round(seconds))
             return record
+        except FreezeCancelled:
+            self._note(folder, f"cancelado al {progress.state['percent']:.0f} %: se descartó el archivo a medias, el juego no se tocó")
+            progress.finish(False, cancelled=True)
+            raise
         except BaseException as error:
             progress.finish(False, error=str(error))
             self._note(folder, f"falló: {error}")
             raise
+        finally:
+            control.release()
 
-    def thaw(self, app_id: int, name: str) -> dict:
-        """Undo either level. A deep freeze needs the game's full size free on the disk."""
+    @staticmethod
+    def _clear(folder: Path, progress: FreezeProgress | None = None) -> None:
+        """Remove the game's own files once its deep archive is complete (the log, the markers and the archive stay)."""
+        items = [item for item in folder.iterdir() if item.name not in (*KEEP, DEEP_ARCHIVE)]
+        for index, item in enumerate(items, 1):
+            if item.is_dir() and not item.is_symlink():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+            if progress:
+                progress.advance(index / len(items), file=item.name)
+
+    def thaw(self, app_id: int, name: str, priority: bool = False) -> dict:
+        """Undo either level. A deep freeze needs the game's full size free on the disk. Cancelled, the game stays
+        frozen as it was (a deep thaw removes what it had extracted; the archive is never touched before the end).
+        `priority`: the player is waiting (Play on a deep-frozen game): it goes ahead of the work holding the lock."""
         record = self.record(app_id)
         if not record:
             folder = self._target(app_id, name)
@@ -398,14 +481,19 @@ class GameFreezer:
         else:
             folder = self._target(app_id, name)
         deep = record["level"] == "deep"
-        progress = self._progress(app_id, "thaw-deep" if deep else "thaw")
+        control = self._control(app_id)
+        control.acquire("thaw-deep" if deep else "thaw", priority=priority)
+        progress = self._progress(app_id, "thaw-deep" if deep else "thaw", folder)
         started = self.now()
         self._note(folder, f"inicio: descongelado ({'congelado profundo' if deep else 'compresión de Windows'})")
+        lower_priority()
         try:
             if deep:
                 archive = folder / DEEP_ARCHIVE
                 if not archive.is_file():
                     raise RuntimeError("Falta el archivo del congelado profundo: el juego no se puede recuperar desde acá.")
+                if record.get("phase") == "clearing":
+                    self._clear(folder)    # a deep freeze cut short while removing the files: its archive is complete
                 needed = record["original_bytes"] - _payload_size(folder)
                 free = shutil.disk_usage(folder).free
                 if free < needed:
@@ -413,7 +501,7 @@ class GameFreezer:
                 progress.total(record["original_bytes"])
                 progress.event("threads", count=self.workers)
                 self._stream([self._tool(), "x", "-y", "-aoa", f"-mmt{self.workers}", "-sccUTF-8", "-bso0", "-bsp1", f"-o{folder}", str(archive)],
-                             "7-Zip", progress, record["original_bytes"])
+                             "7-Zip", progress, record["original_bytes"], control=None if priority else control)
                 progress.step("check")
                 restored = _payload_size(folder)
                 if restored != record["original_bytes"]:
@@ -425,7 +513,7 @@ class GameFreezer:
                 progress.total(sum(size for _, size in files))
                 if wof.available():
                     progress.event("threads", count=self.workers)
-                    refused = self._parallel(folder, files, wof.uncompress, progress, report_stored=False)
+                    refused = self._parallel(folder, files, wof.uncompress, progress, report_stored=False, control=None if priority else control)
                 else:
                     refused = files
                 if refused:
@@ -436,16 +524,84 @@ class GameFreezer:
             self._note(folder, f"descongelado ({'congelado profundo' if deep else 'compresión de Windows'}) en {seconds:.0f} s")
             progress.finish(True, seconds=round(seconds))
             return {"thawed": True, "level": record["level"]}
+        except FreezeCancelled:
+            if deep:
+                self._clear(folder)   # what had been extracted goes: the archive is still the game
+            elif self.record(app_id):
+                self._save(app_id, {**record, "stored_bytes": folder_on_disk(folder)})
+            self._note(folder, f"descongelado cancelado al {progress.state['percent']:.0f} %: el juego sigue congelado")
+            progress.finish(False, cancelled=True)
+            raise
         except BaseException as error:
             progress.finish(False, error=str(error))
             self._note(folder, f"falló: {error}")
             raise
+        finally:
+            control.release()
+
+    # -- after a closed app or a crash ----------------------------------------------------------------
+    def recover(self) -> list[dict]:
+        """Each freeze or thaw that never ended and whose process is gone is put back in a safe state, said in its
+        log, and reported (its progress is marked as ended, so it is reported once):
+
+            freeze      every file is either compressed or not, the game plays: it can go on ("resumable") or be undone
+            deep        cut while compressing or checking: the half-made archive goes, the game was never touched
+                        ("discarded"); cut while removing the files: the archive is complete, the removal ends ("completed")
+            thaw-deep   what had been extracted goes, the archive is still the game ("retry")
+            thaw        part of the files is back to normal, the game plays ("retry")
+
+        A freeze whose process is still running (the app was closed, the work went on) is reported as "running"."""
+        found: list[dict] = []
+        if not self.records.is_dir():
+            return found
+        for path in sorted(self.records.glob("*.progress.json")):
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+                app_id = int(path.name.split(".")[0])
+            except (OSError, ValueError):
+                continue
+            if state.get("finished"):
+                continue
+            action, percent = state.get("action", ""), float(state.get("percent") or 0)
+            entry = {"app_id": app_id, "action": action, "percent": percent}
+            if pid_alive(state.get("pid")):
+                found.append({**entry, "outcome": "running"})
+                continue
+            folder = Path(state.get("folder") or "")
+            try:
+                if action == "freeze":
+                    entry["outcome"] = "resumable"
+                elif action == "deep":
+                    record = self.record(app_id)
+                    if record and record.get("phase") == "clearing" and (folder / DEEP_ARCHIVE).is_file():
+                        self._clear(folder)
+                        record.pop("phase")
+                        record["stored_bytes"] = folder_on_disk(folder)
+                        self._save(app_id, record)
+                        entry["outcome"] = "completed"
+                    else:
+                        (folder / (DEEP_ARCHIVE + ".tmp")).unlink(missing_ok=True)
+                        entry["outcome"] = "discarded"
+                elif action == "thaw-deep":
+                    if (folder / DEEP_ARCHIVE).is_file():
+                        self._clear(folder)
+                    entry["outcome"] = "retry"
+                else:
+                    entry["outcome"] = "retry"
+            except OSError as error:
+                entry.update(outcome="failed", error=str(error))
+            if folder.is_dir():
+                journal.note(folder, "freeze", f"interrumpido al {percent:.0f} % (la app se cerró): {entry['outcome']}")
+            state.update(finished=True, ok=False, interrupted=True)
+            write_json(path, state)
+            found.append(entry)
+        return found
 
     def ensure_thawed(self, app_id: int, name: str) -> bool:
         """Before Play, repair or analysis: a deep-frozen game is brought back. Windows compression needs nothing."""
         if not self.is_deep(app_id):
             return False
-        self.thaw(app_id, name)
+        self.thaw(app_id, name, priority=True)
         return True
 
     # -- automatic --------------------------------------------------------------------------------
@@ -482,6 +638,8 @@ class GameFreezer:
                 try:
                     (self.deep_freeze if wanted == "deep" else self.freeze)(app_id, title)
                     done.append({"app_id": app_id, "ok": True, "level": wanted})
+                except FreezeBusy:
+                    return done        # another freeze or thaw is going on: next time
                 except (OSError, ValueError, RuntimeError) as error:
                     done.append({"app_id": app_id, "ok": False, "level": wanted, "error": str(error)})
         return done
