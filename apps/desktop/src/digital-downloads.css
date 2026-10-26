@@ -171,10 +171,13 @@
 .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:hover:not(:disabled) { border-color: var(--ga-orange); background: #cc83331a; color: #d79e60; }
 .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button > svg { color: inherit; }
 .digital-downloads-screen .digital-download-actions > .digital-download-dismiss { order: 99; }
-/* Ready or failed: a larger mark on the picture's top-left corner, by the card's edge: a 70 % opaque dark disc with a
-   ring and the icon in the state's colour, so it reads on any cover. */
+/* Removing the download from the list is a red button with a white cross, so it never reads as Abort or Cancel. */
+.digital-downloads-screen.is-embedded .digital-download-row .digital-download-actions > .digital-download-dismiss { border-color: var(--ga-danger, #be4750); background: var(--ga-danger, #be4750); color: #fff; }
+.digital-downloads-screen.is-embedded .digital-download-row .digital-download-actions > .digital-download-dismiss:hover:not(:disabled) { border-color: #d65c65; background: #d65c65; color: #fff; }
+/* Ready or failed: a larger mark in the card's top-right corner: a 70 % opaque dark disc with a ring and the icon in
+   the state's colour, so it reads on any background. */
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon {
-  position: absolute; left: 14px; top: 14px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: #0b0f12b3; box-shadow: inset 0 0 0 2px currentColor, 0 2px 8px #000a; opacity: 1; }
+  position: absolute; right: 10px; top: 10px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: #0b0f12b3; box-shadow: inset 0 0 0 2px currentColor, 0 2px 8px #000a; opacity: 1; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon svg { width: 22px; height: 22px; }
 @media (prefers-reduced-motion: reduce) { .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) { transition: none; } }
 /* Pictures at rest as calm as the grid's covers (less colour, a little darker); the one under the pointer gets its colour back. */
