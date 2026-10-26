@@ -122,6 +122,9 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 - Cubo interruptor (`aria-pressed`), como `ga-personal-order` junto al orden del catálogo: mismo tamaño y estilo que sus vecinos; encendido es naranja lleno con el texto visible; sin poder usarse va atenuado (`aria-disabled`, no `disabled`, para que el tooltip explique qué falta). Cuando pasa a estar disponible, una sola vez: pulso de escala con brillo naranja y un sonido corto, después de cerrar cualquier ficha abierta.
 
+- **Marco y pantalla:** los botones montados en el marco (los del pie) son teclas de metal con relieve y bisel (luz arriba a la izquierda, sombra abajo a la derecha, un canto oscuro debajo) que se hunden al apretarlos o mientras están encendidos. Los botones de la pantalla (barra de filtros y orden, buscador, botón de vista) son planos: sin degradé, bisel, brillo ni sombra (`device-frame.css`).
+- **Botón de vista** (catálogo / biblioteca): uno solo que muestra la vista actual, ícono y nombre en Bebas Neue mayúsculas, sobre el degradé de su palabra grande (naranja catálogo, verde biblioteca); al cambiar, el color pasa de uno al otro en 0,6 s.
+
 ### 4.15 Marca de instalado `play-mark`
 - Círculo de 28 px arriba a la izquierda de la portada con ▶ verde (`--ga-success`) sobre vidrio oscuro. Reemplaza la etiqueta "INSTALADO"/"LISTO" en el catálogo. En la librería no se muestra: ahí estar listo para jugar es lo normal.
 - En reposo las portadas de las grillas (catálogo y librería) se ven apagadas (`saturate(.55) brightness(.9)`); la tarjeta bajo el puntero o seleccionada se ve con todo su color.

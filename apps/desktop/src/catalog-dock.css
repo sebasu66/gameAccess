@@ -14,15 +14,21 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box in
 /* The single catalog / library switch: the current view's icon and name on its big word's colour (orange catalog,
    green library); a press turns it to the other view. `:not(#_)` outranks the LED button rules the pixel field adds
    to it. */
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { width: auto !important; min-width: 0; gap: 10px; padding: 0 24px 0 18px; border: 0 !important; color: #140a02 !important; text-shadow: none; transition: background .3s, box-shadow .3s; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) > span { max-width: none; opacity: 1; font: 800 15px Manrope, sans-serif; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { background: linear-gradient(90deg, #c94f00, #ff6a00 55%, #ffb070) !important; box-shadow: 0 10px 30px #ff6a0055 !important; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { background: linear-gradient(90deg, #4fb985, #8fe3b0 55%, #e2fff0) !important; box-shadow: 0 10px 30px #8fe3b055 !important; }
+/* Its three colours are registered properties, so the gradient itself fades from orange to green and back. It is on
+   the screen, so it is flat (no shadow). The name is in Bebas Neue, all caps. */
+@property --vt-lo { syntax: "<color>"; inherits: false; initial-value: #c94f00; }
+@property --vt-mid { syntax: "<color>"; inherits: false; initial-value: #ff6a00; }
+@property --vt-hi { syntax: "<color>"; inherits: false; initial-value: #ffb070; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { width: auto !important; min-width: 0; gap: 0; padding: 0 26px 0 18px; border: 0 !important; color: #140a02 !important; text-shadow: none;
+  background: linear-gradient(90deg, var(--vt-lo), var(--vt-mid) 55%, var(--vt-hi)) !important; box-shadow: none !important; transition: --vt-lo .6s ease, --vt-mid .6s ease, --vt-hi .6s ease; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { --vt-lo: #c94f00; --vt-mid: #ff6a00; --vt-hi: #ffb070; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { --vt-lo: #4fb985; --vt-mid: #8fe3b0; --vt-hi: #e2fff0; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { display: inline-flex; align-items: center; gap: 10px; max-width: none; opacity: 1; overflow: visible; animation: ga-view-toggle-in .35s cubic-bezier(.2, .8, .2, 1); }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face > span { max-width: none; opacity: 1; font: 400 24px/1 "Bebas Neue", sans-serif; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_):hover { filter: brightness(1.08); }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_):focus-visible { outline: 2px solid #f4f4f2; outline-offset: 3px; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_) > * { animation: ga-view-toggle-in .35s cubic-bezier(.2, .8, .2, 1); }
 @keyframes ga-view-toggle-in { from { opacity: 0; transform: translateY(8px); } }
-@media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_) > * { animation: none; } }
+@media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { transition: none; } html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { animation: none; } }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #ff6a00 !important; border-color: #ff6a00 !important; color: #140a02 !important; box-shadow: 0 10px 30px #ff6a0055 !important; }

@@ -454,9 +454,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
           {(() => {
             const current = view === "catalog" ? views[0] : views[1], next = view === "catalog" ? views[1] : views[0];
-            return <button key={current.id} type="button" className={`ga-view-toggle is-${current.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { current: current.label, next: next.label })} title={t("viewToggleAria", { current: current.label, next: next.label })}
+            return <button type="button" className={`ga-view-toggle is-${current.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { current: current.label, next: next.label })} title={t("viewToggleAria", { current: current.label, next: next.label })}
               onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
-              <FilledIcon name={current.id === "catalog" ? "catalog" : "library"} /><span>{current.label}</span>
+              <span key={current.id} className="ga-view-toggle-face"><FilledIcon name={current.id === "catalog" ? "catalog" : "library"} /><span>{current.label}</span></span>
             </button>;
           })()}
         </div>
