@@ -58,8 +58,15 @@ html body.ga-device-frame :is(.ga-detail-overlay, .central-dialog-backdrop, .ga-
 /* ...but what dims the screen behind them covers the whole window, under the bezel too (the frame stays above it),
    so no undimmed band shows between the dialog's area and the metal. */
 html body.ga-device-frame :is(.central-dialog-backdrop, .ga-premium-overlay, .ga-overlay-root) { box-shadow: 0 0 0 100vmax var(--ga-backdrop) !important; }
+html body.ga-device-frame .ga-detail-overlay {
+  --ga-out-top: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px)); --ga-out-right: var(--ga-frame-right, 0px);
+  --ga-out-bottom: var(--ga-frame-bottom, 0px); --ga-out-left: var(--ga-frame-left, 0px); }
 html body.ga-device-frame .ga-detail-overlay::before {
-  inset: calc(-1 * (var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px))) calc(-1 * var(--ga-frame-right, 0px)) calc(-1 * var(--ga-frame-bottom, 0px)) calc(-1 * var(--ga-frame-left, 0px)); }
+  inset: calc(-1 * var(--ga-out-top)) calc(-1 * var(--ga-out-right)) calc(-1 * var(--ga-out-bottom)) calc(-1 * var(--ga-out-left)); }
+/* The detail's scrim (the dark layer with the hole around the dialog, OverlayScreenDimmer) too; an SVG needs its size. */
+html body.ga-device-frame .ga-detail-overlay > .ga-screen-dimmer {
+  inset: auto; top: calc(-1 * var(--ga-out-top)); left: calc(-1 * var(--ga-out-left));
+  width: calc(100% + var(--ga-out-left) + var(--ga-out-right)); height: calc(100% + var(--ga-out-top) + var(--ga-out-bottom)); }
 html body.ga-device-frame .ga-in-frame { max-height: calc(100vh - var(--ga-frame-offset, 0px) - var(--ga-frame-top, 0px) - var(--ga-frame-bottom, 0px) - 32px) !important; }
 
 /* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
