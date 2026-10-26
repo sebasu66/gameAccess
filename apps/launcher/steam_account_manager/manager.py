@@ -4,13 +4,14 @@
     ownership.py  which account owns each game (LastOwner on disk, the owned list from the GameAccess server)
     switch.py     sign Steam in to the owner and run the game
 
-It talks to the Game Library Manager: installed Steam games become *linked* games (never moved, frozen or
-uninstalled by Game Access), and owned games that are not installed are listed so the library can offer
-"Install", which hands the game to Steam (`steam://install/<appid>`): Steam asks the library folder and checks space.
+It talks to the Game Library Manager: installed Steam games become *linked* games (never moved or frozen by Game
+Access; only uninstalled when the player asks), and owned games that are not installed are listed so the library can
+offer "Install", which hands the game to Steam (`steam://install/<appid>`): Steam asks the library folder and checks space.
 Game Access never downloads Steam games through its own download sources."""
 from __future__ import annotations
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 import app_log
@@ -193,6 +194,44 @@ class SteamAccountManager:
             outcome.update(switcher.ensure_account(client.id32(info["owner_id64"]), info["owner_name"]))
         os.startfile(f"steam://rungameid/{int(app_id)}")
         return {**outcome, "command": f"steam://rungameid/{int(app_id)}"}
+
+    def uninstall(self, app_id: int, linked=None) -> dict:
+        """Delete an installed Steam game from disk, as Steam's own "Uninstall" does: its folder under
+        steamapps/common, its appmanifest and its Workshop, shader-cache and download leftovers. No Steam account is
+        involved (the license stays with its owner, who can install it again). Steam is closed first when it is running:
+        it keeps its installed games in memory and would write the manifest back. Saves Steam keeps outside the game
+        folder (Steam Cloud, Documents, AppData) are not touched. `linked`: the library's linked games, whose record
+        for the game goes without hiding it, so an owned game shows again as "Install"."""
+        app_id = int(app_id)
+        game = next((g for g in self.installed_all() if g.app_id == app_id), None)
+        if game is None:
+            raise ValueError("Steam no tiene instalado este juego.")
+        folder = Path(game.folder)
+        steamapps = folder.parents[1]
+        common = steamapps / "common"
+        if folder.parent != common or folder.name in ("", ".", "..") or folder.resolve().parent != common.resolve():
+            raise ValueError("La carpeta del juego está fuera de la biblioteca de Steam.")
+        if folder.is_symlink() or (hasattr(folder, "is_junction") and folder.is_junction()):
+            raise ValueError("La carpeta del juego es un enlace; no se borra.")
+        if self.root:
+            switcher = self.switcher or SteamSwitcher(Path(self.root) / "steam.exe", self.log)
+            if switcher.close("Steam no se cerró a tiempo para desinstalar el juego. Cerralo y volvé a intentar."):
+                self.log.info("Steam closed to uninstall AppID %s", app_id)
+        leftovers = [steamapps / "workshop" / "content" / str(app_id), steamapps / "shadercache" / str(app_id),
+                     steamapps / "downloading" / str(app_id), steamapps / "temp" / str(app_id)]
+        for target in (folder, *leftovers):
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+        for target in (steamapps / f"appmanifest_{app_id}.acf", steamapps / "workshop" / f"appworkshop_{app_id}.acf"):
+            target.unlink(missing_ok=True)
+        if linked is not None:
+            linked.unlink(app_id, hide=False)
+        self.log.info("Steam game AppID %s uninstalled: %s (%s bytes)", app_id, folder, game.size_bytes)
+        return {"folder": str(folder), "freed_bytes": game.size_bytes}
+
+    def installed_all(self) -> list[client.InstalledSteamGame]:
+        """Every game with a manifest in Steam's libraries, whoever owns it (tools and unfinished ones too)."""
+        return client.installed_games(self.libraries())
 
     @staticmethod
     def install(app_id: int) -> dict:

@@ -33,6 +33,7 @@ type Filter = "all" | "outside" | "errors" | "partial" | "frozen";
 type Pending =
   | { kind: "plan"; plans: LibraryPlan[]; ids: number[] }
   | { kind: "uninstall"; ids: number[] }
+  | { kind: "steam_uninstall"; game: LibraryGame }
   | { kind: "discard"; game: LibraryGame; restart: boolean };
 
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
@@ -110,7 +111,7 @@ function History({ game, c }: { game: LibraryGame; c: LibraryCopy }) {
 }
 
 /** One notice per Library Manager action, saying how many games it changed and how many failed. */
-function announceBatch(action: "adopt" | "uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
+function announceBatch(action: "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
   if (!results.length) return;
   const ok = results.filter(row => row.ok).length;
   const failed = results.length - ok;
@@ -213,7 +214,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, locale, columns, exp
           </> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><ScrollText /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><FolderOpen /></IconAction>
-          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}><Trash2 /></IconAction>
+          {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
+          {game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? <IconAction label={c.steamUninstall} tone="danger" disabled={busy || id == null} onClick={() => setPending({ kind: "steam_uninstall", game })}><Trash2 /></IconAction> : null}
+          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}>{game.linked ? <Link2Off /> : <Trash2 />}</IconAction>
         </>}
       </td>
     </tr>
@@ -319,7 +322,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       setPending({ kind: "plan", plans, ids });
     } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); }
   };
-  const runBatch = async (action: "adopt" | "uninstall" | "discard_transfer", ids: number[]) => {
+  const runBatch = async (action: "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer", ids: number[]) => {
     setBusy(true); setMessage(c.working);
     try {
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
@@ -333,6 +336,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     if (!current) return;
     if (current.kind === "plan") await runBatch("adopt", current.ids);
     else if (current.kind === "uninstall") await runBatch("uninstall", current.ids);
+    else if (current.kind === "steam_uninstall") await runBatch("steam_uninstall", [current.game.app_id as number]);
     else {
       const catalogGame = findCatalogGame(current.game);
       await runBatch("discard_transfer", [current.game.app_id as number]);
@@ -344,15 +348,15 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   useEffect(() => {
     if (!pending || pending.kind === "plan") return;
     const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
-    const one = pending.kind === "uninstall" && pending.ids.length === 1 ? games.find(game => game.app_id === pending.ids[0]) : pending.kind === "discard" ? pending.game : undefined;
+    const one = pending.kind === "uninstall" && pending.ids.length === 1 ? games.find(game => game.app_id === pending.ids[0]) : pending.kind !== "uninstall" ? pending.game : undefined;
     const allLinked = pending.kind === "uninstall" && pending.ids.every(id => linkedIds.has(id));
     const anyLinked = pending.kind === "uninstall" && pending.ids.some(id => linkedIds.has(id));
     let live = true;
     void confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
-      title: pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
-      text: pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
-      confirmLabel: pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
+      title: pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
+      text: pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
+      confirmLabel: pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
     return () => { live = false; };

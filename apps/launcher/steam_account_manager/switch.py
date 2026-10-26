@@ -73,16 +73,22 @@ class SteamSwitcher:
         self.start = start or (lambda *args: subprocess.Popen([str(self.steam_exe), *args], close_fds=True, creationflags=_flags()))
         self.sleep, self.clock = sleep, clock
 
+    def close(self, too_slow: str = "Steam no se cerró a tiempo. Cerralo y volvé a intentar.") -> bool:
+        """Close Steam when it is running (and wait for it); True when it had to be closed."""
+        if not self.running():
+            return False
+        self.start("-shutdown")
+        if not _wait(lambda: not self.running(), SHUTDOWN_TIMEOUT, sleep=self.sleep, clock=self.clock):
+            raise RuntimeError(too_slow)
+        return True
+
     def ensure_account(self, account_id: int, account_name: str, login_timeout: float = LOGIN_TIMEOUT) -> dict:
         """Steam signed in to `account_id`, switching only when another account (or none) is active."""
         current = self.active()
         if current == account_id:
             return {"switched": False, "account": account_name}
         self.log.info("Steam: switching from account %s to %s", current or "none", account_name)
-        if self.running():
-            self.start("-shutdown")
-            if not _wait(lambda: not self.running(), SHUTDOWN_TIMEOUT, sleep=self.sleep, clock=self.clock):
-                raise RuntimeError("Steam no se cerró a tiempo para cambiar de cuenta. Cerralo y volvé a intentar.")
+        self.close("Steam no se cerró a tiempo para cambiar de cuenta. Cerralo y volvé a intentar.")
         self.auto_login(account_name)
         self.start()
         if not _wait(lambda: self.active() == account_id, login_timeout, step=1.0, sleep=self.sleep, clock=self.clock):

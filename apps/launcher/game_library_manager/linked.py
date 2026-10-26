@@ -48,12 +48,13 @@ class LinkedGames:
         self.unhide(app_id)
         return record
 
-    def unlink(self, app_id: int) -> None:
+    def unlink(self, app_id: int, hide: bool = True) -> None:
         """Forget the link and its history. The game itself is never touched. A Steam game the user takes out of the
-        library is remembered as hidden, so the automatic Steam import does not bring it back."""
+        library is remembered as hidden, so the automatic Steam import does not bring it back (`hide=False` after an
+        uninstall: the game is gone from disk, and an owned one stays offered to install again)."""
         record = self.get(app_id)
         (self.dir / f"{int(app_id)}.json").unlink(missing_ok=True)
-        if record and record.get("kind") == "steam":
+        if hide and record and record.get("kind") == "steam":
             self.hide(app_id)
 
     # -- Steam games the user took out of the library ---------------------------------------------------

@@ -21,7 +21,7 @@ from game_scanner import GameScanner
 from .storage import split_folder_name
 from .freezer import GameFreezer
 
-BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
+BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer")
 
 
 def play_dates(folder: Path) -> list[str]:
@@ -336,6 +336,17 @@ class GameLibraryManager:
     def thaw(self, app_id: int, name: str):
         return self.freezer.thaw(app_id, name)
 
+    def _steam_uninstall(self, app_id: int) -> dict:
+        """A Steam game deleted from disk (its folder, manifest and leftovers); no Steam account is needed."""
+        record = self.storage.linked.get(app_id)
+        if self.steam is None or not record or record.get("kind") != "steam":
+            return {"ok": False, "error": "No es un juego de Steam instalado."}
+        try:
+            return {"ok": True, **self.steam.uninstall(app_id, self.storage.linked)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Steam uninstall AppID %s failed: %s", app_id, error)
+            return {"ok": False, "error": str(error)}
+
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
         """Run one action on many games; one failure never stops the rest."""
@@ -350,6 +361,9 @@ class GameLibraryManager:
         results = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
+            if action == "steam_uninstall":
+                results.append({"app_id": app_id, **self._steam_uninstall(app_id)})
+                continue
             if app_id in steam_only:
                 if action == "uninstall":
                     self.storage.linked.hide(app_id)      # out of the library; Steam keeps the game
