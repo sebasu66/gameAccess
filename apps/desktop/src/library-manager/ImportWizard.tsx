@@ -1,6 +1,6 @@
 import { GaButton, GaClose } from "../components/ga/Buttons";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Folder, FolderPlus, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
 import CircularScrollbar from "../CircularScrollbar";
 import { digitalProcessManager, type ImportCandidate, type ImportDrive, type ImportItem } from "../catalog/DigitalProcessManager";
 import { libraryDemo } from "../libraryScan";
@@ -18,6 +18,18 @@ import { formatBytes } from "./format";
 import { duplicateRows, suggest } from "./matching";
 
 type Step = "drives" | "scanning" | "results" | "importing" | "done";
+
+/** The folders the player added to the search, remembered on this computer (each with whether it is ticked). */
+const FOLDERS_KEY = "gameaccess:import-folders";
+function readFolders(): Array<{ path: string; on: boolean }> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter(item => typeof item?.path === "string").map(item => ({ path: item.path, on: item.on !== false })) : [];
+  } catch { return []; }
+}
+function saveFolders(folders: Array<{ path: string; on: boolean }>) {
+  try { localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders)); } catch { /* not remembered, still works */ }
+}
 interface Row { candidate: ImportCandidate; choice: number | null; mode: "link" | "move"; picked: boolean; options: Array<{ id: number; name: string }> }
 
 const demoDrives: ImportDrive[] = [{ path: "C:\\", label: "C:", total_bytes: 931 * 1024 ** 3, free_bytes: 240 * 1024 ** 3 }, { path: "D:\\", label: "D:", total_bytes: 1863 * 1024 ** 3, free_bytes: 1100 * 1024 ** 3 }];
@@ -32,6 +44,16 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const [step, setStep] = useState<Step>("drives");
   const [drives, setDrives] = useState<ImportDrive[]>([]);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [folders, setFoldersState] = useState(readFolders);
+  const [folderDraft, setFolderDraft] = useState("");
+  const setFolders = (next: Array<{ path: string; on: boolean }>) => { setFoldersState(next); saveFolders(next); };
+  const addFolder = () => {
+    const path = folderDraft.trim().replace(/^"(.*)"$/, "$1");
+    if (!path) return;
+    if (!folders.some(item => item.path.toLowerCase() === path.toLowerCase())) setFolders([...folders, { path, on: true }]);
+    setFolderDraft("");
+  };
+  const pickedFolders = folders.filter(item => item.on).map(item => item.path);
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("");
   const [results, setResults] = useState<Array<{ name: string; ok: boolean; error?: string }>>([]);
@@ -58,7 +80,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const scan = async () => {
     setStep("scanning"); setMessage("");
     try {
-      const found = libraryDemo() ? demoCandidates : (await digitalProcessManager.importScan([...chosen])).candidates ?? [];
+      const found = libraryDemo() ? demoCandidates : (await digitalProcessManager.importScan([...chosen], pickedFolders)).candidates ?? [];
       setRows(found.map(candidate => {
         const options = candidate.app_id != null ? [] : suggest(candidate.name, catalog);
         const choice = candidate.app_id ?? options[0]?.id ?? null;
@@ -112,6 +134,25 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
             </li>
           ))}
         </ul>
+        <h3 className="m-0 mt-2 text-lg font-bold">{c.wzFolders}</h3>
+        <p className="m-0 text-sm text-muted-foreground">{c.wzFoldersHint}</p>
+        {folders.length ? <ul className="m-0 grid list-none gap-2 p-0">
+          {folders.map(item => (
+            <li key={item.path} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                <Checkbox checked={item.on} disabled={step === "scanning"} onCheckedChange={value => setFolders(folders.map(other => other.path === item.path ? { ...other, on: Boolean(value) } : other))} />
+                <Folder className="size-5 shrink-0 text-muted-foreground" />
+                <span className="truncate text-sm" title={item.path}>{item.path}</span>
+              </label>
+              <button type="button" className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-transparent text-muted-foreground hover:text-foreground" aria-label={c.wzRemoveFolder(item.path)} title={c.wzRemoveFolder(item.path)} disabled={step === "scanning"} onClick={() => setFolders(folders.filter(other => other.path !== item.path))}><X className="size-4" /></button>
+            </li>
+          ))}
+        </ul> : null}
+        <form className="flex gap-2" onSubmit={event => { event.preventDefault(); addFolder(); }}>
+          <input value={folderDraft} onChange={event => setFolderDraft(event.target.value)} disabled={step === "scanning"} placeholder={c.wzFolderPath} aria-label={c.wzFolderPath}
+            className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-[#0d1114] px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
+          <GaButton type="submit" icon={<FolderPlus size={16} />} disabled={step === "scanning" || !folderDraft.trim()}>{c.wzAddFolder}</GaButton>
+        </form>
         {message ? <p role="alert" className="m-0 text-sm text-[#e1898f]">{message}</p> : null}
       </div>
     );
@@ -124,7 +165,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
     );
     return (
       <div className="grid min-h-0 gap-3">
-        <div className="flex items-center gap-3"><b>{c.wzFound(rows.length)}</b><span className="text-xs text-muted-foreground">{c.wzLinkHint} {c.wzMoveHint}</span></div>
+        <p className="m-0 text-sm text-muted-foreground">{c.wzLinkHint} {c.wzMoveHint}</p>
         {rows.length === 0 ? <p className="m-0 text-sm text-muted-foreground">{c.wzNone}</p> : (
           <div className="relative min-h-0 rounded-lg border border-border bg-card/40">
             <div ref={scrollRef} className="max-h-[48vh] overflow-y-auto overflow-x-hidden pr-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -169,13 +210,14 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
             <CircularScrollbar targetRef={scrollRef} label={c.wzTitle} />
           </div>
         )}
+        {rows.length ? <p className="m-0 text-sm font-bold">{c.wzFound(rows.length)}</p> : null}
       </div>
     );
   })();
 
   return (
     <div className="fixed inset-x-0 bottom-0 top-[var(--window-chrome-height,34px)] z-[700] flex items-center justify-center bg-black/70 p-6 font-sans text-foreground [color-scheme:dark]" role="dialog" aria-modal="true" aria-label={c.wzTitle}>
-      <div className="flex max-h-full min-h-0 w-[min(1000px,94vw)] flex-col gap-4 rounded-lg border border-border bg-background p-6 shadow-2xl">
+      <div className="ga-overlay-dialog flex max-h-full min-h-0 w-[min(1000px,94vw)] flex-col gap-4 p-6">
         <header className="flex items-center gap-4">
           <h2 className="ga-screen-title mr-auto !text-4xl">{c.wzTitle}</h2>
           <GaClose label={c.wzClose} disabled={step === "scanning" || step === "importing"} onClick={() => onClose(imported.current)} />
@@ -183,7 +225,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
         <footer className="flex justify-end gap-2">
           {step === "results" ? <GaButton icon={<ArrowLeft size={16} />} onClick={() => setStep("drives")}>{c.wzBack}</GaButton> : null}
-          {step === "drives" || step === "scanning" ? <GaButton variant="primary" icon={step === "scanning" ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} disabled={step === "scanning" || chosen.size === 0} onClick={() => void scan()}>{step === "scanning" ? c.wzScanning : c.wzScan}</GaButton> : null}
+          {step === "drives" || step === "scanning" ? <GaButton variant="primary" icon={step === "scanning" ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} disabled={step === "scanning" || (chosen.size === 0 && pickedFolders.length === 0)} onClick={() => void scan()}>{step === "scanning" ? c.wzScanning : c.wzScan}</GaButton> : null}
           {step === "results" ? <GaButton variant="primary" disabled={chosenRows.length === 0} onClick={() => void run()}>{c.wzImport(chosenRows.length)}</GaButton> : null}
           {step === "done" ? <GaButton variant="primary" onClick={() => onClose(imported.current)}>{c.wzClose}</GaButton> : null}
         </footer>

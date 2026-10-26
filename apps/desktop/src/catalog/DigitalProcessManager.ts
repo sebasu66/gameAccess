@@ -98,7 +98,7 @@ export class DigitalProcessManager {
   librarySpace(bytes: number) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes })); }
   libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })); }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
-  importScan(drives: string[]) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives })); }
+  importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
   importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
   /** Steam Account Manager: the local Steam client, its accounts and who owns each game. */
   steamStatus() { return this.execute("steam-status", {id:0,name:""} as CatalogGame); }

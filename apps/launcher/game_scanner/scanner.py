@@ -143,10 +143,14 @@ class GameScanner:
         return found
 
     # -- scan ------------------------------------------------------------------------------------
-    def scan(self, drives: list[str]) -> list[dict]:
-        """Candidate games on the chosen disks, biggest first. Steam games carry their AppID."""
+    def scan(self, drives: list[str], folders: list[str] = ()) -> list[dict]:
+        """Candidate games on the chosen disks, biggest first, plus everything inside the folders the player added
+        (each game folder in them, or the folder itself when it is one game). Steam games carry their AppID."""
         self._deadline = time.time() + MAX_SECONDS
         found: dict[str, dict] = {}
+        for folder in folders:
+            for game in self._scan_folder(Path(folder)):
+                found.setdefault(game["path"], game)
         for drive in drives:
             root = Path(drive)
             if not _is_dir(root):
@@ -170,6 +174,26 @@ class GameScanner:
         self._mark_duplicates(games)
         games.sort(key=lambda g: g["size_bytes"], reverse=True)
         self.log.info("Game scan on %s: %s candidates (%s Steam)", drives, len(games), sum(1 for g in games if g["kind"] == "steam"))
+        return games
+
+    def _scan_folder(self, folder: Path) -> list[dict]:
+        """A folder the player chose: its Steam library if it is one, every game folder inside it, or the folder itself
+        when it holds a single game."""
+        if not _is_dir(folder):
+            self.log.info("Import scan: chosen folder %s does not exist", folder)
+            return []
+        self.progress(f"Revisando {folder}")
+        games: list[dict] = []
+        try:
+            for steamapps in (folder / "steamapps", folder / "Steam" / "steamapps"):
+                if _is_dir(steamapps):
+                    games += self._steam_games(steamapps)
+            for sub in self._subdirs(folder):
+                games += self._collect(sub, "custom", 1)
+            if not games:
+                games = self._collect(folder, "custom", 1)
+        except OSError as error:
+            self.log.warning("Scan of %s interrupted: %s", folder, error)
         return games
 
     @staticmethod

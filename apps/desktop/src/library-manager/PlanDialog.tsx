@@ -22,7 +22,7 @@ export function PlanDialog({ plans, c, busy, onConfirm, onCancel }: { plans: Lib
   const toggle = (id: number) => setOpen(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return (
     <AlertDialog open onOpenChange={value => { if (!value && !busy) onCancel(); }}>
-      <AlertDialogContent className="w-[min(960px,94vw)] max-h-[min(78vh,620px)]">
+      <AlertDialogContent className="ga-overlay-dialog w-[min(960px,94vw)] max-h-[min(78vh,620px)]">
         <AlertDialogHeader>
           <AlertDialogTitle>{c.planTitle}</AlertDialogTitle>
           <AlertDialogDescription>{c.planIntro}</AlertDialogDescription>

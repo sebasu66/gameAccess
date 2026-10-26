@@ -105,7 +105,8 @@ class DigitalProcessRunner:
                 if action == "import-drives":
                     return {**result, "ok": True, "drives": library.import_drives()}
                 if action == "import-scan":
-                    return {**result, "ok": True, "candidates": library.import_scan(json.loads(command or "{}").get("drives", []))}
+                    request = json.loads(command or "{}")
+                    return {**result, "ok": True, "candidates": library.import_scan(request.get("drives", []), folders=request.get("folders", []))}
                 if action == "import-run":
                     return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
                 if action == "library-autofreeze":

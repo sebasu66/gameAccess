@@ -303,11 +303,11 @@ class GameLibraryManager:
     def import_drives(self) -> list[dict]:
         return GameScanner.drives()
 
-    def import_scan(self, drives: list[str], progress=lambda text: None) -> list[dict]:
-        """Games found on the chosen disks that are not in the library yet."""
+    def import_scan(self, drives: list[str], progress=lambda text: None, folders: list[str] = ()) -> list[dict]:
+        """Games found on the chosen disks and in the folders the player added that are not in the library yet."""
         known = [g["app_id"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
         exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
-        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives)
+        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives, list(folders))
 
     def import_games(self, items: list[dict]) -> list[dict]:
         """Import each item {app_id, name, path, mode: link|move, kind, executable}; one failure never stops the rest."""

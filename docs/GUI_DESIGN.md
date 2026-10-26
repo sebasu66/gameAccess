@@ -77,6 +77,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - **Borde degradado claro:** borde de 1 px con gradiente de `#ffffff55` (arriba izquierda) a `#ffffff08` (abajo derecha), aplicado con máscara (`mask-composite: exclude`), como `gameaccess-theme.css:472`.
 - Sombra `0 24px 60px #0008`.
 - Encabezado estándar: eyebrow + título Bebas + subtítulo muted, botón `ga-close` arriba a la derecha, separador `--ga-line` debajo.
+- **Diálogo superpuesto** `ga-overlay-dialog` (importar juegos, plan de corrección y los que vengan): un solo molde, vidrio esmerilado marrón óxido oscuro (translúcido con desenfoque, un poco más cálido arriba a la izquierda) y el mismo borde fino con degradé de la ficha del juego.
 
 ### 4.7 Fondo de superposición `ga-backdrop`
 - `#05080ccc` con `backdrop-filter: blur(10px)`. Cierra al pulsar fuera o con Esc (salvo procesos en curso).

@@ -265,3 +265,16 @@ def test_removing_a_linked_game_never_touches_its_files(disk, library):
     lib.import_games([{"app_id": 5, "name": "Alpha", "path": str(alpha), "mode": "link"}])
     storage.uninstall(5, "Alpha")
     assert not storage.linked.get(5) and sorted(p.name for p in alpha.rglob("*")) == before
+
+
+def test_scan_walks_the_folders_the_player_added(tmp_path, monkeypatch):
+    # A folder outside the usual places (C:\games\mc in Seba's PC): each game folder in it is found, and a folder that
+    # is itself one game counts as that game; a folder that does not exist is skipped.
+    monkeypatch.setattr(scanner_module, "MIN_GAME_BYTES", 500)
+    mine = tmp_path / "anywhere" / "mc"
+    _game(mine / "MC instance", "launcher.exe")
+    _game(mine / "Modpack", "game.exe")
+    single = _game(tmp_path / "elsewhere" / "Lonely Game", "lonely.exe")
+    games = GameScanner().scan([], [str(mine), str(single), str(tmp_path / "missing")])
+    assert {g["name"] for g in games} == {"MC instance", "Modpack", "Lonely Game"}
+    assert all(g["source"] == "custom" for g in games)

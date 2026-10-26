@@ -42,6 +42,19 @@ button.ga-btn-secondary {
 button.ga-btn-secondary:hover:not(:disabled) { background: #ffffff14; }
 button.ga-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
 
+/* Overlay dialogs of the app (import games, the fix plan...): one template. A dark rust-brown frosted glass (translucent, blurred) and the game detail's thin gradient ring (docs/GUI_DESIGN.md §4.6). */
+.ga-overlay-dialog {
+  position: relative; isolation: isolate; border: 1px solid transparent !important; border-radius: 12px !important;
+  background: linear-gradient(160deg, rgba(60, 37, 22, .82) 0%, rgba(38, 26, 18, .85) 45%, rgba(22, 17, 14, .9) 100%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.1); backdrop-filter: blur(18px) saturate(1.1); box-shadow: 0 24px 60px #0008 !important;
+}
+.ga-overlay-dialog::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
+}
+
 /* Glass panel with the light gradient ring used by the detail dialog. */
 .ga-panel {
   position: relative;
