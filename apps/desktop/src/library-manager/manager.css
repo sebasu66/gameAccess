@@ -121,19 +121,32 @@
 .lm-log-head { color: var(--ga-frost, #a5cee9); }
 .lm-log-foot { color: #c9ced2; }
 .lm-log-group.is-failed .lm-log-foot { color: #e1898f; }
-/* With a freeze going on, the log and, beside it, the freeze picture (FreezeArt, as in the freeze console) drawn
-   straight on the background and faint: the same top and height as the log (13rem), 32 px apart like the blocks
-   above, in a place of constant size with the picture centred in it. */
+/* With a freeze going on, the log and, beside it, the freeze bar (FreezeBar): the same top and height as the log
+   (13rem), 32 px apart like the blocks above. */
 .lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
 .lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
 .lm-history-row.has-frost > .lm-history { height: 13rem; }
-.lm-frost { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; display: grid; place-items: center; opacity: .75; }
-.lm-frost .gfc-art { width: 92%; }
-.lm-frost .gfc-press-frame, .lm-frost .gfc-cube-back { fill: none; }
-.lm-frost-share, .lm-frost-size { position: absolute; z-index: 1; color: #f4f4f2; opacity: .6; pointer-events: none; }
-.lm-frost-share { top: 8px; left: 10px; font: 400 22px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
-.lm-frost-share small { font-size: 13px; margin-left: 1px; }
-.lm-frost-size { right: 10px; bottom: 8px; font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+/* The bar: a cube area (9 × 4 cubes of 40 px, 12 px inside its edges) closed on the left, its top and bottom lines
+   running on to the right past the readout and fading out. */
+.lm-fbar { position: relative; flex: none; display: flex; align-items: stretch; height: 13rem; width: 600px; }
+.lm-fbar::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  --run: linear-gradient(90deg, #ffffff38 0, #ffffff38 70%, transparent);
+  background: var(--run) 0 0 / 100% 1px no-repeat, var(--run) 0 100% / 100% 1px no-repeat,
+              linear-gradient(#ffffff38, #ffffff38) 0 0 / 1px 100% no-repeat; }
+.lm-fbar-cubes { position: relative; flex: none; width: 408px; margin: 12px 0 12px 14px; }
+.lm-fbar-cubes i { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 2px; transform-origin: 0 0;
+  border: 1px solid #ffffff2e; background: #ffffff0a; transition: transform .7s cubic-bezier(.6, .05, .3, 1), background .5s, border-color .5s; }
+/* Packed (frozen): frosted, in the tone of everything frozen. */
+.lm-fbar-cubes i.is-packed { border-color: #a5cee980; background: #a5cee92b; }
+.lm-fbar-cubes i.is-next { border-color: #a5cee9; animation: lm-fbar-next 1s ease-in-out infinite; }
+.lm-fbar.is-done .lm-fbar-cubes i.is-packed { border-color: #a5cee9a6; background: #a5cee938; }
+.lm-fbar.is-failed .lm-fbar-cubes i.is-packed { border-color: #be475080; background: #be475022; }
+.lm-fbar-readout { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding-left: 28px; color: #f4f4f2; opacity: .7; }
+.lm-fbar-readout b { font: 400 40px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
+.lm-fbar-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
+.lm-fbar-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@keyframes lm-fbar-next { 50% { background: #a5cee933; } }
+@media (prefers-reduced-motion: reduce) { .lm-fbar-cubes i { transition: none; } .lm-fbar-cubes i.is-next { animation: none; } }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
 /* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */

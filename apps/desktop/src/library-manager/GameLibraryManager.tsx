@@ -24,7 +24,7 @@ import { dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobV
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
-import FrostImage, { frostSize } from "./FrostImage";
+import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
@@ -265,8 +265,8 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
         <History game={game} c={c} job={freezing} />
-        {freezing && id ? <FrostImage mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} size={frostSize(freezing.progress)} /> : null}
+        {freezing && id ? <FreezeBar mode={freezing.mode} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+          state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}
   </>);
