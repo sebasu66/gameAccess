@@ -6,6 +6,7 @@ import type { CatalogGame } from "./types";
 import { playCatalogBell } from "./uiSounds";
 import { narrate } from "./narrationLog";
 import { translate } from "./i18n";
+import { refreshSourceLessons } from "./catalog/sourceLessons";
 
 export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled: boolean, apply: (games: CatalogGame[]) => void, showError: (message: string) => void) {
   const [notices, setNotices] = useState<CatalogNotice[]>([]);
@@ -17,6 +18,8 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     const updater = new CatalogUpdater(latest.current.games, {
       // Runs in the central dialog, which appears only when there is something to download.
       load: async () => {
+        // What players learned about download sources travels with the catalog synchronization.
+        void refreshSourceLessons(true);
         await runCatalogUpdateTask();
         return latest.current.games;
       },
@@ -42,6 +45,7 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     const focus = () => updater.catchUp();
     // The startup check already ran before the library opened (startup preparation); this keeps it current.
     updater.start();
+    void refreshSourceLessons();
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
     return () => {

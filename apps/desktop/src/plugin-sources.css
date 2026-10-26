@@ -15,3 +15,4 @@
 .source-selector-panel>button:hover{border-color:#cc8333;background:#ffffff12}
 .source-selector-panel{max-height:min(520px,70vh);overflow:auto}
 .source-selector-list button{font:inherit;line-height:1.4}
+.source-selector-list .source-lesson{font-style:normal;font-size:13px;color:#d79e60}

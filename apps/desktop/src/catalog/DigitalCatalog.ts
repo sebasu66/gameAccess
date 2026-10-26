@@ -7,6 +7,7 @@ import { getSteamStoreMetadata, hasTauriRuntime } from "../native";
 import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
+import { sourceFingerprint } from "./sourceFingerprint";
 export type { PluginSource, PluginManifest } from "./PluginSources";
 import { applyBundledCatalogArtwork, applyBundledDetails } from "../bundledArtwork";
 import type { ManagedDownloadStatus } from "../downloadTypes";
@@ -36,6 +37,8 @@ export interface DigitalGameRecord {
   /** The chosen download as its source names it ("Game v1.2 - Repack") and the source's name. */
   sourceTitle?: string;
   sourceProvider?: string;
+  /** Fingerprint of the source as the plugin listed it: reported if it turns out bad (sourceLessons.ts). */
+  sourceFingerprint?: string;
   installProcess: string;
   playProcess: string;
   uninstallProcess: string;
@@ -276,9 +279,10 @@ export class DigitalCatalog {
     if (this.options.downloadHandler) return this.options.downloadHandler(game);
     // One install per game: another version needs the installed one removed first (Library Manager or Uninstall).
     if (await this.isInstalled(game).catch(() => false)) throw new GameAlreadyInstalledError(game.name);
-    const selected = typeof source === "string"
-      ? (await this.getSources(game)).find(item => item.url === source)
-      : source ?? (await this.getSources(game))[0];
+    const listed = typeof source === "string" || !source ? await this.getSources(game) : [];
+    const selected = typeof source === "string" ? listed.find(item => item.url === source) : source ?? listed.find(item => !item.lesson);
+    // Players learned that every source of this game is bad: only an explicit choice in the source list starts one.
+    if (!selected && !source && listed.length) throw new Error(translate("sourcesAllMarked"));
     if (!selected) throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
     const prepared = await preparePluginSource(selected);
     const appId = game.app_id ?? game.id;
@@ -288,6 +292,7 @@ export class DigitalCatalog {
     const effectiveRecord: DigitalGameRecord = {
       name: game.name, id: appId, downloadSource: prepared.url, sourceDelivery: prepared.delivery,
       sourceTitle: selected.title, sourceProvider: selected.sourceName || selected.pluginName,
+      sourceFingerprint: selected.fingerprint ?? await sourceFingerprint(selected.url) ?? undefined,
       installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
     };
     digitalDownloadService.registerRecords([effectiveRecord]);

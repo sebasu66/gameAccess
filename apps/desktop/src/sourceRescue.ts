@@ -42,7 +42,8 @@ export async function findAnotherSource(game: CatalogGame): Promise<void> {
   const notice = showNotice({ game: card, tone: "info", title: translate("rescueTitle"), text: translate("rescueLooking"), progress: null });
   try {
     const sources = (await digitalCatalogService.getSources(game).catch(() => [] as PluginSource[]))
-      .filter(source => source.delivery !== "browser" && source.url !== failed?.downloadSource && source.title !== failed?.sourceTitle);
+      // A source players learned to avoid is not tried again.
+      .filter(source => source.delivery !== "browser" && !source.lesson && source.url !== failed?.downloadSource && source.title !== failed?.sourceTitle);
     const checked: CheckedSource[] = [];
     for (const [index, source] of sources.entries()) {
       const text = translate("rescueAnalyzing", { done: index + 1, total: sources.length });
