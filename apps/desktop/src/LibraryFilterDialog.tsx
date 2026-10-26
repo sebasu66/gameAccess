@@ -223,7 +223,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
         </div>
         <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>{t("uiTocaLoSubrayadoPara")}</p>
       </div>
-      <footer><div role="status" aria-live="polite"><strong>{t(matchCount === 1 ? "gamesCountOne" : "gamesCountMany", { count: matchCount })}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>{t(matchCount === 1 ? "filterShowOne" : "filterShowMany", { count: matchCount })}</button></footer>
+      <footer><div role="status" aria-live="polite"><strong>{t(matchCount === 1 ? "gamesCountOne" : "gamesCountMany", { count: matchCount })}</strong></div><button type="button" className="ga-filter-clear" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>{t(matchCount === 1 ? "filterShowOne" : "filterShowMany", { count: matchCount })}</button></footer>
     </section>
   </div>, document.body);
 }

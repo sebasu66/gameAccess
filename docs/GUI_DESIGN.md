@@ -4,6 +4,22 @@ Fuente de verdad visual. La pantalla de **detalle del juego** es la referencia: 
 contradice este documento, la pantalla se corrige. Los valores son los de `apps/desktop/src/gameaccess-theme.css`
 y `filter-wizard.css`; cuando cambie un valor, cambia aquí primero.
 
+## 0. Plantillas (un solo lugar por tipo)
+
+Cada tipo de control tiene **una** plantilla: sus valores son variables en `:root` de `apps/desktop/src/gameaccess-theme.css` y la regla que los aplica, con la lista de todos los componentes que la usan, está en `apps/desktop/src/ga-design.css`. Para cambiar un tipo se cambian sus variables; un componente nuevo de ese tipo se agrega a la lista de su plantilla.
+
+| Plantilla | Variables | Quién la usa |
+|---|---|---|
+| Botón principal (naranja plano) | `--ga-btn-bg`, `--ga-btn-bg-hover`, `--ga-btn-ink` | `GaButton primary`, acciones de la ficha, aplicar filtros, primario de `AppDialog` y del diálogo central, guardar opciones del juego, opción principal del menú lateral, teclado del mando, mantener descarga |
+| Botón secundario (transparente con borde) | `--ga-btn2-bg`, `--ga-btn2-bg-hover`, `--ga-btn2-border`, `--ga-btn2-ink` | `GaButton` secundario, secundario de `AppDialog` y del diálogo central, cancelar descarga, botones de la ayuda, limpiar filtros |
+| Botón de peligro | `--ga-btn-danger-bg`, `--ga-btn-danger-bg-hover`, `--ga-btn-danger-ink` | `GaButton danger`, confirmación destructiva de `AppDialog` |
+| Letra de todos los botones con texto | `--ga-btn-font`, `--ga-btn-case`, `--ga-btn-track` | las tres plantillas de botón, congelar y volver |
+| Fondo detrás de un diálogo | `--ga-backdrop`, `--ga-backdrop-blur` | `AppDialog`, ajustes/ayuda/registro/opciones/recuperación, cancelar descarga, filtros, PLUS, diálogo central, importador y diálogos de alerta |
+| Panel de diálogo (vidrio esmerilado óxido y borde fino) | `--ga-dialog-bg`, `--ga-dialog-glass`, `--ga-dialog-ring`, `--ga-dialog-radius`, `--ga-dialog-shadow` | los mismos diálogos |
+| Encuadre dentro del marco | `--ga-frame-*` (las publica el marco) | todos los overlays (`device-frame.css`) |
+
+Siguen teniendo estilo propio a propósito: botones del marco (teclas con relieve, `device-frame.css`), cubos y botones planos de la pantalla, `ga-close`, la ficha del juego (la referencia, con su imagen) y el diálogo de ejecutar un juego (con la imagen del juego de fondo).
+
 ## 1. Tokens
 
 | Token | Valor | Uso |

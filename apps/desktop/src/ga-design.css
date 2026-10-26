@@ -16,12 +16,40 @@ button.ga-close:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px;
 /* Every orange (primary) button looks the same, whatever component draws it: one fill, one ink, one lettering
    (docs/GUI_DESIGN.md §4.2). */
 :is(button.ga-btn-primary, .ga-detail-actions .glass-action, .ga-filter-dialog .ga-filter-apply,
-  .ga-dialog-primary, .ga-side-menu-items button.primary, .ga-pad-keyboard footer button:last-child) {
+  .ga-dialog-primary:not(.is-danger), .ga-side-menu-items button.primary, .ga-pad-keyboard footer button:last-child,
+  .central-dialog-actions button.primary, .download-complete-actions .primary-button, .ga-game-config footer > button) {
   background: var(--ga-btn-bg) !important; border-color: var(--ga-btn-bg) !important; color: var(--ga-btn-ink) !important;
   font: var(--ga-btn-font) !important; letter-spacing: var(--ga-btn-track) !important; text-transform: var(--ga-btn-case) !important; box-shadow: none !important; filter: none !important; }
 :is(button.ga-btn-primary, .ga-detail-actions .glass-action, .ga-filter-dialog .ga-filter-apply,
-  .ga-dialog-primary, .ga-side-menu-items button.primary, .ga-pad-keyboard footer button:last-child):hover:not(:disabled) {
+  .ga-dialog-primary:not(.is-danger), .ga-side-menu-items button.primary, .ga-pad-keyboard footer button:last-child,
+  .central-dialog-actions button.primary, .download-complete-actions .primary-button, .ga-game-config footer > button):hover:not(:disabled) {
   background: var(--ga-btn-bg-hover) !important; border-color: var(--ga-btn-bg-hover) !important; }
+/* Secondary buttons, whatever draws them: see-through body, solid light border, light text, the same lettering. */
+:is(button.ga-btn-secondary, .ga-dialog-secondary, .central-dialog-actions button:not(.primary), .download-complete-actions .secondary-button,
+  .ga-help-panel button:not(.ga-close), .ga-filter-dialog .ga-filter-clear) {
+  background: var(--ga-btn2-bg) !important; border: 1px solid var(--ga-btn2-border) !important; color: var(--ga-btn2-ink) !important;
+  font: var(--ga-btn-font) !important; letter-spacing: var(--ga-btn-track) !important; text-transform: var(--ga-btn-case) !important; box-shadow: none !important; }
+:is(button.ga-btn-secondary, .ga-dialog-secondary, .central-dialog-actions button:not(.primary), .download-complete-actions .secondary-button,
+  .ga-help-panel button:not(.ga-close), .ga-filter-dialog .ga-filter-clear):hover:not(:disabled) { background: var(--ga-btn2-bg-hover) !important; }
+/* Destructive buttons: the danger red, white text, the same lettering. */
+:is(button.ga-btn-danger, .ga-dialog-primary.is-danger) {
+  background: var(--ga-btn-danger-bg) !important; border-color: var(--ga-btn-danger-bg) !important; color: var(--ga-btn-danger-ink) !important;
+  font: var(--ga-btn-font) !important; letter-spacing: var(--ga-btn-track) !important; text-transform: var(--ga-btn-case) !important; box-shadow: none !important; }
+:is(button.ga-btn-danger, .ga-dialog-primary.is-danger):hover:not(:disabled) { background: var(--ga-btn-danger-bg-hover) !important; border-color: var(--ga-btn-danger-bg-hover) !important; }
+
+/* Every overlay dialog of the app shares one template: the screen behind dims (--ga-backdrop) and the panel is the
+   frosted rust glass with the thin gradient ring (--ga-dialog-*). Exceptions on purpose (docs/GUI_DESIGN.md §4.12): the
+   game detail (the reference, with its picture) and the small run-a-game dialog with the game's picture behind. */
+:is(.ga-dialog-backdrop, .ga-settings-backdrop, .download-complete-backdrop, .ga-filter-backdrop, .ga-premium-overlay, .central-dialog-backdrop, .ga-overlay-root) {
+  background: var(--ga-backdrop) !important; -webkit-backdrop-filter: var(--ga-backdrop-blur) !important; backdrop-filter: var(--ga-backdrop-blur) !important; }
+:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card) {
+  position: relative; isolation: isolate; border: 1px solid transparent !important; border-radius: var(--ga-dialog-radius) !important;
+  background: var(--ga-dialog-bg) !important; -webkit-backdrop-filter: var(--ga-dialog-glass); backdrop-filter: var(--ga-dialog-glass); box-shadow: var(--ga-dialog-shadow) !important; }
+:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card)::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit; padding: 1px; background: var(--ga-dialog-ring);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude; }
+
 /* Primary action: orange, 44 px high, dark text. */
 button.ga-btn-primary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -36,24 +64,11 @@ button.ga-btn-primary:disabled { opacity: .45; cursor: not-allowed; }
 /* Secondary action: same height and shape as the primary one, quiet glass. */
 button.ga-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 44px; padding: 0 18px; border: 1px solid #ffffff25; border-radius: 8px;
-  background: #ffffff08; color: #fff; font: var(--ga-btn-font); letter-spacing: var(--ga-btn-track); text-transform: var(--ga-btn-case); cursor: pointer;
+  height: 44px; padding: 0 18px; border: 1px solid var(--ga-btn2-border); border-radius: 8px;
+  background: var(--ga-btn2-bg); color: var(--ga-btn2-ink); font: var(--ga-btn-font); letter-spacing: var(--ga-btn-track); text-transform: var(--ga-btn-case); cursor: pointer;
 }
-button.ga-btn-secondary:hover:not(:disabled) { background: #ffffff14; }
+button.ga-btn-secondary:hover:not(:disabled) { background: var(--ga-btn2-bg-hover); }
 button.ga-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
-
-/* Overlay dialogs of the app (import games, the fix plan...): one template. A dark rust-brown frosted glass (translucent, blurred) and the game detail's thin gradient ring (docs/GUI_DESIGN.md §4.6). */
-.ga-overlay-dialog {
-  position: relative; isolation: isolate; border: 1px solid transparent !important; border-radius: 12px !important;
-  background: linear-gradient(160deg, rgba(60, 37, 22, .82) 0%, rgba(38, 26, 18, .85) 45%, rgba(22, 17, 14, .9) 100%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(1.1); backdrop-filter: blur(18px) saturate(1.1); box-shadow: 0 24px 60px #0008 !important;
-}
-.ga-overlay-dialog::after {
-  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none; border-radius: inherit; padding: 1px;
-  background: linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
-}
 
 /* Glass panel with the light gradient ring used by the detail dialog. */
 .ga-panel {
@@ -98,8 +113,6 @@ button.ga-btn-danger, button.ga-btn-frost {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 44px; padding: 0 18px; border-radius: 8px; font: var(--ga-btn-font); letter-spacing: var(--ga-btn-track); text-transform: var(--ga-btn-case); cursor: pointer;
 }
-button.ga-btn-danger { border: 1px solid #a64c41; background: #a64c41; color: #fff; }
-button.ga-btn-danger:hover:not(:disabled) { background: #b8594d; }
 button.ga-btn-frost { border: 1px solid #a5cee9; background: #a5cee9; color: #140a02; }
 button.ga-btn-danger:disabled, button.ga-btn-frost:disabled { opacity: .45; cursor: not-allowed; }
 button.ga-btn-tall { height: 54px; min-height: 54px; }

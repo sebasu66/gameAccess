@@ -5,6 +5,18 @@
 /* Exact title font embedded in the approved mockup, bundled for offline Tauri. */
 @font-face { font-family:"Bebas Neue"; src:url("/fonts/BebasNeue-Mockup.ttf") format("truetype"); font-weight:400; font-display:swap; }
 @font-face { font-family:Manrope; src:url("/fonts/Manrope[wght].ttf") format("truetype"); font-weight:400 800; font-display:swap; }
+/* Templates (docs/GUI_DESIGN.md §0): change a value here and every dialog or button of that kind follows.
+   Buttons: --ga-btn-* (lettering, primary/orange), --ga-btn2-* (secondary), --ga-btn-danger-*. Dialogs: --ga-backdrop*
+   (what dims the screen behind) and --ga-dialog-* (the panel: frosted rust glass and the thin gradient ring). */
+:root {
+  --ga-btn2-bg:#ffffff08; --ga-btn2-bg-hover:#ffffff14; --ga-btn2-border:#ffffff30; --ga-btn2-ink:#f4f4f2;
+  --ga-btn-danger-bg:#a64c41; --ga-btn-danger-bg-hover:#b8594d; --ga-btn-danger-ink:#fff;
+  --ga-backdrop:#05080ccc; --ga-backdrop-blur:blur(10px);
+  --ga-dialog-bg:linear-gradient(160deg, rgba(60, 37, 22, .82) 0%, rgba(38, 26, 18, .85) 45%, rgba(22, 17, 14, .9) 100%);
+  --ga-dialog-glass:blur(18px) saturate(1.1);
+  --ga-dialog-ring:linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
+  --ga-dialog-radius:12px; --ga-dialog-shadow:0 24px 60px #0008;
+}
 :root { --ga-btn-font:600 17px/1 Bahnschrift,"Segoe UI",system-ui,sans-serif; --ga-btn-case:uppercase; --ga-btn-track:.04em; --ga-btn-bg:var(--ga-orange); --ga-btn-bg-hover:#d69959; --ga-btn-ink:#140a02; --ga-frost:#a5cee9; --ga-orange:#cc8333; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
 /* Favorite/metadata sorting keeps the viewport fixed. Explicit keyboard
    selection is the only operation that reveals a card automatically. */
