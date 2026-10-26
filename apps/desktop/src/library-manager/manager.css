@@ -121,10 +121,23 @@
 .lm-log-head { color: var(--ga-frost, #a5cee9); }
 .lm-log-foot { color: #c9ced2; }
 .lm-log-group.is-failed .lm-log-foot { color: #e1898f; }
-/* With a freeze going on, the log on the left and the game's picture freezing on the right, drawn on the background. */
-.lm-detail.has-frost { grid-template-columns: minmax(0, 680px) minmax(220px, 400px); align-items: start; column-gap: 40px; }
-.lm-detail-log { display: grid; gap: 10px; min-width: 0; }
-.lm-frost { display: block; width: 100%; aspect-ratio: 460 / 215; margin-top: 18px; }
+/* With a freeze going on, the log and, beside it, the game's picture: the same top, the same height (the log's
+   13rem, so the box keeps the picture's 460:215 shape), 32 px apart like the blocks above. The picture is pressed
+   down to half its size towards the log's corner while a layer of ice spreads over it with a soft edge. */
+@property --ice { syntax: "<number>"; inherits: true; initial-value: 0; }
+.lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
+.lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
+.lm-history-row.has-frost > .lm-history { height: 13rem; }
+.lm-frost { flex: none; height: 13rem; aspect-ratio: 460 / 215; transition: --ice .6s linear; }
+.lm-frost-picture { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 6px; transform-origin: top left;
+  transform: scale(calc(1 - .5 * var(--ice))); transition: transform .6s linear; }
+.lm-frost-picture img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+.lm-frost-ice { position: absolute; inset: 0; background: linear-gradient(160deg, #d6ecf8b3, #a5cee980 60%, #7fb4d699); mix-blend-mode: screen;
+  -webkit-backdrop-filter: blur(5px) saturate(.6); backdrop-filter: blur(5px) saturate(.6);
+  -webkit-mask: linear-gradient(90deg, #000 calc(var(--ice) * 120% - 20%), transparent calc(var(--ice) * 120%));
+  mask: linear-gradient(90deg, #000 calc(var(--ice) * 120% - 20%), transparent calc(var(--ice) * 120%)); }
+.lm-frost.is-failed .lm-frost-ice { opacity: .4; }
+@media (prefers-reduced-motion: reduce) { .lm-frost, .lm-frost-picture { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
 /* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */

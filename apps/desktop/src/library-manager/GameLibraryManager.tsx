@@ -259,14 +259,15 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         </>}
       </td>
     </tr>
-    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className={`lm-detail${freezing ? " has-frost" : ""}`}>
-      <div className="lm-detail-log">
-        {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
-          <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-        {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} job={freezing} /></div> : null}
-      </div>
-      {freezing && id ? <FrostImage src={landscape(id)} thaw={freezing.mode === "thaw"} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-        state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} /> : null}
+    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
+      {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
+        <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
+      {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
+      {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
+        <History game={game} c={c} job={freezing} />
+        {freezing && id ? <FrostImage src={landscape(id)} thaw={freezing.mode === "thaw"} percent={freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+          state={freezing.outcome ? (freezing.outcome.ok ? "done" : "failed") : "working"} /> : null}
+      </div></div> : null}
     </div></td></tr> : null}
   </>);
 }
