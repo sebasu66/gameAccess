@@ -70,19 +70,12 @@ type Kind = "dd" | "steam" | "folder";
 const kindOf = (game: LibraryGame): Kind => game.link_kind === "steam" ? "steam" : game.linked ? "folder" : "dd";
 const kindLabels: Record<Kind, [TranslationKey, TranslationKey | null]> = { dd: ["lmKindDirect", "lmKindDirectTitle"], steam: ["lmKindSteam", null], folder: ["lmKindFolder", "lmKindFolderTitle"] };
 
-/** Who it belongs to or who provided it: the Steam account that owns it, or the download's provider. */
+/** Who it belongs to or who provided it, shown next to the source: the Steam account that owns it, or the download's provider. */
 function sourceOf(game: LibraryGame): string {
   if (game.link_kind === "steam") return steamOwnerLabel(game.steam_owner);
   return game.linked ? "" : game.source_provider ?? "";
 }
 
-function subline(game: LibraryGame, c: LibraryCopy): string {
-  if (game.resume_step && !game.transfer_active) return game.resume_step === "extract" ? c.stoppedAtExtract : c.stoppedAtDownload;
-  if (game.partial) return `${c.partialDl}: ${formatBytes(game.transfer_bytes)}`;
-  if (game.unfinished && !game.standard) return c.pendingHint;
-  if (!game.standard) return game.issues[0]?.message ?? game.warning;
-  return "";
-}
 
 const FILLED = { weight: "fill" as const };
 
@@ -131,25 +124,30 @@ function announceBatch(action: "adopt" | "uninstall" | "steam_uninstall" | "disc
 }
 
 /** One line of the grid, a game with a folder or a member of the library without one, with the values it sorts by. */
-type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; last: string; game?: LibraryGame; member?: CatalogGame };
-type SortKey = "name" | "status" | "path" | "size" | "kind" | "source" | "plays" | "last";
+type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame };
+type SortKey = "name" | "status" | "path" | "size" | "kind" | "plays" | "idle";
 type Sort = { key: SortKey; dir: 1 | -1 };
-/** Numbers and dates start from the largest, words from A. */
-const firstDir = (key: SortKey): 1 | -1 => key === "size" || key === "plays" || key === "last" ? -1 : 1;
+/** Numbers start from the largest, words from A. */
+const firstDir = (key: SortKey): 1 | -1 => key === "size" || key === "plays" || key === "idle" ? -1 : 1;
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const compareRows = ({ key, dir }: Sort) => (a: GridRow, b: GridRow) => {
-  // A row with no folder, source or play goes last in both directions.
-  if ((key === "path" || key === "source" || key === "last") && !a[key] !== !b[key]) return a[key] ? -1 : 1;
+  // A row with no folder or no day count goes last in both directions.
+  if (key === "path" && !a.path !== !b.path) return a.path ? -1 : 1;
+  if (key === "idle" && (a.idle == null) !== (b.idle == null)) return a.idle == null ? 1 : -1;
   const order = key === "status" ? a.status.rank - b.status.rank
     : key === "size" || key === "plays" ? a[key] - b[key]
+    : key === "idle" ? (a.idle ?? 0) - (b.idle ?? 0)
+    : key === "kind" ? collator.compare(a.kind, b.kind) || collator.compare(a.source, b.source)
     : collator.compare(a[key], b[key]);
   return order * dir || collator.compare(a.name, b.name);
 };
 /** The size the row shows (SizeCell): on disk when frozen, what was downloaded for an unfinished download. */
 const sizeOf = (game: LibraryGame) => game.frozen && game.frozen_bytes != null ? game.frozen_bytes : game.partial ? game.transfer_bytes ?? 0 : game.size_bytes ?? 0;
-const shortDate = (value: string, locale: string) => {
+/** Whole days without playing: since the last play, or since the game came into the library when it was never played. */
+export const idleDays = (game: Pick<LibraryGame, "last_played" | "added_at">, now = Date.now()) => {
+  const value = game.last_played || game.added_at;
   const date = value ? new Date(value.replace(" ", "T")) : null;
-  return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(locale) : "—";
+  return date && !Number.isNaN(date.getTime()) ? Math.max(0, Math.floor((now - date.getTime()) / 86_400_000)) : null;
 };
 
 type RowProps = {
@@ -161,24 +159,24 @@ type RowProps = {
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
 };
 
-function KindCell({ kind }: { kind: Kind }) {
+/** The source (DD, Steam, folder) and, next to it, the provider of the download or the Steam account that owns it. */
+function KindCell({ kind, source }: { kind: Kind; source: string }) {
   const { t } = useI18n();
   const [label, title] = kindLabels[kind];
-  return <span className={`lm-kind ${kind}`} title={title ? t(title) : undefined}>{t(label)}</span>;
+  return <span className="lm-source"><span className={`lm-kind ${kind}`} title={title ? t(title) : undefined}>{t(label)}</span>{source ? <span className="lm-source-name" title={source}>{source}</span> : null}</span>;
 }
 
 function StatusCell({ status }: { status: Status }) {
   return <span className={`lm-status ${status.tone}`}>{status.icon}{status.label}</span>;
 }
 
-/** A row of the grid: picture, name (and a line only when it adds something), state, folder, size, source, plays,
- *  last play and the row's actions. */
-function ManagerRow({ row, game, c, busy, largest, focusId, locale, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing }: RowProps) {
+/** A row of the grid: picture, name, state, folder, size, source, plays, days without playing and the row's actions.
+ *  What a game still needs, or a problem it has, is in its log (the expanded row). */
+function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing }: RowProps) {
   const id = game.app_id;
   const key = row.key;
   const open = expanded === id;
   const catalogGame = findCatalogGame(game);
-  const line = subline(game, c);
   const unfinished = game.partial || isUnfinished(game);
   const ref = useRef<HTMLTableRowElement>(null);
   const focused = focusId != null && focusId === id;
@@ -189,15 +187,13 @@ function ManagerRow({ row, game, c, busy, largest, focusId, locale, columns, exp
       <td><span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span></td>
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
-        {line ? <div className={`lm-line${!game.standard && !game.unfinished ? " warn" : ""}`}>{line}</div> : null}
       </td>
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
-      <td><KindCell kind={row.kind} /></td>
-      <td className="lm-cell-source" title={row.source || undefined}>{row.source || "—"}</td>
+      <td><KindCell kind={row.kind} source={row.source} /></td>
       <td className="lm-cell-num">{row.plays || "—"}</td>
-      <td className="lm-cell-num">{shortDate(row.last, locale)}</td>
+      <td className="lm-cell-num">{row.idle ?? "—"}</td>
       <td className="lm-acts">
         {unfinished && !game.transfer_active ? <>
           {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
@@ -242,8 +238,7 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path">—</td>
       <td className="lm-cell-size">—</td>
-      <td><KindCell kind={row.kind} /></td>
-      <td className="lm-cell-source">—</td>
+      <td><KindCell kind={row.kind} source="" /></td>
       <td className="lm-cell-num">—</td>
       <td className="lm-cell-num">—</td>
       <td className="lm-acts">
@@ -255,12 +250,12 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
 }
 
 /** A column header that sorts: one click sorts, the next one reverses; the arrow says which way. */
-function SortHeader({ id, label, sort, setSort, t }: { id: SortKey; label: string; sort: Sort; setSort: (sort: Sort) => void; t: Translate }) {
+function SortHeader({ id, label, title, sort, setSort, t }: { id: SortKey; label: string; title?: string; sort: Sort; setSort: (sort: Sort) => void; t: Translate }) {
   const active = sort.key === id;
   const Icon = !active ? ArrowUpDown : sort.dir === 1 ? ArrowUp : ArrowDown;
   return (
     <th aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
-      <button type="button" className={`lm-sort${active ? " is-active" : ""}`} title={t("lmSortBy", { column: label })}
+      <button type="button" className={`lm-sort${active ? " is-active" : ""}`} title={title ? `${title}. ${t("lmSortBy", { column: label })}` : t("lmSortBy", { column: label })}
         onClick={() => setSort(active ? { key: id, dir: sort.dir === 1 ? -1 : 1 } : { key: id, dir: firstDir(id) })}>
         {label}<Icon aria-hidden="true" />
       </button>
@@ -376,13 +371,12 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   }, [escapeGuard, onClose, embedded]);
 
   const filters: [Filter, string, number][] = ([["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial], ["frozen", c.frozenFilter, counts.frozen]] as [Filter, string, number][]).filter(([id, , count]) => id === "all" || id === filter || count > 0);
-  const installedCount = rows.filter(game => game.installed && !game.partial && !isUnfinished(game) && !game.unfinished).length;
   const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && matches(member.name, member.app_id ?? member.id)) : [];
   const gridRows: GridRow[] = [
-    ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), kind: kindOf(game), source: sourceOf(game), plays: game.plays ?? 0, last: game.last_played ?? "", game })),
-    ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, last: "", member })),
+    ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), kind: kindOf(game), source: sourceOf(game), plays: game.plays ?? 0, idle: idleDays(game), game })),
+    ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, member })),
   ].sort(compareRows(sort));
-  const columns = 11;
+  const columns = 10;
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
@@ -396,10 +390,6 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <div className="lm-top">
           {summary ? <section className="lm-summary">
             <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
-            <div className="lm-stats">
-              <div><strong>{installedCount}</strong><span>{c.installedStat}</span></div>
-              <div><strong>{formatBytes(summary.frozen_saved_bytes ?? 0)}</strong><span>{c.frozenStat}</span></div>
-            </div>
           </section> : null}
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
@@ -429,9 +419,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <SortHeader id="path" label={t("lmColPath")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="size" label={t("lmColSize")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="kind" label={t("lmColKind")} sort={sort} setSort={setSort} t={t} />
-                <SortHeader id="source" label={t("lmColSource")} sort={sort} setSort={setSort} t={t} />
                 <SortHeader id="plays" label={t("lmColPlays")} sort={sort} setSort={setSort} t={t} />
-                <SortHeader id="last" label={t("lmColLastPlayed")} sort={sort} setSort={setSort} t={t} />
+                <SortHeader id="idle" label={t("lmColIdle")} title={t("lmColIdleTitle")} sort={sort} setSort={setSort} t={t} />
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
               <tbody>

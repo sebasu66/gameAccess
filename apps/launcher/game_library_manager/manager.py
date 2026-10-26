@@ -11,6 +11,7 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
+import time
 from pathlib import Path
 import game_journal as journal
 import app_log
@@ -35,14 +36,23 @@ def play_dates(folder: Path) -> list[str]:
 
 
 def play_history(folder: Path) -> dict:
-    """Play count and last launch, read from the game's own log (the future play-time limiter links here)."""
-    plays, last = 0, ""
+    """Play count, last launch and when the game came into the library (`added_at`: the first line of its log, or the
+    folder's creation when it has none), read from the game's own log. The library counts the days without playing
+    from the last launch, or from `added_at` for a game never played (what freezing goes by)."""
+    plays, last, added = 0, "", ""
     for line in journal.read(folder).splitlines():
         parts = line.split(" | ", 2)
+        if not added and len(parts) >= 2:
+            added = parts[0]
         if len(parts) == 3 and parts[1] == "play" and parts[2].startswith("lanzado"):
             plays += 1
             last = parts[0]
-    return {"plays": plays, "last_played": last}
+    if not added:
+        try:
+            added = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(Path(folder).stat().st_ctime))
+        except OSError:
+            pass
+    return {"plays": plays, "last_played": last, "added_at": added}
 
 
 UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."

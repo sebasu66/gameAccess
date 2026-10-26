@@ -4,8 +4,8 @@
 /* Summary on the left, the main buttons stacked in a column on the right. */
 .lm-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
 .lm-summary { min-width: 0; }
-.lm-donut-wrap { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; align-items: center; }
-.lm-donut { width: 150px; height: 150px; overflow: visible; }
+.lm-donut-wrap { display: grid; grid-template-columns: 190px minmax(0, 340px); gap: 24px; align-items: center; }
+.lm-donut { width: 190px; height: 190px; overflow: visible; }
 .lm-donut circle { transition: stroke-width .35s, opacity .35s; }
 .lm-c1 { font: 400 28px "Bebas Neue", sans-serif; fill: #f4f4f2; }
 .lm-c2 { font: 700 10px Manrope, sans-serif; letter-spacing: .04em; fill: #929ba2; }
@@ -16,9 +16,6 @@
 .lm-legend li i b { display: block; height: 100%; background: var(--c); transform-origin: left; transition: transform .8s cubic-bezier(.2,.8,.2,1); }
 .lm-legend li span { color: #c9ced2; }
 .lm-legend li strong { font-weight: 700; }
-.lm-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #ffffff14; }
-.lm-stats strong { display: block; font: 400 28px/1 "Bebas Neue", sans-serif; color: #f4f4f2; }
-.lm-stats span { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
 .lm-actions { display: flex; flex-direction: column; gap: 10px; }
 .lm-actions > button { width: 100%; justify-content: flex-start; }
 .lm-filters .lm-scan { margin-left: auto; padding: 0; }
@@ -55,7 +52,6 @@
 .lm-name { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
 .lm-cell-path { min-width: 140px; max-width: 200px; overflow-wrap: anywhere; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
 .lm-cell-size { min-width: 110px; }
-.lm-cell-source { max-width: 130px; overflow-wrap: anywhere; color: #c9ced2; }
 .lm-kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #c9ced2; }
 .lm-cell-num { white-space: nowrap; color: #c9ced2; }
 .lm-status { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
@@ -74,8 +70,6 @@
 .lm-detail { display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
 .lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
 .lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #a5cee966, #a5cee91a); pointer-events: none; }
-.lm-line { font-size: 11px; color: #929ba2; }
-.lm-line.warn { color: #d7b48d; }
 .lm-size { margin-top: 4px; }
 .lm-size-figures { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lm-frozen-size { display: inline-flex; align-items: center; gap: 4px; color: var(--ga-frost, #a5cee9); }
@@ -113,3 +107,6 @@
 .lm-import-grid th, .lm-import-grid th.lm-cell-acts { background: #00000033; }
 .lm-import-grid .lm-row > td.lm-acts, .lm-import-grid th.lm-cell-acts { position: static; background-clip: padding-box; box-shadow: none; }
 .lm-import-grid .lm-row > td.lm-acts { background: transparent; }
+/* Source: the DD / Steam / folder mark, then who provided the download or which Steam account owns the game. */
+.lm-source { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; min-width: 0; }
+.lm-source-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #c9ced2; }

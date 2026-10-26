@@ -4,7 +4,7 @@ import type { LibraryGame, LibraryPlan, LibrarySummary, LibraryTransfer, Library
 const GB = 1024 ** 3;
 const row = (app_id: number, name: string, size: number, extra: Partial<LibraryGame> = {}): LibraryGame => ({
   app_id, name, state: "ready", folder: `C:\\games\\${app_id}-${name}-ready`, installed: true, needs_repair: false, error: "", warning: "",
-  size_bytes: size * GB, plays: 0, last_played: "", issues: [], standard: true, reclaimable_bytes: 0, transfer_bytes: 0, transfer_active: false, ...extra,
+  size_bytes: size * GB, plays: 0, last_played: "", added_at: new Date(Date.now() - (app_id % 97) * 86_400_000).toISOString(), issues: [], standard: true, reclaimable_bytes: 0, transfer_bytes: 0, transfer_active: false, ...extra,
 });
 const legacy = (extra: Partial<LibraryGame> = {}) => ({ state: "legacy", standard: false, warning: "Carpeta con formato anterior: no tiene estado en el nombre.", issues: [
   { code: "no_status", message: "Carpeta con formato anterior: no tiene estado en el nombre." }, { code: "no_log", message: "No tiene registro de historial." }], ...extra });
