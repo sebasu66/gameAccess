@@ -150,27 +150,32 @@
 .ga-dl-spark svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 62%; }
 .ga-dl-spark strong { position: relative; font: 800 11px Manrope, sans-serif; color: #fff; text-shadow: 0 1px 4px #000; }
 
-/* Each download is one quiet component (docs/GUI_DESIGN.md §4.21): a card with its picture, name and state; its actions
-   float in a small glass capsule in the corner and only show on hover or keyboard focus, without moving anything. */
+/* Each download is one quiet component (docs/GUI_DESIGN.md §4.21): a card with its picture, name and state. On hover
+   or keyboard focus it grows downward and a row of actions opens under the picture line, aligned right: play, folder,
+   resume, pause, cancel... and the cross that removes it, all alike: flat, see-through, a solid border, orange icon. */
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) {
-  align-items: center; margin: 0 0 8px; padding: 10px; border: 1px solid #ffffff12; border-radius: 10px; background: #ffffff05; transition: background .2s, border-color .2s; }
-.digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured):is(:hover, :focus-within) { background: #ffffff0a; border-color: #ffffff22; }
+  align-items: center; row-gap: 0; margin: 0 0 8px; padding: 10px; border: 1px solid #ffffff12; border-radius: 10px; background: #ffffff05; transition: background .2s, border-color .2s; }
+.digital-downloads-screen .ga-dl-card { margin: 0 0 12px; padding: 12px; border: 1px solid #ffffff12; border-top-color: #ffffff12; border-radius: 12px; background: #ffffff05; transition: background .2s, border-color .2s; }
+.digital-downloads-screen :is(.digital-download-row:not(.digital-download-featured), .ga-dl-card):is(:hover, :focus-within) { background: #ffffff0a; border-color: #ffffff22; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-art { border-radius: 6px; overflow: hidden; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-actions,
-.ga-dl-card-art .ga-dl-card-actions {
-  position: absolute; right: 8px; bottom: 8px; z-index: 2; display: flex; gap: 6px; padding: 4px; border: 1px solid #ffffff1a; border-radius: 10px;
-  background: #14191cd9; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 6px 18px #0008;
-  opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .2s, transform .2s; }
-.digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured):is(:hover, :focus-within) .digital-download-actions,
-.ga-dl-card:is(:hover, :focus-within) .ga-dl-card-art .ga-dl-card-actions { opacity: 1; transform: none; pointer-events: auto; }
-.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:not(.digital-download-dismiss) { min-width: 34px; height: 34px; min-height: 34px; border-radius: 7px; }
-/* The remove cross belongs to the hidden controls too. */
-.digital-downloads-screen.is-embedded .digital-download-row .digital-download-dismiss { opacity: 0; transition: opacity .2s; }
-.digital-downloads-screen.is-embedded .digital-download-row:is(:hover, :focus-within) .digital-download-dismiss { opacity: 1; }
-/* The download in progress is the same kind of card, larger. */
-.digital-downloads-screen .ga-dl-card { margin: 0 0 12px; padding: 12px; border: 1px solid #ffffff12; border-top-color: #ffffff12; border-radius: 12px; background: #ffffff05; transition: background .2s, border-color .2s; }
-.digital-downloads-screen .ga-dl-card:is(:hover, :focus-within) { background: #ffffff0a; border-color: #ffffff22; }
-@media (prefers-reduced-motion: reduce) { .digital-downloads-screen .digital-download-actions, .ga-dl-card-actions, .digital-downloads-screen .digital-download-dismiss { transition: none; } }
+.digital-downloads-screen .ga-dl-card-actions {
+  grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; pointer-events: none;
+  transition: max-height .25s ease, margin-top .25s ease, opacity .2s; }
+.digital-downloads-screen :is(.digital-download-row:not(.digital-download-featured), .ga-dl-card):is(:hover, :focus-within) :is(.digital-download-actions, .ga-dl-card-actions) {
+  max-height: 48px; margin-top: 10px; opacity: 1; pointer-events: auto; }
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button,
+.digital-downloads-screen.is-embedded .digital-download-row .digital-download-actions .digital-download-dismiss {
+  position: static; min-width: 34px; height: 34px; min-height: 34px; padding: 0 9px; border: 1px solid #59636a; border-radius: 7px;
+  background: transparent; color: var(--ga-orange); box-shadow: none; opacity: 1; }
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:hover:not(:disabled) { border-color: var(--ga-orange); background: #cc83331a; color: #d79e60; }
+.digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button > svg { color: inherit; }
+.digital-downloads-screen .digital-download-actions > .digital-download-dismiss { order: 99; }
+/* Ready or failed: a larger, half-transparent mark on the picture's top-left corner, by the card's edge. */
+.digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon {
+  position: absolute; left: 14px; top: 14px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: #0b0f12a6; opacity: .82; }
+.digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon svg { width: 22px; height: 22px; }
+@media (prefers-reduced-motion: reduce) { .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) { transition: none; } }
 /* Pictures at rest as calm as the grid's covers (less colour, a little darker); the one under the pointer gets its colour back. */
 .digital-downloads-screen :is(.digital-download-art, .ga-dl-card-art) img { filter: saturate(.55) brightness(.9); transition: filter .3s; }
 .digital-downloads-screen :is(.digital-download-row, .ga-dl-card):is(:hover, :focus-within) :is(.digital-download-art, .ga-dl-card-art) img { filter: none; }

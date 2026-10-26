@@ -164,10 +164,11 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.21 Descarga en la lista `digital-download-row` / `ga-dl-card`
 - Cada descarga es una tarjeta: borde `#ffffff12`, radio 10 px (12 la que está en curso), fondo `#ffffff05`, 8 px entre tarjetas; con mouse o foco el fondo y el borde se aclaran.
-- Sus botones (cuadrados de 34 px, solo ícono, el nombre se despliega al pasar el mouse) flotan en una cápsula de vidrio abajo a la derecha (sobre la imagen en la que está en curso) y aparecen solo con mouse o foco, sin mover nada. La cruz para quitarla también.
+- Con mouse o foco la tarjeta crece hacia abajo y se abre una fila de botones debajo de la imagen, alineada a la derecha, con la cruz para quitarla al final. Botones planos de 34 px, solo ícono (el nombre se despliega al pasar el mouse): fondo transparente, borde opaco `#59636a`, ícono naranja.
+- Lista o con error: marca de 30 px semitransparente sobre la esquina superior izquierda de la imagen.
 
 ### 4.22 Buscador
-- En reposo es una cápsula corta y semitransparente, centrada; crece con el texto que se escribe (hasta el 64 % de la ventana) y se vuelve opaca con mouse, foco o texto.
+- En reposo es una cápsula corta con el relleno semitransparente y el borde opaco, centrada en el panel central (no en la ventana; el botón de vista cuelga a su derecha y no la mueve); crece con el texto que se escribe (hasta el 64 % de la ventana) y se vuelve opaca con mouse, foco o texto.
 
 ## 5. Reglas de uso
 

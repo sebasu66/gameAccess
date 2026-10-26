@@ -243,18 +243,28 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.removeEventListener("keydown", key);
   }, [showManager]);
   useCardHover(props.gridRef);
-  // The search dock is part of the central panel: it is centred on the grid, not on the window (side panels and the
-  // big word on the left move the grid).
+  // The search dock is part of the central panel: the search field is centred on the panel's content (the grid's
+  // column, whatever the view: catalog, library or library manager), not on the window. Measured on the panel, which
+  // stays the same element across views, and again whenever the view changes.
   useLayoutEffect(() => {
-    const grid = props.gridRef.current;
-    if (!grid) return;
-    const place = () => { const rect = grid.getBoundingClientRect(); if (rect.width) document.documentElement.style.setProperty("--ga-dock-center", `${Math.round(rect.left + rect.width / 2)}px`); };
+    const panel = props.gridRef.current?.closest<HTMLElement>(".library-room-catalog") ?? props.gridRef.current;
+    if (!panel) return;
+    // Layout position (offsets), not the on-screen box: the view change turns the panel in 3D for a moment and a
+    // transformed box would put the dock off centre until the next resize.
+    const place = () => {
+      let left = 0;
+      for (let node: HTMLElement | null = panel; node; node = node.offsetParent as HTMLElement | null) left += node.offsetLeft - (node === panel ? 0 : node.scrollLeft);
+      const css = getComputedStyle(panel), padLeft = parseFloat(css.paddingLeft) || 0, width = panel.offsetWidth - padLeft - (parseFloat(css.paddingRight) || 0);
+      if (width > 0) document.documentElement.style.setProperty("--ga-dock-center", `${Math.round(left + padLeft + width / 2)}px`);
+    };
     place();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
-    observer?.observe(grid);
+    observer?.observe(panel);
+    const room = panel.closest<HTMLElement>(".library-room");
+    if (room) observer?.observe(room);
     window.addEventListener("resize", place);
-    return () => { observer?.disconnect(); window.removeEventListener("resize", place); document.documentElement.style.removeProperty("--ga-dock-center"); };
-  }, [props.gridRef]);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", place); };
+  }, [props.gridRef, view, showManager]);
   // The wordmark and the top-right buttons line up with the catalog's edges (the row of filters above the grid).
   useEffect(() => {
     const row = document.querySelector<HTMLElement>(".ga-grid-toolbar");
