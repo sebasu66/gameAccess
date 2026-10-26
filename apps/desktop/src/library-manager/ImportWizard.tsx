@@ -4,6 +4,10 @@ import { AlertTriangle, ArrowLeft, Folder, FolderPlus, HardDrive, Link2, Loader2
 import CircularScrollbar from "../CircularScrollbar";
 import { digitalProcessManager, type ImportCandidate, type ImportDrive, type ImportItem } from "../catalog/DigitalProcessManager";
 import { libraryDemo } from "../libraryScan";
+import { uiDemo } from "../devDemo/uiDemo";
+
+/** The browser design modes (`?libraryDemo=1`, `?uiDemo=1`): sample disks and finds, no launcher behind. */
+const demo = () => libraryDemo() || uiDemo();
 import { queryCatalogCache } from "../catalogCache";
 import { addReadyGameToLibrary } from "../libraryMembership";
 import { notify } from "../toasts";
@@ -63,7 +67,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
 
   useEffect(() => {
     let live = true;
-    const load = libraryDemo() ? Promise.resolve({ drives: demoDrives }) : digitalProcessManager.importDrives();
+    const load = demo() ? Promise.resolve({ drives: demoDrives }) : digitalProcessManager.importDrives();
     void load.then(result => { if (live) { setDrives(result.drives ?? []); setChosen(new Set((result.drives ?? []).map(drive => drive.path))); } }).catch(error => live && setMessage(String(error)));
     return () => { live = false; };
   }, []);
@@ -80,7 +84,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const scan = async () => {
     setStep("scanning"); setMessage("");
     try {
-      const found = libraryDemo() ? demoCandidates : (await digitalProcessManager.importScan([...chosen], pickedFolders)).candidates ?? [];
+      const found = demo() ? demoCandidates : (await digitalProcessManager.importScan([...chosen], pickedFolders)).candidates ?? [];
       setRows(found.map(candidate => {
         const options = candidate.app_id != null ? [] : suggest(candidate.name, catalog);
         const choice = candidate.app_id ?? options[0]?.id ?? null;
@@ -102,9 +106,9 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
     setStep("importing");
     const items: ImportItem[] = chosenRows.map(row => ({ app_id: row.choice as number, name: nameOf(row.choice as number) ?? row.candidate.name, path: row.candidate.path, mode: row.candidate.can_move ? row.mode : "link", kind: row.candidate.kind, executable: row.candidate.executable ? `${row.candidate.path}\\${row.candidate.executable}`.replace(/\\\\+/g, "\\") : "" }));
     try {
-      const outcome: Array<{ app_id: number; ok: boolean; error?: string }> = libraryDemo() ? items.map(item => ({ app_id: item.app_id, ok: true })) : (await digitalProcessManager.importRun(items)).results ?? [];
+      const outcome: Array<{ app_id: number; ok: boolean; error?: string }> = demo() ? items.map(item => ({ app_id: item.app_id, ok: true })) : (await digitalProcessManager.importRun(items)).results ?? [];
       imported.current = outcome.some(item => item.ok);
-      outcome.forEach((item, index) => { if (item.ok && !libraryDemo()) addReadyGameToLibrary(item.app_id, items[index]?.name ?? String(item.app_id), catalog); });
+      outcome.forEach((item, index) => { if (item.ok && !demo()) addReadyGameToLibrary(item.app_id, items[index]?.name ?? String(item.app_id), catalog); });
       setResults(outcome.map((item, index) => ({ name: items[index]?.name ?? String(item.app_id), ok: item.ok, error: item.error })));
       const ok = outcome.filter(item => item.ok).length;
       const failed = outcome.length - ok;
@@ -122,14 +126,16 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
       <div className="grid gap-4">
         <h3 className="m-0 text-lg font-bold">{c.wzDrives}</h3>
         <p className="m-0 text-sm text-muted-foreground">{c.wzDrivesHint}</p>
-        <ul className="m-0 grid list-none gap-2 p-0">
+        {/* The disks are short names (C:, D:...): all on one row, each ticked or not; the free space as its tooltip. */}
+        {!drives.length && !message ? <p className="m-0 text-sm text-muted-foreground">{c.wzNoDrives}</p> : null}
+        <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
           {drives.map(drive => (
             <li key={drive.path}>
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-                <Checkbox checked={chosen.has(drive.path)} disabled={step === "scanning"} onCheckedChange={value => setChosen(current => { const next = new Set(current); if (value) next.add(drive.path); else next.delete(drive.path); return next; })} />
-                <HardDrive className="size-5 text-muted-foreground" />
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2" title={`${formatBytes(drive.free_bytes)} ${c.wzFree} ${formatBytes(drive.total_bytes)}`}>
+                <Checkbox checked={chosen.has(drive.path)} disabled={step === "scanning"} onCheckedChange={value => setChosen(current => { const next = new Set(current); if (value) next.add(drive.path); else next.delete(drive.path); return next; })} aria-label={drive.label} />
+                <HardDrive className="size-4 text-muted-foreground" />
                 <b>{drive.label}</b>
-                <span className="text-sm text-muted-foreground">{formatBytes(drive.free_bytes)} {c.wzFree} {formatBytes(drive.total_bytes)}</span>
+                <span className="text-xs text-muted-foreground">{formatBytes(drive.free_bytes)}</span>
               </label>
             </li>
           ))}
