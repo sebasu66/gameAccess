@@ -108,6 +108,13 @@ html body .catalog-header-controls .library-catalog-toolbar { width: min(calc(10
 html body .library-catalog-toolbar .global-search:not(#_) { height: var(--ga-dock-h); border-radius: calc(var(--ga-dock-h) / 2); }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) svg { width: var(--ga-dock-icon); height: var(--ga-dock-icon); }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) input { font-size: clamp(13px, 1.05vw, 17px); padding-left: calc(var(--ga-dock-icon) + 34px); }
+/* At rest the search is a short, half-transparent capsule, still centred; it grows with what is typed (the field
+   sizes to its text) up to most of the window, and turns solid on hover, focus or with text in it. */
+html body .catalog-header-controls .library-catalog-toolbar:not(#_) { width: auto; max-width: calc(100vw - 40px); }
+html body .library-catalog-toolbar .ga-search-dock:not(#_) { flex: none; min-width: 0; }
+html body .library-catalog-toolbar .global-search:not(#_) { flex: none; transition: background .25s, border-color .25s, box-shadow .25s; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box:not(#_) input { field-sizing: content; width: auto; min-width: clamp(200px, 17vw, 280px); max-width: min(64vw, 760px); }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):not(:hover):not(:focus-within):has(input:placeholder-shown) { background: #20282c73; border-color: #ffffff1a !important; box-shadow: none; }
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
 .library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }

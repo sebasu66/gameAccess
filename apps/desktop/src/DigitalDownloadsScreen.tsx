@@ -110,6 +110,13 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         <div className="ga-dl-card-art">
           {onOpenGame ? <button type="button" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}>{art}</button> : art}
           {phase === "downloading" ? <DownloadSpeedSpark samples={service.getSpeedSamples(gameId)} speedBps={snapshot.speedBps} /> : null}
+          {/* The actions float over the picture and show on hover or focus (the card stays quiet otherwise). */}
+          <div className="ga-dl-card-actions">
+            {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
+            {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
+            <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} /><span className="ga-dl-label">{t("downloadsCancel")}</span></button>
+            {openFolder(entry)}
+          </div>
         </div>
         {/* The panel's own components (the telemetry dial and the progress line with its bar), as they were. */}
         {stage ? <div className="ga-download-telemetry ga-dl-card-progress">
@@ -121,12 +128,6 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
           </div>
         </div> : null}
         <DownloadSteps snapshot={snapshot} />
-        <div className="ga-dl-card-actions">
-          {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
-          {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
-          <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} /><span className="ga-dl-label">{t("downloadsCancel")}</span></button>
-          {openFolder(entry)}
-        </div>
       </article>;
     }
     return <article className={`digital-download-row ${featured ? "digital-download-featured" : ""}`} key={gameId}>

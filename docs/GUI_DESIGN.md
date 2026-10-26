@@ -162,6 +162,13 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Sin buscador propio: la filtra el buscador del catálogo y la librería.
 - Solo se desplazan las filas (con la barra redonda); título, resumen, botones (apilados a la derecha del resumen), filtros y encabezado de la tabla quedan fijos.
 
+### 4.21 Descarga en la lista `digital-download-row` / `ga-dl-card`
+- Cada descarga es una tarjeta: borde `#ffffff12`, radio 10 px (12 la que está en curso), fondo `#ffffff05`, 8 px entre tarjetas; con mouse o foco el fondo y el borde se aclaran.
+- Sus botones (cuadrados de 34 px, solo ícono, el nombre se despliega al pasar el mouse) flotan en una cápsula de vidrio abajo a la derecha (sobre la imagen en la que está en curso) y aparecen solo con mouse o foco, sin mover nada. La cruz para quitarla también.
+
+### 4.22 Buscador
+- En reposo es una cápsula corta y semitransparente, centrada; crece con el texto que se escribe (hasta el 64 % de la ventana) y se vuelve opaca con mouse, foco o texto.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
