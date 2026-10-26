@@ -14,7 +14,7 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box in
 /* The single catalog / library switch: the current view's icon and name on its big word's colour (orange catalog,
    green library); a press turns it to the other view. `:not(#_)` outranks the LED button rules the pixel field adds
    to it. */
-/* A round button with the current view's icon; its name unfolds on hover or focus. Flat (it is on the screen): the
+/* A round button with the icon of the view it leads to (what a press does); its name unfolds on hover or focus. Flat (it is on the screen): the
    catalog in the orange of every primary button, the library in its green. Changing view, the new colour sweeps
    across it from left to right in 1 s over the old one (its own fill is the other view's, its ::before the current
    one wiping in; one animation per view so it restarts on every change). Its size follows the search field's. */

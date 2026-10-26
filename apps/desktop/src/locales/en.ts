@@ -759,7 +759,7 @@ export const en: Record<keyof typeof es, string> = {
   bentoDeepFrozen: "Deep frozen",
   bentoIce: "FROZEN",
   bentoEmpty: "No games match this filter.",
-  viewToggleAria: "{{current}}: switch to {{next}}",
+  viewToggleAria: "Go to {{next}}",
   pillsLabel: "Library filters",
   flipMenuLabel: "{{name}} options",
   flipPlay: "Play",

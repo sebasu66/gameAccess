@@ -471,14 +471,14 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
         </div>
-        {/* One button for the two views: it shows the current one (icon and name, in its big word's colour) and
-            switches to the other. */}
+        {/* One button for the two views: it shows where it goes (the other view's icon and name, in its big word's
+            colour) and switches to it. */}
         <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
           {(() => {
-            const current = view === "catalog" ? views[0] : views[1], next = view === "catalog" ? views[1] : views[0];
-            return <button type="button" className={`ga-view-toggle is-${current.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { current: current.label, next: next.label })} title={t("viewToggleAria", { current: current.label, next: next.label })}
+            const next = view === "catalog" ? views[1] : views[0];
+            return <button type="button" className={`ga-view-toggle is-${next.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { next: next.label })} title={t("viewToggleAria", { next: next.label })}
               onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
-              <span key={current.id} className="ga-view-toggle-face"><FilledIcon name={current.id === "catalog" ? "catalog" : "library"} /><span>{current.label}</span></span>
+              <span key={next.id} className="ga-view-toggle-face"><FilledIcon name={next.id === "catalog" ? "catalog" : "library"} /><span>{next.label}</span></span>
             </button>;
           })()}
         </div>

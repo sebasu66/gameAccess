@@ -757,7 +757,7 @@ export const es = {
   bentoDeepFrozen: "Congelado profundo",
   bentoIce: "CONGELADO",
   bentoEmpty: "No hay juegos con este filtro.",
-  viewToggleAria: "{{current}}: cambiar a {{next}}",
+  viewToggleAria: "Ir a {{next}}",
   pillsLabel: "Filtros de la librería",
   flipMenuLabel: "Opciones de {{name}}",
   flipPlay: "Jugar",
