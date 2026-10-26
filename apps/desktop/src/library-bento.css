@@ -14,13 +14,13 @@
 .ga-bento-divider button svg { flex: none; transform: rotate(90deg); transition: transform .2s ease; }
 .ga-bento-divider[data-collapsed] button svg { transform: none; }
 .ga-bento-divider button:hover, .ga-bento-divider button:focus-visible { color: #f4f4f2; outline: none; }
-.ga-bento-divider button:focus-visible { box-shadow: 0 0 0 2px #ff6a00; }
+.ga-bento-divider button:focus-visible { box-shadow: 0 0 0 2px #cc8333; }
 
 .ga-bento-slot { position: relative; min-width: 0; min-height: 0; }
 .ga-bento-card { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 8px; background: #1b2024; box-shadow: 0 8px 22px #0007; cursor: pointer; text-align: left; color: #f4f4f2; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
 .ga-bento-card::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff18; pointer-events: none; transition: box-shadow .25s; }
 .ga-bento-card:hover, .ga-bento-card:focus-visible { transform: translateY(-4px); outline: none; }
-.ga-bento-card:hover::after, .ga-bento-card:focus-visible::after, .ga-bento-card[aria-current="true"]::after { box-shadow: inset 0 0 0 1px #ff6a00cc; }
+.ga-bento-card:hover::after, .ga-bento-card:focus-visible::after, .ga-bento-card[aria-current="true"]::after { box-shadow: inset 0 0 0 1px #cc8333cc; }
 .ga-bento-cover, .ga-bento-cover > * { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* The card does not clip, so the name can hang below it; its pictures and veils clip themselves. */
 .ga-bento-cover, .ga-bento-landscape, .ga-bento-ice { border-radius: 8px; overflow: hidden; }
@@ -35,12 +35,12 @@
 .ga-bento-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-bento-name svg { flex: none; color: #929ba2; }
 .ga-bento-card:not([data-kind="pending"]) .ga-bento-name { font-size: 13px; }
-.ga-bento-frost { position: absolute; top: 10px; right: 10px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #8fd3ff; background: #0d1a24b8; box-shadow: 0 0 0 1px #8fd3ff55, 0 0 14px #8fd3ff44; }
-.ga-bento-ice { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding-top: 8px; color: #e6f6ff; font: 800 9px Manrope, sans-serif; letter-spacing: .18em; background: linear-gradient(0deg, #8fd3ff55 0, #8fd3ff26 55%, #8fd3ff10 100%); box-shadow: inset 0 0 0 1px #8fd3ff66, inset 0 -18px 30px #d8f1ff30; animation: ga-bento-ice-rise 1.3s ease-out both; }
+.ga-bento-frost { position: absolute; top: 10px; right: 10px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #a5cee9; background: #0d1a24b8; box-shadow: 0 0 0 1px #a5cee955, 0 0 14px #a5cee944; }
+.ga-bento-ice { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding-top: 8px; color: #ebf5fa; font: 800 9px Manrope, sans-serif; letter-spacing: .18em; background: linear-gradient(0deg, #a5cee955 0, #a5cee926 55%, #a5cee910 100%); box-shadow: inset 0 0 0 1px #a5cee966, inset 0 -18px 30px #e0eff730; animation: ga-bento-ice-rise 1.3s ease-out both; }
 .ga-bento-card[data-kind="deep"] .ga-bento-cover img { filter: grayscale(.7) brightness(.85); }
-.ga-bento-card[data-kind="deep"] .ga-bento-name { color: #d8efff; z-index: 2; }
+.ga-bento-card[data-kind="deep"] .ga-bento-name { color: #e0eef7; z-index: 2; }
 .ga-bento-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; height: 3px; border-radius: 0 0 8px 8px; overflow: hidden; background: #0009; }
-.ga-bento-progress i { position: absolute; inset: 0; background: #ff6a00; transform-origin: left; }
+.ga-bento-progress i { position: absolute; inset: 0; background: #cc8333; transform-origin: left; }
 .ga-bento-empty { margin: 60px 0; text-align: center; color: #929ba2; }
 /* Deep freeze: the frosted veil rises from the bottom. */
 @keyframes ga-bento-ice-rise { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
@@ -61,8 +61,8 @@
 .ga-bento-menu[data-shown] path, .ga-bento-menu:focus-visible path { stroke-dashoffset: 0; transition: stroke-dashoffset .45s ease-out; }
 .ga-bento-menu[data-shown] path:nth-child(2), .ga-bento-menu:focus-visible path:nth-child(2) { transition-delay: .12s; }
 .ga-bento-menu[data-shown] path:nth-child(3), .ga-bento-menu:focus-visible path:nth-child(3) { transition-delay: .24s; }
-.ga-bento-menu:hover { background: #ff6a00; color: #140a02; border-color: #ff6a00; }
-.ga-bento-menu:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
+.ga-bento-menu:hover { background: #cc8333; color: #140a02; border-color: #cc8333; }
+.ga-bento-menu:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
 .ga-bento-card[data-kind="pending"] ~ .ga-bento-menu { width: 26px; height: 26px; right: 6px; bottom: 6px; }
 @keyframes ga-bento-menu-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 
@@ -82,6 +82,6 @@
 .ga-side-menu-items button:hover:not(:disabled), .ga-side-menu-items button:focus-visible { background: #ffffff14; outline: none; }
 .ga-side-menu-items button:disabled { opacity: .4; cursor: default; }
 .ga-side-menu-note { max-width: 240px; margin: 8px 0 0; padding: 8px 12px 0; border-top: 1px solid #ffffff1f; color: #f4f4f2b3; font: 600 12px/1.4 Manrope, sans-serif; text-shadow: 0 1px 6px #000a; }
-.ga-side-menu-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #ff6a00; color: #140a02; font-weight: 800; text-shadow: none; }
-.ga-side-menu-items button.primary:hover:not(:disabled) { background: #ff8230; }
+.ga-side-menu-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #cc8333; color: #140a02; font-weight: 800; text-shadow: none; }
+.ga-side-menu-items button.primary:hover:not(:disabled) { background: #d69959; }
 @media (prefers-reduced-motion: reduce) { .ga-bento-menu, .ga-bento-menu path { transition: none; animation: none !important; } }

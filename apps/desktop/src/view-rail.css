@@ -11,8 +11,8 @@
    (ViewRail.tsx, drawPixelWord): 4 px squares on a 5 px grid, the edges stepping like real screen pixels. */
 .ga-rail-word > .text { display: block; color: transparent; }
 .ga-rail-word > canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-.ga-rail-word[data-view="catalog"] { --rw-hi: #ffb070; --rw: #ff6a00; --rw-lo: #c94f00; }
-.ga-rail-word[data-view="library"] { --rw-hi: #e2fff0; --rw: #8fe3b0; --rw-lo: #4fb985; }
+.ga-rail-word[data-view="catalog"] { --rw-hi: #e2ba8d; --rw: #cc8333; --rw-lo: #a16628; }
+.ga-rail-word[data-view="library"] { --rw-hi: #e8f9f0; --rw: #a0d2b4; --rw-lo: #64a485; }
 /* The catalog and library content is centred on the whole window, as if the word were not there: a column of at most
    1600 px with the same margin on both sides. That margin is never less than how far the word reaches into the
    content area (--ga-rail-clear, measured by ViewRail.tsx), so the word never covers the content. */

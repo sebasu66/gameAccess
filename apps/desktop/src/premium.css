@@ -1,32 +1,32 @@
 /* "Activar premium": footer button and the dialog it opens. Glass panel, orange accent. */
-.ga-premium-button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border:1px solid #ff8a3599;border-radius:8px;background:#ff8a3514;color:#ffac57;font:700 11px Manrope,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}
-.ga-premium-button:hover{background:#ff8a3528}
-.ga-premium-button:focus-visible,.ga-premium-dialog button:focus-visible,.ga-premium-dialog a:focus-visible,.ga-premium-dialog input:focus-visible{outline:2px solid #ff8a35;outline-offset:3px}
+.ga-premium-button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border:1px solid #d79d5d99;border-radius:8px;background:#d79d5d14;color:#ddb079;font:700 11px Manrope,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}
+.ga-premium-button:hover{background:#d79d5d28}
+.ga-premium-button:focus-visible,.ga-premium-dialog button:focus-visible,.ga-premium-dialog a:focus-visible,.ga-premium-dialog input:focus-visible{outline:2px solid #d79d5d;outline-offset:3px}
 .ga-premium-overlay{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:20px;background:#05070acc;backdrop-filter:blur(6px)}
 .ga-premium-dialog{width:min(560px,100%);max-height:calc(100vh - 40px);overflow:auto;padding:24px;border:1px solid #ffffff35;border-radius:14px;background:linear-gradient(135deg,#30363cf2,#111416fa);box-shadow:0 16px 50px #0009;color:#f4f4f2;font-family:Manrope,"Segoe UI",sans-serif;display:flex;flex-direction:column;gap:12px}
 .ga-premium-dialog header{display:flex;align-items:center;justify-content:space-between}
 .ga-premium-dialog h2{display:flex;align-items:center;gap:10px;margin:0;font-size:22px}
-.ga-premium-dialog h2 svg{color:#ff8a35}
+.ga-premium-dialog h2 svg{color:#d79d5d}
 .ga-premium-dialog h3{margin:8px 0 0;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:#aeb6bc}
 .ga-premium-dialog p{margin:0;font-size:14px;line-height:1.55;color:#dfe3e6}
 .ga-premium-dialog header button{display:grid;place-items:center;border:0;background:transparent;color:#cdd0cf;padding:4px;cursor:pointer}
 .ga-premium-note{display:flex;align-items:center;gap:8px;color:#aeb6bc!important;font-size:12px!important}
 .ga-premium-plans{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .ga-premium-plans>li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px;border:1px solid #ffffff22;border-radius:10px;background:#0003}
-.ga-premium-price{color:#ffac57;font-weight:700}
+.ga-premium-price{color:#ddb079;font-weight:700}
 .ga-premium-plans ul{grid-column:1/-1;margin:4px 0 0;padding-left:18px;color:#cdd0cf;font-size:13px;line-height:1.5}
 .ga-premium-regions{display:flex;gap:8px;flex-wrap:wrap}
 .ga-premium-regions button{padding:6px 12px;border:1px solid #ffffff30;border-radius:8px;background:transparent;color:#cdd0cf;font:650 12px Manrope,sans-serif;cursor:pointer}
-.ga-premium-regions button[aria-pressed=true]{border-color:#ff8a35;background:#ff8a3518;color:#ffac57}
+.ga-premium-regions button[aria-pressed=true]{border-color:#d79d5d;background:#d79d5d18;color:#ddb079}
 .ga-premium-methods{display:grid;gap:8px}
 .ga-premium-methods a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #ffffff28;border-radius:10px;background:#ffffff08;color:#f4f4f2;text-decoration:none;font-weight:650}
-.ga-premium-methods a:hover{border-color:#ff8a3599;background:#ff8a3510}
+.ga-premium-methods a:hover{border-color:#d79d5d99;background:#d79d5d10}
 .ga-premium-methods small{display:block;margin-top:3px;font-weight:500;color:#aeb6bc}
 .ga-premium-key{display:grid;gap:8px;margin-top:6px;padding-top:12px;border-top:1px solid #ffffff1c}
 .ga-premium-key label{font-size:13px;color:#aeb6bc}
 .ga-premium-key-row{display:flex;align-items:center;gap:10px}
-.ga-premium-key-row svg{flex:none;color:#ff8a35}
+.ga-premium-key-row svg{flex:none;color:#d79d5d}
 .ga-premium-key-row input{flex:1;min-width:0;height:42px;padding:0 12px;border:1px solid #ffffff35;border-radius:9px;background:#0b0d10;color:#fff;font:600 14px Consolas,monospace}
 .ga-premium-key-row .primary{display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 16px;border-radius:9px;white-space:nowrap}
-.ga-premium-error{color:#ffb2a7!important}
-.ga-premium-ok{color:#7ee8a8!important}
+.ga-premium-error{color:#edbfb9!important}
+.ga-premium-ok{color:#93d3ac!important}

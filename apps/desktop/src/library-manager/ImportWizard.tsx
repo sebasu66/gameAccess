@@ -112,14 +112,14 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
             </li>
           ))}
         </ul>
-        {message ? <p role="alert" className="m-0 text-sm text-[#ff6b75]">{message}</p> : null}
+        {message ? <p role="alert" className="m-0 text-sm text-[#e1898f]">{message}</p> : null}
       </div>
     );
     if (step === "importing") return <p className="m-0 flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />{c.wzImporting}</p>;
     if (step === "done") return (
       <div className="grid gap-3">
         <p className="m-0 font-bold">{c.wzDone(results.filter(r => r.ok).length, results.filter(r => !r.ok).length)}</p>
-        <ul className="m-0 grid max-h-[48vh] list-none gap-1 overflow-y-auto p-0 text-sm">{results.map((r, index) => <li key={index} className={r.ok ? "text-success" : "text-[#ff6b75]"}>{r.name}{r.error ? ` — ${r.error}` : ""}</li>)}</ul>
+        <ul className="m-0 grid max-h-[48vh] list-none gap-1 overflow-y-auto p-0 text-sm">{results.map((r, index) => <li key={index} className={r.ok ? "text-success" : "text-[#e1898f]"}>{r.name}{r.error ? ` — ${r.error}` : ""}</li>)}</ul>
       </div>
     );
     return (

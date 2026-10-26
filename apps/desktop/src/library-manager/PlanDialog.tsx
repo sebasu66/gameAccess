@@ -41,7 +41,7 @@ export function PlanDialog({ plans, c, busy, onConfirm, onCancel }: { plans: Lib
                       {plan.freed_bytes ? <b className="text-xs tabular-nums text-success">{formatBytes(plan.freed_bytes)}</b> : null}
                     </button>
                     {expanded ? <div className="grid gap-2 px-3 pb-3 pl-9">
-                      {plan.error ? <p className="m-0 text-xs text-[#ff6b75]">{plan.error}</p> : null}
+                      {plan.error ? <p className="m-0 text-xs text-[#e1898f]">{plan.error}</p> : null}
                       <ul className="m-0 grid list-none gap-1.5 p-0">
                         {plan.actions.map((action, index) => (
                           <li key={`${action.code}-${index}`} className="flex items-start gap-2 text-sm">

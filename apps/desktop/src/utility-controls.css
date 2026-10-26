@@ -1,7 +1,7 @@
 /* Shared utility controls: header services, footer diagnostics, fixed language. */
-.ga-global-language{position:fixed;right:36px;bottom:13px;z-index:1801;display:flex;align-items:center;gap:14px;color:#bccbdd}
+.ga-global-language{position:fixed;right:36px;bottom:13px;z-index:1801;display:flex;align-items:center;gap:14px;color:#c3ccd6}
 .ga-global-language .app-language-switch{gap:3px;padding:0;border:0;background:transparent}
-.ga-global-language .app-language-switch button{height:38px;min-width:51px;padding:0 12px;border:1px solid transparent;border-radius:12px;color:#b7c4d8;background:transparent;font:650 14px Manrope,"Segoe UI",sans-serif;letter-spacing:0}
+.ga-global-language .app-language-switch button{height:38px;min-width:51px;padding:0 12px;border:1px solid transparent;border-radius:12px;color:#bec5d1;background:transparent;font:650 14px Manrope,"Segoe UI",sans-serif;letter-spacing:0}
 .ga-global-language .app-language-switch button.active{color:#f2f5fa;border-color:#c8d1df80;background:#ffffff06}
 .ga-global-language button:hover{background:#ffffff12}
 .ga-header-utilities.topbar-actions{top:calc(var(--window-chrome-height,34px) + 20px);bottom:auto;right:28px;height:38px;gap:10px;align-items:center}
@@ -12,7 +12,7 @@
 .plugin-indicator-item{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 12px;border:1px solid #ffffff25;border-radius:8px;background:#171c20;color:#cbd1d5;font:600 11px Manrope,sans-serif;min-width:0}
 .plugin-indicator-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plugin-indicator-item i{width:7px;height:7px;flex:none;border-radius:50%;background:#7e858a}
-.plugin-indicator-item[data-connected=true] i{background:#3ddc84}
+.plugin-indicator-item[data-connected=true] i{background:#5dbc87}
 .ga-console-toggle{position:fixed!important;left:140px;right:auto;bottom:13px}
 .catalog-bottom-actions>.catalog-refresh-button{position:absolute!important;right:210px;bottom:13px}
 .ga-big-screen-toggle{position:fixed!important;left:260px!important;bottom:13px!important}
@@ -21,6 +21,6 @@
 /* The footer keeps one height at every width: filters and sort moved above the grid (they used to stack here under 1450 px). */
 .ga-detail-actions .installed-game-options{flex:0 0 48px;gap:0}
 .ga-detail-actions .glass-action.play{flex:1 1 0!important;width:auto!important;height:54px!important}
-.ga-global-language button:focus-visible,.ga-header-utilities button:focus-visible{outline:2px solid #ff8a35;outline-offset:3px}
+.ga-global-language button:focus-visible,.ga-header-utilities button:focus-visible{outline:2px solid #d79d5d;outline-offset:3px}
 @media(max-width:1100px){.ga-header-utilities .plugin-indicator-group{max-width:160px}.ga-header-utilities{gap:6px!important}.ga-header-utilities button{padding-inline:8px!important;font-size:11px!important}}
 @media(max-width:760px){.ga-global-language{right:20px}.ga-header-utilities.topbar-actions{top:calc(var(--window-chrome-height,34px) + 76px);right:16px}.ga-header-utilities .plugin-indicator-group{max-width:130px}.ga-big-screen-toggle{left:250px!important}}

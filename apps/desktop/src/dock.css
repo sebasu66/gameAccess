@@ -25,16 +25,16 @@
 .ga-global-language .app-language-switch button { height: 38px; min-width: 44px; padding: 0 10px; font-size: 13px; }
 .ga-header-utilities.topbar-actions { right: 190px !important; }
 .ga-header-utilities .ga-access-pass-toggle { gap: 8px; padding: 0 12px !important; }
-.ga-header-utilities .ga-access-pass-toggle strong { font-weight: 800; letter-spacing: .06em; color: #ff8a38; }
+.ga-header-utilities .ga-access-pass-toggle strong { font-weight: 800; letter-spacing: .06em; color: #d79e60; }
 .ga-header-utilities .ga-access-pass-toggle .ga-access-time { font-variant-numeric: tabular-nums; color: #dce1e5; font-weight: 650; }
-.ga-header-utilities .ga-access-pass-toggle svg { color: #ff8a35; }
+.ga-header-utilities .ga-access-pass-toggle svg { color: #d79d5d; }
 @media (max-width: 760px) { .ga-global-language { top: calc(var(--window-chrome-height, 34px) + 20px) !important; right: 16px !important; } .ga-header-utilities.topbar-actions { right: 16px !important; top: calc(var(--window-chrome-height, 34px) + 70px) !important; } }
 .ga-dock .ga-help-fab { order: 3; }
 
 /* Developer resource bar (only while the profiler is on). */
-.ga-resource-meter{position:fixed;left:12px;bottom:10px;z-index:9000;display:flex;gap:12px;padding:5px 11px;border-radius:8px;background:#0b0e12d9;border:1px solid #ffffff22;color:#9fe0b0;font:600 11px/1.4 ui-monospace,Consolas,monospace;pointer-events:none;font-variant-numeric:tabular-nums}
-.ga-resource-culprits{color:#ffd28a;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ga-resource-meter.is-hot{color:#ff9d8f;border-color:#ff7a6b}
+.ga-resource-meter{position:fixed;left:12px;bottom:10px;z-index:9000;display:flex;gap:12px;padding:5px 11px;border-radius:8px;background:#0b0e12d9;border:1px solid #ffffff22;color:#acd3b6;font:600 11px/1.4 ui-monospace,Consolas,monospace;pointer-events:none;font-variant-numeric:tabular-nums}
+.ga-resource-culprits{color:#e8caa1;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ga-resource-meter.is-hot{color:#e9aea5;border-color:#e19289}
 
 /* ---------- footer (docs/GUI_DESIGN.md §4.14): glass cubes, no fixed text on the main screen ---------- */
 /* The language lives in the footer globe while the catalog is open. */
@@ -50,7 +50,7 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
 .ga-footer-language:hover .ga-footer-language-pop, .ga-footer-language:focus-within .ga-footer-language-pop { opacity: 1; transform: none; pointer-events: auto; }
 .ga-footer-language-pop button { height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: #f4f4f2; text-align: left; font: 600 13px Manrope, sans-serif; cursor: pointer; }
 .ga-footer-language-pop button:hover, .ga-footer-language-pop button:focus-visible { background: #ffffff12; outline: none; }
-.ga-footer-language-pop button[aria-pressed="true"] { color: #ff6a00; }
+.ga-footer-language-pop button[aria-pressed="true"] { color: #cc8333; }
 /* Connection status: only its dot until the pointer or focus reaches it. */
 .catalog-bottom-actions .ga-backend-status { min-width: 0; height: 38px; padding: 0 12px; border-radius: 8px; gap: 0; }
 .catalog-bottom-actions .ga-backend-status > span { max-width: 0; opacity: 0; overflow: hidden; transition: max-width .35s, opacity .2s, margin .35s; }
@@ -70,7 +70,7 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
   box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006 !important;
 }
 .ga-dock .ga-cube:is(.catalog-refresh-button, .ga-big-screen-toggle):is(:hover, :focus-visible) {
-  border-color: #ff8a38 !important; color: #fff !important; background: linear-gradient(180deg, #ff6a0038, #ff6a0012) !important;
-  box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #ff6a0055, 0 4px 12px #0006 !important;
+  border-color: #d79e60 !important; color: #fff !important; background: linear-gradient(180deg, #cc833338, #cc833312) !important;
+  box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #cc833355, 0 4px 12px #0006 !important;
 }
-.ga-dock .ga-cube.ga-big-screen-toggle[aria-pressed="true"] { border-color: #ff8a3899 !important; color: #fff !important; background: linear-gradient(180deg, #ff6a0026, #ff6a000a) !important; }
+.ga-dock .ga-cube.ga-big-screen-toggle[aria-pressed="true"] { border-color: #d79e6099 !important; color: #fff !important; background: linear-gradient(180deg, #cc833326, #cc83330a) !important; }

@@ -21,7 +21,7 @@ html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 .ga-desk-panel[data-mode="page"] .ga-desk-card { background: #111416; }
 .ga-desk-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 26px 26px 20px; }
 .ga-desk-eyebrow { display: block; font: 800 11px Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
-.ga-desk-head h2 { margin: 4px 0 0; font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange, #ff6a00); }
+.ga-desk-head h2 { margin: 4px 0 0; font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange, #cc8333); }
 .ga-desk-head p { margin: 6px 0 0; font-size: 13px; color: #aeb6bc; }
 .ga-desk-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 24px 96px; }
 .ga-desk-panel[data-slot="above"] .ga-desk-body { padding-bottom: 24px; }
@@ -43,5 +43,5 @@ html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 * { scrollbar-width: thin; scrollbar-color: #ffffff40 transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
 ::-webkit-scrollbar-thumb { background: #ffffff40; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #ff6a00; }
+::-webkit-scrollbar-thumb:hover { background: #cc8333; }
 ::-webkit-scrollbar-button { display: none; }

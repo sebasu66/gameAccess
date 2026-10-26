@@ -16,7 +16,7 @@ html body.ga-device-frame.ga-big-screen .library-room:not(.surface-display):not(
   /* Centred with margins, not a transform: GSAP moves it in and out (motion/bigPictureMotion.ts). */
   position: fixed; z-index: 60; left: 0; right: 0; bottom: 12px; width: fit-content; margin-inline: auto;
   display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 520px); margin-block: 0; padding: 8px 18px;
-  border: 1px solid #ff8a3866; border-radius: 8px; background: #111416e6; color: var(--ga-white);
+  border: 1px solid #d79e6066; border-radius: 8px; background: #111416e6; color: var(--ga-white);
   font: 600 14px Manrope, "Segoe UI", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   box-shadow: 0 6px 18px #0008;
 }

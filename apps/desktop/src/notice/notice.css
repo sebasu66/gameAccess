@@ -1,15 +1,15 @@
 /* The single notice (docs/GUI_DESIGN.md §4.9): bottom right, background fading upward, tone line below. */
 .ga-notice {
-  --nt: #ff6a00;
+  --nt: #cc8333;
   position: fixed; z-index: 2147483000; right: calc(var(--ga-panel-right, 0px) + 20px); bottom: calc(var(--ga-footer-height, 52px) + 16px);
   width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 16px; padding: 48px 22px 22px;
   border-radius: 0 0 12px 12px; overflow: hidden; color: #f4f4f2; font: 400 14px/1.45 Manrope, sans-serif;
   background: linear-gradient(0deg, rgba(20,24,28,.97) 0, rgba(20,24,28,.93) 62%, rgba(20,24,28,.6) 82%, rgba(20,24,28,0) 100%);
 }
 .ga-notice::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--nt); box-shadow: 0 0 14px var(--nt); }
-.ga-notice[data-tone="ok"] { --nt: #8fe3b0; }
-.ga-notice[data-tone="frost"] { --nt: #8fd3ff; }
-.ga-notice[data-tone="danger"], .ga-notice[data-tone="error"] { --nt: #ff5a4a; }
+.ga-notice[data-tone="ok"] { --nt: #a0d2b4; }
+.ga-notice[data-tone="frost"] { --nt: #a5cee9; }
+.ga-notice[data-tone="danger"], .ga-notice[data-tone="error"] { --nt: #db786e; }
 .ga-notice[data-timer] .ga-notice-head { padding-right: 30px; }
 .ga-notice-head { display: flex; align-items: center; gap: 16px; }
 .ga-notice-art { width: 46px; height: 69px; object-fit: cover; border-radius: 5px; flex: none; box-shadow: 0 6px 16px #0008; }
@@ -21,11 +21,11 @@
 .ga-notice-steps li { display: flex; align-items: center; gap: 10px; }
 .ga-notice-steps li i { position: relative; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ffffff30; flex: none; }
 .ga-notice-steps li[data-state="running"] { color: #f4f4f2; }
-.ga-notice-steps li[data-state="running"] i { border-color: #ff6a00 transparent #ff6a00 transparent; animation: ga-notice-spin .8s linear infinite; }
-.ga-notice-steps li[data-state="done"] i { border-color: #8fe3b0; background: #8fe3b0; }
+.ga-notice-steps li[data-state="running"] i { border-color: #cc8333 transparent #cc8333 transparent; animation: ga-notice-spin .8s linear infinite; }
+.ga-notice-steps li[data-state="done"] i { border-color: #a0d2b4; background: #a0d2b4; }
 .ga-notice-steps li[data-state="done"] i::after { content: ""; position: absolute; left: 3.5px; top: 1px; width: 3px; height: 6px; border: solid #111416; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
-.ga-notice-steps li[data-state="failed"] { color: #ff8a7a; }
-.ga-notice-steps li[data-state="failed"] i { border-color: #ff5a4a; background: #ff5a4a; }
+.ga-notice-steps li[data-state="failed"] { color: #e49e95; }
+.ga-notice-steps li[data-state="failed"] i { border-color: #db786e; background: #db786e; }
 .ga-notice-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .ga-notice-actions button { min-width: 96px; }
 .ga-notice-progress { position: absolute; left: 0; right: 0; bottom: 2px; height: 2px; background: #ffffff10; overflow: hidden; }
@@ -40,7 +40,7 @@
 .ga-notice:hover .ga-notice-timer .run, .ga-notice:focus-within .ga-notice-timer .run { animation-play-state: paused; }
 .ga-notice-timer > svg + svg { position: relative; inset: auto; width: 12px; height: 12px; transform: none; opacity: .7; }
 .ga-notice-timer:hover { color: #fff; }
-.ga-notice-timer:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; border-radius: 50%; }
+.ga-notice-timer:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; border-radius: 50%; }
 @keyframes ga-notice-timer { to { stroke-dashoffset: 0; } }
 @keyframes ga-notice-spin { to { transform: rotate(360deg); } }
 @keyframes ga-notice-sweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }

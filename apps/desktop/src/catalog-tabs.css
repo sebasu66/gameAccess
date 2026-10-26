@@ -37,8 +37,8 @@
 
 .catalog-tabs button.active {
   color: #eafff6;
-  background: rgba(101,240,178,.12);
-  box-shadow: inset 0 0 0 1px rgba(101,240,178,.16);
+  background: rgba(129,212,175,.12);
+  box-shadow: inset 0 0 0 1px rgba(129,212,175,.16);
 }
 
 /* The catalog source tabs replace the old placeholder top navigation. */

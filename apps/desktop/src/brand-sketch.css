@@ -15,7 +15,7 @@
    the line closes, a faint fill a shade lighter than the background. */
 .ga-sketch-letter, .ga-sketch-ghost { stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1 1; stroke-dashoffset: calc(1 - var(--p)); }
 .ga-sketch-letter { stroke: #f4f4f2; stroke-width: .55; stroke-opacity: calc(.12 + var(--p) * .33); fill: #c9d4dc; fill-opacity: calc(max(0, var(--p) - .55) * .14); }
-.ga-sketch-ghost { fill: none; stroke: #ff8a3c; stroke-width: .4; opacity: calc(var(--p) * .2); stroke-dashoffset: calc(1.06 - var(--p)); }
+.ga-sketch-ghost { fill: none; stroke: #d89f63; stroke-width: .4; opacity: calc(var(--p) * .2); stroke-dashoffset: calc(1.06 - var(--p)); }
 .ga-sketch-word { opacity: min(1, calc(var(--w) * 4)); }
 /* The whole word on its own (BrandWord; huge in the right column with BrandWall), six cells tall, a bit more present than the
    sketch under the logo: a firmer line and fill, and the guides a little brighter. */

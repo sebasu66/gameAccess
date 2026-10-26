@@ -16,12 +16,12 @@
 .ga-frame-outer { fill: none; stroke: #ffffff; stroke-opacity: .12; stroke-width: 1; }
 .ga-frame-inner { fill: none; stroke: #ffffff; stroke-opacity: .08; stroke-width: 1; }
 .ga-frame-ticks { fill: none; stroke: #ffffff; stroke-opacity: .28; stroke-width: 1; }
-.ga-frame-accent { fill: none; stroke: #ff6a00; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
+.ga-frame-accent { fill: none; stroke: #cc8333; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
 
 /* The device's name in its thin tab at the middle of the top edge (the tab wraps this label): lit orange letters
    that glow on the metal, like a backlit inscription; Bebas Neue, the titles' font, reads best at this size. */
 .ga-frame-name { position: fixed; z-index: 52; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 14px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
-  font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ffc49a; text-shadow: 0 0 1px #ff6a00aa, 0 0 3px #ff6a0055; }
+  font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ebceae; text-shadow: 0 0 1px #cc8333aa, 0 0 3px #cc833355; }
 
 /* Buttons mounted on the frame (the footer's controls) are part of the device: raised metal keys with depth and a
    bevel (light on the top-left edge, dark on the bottom-right, a dark side underneath) that sink when pressed. Buttons
@@ -31,21 +31,21 @@ html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premiu
   box-shadow: inset 1px 1px 0 #ffffff33, inset -1px -1px 0 #00000080, 0 2px 0 #0a0d0f, 0 4px 9px #000a !important;
   transition: background .2s, box-shadow .12s, transform .12s, color .2s !important; }
 html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):is(:hover, :focus-visible) {
-  color: #fff !important; background: linear-gradient(180deg, #4a3220, #33241a 55%, #261b14) !important;
-  box-shadow: inset 1px 1px 0 #ffb37a55, inset -1px -1px 0 #00000080, 0 2px 0 #0a0d0f, 0 4px 9px #000a, 0 0 14px #ff6a0040 !important; }
+  color: #fff !important; background: linear-gradient(180deg, #423628, #2e271f 55%, #261b14) !important;
+  box-shadow: inset 1px 1px 0 #e4bf9555, inset -1px -1px 0 #00000080, 0 2px 0 #0a0d0f, 0 4px 9px #000a, 0 0 14px #cc833340 !important; }
 html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):active:not(:disabled) {
   transform: translateY(2px) !important; box-shadow: inset 1px 1px 2px #00000099, inset -1px -1px 0 #ffffff14, 0 0 0 #0a0d0f, 0 1px 3px #0008 !important; }
 html body.ga-device-frame .catalog-bottom-actions button.ga-cube[aria-pressed="true"] {
   color: #fff !important; background: linear-gradient(180deg, #1c2024, #262c31) !important;
   box-shadow: inset 1px 1px 3px #000000b3, inset -1px -1px 0 #ffffff1a, 0 1px 0 #0a0d0f !important; transform: translateY(1px) !important; }
-html body.ga-device-frame .catalog-bottom-actions .ga-premium-button { color: #ffac57; }
+html body.ga-device-frame .catalog-bottom-actions .ga-premium-button { color: #ddb079; }
 
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube, summary.ga-cube) {
   background: #ffffff08 !important; border: 1px solid #ffffff26 !important; box-shadow: none !important; }
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube, summary.ga-cube)::before { display: none; }
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube:is(:hover, :focus-visible), details[open] > summary.ga-cube, summary.ga-cube:is(:hover, :focus-visible)) {
-  background: #ff6a001f !important; border-color: #ff8a38 !important; box-shadow: none !important; }
-html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"] { background: #ff6a0026 !important; border-color: #ff8a3899 !important; }
+  background: #cc83331f !important; border-color: #d79e60 !important; box-shadow: none !important; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"] { background: #cc833326 !important; border-color: #d79e6099 !important; }
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"]::after { box-shadow: none; }
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube.ga-personal-order.is-on { background: var(--ga-orange) !important; border-color: var(--ga-orange) !important; }
 

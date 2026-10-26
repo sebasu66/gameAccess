@@ -3,9 +3,9 @@
 html body .library-catalog-toolbar.library-catalog-controls { z-index: 121; }
 html body:not(.ga-pixel-field-on) .ga-pixel-search > canvas, html body:not(.ga-pixel-field-on) .ga-led-button > canvas { display: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search { height: 62px; border-radius: 31px; background: #20282cdc; border: 1px solid #ffffff2c !important; backdrop-filter: blur(28px); box-shadow: 0 14px 40px #0008; transition: border-color .25s, box-shadow .25s; }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #ff6a00 !important; box-shadow: 0 14px 40px #0008, 0 0 0 1px #ff6a0066; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:focus-within { border-color: #cc8333 !important; box-shadow: 0 14px 40px #0008, 0 0 0 1px #cc833366; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box { height: 100%; padding: 0 18px 0 22px; gap: 12px; border: 0; border-radius: inherit; background: none; box-shadow: none; }
-html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box svg { width: 26px; height: 26px; color: #ff6a00; }
+html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box svg { width: 26px; height: 26px; color: #cc8333; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input { font: 500 17px Manrope, sans-serif; color: #f4f4f2; text-align: left; padding: 0 22px 0 64px; }
 html body:not(.ga-pixel-field-on) .ga-pixel-search::after { display: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box input::placeholder { color: #8f969d; }
@@ -19,11 +19,11 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search-box in
    view's, wipes in (a different animation per view, so it restarts on every change). The name in the section labels'
    letter (Manrope 800, caps, wide spacing). */
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_) { position: relative; isolation: isolate; width: auto !important; min-width: 0; gap: 0; padding: 0 26px 0 20px; border: 0 !important; color: #140a02 !important; text-shadow: none; box-shadow: none !important; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { background: linear-gradient(90deg, #4fb985, #8fe3b0 55%, #e2fff0) !important; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { background: linear-gradient(90deg, #c94f00, #ff6a00 55%, #ffb070) !important; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog { background: linear-gradient(90deg, #64a485, #a0d2b4 55%, #e8f9f0) !important; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library { background: linear-gradient(90deg, #a16628, #cc8333 55%, #e2ba8d) !important; }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before { content: ""; display: block !important; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog::before { background: linear-gradient(90deg, #c94f00, #ff6a00 55%, #ffb070); animation: ga-view-fill-catalog 1s cubic-bezier(.65, 0, .35, 1) both; }
-html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library::before { background: linear-gradient(90deg, #4fb985, #8fe3b0 55%, #e2fff0); animation: ga-view-fill-library 1s cubic-bezier(.65, 0, .35, 1) both; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-catalog::before { background: linear-gradient(90deg, #a16628, #cc8333 55%, #e2ba8d); animation: ga-view-fill-catalog 1s cubic-bezier(.65, 0, .35, 1) both; }
+html body .library-catalog-tabs > button.ga-view-toggle:not(#_).is-library::before { background: linear-gradient(90deg, #64a485, #a0d2b4 55%, #e8f9f0); animation: ga-view-fill-library 1s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes ga-view-fill-catalog { from { clip-path: inset(0 100% 0 0 round 40px); } to { clip-path: inset(0 0 0 0 round 40px); } }
 @keyframes ga-view-fill-library { from { clip-path: inset(0 100% 0 0 round 40px); } to { clip-path: inset(0 0 0 0 round 40px); } }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_) > canvas { display: none; }
@@ -35,7 +35,7 @@ html body .library-catalog-tabs > button.ga-view-toggle:not(#_):focus-visible { 
 @media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before, html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { animation: none; } }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
-html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #ff6a00 !important; border-color: #ff6a00 !important; color: #140a02 !important; box-shadow: 0 10px 30px #ff6a0055 !important; }
+html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #cc8333 !important; border-color: #cc8333 !important; color: #140a02 !important; box-shadow: 0 10px 30px #cc833355 !important; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::before, html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button::after { display: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button svg { filter: none; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button > span { font: 700 14px Manrope, sans-serif; }

@@ -8,17 +8,17 @@ y `filter-wizard.css`; cuando cambie un valor, cambia aquí primero.
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--ga-orange` | `#ff6a00` | acción principal, títulos de pantalla, selección |
-| `--ga-orange-hover` | `#ff8230` | hover de la acción principal |
+| `--ga-orange` | `#cc8333` | acción principal, títulos de pantalla, selección |
+| `--ga-orange-hover` | `#d69959` | hover de la acción principal |
 | `--ga-bg` | `#111416` | fondo de la app |
 | `--ga-panel` | `rgba(21,25,29,.94)` | paneles y diálogos (vidrio) |
 | `--ga-white` | `#f4f4f2` | texto principal |
 | `--ga-muted` | `#929ba2` | texto secundario, subtítulos, pistas |
 | `--ga-line` | `#ffffff20` | separadores y bordes de elementos secundarios |
-| `--ga-danger` | `#e5202e` | cerrar (botón de cierre), acciones destructivas |
-| `--ga-danger-hover` | `#ff3342` | hover del botón de cierre |
-| `--ga-success` | `#8fe3b0` | estados completados |
-| `--ga-frost` | `#8fd3ff` | juegos congelados (copo de nieve y tamaño en la grilla; en el administrador de biblioteca, `frost` de Tailwind: tamaño en disco, real tachado, barra doble y ahorro) |
+| `--ga-danger` | `#be4750` | cerrar (botón de cierre), acciones destructivas |
+| `--ga-danger-hover` | `#d65c65` | hover del botón de cierre |
+| `--ga-success` | `#a0d2b4` | estados completados |
+| `--ga-frost` | `#a5cee9` | juegos congelados (copo de nieve y tamaño en la grilla; en el administrador de biblioteca, `frost` de Tailwind: tamaño en disco, real tachado, barra doble y ahorro) |
 
 Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cálido), nunca blanco.
 
@@ -45,8 +45,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.1 Botón de cierre `ga-close` (obligatorio en todo diálogo y panel)
 - Círculo de **38 × 38 px**, arriba a la derecha con 18 px de margen.
-- Fondo `--ga-danger`, borde 1 px `#ff6b75`, icono X blanco de 18 px.
-- Sombra de resplandor `0 0 14px #e5202e88`. Hover: fondo `--ga-danger-hover`, resplandor `0 0 20px #ff3342cc`.
+- Fondo `--ga-danger`, borde 1 px `#e1898f`, icono X blanco de 18 px.
+- Sombra de resplandor `0 0 14px #be475088`. Hover: fondo `--ga-danger-hover`, resplandor `0 0 20px #d65c65cc`.
 - Prohibido: X sin fondo, X en cuadrado redondeado, X en otro color.
 
 ### 4.2 Botón principal `ga-btn-primary` (componente `GaButton variant="primary"`)
@@ -54,7 +54,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Sin degradado, sin volumen, sin resplandor ni brillos (Seba, 2026-10-23; un efecto de vidrio que siga pareciendo plano queda pendiente de un ejemplo suyo).
 - Hover: `--ga-orange-hover`.
 - Una sola acción principal visible por diálogo. Confirmar, Activar, Guardar, Mostrar resultados: todos naranja.
-- Peligro (desinstalar, borrar): fondo `#c8321f`, texto blanco. Nunca naranja.
+- Peligro (desinstalar, borrar): fondo `#a64c41`, texto blanco. Nunca naranja.
 
 ### 4.3 Botón secundario `ga-btn-secondary`
 - Fondo `#ffffff08`, borde 1 px `#ffffff25`, texto blanco. **Altura 44 px** (igual que el principal), radio 8 px.
@@ -116,7 +116,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.14 Botón cubo `GaIconButton` (pie y comandos de la pantalla principal)
 - Solo ícono (19 px), 41 × 38 px, radio 8. Vidrio: fondo `linear-gradient(180deg,#ffffff16,#ffffff05)`, borde `#ffffff1c`, brillo `inset 0 1px 0 #ffffff24`.
-- Al pasar el mouse o con foco **se enciende** (fondo naranja translúcido, borde `#ff8a38`, resplandor `0 0 18px #ff6a0055`) y **despliega su nombre** al lado del ícono. Sin mouse ni foco no muestra texto.
+- Al pasar el mouse o con foco **se enciende** (fondo naranja translúcido, borde `#d79e60`, resplandor `0 0 18px #cc833355`) y **despliega su nombre** al lado del ícono. Sin mouse ni foco no muestra texto.
 - `pressed` (interruptor encendido): fondo naranja suave y una rayita naranja abajo. `badge`: numerito naranja arriba a la derecha, oculto en 0.
 - En la pantalla principal los comandos son cubos; dentro de diálogos y paneles los botones llevan texto (§4.2, §4.3).
 

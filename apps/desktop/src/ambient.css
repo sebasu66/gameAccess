@@ -4,7 +4,7 @@ body.ga-pixel-style:not(.ga-pixel-field-on) { background: #111416 !important; }
 .ga-ambient canvas { position: absolute; inset: 0; width: 100%; height: 100%; filter: blur(18px); opacity: 0; will-change: opacity; }
 .ga-ambient::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, transparent 0, #111416b8 55%, #111416 85%); }
 .ga-grain { position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-.ga-cursor-glow { position: fixed; left: 0; top: 0; z-index: -1; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #ff6a0016 0, transparent 65%); opacity: 0; }
+.ga-cursor-glow { position: fixed; left: 0; top: 0; z-index: -1; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #cc833316 0, transparent 65%); opacity: 0; }
 
 /* Card hover (motion/cardHover.ts): GSAP moves the cover, so CSS must not animate or override its transform. */
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art, html body .ga-bento-card { transition-property: box-shadow, border-color, filter, opacity; }
@@ -24,7 +24,7 @@ html body .library-room:not(.surface-display):not(.surface-tablet) .library-room
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art::before { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff18; pointer-events: none; transition: box-shadow .25s; }
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:hover .library-room-card-art::before,
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:focus-visible .library-room-card-art::before,
-html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card.is-selected .library-room-card-art::before { box-shadow: inset 0 0 0 1px #ff6a00cc, 0 0 0 1px #ff6a0055; }
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card.is-selected .library-room-card-art::before { box-shadow: inset 0 0 0 1px #cc8333cc, 0 0 0 1px #cc833355; }
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card.is-selected .library-room-card-art { box-shadow: 0 10px 26px #0007 !important; filter: none; }
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card:hover .library-room-card-art { filter: none; }
 html body .ga-card-caption { margin-top: 10px; color: #f4f4f2; font-size: 13px; font-weight: 600; }
@@ -32,4 +32,4 @@ html body .ga-card-caption small { color: #929ba2; font-size: 11px; font-weight:
 .ga-settings-language { display: flex; gap: 8px; }
 .ga-settings-language button { height: 34px; padding: 0 16px; border-radius: 17px; border: 1px solid #ffffff2c; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
 .ga-settings-language button[aria-checked="true"] { background: #f4f4f2; border-color: transparent; color: #111416; }
-.ga-settings-language button:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
+.ga-settings-language button:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
