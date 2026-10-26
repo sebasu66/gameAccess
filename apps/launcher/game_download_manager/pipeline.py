@@ -145,7 +145,7 @@ class DownloadPipeline:
         storage = DigitalGameStorage()
         game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
         # Explicit destinations keep the established test/CLI contract.
-        dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
+        dest_dir = game_dir if args.destination_dir else str(storage.transfer_folder(int(app_id), game_name))
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
         if not args.destination_dir and (getattr(args, "source_title", "") or getattr(args, "source_provider", "")):
             storage.set_source(int(app_id), args.source_title, args.source_provider)

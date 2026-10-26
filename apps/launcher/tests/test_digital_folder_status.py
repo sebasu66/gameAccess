@@ -155,9 +155,9 @@ class SetStatusTests(StorageCase):
     def test_set_status_renames_in_place_and_keeps_the_registry_pointing_at_it(self):
         self.storage.register(9, "Half-Life 2")
         first = self.storage.set_status(9, "Half-Life 2", "preparing")
-        self.assertEqual(first.name, "9-Half-Life 2-preparing")
+        self.assertEqual(first.name, "9-Half_Life_2-preparing")
         second = self.storage.set_status(9, "Half-Life 2", "downloading")
-        self.assertEqual(second.name, "9-Half-Life 2-downloading")
+        self.assertEqual(second.name, "9-Half_Life_2-downloading")
         self.assertEqual(self.storage.folder(9, "other title"), second)
         record = json.loads((self.storage.registry / "9.json").read_text(encoding="utf-8"))
         self.assertEqual(Path(record["folder"]), second)

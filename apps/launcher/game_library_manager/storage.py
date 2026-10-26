@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import time
+import unicodedata
 from pathlib import Path
 from atomic_json import write_json
 from launcher_data import data_dir
@@ -34,6 +35,9 @@ def split_folder_name(folder_name: str) -> tuple[int | None, str, str | None]:
     return int(match.group(1)), rest, None
 
 MAX_LABEL = 120
+# Longest title in a game folder's name: with "<appid>-" and "-<status>" the folder name stays short, so the path down to
+# a game's .exe (which can sit several folders deep) stays under Windows' 260-character limit.
+MAX_FOLDER_TITLE = 40
 
 
 class DigitalGameStorage:
@@ -48,8 +52,26 @@ class DigitalGameStorage:
         self.linked = LinkedGames(self.launcher)
 
     @staticmethod
-    def folder_name(name: str) -> str:
+    def legacy_folder_name(name: str) -> str:
+        """How folders were named before (the title with only Windows' forbidden characters replaced): kept to find
+        old folders that have no AppID prefix."""
         return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .") or "game"
+
+    @staticmethod
+    def folder_name(name: str) -> str:
+        """The title as a folder name: plain ASCII letters and digits only (accents dropped, "™", "®", ":" and the
+        like removed), words joined by "_" with no spaces, at most MAX_FOLDER_TITLE characters.
+        "Sekiro™: Shadows Die Twice - GOTY Edition" -> "Sekiro_Shadows_Die_Twice_GOTY_Edition"."""
+        # Trademark-like signs go first: NFKD would turn "™" into the letters "TM" ("SekiroTM").
+        plain = unicodedata.normalize("NFKD", re.sub("[\u2122\u00ae\u00a9\u2120]", " ", name)).encode("ascii", "ignore").decode("ascii")
+        words = re.findall(r"[A-Za-z0-9]+", plain)
+        title = ""
+        for word in words:
+            candidate = f"{title}_{word}" if title else word
+            if len(candidate) > MAX_FOLDER_TITLE:
+                break
+            title = candidate
+        return title or (words[0][:MAX_FOLDER_TITLE] if words else "game")
 
     def folder(self, app_id: int, name: str) -> Path:
         # Identity comes from the AppID prefix, never from the title, so a
@@ -69,7 +91,7 @@ class DigitalGameStorage:
             checked = self.checked(registered)  # refuses roots and outside paths even if stale
             if registered.is_dir():
                 return checked
-        legacy = next((root / self.folder_name(name) for root in self.roots if (root / self.folder_name(name)).is_dir()), self.root / self.folder_name(name))
+        legacy = next((root / self.legacy_folder_name(name) for root in self.roots if (root / self.legacy_folder_name(name)).is_dir()), self.root / self.legacy_folder_name(name))
         return self.checked(legacy if legacy.is_dir() else self.root / f"{int(app_id)}-{self.folder_name(name)}")
 
     def checked(self, folder: Path) -> Path:
@@ -297,6 +319,16 @@ class DigitalGameStorage:
         shutil.rmtree(folder)  # only bookkeeping files (log, backup marker) can be left in it
         (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)
 
+    def transfer_folder(self, app_id: int, name: str) -> Path:
+        """Where a game's download goes: the temporary folder it already has (whatever its name, found by its AppID, so
+        a download started before the folder names changed still resumes), or a new "<appid>-<clean name>" one."""
+        temporary = Path(self.preferences.load()["temporary_root"])
+        if temporary.is_dir():
+            existing = sorted(p for p in temporary.glob(f"{int(app_id)}-*") if p.is_dir() and not p.is_symlink())
+            if existing:
+                return existing[0]
+        return temporary / f"{int(app_id)}-{self.folder_name(name)}"
+
     def transfers(self) -> list[dict]:
         """Downloads sitting in the temporary root, and whether a worker is alive on each right now."""
         temporary = Path(self.preferences.load()["temporary_root"]).resolve()
@@ -362,7 +394,7 @@ class DigitalGameStorage:
                 if legacy_names is None:
                     legacy_names = {}
                     for app_id, game in games_by_id.items():
-                        legacy_names.setdefault(self.folder_name(game["name"]), set()).add(app_id)
+                        legacy_names.setdefault(self.legacy_folder_name(game["name"]), set()).add(app_id)
                 app_ids.update(legacy_names.get(folder.name, ()))
             for app_id in app_ids:
                 game = games_by_id.get(app_id)

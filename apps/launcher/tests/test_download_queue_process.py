@@ -124,7 +124,7 @@ def test_pause_resume_and_resume_after_closing_with_real_processes(tmp_path):
         manager.call("/config", {"tier": "plus"})
         done = manager.wait(lambda j: j["state"] == "done", timeout=90)
         assert done["phase"] == "completed", done
-        assert (launcher / "games" / "990001-Slow Test-ready").is_dir()
+        assert (launcher / "games" / "990001-Slow_Test-ready").is_dir()
         assert "Retomando la descarga" in (launcher / "logs" / "downloads.log").read_text(encoding="utf-8", errors="replace")
     finally:
         try:

@@ -29,6 +29,30 @@ def parse_arguments(value):
         kernel.LocalFree(argv)
 
 
+def short_path(path) -> str:
+    """The path Windows can always open: a game's .exe (or the folder it runs in) past ~240 characters fails to start
+    (the working folder cannot be longer than 260), so a long one is passed in its 8.3 short form ("SEKIRO~1").
+    Short or non-Windows paths, or volumes without short names, come back unchanged."""
+    text = str(path)
+    if sys.platform != "win32" or len(text) < 240:
+        return text
+    try:
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        kernel.GetShortPathNameW.restype = wintypes.DWORD
+        size = kernel.GetShortPathNameW("\\\\?\\" + text, None, 0)
+        if not size:
+            return text
+        buffer = ctypes.create_unicode_buffer(size)
+        if not kernel.GetShortPathNameW("\\\\?\\" + text, buffer, size):
+            return text
+        short = buffer.value.removeprefix("\\\\?\\")
+        return short if len(short) < len(text) else text
+    except OSError:
+        return text
+
+
 def checked_executable(folder, value):
     candidate = folder / value
     target = candidate.resolve()
@@ -63,8 +87,8 @@ def launch_as_administrator(executable, arguments, working_dir):
     kernel.CloseHandle.restype = wintypes.BOOL
     info = ShellExecuteInfo()
     info.cbSize, info.fMask = ctypes.sizeof(info), 0x40 | 0x100
-    info.lpVerb, info.lpFile = "runas", str(executable)
-    info.lpParameters, info.lpDirectory, info.nShow = subprocess.list2cmdline(arguments), str(working_dir), 1
+    info.lpVerb, info.lpFile = "runas", short_path(executable)
+    info.lpParameters, info.lpDirectory, info.nShow = subprocess.list2cmdline(arguments), short_path(working_dir), 1
     if not shell.ShellExecuteExW(ctypes.byref(info)):
         error = ctypes.get_last_error()
         if error == 1223:

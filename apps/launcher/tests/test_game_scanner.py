@@ -278,3 +278,12 @@ def test_scan_walks_the_folders_the_player_added(tmp_path, monkeypatch):
     games = GameScanner().scan([], [str(mine), str(single), str(tmp_path / "missing")])
     assert {g["name"] for g in games} == {"MC instance", "Modpack", "Lonely Game"}
     assert all(g["source"] == "custom" for g in games)
+
+
+def test_game_folders_get_plain_short_names(tmp_path):
+    # No spaces, no "™"/"®"/accents, words joined by "_", short enough to keep the path to the .exe under 260 characters.
+    name = DigitalGameStorage.folder_name
+    assert name("Sekiro™: Shadows Die Twice - GOTY Edition") == "Sekiro_Shadows_Die_Twice_GOTY_Edition"
+    assert name("Pokémon® Legends: Árceus") == "Pokemon_Legends_Arceus"
+    assert len(name("The Witcher 3: Wild Hunt – Complete Edition (Game of the Year) Remastered Deluxe")) <= 40
+    assert name("???") == "game"

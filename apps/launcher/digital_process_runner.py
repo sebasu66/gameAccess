@@ -19,7 +19,7 @@ from game_library_manager.preferences import DigitalPreferences
 from steam_account_manager import SteamAccountManager
 from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
-from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
+from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog, short_path
 from game_download_manager.unpack import extractor_for, restorer_for
 import logging
 from flow_diagnostics import FlowDiagnostics
@@ -235,10 +235,12 @@ class DigitalProcessRunner:
                 logger.info(f"Intentando ejecutar: {executable} {arguments}")
                 try:
                     diagnostics.debug("Starting candidate=%s cwd=%s", executable, executable.parent)
+                    # A long path is started through its short form (Windows refuses a working folder past 260 characters).
+                    run_file, run_dir = short_path(executable), short_path(executable.parent)
                     if executable.suffix.lower() == ".bat":
-                        process = subprocess.Popen(["cmd.exe", "/c", str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                        process = subprocess.Popen(["cmd.exe", "/c", run_file, *arguments], cwd=run_dir, creationflags=flags, close_fds=True)
                     else:
-                        process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                        process = subprocess.Popen([run_file, *arguments], cwd=run_dir, creationflags=flags, close_fds=True)
                     
                     try:
                         # Wait a bit longer to allow dialogs to pop up
