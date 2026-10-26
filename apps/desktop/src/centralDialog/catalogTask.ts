@@ -5,6 +5,7 @@ import { hasTauriRuntime } from "../native";
 import { prepareCatalogCache } from "../catalogCache";
 import { digitalCatalogService } from "../catalog/DigitalCatalog";
 import { recordCatalogSyncTime } from "../catalogUpdates";
+import { syncGameLessons } from "../catalog/gameLessons";
 import { centralDialog, type StepRunner } from "./centralDialog";
 
 type CatalogProgress = { stage: "seed" | "download" | "apply"; done: number; total: number };
@@ -42,7 +43,10 @@ export const catalogUpdatesStep = (outcome: { error?: unknown } = {}): StepRunne
   label: translate("prepCatalogUpdates"),
   run: report => withCatalogProgress(report, async () => {
     try {
+      // What players learned about each game travels in the same step (snapshot, then only the changes).
+      const lessons = syncGameLessons();
       const summary = await digitalCatalogService.loadCatalog({ requireRemote: true });
+      await lessons;
       recordCatalogSyncTime();
       return summary.updated ? undefined : "skipped";
     } catch (error) {

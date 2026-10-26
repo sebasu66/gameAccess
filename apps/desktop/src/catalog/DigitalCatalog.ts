@@ -37,7 +37,7 @@ export interface DigitalGameRecord {
   /** The chosen download as its source names it ("Game v1.2 - Repack") and the source's name. */
   sourceTitle?: string;
   sourceProvider?: string;
-  /** Fingerprint of the source as the plugin listed it: reported if it turns out bad (sourceLessons.ts). */
+  /** Fingerprint of the source as the plugin listed it: reported if it turns out bad (gameLessons.ts). */
   sourceFingerprint?: string;
   installProcess: string;
   playProcess: string;

@@ -7,7 +7,7 @@ import { getAppLocale, translate } from "./i18n";
 import { hideNotice, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { findAnotherSource } from "./sourceRescue";
-import { reportSourceLesson } from "./catalog/sourceLessons";
+import { reportBadSource } from "./catalog/gameLessons";
 
 const KIND_KEYS = { audio: "notAGameKindAudio", images: "notAGameKindImages", video: "notAGameKindVideo", documents: "notAGameKindDocuments", other: "notAGameKindOther" } as const;
 
@@ -36,9 +36,9 @@ export default function DigitalDownloadErrorDialog() {
       if (snapshot.errorCode === "not_a_game") {
         // Nothing failed in Game Access: the source gave music or artwork. It is no longer in the library.
         if (game) libraryMembership.remove(game);
-        // So it does not happen to the next player: the source is reported by its fingerprint and listed last here.
+        // So it does not happen to the next player: kept here at once and reported by its fingerprint in the background.
         const record = digitalDownloadService.getRecord(snapshot.gameId) ?? (game ? digitalDownloadService.getRecord(game.id) : undefined);
-        void reportSourceLesson({ fingerprint: record?.sourceFingerprint, url: record?.downloadSource, reason: "not_a_game",
+        void reportBadSource({ fingerprint: record?.sourceFingerprint, url: record?.downloadSource, reason: "not_a_game",
           appId: record?.id ?? game?.app_id ?? snapshot.gameId, detail: snapshot.errorDetail });
         const kinds = (snapshot.errorDetail?.length ? snapshot.errorDetail : ["other"]).map(kind => translate(KIND_KEYS[kind as keyof typeof KIND_KEYS] ?? "notAGameKindOther"));
         text = translate("notAGameBody", { kinds: new Intl.ListFormat(getAppLocale() === "es" ? "es-AR" : "en-US", { type: "conjunction" }).format(kinds) });

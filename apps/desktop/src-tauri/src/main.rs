@@ -7,6 +7,7 @@ mod access_policy;
 mod launch_intent;
 mod catalog_cache;
 mod source_index;
+mod game_lessons;
 mod download_lifecycle;
 mod game_uninstall;
 mod steam_artwork;
@@ -99,6 +100,10 @@ fn main() {
             catalog_cache::catalog_cache_get_facets,
             source_index::catalog_sources_apply,
             source_index::catalog_sources_remove_plugin,
+            game_lessons::game_lessons_revision,
+            game_lessons::game_lessons_apply,
+            game_lessons::game_lessons_add_mine,
+            game_lessons::game_lessons_query,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,

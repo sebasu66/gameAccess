@@ -1335,6 +1335,7 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
         }
     }
     crate::source_index::ensure_source_tables(conn)?;
+    crate::game_lessons::ensure_lesson_tables(conn)?;
     Ok(())
 }
 
