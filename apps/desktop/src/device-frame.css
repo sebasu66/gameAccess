@@ -19,7 +19,7 @@
 /* The device's name in its thin tab at the middle of the top edge (the tab wraps this label): lit orange letters
    that glow on the metal, like a backlit inscription; Bebas Neue, the titles' font, reads best at this size. */
 .ga-frame-name { position: fixed; z-index: 52; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 11px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
-  font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ffc49a; text-shadow: 0 0 1px #ff6a00, 0 0 5px #ff6a0099, 0 0 10px #ff6a0044; }
+  font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ffc49a; text-shadow: 0 0 1px #ff6a00aa, 0 0 3px #ff6a0055; }
 
 /* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
 .ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 28px); right: 38px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
