@@ -10,52 +10,60 @@ export const HOLD_MAX_MS = 900;
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
-/** The round lock in the middle of the cover: a ring of ticks, and the monogram split by the seam, the G on its left
- *  half and the A on its right half, drawn in fine orange lines. Each half of the gate carries the whole lock, clipped
- *  to its side, so the lock splits with the gate. */
+// The maker's emblem: a G and an A that together make one circle. The G is a thick ring open at the top right, in
+// bright metal; the A uses its top left as its left side, closes the circle with a straight right leg from the top to
+// the G's end, and its bar is also the G's bar (orange inlay).
+const EMBLEM_G = "M 108.7 85 A 138 138 0 1 1 0 -138 L 0 -106 A 106 106 0 1 0 83.5 65.3 Z";
+const EMBLEM_A = "M 0 -138 L 33.4 -133.9 L 108.7 85 L 83.5 65.3 Z M -34 8 L 70 8 L 78 34 L -34 34 Z";
+const BRAND = "GAME ACCESS";
+
+/** The lock: a round plate fixed to the right leaf and lying over the seam, as a real cover would have it. Its rim is
+ *  knurled; the maker's emblem is engraved in it with the brand around, the A inlaid in orange. It turns a quarter to
+ *  unlock and draws in the bolts that held the left leaf; then it leaves with its leaf. */
 function Lock() {
- return <svg className="gs-lock" viewBox="-220 -220 440 440" aria-hidden="true">
-  <circle className="gs-lock-plate" r="196" />
-  {/* The seam of the gate runs through the lock: a dark groove with a light edge. */}
-  <line className="gs-lock-seam" x1="0" y1="-196" x2="0" y2="196" />
-  <line className="gs-lock-seam is-light" x1="1.5" y1="-196" x2="1.5" y2="196" />
-  <g className="gs-lock-ticks">
-   {Array.from({ length: 72 }, (_, index) => {
-    const long = index % 6 === 0, angle = index * 5;
-    return <line key={index} x1="0" y1={-208} x2="0" y2={long ? -192 : -200} transform={`rotate(${angle})`} className={long ? "is-long" : undefined} />;
-   })}
-  </g>
-  <circle className="gs-lock-ring gs-draw" r="168" pathLength={100} />
-  <circle className="gs-lock-ring is-thin gs-draw" r="150" pathLength={100} />
+ return <svg className="gs-lock" viewBox="-230 -230 460 460" aria-hidden="true">
+  <defs>
+   <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
+   <linearGradient id="gs-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e3e8ec" /><stop offset=".45" stopColor="#a9b2b9" /><stop offset="1" stopColor="#6c757c" /></linearGradient>
+   <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
+   <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
+  </defs>
+  {/* The bolts reaching into the left leaf, under the plate: drawn in once the lock has turned. */}
+  <g className="gs-bolts"><rect x="-300" y="-92" width="150" height="16" rx="3" /><rect x="-300" y="76" width="150" height="16" rx="3" /></g>
   <g className="gs-lock-turn">
-   {/* G: an arc open towards the seam, its bar turning in; A: two legs and a bar. */}
-   <path className="gs-glyph gs-draw" pathLength={100} d="M -34 -54 A 64 64 0 1 0 -34 54 L -34 8 L -64 8" />
-   <path className="gs-glyph gs-draw" pathLength={100} d="M 30 66 L 76 -66 L 122 66 M 47 20 L 105 20" transform="translate(-6 0)" />
-   <line className="gs-lock-key gs-draw" pathLength={100} x1="0" y1="-150" x2="0" y2="-118" />
-   <line className="gs-lock-key gs-draw" pathLength={100} x1="0" y1="118" x2="0" y2="150" />
+   <circle className="gs-rim" r="214" />
+   <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
+   <circle className="gs-plate" r="200" />
+   <circle className="gs-groove" r="158" />
+   <circle className="gs-groove" r="190" />
+   <text className="gs-brand"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
+   {/* Raised from the plate: a dark shadow under each part (lit from the top left), the G in bright metal, the A inlaid in orange. */}
+   <g className="gs-emblem">
+    <g className="gs-shade" transform="translate(2.5 3)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <path className="gs-metal" d={EMBLEM_G} />
+    <path className="gs-inlay" d={EMBLEM_A} />
+   </g>
+   <circle className="gs-hub" r="9" />
   </g>
-  {/* The latches crossing the seam: they slide away once the lock has turned. */}
-  <rect className="gs-latch is-top" x="-34" y="-186" width="68" height="10" rx="2" />
-  <rect className="gs-latch is-bottom" x="-34" y="176" width="68" height="10" rx="2" />
  </svg>;
 }
 
-/** One half of the cover: brushed gunmetal like the frame, a few bolts, corner marks and fine engraved lines, and the
- *  lock clipped to that half. */
+/** One half of the cover: brushed gunmetal like the frame, a few bolts, corner marks and fine engraved lines. The
+ *  right one carries the lock, lying over the seam. */
 function Leaf({ side }: { side: "left" | "right" }) {
  return <div className={`gs-leaf is-${side}`}>
   <i className="gs-leaf-engrave" />
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
   <i className="gs-corner is-top" /><i className="gs-corner is-bottom" />
   <i className="gs-hazard" />
-  <div className="gs-leaf-lock"><Lock /></div>
+  {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : null}
  </div>;
 }
 
 /**
- * The opening: a metal cover, made like the device frame around it, closes the screen. In its middle a round lock is
- * drawn in fine lines, a G and an A split by the seam; it turns a quarter to unlock (G left, A right) and its latches
- * slide away. Once access is settled, the cover opens on both sides like a gate, the lock splitting with it, and the
+ * The opening: a metal cover, made like the device frame around it, closes the screen. On its seam lies a round lock
+ * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and draws in its
+ * bolts. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
  * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (drawn and unlocked), hold
  * (the opening sound), dock (the gate opens).
  */

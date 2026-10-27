@@ -1,6 +1,7 @@
 /* The opening (SplashScreen.tsx): a metal cover made like the device frame (gunmetal, brushed steel, a diagonal
-   sheen) closes the screen inside the frame. A round lock in its middle is drawn in fine lines, turns a quarter to
-   unlock and its latches slide away; then the two leaves open like a gate, each taking its half of the lock. */
+   sheen) closes the screen inside the frame. A round lock fixed to the right leaf lies over the seam, the maker's
+   emblem engraved in it; it turns a quarter to unlock and draws in its bolts; then the leaves open like a gate and the
+   lock leaves with its own. */
 .gameaccess-splash{position:fixed;inset:0;z-index:510;pointer-events:none;overflow:hidden;background:transparent;--gs-lock:min(54vmin,470px)}
 .gameaccess-splash.is-landing{animation:ga-splash-away .26s ease both}
 @keyframes ga-splash-away{from{opacity:1}to{opacity:0}}
@@ -36,35 +37,37 @@
 .gs-hazard::after{content:"";position:absolute;left:0;right:0;top:calc(var(--gs-lock) + 160px);height:80px;background:inherit}
 .gs-leaf.is-left .gs-hazard{right:10px}.gs-leaf.is-right .gs-hazard{left:10px}
 /* The lock sits on the seam: each leaf holds the whole of it and shows its own half. */
-.gs-leaf-lock{position:absolute;z-index:2;top:50%;width:var(--gs-lock);height:var(--gs-lock);transform:translateY(-50%)}
-.gs-leaf.is-left .gs-leaf-lock{right:calc(var(--gs-lock)/-2)}
-.gs-leaf.is-right .gs-leaf-lock{left:calc(var(--gs-lock)/-2)}
+/* The lock lies over the seam, fixed to the right leaf (which is above the left one and lets it show past its edge). */
+.gs-leaf.is-right{overflow:visible;z-index:1}
+.gs-leaf-lock{position:absolute;z-index:2;top:50%;left:calc(var(--gs-lock)/-2);width:var(--gs-lock);height:var(--gs-lock);transform:translateY(-50%);
+ filter:drop-shadow(0 10px 18px #000b) drop-shadow(0 2px 3px #000c)}
 .gs-lock{width:100%;height:100%;overflow:visible}
-.gs-lock-plate{fill:#12161a;fill-opacity:.82;stroke:#000;stroke-opacity:.6;stroke-width:3;filter:drop-shadow(0 0 1px #ffffff30)}
-.gs-lock-seam{stroke:#000;stroke-opacity:.55;stroke-width:2}.gs-lock-seam.is-light{stroke:#fff;stroke-opacity:.08;stroke-width:1}
-.gs-lock-ticks line{stroke:#ffffff4d;stroke-width:1.5}.gs-lock-ticks line.is-long{stroke:#ffffff99;stroke-width:2.2}
-.gs-lock-ticks{animation:gs-ticks var(--gs-turn) cubic-bezier(.7,0,.2,1) var(--gs-draw) both}
-.gs-lock-ring{fill:none;stroke:#ffffff40;stroke-width:1.6}.gs-lock-ring.is-thin{stroke:#ffffff26;stroke-width:1}
-.gs-glyph{fill:none;stroke:var(--ga-orange,#cc8333);stroke-width:8;stroke-linecap:square;stroke-linejoin:miter;filter:drop-shadow(0 0 5px #cc833366)}
-.gs-lock-key{stroke:#f4f4f2b3;stroke-width:3;stroke-linecap:round}
-.gs-latch{fill:#2c3338;stroke:#ffffff40;stroke-width:1;animation:gs-latch .38s cubic-bezier(.6,0,.4,1) calc(var(--gs-draw) + var(--gs-turn) - 80ms) both}
-/* Drawn: each line runs from its start (dash). */
-.gs-draw{stroke-dasharray:100 100;animation:gs-draw var(--gs-draw) cubic-bezier(.45,0,.2,1) both}
-.gs-lock-ring.gs-draw{animation-duration:calc(var(--gs-draw) * .8)}
-.gs-glyph.gs-draw{animation-delay:calc(var(--gs-draw) * .25);animation-duration:calc(var(--gs-draw) * .75)}
-/* Turned: the monogram goes a quarter turn from G-on-top to G on the left, A on the right; then it glows once. */
-.gs-lock-turn{transform-box:view-box;transform-origin:0 0;animation:gs-turn var(--gs-turn) cubic-bezier(.7,0,.2,1) var(--gs-draw) both,
- gs-unlocked .6s ease-out calc(var(--gs-draw) + var(--gs-turn)) both}
-@keyframes gs-draw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+.gs-rim{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6;stroke-width:2}
+.gs-knurl line{stroke:#000;stroke-opacity:.45;stroke-width:2}
+.gs-plate{fill:url(#gs-plate);stroke:#ffffff26;stroke-width:1.5}
+.gs-groove{fill:none;stroke:#000;stroke-opacity:.5;stroke-width:2;filter:drop-shadow(1px 1px 0 #ffffff1c)}
+.gs-brand{font:700 15px/1 Bahnschrift,"Segoe UI",sans-serif;letter-spacing:.42em;fill:#c9d0d6;fill-opacity:.55;text-anchor:middle;filter:drop-shadow(1px 1px 0 #ffffff24)}
+.gs-shade path{fill:#000;fill-opacity:.55}
+.gs-metal{fill:url(#gs-metal);stroke:#ffffff59;stroke-width:1}
+.gs-inlay{fill:var(--ga-orange,#cc8333);filter:drop-shadow(0 0 4px #cc833355)}
+.gs-hub{fill:#1a1f23;stroke:#ffffff30;stroke-width:1}
+.gs-bolts rect{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6}
+/* Appears, then turns a quarter (the emblem upright) and draws in its bolts; it glows once, unlocked. */
+.gs-lock{animation:gs-lock-in calc(var(--gs-draw) * .7) cubic-bezier(.2,.7,.2,1) both}
+.gs-emblem{animation:gs-engrave var(--gs-draw) ease-out both}
+.gs-lock-turn{transform-box:view-box;transform-origin:0 0;animation:gs-turn var(--gs-turn) cubic-bezier(.7,0,.2,1) var(--gs-draw) both}
+.gs-inlay{animation:gs-unlocked .7s ease-out calc(var(--gs-draw) + var(--gs-turn)) both}
+.gs-bolts{animation:gs-bolts .4s cubic-bezier(.6,0,.4,1) calc(var(--gs-draw) + var(--gs-turn) - 60ms) both}
+@keyframes gs-lock-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes gs-engrave{from{opacity:0}to{opacity:1}}
 @keyframes gs-turn{from{transform:rotate(90deg)}to{transform:rotate(0)}}
-@keyframes gs-ticks{from{transform:rotate(-24deg)}to{transform:rotate(0)}}
-@keyframes gs-latch{to{transform:translateX(-52px);opacity:0}}
-@keyframes gs-unlocked{0%{filter:none}35%{filter:drop-shadow(0 0 10px #cc8333cc) brightness(1.35)}100%{filter:none}}
+@keyframes gs-bolts{to{transform:translateX(150px)}}
+@keyframes gs-unlocked{0%{filter:drop-shadow(0 0 4px #cc833355)}35%{filter:drop-shadow(0 0 12px #cc8333dd) brightness(1.3)}100%{filter:drop-shadow(0 0 4px #cc833355)}}
 /* Reduced motion (or the pixel style's animation off): the lock is shown open and the gate simply goes. */
-.gs-gate.is-still :is(.gs-draw,.gs-lock-turn,.gs-lock-ticks,.gs-latch){animation:none}
-.gs-gate.is-still .gs-latch{opacity:0}
+.gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-inlay,.gs-bolts){animation:none}
+.gs-gate.is-still .gs-bolts{transform:translateX(150px)}
 .gs-gate.is-still .gs-leaf{transition:none}
-@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-draw,.gs-lock-turn,.gs-lock-ticks,.gs-latch){animation:none}.gs-gate .gs-latch{opacity:0}.gs-gate .gs-leaf{transition:none}}
+@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-inlay,.gs-bolts){animation:none}.gs-gate .gs-bolts{transform:translateX(150px)}.gs-gate .gs-leaf{transition:none}}
 .ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}

@@ -205,8 +205,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 
 ### 4.24 Apertura `gs-gate` (componente `SplashScreen`)
 - Reemplaza a los videos del logo. Una **tapa de metal** hecha como el marco (gunmetal, acero cepillado en overlay, brillo diagonal), en dos hojas con su junta al centro, cierra la pantalla dentro del marco. Detalles técnicos medidos: tornillos cerca de las esquinas, marcas de esquina, líneas grabadas que se desvanecen y dos franjas de advertencia cortas sobre la junta.
-- En el centro, un **cerrojo redondo** (54 vmin, máx. 470 px): anillo de marcas, dos aros finos y el monograma **G·A** en líneas naranjas (8 unidades, puntas cuadradas), partido por la junta.
-- Secuencia: las líneas se dibujan (1,1 s), el monograma gira un cuarto de vuelta de G arriba a G a la izquierda y A a la derecha (0,95 s), brilla una vez y las trabas que cruzan la junta se retiran. Al resolverse el acceso, las dos hojas se abren como un **portón** (1,3 s), cada una con su mitad del cerrojo, y la app aparece debajo (1,1 s).
+- Sobre la junta, un **cerrojo redondo fijo a la hoja derecha** (54 vmin, máx. 470 px), como lo tendría una tapa real: borde moleteado, placa de metal oscuro, "GAME ACCESS" grabado en el arco superior y el **emblema del fabricante**: una G de metal claro (anillo abierto arriba a la derecha) y una A en naranja que cierra el círculo (su pierna izquierda es el anillo de la G, la derecha es una recta del vértice al extremo de la G y su travesaño es la barra de la G).
+- Secuencia: el cerrojo aparece, gira un cuarto de vuelta hasta dejar el emblema derecho (0,95 s), brilla una vez y recoge las trabas que entraban en la hoja izquierda. Al resolverse el acceso, las dos hojas se abren como un **portón** (1,3 s) y el cerrojo se va entero con la hoja derecha; la app aparece debajo (1,1 s).
 - Con "reducir movimiento" (o la animación del estilo pixel apagada) el cerrojo se ve abierto y el portón se va sin animar.
 
 ## 5. Reglas de uso
