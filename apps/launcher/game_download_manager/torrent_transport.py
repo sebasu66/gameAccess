@@ -172,6 +172,21 @@ class TorrentDownloadTransport:
         tinfo = handle.torrent_file()
         torrent_name = tinfo.name() if tinfo else game_name
         total_wanted = handle.status().total_wanted or (tinfo.total_size() if tinfo else 0)
+        # A resumed download is still being verified here and reports nothing done: wait for the check to end,
+        # or the whole game would be counted as missing and a half-finished 100 GB download refused for lack of room.
+        checking_states = tuple(getattr(lt.torrent_status, name) for name in ("checking_resume_data", "checking_files")
+                                if hasattr(lt.torrent_status, name))
+        while handle.status().state in checking_states:
+            context.wait_if_paused()
+            log_libtorrent_alerts(ses)
+            if context.cancelled.is_set():
+                ses.remove_torrent(handle)
+                return ""
+            checking = handle.status()
+            context.emit_progress(app_id=app_id, phase="preparing", progress_percent=checking.progress * 100.0,
+                                  total_bytes=total_wanted,
+                                  status_text=f"Verificando archivos existentes ({checking.progress * 100.0:.1f}%)")
+            time.sleep(0.5)
         # Now the size is known: stop before downloading what would not fit (what is already here counts).
         getattr(context, "ensure_room", lambda *_: None)(total_wanted, handle.status().total_wanted_done)
 
