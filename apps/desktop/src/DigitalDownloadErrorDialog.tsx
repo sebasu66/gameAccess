@@ -4,7 +4,7 @@ import { digitalErrorMessage } from "./digitalErrors";
 import { libraryMembership } from "./libraryMembership";
 import { reportClientError } from "./narrationLog";
 import { getAppLocale, translate } from "./i18n";
-import { hideNotice, showNotice } from "./notice/notice";
+import { confirmNotice, hideNotice, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { findAnotherSource } from "./sourceRescue";
 import { reportBadSource } from "./catalog/gameLessons";
@@ -42,6 +42,23 @@ export default function DigitalDownloadErrorDialog() {
           appId: record?.id ?? game?.app_id ?? snapshot.gameId, detail: snapshot.errorDetail });
         const kinds = (snapshot.errorDetail?.length ? snapshot.errorDetail : ["other"]).map(kind => translate(KIND_KEYS[kind as keyof typeof KIND_KEYS] ?? "notAGameKindOther"));
         text = translate("notAGameBody", { kinds: new Intl.ListFormat(getAppLocale() === "es" ? "es-AR" : "en-US", { type: "conjunction" }).format(kinds) });
+      } else if (snapshot.errorCode === "no_space") {
+        // Not the source's fault: another source would not fit either. What was downloaded stays until the player
+        // decides: wait paused while making room, cancel (deletes it, after asking), or leave it as it is.
+        const gameId = snapshot.gameId;
+        const failed = (error: unknown) => showNotice({ tone: "error", title: translate("toastActionFailed", { error: String(error instanceof Error ? error.message : error) }) });
+        showNotice({
+          game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,
+          actions: [
+            { label: translate("noSpaceKeepPaused"), kind: "primary", run: () => { hideNotice(); void digitalDownloadService.holdPaused(gameId).catch(failed); } },
+            { label: translate("noSpaceCancel"), kind: "danger", run: () => void confirmNotice({
+              game: game ? noticeGame(game) : undefined, title: translate("noSpaceCancelTitle", { name }), text: translate("noSpaceCancelText"),
+              confirmLabel: translate("noSpaceCancelConfirm"), cancelLabel: translate("noSpaceCancelBack"),
+            }).then(ok => { if (ok) return digitalDownloadService.discardStopped(gameId).then(() => hideNotice()); }).catch(failed) },
+            { label: translate("close"), kind: "secondary", run: () => hideNotice() },
+          ],
+        });
+        return;
       } else void reportClientError(reportMessage, "DIGITAL_DOWNLOAD");
       showNotice({
         game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,

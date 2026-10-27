@@ -322,6 +322,26 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.apply(await this.queue.pause(this.appIdOf(gameId)));
   }
 
+  /** A download that stopped (no room, error) waits paused, with what it downloaded, until the player resumes it. */
+  async holdPaused(gameId: number): Promise<void> {
+    const phase = this.activeJobs.get(gameId)?.phase;
+    if (phase !== "error" && phase !== "interrupted") return;
+    this.apply(await this.queue.pause(this.appIdOf(gameId)));
+  }
+
+  /** Cancels a stopped download and deletes what it downloaded (the temporary folder); its row leaves the list. */
+  async discardStopped(gameId: number): Promise<void> {
+    const results = (await digitalProcessManager.libraryBatch("discard_transfer", [this.appIdOf(gameId)])).results;
+    const failed = results?.find(result => !result.ok);
+    if (failed) throw new Error(failed.error || "No se pudo borrar la descarga.");
+    await this.remove(gameId);
+  }
+
+  /** Downloads that are not finished: running, queued, paused or stopped with what they downloaded still on disk. */
+  unfinishedCount(): number {
+    return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase)).length;
+  }
+
   async resume(gameId: number): Promise<void> {
     if (this.activeJobs.get(gameId)?.phase !== "paused") return;
     this.apply(await this.queue.resume(this.appIdOf(gameId)));

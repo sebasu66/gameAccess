@@ -74,6 +74,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
   const downloadsOpen = useDesk().includes("downloads");
+  const [unfinishedDownloads, setUnfinishedDownloads] = useState(0);
+  const pendingNoticeShown = useRef(false);
   // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
   const demoService = useRef<ReturnType<typeof demoDownloadService>>();
   if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
@@ -237,11 +239,19 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       pendingIds.add(snapshot.gameId);
       const phaseChanged = lastPhase.get(snapshot.gameId) !== snapshot.phase;
       lastPhase.set(snapshot.gameId, snapshot.phase);
+      setUnfinishedDownloads(digitalDownloadService.unfinishedCount());
       if (phaseChanged) flush();
       else if (timer === null) timer = window.setTimeout(flush, 1000);
     });
     return () => { unsub(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
+
+  // Once per launch, tell the player when downloads were left unfinished (paused, stopped for lack of room...).
+  useEffect(() => {
+    if (!unfinishedDownloads || pendingNoticeShown.current) return;
+    pendingNoticeShown.current = true;
+    showNotice({ tone: "info", title: t("pendingDownloadsNotice", { count: unfinishedDownloads }), actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openPanel("downloads"); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
+  }, [unfinishedDownloads, t]);
 
   // Source/metadata updates do not change the folders we need to check.
   const digitalFolderKey = useMemo(() => JSON.stringify(games.map(game => [game.app_id ?? game.id, game.name])), [games]);
@@ -659,7 +669,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       </header>
 
       {(() => {
-        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} badge={unfinishedDownloads || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 

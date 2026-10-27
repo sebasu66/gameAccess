@@ -170,7 +170,10 @@ class DownloadPipeline:
 
         def room_check(total_bytes, on_disk_bytes):
             # The games root is the folder's parent (a status rename keeps it there).
-            from disk_space import check_download
+            from disk_space import allocated_size, check_download
+            # The transport may not know yet what is already here (a torrent reports nothing until it has re-checked
+            # its files): what the temporary folder really takes on disk counts as well.
+            on_disk_bytes = max(int(on_disk_bytes or 0), min(allocated_size(Path(dest_dir)), int(total_bytes)))
             room = check_download(total_bytes, on_disk_bytes, Path(game_dir).parent, Path(dest_dir))
             journal.note(game_dir, "espacio", f"descarga de {total_bytes} bytes ({on_disk_bytes} ya en disco); libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
             if not room["ok"]:

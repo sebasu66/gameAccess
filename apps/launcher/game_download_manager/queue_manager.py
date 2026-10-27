@@ -151,6 +151,10 @@ class DownloadQueue:
             if job.state == "waiting":
                 self.order.remove(app_id)
                 job.state, job.phase = "paused", "paused"
+            elif job.state == "done" and job.phase in STOPPED_PHASES:
+                # Stopped for lack of room (or any stop): it waits paused while the player makes room, and resumes
+                # from what is on disk.
+                job.state, job.phase, job.error = "paused", "paused", ""
             elif job.state == "active":
                 self.workers.control(app_id, "pause")
                 job.state = "paused"  # its place goes to the next one; the worker confirms "paused" in its status
