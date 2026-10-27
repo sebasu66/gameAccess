@@ -62,7 +62,8 @@ export function queryDemoCatalog(params: CatalogQueryParams): CatalogQueryResult
     (!query || item.name.toLowerCase().includes(query) || (item.genres ?? []).some(genre => genre.toLowerCase().includes(query)))
     && (!params.app_ids?.length || params.app_ids.includes(item.app_id ?? -1))
     && (!params.game_ids?.length || params.game_ids.includes(item.id))
-    && (!params.genres?.length || params.genres.some(genre => item.genres?.includes(genre))));
+    && (!params.genres?.length || params.genres.some(genre => item.genres?.includes(genre)))
+    && (!params.max_age_days || (Date.now() - Date.parse(String(item.release_date))) / 86400000 <= params.max_age_days));
   const direction = params.sort_direction === "asc" ? 1 : -1;
   const key = params.sort_by;
   if (key === "name") items = [...items].sort((a, b) => a.name.localeCompare(b.name) * (direction === 1 ? 1 : -1));

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap, motionOk, SplitText, useGSAP } from "./motion/gsap";
-import { cachedSpotlight, prefetchSpotlight, type Slide } from "./spotlightSlides";
+import { cachedSpotlight, onSpotlightChanged, prefetchSpotlight, type Slide } from "./spotlightSlides";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import type { CatalogGame } from "./types";
@@ -15,7 +15,7 @@ export function daysSinceRelease(date: string | null | undefined, now = Date.now
 }
 
 /**
- * Banner at the top of the catalog: the latest games that came out on Steam, one at a time. The slides (game and a
+ * Banner at the top of the catalog: the games that came out on Steam these days, one at a time. The slides (game and a
  * wide image that really loads) are fetched early (spotlightSlides.ts), so the banner is complete when the catalog
  * appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
  */
@@ -31,15 +31,18 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
   excludeRef.current = exclude;
 
   useEffect(() => {
-    if (slides.length) return;
     let alive = true;
-    void prefetchSpotlight().then(all => {
+    const choose = (all: Slide[]) => {
       if (!alive) return;
       const chosen = all.filter(slide => !excludeRef.current(slide.game)).slice(0, 5);
       setSlides(chosen);
+      setIndex(0);
       if (chosen[0]) { setLayers([chosen[0].url, ""]); setFront(0); }
-    });
-    return () => { alive = false; };
+    };
+    if (!slides.length) void prefetchSpotlight().then(choose);
+    // New games in the catalog (its daily update): the banner shows them without reopening the app.
+    const stop = onSpotlightChanged(() => choose(cachedSpotlight() ?? []));
+    return () => { alive = false; stop(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const slide = slides[index % Math.max(1, slides.length)];

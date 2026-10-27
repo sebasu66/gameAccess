@@ -88,6 +88,8 @@ export interface CatalogQueryParams {
   min_rating?: number;
   max_age_days?: number;
   include_recent_unrated?: boolean;
+  /** Only games already out (a real release date up to today; not "Próximamente" or a future date). */
+  released_only?: boolean;
   /** Strict floor on the number of reviews; games with fewer (or none on record) are hidden. */
   min_review_count?: number;
   app_ids?: number[];

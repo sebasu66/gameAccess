@@ -58,6 +58,9 @@ pub struct CatalogCacheSyncResult {
     pub total_ms: u64,
 }
 
+/// A release date that is a real date (yyyy-mm-dd), not Steam's words for an unknown or future one.
+const RELEASED_DATE: &str = "m.release_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'";
+
 fn cache_dir() -> Result<PathBuf, String> {
     let base = env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -900,6 +903,9 @@ pub struct CatalogQueryParams {
     pub max_age_days: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_recent_unrated: Option<bool>,
+    /// Only games already out: a real date (Steam also writes "Próximamente", "Por confirmarse"...) up to today.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub released_only: Option<bool>,
     /// Strict floor on the number of reviews. Unlike `min_rating` it never spares new or unrated games.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_review_count: Option<i64>,
@@ -1558,6 +1564,10 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
         }
     }
 
+    if params.released_only.unwrap_or(false) {
+        where_clauses.push(format!("({RELEASED_DATE} AND julianday(m.release_date) <= julianday('now'))"));
+    }
+
     if let Some(ref app_ids) = params.app_ids {
         if app_ids.is_empty() {
             where_clauses.push("1 = 0".to_string());
@@ -1610,7 +1620,8 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
             format!("COALESCE(m.steam_review_score, 0) {}, MAX(COALESCE(m.recommendation_count, 0), COALESCE(m.steam_review_count, 0)) DESC, g.id ASC", dir)
         }
         Some("release_date") | Some("release-date") => {
-            format!("COALESCE(m.release_date, '') {}, g.id ASC", dir)
+            // Real dates first: compared as text, "Próximamente" or "Por confirmarse" would come before any date.
+            format!("({RELEASED_DATE}) DESC, COALESCE(m.release_date, '') {}, g.id ASC", dir)
         }
         Some("name") => {
             format!("g.name COLLATE NOCASE {}, g.id ASC", if is_asc { "ASC" } else { "DESC" })
@@ -2382,6 +2393,33 @@ mod tests {
         let solo = query_catalog_conn(&conn, &CatalogQueryParams { features: Some(vec!["single_player".into()]), ..Default::default() }).unwrap();
         assert_eq!(solo.total, 1);
         assert_eq!(solo.items[0]["id"], 1);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_released_only_and_release_date_order() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+        ").unwrap();
+        let day = |offset: &str| -> String { conn.query_row(&format!("SELECT date('now', '{offset}')"), [], |r| r.get(0)).unwrap() };
+        let (old, recent, future) = (day("-400 days"), day("-3 days"), day("+20 days"));
+        for (id, date) in [(1, old.as_str()), (2, recent.as_str()), (3, future.as_str()), (4, "Próximamente"), (5, "Por confirmarse")] {
+            conn.execute("INSERT INTO catalog_game VALUES(?1, ?2, ?3)", rusqlite::params![id, id * 10, format!(r#"{{"id":{id},"app_id":{},"name":"G{id}","release_date":"{date}"}}"#, id * 10)]).unwrap();
+        }
+        ensure_normalized_schema(&conn).unwrap();
+        let ids = |params: CatalogQueryParams| -> Vec<i64> { query_catalog_conn(&conn, &params).unwrap().items.iter().map(|item| item["id"].as_i64().unwrap()).collect() };
+
+        // Newest first: the real dates (future included) before Steam's words.
+        assert_eq!(ids(CatalogQueryParams { sort_by: Some("release-date".into()), ..Default::default() })[..3], [3, 2, 1]);
+        // Out already and recent: neither the future date nor the words.
+        assert_eq!(ids(CatalogQueryParams { released_only: Some(true), sort_by: Some("release-date".into()), ..Default::default() }), vec![2, 1]);
+        assert_eq!(ids(CatalogQueryParams { released_only: Some(true), max_age_days: Some(14), ..Default::default() }), vec![2]);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
