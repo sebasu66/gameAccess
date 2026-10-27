@@ -95,7 +95,8 @@ export class DigitalProcessManager {
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
   libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame); }
   libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })); }
-  librarySpace(bytes: number) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes })); }
+  /** With the game, what an unfinished download of it already has on disk counts. */
+  librarySpace(bytes: number, appId?: number, name?: string) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes, app_id: appId ?? 0, name: name ?? "" })); }
   libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })); }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
   importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }

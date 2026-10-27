@@ -171,7 +171,7 @@ export const es = {
   downloadsWaitingSamples: "Esperando mediciones de velocidad…",
   downloadsRemove: "Quitar de esta lista",
   downloadsRemoveAria: "Quitar {name} de esta lista",
-  downloadsSession: "Terminadas en esta sesión",
+  downloadsSession: "Terminadas o detenidas",
   downloadsRemaining: "Tiempo restante",
   downloadsProgress: "Progreso de {{name}} · {{status}}",
   downloadsPause: "Pausar",

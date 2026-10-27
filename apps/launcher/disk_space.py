@@ -34,6 +34,36 @@ def folder_size(folder: Path) -> int:
     return total
 
 
+def allocated_size(folder: Path) -> int:
+    """Bytes a folder really takes on disk. A torrent creates its files at full size but sparse, so a half-done
+    100 GB download reads as 100 GB by length: only what is allocated is what already arrived."""
+    total = 0
+    for path in Path(folder).rglob("*"):
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            total += _allocated(path)
+        except OSError:
+            continue
+    return total
+
+
+def _allocated(path: Path) -> int:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        get_size = ctypes.windll.kernel32.GetCompressedFileSizeW
+        get_size.argtypes = (wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD))
+        get_size.restype = wintypes.DWORD
+        high = wintypes.DWORD(0)
+        low = get_size(str(path), ctypes.byref(high))
+        if low == 0xFFFFFFFF and ctypes.GetLastError() != 0:
+            return path.stat().st_size
+        return (high.value << 32) + low
+    blocks = getattr(path.stat(), "st_blocks", None)
+    return blocks * 512 if blocks is not None else path.stat().st_size
+
+
 def disk_info(path: Path) -> dict:
     target = Path(path)
     while not target.exists() and target != target.parent:

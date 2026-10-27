@@ -224,7 +224,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const size = game.download_size_bytes ?? parseDownloadSize(game.download_size);
     if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
       // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
-      const room = await digitalProcessManager.librarySpace(size).then(result => result.space, () => undefined);
+      const room = await digitalProcessManager.librarySpace(size, id, game.name).then(result => result.space, () => undefined);
       if (room && !room.ok) throw new Error(room.message);
     }
     const previous = this.activeJobs.get(id);

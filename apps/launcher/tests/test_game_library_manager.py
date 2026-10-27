@@ -119,3 +119,27 @@ def test_the_player_can_rename_a_game_in_their_library_only(tmp_path):
     assert {g["app_id"]: g for g in lib.list_games()}[1]["label"] == ""
     with pytest.raises(ValueError):
         storage.set_label(99, "Nope", "x")
+
+
+def test_space_check_counts_what_an_unfinished_download_already_has(tmp_path):
+    storage, lib = library(tmp_path)
+    transfer = storage.transfer_folder(7, "Big")
+    transfer.mkdir(parents=True)
+    (transfer / "part.bin").write_bytes(b"z" * (4 * 1024 * 1024))
+    class Usage:  # 10 GB free
+        total, used, free = 100 * GIB, 90 * GIB, 10 * GIB
+    with patch("disk_space.shutil.disk_usage", return_value=Usage), \
+         patch("game_library_manager.manager.allocated_size", return_value=4 * GIB):
+        assert not lib.check_space(6 * GIB)["ok"]                   # a new download: 6*2 + 1 = 13 GB > 10
+        resumed = lib.check_space(6 * GIB, 7, "Big")                # (6-4) + 6 + 1 = 9 GB <= 10
+    assert resumed["ok"] and resumed["needed_bytes"] == 9 * GIB
+
+
+def test_clean_empty_keeps_the_record_of_an_unfinished_download(tmp_path):
+    storage, lib = library(tmp_path)
+    failed = storage.set_status(7, "Big", "ERROR") if storage.register(7, "Big") else None
+    transfer = storage.transfer_folder(7, "Big")
+    transfer.mkdir(parents=True)
+    (transfer / "part.bin").write_bytes(b"z" * 10)
+    lib.clean_empty()
+    assert failed.is_dir() and (storage.registry / "7.json").is_file()

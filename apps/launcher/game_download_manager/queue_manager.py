@@ -24,6 +24,8 @@ from typing import Any, Callable, Protocol
 
 ACTIVE_PHASES = ("preparing", "downloading", "decompressing", "installing", "cancelling")
 TERMINAL_PHASES = ("completed", "error", "cancelled", "interrupted", "external")
+STOPPED_PHASES = ("error", "interrupted")   # ended without finishing: kept across restarts so they can go on
+KEPT_STATUS = ("errorCode", "errorDetail", "resumeStep", "statusText")
 STALE_SECONDS = 20.0          # an active worker that has not written its status for this long has stopped
 LIMITS = {"base": 1, "plus": 4}
 
@@ -273,8 +275,12 @@ class DownloadQueue:
         if self.state_file is None:
             return
         pending = [job for job in self.jobs.values() if job.state not in ("done", "cancelling")]  # a cancel is never resumed
+        # A download that stopped (error, interrupted) keeps its row after a restart: what it downloaded is still on
+        # disk and the row is where the player goes on with it.
+        stopped = [job for job in self.jobs.values() if job.state == "done" and job.phase in STOPPED_PHASES]
         data = {"order": [i for i in self.order if i in self.jobs],
-                "jobs": [{**asdict(job), "status": {}} for job in pending]}
+                "jobs": [{**asdict(job), "status": {}} for job in pending]
+                        + [{**asdict(job), "status": {k: job.status[k] for k in KEPT_STATUS if k in job.status}} for job in stopped]}
         temp = self.state_file.with_suffix(".tmp")
         try:
             self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -298,7 +304,12 @@ class DownloadQueue:
                     job = Job(**{k: v for k, v in raw.items() if k in Job.__dataclass_fields__})
                 except TypeError:
                     continue
-                job.worker_alive, job.status, job.error = False, {}, ""
+                job.worker_alive = False
+                if job.state == "done":
+                    if job.phase in STOPPED_PHASES:  # stays stopped until the player goes on with it
+                        self.jobs[job.app_id] = job
+                    continue
+                job.status, job.error = {}, ""
                 if job.state == "paused":
                     job.phase = "paused"
                 else:

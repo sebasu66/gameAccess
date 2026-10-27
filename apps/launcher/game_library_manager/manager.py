@@ -17,7 +17,7 @@ import game_journal as journal
 from .freeze_control import holder as freeze_holder
 import app_log
 from game_execution_manager import GameExecutionManager
-from disk_space import check_space, disk_info, folder_size
+from disk_space import allocated_size, check_download, check_space, disk_info, folder_size
 from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
@@ -191,13 +191,17 @@ class GameLibraryManager:
         return entry
 
     def clean_empty(self) -> None:
-        """Empty game folders and empty temporary downloads are deleted without asking: they hold nothing."""
+        """Empty game folders and empty temporary downloads are deleted without asking: they hold nothing. A game folder
+        whose download is unfinished stays: its record is where the download goes on from (source, step)."""
+        unfinished = {item["app_id"] for item in self.storage.transfers()}
         for root in self.storage.roots:
             if not root.is_dir():
                 continue
             for folder in sorted(root.iterdir()):
                 app_id, _, state = split_folder_name(folder.name)
                 if app_id is None or state not in (None, "ready", "ERROR") or not folder.is_dir() or folder.is_symlink():
+                    continue
+                if app_id in unfinished:
                     continue
                 try:
                     if not any(self.storage.has_content(folder)):
@@ -218,7 +222,8 @@ class GameLibraryManager:
         by_id = {g["app_id"]: g for g in games if g["app_id"] is not None}
         queued = self.storage.queued_downloads()
         for item in self.storage.transfers():
-            size = folder_size(Path(item["folder"])) if with_sizes else None
+            # What really arrived: a torrent's files have their full length from the start (sparse).
+            size = allocated_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
             if row is not None:
                 row["transfer_bytes"], row["transfer_active"], row["transfer_kind"] = size, item["active"], item["kind"]
@@ -299,9 +304,18 @@ class GameLibraryManager:
                 "reclaimable_bytes": sum(g["reclaimable_bytes"] for g in games), **disk}
 
     # -- space check -------------------------------------------------------------------------
-    def check_space(self, download_bytes: int) -> dict:
-        """Can this download and its unpacking fit? Called before any download starts."""
-        room = check_space(download_bytes, self.storage.root, Path(self.storage.preferences.load()["temporary_root"]))
+    def check_space(self, download_bytes: int, app_id: int = 0, name: str = "") -> dict:
+        """Can this download and its unpacking fit? Called before any download starts. With the game's AppID, what an
+        unfinished download of it already has on disk counts: resuming 94 of 104 GB needs room for the rest only."""
+        temporary = Path(self.storage.preferences.load()["temporary_root"])
+        transfer = self.storage.transfer_folder(int(app_id), name) if app_id else None
+        if transfer is not None and transfer.is_dir():
+            on_disk = allocated_size(transfer)
+            room = check_download(download_bytes, on_disk, self.storage.root, temporary)
+            self.log.info("Space for AppID %s: %s bytes, %s already on disk; %s", app_id, download_bytes, on_disk,
+                          "fits" if room["ok"] else "does not fit")
+        else:
+            room = check_space(download_bytes, self.storage.root, temporary)
         if not room["ok"]:
             self.log.warning("Download refused (%s bytes): %s", download_bytes, room["message"])
         return room

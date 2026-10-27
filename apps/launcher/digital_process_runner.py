@@ -99,7 +99,9 @@ class DigitalProcessRunner:
                 if action == "library-plan":
                     return {**result, "ok": True, "plans": library.plan(json.loads(command)["app_ids"])}
                 if action == "library-space":
-                    return {**result, "ok": True, "space": library.check_space(int(json.loads(command or "{}").get("bytes", 0)))}
+                    request = json.loads(command or "{}")
+                    return {**result, "ok": True, "space": library.check_space(int(request.get("bytes", 0)), int(request.get("app_id") or 0),
+                                                                                  str(request.get("name") or ""))}
                 if action == "library-batch":
                     request = json.loads(command)
                     return {**result, "ok": True, "results": library.batch(request["action"], request["app_ids"])}

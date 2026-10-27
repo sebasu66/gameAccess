@@ -173,7 +173,7 @@ export const en: Record<keyof typeof es, string> = {
   downloadsWaitingSamples: "Waiting for speed measurements…",
   downloadsRemove: "Remove from this list",
   downloadsRemoveAria: "Remove {name} from this list",
-  downloadsSession: "Finished this session",
+  downloadsSession: "Finished or stopped",
   downloadsRemaining: "Time remaining",
   downloadsProgress: "Progress for {{name}} · {{status}}",
   downloadsPause: "Pause",
