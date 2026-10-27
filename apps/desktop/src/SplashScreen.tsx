@@ -10,21 +10,20 @@ export const HOLD_MAX_MS = 900;
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
-// The maker's emblem: a G and an A that together make one circle. The G is a thick ring open at the top right, in
-// bright metal; the A uses its top left as its left side, closes the circle with a straight right leg from the top to
-// the G's end, and its bar is also the G's bar (orange inlay).
+// The maker's emblem, engraved in the lock: a G and an A that together make one circle. The G is a thick ring open at
+// the top right; the A uses its top left as its left side, closes the circle with a straight right leg from the top
+// to the G's end, and its bar is also the G's bar. Unlocked, the A lights up in orange.
 const EMBLEM_G = "M 108.7 85 A 138 138 0 1 1 0 -138 L 0 -106 A 106 106 0 1 0 83.5 65.3 Z";
 const EMBLEM_A = "M 0 -138 L 33.4 -133.9 L 108.7 85 L 83.5 65.3 Z M -34 8 L 70 8 L 78 34 L -34 34 Z";
 const BRAND = "GAME ACCESS";
 
 /** The lock: a round plate fixed to the right leaf and lying over the seam, as a real cover would have it. Its rim is
- *  knurled; the maker's emblem is engraved in it with the brand around, the A inlaid in orange. It turns a quarter to
- *  unlock and draws in the bolts that held the left leaf; then it leaves with its leaf. */
+ *  knurled; the maker's emblem and the brand are engraved in it. It turns a quarter to unlock, draws in the bolts that
+ *  held the left leaf and its A lights up; then it leaves with its leaf. */
 function Lock() {
  return <svg className="gs-lock" viewBox="-230 -230 460 460" aria-hidden="true">
   <defs>
    <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
-   <linearGradient id="gs-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#e3e8ec" /><stop offset=".45" stopColor="#a9b2b9" /><stop offset="1" stopColor="#6c757c" /></linearGradient>
    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
   </defs>
@@ -36,25 +35,30 @@ function Lock() {
    <circle className="gs-plate" r="200" />
    <circle className="gs-groove" r="158" />
    <circle className="gs-groove" r="190" />
+   {/* Engraved in the plate, lit from the top left: each cut is dark, with a light lip on its lower right edge. */}
+   <text className="gs-brand is-lip" transform="translate(1 1)"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
    <text className="gs-brand"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
-   {/* Raised from the plate: a dark shadow under each part (lit from the top left), the G in bright metal, the A inlaid in orange. */}
    <g className="gs-emblem">
-    <g className="gs-shade" transform="translate(2.5 3)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
-    <path className="gs-metal" d={EMBLEM_G} />
-    <path className="gs-inlay" d={EMBLEM_A} />
+    <g className="gs-lip" transform="translate(1.8 1.8)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <path className="gs-cut" d={EMBLEM_G} />
+    <path className="gs-cut is-a" d={EMBLEM_A} />
    </g>
    <circle className="gs-hub" r="9" />
   </g>
  </svg>;
 }
 
-/** One half of the cover: brushed gunmetal like the frame, a few bolts, corner marks and fine engraved lines. The
- *  right one carries the lock, lying over the seam. */
+/** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
+ *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
 function Leaf({ side }: { side: "left" | "right" }) {
  return <div className={`gs-leaf is-${side}`}>
+  {/* Its frame: an engraved border all round, and a heavy bevelled edge where it meets the other leaf. */}
+  <i className="gs-frame" /><i className="gs-edge" />
+  {/* The pattern: two recessed panels with cut corners (faintly hatched), vent slots, engraved guide lines. */}
+  <i className="gs-panel is-top" /><i className="gs-panel is-bottom" />
+  <i className="gs-vents" />
   <i className="gs-leaf-engrave" />
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
-  <i className="gs-corner is-top" /><i className="gs-corner is-bottom" />
   <i className="gs-hazard" />
   {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : null}
  </div>;
