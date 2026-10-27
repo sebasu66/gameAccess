@@ -116,7 +116,7 @@ jobs:
             apps/api/requirements.txt
             apps/launcher/requirements.txt
       - name: Install API, launcher and quality dependencies
-        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest ruff
+        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest==9.1.1 ruff==0.17.3
       - name: Lint changed Python files
         shell: bash
         env:
@@ -147,7 +147,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install launcher test dependencies
-        run: pip install -r apps/launcher/requirements.txt pytest
+        run: pip install -r apps/launcher/requirements.txt pytest==9.1.1
       - name: Launcher ownership and inventory unit tests
         env:
           PYTHONPATH: apps/launcher

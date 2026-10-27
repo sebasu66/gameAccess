@@ -21,11 +21,11 @@ jobs:
           node-version: "22"
       - name: Install app dependencies
         working-directory: apps/desktop
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Install Playwright
         working-directory: apps/desktop
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright@1.62.1
           npx playwright install --with-deps chromium
       - name: Start visual fixture server
         working-directory: apps/desktop
