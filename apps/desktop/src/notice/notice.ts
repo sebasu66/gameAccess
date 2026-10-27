@@ -12,6 +12,8 @@ export interface NoticeAction { label: string; kind?: NoticeActionKind; run: () 
 export type NoticeStepState = "pending" | "running" | "done" | "failed";
 export interface NoticeStep { label: string; state: NoticeStepState }
 export interface NoticeGame { name: string; image?: string | null }
+/** A folded section under the text: `load` gives its text the first time it is opened (a log, for instance). */
+export interface NoticeDetails { label: string; load: () => Promise<string> }
 export interface Notice {
   id: number;
   title: string;
@@ -22,6 +24,7 @@ export interface Notice {
   /** Closes itself after 3 s (paused while the pointer is over it). */
   timer: boolean;
   steps?: NoticeStep[];
+  details?: NoticeDetails;
   /** 0..1 for a known progress, null for work whose length is unknown; undefined hides the bar. */
   progress?: number | null;
   /** Called once when this notice leaves the screen (closed, timed out or replaced). */

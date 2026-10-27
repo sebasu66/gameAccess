@@ -28,6 +28,8 @@ export interface ProcessExecutionResult {
   archives?: string[];
   changed?: string[];
   log?: string;
+  /** The end of the game installer's own log (setup*.exe), when it ran. */
+  installer_log?: string;
   analysis?: GameAnalysis;
   library?: LibraryGame[];
   drives?: ImportDrive[];

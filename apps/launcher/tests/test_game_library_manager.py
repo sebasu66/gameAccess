@@ -196,3 +196,11 @@ def test_the_games_folder_warning_flags_long_paths_and_special_characters():
     assert root_warning(r"C:\GA_Juegos") == ""
     assert "gamesRootLong" in root_warning(r"C:\Program Files\Game Access\juegos que instalo aca")
     assert "gamesRootSpecial" in root_warning("C:\\Juegos de Sebasti\u00e1n")
+
+
+def test_the_game_log_brings_the_end_of_its_installer_log(tmp_path):
+    storage, lib = library(tmp_path)
+    folder = storage.folder(1, "Alpha")
+    (folder / "setup-install-log.txt").write_text("line 1\nError creating file (code 3).\n", encoding="utf-8")
+    result = DigitalProcessRunner(storage).run("game-log", 1, "Alpha", "")
+    assert "lanzado: Alpha.exe" in result["log"] and result["installer_log"].endswith("Error creating file (code 3).")

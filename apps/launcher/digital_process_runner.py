@@ -170,7 +170,11 @@ class DigitalProcessRunner:
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
             if action == "game-log":
-                return {**result, "ok": True, "log": journal.read(folder)}
+                # The game's own steps and, when its installer ran, the end of that installer's log (why it stopped).
+                from game_execution_manager.setup_installer import LOG_FILE
+                installer = folder / LOG_FILE
+                tail = installer.read_text(encoding="utf-8", errors="replace").splitlines()[-40:] if installer.is_file() else []
+                return {**result, "ok": True, "log": journal.read(folder), "installer_log": "\n".join(tail)}
             if action in ("game-analyze", "game-repair"):
                 manager = gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger)
                 if action == "game-analyze":

@@ -3,11 +3,27 @@ import { AlertTriangle, Check, Download, Snowflake, Trash2, X } from "lucide-rea
 import { gsap, motionOk, useGSAP } from "../motion/gsap";
 import { useI18n } from "../i18n";
 import { GaButton } from "../components/ga/Buttons";
-import { hideNotice, useNotice, type Notice, type NoticeTone } from "./notice";
+import { hideNotice, useNotice, type Notice, type NoticeDetails, type NoticeTone } from "./notice";
 import { useOpeningSettled } from "../centralDialog/openingSettled";
 import "./notice.css";
 
 const TONE_ICON: Record<NoticeTone, typeof Check> = { ok: Check, info: Download, frost: Snowflake, danger: Trash2, error: AlertTriangle };
+
+/** The notice's folded section: its text loads the first time it opens and scrolls inside it. */
+function NoticeDetailsSection({ details }: { details: NoticeDetails }) {
+  const { t } = useI18n();
+  const [text, setText] = useState<string | null>(null);
+  const opened = useRef(false);
+  const toggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if (!event.currentTarget.open || opened.current) return;
+    opened.current = true;
+    void details.load().then(setText, error => setText(String(error instanceof Error ? error.message : error)));
+  };
+  return <details className="ga-notice-details" onToggle={toggle}>
+    <summary>{details.label}</summary>
+    <pre>{text ?? t("noticeDetailsLoading")}</pre>
+  </details>;
+}
 
 /** The single notice, mounted once at the app root (docs/GUI_DESIGN.md §4.9). */
 export default function GaNotice() {
@@ -65,6 +81,7 @@ export default function GaNotice() {
       {shown.steps?.length ? (
         <ol className="ga-notice-steps">{shown.steps.map((step, index) => <li key={index} data-state={step.state}><i aria-hidden="true" />{step.label}</li>)}</ol>
       ) : null}
+      {shown.details ? <NoticeDetailsSection key={shown.id} details={shown.details} /> : null}
       {shown.actions.length ? (
         <div className="ga-notice-actions">{shown.actions.map(action => <GaButton key={action.label} variant={action.kind ?? "secondary"} onClick={action.run}>{action.label}</GaButton>)}</div>
       ) : null}

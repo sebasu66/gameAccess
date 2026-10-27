@@ -47,3 +47,9 @@
 @media (prefers-reduced-motion: reduce) {
   .ga-notice-steps li[data-state="running"] i, .ga-notice-progress[data-indeterminate] b { animation: none; }
 }
+/* A folded section (the log of a failed download): its text scrolls inside a fixed height. */
+.ga-notice-details { margin: -4px 0 0; font-size: 12.5px; color: #929ba2; }
+.ga-notice-details summary { cursor: pointer; width: max-content; color: #c9ced2; }
+.ga-notice-details summary:hover, .ga-notice-details summary:focus-visible { color: #f4f4f2; outline: none; }
+.ga-notice-details pre { max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 10px 12px; border-radius: 8px; background: #0b0d10cc; border: 1px solid #ffffff14;
+  color: #c9ced2; font: 11px/1.5 "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
