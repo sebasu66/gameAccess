@@ -11,6 +11,7 @@ from pathlib import Path
 from atomic_json import write_json
 from launcher_data import data_dir
 import game_journal as journal
+from game_download_manager.ui_text import ui
 
 KINDS = ("steam", "folder")
 
@@ -101,16 +102,16 @@ def deletable_reason(folder: Path, keep: list[Path] = ()) -> str:
     (deleting through a link would reach files outside it)."""
     folder = Path(folder)
     if not folder.is_dir():
-        return "La carpeta del juego ya no existe."
+        return ui("linkedFolderGone")
     resolved = folder.resolve()
     if resolved == Path(resolved.anchor):
-        return "Es la raíz de un disco."
+        return ui("linkedDiskRoot")
     for other in [*protected_folders(), *(Path(k).resolve() for k in keep)]:
         if resolved == other or other.is_relative_to(resolved):
-            return f"Contiene o es una carpeta que no se puede borrar ({other})."
+            return ui("linkedProtected", folder=str(other))
     for item in [folder, *folder.rglob("*")]:
         if item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()):
-            return "La carpeta contiene enlaces; no se puede borrar de forma segura."
+            return ui("linkedHasLinks")
     return ""
 
 

@@ -4,6 +4,7 @@ Declared by the execution profile (`runSetup`, `setupPattern`, `setupArguments`,
 with `runSetup` unset it is automatic: only when the folder has a setup exe and no game exe."""
 from __future__ import annotations
 import game_journal as journal
+from game_download_manager.ui_text import ui
 from .executables import has_game_executable
 import subprocess
 import sys
@@ -16,17 +17,9 @@ TARGET_FOLDER = "Game"
 TIMEOUT_SECONDS = 2 * 60 * 60
 # The installer's own log (Inno's /LOG), next to it in the game folder: when it fails, it says why.
 LOG_FILE = "setup-install-log.txt"
-# Inno Setup's exit codes (https://jrsoftware.org/ishelp/topic_setupexitcodes.htm).
-INNO_CODES = {
-    1: "no pudo iniciarse",
-    2: "se canceló antes de instalar",
-    3: "tuvo un error fatal al prepararse para instalar",
-    4: "tuvo un error fatal durante la instalación y deshizo lo que había copiado",
-    5: "se canceló durante la instalación",
-    6: "lo cerró otro proceso",
-    7: "no pudo prepararse para instalar",
-    8: "pide reiniciar Windows antes de instalar",
-}
+# Inno Setup's exit codes (https://jrsoftware.org/ishelp/topic_setupexitcodes.htm), each said by the app as
+# setupCode1..setupCode8 of its translations.
+INNO_CODES = range(1, 9)
 # A target deeper than this leaves little room for the game's own folders under Windows' 260-character limit.
 LONG_TARGET = 80
 
@@ -70,16 +63,17 @@ def log_reason(log: Path) -> str:
 def failure_message(setup, code: int, target: Path, log: Path) -> str:
     """What the player (and the log) is told: the code in words, the installer's own reason and, when the folder is
     deep, the likely cause (games that do not fit Windows' path limit)."""
-    parts = [f"error intentando instalar {setup.name}: el instalador terminó con código {code}"]
+    # Keys of the app's translations (ui_text): the app says it in its language; the installer's own words stay as
+    # they came.
+    parts = [ui("setupFailed", file=setup.name, code=code)]
     if code in INNO_CODES:
-        parts[0] += f" ({INNO_CODES[code]})"
+        parts.append(ui(f"setupCode{code}"))
     reason = log_reason(log)
     if reason:
-        parts.append(f"motivo según el instalador: {reason}")
+        parts.append(ui("setupReason", reason=reason))
     if len(str(target)) > LONG_TARGET and code in (3, 4):
-        parts.append(f"causa probable: la carpeta de instalación tiene {len(str(target))} caracteres y los archivos del juego "
-                     "superan el límite de rutas de Windows; usá una carpeta de juegos corta, como C:\\GA_Juegos")
-    return "; ".join(parts)
+        parts.append(ui("setupLongPath", length=len(str(target))))
+    return " ".join(parts)
 
 
 def run_installer(command, as_admin, timeout=TIMEOUT_SECONDS):

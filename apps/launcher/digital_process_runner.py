@@ -103,6 +103,13 @@ class DigitalProcessRunner:
                     request = json.loads(command or "{}")
                     return {**result, "ok": True, "space": library.check_space(int(request.get("bytes", 0)), int(request.get("app_id") or 0),
                                                                                   str(request.get("name") or ""))}
+                if action == "library-relocate-plan":
+                    return {**result, "ok": True, "plan": library.relocate_plan(json.loads(command)["target"])}
+                if action == "library-relocate":
+                    request = json.loads(command)
+                    return {**result, "ok": True, "relocated": library.relocate(int(request["app_id"]), request["target"], request.get("mode", "move"))}
+                if action == "library-relocate-finish":
+                    return {**result, **library.relocate_finish()}
                 if action == "library-batch":
                     request = json.loads(command)
                     return {**result, "ok": True, "results": library.batch(request["action"], request["app_ids"])}
@@ -322,7 +329,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

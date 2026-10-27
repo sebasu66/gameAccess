@@ -17,6 +17,7 @@ from game_execution_manager.setup_installer import find_setup
 from disk_space import GIB, check_space, disk_info, folder_size
 from game_scanner import is_steam_path
 from game_paths import fits, longest_inside
+from game_download_manager.ui_text import ui
 
 # A real fix archive is small; one this big is the downloaded game kept next to its own unpacked copy.
 OBSOLETE_BACKUP_BYTES = 1 * GIB
@@ -151,8 +152,7 @@ class GameImporter:
         # gets once adopted), or the game would not run (or not even move) from there.
         longest = longest_inside(source)
         if not fits(Path(f"{target}-ready"), longest):
-            message = (f"Los archivos del juego tienen rutas de hasta {longest} caracteres y no entran en la carpeta de juegos "
-                       f"({self.storage.root}): Windows no los encontraría. Elegí una carpeta de juegos más corta.")
+            message = ui("importTooLong", longest=longest, folder=str(self.storage.root))
             self.log.error("AppID %s: move refused, %s", app_id, message)
             return {"ok": False, "error": message}
         self.storage.root.mkdir(parents=True, exist_ok=True)

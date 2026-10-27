@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { getSteamStoreLanguage } from "../i18n";
+import { localizeLauncherText } from "../launcherText";
 import { ensureExecutionProfile } from "./ExecutionProfiles";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
@@ -8,7 +9,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
   app_id: number;
   name?: string;
   pid?: number;
@@ -30,6 +31,9 @@ export interface ProcessExecutionResult {
   log?: string;
   /** The end of the game installer's own log (setup*.exe), when it ran. */
   installer_log?: string;
+  plan?: RelocationPlan;
+  relocated?: { app_id: number; ok: boolean; mode?: "move" | "link"; already?: boolean; error?: string };
+  left?: string[];
   analysis?: GameAnalysis;
   library?: LibraryGame[];
   drives?: ImportDrive[];
@@ -63,8 +67,22 @@ export interface LibrarySummary { count: number; by_state: Record<string, number
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
 export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer" | "linked_delete" | "linked_move";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
+export interface RelocationGame { app_id: number; name: string; folder: string; size_bytes: number; same_disk: boolean; fits: boolean; taken: boolean; must_move: boolean }
+export interface RelocationPlan { target: string; games: RelocationGame[]; copy_bytes: number; free_bytes: number; room: boolean }
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[]; delete_download_sources?: boolean; auto_freeze?: boolean }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }
+
+/** The launcher sends errors and warnings as keys of the app's translations (ui_text.py): said in the app's language. */
+const localizeGame = (game: LibraryGame): LibraryGame => ({
+  ...game, error: localizeLauncherText(game.error), warning: localizeLauncherText(game.warning),
+  issues: game.issues?.map(issue => ({ ...issue, message: localizeLauncherText(issue.message) })),
+});
+const localizeResult = (result: ProcessExecutionResult): ProcessExecutionResult => ({
+  ...result,
+  ...(result.library ? { library: result.library.map(localizeGame) } : {}),
+  ...(result.results ? { results: result.results.map(row => ({ ...row, error: localizeLauncherText(row.error) ?? undefined })) } : {}),
+  ...(result.relocated ? { relocated: { ...result.relocated, error: localizeLauncherText(result.relocated.error) ?? undefined } } : {}),
+});
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -97,11 +115,17 @@ export class DigitalProcessManager {
   analyzeGame(game: CatalogGame) { return this.execute("game-analyze", game); }
   repairGame(game: CatalogGame) { return this.execute("game-repair", game); }
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
-  libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame); }
+  libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame).then(localizeResult); }
   libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })); }
   /** With the game, what an unfinished download of it already has on disk counts. */
   librarySpace(bytes: number, appId?: number, name?: string) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes, app_id: appId ?? 0, name: name ?? "" })); }
-  libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })); }
+  /** Moving the library to `target`: the games outside it, their sizes and whether they fit there. */
+  relocatePlan(target: string) { return this.execute("library-relocate-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ target })); }
+  /** One game into `target` ("move"), or linked where it is ("link"; an unfinished or deep-frozen game always moves). */
+  relocate(appId: number, target: string, mode: "move" | "link") { return this.execute("library-relocate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target, mode })).then(localizeResult); }
+  /** After the moves: the old games folders with nothing of ours left leave the list. */
+  relocateFinish() { return this.execute("library-relocate-finish", {id:0,name:""} as CatalogGame); }
+  libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult); }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
   importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
   importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }

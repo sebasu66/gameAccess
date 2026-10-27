@@ -54,5 +54,9 @@ class DigitalPreferences:
         if old != current["games_root"]:
             roots = list(dict.fromkeys([*roots, old]))
         current["previous_roots"] = [root for root in roots if root != current["games_root"]]
+        if values.get("relocated"):
+            # The games of the old folders were moved or linked (relocate.py, which says which old folders still hold
+            # a game of ours that is not linked): the rest leave the list, so there is one games folder again.
+            current["previous_roots"] = [str(root) for root in values.get("previous_roots", []) if str(root) != current["games_root"]]
         write_json(self.path, current)
         return current

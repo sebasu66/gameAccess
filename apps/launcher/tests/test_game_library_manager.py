@@ -187,7 +187,7 @@ def test_a_move_that_would_not_fit_the_path_limit_leaves_the_game_linked(tmp_pat
     storage.linked.link(9, "Theta", str(source))
     monkeypatch.setattr("game_importer.importer.fits", lambda target, longest: False)
     result = lib.batch("linked_move", [9])[0]
-    assert not result["ok"] and "caracteres" in result["error"]
+    assert not result["ok"] and "importTooLong" in result["error"]
     assert source.is_dir() and storage.linked.get(9)["path"] == str(source.resolve())
 
 

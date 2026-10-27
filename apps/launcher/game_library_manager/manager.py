@@ -24,6 +24,7 @@ from game_scanner import GameScanner
 from .storage import split_folder_name
 from .freezer import GameFreezer
 from .linked import deletable_reason
+from game_download_manager.ui_text import ui
 
 # linked_delete / linked_move: a game linked from a folder of the player's (never a Steam one) deleted from disk, or
 # moved into the games folder and adopted (renamed to <AppID>-<name>-ready, like any game Game Access installs).
@@ -84,23 +85,26 @@ class GameLibraryManager:
 
     # -- inventory -------------------------------------------------------------------------
     def game_folders(self) -> list[Path]:
+        linked_paths = {Path(r["path"]).resolve() for r in self.storage.linked.all()}
         found = []
         for root in self.storage.roots:
             if root.is_dir():
-                found += [p for p in sorted(root.iterdir()) if p.is_dir() and split_folder_name(p.name)[0] is not None]
+                found += [p for p in sorted(root.iterdir()) if p.is_dir() and split_folder_name(p.name)[0] is not None and p.resolve() not in linked_paths]
         return found
 
     def list_games(self, with_sizes: bool = True) -> list[dict]:
         """The scan: every folder in the games roots with its state, size and what keeps it from the standard."""
         self.clean_empty()
         games = []
+        records = self.storage.linked.all()
+        # A folder linked where it is (a game left in an old games folder) is listed once, as the linked game.
+        linked_paths = {Path(r["path"]).resolve() for r in records}
         for root in self.storage.roots:
             if not root.is_dir():
                 continue
             for folder in sorted(root.iterdir()):
-                if folder.is_dir() and not folder.is_symlink():
+                if folder.is_dir() and not folder.is_symlink() and folder.resolve() not in linked_paths:
                     games.append(self._entry(folder, with_sizes))
-        records = self.storage.linked.all()
         owners, owned_rows = self._steam_rows({r["app_id"] for r in records})
         games += [self._linked_entry(record, with_sizes, owners.get(record["app_id"])) for record in records]
         # A game Game Access downloaded keeps its own row; the Steam copy of the same AppID is not listed twice.
@@ -338,6 +342,22 @@ class GameLibraryManager:
         exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
         return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives, list(folders))
 
+    def relocate_plan(self, target: str) -> dict:
+        from .relocate import LibraryRelocation
+        return LibraryRelocation(self).plan(target)
+
+    def relocate(self, app_id: int, target: str, mode: str) -> dict:
+        from .relocate import LibraryRelocation
+        try:
+            return {"app_id": int(app_id), **LibraryRelocation(self).relocate(app_id, target, mode)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Relocate AppID %s failed: %s", app_id, error)
+            return {"app_id": int(app_id), "ok": False, "error": str(error)}
+
+    def relocate_finish(self) -> dict:
+        from .relocate import LibraryRelocation
+        return LibraryRelocation(self).finish()
+
     def import_games(self, items: list[dict]) -> list[dict]:
         """Import each item {app_id, name, path, mode: link|move, kind, executable}; one failure never stops the rest."""
         results = []
@@ -380,9 +400,9 @@ class GameLibraryManager:
         """Delete or move a game linked from one of the player's folders. A Steam game is Steam's: neither."""
         record = self.storage.linked.get(app_id)
         if not record:
-            return {"ok": False, "error": "No es un juego vinculado."}
+            return {"ok": False, "error": ui("linkedNotLinked")}
         if record.get("kind") != "folder":
-            return {"ok": False, "error": "Es un juego de Steam: se desinstala desde Steam o con «Desinstalar de Steam»."}
+            return {"ok": False, "error": ui("linkedIsSteam")}
         folder = Path(record["path"])
         try:
             if action == "linked_move":
