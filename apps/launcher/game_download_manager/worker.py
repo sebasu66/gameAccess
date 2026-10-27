@@ -172,8 +172,10 @@ def emit_progress(
     total_bytes: int = 0,
     speed_bps: int = 0,
     eta_seconds: int = 0,
-    status_text: str = ""
+    status_text: str = "",
+    check_percent: float | None = None,
 ):
+    """`check_percent`: how far the check of what is already on disk went (a resumed torrent), its own stage."""
     reported_progress = float(progress_percent)
     raw_percent = max(0.0, min(100.0, reported_progress))
     # Download and installation (extraction) are reported on their own scales so the player can
@@ -207,6 +209,7 @@ def emit_progress(
         "etaSeconds": int(eta_seconds),
         "statusText": clean_text,
         "route": g_route,
+        **({"checkPercent": round(max(0.0, min(100.0, float(check_percent))), 1)} if check_percent is not None else {}),
         **g_steps.payload(),
     })
 

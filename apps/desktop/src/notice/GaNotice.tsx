@@ -4,6 +4,7 @@ import { gsap, motionOk, useGSAP } from "../motion/gsap";
 import { useI18n } from "../i18n";
 import { GaButton } from "../components/ga/Buttons";
 import { hideNotice, useNotice, type Notice, type NoticeTone } from "./notice";
+import { useOpeningSettled } from "../centralDialog/openingSettled";
 import "./notice.css";
 
 const TONE_ICON: Record<NoticeTone, typeof Check> = { ok: Check, info: Download, frost: Snowflake, danger: Trash2, error: AlertTriangle };
@@ -12,6 +13,8 @@ const TONE_ICON: Record<NoticeTone, typeof Check> = { ok: Check, info: Download,
 export default function GaNotice() {
   const { t } = useI18n();
   const notice = useNotice();
+  // The opening (the cover with its doors) protects the device: nothing shows over it; the notice waits until it opened.
+  const opened = useOpeningSettled();
   const [shown, setShown] = useState<Notice | null>(notice);
   const root = useRef<HTMLDivElement>(null);
   const leaving = useRef(false);
@@ -28,24 +31,24 @@ export default function GaNotice() {
   useGSAP(() => {
     if (!shown || !root.current || !motionOk()) return;
     gsap.fromTo(root.current, { x: 40, y: 0, opacity: 0 }, { x: 0, opacity: 1, duration: .55, ease: "expo.out", overwrite: true });
-  }, { dependencies: [Boolean(shown)], scope: root });
+  }, { dependencies: [Boolean(shown) && opened], scope: root });
 
   useGSAP(() => {
     if (!shown || !root.current || !motionOk()) return;
     gsap.fromTo(root.current.querySelectorAll(".ga-notice-head, .ga-notice-steps, .ga-notice-actions"), { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .3, stagger: .04, ease: "power3.out" });
-  }, { dependencies: [shown?.id], scope: root });
+  }, { dependencies: [shown?.id, opened], scope: root });
 
   // Error and confirmation notices take the keyboard focus on their first button; Esc presses the first (Cancel/Close).
   useEffect(() => {
-    if (!shown || shown.timer || !shown.actions.length) return;
+    if (!shown || !opened || shown.timer || !shown.actions.length) return;
     const first = root.current?.querySelector<HTMLButtonElement>(".ga-notice-actions button");
     first?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); shown.actions[0].run(); } };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [shown?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown?.id, opened]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!shown) return null;
+  if (!shown || !opened) return null;
   const Icon = TONE_ICON[shown.tone];
   return (
     <div ref={root} className="ga-notice" data-tone={shown.tone} data-timer={shown.timer || undefined} role={shown.tone === "error" ? "alert" : "status"} aria-live="polite" aria-label={t("toastRegion")}>

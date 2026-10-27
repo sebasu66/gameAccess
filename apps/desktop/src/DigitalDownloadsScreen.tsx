@@ -96,8 +96,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       // drawn over it while downloading; the progress of the stage running now (circle and bar, download or extract,
       // never both); the steps (while preparing: the running one and the next, expandable; afterwards only the ones
       // still to come); pause and cancel.
-      const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : null;
-      const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : 0;
+      // A resumed download first checks what is already on disk (minutes for a big torrent): that is a stage of its own.
+      const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : typeof snapshot.checkPercent === "number" ? "check" : null;
+      const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : stage === "check" ? snapshot.checkPercent ?? 0 : 0;
+      const stageLabel = stage === "download" ? t("downloadsDownloadBar") : stage === "install" ? t("downloadsInstallBar") : t("downloadsCheckBar");
       const art = <DigitalDownloadThumb game={currentGame} />;
       return <article className="ga-dl-card" key={gameId}>
         <header className="ga-dl-card-head">
@@ -113,11 +115,12 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         </div>
         {/* The panel's own components (the telemetry dial and the progress line with its bar), as they were. */}
         {stage ? <div className="ga-download-telemetry ga-dl-card-progress">
-          <DownloadDial percent={percent} label={stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")} />
+          <DownloadDial percent={percent} label={stageLabel} />
           <div className="ga-dl-card-bar">
-            <div className="digital-download-progress-line"><span>{stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")}</span><strong>{Math.round(percent)}%</strong></div>
-            <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:stage === "download" ? t("downloadsDownloadBar") : t("downloadsInstallBar")})} />
+            <div className="digital-download-progress-line"><span>{stageLabel}</span><strong>{Math.round(percent)}%</strong></div>
+            <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress",{name:game.name,status:stageLabel})} />
             {stage === "download" ? <p className="ga-dl-card-eta">{t("downloadsRemaining")}: <strong>{eta(snapshot)}</strong></p> : null}
+            {stage === "check" ? <p className="ga-dl-card-eta">{t("downloadsCheckHint")}</p> : null}
           </div>
         </div> : null}
         <DownloadSteps snapshot={snapshot} />

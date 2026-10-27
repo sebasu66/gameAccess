@@ -184,7 +184,7 @@ class TorrentDownloadTransport:
                 return ""
             checking = handle.status()
             context.emit_progress(app_id=app_id, phase="preparing", progress_percent=checking.progress * 100.0,
-                                  total_bytes=total_wanted,
+                                  total_bytes=total_wanted, check_percent=checking.progress * 100.0,
                                   status_text=f"Verificando archivos existentes ({checking.progress * 100.0:.1f}%)")
             time.sleep(0.5)
         # Now the size is known: stop before downloading what would not fit (what is already here counts).

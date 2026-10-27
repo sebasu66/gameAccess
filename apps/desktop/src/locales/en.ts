@@ -164,6 +164,8 @@ export const en: Record<keyof typeof es, string> = {
   downloadsInstalled: "Installation complete",
   downloadsDownloadBar: "Download",
   downloadsInstallBar: "Installation",
+  downloadsCheckBar: "Checking what is downloaded",
+  downloadsCheckHint: "Checks the files already on disk, then goes on from there without downloading everything again.",
   downloadsDownloaded: "Downloaded",
   downloadsSpeed: "Speed",
   downloadsPeakSpeed: "Peak speed",

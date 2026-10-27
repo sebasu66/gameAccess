@@ -162,6 +162,8 @@ export const es = {
   downloadsInstalled: "Instalación completada",
   downloadsDownloadBar: "Descarga",
   downloadsInstallBar: "Instalación",
+  downloadsCheckBar: "Verificando lo ya descargado",
+  downloadsCheckHint: "Revisa los archivos que ya están en disco; después sigue desde ahí, sin bajar todo de nuevo.",
   downloadsDownloaded: "Descargado",
   downloadsSpeed: "Velocidad",
   downloadsPeakSpeed: "Pico de velocidad",
