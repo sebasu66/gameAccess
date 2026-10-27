@@ -18,8 +18,8 @@ const EMBLEM_A = "M 0 -138 L 33.4 -133.9 L 108.7 85 L 83.5 65.3 Z M -34 8 L 70 8
 const BRAND = "GAME ACCESS";
 
 /** The lock: a round plate fixed to the right leaf and lying over the seam, as a real cover would have it. Its rim is
- *  knurled; the maker's emblem and the brand are engraved in it. It turns a quarter to unlock, draws in the bolts that
- *  held the left leaf and its A lights up; then it leaves with its leaf. */
+ *  knurled; the maker's emblem and the brand are engraved in it. It turns a quarter to unlock (the padlock beside it
+ *  goes out) and its A lights up; then it leaves with its leaf. */
 function Lock() {
  return <svg className="gs-lock" viewBox="-230 -230 460 460" aria-hidden="true">
   <defs>
@@ -27,8 +27,6 @@ function Lock() {
    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
   </defs>
-  {/* The bolts reaching into the left leaf, under the plate: drawn in once the lock has turned. */}
-  <g className="gs-bolts"><rect x="-300" y="-92" width="150" height="16" rx="3" /><rect x="-300" y="76" width="150" height="16" rx="3" /></g>
   <g className="gs-lock-turn">
    <circle className="gs-rim" r="214" />
    <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
@@ -48,6 +46,16 @@ function Lock() {
  </svg>;
 }
 
+/** The state of the cover, set into the left leaf beside the lock like a backlit logo: a small padlock lit from
+ *  inside while the cover is locked. When the emblem has turned, its shackle springs open and its light goes out. */
+function Padlock() {
+ return <svg className="gs-padlock" viewBox="-20 -24 40 46" aria-hidden="true">
+  <path className="gs-padlock-shackle" d="M -8 -2 V -9 A 8 8 0 0 1 8 -9 V -2" />
+  <rect className="gs-padlock-body" x="-12" y="-3" width="24" height="20" rx="3" />
+  <circle className="gs-padlock-hole" cy="5" r="2.4" />
+ </svg>;
+}
+
 /** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
  *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
 function Leaf({ side }: { side: "left" | "right" }) {
@@ -60,14 +68,14 @@ function Leaf({ side }: { side: "left" | "right" }) {
   <i className="gs-leaf-engrave" />
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
   <i className="gs-hazard" />
-  {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : null}
+  {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : <Padlock />}
  </div>;
 }
 
 /**
  * The opening: a metal cover, made like the device frame around it, closes the screen. On its seam lies a round lock
- * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and draws in its
- * bolts. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
+ * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and the backlit
+ * padlock beside it goes out. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
  * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (drawn and unlocked), hold
  * (the opening sound), dock (the gate opens).
  */

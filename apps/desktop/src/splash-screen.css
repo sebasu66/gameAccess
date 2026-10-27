@@ -68,24 +68,33 @@
 .gs-lip path{fill:#ffffff42}
 .gs-cut{fill:#07090b;fill-opacity:.9}
 .gs-hub{fill:#1a1f23;stroke:#ffffff30;stroke-width:1}
-.gs-bolts rect{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6}
+/* The backlit padlock, set into the left leaf beside the lock: its outline is a dark cut, its shape glows from
+   inside (white, like a lit logo in metal). Unlocked, the shackle springs open and the light goes out. */
+.gs-padlock{position:absolute;z-index:2;top:50%;right:calc(var(--gs-lock)/2 + 40px);width:34px;height:40px;transform:translateY(-50%);overflow:visible}
+.gs-padlock-body,.gs-padlock-shackle{stroke:#000;stroke-opacity:.7;stroke-width:1.2}
+.gs-padlock-body{fill:#f2f6fb;filter:drop-shadow(0 0 4px #dce9ffcc) drop-shadow(0 0 12px #a9c8ff66);animation:gs-light-out .7s ease-in calc(var(--gs-draw) + var(--gs-turn)) both}
+.gs-padlock-shackle{fill:none;stroke:#f2f6fb;stroke-width:3.4;stroke-linecap:round;filter:drop-shadow(0 0 4px #dce9ffcc);
+ transform-box:fill-box;transform-origin:100% 100%;animation:gs-shackle .35s cubic-bezier(.3,1.6,.5,1) calc(var(--gs-draw) + var(--gs-turn) - 80ms) both,
+ gs-shackle-out .7s ease-in calc(var(--gs-draw) + var(--gs-turn)) both}
+.gs-padlock-hole{fill:#1b2024}
+@keyframes gs-light-out{to{fill:#14181b;filter:drop-shadow(1px 1px 0 #ffffff26)}}
+@keyframes gs-shackle-out{to{stroke:#14181b;filter:drop-shadow(1px 1px 0 #ffffff26)}}
+@keyframes gs-shackle{to{transform:translateY(-4px) rotate(28deg)}}
 /* Appears, then turns a quarter (the emblem upright) and draws in its bolts; it glows once, unlocked. */
 .gs-lock{animation:gs-lock-in calc(var(--gs-draw) * .7) cubic-bezier(.2,.7,.2,1) both}
 .gs-emblem{animation:gs-engrave var(--gs-draw) ease-out both}
 .gs-lock-turn{transform-box:view-box;transform-origin:0 0;animation:gs-turn var(--gs-turn) cubic-bezier(.7,0,.2,1) var(--gs-draw) both}
 .gs-cut.is-a{animation:gs-unlocked 1s ease-out calc(var(--gs-draw) + var(--gs-turn)) both}
-.gs-bolts{animation:gs-bolts .4s cubic-bezier(.6,0,.4,1) calc(var(--gs-draw) + var(--gs-turn) - 60ms) both}
 @keyframes gs-lock-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 @keyframes gs-engrave{from{opacity:0}to{opacity:1}}
 @keyframes gs-turn{from{transform:rotate(90deg)}to{transform:rotate(0)}}
-@keyframes gs-bolts{to{transform:translateX(150px)}}
 @keyframes gs-unlocked{0%{fill:#07090b}40%{fill:#e39a4a;filter:drop-shadow(0 0 10px #cc8333cc)}100%{fill:#cc8333;filter:drop-shadow(0 0 4px #cc833366)}}
 /* Reduced motion (or the pixel style's animation off): the lock is shown open and the gate simply goes. */
-.gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-bolts){animation:none}
-.gs-gate.is-still .gs-bolts{transform:translateX(150px)}
+.gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}
+.gs-gate.is-still .gs-padlock-body{fill:#14181b;filter:none}.gs-gate.is-still .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}
 .gs-gate.is-still .gs-cut.is-a{fill:#cc8333}
 .gs-gate.is-still .gs-leaf{transition:none}
-@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-bolts){animation:none}.gs-gate .gs-bolts{transform:translateX(150px)}.gs-gate .gs-cut.is-a{fill:#cc8333}.gs-gate .gs-leaf{transition:none}}
+@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-cut.is-a{fill:#cc8333}.gs-gate .gs-leaf{transition:none}}
 .ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
