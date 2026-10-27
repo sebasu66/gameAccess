@@ -4,27 +4,76 @@ import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
-// The opening sound ends with silence; the logo never waits for it longer than this.
+// The opening sound ends with silence; the closed gate never waits for it longer than this.
 export const HOLD_MAX_MS = 900;
+// The lock: its lines are drawn, then it turns a quarter to unlock; the gate opens once access is settled.
+const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
+
+/** The round lock in the middle of the cover: a ring of ticks, and the monogram split by the seam, the G on its left
+ *  half and the A on its right half, drawn in fine orange lines. Each half of the gate carries the whole lock, clipped
+ *  to its side, so the lock splits with the gate. */
+function Lock() {
+ return <svg className="gs-lock" viewBox="-220 -220 440 440" aria-hidden="true">
+  <circle className="gs-lock-plate" r="196" />
+  {/* The seam of the gate runs through the lock: a dark groove with a light edge. */}
+  <line className="gs-lock-seam" x1="0" y1="-196" x2="0" y2="196" />
+  <line className="gs-lock-seam is-light" x1="1.5" y1="-196" x2="1.5" y2="196" />
+  <g className="gs-lock-ticks">
+   {Array.from({ length: 72 }, (_, index) => {
+    const long = index % 6 === 0, angle = index * 5;
+    return <line key={index} x1="0" y1={-208} x2="0" y2={long ? -192 : -200} transform={`rotate(${angle})`} className={long ? "is-long" : undefined} />;
+   })}
+  </g>
+  <circle className="gs-lock-ring gs-draw" r="168" pathLength={100} />
+  <circle className="gs-lock-ring is-thin gs-draw" r="150" pathLength={100} />
+  <g className="gs-lock-turn">
+   {/* G: an arc open towards the seam, its bar turning in; A: two legs and a bar. */}
+   <path className="gs-glyph gs-draw" pathLength={100} d="M -34 -54 A 64 64 0 1 0 -34 54 L -34 8 L -64 8" />
+   <path className="gs-glyph gs-draw" pathLength={100} d="M 30 66 L 76 -66 L 122 66 M 47 20 L 105 20" transform="translate(-6 0)" />
+   <line className="gs-lock-key gs-draw" pathLength={100} x1="0" y1="-150" x2="0" y2="-118" />
+   <line className="gs-lock-key gs-draw" pathLength={100} x1="0" y1="118" x2="0" y2="150" />
+  </g>
+  {/* The latches crossing the seam: they slide away once the lock has turned. */}
+  <rect className="gs-latch is-top" x="-34" y="-186" width="68" height="10" rx="2" />
+  <rect className="gs-latch is-bottom" x="-34" y="176" width="68" height="10" rx="2" />
+ </svg>;
+}
+
+/** One half of the cover: brushed gunmetal like the frame, a few bolts, corner marks and fine engraved lines, and the
+ *  lock clipped to that half. */
+function Leaf({ side }: { side: "left" | "right" }) {
+ return <div className={`gs-leaf is-${side}`}>
+  <i className="gs-leaf-engrave" />
+  <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
+  <i className="gs-corner is-top" /><i className="gs-corner is-bottom" />
+  <i className="gs-hazard" />
+  <div className="gs-leaf-lock"><Lock /></div>
+ </div>;
+}
+
+/**
+ * The opening: a metal cover, made like the device frame around it, closes the screen. In its middle a round lock is
+ * drawn in fine lines, a G and an A split by the seam; it turns a quarter to unlock (G left, A right) and its latches
+ * slide away. Once access is settled, the cover opens on both sides like a gate, the lock splitting with it, and the
+ * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (drawn and unlocked), hold
+ * (the opening sound), dock (the gate opens).
+ */
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
  const [formed, setFormed] = useState(stage !== "intro");
  const [audioState, setAudioState] = useState("idle");
- const [dockShown, setDockShown] = useState(false);
+ const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
- const video = useRef<HTMLVideoElement>(null);
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
- // Right after the big logo has held, it rains up to the header whatever the key status is; the access panel comes afterwards.
  const phase = !formed ? "intro" : stage === "intro" ? "hold" : "dock";
  const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
  const reducedRef = useRef(reduced);
  const finishDock = useCallback(() => {
   if (finished.current) return;
   finished.current = true;
-  // The header logo appears right away while the film fades out over it: no pop.
   document.body.classList.remove("ga-splash-active");
   window.dispatchEvent(new Event(LOGO_SETTLED_EVENT));
   if (reducedRef.current) { onDocked(); return; }
@@ -43,62 +92,41 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  }, []);
  useEffect(() => {
   const src = openingAudio.src as string | null;
-  // The supplied opening sound follows formation playback, including replay.
   if (!src) return;
   const audio = new Audio(src); audio.preload = "auto"; sound.current = audio;
   audio.onplaying = () => setAudioState("playing");
   audio.onended = () => setAudioState("ended");
   audio.onerror = () => setAudioState("error");
+  // The sound starts with the drawing of the lock.
+  if (!reduced) void audio.play().catch(() => setAudioState("blocked"));
   return () => { sound.current = null; };
- }, []);
+ }, []); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => {
   if (phase === "intro") {
-   if (reduced) { setFormed(true); return; }
-   const timer = window.setTimeout(() => setFormed(true), 12000);
+   // Drawn, then turned: the lock is open.
+   const timer = window.setTimeout(() => setFormed(true), reduced ? 0 : DRAW_MS + TURN_MS + 250);
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
-   // Keep the formed logo large until the complete opening sound finishes.
+   // Keep the cover closed until the opening sound has finished (never longer than HOLD_MAX_MS).
    const audio = sound.current;
    const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
    const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
    return () => clearTimeout(timer);
   }
-  if (reduced) { onDockStart(); finishDock(); return; }
-  // Decoder fallback advances the animation only; the gate still requires approval.
-  const timer = window.setTimeout(finishDock, 8000);
+  if (started.current) return;
+  started.current = true;
+  onDockStart();
+  if (reduced) { finishDock(); return; }
+  // The gate opens; the app (fading in under it) is there when it is gone.
+  setOpening(true);
+  const timer = window.setTimeout(finishDock, OPEN_MS + 100);
   return () => clearTimeout(timer);
  }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
- const play = () => {
-  if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
-  if (phase !== "dock" || started.current) return;
-  started.current = true;
-  const v = video.current;
-  if (!v) return;
-  setDockShown(true);
-  const scale = innerWidth / 1920;
-  const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
-  const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
-  // The header logo sits centred at the top, flush under the window bar (see filter-wizard.css).
-  const cx = innerWidth / 2;
-  const cy = chrome - 8 + frame / 2;
-  const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
-  const ratio = frame / (81 * scale);
-  // The transparent film's individual voxels travel independently; its final
-  // frame is aligned to the visible header logo at every window size.
-  v.animate([
-   { transform: `translate(0px,${initialY}px) scale(1)` },
-   { transform: `translate(${cx - 64 * scale * ratio}px,${cy - 54 * scale * ratio}px) scale(${ratio})` },
-  ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
-  onDockStart();
- };
- const cls = `gameaccess-splash phase-${phase}${landing ? " is-landing" : ""}`;
- // Every layer stays mounted in turn so the picture never goes blank between films.
- return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
-  <img className={`gameaccess-splash-film splash-hold${phase !== "intro" && !dockShown ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
-  {phase === "intro" ? <video key="intro" ref={video} className="gameaccess-splash-film splash-intro" src="/brand/logo-intro.webm"
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => setFormed(true)} onEnded={() => setFormed(true)} aria-hidden="true" /> : null}
-  {phase === "dock" ? <video key="dock" ref={video} className={`gameaccess-splash-film splash-dock${dockShown ? " is-on" : ""}`} src="/brand/logo-to-header.webm"
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={finishDock} onEnded={finishDock} aria-hidden="true" /> : null}
+ const cls = `gameaccess-splash gs-gate phase-${phase}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
+ return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}
+  style={{ "--gs-draw": `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
+  <Leaf side="left" />
+  <Leaf side="right" />
  </div>;
 }

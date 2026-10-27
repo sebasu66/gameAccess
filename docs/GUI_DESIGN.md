@@ -203,6 +203,12 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - A la derecha del historial, la **barra de congelado** (`FreezeBar`): misma línea de arriba y altura que el historial (13rem), a 32 px, del tamaño de la imagen apaisada del juego (460:215), que está adentro tenue (opacidad .32) y desaturada a la mitad, siempre del mismo tamaño. Encima, la cuadrícula de 9 × 4 cubos de 40 px (el juego, vidrio esmerilado) cerrada a la izquierda; con el avance, cubo tras cubo se achica y se acomoda en un grupo de 5 filas a la izquierda, celeste; al 100 % ocupan más o menos la mitad (al descongelar, al revés). El % (Bebas 40 px) y el tamaño van sobre la imagen, abajo a la derecha. Detrás de la imagen, una grilla tenue (`#ffffff12`: una línea por fila de cubos y una cada dos columnas) completa la forma; con los bordes, sigue 180 px a la derecha y se desvanece. El resultado no va acá: va en el aviso.
 - **Tablero de actividad** (`ActivityBoard`) junto al gráfico de disco: líneas y letras tenues sobre el fondo (opacidad .38, .7 con trabajo), un anillo por tarea (congelar, descongelar, revisar la biblioteca, aplicar cambios) con su % o un arco que gira; "En reposo" sin tareas. Solo informa.
 
+### 4.24 Apertura `gs-gate` (componente `SplashScreen`)
+- Reemplaza a los videos del logo. Una **tapa de metal** hecha como el marco (gunmetal, acero cepillado en overlay, brillo diagonal), en dos hojas con su junta al centro, cierra la pantalla dentro del marco. Detalles técnicos medidos: tornillos cerca de las esquinas, marcas de esquina, líneas grabadas que se desvanecen y dos franjas de advertencia cortas sobre la junta.
+- En el centro, un **cerrojo redondo** (54 vmin, máx. 470 px): anillo de marcas, dos aros finos y el monograma **G·A** en líneas naranjas (8 unidades, puntas cuadradas), partido por la junta.
+- Secuencia: las líneas se dibujan (1,1 s), el monograma gira un cuarto de vuelta de G arriba a G a la izquierda y A a la derecha (0,95 s), brilla una vez y las trabas que cruzan la junta se retiran. Al resolverse el acceso, las dos hojas se abren como un **portón** (1,3 s), cada una con su mitad del cerrojo, y la app aparece debajo (1,1 s).
+- Con "reducir movimiento" (o la animación del estilo pixel apagada) el cerrojo se ve abierto y el portón se va sin animar.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
