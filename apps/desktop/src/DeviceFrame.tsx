@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { BrandLogoVideo } from "./BrandSketch";
 import BrandWall from "./BrandWall";
 import { FRAME, frameFillPath, frameInnerPath, frameOuterPath, tabAround, tabMerge, type FrameMetrics, type FrameTab } from "./frameGeometry";
 import "./device-frame.css";
@@ -10,7 +9,7 @@ import "./device-frame.css";
  * one) with a double line and cut corners, and tabs that come out of it where controls live on the edge: the status
  * and the footer buttons at the bottom, and a thin one at the middle of the top edge with GAME ACCESS lit in it.
  * Everything else is the screen under the bezel: the new-games banner, the big
- * view word on the left, the animated logo in the top-right corner and, in the empty column on the right, the word
+ * view word on the left and, in the empty column on the right, the word
  * GAME / ACCESS sketched huge (BrandWall).
  *
  * Two layers over the screen: the metal body (with its shadow on the screen) and the engraved lines; the controls
@@ -29,7 +28,7 @@ const titleBarHeight = () => rectOf(".window-chrome")?.bottom ?? 0;
 type Rect = { left: number; top: number; right: number; bottom: number } | null;
 const rectOf = (selector: string): Rect => {
   const element = document.querySelector<HTMLElement>(selector);
-  // Not offsetParent: it is always null for fixed elements (the logo), shown or not.
+  // Not offsetParent: it is always null for fixed elements, shown or not.
   if (!element || getComputedStyle(element).display === "none") return null;
   const r = element.getBoundingClientRect();
   return r.width > 0 && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null;
@@ -205,9 +204,7 @@ export default function DeviceFrame() {
       )}
       {/* The device's name, lit in a thin tab at the middle of the top edge. */}
       {createPortal(<span className="ga-frame-name" aria-hidden="true">GAME ACCESS</span>, document.body)}
-      {/* The animated logo in the screen's top-right corner; its turn drives the word sketched in the right column. */}
-      <BrandLogoVideo className="ga-corner-logo" />
-      <BrandWall video=".ga-corner-logo video" />
+      <BrandWall />
     </>
   );
 }

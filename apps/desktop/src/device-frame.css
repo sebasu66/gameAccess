@@ -69,12 +69,8 @@ html body.ga-device-frame .ga-detail-overlay > .ga-screen-dimmer {
   width: calc(100% + var(--ga-out-left) + var(--ga-out-right)); height: calc(100% + var(--ga-out-top) + var(--ga-out-bottom)); }
 html body.ga-device-frame .ga-in-frame { max-height: calc(100vh - var(--ga-frame-offset, 0px) - var(--ga-frame-top, 0px) - var(--ga-frame-bottom, 0px) - 32px) !important; }
 
-/* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
-.ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 28px); right: 38px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
-.ga-corner-logo video, .ga-corner-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
-
 /* What the frame replaces: the footer bar's own background (its controls sit on the bezel's tabs), the header logo
-   (now the corner logo and the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
+   (now the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
    in the catalog and in the library. */
 body.ga-device-frame .catalog-bottom-actions { z-index: 2147483603 !important; background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
 body.ga-device-frame .topbar .ga-brand-lockup { display: none; }

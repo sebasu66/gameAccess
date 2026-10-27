@@ -61,54 +61,56 @@ function SketchWord({ word, letters }: { word: Word; letters: readonly string[] 
   );
 }
 
+/** Longest step the clock takes at once: after a pause (minimised, asleep, a game in front) it goes on, never jumps. */
+const MAX_STEP_SECONDS = .1;
+/** How often a stopped clock is checked: if anything stopped the frames while the window is shown, they start again. */
+const WATCHDOG_MS = 2000;
+
 /**
- * Follows a loop clock (the animated logo's video time) and sets --game / --access on `host` every frame; with
- * "reduce motion" GAME stays drawn.
+ * The word's own loop clock (it used to follow the corner logo's video, and froze for good when the window came back
+ * and that video did not play again). It runs while the window is shown, waits while it is hidden, minimised or the
+ * computer sleeps, and goes on from where it was; sets --game / --access on `host` every frame. With "reduce motion"
+ * GAME stays drawn.
  */
-function useSketchClock(host: React.RefObject<HTMLElement>, clock: () => number | null, deps: unknown[]) {
+function useSketchClock(host: React.RefObject<HTMLElement>) {
   useEffect(() => {
     const element = host.current;
     if (!element) return;
     if (!motionOk()) { element.style.setProperty("--game", "1"); element.style.setProperty("--access", "0"); return; }
-    let frame = 0;
-    const paint = () => {
-      const t = clock();
-      if (t !== null) {
-        const progress = sketchProgress(t);
-        element.style.setProperty("--game", progress.game.toFixed(3));
-        element.style.setProperty("--access", progress.access.toFixed(3));
-      }
-      frame = window.requestAnimationFrame(paint);
+    let frame = 0, last = 0, elapsed = 0;
+    const paint = (now: number) => {
+      frame = 0;
+      if (last) elapsed += Math.min(Math.max(0, now - last) / 1000, MAX_STEP_SECONDS);
+      last = now;
+      const progress = sketchProgress(elapsed);
+      element.style.setProperty("--game", progress.game.toFixed(3));
+      element.style.setProperty("--access", progress.access.toFixed(3));
+      if (document.hidden) last = 0;
+      else frame = window.requestAnimationFrame(paint);
     };
-    frame = window.requestAnimationFrame(paint);
-    return () => window.cancelAnimationFrame(frame);
-  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
-}
-
-/** The animated voxel logo alone (the G/A that turns), kept playing when the window comes back. */
-export function BrandLogoVideo({ className }: { className?: string }) {
-  const video = useRef<HTMLVideoElement>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const resume = () => { void video.current?.play().catch(() => {}); };
-    resume();
-    window.addEventListener("focus", resume);
-    document.addEventListener("visibilitychange", resume);
-    return () => { window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
-  }, [failed]);
-  return <span className={className} aria-hidden="true">{failed
-    ? <img src="/brand/logo-header-poster.png" alt="" />
-    : <video ref={video} src="/brand/logo-header-loop.webm" poster="/brand/logo-header-poster.png" autoPlay muted loop playsInline preload="auto" onError={() => setFailed(true)} />}</span>;
+    const start = () => { if (!frame && !document.hidden) { last = 0; frame = window.requestAnimationFrame(paint); } };
+    start();
+    const watchdog = window.setInterval(start, WATCHDOG_MS);
+    window.addEventListener("focus", start);
+    window.addEventListener("pageshow", start);
+    document.addEventListener("visibilitychange", start);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearInterval(watchdog);
+      window.removeEventListener("focus", start);
+      window.removeEventListener("pageshow", start);
+      document.removeEventListener("visibilitychange", start);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**
- * The whole word in sketched letters, one under the other: G A M E while the animated logo reads as G, A C C E S S
- * while it reads as A, built and erased letter by letter as it turns. `video` is where the animated logo plays (its
- * time drives the word); the logo itself is shown elsewhere.
+ * The whole word in sketched letters, one under the other: G A M E, then A C C E S S, built and erased letter by
+ * letter on the brand turn's timing (sketchProgress), without end.
  */
-export function BrandWord({ video }: { video: string }) {
+export function BrandWord() {
   const host = useRef<HTMLSpanElement>(null);
-  useSketchClock(host, () => document.querySelector<HTMLVideoElement>(video)?.currentTime ?? null, [video]);
+  useSketchClock(host);
   return (
     <span ref={host} className="ga-brand-word" role="img" aria-label="GameAccess">
       <SketchWord word="game" letters={["G", "A", "M", "E"]} />
