@@ -21,6 +21,8 @@ export interface ProcessExecutionResult {
   installed?: boolean;
   backup_requires_password?: boolean;
   settings?: DigitalStorageSettings;
+  /** Why the games folder may keep games from running (long, accents or symbols); empty when it is fine. */
+  games_root_warning?: string;
   options?: DigitalLaunchOptions;
   executables?: string[];
   archives?: string[];
@@ -57,7 +59,7 @@ export interface SteamOwner { id64: string; account: string; persona: string; re
 export type FreezeLevel = "freeze" | "deep";
 export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; frozen_saved_bytes?: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
-export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer";
+export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer" | "linked_delete" | "linked_move";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[]; delete_download_sources?: boolean; auto_freeze?: boolean }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }

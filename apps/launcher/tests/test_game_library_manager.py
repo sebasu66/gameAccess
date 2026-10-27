@@ -143,3 +143,56 @@ def test_clean_empty_keeps_the_record_of_an_unfinished_download(tmp_path):
     (transfer / "part.bin").write_bytes(b"z" * 10)
     lib.clean_empty()
     assert failed.is_dir() and (storage.registry / "7.json").is_file()
+
+
+def test_a_linked_folder_game_can_be_deleted_from_disk_but_never_a_steam_one_or_a_shared_folder(tmp_path):
+    storage, lib = library(tmp_path)
+    delta = tmp_path / "outside" / "Delta"
+    delta.mkdir(parents=True)
+    (delta / "Delta.exe").write_bytes(b"x" * 100)
+    storage.linked.link(4, "Delta", str(delta))
+    result = lib.batch("linked_delete", [4])[0]
+    assert result["ok"] and not delta.exists() and storage.linked.get(4) is None
+    steam = tmp_path / "steamapps" / "common" / "Epsilon"
+    steam.mkdir(parents=True)
+    storage.linked.link(5, "Epsilon", str(steam), "steam")
+    assert not lib.batch("linked_delete", [5])[0]["ok"] and steam.is_dir()
+    # A folder that holds another linked game (a whole collection) is never deleted as one game.
+    collection = tmp_path / "Juegos"
+    (collection / "Zeta").mkdir(parents=True)
+    storage.linked.link(6, "Coleccion", str(collection))
+    storage.linked.link(7, "Zeta", str(collection / "Zeta"))
+    assert not lib.batch("linked_delete", [6])[0]["ok"] and (collection / "Zeta").is_dir()
+
+
+def test_a_linked_folder_game_moves_into_the_games_folder_with_the_standard_name(tmp_path):
+    storage, lib = library(tmp_path)
+    name = "Eta\u2122 Edici\u00f3n Especial"
+    source = tmp_path / "outside" / name
+    source.mkdir(parents=True)
+    (source / "Eta.exe").write_bytes(b"x" * 100)
+    storage.linked.link(8, name, str(source))
+    result = lib.batch("linked_move", [8])[0]
+    assert result["ok"], result
+    assert not source.exists() and storage.linked.get(8) is None
+    moved = [p.name for p in storage.root.iterdir() if p.name.startswith("8-")]
+    assert moved == ["8-Eta_Edicion_Especial-ready"]
+
+
+def test_a_move_that_would_not_fit_the_path_limit_leaves_the_game_linked(tmp_path, monkeypatch):
+    storage, lib = library(tmp_path)
+    source = tmp_path / "outside" / "Theta"
+    source.mkdir(parents=True)
+    (source / "Theta.exe").write_bytes(b"x")
+    storage.linked.link(9, "Theta", str(source))
+    monkeypatch.setattr("game_importer.importer.fits", lambda target, longest: False)
+    result = lib.batch("linked_move", [9])[0]
+    assert not result["ok"] and "caracteres" in result["error"]
+    assert source.is_dir() and storage.linked.get(9)["path"] == str(source.resolve())
+
+
+def test_the_games_folder_warning_flags_long_paths_and_special_characters():
+    from game_paths import root_warning
+    assert root_warning(r"C:\GA_Juegos") == ""
+    assert "gamesRootLong" in root_warning(r"C:\Program Files\Game Access\juegos que instalo aca")
+    assert "gamesRootSpecial" in root_warning("C:\\Juegos de Sebasti\u00e1n")

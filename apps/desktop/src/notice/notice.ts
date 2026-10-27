@@ -84,7 +84,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** Asks in the notice itself: Cancel + the action. Resolves false if cancelled, replaced or closed. */
-export function confirmNotice(input: { game?: NoticeGame; title: string; text?: string; confirmLabel: string; cancelLabel: string; kind?: "danger" | "frost" }): Promise<boolean> {
+export function confirmNotice(input: { game?: NoticeGame; title: string; text?: string; confirmLabel: string; cancelLabel: string; kind?: "danger" | "frost" | "primary" }): Promise<boolean> {
   return new Promise(resolve => {
     let id = 0;
     const answer = (ok: boolean) => {
@@ -94,7 +94,7 @@ export function confirmNotice(input: { game?: NoticeGame; title: string; text?: 
       if (!ok) hideNotice(id);
     };
     id = showNotice({
-      game: input.game, title: input.title, text: input.text, tone: input.kind === "frost" ? "frost" : "danger", timer: false,
+      game: input.game, title: input.title, text: input.text, tone: input.kind === "frost" ? "frost" : input.kind === "primary" ? "info" : "danger", timer: false,
       actions: [{ label: input.cancelLabel, kind: "secondary", run: () => answer(false) }, { label: input.confirmLabel, kind: input.kind ?? "danger", run: () => answer(true) }],
     });
     const resolver = (ok: boolean) => resolve(ok);

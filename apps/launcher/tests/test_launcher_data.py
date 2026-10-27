@@ -21,7 +21,7 @@ def test_an_installed_app_uses_the_user_data_folder_and_the_installer_folders(tm
     monkeypatch.setattr(launcher_data, "_installer_choice", lambda name: "")
     preferences = DigitalPreferences(tmp_path / "Program Files" / "gameAccess" / "runtime" / "launcher")
     assert preferences.path == data / ".cache" / "digital-settings.json"
-    assert preferences.load()["games_root"] == str(Path("D:\\") / "juegos_GameAccess")
+    assert preferences.load()["games_root"] == str(Path("D:\\") / "GA_Juegos")
     assert preferences.load()["temporary_root"] == str(tmp_path / "Downloads" / "GameAccessDownloads")
     monkeypatch.setattr(launcher_data, "_installer_choice", {"GamesDir": r"E:\Juegos", "DownloadsDir": r"E:\Bajadas"}.get)
     assert preferences.load()["games_root"] == r"E:\Juegos"

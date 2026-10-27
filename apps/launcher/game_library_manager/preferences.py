@@ -12,7 +12,7 @@ class DigitalPreferences:
         self.path = data_dir(self.launcher) / ".cache" / "digital-settings.json"
 
     def defaults(self):
-        """An installed app uses the installer's folders (or `C:/juegos_GameAccess` and `Downloads/GameAccessDownloads`);
+        """An installed app uses the installer's folders (or `C:/GA_Juegos` and `Downloads/GameAccessDownloads`);
         a development checkout keeps its built-in folders inside the launcher."""
         if installed():
             return {"games_root": str(default_games_root()), "temporary_root": str(default_temporary_root())}

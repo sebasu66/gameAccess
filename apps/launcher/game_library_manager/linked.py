@@ -85,6 +85,35 @@ class LinkedGames:
                 "needs_repair": False, **({} if present else {"error": "La carpeta vinculada ya no existe."})}
 
 
+def protected_folders() -> list[Path]:
+    """Folders a linked game can never be: deleting one would take Windows, programs or the user's own files with it."""
+    env = os.environ
+    names = ["SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData", "USERPROFILE", "PUBLIC", "APPDATA", "LOCALAPPDATA"]
+    found = [Path(env[name]) for name in names if env.get(name)]
+    home = Path(env["USERPROFILE"]) if env.get("USERPROFILE") else Path.home()
+    found += [home / part for part in ("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos", "OneDrive")]
+    return [p.resolve() for p in found]
+
+
+def deletable_reason(folder: Path, keep: list[Path] = ()) -> str:
+    """Why this linked folder must not be deleted as a whole, or "" when it can: a game's own folder, never a disk,
+    a system or user folder, one that holds those, a games or downloads root of Game Access, nor one with links inside
+    (deleting through a link would reach files outside it)."""
+    folder = Path(folder)
+    if not folder.is_dir():
+        return "La carpeta del juego ya no existe."
+    resolved = folder.resolve()
+    if resolved == Path(resolved.anchor):
+        return "Es la raíz de un disco."
+    for other in [*protected_folders(), *(Path(k).resolve() for k in keep)]:
+        if resolved == other or other.is_relative_to(resolved):
+            return f"Contiene o es una carpeta que no se puede borrar ({other})."
+    for item in [folder, *folder.rglob("*")]:
+        if item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()):
+            return "La carpeta contiene enlaces; no se puede borrar de forma segura."
+    return ""
+
+
 def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_candidates=None, steam=None) -> dict:
     """The few things that can be done with a linked game; nothing here writes inside its folder. A Steam game is run
     by Steam, signed in to the account that owns it (`steam`: the Steam Account Manager)."""

@@ -16,6 +16,7 @@ from game_execution_manager.execution_profile import declared_fix_archive, load_
 from game_execution_manager.setup_installer import find_setup
 from disk_space import GIB, check_space, disk_info, folder_size
 from game_scanner import is_steam_path
+from game_paths import fits, longest_inside
 
 # A real fix archive is small; one this big is the downloaded game kept next to its own unpacked copy.
 OBSOLETE_BACKUP_BYTES = 1 * GIB
@@ -146,6 +147,14 @@ class GameImporter:
         target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
         if target.exists():
             raise ValueError("Ya existe una carpeta con ese nombre en la biblioteca.")
+        # Its deepest file must still fit under Windows' path limit at the new place (with the "-ready" the folder
+        # gets once adopted), or the game would not run (or not even move) from there.
+        longest = longest_inside(source)
+        if not fits(Path(f"{target}-ready"), longest):
+            message = (f"Los archivos del juego tienen rutas de hasta {longest} caracteres y no entran en la carpeta de juegos "
+                       f"({self.storage.root}): Windows no los encontraría. Elegí una carpeta de juegos más corta.")
+            self.log.error("AppID %s: move refused, %s", app_id, message)
+            return {"ok": False, "error": message}
         self.storage.root.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source), str(target))
         self.storage.register(app_id, name)

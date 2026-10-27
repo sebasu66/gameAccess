@@ -11,6 +11,7 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
+import shutil
 import time
 from pathlib import Path
 import game_journal as journal
@@ -22,8 +23,11 @@ from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
 from .freezer import GameFreezer
+from .linked import deletable_reason
 
-BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer")
+# linked_delete / linked_move: a game linked from a folder of the player's (never a Steam one) deleted from disk, or
+# moved into the games folder and adopted (renamed to <AppID>-<name>-ready, like any game Game Access installs).
+BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer", "linked_delete", "linked_move")
 
 
 def play_dates(folder: Path) -> list[str]:
@@ -372,6 +376,40 @@ class GameLibraryManager:
             self.log.error("Steam uninstall AppID %s failed: %s", app_id, error)
             return {"ok": False, "error": str(error)}
 
+    def _linked_folder_action(self, action: str, app_id: int) -> dict:
+        """Delete or move a game linked from one of the player's folders. A Steam game is Steam's: neither."""
+        record = self.storage.linked.get(app_id)
+        if not record:
+            return {"ok": False, "error": "No es un juego vinculado."}
+        if record.get("kind") != "folder":
+            return {"ok": False, "error": "Es un juego de Steam: se desinstala desde Steam o con «Desinstalar de Steam»."}
+        folder = Path(record["path"])
+        try:
+            if action == "linked_move":
+                # The link goes first (the importer refuses a game that is still linked) and comes back on failure.
+                self.storage.linked.unlink(app_id, hide=False)
+                try:
+                    outcome = self.importer.import_game(app_id, record["name"], str(folder), "move", "folder")
+                except (OSError, ValueError, RuntimeError):
+                    if folder.is_dir():
+                        self.storage.linked.link(app_id, record["name"], str(folder), "folder", record.get("executable", ""))
+                    raise
+                if not outcome.get("ok", True) and folder.is_dir():
+                    self.storage.linked.link(app_id, record["name"], str(folder), "folder", record.get("executable", ""))
+                return {"ok": True, **outcome}
+            keep = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"]), self.storage.launcher,
+                    *(Path(r["path"]) for r in self.storage.linked.all() if int(r["app_id"]) != int(app_id))]
+            reason = deletable_reason(folder, keep)
+            if reason:
+                return {"ok": False, "error": reason}
+            shutil.rmtree(folder)
+            self.storage.linked.unlink(app_id, hide=False)
+            self.log.info("AppID %s: linked folder deleted from disk: %s", app_id, folder)
+            return {"ok": True, "deleted": str(folder)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Linked %s AppID %s failed: %s", action, app_id, error)
+            return {"ok": False, "error": str(error)}
+
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
         """Run one action on many games; one failure never stops the rest."""
@@ -394,6 +432,9 @@ class GameLibraryManager:
                 continue
             if action == "steam_uninstall":
                 results.append({"app_id": app_id, **self._steam_uninstall(app_id)})
+                continue
+            if action in ("linked_delete", "linked_move"):
+                results.append({"app_id": app_id, **self._linked_folder_action(action, app_id)})
                 continue
             if app_id in steam_only:
                 if action == "uninstall":

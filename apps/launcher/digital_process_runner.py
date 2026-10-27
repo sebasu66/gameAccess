@@ -17,6 +17,7 @@ from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
 from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
+from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
 from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
@@ -64,11 +65,11 @@ class DigitalProcessRunner:
     def _run(self, action, app_id, name, command, auto_installed, diagnostics):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
-            if action == "settings":
-                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).load()}
-            if action == "save-settings":
-                values = json.loads(command)
-                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).save(values)}
+            if action in ("settings", "save-settings"):
+                preferences = DigitalPreferences(self.storage.launcher)
+                settings = preferences.save(json.loads(command)) if action == "save-settings" else preferences.load()
+                # A long games folder, or one with accents or symbols, can keep games from running: the app says so.
+                return {**result, "ok": True, "settings": settings, "games_root_warning": root_warning(settings["games_root"])}
             if action == "local-games":
                 return {**result, "ok": True, "games": self.storage.local_games()}
             if action == "snapshot":

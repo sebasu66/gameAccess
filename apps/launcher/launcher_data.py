@@ -5,8 +5,9 @@ Program Files, which a normal user cannot write: the desktop app then sets `GAME
 (`%LOCALAPPDATA%\gameAccess\launcher`) for every launcher process it starts.
 
 The installer lets the user choose the game and download folders; it stores them under
-`HKLM\Software\gameAccess` (`GamesDir`, `DownloadsDir`). Without a choice, games go to
-`C:\juegos_GameAccess` and downloads to each user's Downloads folder, in `GameAccessDownloads`."""
+`HKLM\Software\gameAccess` (`GamesDir`, `DownloadsDir`). Without a choice, games go to `C:\GA_Juegos` (short and
+plain: some games do not start from long paths, see game_paths.py) and downloads to each user's Downloads folder, in
+`GameAccessDownloads`."""
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -48,9 +49,17 @@ def _user_downloads() -> Path:
     return Path.home() / "Downloads"
 
 
+DEFAULT_GAMES_FOLDER = "GA_Juegos"
+# The default before 2026-10-27: a PC that already keeps its games there goes on using it.
+OLD_GAMES_FOLDER = "juegos_GameAccess"
+
+
 def default_games_root() -> Path:
     chosen = _installer_choice("GamesDir")
-    return Path(chosen) if chosen else Path(os.environ.get("SystemDrive", "C:") + "\\") / "juegos_GameAccess"
+    if chosen:
+        return Path(chosen)
+    drive = Path(os.environ.get("SystemDrive", "C:") + "\\")
+    return drive / OLD_GAMES_FOLDER if (drive / OLD_GAMES_FOLDER).is_dir() else drive / DEFAULT_GAMES_FOLDER
 
 
 def default_temporary_root() -> Path:

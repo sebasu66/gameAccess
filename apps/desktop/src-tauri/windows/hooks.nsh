@@ -30,9 +30,9 @@ Var GaParentalBox
   ${If} $0 != ":\"
   ${OrIf} $1 < 4
     ${If} $LANGUAGE = 1034
-      MessageBox MB_ICONEXCLAMATION "Elegí una carpeta completa, por ejemplo C:\juegos_GameAccess (no la raíz de un disco)."
+      MessageBox MB_ICONEXCLAMATION "Elegí una carpeta completa, por ejemplo C:\GA_Juegos (no la raíz de un disco)."
     ${Else}
-      MessageBox MB_ICONEXCLAMATION "Choose a full folder path, for example C:\juegos_GameAccess (not the root of a disk)."
+      MessageBox MB_ICONEXCLAMATION "Choose a full folder path, for example C:\GA_Juegos (not the root of a disk)."
     ${EndIf}
     Abort
   ${EndIf}
@@ -42,6 +42,49 @@ Var GaParentalBox
 ; ($PassiveMode) already exist.
 !macro GAMEACCESS_FOLDERS_PAGE
   Page custom GaFoldersCreate GaFoldersLeave
+
+; $R0 = a folder -> $R1 = 1 when games may not start from it: longer than 40 characters (the limit
+; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space and _ - . : \
+Function GaPathRisky
+  Push $R2
+  Push $R3
+  Push $R4
+  Push $R5
+  Push $R6
+  StrCpy $R1 0
+  StrLen $R2 $R0
+  ${If} $R2 > 40
+    StrCpy $R1 1
+  ${EndIf}
+  StrCpy $R5 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-.:\"
+  StrCpy $R3 0
+  ${DoWhile} $R3 < $R2
+    ${If} $R1 == 1
+      ${ExitDo}
+    ${EndIf}
+    StrCpy $R4 $R0 1 $R3
+    ; S== compares exact characters, so an accented letter never passes as the plain one.
+    StrCpy $R6 0
+    StrCpy $R1 1
+    ${Do}
+      StrCpy $0 $R5 1 $R6
+      ${If} $0 == ""
+      ${OrIf} $0 S== $R4
+        ${ExitDo}
+      ${EndIf}
+      IntOp $R6 $R6 + 1
+    ${Loop}
+    ${If} $0 S== $R4
+      StrCpy $R1 0
+    ${EndIf}
+    IntOp $R3 $R3 + 1
+  ${Loop}
+  Pop $R6
+  Pop $R5
+  Pop $R4
+  Pop $R3
+  Pop $R2
+FunctionEnd
 
 Function GaFoldersDefaults
   SetRegView 64
@@ -56,8 +99,14 @@ Function GaFoldersDefaults
   ${EndIf}
   StrCpy $GaDefaultDownloads "$0\GameAccessDownloads"
   ${If} $GaGamesDir == ""
+    ; Short and plain at the root of the disk: some games do not start from long paths (apps/launcher/game_paths.py).
+    ; A PC that already keeps its games in the old default folder goes on using it.
     StrCpy $0 $WINDIR 2
-    StrCpy $GaGamesDir "$0\juegos_GameAccess"
+    ${If} ${FileExists} "$0\juegos_GameAccess\*.*"
+      StrCpy $GaGamesDir "$0\juegos_GameAccess"
+    ${Else}
+      StrCpy $GaGamesDir "$0\GA_Juegos"
+    ${EndIf}
   ${EndIf}
   ${If} $GaDownloadsDir == ""
     StrCpy $GaDownloadsDir $GaDefaultDownloads
@@ -153,6 +202,19 @@ Function GaFoldersLeave
   ${EndIf}
   !insertmacro GaCheckFolder $GaGamesDir
   !insertmacro GaCheckFolder $GaDownloadsDir
+  ; A long games folder, or one with accents or symbols: warned, and the player decides.
+  StrCpy $R0 $GaGamesDir
+  Call GaPathRisky
+  ${If} $R1 == 1
+    ${If} $LANGUAGE = 1034
+      StrCpy $1 "La carpeta de juegos es larga o tiene acentos o símbolos.$\r$\n$\r$\nAlgunos juegos no arrancan desde rutas largas o con caracteres especiales. Conviene una carpeta corta en la raíz del disco, como C:\GA_Juegos.$\r$\n$\r$\n¿Usar esta carpeta igual?"
+    ${Else}
+      StrCpy $1 "The games folder is long or has accents or symbols.$\r$\n$\r$\nSome games do not start from long paths or paths with special characters. A short folder at the root of the disk is better, such as C:\GA_Juegos.$\r$\n$\r$\nUse this folder anyway?"
+    ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION $1 /SD IDYES IDYES gaGamesPathOk
+    Abort
+    gaGamesPathOk:
+  ${EndIf}
   ${If} $GaGamesDir == $GaDownloadsDir
     ${If} $LANGUAGE = 1034
       MessageBox MB_ICONEXCLAMATION "Los juegos y las descargas necesitan carpetas distintas."

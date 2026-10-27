@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowCounterClockwise, DownloadSimple, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -40,6 +40,8 @@ type Pending =
   | { kind: "plan"; plans: LibraryPlan[]; ids: number[] }
   | { kind: "uninstall"; ids: number[] }
   | { kind: "steam_uninstall"; game: LibraryGame }
+  | { kind: "linked_delete"; game: LibraryGame }
+  | { kind: "linked_move"; game: LibraryGame }
   | { kind: "discard"; game: LibraryGame; restart: boolean };
 
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
@@ -145,20 +147,23 @@ function isFreezeLineSince(line: string, since: number): boolean {
 }
 
 /** One notice per Library Manager action, saying how many games it changed and how many failed. */
-function announceBatch(action: "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer", results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
+function announceBatch(action: BatchAction, results: Array<{ app_id: number; ok: boolean; error?: string }>, games: LibraryGame[]): void {
   if (!results.length) return;
   const ok = results.filter(row => row.ok).length;
   const failed = results.length - ok;
-  if (action === "discard_transfer") {
+  if (action === "discard_transfer" || action === "linked_delete" || action === "linked_move") {
     const row = results[0];
     const name = games.find(game => game.app_id === row.app_id)?.name ?? `#${row.app_id}`;
-    if (row.ok) notify(translate("toastTransferDiscarded", { name }), { tone: "success" });
+    const done = action === "discard_transfer" ? "toastTransferDiscarded" : action === "linked_delete" ? "toastLinkedDeleted" : "toastLinkedMoved";
+    if (row.ok) notify(translate(done, { name }), { tone: "success" });
     else notify(translate("toastActionFailed", { error: row.error || name }), { tone: "error" });
     return;
   }
   const summary = translate(action === "adopt" ? "toastLibraryFixed" : "toastLibraryUninstalled", { ok });
   notify(failed ? translate("toastBatchFailures", { summary, failed }) : summary, { tone: !failed ? "success" : ok ? "warning" : "error" });
 }
+
+type BatchAction = "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer" | "linked_delete" | "linked_move";
 
 /** One line of the grid, a game with a folder or a member of the library without one, with the values it sorts by. */
 type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame };
@@ -269,6 +274,12 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
+          {/* A game linked from a folder of the player's: moved into the games folder (renamed to the standard, then
+              handled like any game Game Access installed) or deleted from disk with its folder. */}
+          {game.link_kind === "folder" && game.installed && id != null ? <>
+            <IconAction label={c.linkedMove} tone="accent" disabled={busy} onClick={() => setPending({ kind: "linked_move", game })}><ArrowSquareIn /></IconAction>
+            <IconAction label={c.linkedDelete} tone="danger" disabled={busy} onClick={() => setPending({ kind: "linked_delete", game })}><Trash /></IconAction>
+          </> : null}
           {game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? <IconAction label={c.steamUninstall} tone="danger" disabled={busy || id == null} onClick={() => setPending({ kind: "steam_uninstall", game })}><Trash /></IconAction> : null}
           <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}>{game.linked ? <LinkBreak /> : <Trash />}</IconAction>
         </>}
@@ -381,7 +392,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       setPending({ kind: "plan", plans, ids });
     } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); }
   };
-  const runBatch = async (action: "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer", ids: number[]) => {
+  const runBatch = async (action: BatchAction, ids: number[]) => {
     setBusy(true); setMessage(c.working);
     try {
       const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
@@ -396,6 +407,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     if (current.kind === "plan") await runBatch("adopt", current.ids);
     else if (current.kind === "uninstall") await runBatch("uninstall", current.ids);
     else if (current.kind === "steam_uninstall") await runBatch("steam_uninstall", [current.game.app_id as number]);
+    else if (current.kind === "linked_delete" || current.kind === "linked_move") await runBatch(current.kind, [current.game.app_id as number]);
     else {
       const catalogGame = findCatalogGame(current.game);
       await runBatch("discard_transfer", [current.game.app_id as number]);
@@ -413,10 +425,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     let live = true;
     void confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
-      title: pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
-      text: pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
-      confirmLabel: pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
-      cancelLabel: c.cancel, kind: "danger",
+      title: pending.kind === "linked_move" ? c.linkedMoveTitle(pending.game.name) : pending.kind === "linked_delete" ? c.linkedDeleteTitle(pending.game.name) : pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
+      text: pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
+      confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
+      cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
     return () => { live = false; };
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps

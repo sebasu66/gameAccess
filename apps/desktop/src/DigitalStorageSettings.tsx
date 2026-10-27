@@ -1,6 +1,7 @@
 import { GaButton } from "./components/ga/Buttons";
 import { useEffect, useState } from "react";
 import { useI18n } from "./i18n";
+import { localizeLauncherText } from "./launcherText";
 import { digitalProcessManager, type DigitalStorageSettings as StorageSettings } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { clearGameLibrary } from "./libraryActions";
@@ -18,13 +19,15 @@ export default function DigitalStorageSettings(){
  const [settings,setSettings]=useState<StorageSettings|null>(null);
  const [pending,setPending]=useState(false);const [message,setMessage]=useState("");const [error,setError]=useState("");
  const [confirm,setConfirm]=useState(false);
+ // A long games folder, or one with accents or symbols, can keep games from running (the launcher says why).
+ const [rootWarning,setRootWarning]=useState("");
  const [active,setActive]=useState(()=>digitalDownloadService.hasActiveDownloads());
  const members=useLibraryGames();const libraryBusy=useLibraryBusy();
  const native=typeof window!=="undefined"&&"__TAURI_INTERNALS__" in window;
  useEffect(()=>digitalDownloadService.onGlobalUpdate(()=>setActive(digitalDownloadService.hasActiveDownloads())),[]);
- useEffect(()=>{if(!native)return;let live=true;void digitalProcessManager.settings().then(result=>{if(live)setSettings(result.settings??null);}).catch(error=>{if(live)setError(String(error));});return()=>{live=false;};},[native]);
+ useEffect(()=>{if(!native)return;let live=true;void digitalProcessManager.settings().then(result=>{if(live){setSettings(result.settings??null);setRootWarning(localizeLauncherText(result.games_root_warning??""));}}).catch(error=>{if(live)setError(String(error));});return()=>{live=false;};},[native]);
  const save=async()=>{if(!settings)return;setPending(true);setError("");setMessage("");
-   try{if(digitalDownloadService.hasActiveDownloads())throw new Error(c.blocked);const result=await digitalProcessManager.saveSettings(settings);setSettings(result.settings??settings);setMessage(c.saved);}
+   try{if(digitalDownloadService.hasActiveDownloads())throw new Error(c.blocked);const result=await digitalProcessManager.saveSettings(settings);setSettings(result.settings??settings);setRootWarning(localizeLauncherText(result.games_root_warning??""));setMessage(c.saved);}
    catch(error){setError(String(error));}finally{setPending(false);}
  };
  // Saved at once (it changes no folder, so it does not wait for "Save paths").
@@ -40,6 +43,7 @@ export default function DigitalStorageSettings(){
  return <section className="ga-storage-settings grid gap-5">
   <h3 className="m-0 text-base font-bold">{c.title}</h3>{native?<>
    {field("ga-games-root",c.games,settings?.games_root??"",value=>settings&&setSettings({...settings,games_root:value}))}
+   {rootWarning?<p role="status" className="ga-root-warning m-0 text-sm text-amber-300">{rootWarning}</p>:null}
    {field("ga-temp-root",c.temporary,settings?.temporary_root??"",value=>settings&&setSettings({...settings,temporary_root:value}))}
    <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
     <Checkbox id="ga-delete-sources" className="mt-0.5" disabled={locked||!settings} checked={settings?.delete_download_sources??true} onCheckedChange={value=>settings&&setSettings({...settings,delete_download_sources:value===true})}/>
