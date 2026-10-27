@@ -1,20 +1,18 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { motionOk } from "./motion/gsap";
 import { SKETCH_GLYPHS } from "./brandGlyphs";
 import "./brand-sketch.css";
 
 /**
- * The voxel logo with the rest of each word sketched under it, letter under letter: while the cubes read as G the
- * column shows A M E (GAME), while they read as A it shows C C E S S (ACCESS). The letters are barely there: a thin
- * pencil line and a faint fill a shade off the background, between guide lines like a sketch on a wall.
+ * GAME and ACCESS sketched letter by letter: the letters are barely there, a thin pencil line and a faint fill a shade
+ * off the background, between guide lines like a sketch on a wall.
  *
- * Timed by the video itself, not by a timer: the loop is the brand scene's turn (tools/brand/animation-studio.html,
- * clip "loop": 858 frames at 30 fps), whose yaw is -π/4·(1 - cos(2π·t/T)). The cubes read as G at t = 0 (yaw 0°) and
- * as A at t = T/2 (yaw -90°); cos(2π·t/T) says how close the turn is to each letter.
+ * The timing is the brand scene's turn (tools/brand/animation-studio.html, clip "loop": 858 frames at 30 fps), whose
+ * yaw is -π/4·(1 - cos(2π·t/T)): the logo reads as G at t = 0 and as A at t = T/2; cos(2π·t/T) says how close the turn
+ * is to each letter. The word keeps its own clock on that loop (useSketchClock).
  */
 const LOOP_SECONDS = 858 / 30;
-const WORDS = { game: ["A", "M", "E"], access: ["C", "C", "E", "S", "S"] } as const;
-type Word = keyof typeof WORDS;
+type Word = "game" | "access";
 
 /**
  * How far each word is drawn (0..1) at time `t` of the loop. The word builds up while the logo turns, not only at the
@@ -115,49 +113,6 @@ export function BrandWord() {
     <span ref={host} className="ga-brand-word" role="img" aria-label="GameAccess">
       <SketchWord word="game" letters={["G", "A", "M", "E"]} />
       <SketchWord word="access" letters={["A", "C", "C", "E", "S", "S"]} />
-    </span>
-  );
-}
-
-export default function BrandSketch() {
-  const video = useRef<HTMLVideoElement>(null);
-  const column = useRef<HTMLSpanElement>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    const host = column.current;
-    let frame = 0;
-    const paint = () => {
-      const current = video.current;
-      if (host && current) {
-        const progress = sketchProgress(current.currentTime);
-        host.style.setProperty("--game", progress.game.toFixed(3));
-        host.style.setProperty("--access", progress.access.toFixed(3));
-      }
-      frame = window.requestAnimationFrame(paint);
-    };
-    const resume = () => { void video.current?.play().catch(() => {}); };
-    resume();
-    if (motionOk()) frame = window.requestAnimationFrame(paint);
-    else if (host) { host.style.setProperty("--game", "1"); host.style.setProperty("--access", "0"); }
-    window.addEventListener("focus", resume);
-    document.addEventListener("visibilitychange", resume);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("focus", resume);
-      document.removeEventListener("visibilitychange", resume);
-    };
-  }, [failed]);
-
-  return (
-    <span ref={column} className="ga-brand-sketch" aria-label="GameAccess" role="img">
-      <span className="ga-brand-sketch-logo">{failed
-        ? <img src="/brand/logo-header-poster.png" alt="" />
-        : <video ref={video} src="/brand/logo-header-loop.webm" poster="/brand/logo-header-poster.png" autoPlay muted loop playsInline preload="auto" onError={() => setFailed(true)} />}</span>
-      <span className="ga-brand-sketch-words">
-        <SketchWord word="game" letters={WORDS.game} />
-        <SketchWord word="access" letters={WORDS.access} />
-      </span>
     </span>
   );
 }

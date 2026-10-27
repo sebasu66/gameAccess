@@ -15,11 +15,11 @@ import "./device-frame.css";
  * Two layers over the screen: the metal body (with its shadow on the screen) and the engraved lines; the controls
  * mounted on it sit above both, and neither layer takes the pointer. Geometry in frameGeometry.ts.
  */
-/** On everywhere except the tablet and TV surfaces (their own full-screen layouts); `?deviceFrame=0` turns it off. */
+/** Always on; `?deviceFrame=0` turns it off (development). */
 export function deviceFrameEnabled(): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
-  return params.get("deviceFrame") !== "0" && !["tablet", "display"].includes(params.get("surface") || "");
+  return params.get("deviceFrame") !== "0";
 }
 
 /** Height of the app's own title bar (the desktop window has no system one); 0 when it is not shown (browser). */

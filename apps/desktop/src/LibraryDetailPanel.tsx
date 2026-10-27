@@ -34,7 +34,7 @@ import { downloadManager } from "./downloadManager";
 import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import { steamDownloadMetrics } from "./nativeDownloadMetrics";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
+import type { FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 import { useSelectedGameDetails } from "./useSelectedGameDetails";
 
@@ -174,26 +174,9 @@ function useCrossfadeArtwork(source?: string) {
   return { layers, activeLayer };
 }
 
-interface LegacyMediaProps {
-  artwork: ArtworkState;
-  movie?: SteamMovie;
-  videoSrc?: string;
-  readyVideoSrc: string | null;
-  videoMuted: boolean;
-  videoVolume: number;
-  videoRef: RefObject<HTMLVideoElement>;
-  onVideoMetadata: (video: HTMLVideoElement) => void;
-  onVideoReady: (video: HTMLVideoElement) => void;
-  onToggleSound: () => void;
-  onVolumeChange: (value: number) => void;
-}
-
-export interface FeaturePanelProps extends LegacyMediaProps {
+export interface FeaturePanelProps {
   game: CatalogGame;
   showcaseMode: boolean;
-  summary: string;
-  loadingDetails: boolean;
-  details: GameDetails | null;
   download?: ManagedDownloadStatus;
   preference?: 1 | -1;
   onPreference: (value: 1 | -1) => void;
@@ -242,51 +225,6 @@ function ActionButtons(props: FeaturePanelProps) {
       </button>)}
   {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
   </div>;
-}
-
-function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
-  const { t } = useI18n();
-  return (
-    <div className="library-room-preferences">
-      <span>¿Te gusta?</span>
-      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label={t("uiMeGusta")}><ThumbsUp size={18} /></button>
-      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={18} /></button>
-    </div>
-  );
-}
-
-function LegacyDisplayMedia(props: LegacyMediaProps) {
-  const { t } = useI18n();
-  const muted = props.videoMuted || props.videoVolume === 0;
-  return (
-    <>
-      <div className="library-room-feature-ambient" aria-hidden="true">
-        {props.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === props.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}
-      </div>
-      <div className="library-room-feature-media">
-        {props.artwork.layers.map((source, index) => source ? <img key={`hero-${index}-${source}`} className={`library-room-hero-layer ${index === props.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} /> : null)}
-        {props.videoSrc ? <video key={props.videoSrc} ref={props.videoRef} className={`library-room-video ${props.readyVideoSrc === props.videoSrc ? "is-ready" : ""}`} src={props.videoSrc} poster={props.movie?.thumbnail} autoPlay muted={props.videoMuted} playsInline preload="auto" onLoadedMetadata={(event) => props.onVideoMetadata(event.currentTarget)} onCanPlay={(event) => props.onVideoReady(event.currentTarget)} onEnded={(event) => props.onVideoMetadata(event.currentTarget)} /> : null}
-        <div className="library-room-feature-shade" />
-        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
-      </div>
-    </>
-  );
-}
-
-function LegacyDisplayFeature(props: FeaturePanelProps) {
-  return (
-    <aside className="library-room-feature">
-      <LegacyDisplayMedia {...props} />
-      <div className="library-room-feature-copy">
-        <header className="library-room-overview">
-          <h1>{props.game.name}</h1>
-          <p className="library-room-lead">{props.summary}</p>
-          <ActionButtons {...props} />
-          <PreferenceButtons {...props} />
-        </header>
-      </div>
-    </aside>
-  );
 }
 
 interface MediaController {
@@ -573,16 +511,13 @@ function DesktopFeature(props: FeaturePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   useMagneticButtons(actionsRef);
-  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
+  const detailState = useSelectedGameDetails({ selectedGameId: props.game.id, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
   const ratingGame = details ?? props.game;
   const description = plainText(details?.steam?.short_description);
   const summary = description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"));
   const installSize = useInstallSize(props.game.app_id);
   const steam = details?.steam;
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "tablet") {
-    return <aside className="library-room-feature"><SteamHeaderArtwork game={props.game} details={details} /><section className="library-detail-essential" aria-label={t("uiResumenEsencialDelJuego")}><DesktopDetailMedia game={props.game} details={details} /><section className="library-room-first-row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p></header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section><section className="library-room-second-row"><SteamFacts details={details} game={props.game} /><ActiveDownloadFacts download={props.download} /></section></section><ExtendedDetails details={details} /></aside>;
-  }
   return (
     <article className="ga-game-detail">
       <SteamHeaderArtwork game={props.game} details={details} />
@@ -611,10 +546,6 @@ function DesktopFeature(props: FeaturePanelProps) {
   );
 }
 
-function isDisplaySurface(): boolean {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "display";
-}
-
 export function FeaturePanel(props: FeaturePanelProps) {
-  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
+  return <DesktopFeature key={props.game.id} {...props} />;
 }

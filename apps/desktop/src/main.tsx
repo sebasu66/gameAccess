@@ -73,8 +73,7 @@ if (isTauri()) {
 
 // The desktop library currently exposes only Digital. Migrate saved source
 // selections so a hidden legacy tab cannot leave the catalog in another mode.
-const currentSurface = new URLSearchParams(window.location.search).get("surface");
-if (currentSurface !== "display" && currentSurface !== "tablet") setCatalogMode("digital");
+setCatalogMode("digital");
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -106,24 +105,22 @@ function CatalogShell() {
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
     return () => window.removeEventListener(CATALOG_REFRESH_STATUS, status);
   }, []);
-  const surface = new URLSearchParams(window.location.search).get("surface");
-  const auxiliarySurface = surface === "tablet" || surface === "display";
   const changeMode = React.useCallback((next: CatalogMode) => {
     if (next === mode) return;
-    if (!auxiliarySurface) captureLibraryUiState(mode);
+    captureLibraryUiState(mode);
     void narrate(`Switching catalog view from ${mode} to ${next}. This changes which availability rules are used.`, { area: "CATALOG" });
     setCatalogMode(next);
     setMode(next);
-  }, [auxiliarySurface, mode]);
+  }, [mode]);
   const refreshCatalog = React.useCallback(() => {
-    if (!auxiliarySurface) captureLibraryUiState(mode);
+    captureLibraryUiState(mode);
     void narrate(`Manual catalog refresh requested while viewing ${mode}.`, { area: "CATALOG" });
     window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST));
-  }, [auxiliarySurface, mode]);
+  }, [mode]);
   return <>
-    {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div> : null}
-    {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe> : null}
+    <LibraryInputController mode={mode} onModeChange={changeMode} />
+    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div>
+    {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }
 

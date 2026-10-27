@@ -55,7 +55,7 @@
 
 /* Shared header: source, collection, search and filters keep their own groups. */
 .topbar.topbar-glass { height: auto; min-height: 82px; padding: 12px 24px; gap: 20px; flex-wrap: wrap; background: rgba(5,10,9,.97); }
-.topbar .brand, .topbar-actions { flex: 0 0 auto; }
+.topbar-actions { flex: 0 0 auto; }
 .catalog-header-controls { flex: 1 1 850px; min-width: 0; }
 .catalog-header-controls:empty { display: none; }
 .library-catalog-filter-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }

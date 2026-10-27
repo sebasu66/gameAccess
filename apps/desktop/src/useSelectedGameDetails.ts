@@ -7,30 +7,13 @@ import { getSteamStoreMetadata, hasTauriRuntime } from "./native";
 import { mergeLocalSteamDetails } from "./steamMetadata";
 import type { CatalogGame, GameDetails } from "./types";
 
-export type LibrarySurfaceMode = "desktop" | "tablet" | "display";
-
-export interface SelectedDetailRequest {
-  surface: LibrarySurfaceMode;
-  selectedGameId?: number;
-  detailRequestedGameId: number | null;
-  tabletDetailsOpen: boolean;
-}
-
-export function shouldLoadSelectedDetails(request: SelectedDetailRequest): boolean {
-  const selected = request.selectedGameId;
-  if (selected == null) return false;
-  if (request.surface === "desktop") return true;
-  if (request.surface === "tablet") {
-    return request.tabletDetailsOpen && request.detailRequestedGameId === selected;
-  }
-  return request.detailRequestedGameId === selected;
-}
-
 export function isCurrentSelectedDetail(requestedGameId: number, selectedGameId?: number): boolean {
   return selectedGameId != null && requestedGameId === selectedGameId;
 }
 
-interface UseSelectedGameDetailsInput extends SelectedDetailRequest {
+interface UseSelectedGameDetailsInput {
+  /** The game whose detail is open: its details load as soon as it is shown. */
+  selectedGameId?: number;
   // Opt in only for the open detail overlay, never for keyboard/grid selection.
   localSteamAppId?: number | null;
   knownGame?: CatalogGame;
@@ -45,7 +28,7 @@ export interface SelectedGameDetailsState {
 }
 
 export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): SelectedGameDetailsState {
-  const { surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen, localSteamAppId } = input;
+  const { selectedGameId, localSteamAppId } = input;
   const { locale } = useI18n();
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
@@ -71,18 +54,11 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
 
   useEffect(() => {
     const token = ++requestTokenRef.current;
-    const shouldLoad = shouldLoadSelectedDetails({
-      surface,
-      selectedGameId,
-      detailRequestedGameId,
-      tabletDetailsOpen,
-    });
-
     setDetails(null);
     setDetailsGameId(null);
     setError(null);
     setRefreshingSteam(false);
-    if (!shouldLoad || selectedGameId == null) {
+    if (selectedGameId == null) {
       setLoading(false);
       return;
     }
@@ -104,7 +80,7 @@ export function useSelectedGameDetails(input: UseSelectedGameDetailsInput): Sele
         if (requestTokenRef.current === token) setLoading(false);
       });
     return () => { ++requestTokenRef.current; };
-  }, [surface, selectedGameId, detailRequestedGameId, tabletDetailsOpen, locale, localSteamAppId]);
+  }, [selectedGameId, locale, localSteamAppId]);
 
   return {
     details: detailsGameId === selectedGameId ? details : null,

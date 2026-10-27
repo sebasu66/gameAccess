@@ -1,4 +1,3 @@
-import VoxelLogo from "./VoxelLogo";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import SplashScreen from "./SplashScreen";
 import { openingStage } from "./openingFlow";
@@ -32,7 +31,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [verificationReady, setVerificationReady] = useState(false);
   const [docked, setDocked] = useState(false);
   const [dockStarted, setDockStarted] = useState(false);
-  const [applicationStarted, setApplicationStarted] = useState(false);
   const [logoLanded, setLogoLanded] = useState(false);
 
   // A saved key that cannot be checked yet (slow or unreachable server) must not hold the splash:
@@ -47,9 +45,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const completeIntro = useCallback(() => setIntroReady(true), []);
   const startDock = useCallback(() => setDockStarted(true), []);
   const completeDock = useCallback(() => { setLogoLanded(true); setDocked(true); }, []);
-  useEffect(() => {
-    if (introReady) setApplicationStarted(true);
-  }, [introReady]);
   useEffect(() => {
     const replay = () => { setIntroReady(false); setDocked(false); setDockStarted(false); setLogoLanded(false); };
     window.addEventListener("gameaccess:replay-logo", replay);
@@ -211,7 +206,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
 
   return <>
     {(verificationReady || waited) ? <div className={`ga-application-reveal${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
-      {(introReady || applicationStarted) ? <div className="ga-access-brand"><VoxelLogo /></div> : null}
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}

@@ -1,12 +1,11 @@
 import SteamCover from "./SteamCover";
-import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";
 
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { playUiSound } from "./uiSounds";
-import type { CatalogGame, GameDetails, SteamMovie } from "./types";
+import type { CatalogGame } from "./types";
 import { useI18n, translate } from "./i18n";
 
 export type DownloadMap = Record<number, ManagedDownloadStatus>;
@@ -20,20 +19,8 @@ export type LibraryAction = {
   reason?: string | null;
 };
 
-export interface ArtworkState {
-  layers: [string | null, string | null];
-  activeLayer: number;
-}
-
 const ACTION_PREVIOUS_KEYS = new Set(["arrowleft", "arrowup"]);
 const ACTION_NEXT_KEYS = new Set(["arrowright", "arrowdown"]);
-
-export function firstPresent<T>(...values: Array<T | null | undefined>): T | undefined {
-  for (const value of values) {
-    if (value != null) return value;
-  }
-  return undefined;
-}
 
 function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDownloadStatus }) {
   const { t } = useI18n();
@@ -42,93 +29,9 @@ function InstallStateBadge({ status }: { game: CatalogGame; status?: ManagedDown
   return <span className="library-install-state ready" title={t("uiListoParaPresionarJugar")}><Play size={12} fill="currentColor" /></span>;
 }
 
-export function useCrossfadeArtwork(source?: string): ArtworkState {
-  const initial: [string | null, string | null] = [source ?? null, null];
-  const [layers, setLayers] = useState<[string | null, string | null]>(initial);
-  const [activeLayer, setActiveLayer] = useState(0);
-  const layersRef = useRef<[string | null, string | null]>(initial);
-  const activeRef = useRef(0);
-
-  useEffect(() => {
-    if (!source || layersRef.current[activeRef.current] === source) return;
-    let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = source;
-
-    const reveal = async () => {
-      try { await image.decode(); } catch { /* onload is enough when decode is unavailable */ }
-      if (cancelled || !image.naturalWidth) return;
-      const next = activeRef.current === 0 ? 1 : 0;
-      const nextLayers: [string | null, string | null] = [...layersRef.current] as [string | null, string | null];
-      nextLayers[next] = source;
-      layersRef.current = nextLayers;
-      activeRef.current = next;
-      setLayers(nextLayers);
-      setActiveLayer(next);
-    };
-
-    if (image.complete && image.naturalWidth) void reveal();
-    else image.onload = () => { void reveal(); };
-    return () => { cancelled = true; image.onload = null; };
-  }, [source]);
-
-  return { layers, activeLayer };
-}
-
 export function selectedDownload(appId: number | null | undefined, downloads: DownloadMap) {
   if (!appId) return undefined;
   return downloads[appId];
-}
-
-export function selectedHero(details: GameDetails | null, game?: CatalogGame) {
-  return firstPresent(
-    details?.steam?.screenshots?.[0]?.full,
-    details?.steam?.background,
-    details?.steam?.hero_image,
-    game?.header_image,
-    game?.hero_image,
-    game?.capsule_image,
-  );
-}
-
-export function selectedPortraitHero(game?: CatalogGame) {
-  const appId = game?.app_id;
-  return firstPresent(
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg` : undefined,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg` : undefined,
-    game?.capsule_image,
-    game?.hero_image,
-    game?.header_image,
-  );
-}
-
-export function selectedWideArtworkSlides(details: GameDetails | null, game?: CatalogGame) {
-  const appId = game?.app_id;
-  const screenshots = details?.steam?.screenshots?.flatMap((shot) => shot.full || shot.thumbnail ? [shot.full ?? shot.thumbnail ?? ""] : []) ?? [];
-  const candidates = [
-    details?.steam?.hero_image,
-    appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg` : undefined,
-    details?.steam?.background,
-    game?.hero_image,
-    game?.header_image,
-    ...screenshots,
-  ].filter((value): value is string => Boolean(value));
-  return [...new Set(candidates)];
-}
-
-export function selectedMovie(details: GameDetails | null): SteamMovie | undefined {
-  const movies = details?.steam?.movies;
-  if (!movies?.length) return undefined;
-  return movies.find((item) => item.highlight) ?? movies[0];
-}
-
-export function selectedVideo(movie?: SteamMovie) {
-  return firstPresent(movie?.mp4, movie?.webm);
-}
-
-export function selectedSummary(details: GameDetails | null) {
-  return firstPresent(details?.steam?.short_description, translate("selectedFromLibraryFallback")) ?? "";
 }
 
 export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, hasSelection: boolean) {

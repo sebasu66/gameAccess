@@ -10,7 +10,6 @@ import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
-import VoxelLogo from "./VoxelLogo";
 import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
@@ -114,7 +113,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
-    getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
+    getCatalogMode() === "digital", setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
   const [brokenGame, setBrokenGame] = useState<{ game: CatalogGame; message: string } | null>(null);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
@@ -656,11 +655,10 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
   return (
     <div className="app-shell">
-      {/* The app as the screen of a device: a bezel with tabs, the animated logo in the corner and GAME / ACCESS
+      {/* The app as the screen of a device: a bezel with tabs and GAME / ACCESS
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
-        <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">

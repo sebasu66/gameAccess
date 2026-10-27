@@ -1,10 +1,5 @@
-/* Voxel logo with the rest of the word sketched under it (BrandSketch.tsx). --game and --access (0..1) come from the
-   video's own time; each letter draws its outline from top to bottom as the cubes form the letter, then erases. */
-.ga-brand-sketch { --ga-sketch-size: 72px; display: inline-flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
-.ga-brand-sketch-logo { width: var(--ga-sketch-size); height: var(--ga-sketch-size); filter: drop-shadow(0 4px 14px #000c) drop-shadow(0 0 3px #0008); }
-.ga-brand-sketch-logo video, .ga-brand-sketch-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
-/* Both words share the column; only the one being formed shows. */
-.ga-brand-sketch-words { position: relative; width: calc(var(--ga-sketch-size) * .62); height: calc(var(--ga-sketch-size) * .62 * 64 / 60 * 5); }
+/* GAME / ACCESS sketched letter by letter (BrandWord in BrandSketch.tsx). --game and --access (0..1) come from the
+   word's own loop clock; each letter draws its outline from top to bottom as the cubes form the letter, then erases. */
 .ga-sketch-word { position: absolute; left: 0; top: 0; width: 100%; height: auto; overflow: visible; }
 .ga-sketch-word[data-word="game"] { --w: var(--game, 0); --n: 3; }
 .ga-sketch-word[data-word="access"] { --w: var(--access, 0); --n: 5; }
@@ -17,8 +12,8 @@
 .ga-sketch-letter { stroke: #f4f4f2; stroke-width: .55; stroke-opacity: calc(.12 + var(--p) * .33); fill: #c9d4dc; fill-opacity: calc(max(0, var(--p) - .55) * .14); }
 .ga-sketch-ghost { fill: none; stroke: #d89f63; stroke-width: .4; opacity: calc(var(--p) * .2); stroke-dashoffset: calc(1.06 - var(--p)); }
 .ga-sketch-word { opacity: min(1, calc(var(--w) * 4)); }
-/* The whole word on its own (BrandWord; huge in the right column with BrandWall), six cells tall, a bit more present than the
-   sketch under the logo: a firmer line and fill, and the guides a little brighter. */
+/* The whole word on its own (BrandWord; huge in the right column with BrandWall), six cells tall: a firmer line and fill than the
+   base sketch, and the guides a little brighter. */
 .ga-brand-word { --ga-word-width: 40px; position: relative; display: block; width: var(--ga-word-width); height: calc(var(--ga-word-width) * 64 / 60 * 6); }
 .ga-brand-word .ga-sketch-letter { stroke-width: .75; stroke-opacity: calc(.25 + var(--p) * .6); fill-opacity: calc(max(0, var(--p) - .5) * .32); }
 .ga-brand-word .ga-sketch-ghost { opacity: calc(var(--p) * .3); }

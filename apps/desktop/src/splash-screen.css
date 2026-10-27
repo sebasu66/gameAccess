@@ -95,7 +95,6 @@
 .gs-gate.is-still .gs-cut.is-a{fill:#cc8333}
 .gs-gate.is-still .gs-leaf{transition:none}
 @media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-cut.is-a{fill:#cc8333}.gs-gate .gs-leaf{transition:none}}
-.ga-splash-active .ga-header-logo{visibility:hidden}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
 .activation-showcase{position:absolute;inset:-12%;overflow:hidden}
