@@ -69,6 +69,8 @@ export function stepsStarted(steps: StepView[]): boolean {
  */
 export function timelineSteps(steps: StepView[], expanded: boolean): StepView[] {
   const at = steps.findIndex(step => step.state === "current" || step.state === "failed");
+  // Expanded, the whole sequence, also once the download has begun (the done steps with how long they took).
+  if (expanded) return steps;
   if (stepsStarted(steps)) return at < 0 ? [] : steps.slice(at + 1).filter(step => step.state === "pending");
   if (expanded || at < 0) return steps;
   return steps.slice(at, at + 2);

@@ -148,6 +148,8 @@ export const en: Record<keyof typeof es, string> = {
   launchReady: "Ready to play!",
   launchStarted: "The game was launched.",
   launchError: "Launch error",
+  downloadsRouteLabel: "Route",
+  downloadsPlanLabel: "Plan",
   downloadsSizeUnknown: "Not provided by the source",
   downloadsManager: "Digital download manager",
   downloadsSummary: "{{pending}} pending · {{completed}} completed",

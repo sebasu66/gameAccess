@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
 import { useI18n } from "./i18n";
 import type { DownloadProgressSnapshot, DownloadStepId } from "./downloadProvider";
@@ -22,8 +22,10 @@ function useElapsed(startedAt?: number): string | null {
  * (orange spinner, live detail, how long it has been running), done (green tick), pending (grey), not needed (faint)
  * and failed (red). While the download is prepared it shows the running step and the next one, and expands to the
  * whole sequence; once the download has begun only the steps still to come are listed (its progress has its own block).
+ * Expanded, it also shows "Now" (the running step in words and how long it has been running) and `details` (sizes,
+ * speed, route: the card keeps them folded so it stays quiet).
  */
-export default function DownloadSteps({ snapshot }: { snapshot: DownloadProgressSnapshot }) {
+export default function DownloadSteps({ snapshot, phaseLabel, details }: { snapshot: DownloadProgressSnapshot; phaseLabel?: string; details?: ReactNode }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const steps = downloadSteps(snapshot);
@@ -32,9 +34,15 @@ export default function DownloadSteps({ snapshot }: { snapshot: DownloadProgress
   const started = stepsStarted(steps);
   const shown = timelineSteps(steps, expanded);
   const line = (step: StepView) => step.state === "skipped" ? step.text || t("dlStepSkipped") : step.text;
-  if (!shown.length) return null;
+  if (!shown.length && !details) return null;
   return (
     <div className="ga-dl-steps">
+      {expanded ? <div className={`ga-dl-now${current?.state === "failed" ? " is-failed" : ""}`}>
+        <span className="ga-dl-eyebrow">{t("dlNow")}</span>
+        <strong>{current ? t(STEP_TITLES[current.id]) : phaseLabel}</strong>
+        <p>{current?.text || snapshot.statusText || phaseLabel}</p>
+        {elapsed ? <span className="ga-dl-elapsed">{t("dlRunningFor", { time: elapsed })}</span> : null}
+      </div> : null}
       <ol className="ga-dl-sequence" aria-label={t("dlStepsTitle")}>
         {shown.map(step => (
           <li key={step.id} className={`is-${step.state}`}>
@@ -49,7 +57,8 @@ export default function DownloadSteps({ snapshot }: { snapshot: DownloadProgress
           </li>
         ))}
       </ol>
-      {!started ? (
+      {expanded ? details : null}
+      {!started || details ? (
         <button type="button" className="ga-dl-steps-more" aria-expanded={expanded} onClick={() => setExpanded(open => !open)}
           aria-label={expanded ? t("dlStepsFewer") : t("dlStepsAll", { count: steps.length })} title={expanded ? t("dlStepsFewer") : t("dlStepsAll", { count: steps.length })}>
           {expanded ? <ChevronUp size={18} strokeWidth={1.5} aria-hidden="true" /> : <ChevronDown size={18} strokeWidth={1.5} aria-hidden="true" />}

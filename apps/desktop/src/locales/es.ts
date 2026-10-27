@@ -147,6 +147,8 @@ export const es = {
   launchStarted: "El juego se inició directamente.",
   launchError: "Error de ejecución",
   downloadsSizeUnknown: "No informado por la fuente",
+  downloadsRouteLabel: "Ruta",
+  downloadsPlanLabel: "Plan",
   downloadsManager: "Gestor de descargas Digital",
   downloadsSummary: "{{pending}} pendientes · {{completed}} completadas",
   downloadsCloseAria: "Cerrar descargas y volver a la pantalla principal",

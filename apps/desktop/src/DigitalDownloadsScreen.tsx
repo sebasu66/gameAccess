@@ -80,6 +80,8 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const { game, snapshot } = entry;
     const currentGame = catalogGames.find(item => item.id === game.id || (game.app_id != null && item.app_id === game.app_id)) ?? game;
     const sourceSize = sourceDownloadSize(game,locale) || sourceDownloadSize(currentGame,locale) || t("downloadsSizeUnknown");
+    // The real size once the Download Manager knows it (torrent metadata, the file's length); before, the source's text.
+    const totalSize = (snapshot.bytesTotal ?? 0) > 0 ? formatDownloadBytes(snapshot.bytesTotal,locale) : sourceSize;
     const { phase, gameId } = snapshot;
     const bars = downloadBars(snapshot);
     const method = service.getDownloadMethod?.(gameId);
@@ -123,7 +125,21 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
             {stage === "check" ? <p className="ga-dl-card-eta">{t("downloadsCheckHint")}</p> : null}
           </div>
         </div> : null}
-        <DownloadSteps snapshot={snapshot} />
+        <DownloadSteps snapshot={snapshot} phaseLabel={phaseLabel(phase)} details={<>
+          {transferStarted(snapshot) ? <>
+            <div className="digital-download-progress-line"><span>{t("downloadsDownloadBar")}</span><strong>{Math.round(bars.download)}%</strong></div>
+            <progress className="download-phase-progress" max={100} value={bars.download} aria-label={t("downloadsProgress",{name:game.name,status:t("downloadsDownloadBar")})} />
+            <div className="digital-download-progress-line digital-download-install-line"><span>{t("downloadsInstallBar")}</span><strong>{Math.round(bars.install)}%</strong></div>
+            <progress className="download-phase-progress download-install-progress" max={100} value={bars.install} aria-label={t("downloadsProgress",{name:game.name,status:t("downloadsInstallBar")})} />
+          </> : null}
+          <dl className="digital-download-metrics ga-dl-card-details">
+            <div><dt>{t("downloadsSize")}</dt><dd>{totalSize}</dd></div>
+            {transferStarted(snapshot) || (snapshot.bytesDownloaded ?? 0) > 0 ? <div><dt>{t("downloadsDownloaded")}</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded,locale)} / {totalSize}</dd></div> : null}
+            {transfer ? <div><dt>{t("downloadsSpeed")}</dt><dd>{`${formatDownloadBytes(snapshot.speedBps,locale)} / s`}</dd></div> : null}
+            {methodText ? <div><dt>{t("downloadsRouteLabel")}</dt><dd title={methodText.hint}>{methodText.label}</dd></div> : null}
+            {plan ? <div><dt>{t("downloadsPlanLabel")}</dt><dd title={plan.hint}>{plan.label}</dd></div> : null}
+          </dl>
+        </>} />
         {/* The card's actions: a row under the picture that opens on hover or focus. */}
         <div className="ga-dl-card-actions">
           {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}

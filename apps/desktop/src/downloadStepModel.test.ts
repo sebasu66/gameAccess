@@ -41,7 +41,7 @@ describe("download steps", () => {
     const downloading = downloadSteps({ gameId: 1, phase: "downloading", progress: 40, step: { id: "download", detail: "", startedAt: 2 },
       steps: [{ id: "route", state: "done", result: "", ms: 1 }, { id: "probe", state: "skipped", result: "", ms: 0 }, { id: "server", state: "done", result: "", ms: 5 }] });
     expect(states(timelineSteps(downloading, false))).toEqual(["extract:pending", "install:pending"]);
-    expect(states(timelineSteps(downloading, true))).toEqual(["extract:pending", "install:pending"]);
+    expect(states(timelineSteps(downloading, true))).toEqual(states(downloading));
     const extracting = downloadSteps({ gameId: 1, phase: "decompressing", progress: 10, step: { id: "extract", detail: "", startedAt: 3 },
       steps: [{ id: "route", state: "done", result: "", ms: 1 }, { id: "download", state: "done", result: "", ms: 9 }] });
     expect(states(timelineSteps(extracting, false))).toEqual(["install:pending"]);

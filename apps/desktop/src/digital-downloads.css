@@ -183,3 +183,15 @@
 /* Pictures at rest as calm as the grid's covers (less colour, a little darker); the one under the pointer gets its colour back. */
 .digital-downloads-screen :is(.digital-download-art, .ga-dl-card-art) img { filter: saturate(.55) brightness(.9); transition: filter .3s; }
 .digital-downloads-screen :is(.digital-download-row, .ga-dl-card):is(:hover, :focus-within) :is(.digital-download-art, .ga-dl-card-art) img { filter: none; }
+
+/* The card, expanded: "Now" and the download's data the compact card keeps folded. */
+.ga-dl-now { padding: 12px 14px; border-radius: 10px; background: #ffffff08; border: 1px solid #ffffff14; }
+.ga-dl-now.is-failed { border-color: #e5202e66; background: #e5202e12; }
+.ga-dl-eyebrow { display: block; font: 800 10px Manrope, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
+.ga-dl-now strong { display: block; margin-top: 4px; font-size: 15px; color: #f4f4f2; }
+.ga-dl-now p { margin: 4px 0 0; font-size: 13px; color: #c9ced2; }
+.ga-dl-elapsed { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #ff8a38; font-variant-numeric: tabular-nums; }
+.ga-dl-card-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin: 4px 0 0; }
+.ga-dl-card-details div { min-width: 0; }
+.ga-dl-card-details dt { font-size: 11px; color: #929ba2; }
+.ga-dl-card-details dd { margin: 2px 0 0; font-size: 13px; color: #f4f4f2; overflow-wrap: anywhere; }
