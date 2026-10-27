@@ -65,7 +65,8 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
     if (!root.current || !motionOk() || !game) return;
     const title = root.current.querySelector(".ga-spotlight-title");
     if (!title) return;
-    const split = new SplitText(title, { type: "chars", mask: "chars" });
+    // Words keep their letters together: split in letters alone, a long title could break inside a word.
+    const split = new SplitText(title, { type: "words,chars", mask: "chars" });
     gsap.from(split.chars, { yPercent: 110, duration: .8, ease: "expo.out", stagger: .025 });
     gsap.fromTo(root.current.querySelectorAll(".ga-spotlight-eyebrow, .ga-spotlight-actions"), { y: 14, opacity: 0 }, { y: 0, opacity: 1, duration: .6, stagger: .08, delay: .12, ease: "power3.out" });
     return () => split.revert();

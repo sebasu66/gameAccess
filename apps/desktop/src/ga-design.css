@@ -205,18 +205,19 @@ button.ga-cube.ga-personal-order.is-unlocked .ga-cube-label { max-width: 170px; 
 .ga-spotlight::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, #111416f2 0, #111416b0 38%, transparent 72%), linear-gradient(0deg, #111416d0 0, transparent 45%); }
 .ga-spotlight-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; opacity: 0; transition: opacity 1s ease; }
 .ga-spotlight-image[data-front] { opacity: 1; }
-.ga-spotlight-content { position: absolute; z-index: 2; left: 36px; right: 36px; bottom: 30px; max-width: 560px; }
-.ga-spotlight-eyebrow { display: block; font: 800 11px Manrope, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #cc8333; }
-.ga-spotlight-title { margin: 8px 0 16px; font: 400 clamp(28px, 6.5cqi, 68px)/.92 "Bebas Neue", sans-serif; letter-spacing: .01em; color: #cc8333; }
-.ga-spotlight-dots { position: absolute; z-index: 2; right: 24px; bottom: 26px; display: flex; gap: 8px; }
+.ga-spotlight-content { position: absolute; z-index: 2; left: clamp(16px, 4.5cqi, 36px); right: clamp(16px, 4.5cqi, 36px); bottom: clamp(14px, 3.8cqi, 30px); max-width: 560px; }
+.ga-spotlight-eyebrow { display: block; font: 800 clamp(9px, 1.6cqi, 11px)/1.35 Manrope, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #cc8333; }
+/* Text and button follow the banner's width down to a floor; a long title goes to a second line only between words. */
+.ga-spotlight-title { margin: clamp(4px, 1cqi, 8px) 0 clamp(8px, 2cqi, 16px); font: 400 clamp(24px, 5.2cqi, 68px)/.92 "Bebas Neue", sans-serif; letter-spacing: .01em; color: #cc8333; overflow-wrap: normal; word-break: normal; hyphens: none; text-wrap: balance; }
+/* The shared primary style sets its font with !important; only the size follows the banner here (":not(#ga-none)" outranks it). */
+.ga-spotlight .ga-spotlight-actions button.ga-btn-primary:not(#ga-none) { height: clamp(30px, 6cqi, 44px); padding-inline: clamp(12px, 3cqi, 22px); font-size: clamp(12px, 2.3cqi, 16px) !important; }
+.ga-spotlight-dots { position: absolute; z-index: 2; right: clamp(14px, 3cqi, 24px); bottom: clamp(14px, 3.4cqi, 26px); display: flex; gap: 8px; }
 .ga-spotlight-dot { position: relative; width: 42px; height: 4px; padding: 0; border: 0; border-radius: 2px; background: #ffffff2a; overflow: hidden; cursor: pointer; }
 .ga-spotlight-dot::after { content: ""; position: absolute; inset: -10px 0; }
 .ga-spotlight-dot i { position: absolute; inset: 0; background: #cc8333; transform-origin: left; transform: scaleX(0); }
 .ga-spotlight-dot[data-active] i { animation: ga-spotlight-progress linear forwards; }
 .ga-spotlight-dot:focus-visible { outline: 2px solid #cc8333; outline-offset: 4px; }
 @keyframes ga-spotlight-progress { to { transform: scaleX(1); } }
-/* A low banner (narrow window): the text gets compact, one line each, so it never spills out of the picture. */
-@container (max-width: 760px) { .ga-spotlight-content { left: 20px; right: 20px; bottom: 18px; } .ga-spotlight-eyebrow, .ga-spotlight-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ga-spotlight-title { margin: 4px 0 10px; } .ga-spotlight-dots { right: 16px; bottom: 18px; } }
 @media (max-height: 760px), (max-width: 900px) { .ga-spotlight { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ga-spotlight-image { transition: none; } .ga-spotlight-dot[data-active] i { animation: none; transform: scaleX(1); } }
 .ga-hidden-installed { align-self: flex-end; flex: none; margin: -8px 30px 8px 0; padding: 4px 0; border: 0; border-bottom: 1px dashed #ffffff40; background: none; color: #929ba2; font: 700 12px Manrope, sans-serif; cursor: pointer; }
