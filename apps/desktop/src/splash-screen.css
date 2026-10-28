@@ -63,6 +63,8 @@
 .gs-rim{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6;stroke-width:2}
 .gs-knurl line{stroke:#000;stroke-opacity:.45;stroke-width:2}
 .gs-plate{fill:url(#gs-plate);stroke:#ffffff26;stroke-width:1.5}
+/* Turned metal over the plate (SplashScreen.tsx): the brushed steel only adds grain, through an overlay blend. */
+.gs-plate-brush{mix-blend-mode:overlay;opacity:.2}
 .gs-groove{fill:none;stroke:#000;stroke-opacity:.5;stroke-width:2;filter:drop-shadow(1px 1px 0 #ffffff1c)}
 .gs-brand{font:700 15px/1 Bahnschrift,"Segoe UI",sans-serif;letter-spacing:.42em;fill:#07090b;fill-opacity:.85;text-anchor:middle}.gs-brand.is-lip{fill:#fff;fill-opacity:.16}
 .gs-lip path{fill:#ffffff42}
@@ -73,7 +75,6 @@
 .gs-glass-top{mix-blend-mode:screen}.gs-scratch{opacity:1;filter:brightness(1.8) contrast(1.2)}
 /* The raised rim round the letters: a stroke half outside the cut, with a short shadow on the plate. */
 .gs-raise path{fill:none;stroke:url(#gs-raise);stroke-width:7;stroke-linejoin:round}.gs-raise{filter:drop-shadow(1.5px 2px 1.5px #000a)}
-.gs-hub{fill:#1a1f23;stroke:#ffffff30;stroke-width:1}
 /* The backlit padlock, set into the left leaf beside the lock: its outline is a dark cut, its shape glows from
    inside (white, like a lit logo in metal). Unlocked, the shackle springs open and the light goes out. */
 .gs-padlock{position:absolute;z-index:2;top:50%;right:calc(var(--gs-lock)/2 + 40px);width:34px;height:40px;transform:translateY(-50%);overflow:visible}

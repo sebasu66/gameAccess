@@ -28,6 +28,11 @@ function Lock() {
    <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
+   {/* The plate is turned metal: fine concentric rings (a radial gradient repeated every 2.6 units), the frame's
+       brushed steel faintly over it, and the two crossed sheens a lathe-turned disc throws. */}
+   <clipPath id="gs-plate-clip"><circle r="200" /></clipPath>
+   <radialGradient id="gs-spun" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="2.6" spreadMethod="repeat"><stop offset="0" stopColor="#fff" stopOpacity=".05" /><stop offset=".5" stopColor="#000" stopOpacity=".09" /><stop offset="1" stopColor="#fff" stopOpacity=".05" /></radialGradient>
+   <linearGradient id="gs-spun-sheen" gradientUnits="userSpaceOnUse" x1="-200" y1="-200" x2="200" y2="200"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".3" stopColor="#fff" stopOpacity=".1" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset=".72" stopColor="#fff" stopOpacity=".07" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
    {/* The letters are coloured glass set into the engraving: the G in the library's green, the A in the catalogue's
        orange (the colours of the big side words, view-rail.css), with a sheen and fine scratches on the glass only. */}
    <linearGradient id="gs-glass-g" gradientUnits="userSpaceOnUse" x1="-120" y1="-120" x2="110" y2="120"><stop offset="0" stopColor="#e8f9f0" /><stop offset=".42" stopColor="#a0d2b4" /><stop offset="1" stopColor="#3f7a5d" /></linearGradient>
@@ -58,6 +63,12 @@ function Lock() {
    <circle className="gs-rim" r="214" />
    <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
    <circle className="gs-plate" r="200" />
+   <g className="gs-plate-metal" clipPath="url(#gs-plate-clip)">
+    <image className="gs-plate-brush" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
+    <circle r="200" fill="url(#gs-spun)" />
+    <circle r="200" fill="url(#gs-spun-sheen)" />
+    <circle r="200" fill="url(#gs-spun-sheen)" transform="rotate(90)" />
+   </g>
    <circle className="gs-groove" r="158" />
    <circle className="gs-groove" r="190" />
    {/* Engraved in the plate, lit from the top left: each cut is dark, with a light lip on its lower right edge. */}
@@ -79,7 +90,6 @@ function Lock() {
      <rect x="-160" y="-160" width="320" height="320" fill="url(#gs-glass-sheen)" />
     </g>
    </g>
-   <circle className="gs-hub" r="9" />
   </g>
  </svg>;
 }
