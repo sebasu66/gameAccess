@@ -80,6 +80,21 @@ def test_unfinished_download_is_never_offered_a_fix(tmp_path):
     assert {g["app_id"]: g for g in lib.list_games()}[2]["transfer_kind"] == "other"
 
 
+def test_a_folder_in_error_whose_download_stopped_can_still_be_processed_as_it_is(tmp_path):
+    # Surgeon Simulator: the game is in the folder, but the last download got a 403 and left a "go on" point.
+    storage, lib = library(tmp_path)
+    folder = storage.set_status(1, "Alpha", "ERROR")
+    storage.set_resume(1, "download", source="https://example.invalid/alpha", error="403 Client Error: Forbidden")
+    game = {g["app_id"]: g for g in lib.list_games()}[1]
+    assert game["unfinished"] and game["stalled"] and game["resume_step"] == "download"
+    assert any(issue["code"] == "error" for issue in game["issues"])
+    result = lib.batch("adopt", [1])[0]
+    assert result["ok"], result
+    game = {g["app_id"]: g for g in lib.list_games()}[1]
+    assert game["state"] == "ready" and not game["unfinished"] and not game.get("stalled") and storage.resume_point(1) == {}
+    assert not folder.exists()
+
+
 def test_the_install_keeps_the_name_its_download_source_gave_it(tmp_path):
     storage, lib = library(tmp_path)
     storage.set_source(1, "Alpha v1.2 - Repack", "SteamRIP")

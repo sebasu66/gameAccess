@@ -328,6 +328,9 @@ class GameLibraryManager:
             game["resume_step"] = point.get("step", "") if point.get("source") else ""
             if game["resume_step"] and not game.get("transfer_active"):
                 game["unfinished"] = True
+                # A folder in ERROR with nothing left in the temporary root: its download stopped (a 403, say), but
+                # what the folder has (a copy put there by hand, an install that failed) can still be processed as is.
+                game["stalled"] = game.get("state") == "ERROR" and not game.get("transfer_kind") and not game["queued"]
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
@@ -344,7 +347,7 @@ class GameLibraryManager:
         """What fixing each game would do, for the user to review before anything runs."""
         listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")]
         names = {g["app_id"]: g["name"] for g in listed}
-        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished") and not g.get("stalled")}
         misnamed = {g["app_id"]: g for g in listed if g.get("misnamed")}
         plans = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
@@ -520,7 +523,8 @@ class GameLibraryManager:
         names = {g["app_id"]: g["name"] for g in listed}
         linked = {g["app_id"] for g in listed if g.get("linked")}
         steam_only = {g["app_id"] for g in listed if g.get("state") == "steam_owned" and not self.storage.linked.get(g["app_id"])}
-        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        stalled = {g["app_id"] for g in listed if g.get("stalled")}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished")} - stalled
         misnamed = {g["app_id"]: Path(g["folder"]) for g in listed if g.get("misnamed")}
         results = []
         # A game being frozen or thawed is left alone until that ends.
@@ -567,7 +571,10 @@ class GameLibraryManager:
                 elif action == "adopt":
                     if app_id in misnamed:
                         self._rename_identified(app_id, misnamed[app_id], name)
-                    results.append({"app_id": app_id, **self.importer.adopt(app_id, name)})
+                    outcome = self.importer.adopt(app_id, name)
+                    if outcome.get("ok") and app_id in stalled:
+                        self.storage.clear_resume(app_id)   # processed as it is: no download left to go on with
+                    results.append({"app_id": app_id, **outcome})
                 elif action == "repair":
                     outcome = self.manager.repair(app_id, name)
                     results.append({"app_id": app_id, **outcome})

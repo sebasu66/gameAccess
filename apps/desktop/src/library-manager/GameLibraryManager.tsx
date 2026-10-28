@@ -47,7 +47,9 @@ type Pending =
   | { kind: "discard"; game: LibraryGame; restart: boolean };
 
 const asGame = (game: LibraryGame): CatalogGame => ({ id: game.app_id, app_id: game.app_id, name: game.name } as CatalogGame);
-const hasError = (game: LibraryGame) => !game.unfinished && game.issues.some(issue => issue.code === "error");
+const hasError = (game: LibraryGame) => (!game.unfinished || Boolean(game.stalled)) && game.issues.some(issue => issue.code === "error");
+/** A folder in ERROR that Retry processes again as it is: one Fix would also do, or one whose download stopped. */
+const retryable = (game: LibraryGame) => game.state === "ERROR" && (Boolean(game.stalled) || needsFix(game));
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 const landscape = (appId: number | null | undefined) => appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : "";
@@ -62,7 +64,7 @@ function statusOf(game: LibraryGame, c: LibraryCopy, t: Translate): Status {
   if (game.frozen) return { rank: game.frozen === "deep" ? 8 : 7, label: game.frozen === "deep" ? c.deepFrozen : c.frozen, tone: "frost", icon: <Snowflake /> };
   if (isSteamOwned(game)) return { rank: 10, label: t("lmStatusSteamOwned"), tone: "muted" };
   if (game.linked) return { rank: 9, label: c.linked, tone: "muted" };
-  if (game.partial || game.unfinished || isUnfinished(game)) {
+  if ((game.partial || game.unfinished || isUnfinished(game)) && !game.stalled) {
     if (game.transfer_active) return { rank: 0, label: c.downloading, tone: "busy", icon: spin };
     if (game.queued) return { rank: 1, label: c.queued, tone: "busy" };
     return { rank: 2, label: t("lmStatusPaused"), tone: "warn" };
@@ -274,7 +276,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
           {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><DownloadSimple /></IconAction> : null}
           {/* A folder that ended in ERROR (an installer that failed, say) is processed again straight away: unpacked,
               installed and checked, as Fix does, after any change made in "Language and launch". */}
-          {game.state === "ERROR" && needsFix(game) && id != null ? <IconAction label={c.retryProcess} tone="accent" disabled={busy} onClick={() => retry(id)}><ArrowClockwise /></IconAction>
+          {retryable(game) && id != null ? <IconAction label={c.retryProcess} tone="accent" disabled={busy} onClick={() => retry(id)}><ArrowClockwise /></IconAction>
             : needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
           {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><PhPlay /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
@@ -298,7 +300,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       </td>
     </tr>
     {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
-      {open && game.issues.length && !game.unfinished ? <div><b>{c.whatNeeds}</b>
+      {open && game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
         <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>

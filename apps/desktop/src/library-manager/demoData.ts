@@ -30,6 +30,8 @@ export const demoGames: LibraryGame[] = [
   row(1174180, "Red Dead Redemption 2", 0, { state: "ERROR", installed: false, transfer_bytes: 119.4 * GB, unfinished: true, resume_step: "extract" }),
   // Unpacked, but its installer failed: "Retry" processes the folder again (after any change in "Language and launch").
   row(690790, "DiRT Rally 2.0", 61.2, { state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando instalar setup.exe: el instalador terminó con código 4", issues: [{ code: "error", message: "error intentando instalar setup.exe: el instalador terminó con código 4" }] }),
+  // The game is in the folder, but its last download got a 403: "Retry" processes the folder as it is.
+  row(233720, "Surgeon_Simulator", 1.3, { state: "ERROR", standard: false, installed: false, unfinished: true, stalled: true, resume_step: "download", error: "403 Client Error: Forbidden", issues: [{ code: "error", message: "403 Client Error: Forbidden" }] }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
 ];
 
