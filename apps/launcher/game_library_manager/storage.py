@@ -347,8 +347,11 @@ class DigitalGameStorage:
                           "active": live.is_file() and now - live.stat().st_mtime < 120})
         return found
 
-    def discard_transfer(self, app_id: int) -> None:
-        """Delete the leftover temporary download of a game that has no live worker."""
+    def discard_transfer(self, app_id: int, game_folder: bool = False) -> None:
+        """Delete the leftover temporary download of a game that has no live worker. With `game_folder` (the player's
+        own "Discard"), also the unfinished folder the download left in the games folder (unpacked, its installer
+        failed...) and its resume point, so the next scan does not offer it again. A finished install is never touched;
+        the automatic clean-up of empty downloads never passes it."""
         temporary = Path(self.preferences.load()["temporary_root"]).resolve()
         targets = [t for t in self.transfers() if t["app_id"] == int(app_id)]
         if any(t["active"] for t in targets):
@@ -360,6 +363,17 @@ class DigitalGameStorage:
             if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
                 raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
             shutil.rmtree(folder)
+        game_folders = [] if not game_folder else [p for root in self.roots if root.is_dir() for p in root.glob(f"{int(app_id)}-*") if p.is_dir()]
+        unfinished = [p for p in game_folders if split_folder_name(p.name)[2] != "ready"]
+        for folder in unfinished:
+            self.checked(folder)
+            if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
+                raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
+            shutil.rmtree(folder)
+        if unfinished and len(unfinished) == len(game_folders):
+            (self.registry / f"{int(app_id)}.json").unlink(missing_ok=True)   # nothing of the game is left
+        elif game_folder:
+            self.clear_resume(app_id)
         for leftover in ((self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json"),
                          (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.control.json")):
             leftover.unlink(missing_ok=True)

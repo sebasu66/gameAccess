@@ -123,6 +123,12 @@ class GameLibraryManager:
                  "size_bytes": folder_size(folder) if with_sizes else None, "plays": 0, "last_played": ""}
         if app_id is None:
             entry["issues"] = self.importer.issues(None, folder, None, None)
+            identified = self._identify(folder)
+            if identified:
+                # Found by the file a Steam emulator or fix leaves (as the importer does): the row is that game, and
+                # "Fix" renames the folder to <AppID>-<game> before adopting it.
+                entry.update(app_id=identified[0], misnamed=True, identified_by=identified[1])
+                entry["issues"] = [{"code": "misnamed", "message": ui("libMisnamed", app_id=identified[0], file=identified[1])}]
         else:
             try:
                 status = self.storage.status(app_id, title)
@@ -152,6 +158,31 @@ class GameLibraryManager:
         entry["reclaimable_bytes"] = sum(issue.get("bytes", 0) for issue in entry["issues"])
         entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
         return entry
+
+    def _identify(self, folder: Path) -> tuple[int, str] | None:
+        """The AppID a folder without it in its name declares (steam_emu.ini, OnlineFix.ini, steam_appid.txt...), when
+        no other game of the library has it already."""
+        from game_scanner import GameScanner
+        try:
+            declared = GameScanner()._measure(folder)[3]
+        except OSError:
+            return None
+        if not declared:
+            return None
+        app_id = int(declared[0])
+        taken = self.storage.linked.get(app_id) or any(
+            p.resolve() != folder.resolve()
+            for root in self.storage.roots if root.is_dir() for p in root.glob(f"{app_id}-*") if p.is_dir())
+        return None if taken else (app_id, declared[1])
+
+    def _rename_identified(self, app_id: int, folder: Path, name: str) -> None:
+        """Give an identified folder its AppID in the name (<AppID>-<game>); adopting it then sets its status."""
+        target = folder.parent / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        if target.exists():
+            raise ValueError(ui("relocTaken", folder=str(folder.parent)))
+        folder.rename(target)
+        journal.note(target, "importado", f"identificado como AppID {app_id}; carpeta renombrada desde {folder.name}")
+        self.log.info("AppID %s: misnamed folder %s renamed to %s", app_id, folder.name, target.name)
 
     def _steam_rows(self, linked_ids: set[int]) -> tuple[dict[int, dict], list[dict]]:
         """The owner of every Steam game, and a row for each owned Steam game that is not installed: Steam installs it."""
@@ -273,9 +304,17 @@ class GameLibraryManager:
         listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")]
         names = {g["app_id"]: g["name"] for g in listed}
         unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        misnamed = {g["app_id"]: g for g in listed if g.get("misnamed")}
         plans = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
-            if app_id in unfinished:
+            if app_id in misnamed:
+                game = misnamed[app_id]
+                standard = f"{app_id}-{self.storage.folder_name(game['name'])}"
+                plans.append({"app_id": app_id, "name": game["name"], "freed_bytes": 0, "actions": [
+                    {"code": "identify", "label": ui("libPlanIdentified", app_id=app_id, file=game["identified_by"])},
+                    {"code": "rename", "label": ui("libPlanRename", folder=standard)},
+                    {"code": "adopt", "label": ui("libPlanAdopt")}]})
+            elif app_id in unfinished:
                 plans.append({"app_id": app_id, "name": names[app_id], "actions": [], "error": UNFINISHED_MESSAGE})
             elif app_id in names:
                 try:
@@ -441,6 +480,7 @@ class GameLibraryManager:
         linked = {g["app_id"] for g in listed if g.get("linked")}
         steam_only = {g["app_id"] for g in listed if g.get("state") == "steam_owned" and not self.storage.linked.get(g["app_id"])}
         unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        misnamed = {g["app_id"]: Path(g["folder"]) for g in listed if g.get("misnamed")}
         results = []
         # A game being frozen or thawed is left alone until that ends.
         owner = freeze_holder(self.freezer.records)
@@ -481,9 +521,11 @@ class GameLibraryManager:
                     self.freezer.forget(app_id)
                     results.append({"app_id": app_id, "ok": True})
                 elif action == "discard_transfer":
-                    self.storage.discard_transfer(app_id)
+                    self.storage.discard_transfer(app_id, game_folder=True)   # the player's "Discard": all of it
                     results.append({"app_id": app_id, "ok": True})
                 elif action == "adopt":
+                    if app_id in misnamed:
+                        self._rename_identified(app_id, misnamed[app_id], name)
                     results.append({"app_id": app_id, **self.importer.adopt(app_id, name)})
                 elif action == "repair":
                     outcome = self.manager.repair(app_id, name)

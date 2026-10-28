@@ -38,6 +38,8 @@ def configure(name: str = GENERAL, filename: str = "execution.log", directory: P
 
 
 def manager_logger(manager: str) -> logging.Logger:
-    """Logger of one manager ('library', 'importer', 'execution'); it writes to the general log."""
-    configure()
+    """Logger of one manager ('library', 'importer', 'execution'); it writes to the general log. A log already pointed
+    somewhere (a test's own folder) is left there: re-pointing it on every call sent tests' lines to the app's log."""
+    if not any(isinstance(handler, RotatingFileHandler) for handler in logging.getLogger(GENERAL).handlers):
+        configure()
     return logging.getLogger(f"{GENERAL}.{manager}")

@@ -6,7 +6,7 @@ from pathlib import Path
 from .execution_profile import executable_matches
 
 # One list of files that are never the game itself (installers, helpers, redistributables).
-NOT_A_GAME = re.compile(r"setup|install|unins|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq|dotnet|vcredist", re.I)
+NOT_A_GAME = re.compile(r"setup|install|unins|remove|updater|redist|crash|report|helper|unitycrash|vc_redist|wdapp|dump_client|dxsetup|prereq|dotnet|vcredist", re.I)
 
 
 # Anything that can start a program, installers included. A download with none of these cannot be a game.

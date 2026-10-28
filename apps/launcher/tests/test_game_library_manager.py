@@ -204,3 +204,39 @@ def test_the_game_log_brings_the_end_of_its_installer_log(tmp_path):
     (folder / "setup-install-log.txt").write_text("line 1\nError creating file (code 3).\n", encoding="utf-8")
     result = DigitalProcessRunner(storage).run("game-log", 1, "Alpha", "")
     assert "lanzado: Alpha.exe" in result["log"] and result["installer_log"].endswith("Error creating file (code 3).")
+
+
+def test_a_folder_without_its_appid_is_identified_by_its_emulator_file_and_fixed(tmp_path):
+    storage, lib = library(tmp_path)
+    manual = storage.root / "Delta Rally 2 0 Game of the Year Edition"     # installed by hand, outside Game Access
+    manual.mkdir(parents=True)
+    (manual / "delta.exe").write_bytes(b"x" * 1000)
+    (manual / "steam_emu.ini").write_text("[Settings]\nAppId=690790\n", encoding="utf-8")
+    row = next(g for g in lib.list_games(with_sizes=False) if g["folder"] == str(manual))
+    assert row["app_id"] == 690790 and row["misnamed"] and row["identified_by"] == "steam_emu.ini"
+    plan = lib.plan([690790])[0]
+    assert [a["code"] for a in plan["actions"]] == ["identify", "rename", "adopt"]
+    assert lib.batch("adopt", [690790])[0]["ok"]
+    assert [p.name for p in storage.root.iterdir() if p.name.startswith("690790-")] == ["690790-Delta_Rally_2_0_Game_of_the_Year_Edition-ready"]
+
+
+def test_a_folder_whose_appid_another_game_already_has_is_not_renamed(tmp_path):
+    storage, lib = library(tmp_path)
+    copy = storage.root / "Alpha copy"
+    copy.mkdir(parents=True)
+    (copy / "alpha.exe").write_bytes(b"x" * 1000)
+    (copy / "steam_appid.txt").write_text("1", encoding="utf-8")         # AppID 1 is Alpha, already in the library
+    row = next(g for g in lib.list_games(with_sizes=False) if g["folder"] == str(copy))
+    assert row["app_id"] is None and not row.get("misnamed")
+
+
+def test_discarding_a_download_also_removes_the_unfinished_folder_it_left_but_never_a_finished_game(tmp_path):
+    storage, lib = library(tmp_path)
+    broken = storage.set_status(5, "Epsilon", "ERROR") if storage.register(5, "Epsilon") else None
+    (broken / "setup.exe").write_bytes(b"s" * 100)
+    storage.discard_transfer(5)                                    # the automatic clean-up: the folder stays
+    assert broken.is_dir()
+    assert lib.batch("discard_transfer", [5])[0]["ok"]             # the player's "Discard": all of it goes
+    assert not broken.exists() and not (storage.registry / "5.json").exists()
+    assert storage.folder(1, "Alpha").is_dir()                     # a finished game is never touched
+    assert 5 not in {g["app_id"] for g in lib.list_games(with_sizes=False)}

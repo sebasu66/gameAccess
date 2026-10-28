@@ -84,6 +84,7 @@ const localizeResult = (result: ProcessExecutionResult): ProcessExecutionResult 
   ...(result.library ? { library: result.library.map(localizeGame) } : {}),
   ...(result.results ? { results: result.results.map(row => ({ ...row, error: localizeLauncherText(row.error) ?? undefined })) } : {}),
   ...(result.relocated ? { relocated: { ...result.relocated, error: localizeLauncherText(result.relocated.error) ?? undefined } } : {}),
+  ...(result.plans ? { plans: result.plans.map(plan => ({ ...plan, error: localizeLauncherText(plan.error) ?? undefined, actions: plan.actions.map(action => ({ ...action, label: localizeLauncherText(action.label) })) })) } : {}),
 });
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -118,7 +119,7 @@ export class DigitalProcessManager {
   repairGame(game: CatalogGame) { return this.execute("game-repair", game); }
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
   libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame).then(localizeResult); }
-  libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })); }
+  libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })).then(localizeResult); }
   /** With the game, what an unfinished download of it already has on disk counts. */
   librarySpace(bytes: number, appId?: number, name?: string) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes, app_id: appId ?? 0, name: name ?? "" })); }
   /** Moving the library to `target`: the games outside it, their sizes and whether they fit there. */
