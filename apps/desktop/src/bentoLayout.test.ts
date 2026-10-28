@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bentoCells, bentoInWindow, bentoLayout, bentoRowHeight, bentoRowTops, bentoSections, type BentoItem } from "./bentoLayout";
+import { bentoCells, bentoInWindow, bentoLayout, bentoRowHeight, bentoRowTops, bentoSections, bigPictureBento, type BentoItem } from "./bentoLayout";
 
 const items = (ready: number, pending: number, deep = 0): BentoItem<string>[] => [
   ...Array.from({ length: ready }, (_, i) => ({ kind: "ready" as const, value: `r${i}` })),
@@ -102,3 +102,36 @@ describe("library sliding window", () => {
     expect(bentoInWindow(placements, tops, 100, 0, 900).map(p => p.value)).toContain("r0");
   });
 });
+
+describe("big picture bento", () => {
+  const cells = (placements: Array<{ column: number; row: number; span?: number }>) => placements.flatMap(item => Array.from({ length: item.span ?? 1 }, (_, i) => `${item.row}:${item.column + i}`));
+
+  it("puts one wide card per line, left then right, and portraits around it", () => {
+    const { placements, tracks } = bigPictureBento(["F1", "F2"], ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], 8);
+    const f1 = placements.find(item => item.value === "F1")!, f2 = placements.find(item => item.value === "F2")!;
+    expect([f1.column, f1.row, f1.span]).toEqual([1, 2, 3]);
+    expect([f2.column, f2.row, f2.span]).toEqual([6, 5, 3]);
+    expect(placements.filter(item => item.row === 2 && !item.span).map(item => item.column)).toEqual([4, 5, 6, 7, 8]);
+    expect(tracks).toEqual(["label", "row", "row", "row", "row", "row", "row"]);
+  });
+
+  it("never puts two games in the same place", () => {
+    const { placements } = bigPictureBento(["F1", "F2", "F3", "F4"], ["a", "b", "c"], 7);
+    const taken = cells(placements);
+    expect(new Set(taken).size).toBe(taken.length);
+    expect(placements).toHaveLength(7);
+    expect(taken.every(cell => Number(cell.split(":")[1]) <= 7)).toBe(true);
+  });
+
+  it("lays wide cards side by side once the portraits run out", () => {
+    const { placements } = bigPictureBento(["F1", "F2", "F3"], ["a"], 7);
+    expect(placements.filter(item => item.row === 2).map(item => [item.value, item.column])).toEqual([["F1", 1], ["a", 4], ["F2", 5]]);
+  });
+
+  it("shows every game as a portrait when the window is too narrow for a wide card", () => {
+    const { placements } = bigPictureBento(["F1"], ["a"], 2);
+    expect(placements.every(item => !item.span)).toBe(true);
+    expect(placements.map(item => item.value)).toEqual(["F1", "a"]);
+  });
+});
+

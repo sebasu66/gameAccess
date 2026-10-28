@@ -40,7 +40,7 @@ import BigScreenControls from "./BigScreenControls";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { GAME_ENDED_EVENT } from "./gameFocus";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
@@ -135,7 +135,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);
-  const previousFullscreen = useRef(false);
   /**
    * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
    * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
@@ -163,11 +162,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     if (!next) showAfterBigPicture();
     bigScreenChanging.current = false;
     try {
-      if ("__TAURI_INTERNALS__" in window) {
-        const appWindow = getCurrentWindow();
-        if (next) previousFullscreen.current = await appWindow.isFullscreen();
-        await appWindow.setFullscreen(next || previousFullscreen.current);
-      } else if (next) await document.documentElement.requestFullscreen?.();
+      // The whole screen, taskbar included; leaving puts the window back as it was (window_fit.rs).
+      if ("__TAURI_INTERNALS__" in window) await invoke("window_set_big_screen", { on: next });
+      else if (next) await document.documentElement.requestFullscreen?.();
       else if (document.fullscreenElement) await document.exitFullscreen();
     } catch { /* The large, controller-friendly layout still works windowed. */ }
   };
@@ -182,12 +179,11 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   // mode is on, it goes fullscreen again.
   useEffect(() => {
     if (!bigScreen || !("__TAURI_INTERNALS__" in window)) return;
-    const appWindow = getCurrentWindow();
     let timer = 0;
     const restore = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        void appWindow.isFullscreen().then(full => { if (!full && bigPictureActive()) void appWindow.setFullscreen(true); }).catch(() => undefined);
+        if (bigPictureActive()) void invoke("window_set_big_screen", { on: true }).catch(() => undefined);
       }, 250);
     };
     const visible = () => { if (document.visibilityState === "visible") restore(); };

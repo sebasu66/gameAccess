@@ -28,6 +28,7 @@ mod download_queue;
 mod game_controllers;
 mod game_focus;
 mod webview_rest;
+mod window_fit;
 
 use std::{env, sync::Mutex};
 
@@ -53,7 +54,11 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         // Rests while minimized, or while a game runs and Game Access does not have the focus (webview_rest.rs).
         .on_window_event(|window, event| match event {
-            tauri::WindowEvent::Focused(focused) => webview_rest::reconcile(window, Some(*focused)),
+            tauri::WindowEvent::Focused(focused) => {
+                webview_rest::reconcile(window, Some(*focused));
+                // Back from a game that changed the resolution: a maximized window fills its screen again (window_fit.rs).
+                if *focused { window_fit::refit(window); }
+            }
             tauri::WindowEvent::Resized(_) => webview_rest::reconcile(window, None),
             _ => {}
         })
@@ -77,6 +82,8 @@ fn main() {
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
             game_focus::game_focus_watch,
+            window_fit::window_toggle_maximize,
+            window_fit::window_set_big_screen,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
             parental_lock::parental_state,

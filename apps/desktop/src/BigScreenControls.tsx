@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Gamepad2, Maximize, Minimize } from "lucide-react";
+import { Gamepad2, Maximize, Minimize, Move } from "lucide-react";
 import { GamepadInput, type PadAction } from "./gamepadInput";
 import { InputSourceArbiter } from "./inputSource";
 import { useI18n } from "./i18n";
 import { GaIconButton } from "./components/ga/Buttons";
 import "./big-picture.css";
 import { labelIn } from "./motion/bigPictureMotion";
+import BigPictureIntro, { MenuKey } from "./BigPictureIntro";
 
 /**
  * Big picture mode's controls (bigPicture.ts): the footer button, the controller and the label at the bottom centre.
@@ -88,6 +89,11 @@ export default function BigScreenControls(props: Props) {
   const toggle = <GaIconButton className="ga-big-screen-toggle" icon={props.enabled ? <Minimize size={20} aria-hidden="true" /> : <Maximize size={20} aria-hidden="true" />} label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} pressed={props.enabled} onClick={props.onToggle} />;
   return <>
     {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
-    {props.enabled ? <p ref={label} className="ga-big-picture-label" role="status"><Gamepad2 size={18} aria-hidden="true" /><strong>{t("bigPictureTitle")}</strong><span>{t("bigPictureHint")}</span></p> : null}
+    <BigPictureIntro active={props.enabled} />
+    {/* The controller's legend, always on screen in the mode: what each button does, leaving included. */}
+    {props.enabled ? <p ref={label} className="ga-big-picture-label" role="status"><Gamepad2 size={20} aria-hidden="true" /><strong>{t("bigPictureTitle")}</strong>
+      <span className="ga-pad-legend"><span className="ga-pad-key is-a">A</span>{t("bigPicturePlay")}</span>
+      <span className="ga-pad-legend"><span className="ga-pad-key"><Move size={15} strokeWidth={2.4} aria-hidden="true" /></span>{t("bigPictureMove")}</span>
+      <span className="ga-pad-legend is-exit"><MenuKey />{t("bigPictureLeave")}</span></p> : null}
   </>;
 }

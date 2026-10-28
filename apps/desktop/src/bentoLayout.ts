@@ -7,7 +7,7 @@
  */
 export type BentoKind = "ready" | "pending" | "deep";
 export interface BentoItem<T> { kind: BentoKind; value: T }
-export interface BentoPlacement<T> { value: T; kind: BentoKind; column: number; row: number; rowSpan: number }
+export interface BentoPlacement<T> { value: T; kind: BentoKind; column: number; row: number; rowSpan: number; /** Portrait columns it spans (1 when absent); a featured game in big picture spans several. */ span?: number }
 
 function stacks<T>(list: T[]): T[][] {
   const out: T[][] = [];
@@ -58,6 +58,55 @@ export function bentoLayout<T>(items: BentoItem<T>[], columns: number): BentoPla
     position++;
   }
   return out;
+}
+
+/**
+ * Big picture mode's bento (only ready games): the favourite and most played games are wide, landscape cards; the
+ * others are portraits around them. Every line is one portrait tall; a wide card spans `wide` portrait columns, which
+ * with three is about the shape of Steam's header picture (460 × 215). Each line has at most one wide card, on the left
+ * and on the right in turn; the portraits fill the rest. When the portraits run out, the remaining wide cards go side
+ * by side. Below the divider (row 1), lines start at row 2.
+ */
+export function bigPictureBento<T>(featured: T[], regular: T[], columns: number, wide = 3): { placements: BentoPlacement<T>[]; tracks: BentoTrack[] } {
+  const cols = Math.max(1, Math.floor(columns));
+  const span = Math.min(wide, cols - 1);
+  // Too narrow for a wide card next to anything: everything is a portrait.
+  const tall = span < 2 ? [...featured, ...regular] : regular;
+  const big = span < 2 ? [] : featured;
+  const placements: BentoPlacement<T>[] = [];
+  const tracks: BentoTrack[] = ["label"];
+  let f = 0, r = 0, line = 0;
+  while (f < big.length || r < tall.length) {
+    const row = 2 + line * 3;
+    const put = (kind: "ready", value: T, column: number, width: number) => placements.push({ value, kind, column, row, rowSpan: 3, ...(width > 1 ? { span: width } : {}) });
+    let first = 1, last = cols;
+    if (f < big.length) {
+      if (line % 2 === 0) { put("ready", big[f++], 1, span); first = span + 1; }
+      else { put("ready", big[f++], cols - span + 1, span); last = cols - span; }
+    }
+    for (let column = first; column <= last;) {
+      if (r < tall.length) { put("ready", tall[r++], column, 1); column++; }
+      else if (f < big.length && last - column + 1 >= span) { put("ready", big[f++], column, span); column += span; }
+      else break;
+    }
+    tracks.push("row", "row", "row");
+    line++;
+  }
+  return { placements, tracks };
+}
+
+export interface PlayRecord { liked: boolean; plays: number; lastPlayed: number }
+/**
+ * The games big picture mode shows wide: the ones the player liked or plays the most, about a quarter of them (at
+ * least one when any qualifies, none among fewer than three games). Liked games come first, then by plays and by the
+ * last time played. A game never liked nor played is never featured.
+ */
+export function featuredGames<T>(games: T[], record: (game: T) => PlayRecord, share = 0.25): Set<T> {
+  if (games.length < 3) return new Set();
+  const limit = Math.max(1, Math.round(games.length * share));
+  const ranked = games.map(game => ({ game, ...record(game) })).filter(item => item.liked || item.plays > 0)
+    .sort((a, b) => Number(b.liked) - Number(a.liked) || b.plays - a.plays || b.lastPlayed - a.lastPlayed);
+  return new Set(ranked.slice(0, limit).map(item => item.game));
 }
 
 /** Row height that makes three landscape rows plus two gaps as tall as one portrait (2:3) column. */

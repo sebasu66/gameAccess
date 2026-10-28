@@ -171,8 +171,13 @@ fn watch(app: AppHandle, folder: String, session: u64) {
                         let _ = main.show();
                         if let Ok(handle) = main.hwnd() { force_foreground(handle.0 as win::HWND); }
                         let _ = main.set_focus();
+                        // Back to how the window was before the game, filling the screen; once more a moment later,
+                        // in case the resolution comes back after the game's processes are gone (window_fit.rs).
+                        crate::window_fit::restore(&main);
                     }
                     let _ = app.emit("gameaccess:game-ended", folder.clone());
+                    std::thread::sleep(Duration::from_millis(1500));
+                    if let Some(main) = app.get_webview_window("main") { crate::window_fit::refit(&main); }
                     return;
                 }
             }
@@ -202,6 +207,8 @@ pub fn game_focus_watch(app: AppHandle, folder: String) -> bool {
     // A new session replaces the previous one, which may have left the view resting.
     crate::webview_rest::set_game_running(&app, false);
     if folder.trim().is_empty() || !Path::new(&folder).is_dir() { return false; }
+    // How the window is now, to put it back the same way when the game ends.
+    if let Some(main) = app.get_webview_window("main") { crate::window_fit::remember(&main); }
     #[cfg(windows)]
     std::thread::spawn(move || watch(app, folder, session));
     #[cfg(not(windows))]

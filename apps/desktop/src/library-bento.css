@@ -90,3 +90,8 @@
 .ga-side-menu-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #cc8333; color: #140a02; font-weight: 800; text-shadow: none; }
 .ga-side-menu-items button.primary:hover:not(:disabled) { background: #d69959; }
 @media (prefers-reduced-motion: reduce) { .ga-bento-menu, .ga-bento-menu path { transition: none; animation: none !important; } }
+
+/* Big picture: a favourite or much played game, wide (bentoLayout.bigPictureBento), its Steam header picture filling
+   the card; the name stays under it, as on every card. */
+.ga-bento-feature { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.ga-bento-card[data-featured] .ga-bento-name { font-size: 15px; }
