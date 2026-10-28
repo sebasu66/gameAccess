@@ -10,6 +10,7 @@ import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
 import { steamOwnerLabel } from "./steamLibrary";
 import { useLibraryScan } from "./libraryScan";
+import { libraryMembership } from "./libraryMembership";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { downloadManager } from "./downloadManager";
@@ -51,7 +52,7 @@ interface Props {
   infoTarget?: HTMLElement | null;
 }
 
-interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus; steamOwner?: LibraryGame["steam_owner"]; /** Big picture: a favourite or much played game, shown wide. */ featured?: boolean; plays?: number; lastPlayed?: string; /** What is wrong with its folder (the library manager's issue): the card carries an alert. */ attention?: string }
+interface Card { /** One card per library folder: the folder (or the game, when it has none yet) tells cards apart. */ key: string; /** A folder whose game is not in the catalogue: it opens the library manager. */ orphan?: boolean; game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus; steamOwner?: LibraryGame["steam_owner"]; /** Big picture: a favourite or much played game, shown wide. */ featured?: boolean; plays?: number; lastPlayed?: string; /** What is wrong with its folder (the library manager's issue): the card carries an alert. */ attention?: string }
 
 // The groups are accordions: only the installed games start open. What the player opens or closes is remembered here.
 const COLLAPSED_KEY = "gameaccess:library-collapsed";
@@ -67,7 +68,7 @@ function saveCollapsed(collapsed: Set<BentoKind>) {
   try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch { /* not remembered, still works */ }
 }
 
-const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void }) {
+const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip, onManage }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void; onManage?: Props["onManage"] }) {
   const { t } = useI18n();
   const { game, kind, frozen, status } = card;
   const active = gameStateManager.resolve(status).transferActive;
@@ -82,8 +83,9 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
       data-library-game-id={game.id}
       aria-current={selected ? "true" : undefined}
       aria-label={`${game.name}${kind === "ready" && !card.attention ? t("cardAriaReady") : ""}${frozen ? ` · ${t(frozen === "deep" ? "bentoDeepFrozen" : "bentoFrozen")}` : ""}${card.attention ? ` · ${t("bentoAttention")}: ${card.attention}` : ""}`}
-      onFocus={() => onSelect(index, false)}
-      onClick={() => onSelect(index)}
+      onFocus={() => { if (!card.orphan) onSelect(index, false); }}
+      // A folder whose game is not in the catalogue has no detail to open: it opens the library manager on it.
+      onClick={() => (card.orphan ? onManage?.(game) : onSelect(index))}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
       {card.featured ? <img className="ga-bento-feature" src={landscape(game)} alt="" loading="lazy" />
@@ -137,13 +139,13 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   // Big picture mode: only the games ready to play, and no card menu (a controller picks a game and plays it).
   const bigPicture = useBigPicture();
   // The menu dot appears after resting 1 s on a card (or at once with the keyboard); a click turns the card over.
-  const [dotFor, setDotFor] = useState<number | null>(null);
+  const [dotFor, setDotFor] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
   const [renaming, setRenaming] = useState<CatalogGame | null>(null);
   const dwell = useRef(0);
   const openMenu = useCallback((card: Card, slot: HTMLElement) => { if (!bigPictureActive()) setMenuFor(current => current ?? { card, slot }); }, []);
-  const rest = (id: number) => { window.clearTimeout(dwell.current); dwell.current = window.setTimeout(() => setDotFor(id), DWELL_MS); };
-  const leave = (id: number) => { window.clearTimeout(dwell.current); if (menuFor?.card.game.id !== id) setDotFor(current => (current === id ? null : current)); };
+  const rest = (key: string) => { window.clearTimeout(dwell.current); dwell.current = window.setTimeout(() => setDotFor(key), DWELL_MS); };
+  const leave = (key: string) => { window.clearTimeout(dwell.current); if (menuFor?.card.key !== key) setDotFor(current => (current === key ? null : current)); };
   useEffect(() => () => window.clearTimeout(dwell.current), []);
   const grid = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(4);
@@ -152,26 +154,47 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const [columnGap, setColumnGap] = useState(28);
 
   const cards = useMemo<Card[]>(() => {
-    const entries = new Map(scan.games.map(entry => [entry.app_id, entry]));
-    const list: Card[] = games.flatMap(game => {
+    // The library manager's rows grouped by game: a game in two folders has two rows, and gets two cards.
+    const folders = new Map<number | null, LibraryGame[]>();
+    for (const entry of scan.games) if (entry.folder && entry.state !== "steam_owned") folders.set(entry.app_id, [...(folders.get(entry.app_id) ?? []), entry]);
+    const card = (game: CatalogGame, entry: LibraryGame | undefined, key: string, twice: number, orphan = false): Card[] => {
       const status = (game.app_id ? downloads[game.app_id] : undefined) ?? downloads[game.id];
       const state = gameStateManager.resolve(status);
-      const entry = game.app_id ? entries.get(game.app_id) : undefined;
       // A folder with a problem the library manager reports (misnamed, a failed install...) shows here too, with an
       // alert, so the library and the manager agree. A folder installed by hand counts as installed.
       const problem = entry?.folder && !entry.unfinished ? entry.issues?.find(issue => !NOTICE_ONLY.has(issue.code)) : undefined;
-      const attention = problem?.message;
-      const installed = state.installed || state.prepared || Boolean(entry?.installed) || Boolean(entry?.misnamed);
-      const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : "pending";
+      const attention = problem?.message ?? (twice > 1 ? t("bentoTwice", { count: twice, folder: entry?.folder ?? "" }) : undefined);
+      const installed = !orphan && (state.installed || state.prepared || Boolean(entry?.installed) || Boolean(entry?.misnamed));
+      const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : orphan ? "ready" : "pending";
       // Big picture shows only what can be played.
       if (bigPicture ? kind !== "ready" || attention : pill !== "all" && kind !== pill) return [];
-      return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined, plays: entry?.plays, lastPlayed: entry?.last_played, attention }];
+      return [{ key, orphan, game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined, plays: entry?.plays, lastPlayed: entry?.last_played, attention }];
+    };
+    const list: Card[] = games.flatMap(game => {
+      const rows = game.app_id ? folders.get(game.app_id) ?? [] : [];
+      if (rows.length < 2) return card(game, rows[0], String(game.id), 1);
+      return rows.flatMap(entry => card(game, entry, `${game.id}:${entry.folder}`, rows.length));
     });
+    // Folders the manager lists whose game is not in the library (an unknown or invented AppID, or none) and that have
+    // a problem: they show too, by their folder's name, so nothing the manager flags is missing here.
+    if (!bigPicture) {
+      const known = new Set(libraryMembership.getGames().map(game => game.app_id ?? game.id));
+      for (const [appId, rows] of folders) {
+        if (appId !== null && known.has(appId)) continue;
+        for (const entry of rows) {
+          // A download still going (or stopped) belongs to the downloads panel, not here.
+          if (entry.unfinished || !entry.issues?.some(issue => !NOTICE_ONLY.has(issue.code))) continue;
+          const id = appId ?? -Math.abs([...entry.folder].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 7));
+          const game = { id, app_id: appId, slug: `folder-${id}`, name: entry.name || entry.folder, genres: [], categories: [], tags: [], copies_total: 0, copies_available: 0, credit_cost_per_hour: 0 } as unknown as CatalogGame;
+          list.push(...card(game, entry, `folder:${entry.folder}`, rows.length, true));
+        }
+      }
+    }
     if (!bigPicture) return list;
     // Big picture: the games the player liked or plays the most are shown wide (bentoLayout.featuredGames).
     const featured = featuredGames(list, card => ({ liked: preferences[card.game.id] === 1, plays: card.plays ?? 0, lastPlayed: Date.parse(card.lastPlayed ?? "") || 0 }));
     return list.map(card => (featured.has(card) ? { ...card, featured: true } : card));
-  }, [games, downloads, scan.games, pill, preferences, bigPicture]);
+  }, [games, downloads, scan.games, pill, preferences, bigPicture, t]);
 
   // Columns and row height follow the grid width: three rows are as tall as one portrait; a game to install spans one
   // and a half portrait columns and its row is exactly as tall as its picture.
@@ -228,7 +251,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       const { tops, rowHeight, wideHeight, placed } = bandInputs.current;
       const margin = rowHeight * 3 + ROW_GAP * 3;
       const from = root.scrollTop - offset - margin, to = root.scrollTop - offset + root.clientHeight + margin;
-      const key = bentoInWindow(placed, tops, rowHeight, from, to, wideHeight).map(item => item.value.game.id).join(",");
+      const key = bentoInWindow(placed, tops, rowHeight, from, to, wideHeight).map(item => item.value.key).join(",");
       if (key !== lastKey) { lastKey = key; setBand({ from, to }); }
     };
     const measure = () => {
@@ -249,7 +272,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const shown = useMemo(() => {
     if (!band) return placed.slice(0, columns * 2);
     const inside = new Set(bentoInWindow(placed, tops, rowHeight, band.from, band.to, wideHeight));
-    return placed.filter(item => inside.has(item) || item.value.game.id === selectedId || item.value.game.id === menuFor?.card.game.id);
+    return placed.filter(item => inside.has(item) || item.value.game.id === selectedId || item.value.key === menuFor?.card.key);
   }, [placed, tops, rowHeight, wideHeight, band, columns, selectedId, menuFor]);
   // Cards reveal themselves in batches as they scroll into view (GSAP's official ScrollTrigger.batch demo).
   useBatchReveal(grid, ".ga-bento-slot:not([data-leaving])", shown, tops);
@@ -257,7 +280,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   // Flip only when the set of cards really changes (one added, removed or moved to another group): never when the
   // library appears (it would fight the 3D turn), on resize, on a download's progress or when a group opens or closes.
   // Measuring every card forces a layout, so it happens once per real change, not on every render.
-  const flipKey = useMemo(() => placed.map(item => `${item.value.game.id}:${item.kind}`).join(","), [placed]);
+  const flipKey = useMemo(() => placed.map(item => `${item.value.key}:${item.kind}`).join(","), [placed]);
   const lastKey = useRef<string | null>(null);
   const quiet = useRef(true);
   const [leaving, setLeaving] = useState<Array<{ card: Card; style: CSSProperties }>>([]);
@@ -274,8 +297,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     flipState.current = null;
     if (still || !grid.current || !motionOk()) return;
     // Leaving cards stay one moment to shrink in place; then the rest move to their new slots.
-    const now = new Set(placed.map(item => item.value.game.id));
-    const gone = lastPlaced.current.filter(item => !now.has(item.value.game.id));
+    const now = new Set(placed.map(item => item.value.key));
+    const gone = lastPlaced.current.filter(item => !now.has(item.value.key));
     if (gone.length) setLeaving(gone.map(item => ({ card: item.value, style: { gridColumn: gridColumn(item.kind, item.column, item.span), gridRow: `${item.row} / span ${item.rowSpan}` } })));
     if (state) Flip.from(state, { targets: grid.current.querySelectorAll(".ga-bento-slot:not([data-leaving]) > .ga-bento-card"), duration: .6, ease: "expo.inOut", absolute: true, delay: gone.length ? .25 : 0,
       onEnter: elements => gsap.fromTo(elements, { opacity: 0, scale: .85 }, { opacity: 1, scale: 1, duration: .45, ease: "power3.out" }) });
@@ -317,15 +340,15 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
           </div>
         ))}
         {shown.map(item => (
-          <div key={item.value.game.id} className="ga-bento-slot" style={{ gridColumn: gridColumn(item.kind, item.column, item.span), gridRow: `${item.row} / span ${item.rowSpan}`}}
-            onPointerEnter={() => rest(item.value.game.id)} onPointerLeave={() => leave(item.value.game.id)} onFocus={() => setDotFor(item.value.game.id)}>
-            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} />
-            <MenuDot shown={dotFor === item.value.game.id && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}
+          <div key={item.value.key} className="ga-bento-slot" style={{ gridColumn: gridColumn(item.kind, item.column, item.span), gridRow: `${item.row} / span ${item.rowSpan}`}}
+            onPointerEnter={() => rest(item.value.key)} onPointerLeave={() => leave(item.value.key)} onFocus={() => setDotFor(item.value.key)}>
+            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} onManage={onManage} />
+            <MenuDot shown={dotFor === item.value.key && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}
               onOpen={event => { const slot = (event.currentTarget as HTMLElement).closest<HTMLElement>(".ga-bento-slot"); if (slot) openMenu(item.value, slot); }} />
           </div>
         ))}
         {leaving.map(({ card, style }) => (
-          <div key={`leaving-${card.game.id}`} className="ga-bento-slot" style={style} data-leaving="true" aria-hidden="true">
+          <div key={`leaving-${card.key}`} className="ga-bento-slot" style={style} data-leaving="true" aria-hidden="true">
             <div className="ga-bento-card" data-kind={card.kind}>{card.kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={card.game} /></span> : <img className="ga-bento-landscape" src={landscape(card.game)} alt="" />}</div>
           </div>
         ))}

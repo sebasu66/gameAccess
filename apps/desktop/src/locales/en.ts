@@ -645,6 +645,7 @@ export const en: Record<keyof typeof es, string> = {
   libMisnamed: "Its folder does not carry the AppID in its name; {{file}} says it is AppID {{app_id}}. “Fix” renames and adapts it.",
   libFolderInUse: "Error renaming the folder {{folder}}: it is in use. Close any window open at that location (Explorer, a console) and try again.",
   bentoAttention: "Needs attention in the library manager",
+  bentoTwice: "This game is in {{count}} folders; this one is {{folder}}. Check it in the library manager.",
   libPlanIdentified: "Identified as AppID {{app_id}} by {{file}}",
   libPlanRename: "Rename the folder to {{folder}}",
   libPlanAdopt: "Check it like any installed game (executable and status)",

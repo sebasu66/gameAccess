@@ -643,6 +643,7 @@ export const es = {
   libMisnamed: "Su carpeta no lleva el AppID en el nombre; por {{file}} es el AppID {{app_id}}. «Corregir» la renombra y la adapta.",
   libFolderInUse: "Error renombrando la carpeta {{folder}}: está en uso. Cerrá cualquier ventana abierta en esa ubicación (Explorador, consola) y volvé a intentar.",
   bentoAttention: "Necesita atención en el administrador de biblioteca",
+  bentoTwice: "Este juego está en {{count}} carpetas; esta es {{folder}}. Revisalo en el administrador de biblioteca.",
   libPlanIdentified: "Identificado como AppID {{app_id}} por {{file}}",
   libPlanRename: "Renombrar la carpeta a {{folder}}",
   libPlanAdopt: "Revisarla como cualquier juego instalado (ejecutable y estado)",
