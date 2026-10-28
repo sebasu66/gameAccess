@@ -33,7 +33,13 @@ function Lock() {
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
    {/* The plate is turned metal: fine concentric rings (a radial gradient repeated every 2.6 units), the frame's
        brushed steel faintly over it, and the two crossed sheens a lathe-turned disc throws. */}
-   <clipPath id="gs-plate-clip"><circle r="200" /></clipPath>
+   {/* The textures are paint (patterns), not clipped or blended layers: inside the turning lock WebView2 dropped
+       clipped groups and blend modes once the turn started (Seba's recording), and the plate went flat. */}
+   <pattern id="gs-brush-light-fill" patternUnits="userSpaceOnUse" x="-200" y="-200" width="400" height="400"><image filter="url(#gs-brush-light)" href="/textures/brushed-steel.jpg" width="400" height="400" preserveAspectRatio="xMidYMid slice" /></pattern>
+   <pattern id="gs-brush-dark-fill" patternUnits="userSpaceOnUse" x="-200" y="-200" width="400" height="400"><image filter="url(#gs-brush-dark)" href="/textures/brushed-steel.jpg" width="400" height="400" preserveAspectRatio="xMidYMid slice" /></pattern>
+   {/* Seba's scratches (light on black) as white, as opaque as each scratch is light: what the screen blend gave. */}
+   <filter id="gs-scratch-light" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .46 1.54 .16 0 -.1" /></filter>
+   <pattern id="gs-scratch-fill" patternUnits="userSpaceOnUse" x="-150" y="-150" width="300" height="300"><image filter="url(#gs-scratch-light)" href="/textures/glass-scratches.jpg" width="300" height="300" preserveAspectRatio="xMidYMid slice" /></pattern>
    {/* The seat: the hole cut in the leaf that the lock fits in, closely (a thin gap round the knurled rim). Its wall is
        in shade on the top left and catches a little light on the bottom right: a shallow, precise recess. */}
    <linearGradient id="gs-seat" gradientUnits="userSpaceOnUse" x1="-160" y1="-160" x2="160" y2="160"><stop offset="0" stopColor="#030405" /><stop offset=".6" stopColor="#101316" /><stop offset="1" stopColor="#2c3338" /></linearGradient>
@@ -45,7 +51,6 @@ function Lock() {
    <linearGradient id="gs-glass-g" gradientUnits="userSpaceOnUse" x1="-120" y1="-120" x2="110" y2="120"><stop offset="0" stopColor="#e8f9f0" /><stop offset=".42" stopColor="#a0d2b4" /><stop offset="1" stopColor="#3f7a5d" /></linearGradient>
    <linearGradient id="gs-glass-a" gradientUnits="userSpaceOnUse" x1="-20" y1="-140" x2="120" y2="100"><stop offset="0" stopColor="#ffcf9a" /><stop offset=".4" stopColor="#f57a1a" /><stop offset="1" stopColor="#a8490a" /></linearGradient>
    <linearGradient id="gs-glass-sheen" gradientUnits="userSpaceOnUse" x1="-140" y1="-140" x2="60" y2="60"><stop offset="0" stopColor="#fff" stopOpacity=".5" /><stop offset=".38" stopColor="#fff" stopOpacity=".1" /><stop offset=".52" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity=".06" /></linearGradient>
-   <clipPath id="gs-letters"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></clipPath>
    {/* The cavity: the glass sits below the plate, so it is shaded all round its edge (smaller inside than at the
        rim), more on the top left where the wall hides the light, and catches a faint light on the bottom right. */}
    <filter id="gs-inset" x="-20%" y="-20%" width="140%" height="140%">
@@ -72,11 +77,10 @@ function Lock() {
    <circle className="gs-rim" r="214" />
    <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
    <circle className="gs-plate" r="200" />
-   <g className="gs-plate-metal" clipPath="url(#gs-plate-clip)">
-    {/* The brushed steel's grain as an overlay would give it (lighter where the texture is light, darker where it is
-        dark), but made of two layers that need nothing under them: a blend mode lost the plate while the lock turned. */}
-    <image className="gs-plate-brush is-light" filter="url(#gs-brush-light)" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
-    <image className="gs-plate-brush" filter="url(#gs-brush-dark)" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
+   <g className="gs-plate-metal">
+    {/* The brushed steel's grain as an overlay would give it: lighter where the texture is light, darker where dark. */}
+    <circle className="gs-plate-brush is-light" r="200" fill="url(#gs-brush-light-fill)" />
+    <circle className="gs-plate-brush" r="200" fill="url(#gs-brush-dark-fill)" />
     <circle r="200" fill="url(#gs-spun)" />
     <circle r="200" fill="url(#gs-spun-sheen)" />
     <circle r="200" fill="url(#gs-spun-sheen)" transform="rotate(90)" />
@@ -96,10 +100,10 @@ function Lock() {
     <path className="gs-glass is-a" d={EMBLEM_A} fill="url(#gs-glass-a)" />
     {/* The cavity's shading, worked out on G and A together so their meeting line shows no edge. */}
     <g className="gs-cavity" filter="url(#gs-inset)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
-    <g className="gs-glass-top" clipPath="url(#gs-letters)">
-     {/* Seba's scratch texture: light scratches on black; the screen blend makes the black transparent. */}
-     <image className="gs-scratch" href="/textures/glass-scratches.jpg" x="-150" y="-150" width="300" height="300" preserveAspectRatio="xMidYMid slice" />
-     <rect x="-160" y="-160" width="320" height="320" fill="url(#gs-glass-sheen)" />
+    <g className="gs-glass-top">
+     {/* Seba's scratch texture and the glass's sheen, painted in the letters. */}
+     <path className="gs-scratch" d={EMBLEM_G} fill="url(#gs-scratch-fill)" /><path className="gs-scratch" d={EMBLEM_A} fill="url(#gs-scratch-fill)" />
+     <path d={EMBLEM_G} fill="url(#gs-glass-sheen)" /><path d={EMBLEM_A} fill="url(#gs-glass-sheen)" />
     </g>
    </g>
   </g>

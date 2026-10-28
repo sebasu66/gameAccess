@@ -74,7 +74,7 @@
 /* Coloured glass in the cuts (SplashScreen.tsx): a little see-through, with scratches and a sheen on top. */
 .gs-glass{opacity:.94}
 .gs-cavity path{fill:#000}
-.gs-glass-top{mix-blend-mode:screen}.gs-scratch{opacity:1;filter:brightness(1.8) contrast(1.2)}
+.gs-scratch{opacity:1}
 /* The raised rim round the letters: a stroke half outside the cut, with a short shadow on the plate. */
 .gs-raise path{fill:none;stroke:url(#gs-raise);stroke-width:7;stroke-linejoin:round}.gs-raise{filter:drop-shadow(1.5px 2px 1.5px #000a)}
 /* The backlit padlock, set into the left leaf beside the lock: its outline is a dark cut, its shape glows from

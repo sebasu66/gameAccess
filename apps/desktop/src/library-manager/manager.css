@@ -104,7 +104,8 @@
 .lm-act:disabled { opacity: .4; cursor: default; }
 .lm-act.accent { color: #d79e60; }
 .lm-act.frost { color: var(--ga-frost, #a5cee9); }
-.lm-act.danger:hover:not(:disabled) { background: #a64c41; border-color: #a64c41; color: #fff; }
+.lm-act.danger { color: var(--ga-danger-hover, #d65c65); border-color: #be475066; }
+.lm-act.danger:hover:not(:disabled) { background: var(--ga-danger, #be4750); border-color: var(--ga-danger, #be4750); color: #fff; }
 .lm-act:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
 .lm-detail b { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
 .lm-detail ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
