@@ -10,7 +10,7 @@
 //! focus, at the end of a game, and before the Maximize button decides what to do).
 
 use std::sync::Mutex;
-use tauri::{Monitor, PhysicalSize, Runtime, WebviewWindow, Window};
+use tauri::{Manager, Monitor, PhysicalSize, Runtime, WebviewWindow, Window};
 
 /// What is needed from a window; both kinds of Tauri window have it (the event handler gets a `Window`, the app hands
 /// out `WebviewWindow`s).
@@ -93,6 +93,10 @@ pub fn restore(window: &impl Frame) {
     refit(window);
 }
 
+/// The window's own background (tauri.conf.json, #07090d) and the gate leaves' metal (splash-screen.css).
+const WINDOW_BACKGROUND: tauri::window::Color = tauri::window::Color(7, 9, 13, 255);
+const GATE_METAL: tauri::window::Color = tauri::window::Color(31, 36, 41, 255);
+
 /// How the window was before big picture mode, to leave it the same way.
 static BEFORE_BIG_SCREEN: Mutex<Option<Placement>> = Mutex::new(None);
 
@@ -100,7 +104,17 @@ static BEFORE_BIG_SCREEN: Mutex<Option<Placement>> = Mutex::new(None);
 /// while maximized, Windows keeps it at the work area's size and the taskbar stays on top of it. Leaving the mode puts
 /// it back as it was. Returns whether the window is fullscreen afterwards.
 #[tauri::command]
-pub fn window_set_big_screen<R: Runtime>(window: Window<R>, on: bool) -> bool {
+pub fn window_set_big_screen<R: Runtime>(app: tauri::AppHandle<R>, window: Window<R>, on: bool) -> bool {
+    // While Windows resizes the window, the part the page has not repainted yet shows the window's own background:
+    // during the change it is the gunmetal of the gate's leaves instead of near black, so no dark gap flashes; it goes
+    // back once the change is surely over.
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.set_background_color(Some(GATE_METAL));
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(2500));
+            let _ = main.set_background_color(Some(WINDOW_BACKGROUND));
+        });
+    }
     if on {
         let now = placement(&window);
         if let Ok(mut saved) = BEFORE_BIG_SCREEN.lock() { if saved.is_none() { *saved = Some(now); } }

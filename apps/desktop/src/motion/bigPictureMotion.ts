@@ -44,7 +44,21 @@ function offscreen(element: Element): { x: number; y: number } {
 const at = (move: { x: number; y: number }) => `${Math.round(move.x)}px ${Math.round(move.y)}px`;
 
 const done = (timeline: gsap.core.Timeline) => new Promise<void>(resolve => timeline.eventCallback("onComplete", () => resolve()));
-const frames = (count: number) => new Promise<void>(resolve => { const step = (left: number) => (left ? window.requestAnimationFrame(() => step(left - 1)) : resolve()); step(count); });
+/** Resolves once the window's size has not changed for 200 ms (at most 2 s). */
+function settledSize(): Promise<void> {
+  return new Promise(resolve => {
+    const started = performance.now();
+    let size = `${window.innerWidth}x${window.innerHeight}`, since = started;
+    const check = (now: number) => {
+      const current = `${window.innerWidth}x${window.innerHeight}`;
+      if (current !== size) { size = current; since = now; }
+      if (now - since >= 200 || now - started >= 2000) resolve();
+      else window.requestAnimationFrame(check);
+    };
+    window.requestAnimationFrame(check);
+  });
+}
+
 
 /** Step 1 of entering: the controls the mode hides slide off the screen. */
 export function hideForBigPicture(): Promise<void> {
@@ -99,9 +113,10 @@ export function closeGate(mode: "enter" | "leave"): Promise<void> {
 export async function openGate(mode: "enter" | "leave"): Promise<void> {
   const gate = document.querySelector<HTMLElement>(GATE);
   const card = document.querySelector<HTMLElement>(CARD);
-  // The window's new size and the grid's new columns settle behind the gate first.
-  await frames(2);
-  await new Promise(resolve => window.setTimeout(resolve, 250));
+  // The window's new size and the grid's new columns settle behind the gate first: Windows resizes the window over
+  // a few frames (more when leaving fullscreen), and opening before it is done shows the screen jumping.
+  await settledSize();
+  await new Promise(resolve => window.setTimeout(resolve, 150));
   if (!gate) return;
   const leaves = [gate.querySelector(".gs-leaf.is-left"), gate.querySelector(".gs-leaf.is-right")];
   if (!motionOk()) { gsap.set([gate, card], { autoAlpha: 0 }); gsap.set(GRID, { clearProps: "transform" }); return; }
