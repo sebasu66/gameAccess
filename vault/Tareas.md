@@ -176,3 +176,30 @@ Reemplaza al plugin Electron (`.exe` + servidor en `127.0.0.1:45000`) por una ca
 - [ ] Baja prioridad: sacar de `apps/api` lo que queda de la versión vieja (`linkvertise_access.py`, campos `credits` y `credit_cost_per_hour` de `models.py`, imports sin uso de `main.py`) si Seba confirma que Linkvertise y los créditos no vuelven.
 - [ ] Duda de Seba: el fix de idioma (.ini en ruso, etc.) se aplica una sola vez, marcado en el manifiesto de instalación; hoy corre en cada Play. ¿Confirmado?
 - [ ] Nota del matcher: la lista de palabras de versión (`all`, `with`, `win`…) se compara con "empieza con" ("allstars" cuenta). Se porta igual a Rust; corregirlo después, en plugin y Rust a la vez.
+
+
+## Tareas nuevas (Seba, 2026-10-28)
+Ordenadas a partir de las notas sueltas de Seba y de lo conversado ese día.
+
+**Errores**
+- [ ] El botón Maximizar a veces no funciona.
+- [ ] Al volver de un juego, restaurar la ventana como estaba antes de jugar (maximizada o pantalla completa). Algunos juegos cambian la resolución del monitor y la devuelven al cerrar, pero la ventana de Game Access queda chica. Vale también para Big Picture: ahí solo se ve la grilla de tarjetas, A abre el juego y al terminar vuelve a la misma pantalla, que tiene que volver a ocupar toda la pantalla.
+- [x] Quitar el logo animado de la esquina superior derecha; el logo nuevo es el de la portada (`2db1f43`, `93abc65`).
+- [x] La animación que escribe GAME / ACCESS en la columna derecha se detenía al volver de un juego o del modo de bajo consumo y no volvía; ahora retoma su ciclo (`2db1f43`). Falta confirmarlo en la app.
+
+**Ayuda contextual**
+- [ ] Reemplazar la ayuda aislada de su panel por ayuda contextual: en cada pantalla un ícono de ayuda; al mantenerlo apretado aparecen textos como tooltips sobre los botones y el propósito general de la pantalla o función. Objetivo: que se note que es fácil de usar, también para padres y chicos.
+
+**Plugins en su propia pantalla**
+- [ ] Un botón 3D más en el borde de la tablet (abajo a la derecha) que lleva a **Plugins**: la lista de plugins instalados, con los ajustes de cada uno.
+- [ ] Ahí se muestra la interfaz propia de cada plugin, que hoy no se puede ver. Por ejemplo, la del plugin de fuentes: qué fuentes importa y su buscador por nombre, que devuelve todo lo que encuentra (más ágil que la comparación con el catálogo, que a veces se equivoca o deja fuentes afuera). Hacer clic en un resultado ofrece pasarlo a Descargas e iniciar la descarga; como toda descarga, pide elegir qué juego es (AppID). La comparación automática con el catálogo sigue como está.
+- [ ] Diseño a decidir con Seba: cómo se inserta la interfaz del plugin sin darle acceso a la app (página aislada que solo puede pedir acciones permitidas, como "agregar esta descarga"). Se relaciona con PS.1 a PS.3.
+- [ ] Separar el botón principal de la ficha del plugin: el botón hace siempre lo mismo (Jugar, Instalar con Steam, Ver progreso o Ver en Steam) y las fuentes del plugin van en un panel aparte. La descarga cargada a mano ya está en el panel de Descargas (sección plegable) y se queda ahí.
+
+**Versión de pago (Patreon)**: no cambia por ahora.
+- Cola de descargas y descargas simultáneas, aceleradas o por torrent local.
+- Aceleración de torrents, instalación automática y aplicación automática del fix.
+- Lista de Seba de funciones de la app que también figuran: administrador de bibliotecas, importador de juegos locales, compresor de juegos (freeze).
+
+**Extensiones del catálogo (deseable, sin prioridad)**
+- [ ] Paneles de vidrio a los costados de la ficha, como realidad aumentada, con extras: crítica (Metacritic, que ya está en el catálogo, y OpenCritic), PCGamingWiki, guías de Steam, páginas de mods (Workshop, Nexus, ModDB) y HowLongToBeat; solo enlaces. Con la ventana chica, se muestran aparte. Mencionar Co-Optimus en la web como parte del catálogo enriquecido.
