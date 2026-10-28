@@ -31,6 +31,10 @@ function Lock() {
    {/* The plate is turned metal: fine concentric rings (a radial gradient repeated every 2.6 units), the frame's
        brushed steel faintly over it, and the two crossed sheens a lathe-turned disc throws. */}
    <clipPath id="gs-plate-clip"><circle r="200" /></clipPath>
+   {/* The seat: the hole cut in the leaf that the lock fits in, closely (a thin gap round the knurled rim). Its wall is
+       in shade on the top left and catches a little light on the bottom right: a shallow, precise recess. */}
+   <linearGradient id="gs-seat" gradientUnits="userSpaceOnUse" x1="-160" y1="-160" x2="160" y2="160"><stop offset="0" stopColor="#030405" /><stop offset=".6" stopColor="#101316" /><stop offset="1" stopColor="#2c3338" /></linearGradient>
+   <linearGradient id="gs-seat-edge" gradientUnits="userSpaceOnUse" x1="-160" y1="-160" x2="160" y2="160"><stop offset="0" stopColor="#000" stopOpacity=".7" /><stop offset="1" stopColor="#fff" stopOpacity=".12" /></linearGradient>
    <radialGradient id="gs-spun" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="2.6" spreadMethod="repeat"><stop offset="0" stopColor="#fff" stopOpacity=".05" /><stop offset=".5" stopColor="#000" stopOpacity=".09" /><stop offset="1" stopColor="#fff" stopOpacity=".05" /></radialGradient>
    <linearGradient id="gs-spun-sheen" gradientUnits="userSpaceOnUse" x1="-200" y1="-200" x2="200" y2="200"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".3" stopColor="#fff" stopOpacity=".1" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset=".72" stopColor="#fff" stopOpacity=".07" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
    {/* The letters are coloured glass set into the engraving: the G in the library's green, the A in the catalogue's
@@ -59,6 +63,8 @@ function Lock() {
    {/* The rim: a thin raised edge round the letters, lit on the top left and in shade on the bottom right. */}
    <linearGradient id="gs-raise" gradientUnits="userSpaceOnUse" x1="-110" y1="-110" x2="110" y2="110"><stop offset="0" stopColor="#9aa4ab" /><stop offset=".5" stopColor="#4a5359" /><stop offset="1" stopColor="#0c0f11" /></linearGradient>
   </defs>
+  {/* Fixed to the leaf: it does not turn with the lock. */}
+  <circle className="gs-seat" r="217" />
   <g className="gs-lock-turn">
    <circle className="gs-rim" r="214" />
    <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>

@@ -2,7 +2,7 @@
    sheen) closes the screen inside the frame. A round lock fixed to the right leaf lies over the seam, the maker's
    emblem engraved in it; it turns a quarter to unlock and draws in its bolts; then the leaves open like a gate and the
    lock leaves with its own. */
-.gameaccess-splash{position:fixed;inset:0;z-index:510;pointer-events:none;overflow:hidden;background:transparent;--gs-lock:min(54vmin,470px)}
+.gameaccess-splash{position:fixed;inset:0;z-index:510;pointer-events:none;overflow:hidden;background:transparent;--gs-lock:min(34vh,48vw,420px)}
 .gameaccess-splash.is-landing{animation:ga-splash-away .26s ease both}
 @keyframes ga-splash-away{from{opacity:1}to{opacity:0}}
 .gs-leaf{position:absolute;top:0;bottom:0;width:50%;overflow:hidden;
@@ -58,8 +58,9 @@
 /* The lock lies over the seam, fixed to the right leaf (which is above the left one and lets it show past its edge). */
 .gs-leaf.is-right{overflow:visible;z-index:1}
 .gs-leaf-lock{position:absolute;z-index:2;top:50%;left:calc(var(--gs-lock)/-2);width:var(--gs-lock);height:var(--gs-lock);transform:translateY(-50%);
- filter:drop-shadow(0 10px 18px #000b) drop-shadow(0 2px 3px #000c)}
+ filter:drop-shadow(0 1px 1px #0009)}
 .gs-lock{width:100%;height:100%;overflow:visible}
+.gs-seat{fill:url(#gs-seat);stroke:url(#gs-seat-edge);stroke-width:1.2}
 .gs-rim{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6;stroke-width:2}
 .gs-knurl line{stroke:#000;stroke-opacity:.45;stroke-width:2}
 .gs-plate{fill:url(#gs-plate);stroke:#ffffff26;stroke-width:1.5}
