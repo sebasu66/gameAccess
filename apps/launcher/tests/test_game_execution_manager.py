@@ -81,8 +81,10 @@ def test_repair_action_marks_ready_or_error_and_writes_the_log(tmp_path):
     assert not failed["ok"] and storage.status(1, "My Game")["state"] == "ERROR"
     folder = storage.folder(1, "My Game")
     (folder / "MyGame.exe").write_bytes(b"g")
+    # A download that stopped earlier (a 403) left a point to go on from; the game unpacked by hand makes it moot.
+    storage.set_resume(1, "download", source="https://example.invalid/my-game")
     fixed = runner.run("game-repair", 1, "My Game")
-    assert fixed["ok"] and storage.status(1, "My Game")["state"] == "ready"
+    assert fixed["ok"] and storage.status(1, "My Game")["state"] == "ready" and storage.resume_point(1) == {}
     folder = storage.folder(1, "My Game")
     assert "| ERROR |" in journal.read(folder) and "reparación | listo" in journal.read(folder)
     assert runner.run("game-analyze", 1, "My Game")["analysis"]["ready"]

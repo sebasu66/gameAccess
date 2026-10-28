@@ -195,7 +195,12 @@ class DigitalProcessRunner:
                 manager = gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger)
                 if action == "game-analyze":
                     return {**result, "ok": True, "analysis": manager.analyze(app_id, name)}
-                return {**result, **manager.repair(app_id, name)}
+                repaired = manager.repair(app_id, name)
+                if repaired.get("ok"):
+                    # Ready as it is (a copy unpacked by hand, say): a download that stopped earlier has nothing left
+                    # to go on with, or the game would still show as an unfinished download.
+                    self.storage.clear_resume(app_id)
+                return {**result, **repaired}
             if action == "install-setup":
                 from game_execution_manager.setup_installer import install_if_needed
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
