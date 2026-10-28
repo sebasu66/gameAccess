@@ -81,6 +81,7 @@ function ticksPath(m: FrameMetrics): string {
 
 export default function DeviceFrame() {
   const fill = useRef<SVGPathElement>(null);
+  const shadow = useRef<SVGPathElement>(null);
   const sheen = useRef<SVGPathElement>(null);
   const steel = useRef<SVGPathElement>(null);
   const lipDark = useRef<SVGPathElement>(null);
@@ -107,7 +108,7 @@ export default function DeviceFrame() {
       const m = metrics();
       for (const svg of layers.current) svg.setAttribute("viewBox", `0 0 ${m.width} ${m.height}`);
       const body = frameFillPath(m, tabs.current), edge = frameInnerPath(m, tabs.current);
-      for (const path of [fill, steel, sheen]) path.current?.setAttribute("d", body);
+      for (const path of [fill, steel, sheen, shadow]) path.current?.setAttribute("d", body);
       for (const path of [lipDark, lipLight]) path.current?.setAttribute("d", edge);
       outer.current?.setAttribute("d", frameOuterPath(m));
       inner.current?.setAttribute("d", edge);
@@ -167,6 +168,14 @@ export default function DeviceFrame() {
   const keep = (svg: SVGSVGElement | null) => { if (svg && !layers.current.includes(svg)) layers.current.push(svg); };
   return (
     <>
+      {/* The frame's shadow on the screen, on its own layer just under the gate's leaves (z-index 510): the leaves are
+          part of the frame, at its level, so the shadow falls on the screen but never on them. */}
+      {createPortal(
+        <svg ref={keep} className="ga-frame-layer ga-frame-shadow" aria-hidden="true">
+          <path ref={shadow} fillRule="evenodd" fill="#1b2024" />
+        </svg>,
+        document.body,
+      )}
       {createPortal(
         <svg ref={keep} className="ga-frame-layer ga-frame-back" aria-hidden="true">
           <defs>

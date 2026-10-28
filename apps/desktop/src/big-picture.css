@@ -58,3 +58,6 @@ html body.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet)
 .ga-big-gate .gs-leaf.is-left { transform: translateX(-101%); }
 .ga-big-gate .gs-leaf.is-right { transform: translateX(101%); }
 
+/* Its padlock is lit, as on the opening's closed cover (the still lock would show it already gone out). */
+.ga-big-gate.gs-gate.is-still .gs-padlock-body { fill: #f2f6fb; filter: drop-shadow(0 0 4px #dce9ffcc) drop-shadow(0 0 12px #a9c8ff66); }
+.ga-big-gate.gs-gate.is-still .gs-padlock-shackle { stroke: #f2f6fb; filter: drop-shadow(0 0 4px #dce9ffcc); transform: none; }

@@ -6,12 +6,15 @@
 .ga-frame-layer { position: fixed; left: 0; top: var(--ga-frame-offset, 0px); width: 100vw; height: calc(100vh - var(--ga-frame-offset, 0px)); pointer-events: none; overflow: visible; }
 /* The frame is the top of everything (above the detail's dark backdrop, the central dialog and the notice): it is the
    device, not the screen. The controls mounted on it sit above it, so they show over a backdrop too.
-   The metal body: above the screen, below the controls mounted on it. Its shadow falls onto the screen, so the screen
-   reads as recessed under a bezel with some thickness. */
-.ga-frame-back { z-index: 2147483600; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
+   The metal body: above the screen, below the controls mounted on it. */
+.ga-frame-back { z-index: 2147483600; }
+/* Its shadow falls onto the screen, so the screen reads as recessed under a bezel with some thickness. It is a layer of
+   its own just under the opening's gate (z-index 510; splash-screen.css): the gate's leaves are part of the frame. */
+.ga-frame-shadow { z-index: 509; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
 /* The brushed-steel texture over the gunmetal, on the band and its tabs only (the frame's own shape). */
 .ga-frame-steel { mix-blend-mode: overlay; opacity: .6; }
-.ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: .7; stroke-width: 3; }
+/* A black line where the metal meets the screen (and the gate's leaves, which have no shadow on them). */
+.ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: 1; stroke-width: 3; }
 .ga-frame-lip-light { fill: none; stroke: #ffffff; stroke-opacity: .24; stroke-width: 1; transform: translate(-.5px, -.5px); }
 /* Engraved lines and accents on the metal, never taking the pointer. */
 .ga-frame-lines { z-index: 2147483601; }
