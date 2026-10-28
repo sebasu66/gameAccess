@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -20,6 +20,7 @@ import { digitalDownloadService } from "../catalog/DigitalDownloadService";
 import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
+import DigitalGameOptions from "../DigitalGameOptions";
 import { cancelFreezeJob, dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
@@ -200,7 +201,12 @@ type RowProps = {
   findCatalogGame: (game: LibraryGame) => CatalogGame | undefined;
   onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
+  retry: (id: number) => void; configure: (game: LibraryGame) => void;
 };
+
+/** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game whose
+ *  folder Game Access runs (not Steam's, nor one whose files sit in the deep-freeze archive). */
+const configurable = (game: LibraryGame) => game.app_id != null && kindOf(game) !== "steam" && !game.partial && game.frozen !== "deep";
 
 /** The source (DD, Steam, folder) and, next to it, the provider of the download or the Steam account that owns it. */
 function KindCell({ kind, source }: { kind: Kind; source: string }) {
@@ -215,7 +221,7 @@ function StatusCell({ status }: { status: Status }) {
 
 /** A row of the grid: picture, name, state, folder, size, source, plays, days without playing and the row's actions.
  *  What a game still needs, or a problem it has, is in its log (the expanded row). */
-function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing }: RowProps) {
+function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
   const id = game.app_id;
   const key = row.key;
   const open = expanded === id;
@@ -262,16 +268,21 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><PhPlay /></IconAction>}
           {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><ArrowCounterClockwise /></IconAction> : null}
           <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash /></IconAction>
+          {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
           <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction>
         </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction> : <>
           {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><DownloadSimple /></IconAction> : null}
-          {needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
+          {/* A folder that ended in ERROR (an installer that failed, say) is processed again straight away: unpacked,
+              installed and checked, as Fix does, after any change made in "Language and launch". */}
+          {game.state === "ERROR" && needsFix(game) && id != null ? <IconAction label={c.retryProcess} tone="accent" disabled={busy} onClick={() => retry(id)}><ArrowClockwise /></IconAction>
+            : needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
           {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><PhPlay /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
           {!game.frozen && !game.linked && game.installed && id != null ? <>
             <IconAction label={c.freeze} tone="frost" disabled={busy} onClick={() => setThawing(game, "freeze")}><PhSnowflake /></IconAction>
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
+          {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
@@ -359,6 +370,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
+  const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
   const importSteam = async () => {
     setBusy(true);
@@ -438,7 +450,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(freezing)), [pending, importOpen, freezing]);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(freezing) || Boolean(configuring)), [pending, importOpen, freezing, configuring]);
   useEffect(() => {
     if (embedded) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
@@ -456,7 +468,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
-  const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }), focusId: focusAppId ?? null };
+  const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }),
+    retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -509,6 +522,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       </div>
 
       {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
+      {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} onClose={() => setConfiguring(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
     </TooltipProvider>
