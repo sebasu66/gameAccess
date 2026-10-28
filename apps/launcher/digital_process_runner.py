@@ -184,6 +184,10 @@ class DigitalProcessRunner:
             if action == "game-log":
                 # The game's own steps and, when its installer ran, the end of that installer's log (why it stopped).
                 from game_execution_manager.setup_installer import LOG_FILE
+                if not folder.is_dir():
+                    # A folder installed by hand, not yet named with its AppID ("Fix" renames it): its own log.
+                    folder = GameLibraryManager(self.storage).identified_folder(app_id) or folder
+                    result["folder"] = str(folder)
                 installer = folder / LOG_FILE
                 tail = installer.read_text(encoding="utf-8", errors="replace").splitlines()[-40:] if installer.is_file() else []
                 return {**result, "ok": True, "log": journal.read(folder), "installer_log": "\n".join(tail)}

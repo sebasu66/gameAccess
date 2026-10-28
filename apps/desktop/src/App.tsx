@@ -270,10 +270,12 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
           ...digitalDownloadService.getDownloads().map(entry => entry.game),
         ]);
-        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows.
+        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows,
+        // including a folder it identified that still lacks its AppID in the name (shown with an alert until fixed).
+        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder).map(entry => entry.app_id));
         if (!cancelled) for (const game of games) {
           const id = game.app_id ?? game.id;
-          if (result.statuses?.[id] && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+          if ((result.statuses?.[id] || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
         }
         if (!cancelled) setDownloads(current => {
           // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).

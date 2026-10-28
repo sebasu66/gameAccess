@@ -233,8 +233,13 @@ def test_fixing_a_folder_open_in_another_program_says_so_and_notes_it_in_the_gam
     with patch.object(Path, "rename", side_effect=in_use):
         result = lib.batch("adopt", [690790])[0]
     assert not result["ok"] and "libFolderInUse" in result["error"] and "Delta Rally 2 0" in result["error"]
-    assert "abierta en otro programa" in journal.read(manual)
+    log = journal.read(manual)
+    assert "renombrando la carpeta a 690790-" in log and "error renombrando la carpeta: está en uso" in log
+    assert log.count("está en uso") == 1                       # noted once, by the step that failed
     assert manual.is_dir()
+    # The library manager shows that log although the folder does not carry the AppID yet.
+    shown = DigitalProcessRunner(storage).run("game-log", 690790, "DiRT Rally 2.0", "")
+    assert shown["folder"] == str(manual) and "está en uso" in shown["log"]
 
 
 def test_a_folder_whose_appid_another_game_already_has_is_not_renamed(tmp_path):

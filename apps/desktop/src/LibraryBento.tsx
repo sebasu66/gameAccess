@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import RenameGameDialog from "./RenameGameDialog";
-import { ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
+import { AlertTriangle, ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
 import { useBatchReveal } from "./motion/batchReveal";
 import { bigPictureActive, useBigPicture } from "./bigPicture";
@@ -20,6 +20,9 @@ import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
 import "./library-bento.css";
 
+/** Library manager issues that are only notices (an older folder name, no history yet, a backup taking space): the
+ *  game works, so its card carries no alert. Every other issue does (game_importer/importer.py, manager.py). */
+const NOTICE_ONLY = new Set(["no_status", "no_log", "obsolete_backup"]);
 // Row gaps leave room for the game name under each card.
 const ROW_GAP = 44;
 /** Steam's landscape picture (header.jpg, 460 × 215): games to install show it whole, never cropped or stretched. */
@@ -48,7 +51,7 @@ interface Props {
   infoTarget?: HTMLElement | null;
 }
 
-interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus; steamOwner?: LibraryGame["steam_owner"]; /** Big picture: a favourite or much played game, shown wide. */ featured?: boolean; plays?: number; lastPlayed?: string }
+interface Card { game: CatalogGame; kind: BentoKind; frozen?: LibraryGame["frozen"]; status?: ManagedDownloadStatus; steamOwner?: LibraryGame["steam_owner"]; /** Big picture: a favourite or much played game, shown wide. */ featured?: boolean; plays?: number; lastPlayed?: string; /** What is wrong with its folder (the library manager's issue): the card carries an alert. */ attention?: string }
 
 // The groups are accordions: only the installed games start open. What the player opens or closes is remembered here.
 const COLLAPSED_KEY = "gameaccess:library-collapsed";
@@ -78,13 +81,14 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
       data-frozen={frozen || undefined}
       data-library-game-id={game.id}
       aria-current={selected ? "true" : undefined}
-      aria-label={`${game.name}${kind === "ready" ? t("cardAriaReady") : ""}${frozen ? ` · ${t(frozen === "deep" ? "bentoDeepFrozen" : "bentoFrozen")}` : ""}`}
+      aria-label={`${game.name}${kind === "ready" && !card.attention ? t("cardAriaReady") : ""}${frozen ? ` · ${t(frozen === "deep" ? "bentoDeepFrozen" : "bentoFrozen")}` : ""}${card.attention ? ` · ${t("bentoAttention")}: ${card.attention}` : ""}`}
       onFocus={() => onSelect(index, false)}
       onClick={() => onSelect(index)}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
       {card.featured ? <img className="ga-bento-feature" src={landscape(game)} alt="" loading="lazy" />
         : kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
+      {card.attention ? <span className="ga-bento-alert" title={`${t("bentoAttention")}: ${card.attention}`} aria-hidden="true"><AlertTriangle size={15} /></span> : null}
       {frozen && kind !== "deep" ? <span className="ga-bento-frost" title={t("bentoFrozen")} aria-hidden="true"><Snowflake size={15} /></span> : null}
       {kind === "deep" ? <span className="ga-bento-ice" aria-hidden="true"><Snowflake size={20} /><span>{t("bentoIce")}</span></span> : null}
       <span className="ga-bento-name"><span>{game.name}</span>{kind === "pending" ? <Download size={15} aria-hidden="true" /> : kind === "deep" ? <Snowflake size={15} aria-hidden="true" /> : null}</span>
@@ -153,10 +157,15 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       const status = (game.app_id ? downloads[game.app_id] : undefined) ?? downloads[game.id];
       const state = gameStateManager.resolve(status);
       const entry = game.app_id ? entries.get(game.app_id) : undefined;
-      const installed = state.installed || state.prepared || Boolean(entry?.installed);
+      // A folder with a problem the library manager reports (misnamed, a failed install...) shows here too, with an
+      // alert, so the library and the manager agree. A folder installed by hand counts as installed.
+      const problem = entry?.folder && !entry.unfinished ? entry.issues?.find(issue => !NOTICE_ONLY.has(issue.code)) : undefined;
+      const attention = problem?.message;
+      const installed = state.installed || state.prepared || Boolean(entry?.installed) || Boolean(entry?.misnamed);
       const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : "pending";
-      if (bigPicture ? kind !== "ready" : pill !== "all" && kind !== pill) return [];
-      return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined, plays: entry?.plays, lastPlayed: entry?.last_played }];
+      // Big picture shows only what can be played.
+      if (bigPicture ? kind !== "ready" || attention : pill !== "all" && kind !== pill) return [];
+      return [{ game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined, plays: entry?.plays, lastPlayed: entry?.last_played, attention }];
     });
     if (!bigPicture) return list;
     // Big picture: the games the player liked or plays the most are shown wide (bentoLayout.featuredGames).

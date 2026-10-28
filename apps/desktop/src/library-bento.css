@@ -95,3 +95,7 @@
    the card; the name stays under it, as on every card. */
 .ga-bento-feature { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
 .ga-bento-card[data-featured] .ga-bento-name { font-size: 15px; }
+
+/* A game whose folder has a problem (the library manager's issue): an alert in the top left corner, its text on hover.
+   The card stays where it is, so the library and the manager show the same games. */
+.ga-bento-alert { position: absolute; top: 10px; left: 10px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #ffcf5a; background: #241a06d9; box-shadow: 0 0 0 1px #ffcf5a77, 0 0 14px #ffcf5a44; pointer-events: auto; }

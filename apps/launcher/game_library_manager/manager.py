@@ -79,9 +79,14 @@ def on_disk_bytes(game: dict) -> int:
 IN_USE_ERRORS = {5, 32}
 
 
+def in_use(error: BaseException) -> bool:
+    """Windows refused because another program has the file or folder open."""
+    return isinstance(error, OSError) and getattr(error, "winerror", None) in IN_USE_ERRORS
+
+
 def _in_use(error: BaseException) -> Path | None:
     """The folder an action could not rename or move because another program has it open, or None."""
-    if not isinstance(error, OSError) or getattr(error, "winerror", None) not in IN_USE_ERRORS or not error.filename:
+    if not in_use(error) or not error.filename:
         return None
     folder = Path(error.filename)
     return folder if folder.is_dir() else None
@@ -190,11 +195,35 @@ class GameLibraryManager:
     def _rename_identified(self, app_id: int, folder: Path, name: str) -> None:
         """Give an identified folder its AppID in the name (<AppID>-<game>); adopting it then sets its status."""
         target = folder.parent / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        # Every step goes to the folder's own log, which the library manager shows, so the player sees what happened.
+        journal.note(folder, "corregir", f"identificado como AppID {app_id} ({name}); renombrando la carpeta a {target.name}")
         if target.exists():
+            journal.note(folder, "error", f"error renombrando la carpeta: ya existe {target.name}")
             raise ValueError(ui("relocTaken", folder=str(folder.parent)))
-        folder.rename(target)
+        try:
+            folder.rename(target)
+        except OSError as error:
+            if in_use(error):
+                journal.note(folder, "error", "error renombrando la carpeta: está en uso. Cerrá cualquier ventana abierta en esa "
+                             "ubicación (Explorador, consola) y volvé a intentar.")
+            else:
+                journal.note(folder, "error", f"error renombrando la carpeta: {error}")
+            error.journaled = True
+            raise
         journal.note(target, "importado", f"identificado como AppID {app_id}; carpeta renombrada desde {folder.name}")
         self.log.info("AppID %s: misnamed folder %s renamed to %s", app_id, folder.name, target.name)
+
+    def identified_folder(self, app_id: int) -> Path | None:
+        """The folder, still without its AppID in the name, that declares `app_id` (a misnamed one), or None."""
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in root.iterdir():
+                if folder.is_dir() and split_folder_name(folder.name)[0] is None:
+                    found = self._identify(folder)
+                    if found and found[0] == int(app_id):
+                        return folder
+        return None
 
     def _steam_rows(self, linked_ids: set[int]) -> tuple[dict[int, dict], list[dict]]:
         """The owner of every Steam game, and a row for each owned Steam game that is not installed: Steam installs it."""
@@ -550,7 +579,8 @@ class GameLibraryManager:
                 if folder:
                     # Windows will not rename or move a folder open in Explorer (or a console standing in it): say so
                     # plainly, and in the game's own log too, where the player looks first.
-                    journal.note(folder, "error", f"{action}: la carpeta está abierta en otro programa (WinError {getattr(error, 'winerror', '')})")
+                    if not getattr(error, "journaled", False):
+                        journal.note(folder, "error", f"{action}: la carpeta está en uso. Cerrá cualquier ventana abierta en esa ubicación (Explorador, consola) y volvé a intentar.")
                     results.append({"app_id": app_id, "ok": False, "error": ui("libFolderInUse", folder=str(folder))})
                 else:
                     results.append({"app_id": app_id, "ok": False, "error": str(error)})
