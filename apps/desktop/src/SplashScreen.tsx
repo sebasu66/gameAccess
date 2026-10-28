@@ -25,6 +25,9 @@ const BRAND = "GAME ACCESS";
 function Lock() {
  return <svg className="gs-lock" viewBox="-230 -230 460 460" aria-hidden="true">
   <defs>
+   {/* The texture's light half as white and its dark half as black, each as transparent as the texture is mid grey. */}
+   <filter id="gs-brush-light" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .43 1.43 .14 0 -1" /></filter>
+   <filter id="gs-brush-dark" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.43 -1.43 -.14 0 1" /></filter>
    <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
@@ -70,7 +73,10 @@ function Lock() {
    <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
    <circle className="gs-plate" r="200" />
    <g className="gs-plate-metal" clipPath="url(#gs-plate-clip)">
-    <image className="gs-plate-brush" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
+    {/* The brushed steel's grain as an overlay would give it (lighter where the texture is light, darker where it is
+        dark), but made of two layers that need nothing under them: a blend mode lost the plate while the lock turned. */}
+    <image className="gs-plate-brush is-light" filter="url(#gs-brush-light)" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
+    <image className="gs-plate-brush" filter="url(#gs-brush-dark)" href="/textures/brushed-steel.jpg" x="-200" y="-200" width="400" height="400" preserveAspectRatio="xMidYMid slice" />
     <circle r="200" fill="url(#gs-spun)" />
     <circle r="200" fill="url(#gs-spun-sheen)" />
     <circle r="200" fill="url(#gs-spun-sheen)" transform="rotate(90)" />

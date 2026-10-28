@@ -64,8 +64,9 @@
 .gs-rim{fill:url(#gs-rim);stroke:#000;stroke-opacity:.6;stroke-width:2}
 .gs-knurl line{stroke:#000;stroke-opacity:.45;stroke-width:2}
 .gs-plate{fill:url(#gs-plate);stroke:#ffffff26;stroke-width:1.5}
-/* Turned metal over the plate (SplashScreen.tsx): the brushed steel only adds grain, through an overlay blend. */
-.gs-plate-brush{mix-blend-mode:overlay;opacity:.2}
+/* Turned metal over the plate (SplashScreen.tsx): the brushed steel only adds grain, as light and dark layers (no
+   blend mode: the browser lost it while the lock turned and the gate opened). */
+.gs-plate-brush{opacity:.2}.gs-plate-brush.is-light{opacity:.06}
 .gs-groove{fill:none;stroke:#000;stroke-opacity:.5;stroke-width:2;filter:drop-shadow(1px 1px 0 #ffffff1c)}
 .gs-brand{font:700 15px/1 Bahnschrift,"Segoe UI",sans-serif;letter-spacing:.42em;fill:#07090b;fill-opacity:.85;text-anchor:middle}.gs-brand.is-lip{fill:#fff;fill-opacity:.16}
 .gs-lip path{fill:#ffffff42}
