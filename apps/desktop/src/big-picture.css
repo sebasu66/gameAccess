@@ -8,7 +8,9 @@ body.ga-big-screen .library-catalog-tabs,
 body.ga-big-screen .ga-library-pills,
 body.ga-big-screen .ga-footer-left,
 body.ga-big-screen .ga-dock > :not(.ga-big-screen-toggle),
-body.ga-big-screen .ga-bento-menu { display: none !important; }
+body.ga-big-screen .ga-bento-menu,
+body.ga-big-screen .ga-view-rail,
+body.ga-big-screen .ga-brand-wall { display: none !important; }
 
 /* The label sits where the old footer bar was, at the bottom centre between the bezel's tabs; the grid ends above it. */
 html body.ga-device-frame.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 64px !important; }
@@ -38,7 +40,8 @@ body.ga-big-screen .ga-bento-card:focus-visible, body.ga-big-screen .ga-bento-ca
 .ga-big-picture-label .ga-pad-key svg { color: inherit; }
 
 /* Entering the mode (BigPictureIntro.tsx): a card in the middle of the screen over a dimmed library. */
-.ga-big-intro { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; pointer-events: none; background: radial-gradient(ellipse at center, #07090dcc, #07090df2 70%); }
+/* Hidden until the change runs; GSAP shows it (autoAlpha). Under the gate (z-index 510). */
+.ga-big-intro { position: fixed; inset: 0; z-index: 505; display: grid; place-items: center; pointer-events: none; visibility: hidden; opacity: 0; background: radial-gradient(ellipse at center, #07090de0, #07090dfa 70%); }
 .ga-big-intro-card { display: grid; justify-items: center; gap: 10px; max-width: min(760px, calc(100vw - 48px)); padding: 44px 56px; text-align: center;
   border-radius: 14px; border: 1px solid #d79e6080; background: linear-gradient(150deg, #2a1d14e6, #121518f2 60%); box-shadow: 0 30px 80px #000c, inset 0 1px 0 #ffffff1f; }
 .ga-big-intro-icon { color: var(--ga-orange); filter: drop-shadow(0 0 18px #ff6a0055); }
@@ -49,5 +52,9 @@ body.ga-big-screen .ga-bento-card:focus-visible, body.ga-big-screen .ga-bento-ca
   background: #ffffff0d; border: 1px solid #ffffff24; color: var(--ga-white); font: 700 16px Manrope, sans-serif; }
 
 /* The whole width for the games: no big words at the sides and only a small margin, so more covers fit. */
-body.ga-big-screen .ga-view-rail, body.ga-big-screen .ga-brand-wall { display: none !important; }
 html body.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: clamp(16px, 2vw, 40px) !important; }
+/* The gate of the change (BigPictureIntro.tsx): hidden and open until it runs; above the card, below nothing. */
+.ga-big-gate { visibility: hidden; }
+.ga-big-gate .gs-leaf.is-left { transform: translateX(-101%); }
+.ga-big-gate .gs-leaf.is-right { transform: translateX(101%); }
+

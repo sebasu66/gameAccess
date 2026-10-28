@@ -23,7 +23,7 @@ import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
 import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
-import { hideForBigPicture, labelOut, showAfterBigPicture } from "./motion/bigPictureMotion";
+import { hideForBigPicture, labelOut, showAfterBigPicture, closeGate, openGate } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
 import { usePluginReady } from "./usePluginReady";
 import { withoutSourceFilters } from "./librarySearch";
@@ -149,24 +149,27 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       return;
     }
     bigScreenChanging.current = true;
+    // One step after the other (motion/bigPictureMotion.ts): the controls slide off, the opening's gate closes while the
+    // window and the grid change behind it, then opens on the mode. Leaving runs the same way back.
     if (next) {
       closeAllPanels();
       setDetailMenu(null);
       setDetailOpen(false);
-      // The controls the mode hides slide away first; then the library shows with only its ready games.
       await hideForBigPicture();
-      setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
     } else await labelOut();
+    await closeGate(next ? "enter" : "leave");
+    if (next) setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
     setBigPictureActive(next);
     setBigScreen(next);
-    if (!next) showAfterBigPicture();
-    bigScreenChanging.current = false;
     try {
       // The whole screen, taskbar included; leaving puts the window back as it was (window_fit.rs).
       if ("__TAURI_INTERNALS__" in window) await invoke("window_set_big_screen", { on: next });
       else if (next) await document.documentElement.requestFullscreen?.();
       else if (document.fullscreenElement) await document.exitFullscreen();
     } catch { /* The large, controller-friendly layout still works windowed. */ }
+    await openGate(next ? "enter" : "leave");
+    if (!next) await showAfterBigPicture();
+    bigScreenChanging.current = false;
   };
   useEffect(() => {
     document.body.classList.toggle("ga-big-screen", bigScreen);

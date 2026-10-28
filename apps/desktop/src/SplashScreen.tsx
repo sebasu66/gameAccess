@@ -58,7 +58,7 @@ function Padlock() {
 
 /** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
  *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
-function Leaf({ side }: { side: "left" | "right" }) {
+export function Leaf({ side }: { side: "left" | "right" }) {
  return <div className={`gs-leaf is-${side}`}>
   {/* Its frame: an engraved border all round, and a heavy bevelled edge where it meets the other leaf. */}
   <i className="gs-frame" /><i className="gs-edge" />

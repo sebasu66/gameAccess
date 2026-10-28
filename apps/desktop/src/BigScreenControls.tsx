@@ -89,7 +89,7 @@ export default function BigScreenControls(props: Props) {
   const toggle = <GaIconButton className="ga-big-screen-toggle" icon={props.enabled ? <Minimize size={20} aria-hidden="true" /> : <Maximize size={20} aria-hidden="true" />} label={props.enabled ? t("bigScreenExit") : t("bigScreenEnter")} title={props.enabled ? t("bigScreenExitHint") : t("bigScreenEnterHint")} pressed={props.enabled} onClick={props.onToggle} />;
   return <>
     {props.footerTarget ? createPortal(toggle, props.footerTarget.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? props.footerTarget.closest(".catalog-bottom-actions") ?? props.footerTarget) : toggle}
-    <BigPictureIntro active={props.enabled} />
+    <BigPictureIntro />
     {/* The controller's legend, always on screen in the mode: what each button does, leaving included. */}
     {props.enabled ? <p ref={label} className="ga-big-picture-label" role="status"><Gamepad2 size={20} aria-hidden="true" /><strong>{t("bigPictureTitle")}</strong>
       <span className="ga-pad-legend"><span className="ga-pad-key is-a">A</span>{t("bigPicturePlay")}</span>
