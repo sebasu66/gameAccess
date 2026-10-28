@@ -19,7 +19,7 @@ Publicada en here.now (`deploy/here-now/publish_site.py`, fuente en `deploy/webs
 | Catálogo de juegos enriquecido | Existe |
 | Editor de filtros intuitivo y simple | Existe |
 | Filtro de contenido para adultos | Existe |
-| Autosugerencia de juegos según preferencias | A confirmar: hoy hay orden por popularidad; "me gusta / no me gusta" figura como pendiente en [[Tareas]] |
+| Autosugerencia de juegos según preferencias | Existe, sin probar de punta a punta: botón ✨ "orden personalizado" junto al orden del catálogo (`CatalogFilterToolbar.tsx`, `personalOrder.ts`, `tasteProfile.ts`). Aprende de los pulgares arriba/abajo (géneros, etiquetas, categorías, desarrolladores); se habilita con al menos 3 juegos en cada lado y 75 % de acierto, y entonces ordena primero lo que te va a gustar y esconde lo que probablemente no |
 | Diseño moderno, funcional y simple de usar | — |
 | Gestor de biblioteca | Existe (administrador de biblioteca) |
 | Importador de juegos | Existe |
@@ -30,6 +30,10 @@ Publicada en here.now (`deploy/here-now/publish_site.py`, fuente en `deploy/webs
 | Modo Big Picture (pantalla grande con mando) | Existe |
 | Modo Freeze: archivador, compresor de juegos sin uso | Existe (`game_library_manager/freezer.py`) |
 | Extensible mediante plugins | Existe |
+
+**Probar antes de grabar** (Seba, 2026-10-28: implementadas pero no probadas del todo). La grabación sirve también de prueba: lo que falle se arregla antes de cortar el video.
+- Pausa y reanudación de descargas, sobre todo las cargadas a mano.
+- Orden personalizado: dar pulgares hasta que se habilite el botón ✨ y ver que el orden cambie con sentido.
 
 **En desarrollo** (se muestran como "próximamente"):
 - Múltiples usuarios.
