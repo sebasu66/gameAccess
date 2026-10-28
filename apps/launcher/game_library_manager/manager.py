@@ -336,11 +336,11 @@ class GameLibraryManager:
     def import_drives(self) -> list[dict]:
         return GameScanner.drives()
 
-    def import_scan(self, drives: list[str], progress=lambda text: None, folders: list[str] = ()) -> list[dict]:
+    def import_scan(self, drives: list[str], progress=lambda text: None, folders: list[str] = (), report=None) -> list[dict]:
         """Games found on the chosen disks and in the folders the player added that are not in the library yet."""
         known = [g["app_id"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
         exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
-        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives, list(folders))
+        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress, report=report).scan(drives, list(folders))
 
     def relocate_plan(self, target: str) -> dict:
         from .relocate import LibraryRelocation

@@ -101,6 +101,25 @@ pub(crate) async fn freeze_signal(app_id: u32, signal: String) -> Result<(), Str
     }
 }
 
+/// The import scan as it goes (game_scanner/live.py): the folder being read and the games found so far, written by the
+/// launcher to `.cache/import_scan/progress.json`; `None` before the first write. Read a few times a second.
+#[tauri::command]
+pub(crate) async fn import_scan_progress() -> Result<Option<serde_json::Value>, String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let path = launcher_data_dir(&launcher).join(".cache").join("import_scan").join("progress.json");
+    Ok(std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()))
+}
+
+/// The player's "Stop" for the import scan: a `cancel` file next to its progress; the scan ends at the next folder
+/// and still returns what it found.
+#[tauri::command]
+pub(crate) async fn import_scan_stop() -> Result<(), String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let folder = launcher_data_dir(&launcher).join(".cache").join("import_scan");
+    std::fs::create_dir_all(&folder).map_err(|err| err.to_string())?;
+    std::fs::write(folder.join("cancel"), b"").map_err(|err| err.to_string())
+}
+
 // Downloads are started, paused, resumed and cancelled by the launcher's Download Manager (download_queue.rs).
 
 #[tauri::command]

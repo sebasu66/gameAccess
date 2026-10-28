@@ -146,6 +146,8 @@ fn main() {
             digital_commands::run_digital_process,
             digital_commands::freeze_progress,
             digital_commands::freeze_signal,
+            digital_commands::import_scan_progress,
+            digital_commands::import_scan_stop,
             digital_commands::query_digital_options
         ])
         .run(tauri::generate_context!())

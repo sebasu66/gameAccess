@@ -151,6 +151,18 @@ export async function freezeProgress(appId: number): Promise<FreezeProgress | nu
 }
 
 /** Tell the freeze going on to stop ("cancel", that game's) or to wait ("pause" / "resume", any game's). */
+/** The import scan as it goes (game_scanner/live.py): the folder being read and the games found so far. */
+export interface ImportScanProgress { folder: string; folders: number; found: Array<{ name: string; path: string; size_bytes: number; kind: string; app_id: number | null }>; done: boolean; cancelled: boolean; started: number }
+export async function importScanProgress(): Promise<ImportScanProgress | null> {
+  if (!hasTauriRuntime()) return null;
+  return invoke<ImportScanProgress | null>("import_scan_progress");
+}
+/** "Stop": the scan ends at the next folder and still returns what it found. */
+export async function importScanStop(): Promise<void> {
+  if (!hasTauriRuntime()) return;
+  await invoke("import_scan_stop");
+}
+
 export async function freezeSignal(appId: number, signal: "cancel" | "pause" | "resume"): Promise<void> {
   if (!hasTauriRuntime()) return;
   await invoke("freeze_signal", { appId, signal });

@@ -1,0 +1,43 @@
+/* The import scan while it runs (ScanProgress.tsx): a hard disk at work, the folder being read and the games found. */
+.ga-scan { display: grid; gap: 16px; }
+.ga-scan-top { display: flex; align-items: center; gap: 22px; padding: 16px 18px; border-radius: 12px; border: 1px solid #ffffff14; background: #0b0e11b3; }
+.ga-scan-disk { width: 104px; height: 104px; flex: none; }
+.ga-scan-case { fill: #1a1f24; stroke: #ffffff1f; stroke-width: 1.5; }
+.ga-scan-plate { fill: #2a3138; stroke: #ffffff26; }
+.ga-scan-track { fill: none; stroke: #ffffff12; stroke-width: .8; }
+.ga-scan-sector { fill: #cc833329; }
+.ga-scan-hub { fill: #14181c; stroke: #ffffff30; }
+.ga-scan-platter { transform-origin: 56px 56px; animation: ga-scan-spin 1.1s linear infinite; }
+/* The head goes in and out across the platter, as a disk does when it reads all over the place. */
+.ga-scan-arm { transform-origin: 102px 100px; animation: ga-scan-seek 2.4s ease-in-out infinite; }
+.ga-scan-pivot { fill: #3a434c; stroke: #ffffff30; }
+.ga-scan-rod { stroke: #c9ced2; stroke-width: 3.2; stroke-linecap: round; }
+.ga-scan-head { fill: #cc8333; }
+.ga-scan-led { fill: #cc8333; animation: ga-scan-led .35s steps(2, jump-none) infinite; }
+@keyframes ga-scan-spin { to { transform: rotate(360deg); } }
+@keyframes ga-scan-seek { 0%, 100% { transform: rotate(0deg); } 20% { transform: rotate(-14deg); } 45% { transform: rotate(-4deg); } 70% { transform: rotate(-22deg); } 85% { transform: rotate(-9deg); } }
+@keyframes ga-scan-led { 0% { opacity: 1; } 100% { opacity: .25; } }
+
+.ga-scan-status { min-width: 0; flex: 1; display: grid; gap: 6px; }
+.ga-scan-eyebrow { font: 800 10px Manrope, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #cc8333; }
+/* Cut at the start, so the end of a long path (the folder's own name) stays in view. */
+.ga-scan-folder { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; text-align: left;
+  font: 12.5px/1.4 "Cascadia Mono", Consolas, monospace; color: #e7eaec; }
+.ga-scan-counts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: #929ba2; font-variant-numeric: tabular-nums; }
+
+/* The games found: a list with its own height and scroll, the newest one sliding in at the bottom. */
+.ga-scan-list-frame { position: relative; min-height: 0; }
+.ga-scan-list { max-height: 240px; min-height: 120px; overflow-y: auto; padding-right: 28px; scrollbar-width: none; }
+.ga-scan-list::-webkit-scrollbar { display: none; }
+.ga-scan-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ga-scan-list li { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-radius: 8px; border: 1px solid #ffffff12; background: #ffffff08;
+  font-size: 13px; animation: ga-scan-found .45s cubic-bezier(.2, .8, .2, 1); }
+.ga-scan-list li b { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 700; color: #f4f4f2; }
+.ga-scan-kind { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #c9ced2; background: #ffffff10; }
+.ga-scan-size { flex: none; min-width: 70px; text-align: right; font-size: 12px; color: #929ba2; font-variant-numeric: tabular-nums; }
+.ga-scan-empty { margin: 0; padding: 18px 4px; font-size: 13px; color: #929ba2; }
+@keyframes ga-scan-found { from { opacity: 0; transform: translateY(8px); background: #cc833333; } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ga-scan-platter, .ga-scan-arm, .ga-scan-led, .ga-scan-list li { animation: none; }
+}

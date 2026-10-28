@@ -116,8 +116,13 @@ class DigitalProcessRunner:
                 if action == "import-drives":
                     return {**result, "ok": True, "drives": library.import_drives()}
                 if action == "import-scan":
+                    # Live: the app reads .cache/import_scan/progress.json while it runs and writes "cancel" to stop it.
+                    from game_scanner.live import ScanReport
+                    from launcher_data import data_dir
                     request = json.loads(command or "{}")
-                    return {**result, "ok": True, "candidates": library.import_scan(request.get("drives", []), folders=request.get("folders", []))}
+                    report = ScanReport(data_dir(self.storage.launcher) / ".cache" / "import_scan")
+                    candidates = library.import_scan(request.get("drives", []), folders=request.get("folders", []), report=report)
+                    return {**result, "ok": True, "candidates": candidates, "cancelled": report.state["cancelled"]}
                 if action == "import-run":
                     return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
                 if action == "library-autofreeze":

@@ -1,6 +1,8 @@
 import { GaButton, GaClose } from "../components/ga/Buttons";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, Folder, FolderPlus, HardDrive, Link2, Loader2, MoveRight, ScanSearch, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Folder, FolderPlus, HardDrive, Link2, Loader2, MoveRight, ScanSearch, Square, X } from "lucide-react";
+import { importScanProgress, importScanStop, type ImportScanProgress } from "../native";
+import { ScanProgress } from "./ScanProgress";
 import CircularScrollbar from "../CircularScrollbar";
 import { digitalProcessManager, type ImportCandidate, type ImportDrive, type ImportItem } from "../catalog/DigitalProcessManager";
 import { libraryDemo } from "../libraryScan";
@@ -43,6 +45,22 @@ const demoCandidates: ImportCandidate[] = [
   { id: "c", name: "Mystery Folder", path: "C:\\Users\\me\\Downloads\\Mystery Folder", kind: "folder", source: "downloads", app_id: null, size_bytes: 3 * 1024 ** 3, executable: "go.exe", can_move: true },
 ];
 
+const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+/** The browser design modes: a scan that walks a few made-up folders, finds the sample games and can be stopped. */
+async function demoScan(show: (progress: ImportScanProgress) => void, stopped: () => boolean): Promise<{ candidates: ImportCandidate[]; cancelled: boolean }> {
+  const folders = ["C:\\", "C:\\Users\\me\\Downloads", "C:\\Users\\me\\Downloads\\Mystery Folder", "C:\\Games", "D:\\", "D:\\SteamLibrary\\steamapps", "D:\\SteamLibrary\\steamapps\\common\\Hades", "D:\\Games", "D:\\Games\\Repacks", "D:\\Games\\Elden.Ring.v1.10-FitGirl", "D:\\Games\\Elden.Ring.v1.10-FitGirl\\Game", "D:\\Games\\Tools"];
+  const finds: Record<number, ImportCandidate> = { 2: demoCandidates[2], 6: demoCandidates[0], 9: demoCandidates[1] };
+  const found: ImportCandidate[] = [];
+  for (const [index, folder] of folders.entries()) {
+    if (stopped()) break;
+    await sleep(650);
+    if (finds[index]) found.push(finds[index]);
+    show({ folder, folders: (index + 1) * 37, found: found.map(game => ({ name: game.name, path: game.path, size_bytes: game.size_bytes, kind: game.kind, app_id: game.app_id })), done: false, cancelled: false, started: Date.now() });
+  }
+  return { candidates: found, cancelled: stopped() };
+}
+
 /** Import wizard: choose disks → scan the usual places → review what was found → link in place or move into the library. */
 export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; c: LibraryCopy; onClose: (imported: boolean) => void }) {
   const [step, setStep] = useState<Step>("drives");
@@ -75,6 +93,12 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const [message, setMessage] = useState("");
   const [results, setResults] = useState<Array<{ name: string; ok: boolean; error?: string }>>([]);
   const [cacheNames, setCacheNames] = useState<Map<number, string>>(new Map());
+  // The scan as it runs (folder being read, games found) and the player's "Stop".
+  const [live, setLive] = useState<ImportScanProgress | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [stoppedEarly, setStoppedEarly] = useState(false);
+  const stopRequested = useRef(false);
+  const stop = () => { stopRequested.current = true; setStopping(true); if (!demo()) void importScanStop(); };
   const scrollRef = useRef<HTMLDivElement>(null);
   const imported = useRef(false);
 
@@ -95,9 +119,16 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   const nameOf = (appId: number) => catalogName.get(appId) ?? cacheNames.get(appId);
 
   const scan = async () => {
-    setStep("scanning"); setMessage("");
+    setStep("scanning"); setMessage(""); setLive(null); setStopping(false); setStoppedEarly(false);
+    stopRequested.current = false;
+    // While the launcher scans, its progress file is read a few times a second (no Python started for it).
+    const poll = demo() ? 0 : window.setInterval(() => { void importScanProgress().then(progress => { if (progress && !progress.done) setLive(progress); }).catch(() => undefined); }, 400);
     try {
-      const found = demo() ? demoCandidates : (await digitalProcessManager.importScan([...chosen], pickedFolders)).candidates ?? [];
+      const outcome = demo() ? await demoScan(setLive, () => stopRequested.current)
+        : await digitalProcessManager.importScan([...chosen], pickedFolders).then(result => ({ candidates: result.candidates ?? [], cancelled: Boolean(result.cancelled) }));
+      window.clearInterval(poll);
+      setStoppedEarly(outcome.cancelled);
+      const found = outcome.candidates;
       setRows(found.map(candidate => {
         const options = candidate.app_id != null ? [] : suggest(candidate.name, catalog);
         const choice = candidate.app_id ?? options[0]?.id ?? null;
@@ -109,7 +140,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
         setCacheNames(new Map(known.items.map(game => [(game.app_id ?? game.id) as number, game.name])));
       }
       setStep("results");
-    } catch (failure) { setMessage(String(failure)); setStep("drives"); }
+    } catch (failure) { window.clearInterval(poll); setMessage(String(failure)); setStep("drives"); }
   };
   const patch = (id: string, change: Partial<Row>) => setRows(current => current.map(row => row.candidate.id === id ? { ...row, ...change } : row));
   const repeated = useMemo(() => duplicateRows(rows.map(row => ({ id: row.candidate.id, path: row.candidate.path, choice: row.choice, duplicateOf: row.candidate.duplicate_of }))), [rows]);
@@ -135,7 +166,8 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
   };
 
   const body = (() => {
-    if (step === "drives" || step === "scanning") return (
+    if (step === "scanning") return <ScanProgress progress={live} c={c} />;
+    if (step === "drives") return (
       <div className="grid gap-4">
         <h3 className="m-0 text-lg font-bold">{c.wzDrives}</h3>
         <p className="m-0 text-sm text-muted-foreground">{c.wzDrivesHint}</p>
@@ -145,7 +177,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
           {drives.map(drive => (
             <li key={drive.path}>
               <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2" title={`${formatBytes(drive.free_bytes)} ${c.wzFree} ${formatBytes(drive.total_bytes)}`}>
-                <Checkbox checked={chosen.has(drive.path)} disabled={step === "scanning"} onCheckedChange={value => setChosen(current => { const next = new Set(current); if (value) next.add(drive.path); else next.delete(drive.path); return next; })} aria-label={drive.label} />
+                <Checkbox checked={chosen.has(drive.path)} onCheckedChange={value => setChosen(current => { const next = new Set(current); if (value) next.add(drive.path); else next.delete(drive.path); return next; })} aria-label={drive.label} />
                 <HardDrive className="size-4 text-muted-foreground" />
                 <b>{drive.label}</b>
                 <span className="text-xs text-muted-foreground">{formatBytes(drive.free_bytes)}</span>
@@ -159,20 +191,20 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
           {folders.map(item => (
             <li key={item.path} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
               <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
-                <Checkbox checked={item.on} disabled={step === "scanning"} onCheckedChange={value => setFolders(folders.map(other => other.path === item.path ? { ...other, on: Boolean(value) } : other))} />
+                <Checkbox checked={item.on} onCheckedChange={value => setFolders(folders.map(other => other.path === item.path ? { ...other, on: Boolean(value) } : other))} />
                 <Folder className="size-5 shrink-0 text-muted-foreground" />
                 <span className="truncate text-sm" title={item.path}>{item.path}</span>
               </label>
-              <button type="button" className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-transparent text-muted-foreground hover:text-foreground" aria-label={c.wzRemoveFolder(item.path)} title={c.wzRemoveFolder(item.path)} disabled={step === "scanning"} onClick={() => setFolders(folders.filter(other => other.path !== item.path))}><X className="size-4" /></button>
+              <button type="button" className="grid size-8 shrink-0 place-items-center rounded-md border border-border bg-transparent text-muted-foreground hover:text-foreground" aria-label={c.wzRemoveFolder(item.path)} title={c.wzRemoveFolder(item.path)} onClick={() => setFolders(folders.filter(other => other.path !== item.path))}><X className="size-4" /></button>
             </li>
           ))}
         </ul> : null}
         {nativePicker ? <div className="flex">
-          <GaButton icon={<FolderPlus size={16} />} disabled={step === "scanning"} onClick={() => void pickFolders()}>{c.wzAddFolder}</GaButton>
+          <GaButton icon={<FolderPlus size={16} />} onClick={() => void pickFolders()}>{c.wzAddFolder}</GaButton>
         </div> : <form className="flex gap-2" onSubmit={event => { event.preventDefault(); addFolder(); }}>
-          <input value={folderDraft} onChange={event => setFolderDraft(event.target.value)} disabled={step === "scanning"} placeholder={c.wzFolderPath} aria-label={c.wzFolderPath}
+          <input value={folderDraft} onChange={event => setFolderDraft(event.target.value)} placeholder={c.wzFolderPath} aria-label={c.wzFolderPath}
             className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-[#0d1114] px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
-          <GaButton type="submit" icon={<FolderPlus size={16} />} disabled={step === "scanning" || !folderDraft.trim()}>{c.wzAddFolder}</GaButton>
+          <GaButton type="submit" icon={<FolderPlus size={16} />} disabled={!folderDraft.trim()}>{c.wzAddFolder}</GaButton>
         </form>}
         {message ? <p role="alert" className="m-0 text-sm text-[#e1898f]">{message}</p> : null}
       </div>
@@ -244,6 +276,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
             <CircularScrollbar targetRef={scrollRef} label={c.wzTitle} />
           </div>
         )}
+        {stoppedEarly ? <p role="status" className="m-0 text-sm text-amber-300">{c.wzStopped}</p> : null}
         {rows.length ? <p className="m-0 text-sm font-bold">{c.wzFound(rows.length)}</p> : null}
       </div>
     );
@@ -259,7 +292,9 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
         <footer className="flex justify-end gap-2">
           {step === "results" ? <GaButton icon={<ArrowLeft size={16} />} onClick={() => setStep("drives")}>{c.wzBack}</GaButton> : null}
-          {step === "drives" || step === "scanning" ? <GaButton variant="primary" icon={step === "scanning" ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} disabled={step === "scanning" || (chosen.size === 0 && pickedFolders.length === 0)} onClick={() => void scan()}>{step === "scanning" ? c.wzScanning : c.wzScan}</GaButton> : null}
+          {/* While it scans, the main button stops it; what was found until then is still offered. */}
+          {step === "scanning" ? <GaButton icon={stopping ? <Loader2 size={16} className="animate-spin" /> : <Square size={14} fill="currentColor" />} disabled={stopping} onClick={stop}>{stopping ? c.wzStopping : c.wzStop}</GaButton> : null}
+          {step === "drives" ? <GaButton variant="primary" icon={<ScanSearch size={16} />} disabled={chosen.size === 0 && pickedFolders.length === 0} onClick={() => void scan()}>{c.wzScan}</GaButton> : null}
           {step === "results" ? <GaButton variant="primary" disabled={chosenRows.length === 0} onClick={() => void run()}>{c.wzImport(chosenRows.length)}</GaButton> : null}
           {step === "done" ? <GaButton variant="primary" onClick={() => onClose(imported.current)}>{c.wzClose}</GaButton> : null}
         </footer>

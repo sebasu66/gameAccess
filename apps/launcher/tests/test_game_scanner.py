@@ -287,3 +287,27 @@ def test_game_folders_get_plain_short_names(tmp_path):
     assert name("Pokémon® Legends: Árceus") == "Pokemon_Legends_Arceus"
     assert len(name("The Witcher 3: Wild Hunt – Complete Edition (Game of the Year) Remastered Deluxe")) <= 40
     assert name("???") == "game"
+
+
+def test_the_scan_reports_folders_and_games_live_for_the_app(disk, tmp_path):
+    from game_scanner.live import ScanReport, read
+    live = tmp_path / "live"
+    games = GameScanner(report=ScanReport(live)).scan([str(disk)])
+    state = read(live)
+    assert state["done"] and not state["cancelled"] and state["folders"] >= 3
+    assert {g["name"] for g in state["found"]} == {g["name"] for g in games}
+
+
+def test_stop_ends_the_scan_and_keeps_what_was_found(disk, tmp_path):
+    from game_scanner.live import ScanReport, read
+    live = tmp_path / "live"
+    report = ScanReport(live)
+    seen = []
+
+    def stop_after_first(game):
+        seen.append(game["name"])
+        (live / "cancel").write_text("")      # the app's "Stop", right after the first game
+    report.found = stop_after_first
+    games = GameScanner(report=report).scan([str(disk)])
+    assert read(live)["cancelled"] and len(games) == 1 == len(seen)
+    assert not (live / "cancel").exists()   # the next scan starts clean

@@ -8,6 +8,7 @@ import time
 import unicodedata
 from pathlib import Path
 import app_log
+from .live import ScanCancelled, ScanReport
 
 MIN_GAME_BYTES = 200 * 1024 ** 2
 MAX_FILES = 60000            # per candidate: stop counting a huge tree rather than crawl it for minutes
@@ -111,10 +112,12 @@ def _acf(text: str, key: str) -> str:
 
 
 class GameScanner:
-    def __init__(self, exclude=(), known_app_ids=(), progress=lambda text: None):
+    def __init__(self, exclude=(), known_app_ids=(), progress=lambda text: None, report: ScanReport | None = None):
         self.exclude = [Path(p).resolve() for p in exclude]
         self.known = {int(i) for i in known_app_ids}
         self.progress = progress
+        # The folder being read and each game found, for the app to show live; also where "Stop" is asked (live.py).
+        self.report = report or ScanReport()
         self.log = app_log.manager_logger("importer")
         self._deadline = 0.0
 
@@ -148,32 +151,49 @@ class GameScanner:
         (each game folder in them, or the folder itself when it is one game). Steam games carry their AppID."""
         self._deadline = time.time() + MAX_SECONDS
         found: dict[str, dict] = {}
-        for folder in folders:
-            for game in self._scan_folder(Path(folder)):
-                found.setdefault(game["path"], game)
-        for drive in drives:
-            root = Path(drive)
-            if not _is_dir(root):
-                continue
-            self.progress(f"Buscando en {drive}")
-            try:
-                for steamapps in self._steam_libraries(root):
-                    for game in self._steam_games(steamapps):
-                        found.setdefault(game["path"], game)
-                for container, source in self._containers(root):
-                    if source == "steam":
-                        continue            # the Steam client folder itself holds no loose games
-                    self.progress(f"Revisando {container}")
-                    for sub in self._subdirs(container):
-                        for game in self._collect(sub, source, 1):
-                            found.setdefault(game["path"], game)
-            except OSError as error:
-                self.log.warning("Scan of %s interrupted: %s", drive, error)
+
+        def keep(game: dict) -> None:
+            if game["path"] in found:
+                return
+            found[game["path"]] = game
+            if not self._excluded(Path(game["path"])) and game.get("app_id") not in self.known:
+                self.report.found(game)
+
+        cancelled = False
+        try:
+            for folder in folders:
+                for game in self._scan_folder(Path(folder)):
+                    keep(game)
+            for drive in drives:
+                root = Path(drive)
+                if not _is_dir(root):
+                    continue
+                self.progress(f"Buscando en {drive}")
+                self.report.folder(root)
+                try:
+                    for steamapps in self._steam_libraries(root):
+                        self.report.folder(steamapps)
+                        for game in self._steam_games(steamapps):
+                            keep(game)
+                    for container, source in self._containers(root):
+                        if source == "steam":
+                            continue            # the Steam client folder itself holds no loose games
+                        self.progress(f"Revisando {container}")
+                        for sub in self._subdirs(container):
+                            for game in self._collect(sub, source, 1):
+                                keep(game)
+                except OSError as error:
+                    self.log.warning("Scan of %s interrupted: %s", drive, error)
+        except ScanCancelled:
+            # Stopped by the player: what was found so far is still offered.
+            cancelled = True
+            self.log.info("Game scan stopped by the player after %s folders", self.report.state["folders"])
         games = [g for g in found.values() if not self._excluded(Path(g["path"])) and not (g.get("app_id") in self.known)]
         games = self._apply_steam_info(games, drives)
         self._mark_duplicates(games)
         games.sort(key=lambda g: g["size_bytes"], reverse=True)
         self.log.info("Game scan on %s: %s candidates (%s Steam)", drives, len(games), sum(1 for g in games if g["kind"] == "steam"))
+        self.report.finish(cancelled)
         return games
 
     def _scan_folder(self, folder: Path) -> list[dict]:
@@ -183,6 +203,7 @@ class GameScanner:
             self.log.info("Import scan: chosen folder %s does not exist", folder)
             return []
         self.progress(f"Revisando {folder}")
+        self.report.folder(folder)
         games: list[dict] = []
         try:
             for steamapps in (folder / "steamapps", folder / "Steam" / "steamapps"):
@@ -313,6 +334,7 @@ class GameScanner:
     def _collect(self, folder: Path, source: str, depth: int) -> list[dict]:
         if time.time() > self._deadline:
             return []
+        self.report.folder(folder)
         if is_steam_path(folder):
             return []                       # Steam libraries are read through their manifests
         if is_ignored_software(folder.name):
@@ -347,8 +369,12 @@ class GameScanner:
         total, files, best, best_size, top, top_size = 0, 0, "", 0, "", 0
         declared: dict[str, tuple[int, str]] = {}   # lower-case file name -> (AppID, file name as written)
         stack = [(str(folder), 0)]
+        read = 0
         while stack and files < MAX_FILES:
             current, depth = stack.pop()
+            read += 1
+            if read % 200 == 0 and self.report.cancelled():
+                raise ScanCancelled()           # a huge game tree must not hold up "Stop"
             try:
                 with os.scandir(current) as entries:
                     for entry in entries:

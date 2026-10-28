@@ -38,6 +38,8 @@ export interface ProcessExecutionResult {
   library?: LibraryGame[];
   drives?: ImportDrive[];
   candidates?: ImportCandidate[];
+  /** The player stopped the import scan: `candidates` are the games found until then. */
+  cancelled?: boolean;
   transfers?: LibraryTransfer[];
   usage?: LibraryUsage;
   plans?: LibraryPlan[];
